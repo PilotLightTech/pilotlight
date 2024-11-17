@@ -53,9 +53,6 @@ typedef int plNetworkResult;       // -> enum _plNetworkResult // Enum:
 
 typedef struct _plNetworkI
 {
-    // setup/shutdown
-    plNetworkResult (*initialize)(void);
-    void            (*shutdown)  (void);
 
     // addresses
     plNetworkResult (*create_address) (const char* address, const char* service, plNetworkAddressFlags, plNetworkAddress** addressPtrOut);

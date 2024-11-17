@@ -1,5 +1,5 @@
 /*
-   pl_atomics_ext.h
+   pl_window_ext.h
 */
 
 /*
@@ -10,63 +10,79 @@ Index of this file:
 // [SECTION] forward declarations
 // [SECTION] public api
 // [SECTION] enums
+// [SECTION] structs
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_ATOMICS_EXT_H
-#define PL_ATOMICS_EXT_H
+#ifndef PL_WINDOW_EXT_H
+#define PL_WINDOW_EXT_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
 #include <stdint.h>
-#include <stdbool.h>
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plAtomicsI_version (plVersion){1, 0, 0}
+#define plWindowI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plAtomicCounter plAtomicCounter; // opaque type
+typedef struct _plWindow     plWindow;
+typedef struct _plWindowDesc plWindowDesc;
 
 // enums
-typedef int plAtomicsResult; // -> enum _plAtomicsResult // Enum:
+typedef int plWindowResult; // -> enum _plWindowResult // Enum:
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-typedef struct _plAtomicsI
+typedef struct _plWindowI
 {
 
-    plAtomicsResult (*create_atomic_counter)  (int64_t value, plAtomicCounter** counterPtrOut);
-    void            (*destroy_atomic_counter) (plAtomicCounter**);
-    void            (*atomic_store)           (plAtomicCounter*, int64_t value);
-    int64_t         (*atomic_load)            (plAtomicCounter*);
-    bool            (*atomic_compare_exchange)(plAtomicCounter*, int64_t expectedValue, int64_t desiredValue);
-    int64_t         (*atomic_increment)       (plAtomicCounter*);
-    int64_t         (*atomic_decrement)       (plAtomicCounter*);
-
-} plAtomicsI;
+    plWindowResult (*create_window) (plWindowDesc, plWindow** windowPtrOut);
+    void           (*destroy_window)(plWindow*);
+    
+} plWindowI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
-enum _plAtomicsResult
+enum _plWindowResult
 {
-    PL_ATOMICS_RESULT_FAIL    = 0,
-    PL_ATOMICS_RESULT_SUCCESS = 1
+    PL_WINDOW_RESULT_FAIL    = 0,
+    PL_WINDOW_RESULT_SUCCESS = 1
 };
 
-#endif // PL_ATOMICS_EXT_H
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
+
+typedef struct _plWindowDesc
+{
+    const char* pcTitle;
+    uint32_t    uWidth;
+    uint32_t    uHeight;
+    int         iXPos;
+    int         iYPos;
+    const void* pNext;
+} plWindowDesc;
+
+typedef struct _plWindow
+{
+    plWindowDesc tDesc;
+    void*        _pPlatformData;
+} plWindow;
+
+#endif // PL_WINDOW_EXT_H

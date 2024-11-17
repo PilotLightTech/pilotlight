@@ -3,8 +3,8 @@
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_EXT_INC
-#define PL_EXT_INC
+#ifndef PL_UNITY_EXT_INC
+#define PL_UNITY_EXT_INC
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
@@ -50,4 +50,4 @@ static struct _plIO* gptIO = 0;
     #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 #endif
 
-#endif // PL_EXT_INC
+#endif // PL_UNITY_EXT_INC

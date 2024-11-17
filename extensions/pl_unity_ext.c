@@ -1,5 +1,5 @@
 /*
-    pl_ext.c
+    pl_unity_ext.c
       * unity build for stable extensions
 */
 
@@ -14,21 +14,29 @@ Index of this file:
 // [SECTION] unity build #1
 //-----------------------------------------------------------------------------
 
-#include "pl_image_ext.c"
-#include "pl_rect_pack_ext.c"
-#include "pl_stats_ext.c"
-#include "pl_job_ext.c"
-#include "pl_string_intern_ext.c"
+#include "pl.h"
 
 #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
     #include "pl_shader_ext.c"
 #endif
 
+#include "pl_image_ext.c"
+#include "pl_rect_pack_ext.c"
+#include "pl_stats_ext.c"
+#include "pl_job_ext.c"
+#include "pl_string_intern_ext.c"
 #include "pl_draw_ext.c"
 #include "pl_draw_backend_ext.c"
 #include "pl_gpu_allocators_ext.c"
 #include "pl_ui_ext.c"
 #include "pl_graphics_ext.c"
+#include "pl_ecs_ext.c"
+#include "pl_atomics_ext.h"
+#include "pl_network_ext.h"
+#include "pl_resource_ext.c"
+#include "pl_model_loader_ext.c"
+#include "pl_renderer_ext.c"
+#include "pl_debug_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -55,10 +63,15 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptDraw              = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptDrawBackend       = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptUI                = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptECS               = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptCamera            = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptResource          = pl_get_api_latest(ptApiRegistry, plResourceI);
+    gptIO = gptIOI->get_io();
+
 
     // misc
-    pl_set_profile_context(gptDataRegistry->get_data("profile"));
-    pl_set_log_context(gptDataRegistry->get_data("log"));
+    pl_set_profile_context(gptDataRegistry->get_data(PL_PROFILE_CONTEXT_NAME));
+    pl_set_log_context(gptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
 
     pl_load_image_ext(ptApiRegistry, bReload);
     pl_load_rect_pack_ext(ptApiRegistry, bReload);
@@ -76,8 +89,11 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
     #endif
 
-
-    gptIO = gptIOI->get_io();
+    pl_load_ecs_ext(ptApiRegistry, bReload);
+    pl_load_resource_ext(ptApiRegistry, bReload);
+    pl_load_model_loader_ext(ptApiRegistry, bReload);
+    pl_load_renderer_ext(ptApiRegistry, bReload);
+    pl_load_debug_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -96,6 +112,11 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_draw_ext(ptApiRegistry, bReload);
     pl_unload_draw_backend_ext(ptApiRegistry, bReload);
     pl_unload_ui_ext(ptApiRegistry, bReload);
+    pl_unload_ecs_ext(ptApiRegistry, bReload);
+    pl_unload_resource_ext(ptApiRegistry, bReload);
+    pl_unload_model_loader_ext(ptApiRegistry, bReload);
+    pl_unload_renderer_ext(ptApiRegistry, bReload);
+    pl_unload_debug_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------
@@ -145,3 +166,12 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 #undef STB_TRUETYPE_IMPLEMENTATION
+
+
+#define PL_STL_IMPLEMENTATION
+#include "pl_stl.h"
+#undef PL_STL_IMPLEMENTATION
+
+#define CGLTF_IMPLEMENTATION
+#include "cgltf.h"
+#undef CGLTF_IMPLEMENTATION

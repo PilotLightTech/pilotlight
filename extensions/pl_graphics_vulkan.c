@@ -24,7 +24,6 @@ Index of this file:
 #include "pl_log.h"
 #include "pl_string.h"
 #include "pl_memory.h"
-#include "pl_ext.inc"
 #include "pl_graphics_internal.h"
 
 // vulkan surface stuff
@@ -2621,7 +2620,7 @@ pl_create_device(const plDeviceInit* ptInit)
     PL_VULKAN(vkEnumeratePhysicalDevices(gptGraphics->tInstance, &uDeviceCount, atDevices));
 
     plDeviceInfo atDeviceInfos[16] = {0};
-    gptGfx->enumerate_devices(atDeviceInfos, &uDeviceCount);
+    pl_enumerate_devices(atDeviceInfos, &uDeviceCount);
 
     // user decided on device
     ptDevice->tPhysicalDevice = atDevices[ptInit->uDeviceIdx];

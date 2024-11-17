@@ -12,6 +12,7 @@ Index of this file:
 // [SECTION] public api implementation
 // [SECTION] internal api implementation
 // [SECTION] extension loading
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -24,13 +25,18 @@ Index of this file:
 #include "pl_draw_ext.h"
 #include "pl_ds.h"
 #include "pl_memory.h"
+#include "pl_string.h"
 
-// extensions
-#include "pl_ext.inc"
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#endif
 
 // stb libs
 #include "stb_rect_pack.h"
 #include "stb_truetype.h"
+
+// extensions
+#include "pl_file_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -65,21 +71,6 @@ typedef struct _plFontChar
     float    xOff2;
     float    yOff2;
 } plFontChar;
-
-typedef struct _plFontGlyph
-{
-    float x0;
-    float y0;
-    float u0;
-    float v0;
-    float x1;
-    float y1;
-    float u1;
-    float v1;
-    float fXAdvance;
-    float fLeftBearing;  
-    int   iSDF : 1;
-} plFontGlyph;
 
 typedef struct _plDrawLayer2D
 {
@@ -133,6 +124,21 @@ static unsigned char*        ptrBarrierOutE_ = NULL;
 static unsigned char*        ptrBarrierOutB_ = NULL;
 static const unsigned char * ptrBarrierInB_;
 static unsigned char*        ptrDOut_ = NULL;
+
+#ifndef PL_UNITY_BUILD
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
+    static const plFileI* gptFile = NULL;
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -1496,8 +1502,8 @@ static plFont*
 pl_add_font_from_file_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile)
 {
     size_t szFileSize = 0;
-    plOSResult tResult = gptFile->binary_read(pcFile, &szFileSize, NULL);
-    if(tResult !=  PL_OS_RESULT_SUCCESS)
+    plFileResult tResult = gptFile->binary_read(pcFile, &szFileSize, NULL);
+    if(tResult !=  PL_FILE_RESULT_SUCCESS)
         return NULL;
 
     uint8_t* puData = PL_ALLOC(szFileSize);
@@ -1505,7 +1511,7 @@ pl_add_font_from_file_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, const char
 
     tResult = gptFile->binary_read(pcFile, &szFileSize, puData);
 
-    if(tResult !=  PL_OS_RESULT_SUCCESS)
+    if(tResult !=  PL_FILE_RESULT_SUCCESS)
     {
         PL_FREE(puData);
         return NULL;
@@ -3533,7 +3539,7 @@ pl__find_glyph(plFont* ptFont, uint32_t c)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+PL_EXPORT void
 pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plDrawI tApi = {
@@ -3610,17 +3616,26 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plDrawI, &tApi);
 
+
+    #ifndef PL_UNITY_BUILD
+        gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    #endif
+
+
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+
+
     if(bReload)
-        gptDrawCtx = gptDataRegistry->get_data("plDrawContext");
+        gptDrawCtx = ptDataRegistry->get_data("plDrawContext");
     else  // first load
     {
         static plDrawContext tCtx = {0};
         gptDrawCtx = &tCtx;
-        gptDataRegistry->set_data("plDrawContext", gptDrawCtx);
+        ptDataRegistry->set_data("plDrawContext", gptDrawCtx);
     }
 }
 
-static void
+PL_EXPORT void
 pl_unload_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
@@ -3629,3 +3644,33 @@ pl_unload_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plDrawI* ptApi = pl_get_api_latest(ptApiRegistry, plDrawI);
     ptApiRegistry->remove_api(ptApi);
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
+
+#ifndef PL_UNITY_BUILD
+
+    #define PL_MEMORY_IMPLEMENTATION
+    #include "pl_memory.h"
+    #undef PL_MEMORY_IMPLEMENTATION
+
+    #define PL_STRING_IMPLEMENTATION
+    #include "pl_string.h"
+    #undef PL_STRING_IMPLEMENTATION
+
+    #define STB_RECT_PACK_IMPLEMENTATION
+    #include "stb_rect_pack.h"
+    #undef STB_RECT_PACK_IMPLEMENTATION
+
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
+    #define STB_TRUETYPE_IMPLEMENTATION
+    #include "stb_truetype.h"
+    #undef STB_TRUETYPE_IMPLEMENTATION
+
+#endif

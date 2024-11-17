@@ -10,6 +10,7 @@ Index of this file:
 // [SECTION] internal api
 // [SECTION] internal api implementation
 // [SECTION] extension loading
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -35,7 +36,14 @@ Index of this file:
 #include "pl_stats_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_gpu_allocators_ext.h"
-#include "pl_ext.inc"
+
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#endif
+
+#ifndef PL_DEVICE_BUDDY_BLOCK_SIZE
+    #define PL_DEVICE_BUDDY_BLOCK_SIZE 268435456
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -68,6 +76,30 @@ typedef struct _plDebugContext
 //-----------------------------------------------------------------------------
 
 static plDebugContext* gptDebugCtx = NULL;
+
+#ifndef PL_UNITY_BUILD
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
+    static const plDataRegistryI*  gptDataRegistry  = NULL;
+    static const plGraphicsI*      gptGfx           = NULL;
+    static const plStatsI*         gptStats         = NULL;
+    static const plGPUAllocatorsI* gptGpuAllocators = NULL;
+    static const plDrawI*          gptDraw          = NULL;
+    static const plUiI*            gptUI            = NULL;
+    static const plIOI*            gptIOI           = NULL;
+
+    static plIO* gptIO = NULL;
+
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -1077,7 +1109,7 @@ pl__show_logging(bool* bValue)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+PL_EXPORT void
 pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
@@ -1085,6 +1117,17 @@ pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .show_debug_windows = pl_show_debug_windows
     };
     pl_set_api(ptApiRegistry, plDebugApiI, &tApi);
+
+    #ifndef PL_UNITY_BUILD
+        gptDataRegistry  = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+        gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptIOI           = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
+        gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
+        gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
+    #endif
 
     if(bReload)
     {
@@ -1100,7 +1143,7 @@ pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-static void
+PL_EXPORT void
 pl_unload_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
@@ -1118,3 +1161,29 @@ pl_unload_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_temp_allocator_free(&gptDebugCtx->tTempAllocator);
     gptDebugCtx = NULL;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
+
+#ifndef PL_UNITY_BUILD
+
+    #define PL_LOG_IMPLEMENTATION
+    #include "pl_log.h"
+    #undef PL_LOG_IMPLEMENTATION
+
+    #define PL_PROFILE_IMPLEMENTATION
+    #include "pl_profile.h"
+    #undef PL_PROFILE_IMPLEMENTATION
+
+    #define PL_MEMORY_IMPLEMENTATION
+    #include "pl_memory.h"
+    #undef PL_MEMORY_IMPLEMENTATION
+
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
+#endif

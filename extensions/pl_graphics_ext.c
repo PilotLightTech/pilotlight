@@ -1,14 +1,12 @@
-#include "pl_ds.h"
-#include "pl_log.h"
-#include "pl_graphics_ext.h"
+
 #include "pl_graphics_internal.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
 #ifdef PL_VULKAN_BACKEND
-#include "pl_graphics_vulkan.c"
+    #include "pl_graphics_vulkan.c"
 #elif PL_METAL_BACKEND
-#include "pl_graphics_metal.m"
+    #include "pl_graphics_metal.m"
 #else
 #endif
 
@@ -661,7 +659,7 @@ pl_get_swapchain_info(plSwapchain* ptSwap)
     return ptSwap->tInfo;
 }
 
-static void
+PL_EXPORT void
 pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plGraphicsI tApi = {
@@ -771,6 +769,8 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
 
+    gptThreads = pl_get_api_latest(ptApiRegistry, plThreadsI);
+
     if(bReload)
     {
         gptGraphics = gptDataRegistry->get_data("plGraphics");
@@ -778,7 +778,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-static void
+PL_EXPORT void
 pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
@@ -787,3 +787,29 @@ pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plGraphicsI* ptApi = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     ptApiRegistry->remove_api(ptApi);
 }
+
+#ifndef PL_UNITY_BUILD
+
+    #define PL_LOG_IMPLEMENTATION
+    #include "pl_log.h"
+    #undef PL_LOG_IMPLEMENTATION
+
+    #define PL_PROFILE_IMPLEMENTATION
+    #include "pl_profile.h"
+    #undef PL_PROFILE_IMPLEMENTATION
+
+    #define PL_STRING_IMPLEMENTATION
+    #include "pl_string.h"
+    #undef PL_STRING_IMPLEMENTATION
+
+    #define PL_MEMORY_IMPLEMENTATION
+    #include "pl_memory.h"
+    #undef PL_MEMORY_IMPLEMENTATION
+
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
+#endif

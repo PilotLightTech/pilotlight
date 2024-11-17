@@ -24,7 +24,18 @@ Index of this file:
 // extensions
 #include "pl_shader_ext.h"
 #include "pl_graphics_ext.h"
-#include "pl_ext.inc"
+#include "pl_file_ext.h"
+
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    static const plFileI* gptFile = NULL;
+#endif
 
 // external
 #ifndef PL_OFFLINE_SHADERS_ONLY
@@ -410,7 +421,7 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
 // [SECTION] script loading
 //-----------------------------------------------------------------------------
 
-static void
+PL_EXPORT void
 pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plShaderI tApi = {
@@ -425,19 +436,21 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .read_from_disk = pl_read_from_disk,
     };
     pl_set_api(ptApiRegistry, plShaderI, &tApi);
+
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     if(bReload)
     {
-        gptShaderCtx = gptDataRegistry->get_data("plShaderContext");
+        gptShaderCtx = ptDataRegistry->get_data("plShaderContext");
     }
     else // first load
     {
         static plShaderContext gtShaderCtx = {0};
         gptShaderCtx = &gtShaderCtx;
-        gptDataRegistry->set_data("plShaderContext", gptShaderCtx);
+        ptDataRegistry->set_data("plShaderContext", gptShaderCtx);
     }
 }
 
-static void
+PL_EXPORT void
 pl_unload_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
@@ -459,3 +472,21 @@ pl_unload_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_sb_free(gptShaderCtx->sbptShaderBytecodeCache);
     gptShaderCtx = NULL;
 }
+
+#ifndef PL_UNITY_BUILD
+
+    #define PL_STRING_IMPLEMENTATION
+    #include "pl_string.h"
+    #undef PL_STRING_IMPLEMENTATION
+
+    #define PL_MEMORY_IMPLEMENTATION
+    #include "pl_memory.h"
+    #undef PL_MEMORY_IMPLEMENTATION
+
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
+#endif

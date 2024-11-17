@@ -1,5 +1,5 @@
 /*
-   pl_atomics_ext.h
+   pl_library_ext.h
 */
 
 /*
@@ -10,63 +10,72 @@ Index of this file:
 // [SECTION] forward declarations
 // [SECTION] public api
 // [SECTION] enums
+// [SECTION] structs
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_ATOMICS_EXT_H
-#define PL_ATOMICS_EXT_H
+#ifndef PL_LIBRARY_EXT_H
+#define PL_LIBRARY_EXT_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdint.h>
-#include <stdbool.h>
+#include <stdbool.h> // bool
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plAtomicsI_version (plVersion){1, 0, 0}
+#define plLibraryI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plAtomicCounter plAtomicCounter; // opaque type
+typedef struct _plLibraryDesc   plLibraryDesc;
+typedef struct _plSharedLibrary plSharedLibrary; // opaque type
 
 // enums
-typedef int plAtomicsResult; // -> enum _plAtomicsResult // Enum:
+typedef int plLibraryResult; // -> enum _plLibraryResult // Enum:
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-typedef struct _plAtomicsI
+typedef struct _plLibraryI
 {
 
-    plAtomicsResult (*create_atomic_counter)  (int64_t value, plAtomicCounter** counterPtrOut);
-    void            (*destroy_atomic_counter) (plAtomicCounter**);
-    void            (*atomic_store)           (plAtomicCounter*, int64_t value);
-    int64_t         (*atomic_load)            (plAtomicCounter*);
-    bool            (*atomic_compare_exchange)(plAtomicCounter*, int64_t expectedValue, int64_t desiredValue);
-    int64_t         (*atomic_increment)       (plAtomicCounter*);
-    int64_t         (*atomic_decrement)       (plAtomicCounter*);
-
-} plAtomicsI;
+    plLibraryResult (*load)         (plLibraryDesc, plSharedLibrary** libraryPtrOut);
+    bool            (*has_changed)  (plSharedLibrary*);
+    void            (*reload)       (plSharedLibrary*);
+    void*           (*load_function)(plSharedLibrary*, const char*);
+    
+} plLibraryI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
-enum _plAtomicsResult
+enum _plLibraryResult
 {
-    PL_ATOMICS_RESULT_FAIL    = 0,
-    PL_ATOMICS_RESULT_SUCCESS = 1
+    PL_LIBRARY_RESULT_FAIL    = 0,
+    PL_LIBRARY_RESULT_SUCCESS = 1
 };
 
-#endif // PL_ATOMICS_EXT_H
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
+
+typedef struct _plLibraryDesc
+{
+    const char* pcName;             // name of library (without extension)
+    const char* pcTransitionalName; // default: pcName + '_'
+    const char* pcLockFile;         // default: "lock.tmp"
+} plLibraryDesc;
+
+#endif // PL_LIBRARY_EXT_H

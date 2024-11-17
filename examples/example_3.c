@@ -16,6 +16,7 @@ Index of this file:
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
+// [SECTION] full demo
 // [SECTION] unity build
 */
 
@@ -29,11 +30,13 @@ Index of this file:
 #include "pl.h"
 #include "pl_profile.h"
 #include "pl_log.h"
+#include "pl_ds.h"
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
 // extensions
+#include "pl_window_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_ui_ext.h"
@@ -54,8 +57,6 @@ typedef struct _plAppData
     bool bShowUiDebug;
     bool bShowUiStyle;
 
-    // drawing
-
     // graphics & sync objects
     plDevice*                ptDevice;
     plSurface*               ptSurface;
@@ -66,6 +67,7 @@ typedef struct _plAppData
     plRenderPassHandle       tMainRenderPass;
     plRenderPassLayoutHandle tMainRenderPassLayout;
     plTextureHandle          tMSAATexture;
+    char*                    sbcTempBuffer;
 
 } plAppData;
 
@@ -82,6 +84,13 @@ const plShaderI*      gptShader      = NULL;
 const plDrawBackendI* gptDrawBackend = NULL;
 
 //-----------------------------------------------------------------------------
+// [SECTION] forward declarations
+//-----------------------------------------------------------------------------
+
+
+void pl_show_ui_demo_window(plAppData* ptAppData);
+
+//-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
 //-----------------------------------------------------------------------------
 
@@ -96,8 +105,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     // set log & profile contexts
-    pl_set_log_context(ptDataRegistry->get_data("log"));
-    pl_set_profile_context(ptDataRegistry->get_data("profile"));
+    pl_set_log_context(ptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
+    pl_set_profile_context(ptDataRegistry->get_data(PL_PROFILE_CONTEXT_NAME));
 
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
@@ -126,8 +135,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
 
     // load extensions
-    ptExtensionRegistry->load("pl_ext", NULL, NULL, true);
-    ptExtensionRegistry->load("pl_ext_os", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
     
     // load required apis (NULL if not available)
     gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
@@ -336,6 +344,7 @@ pl_app_shutdown(plAppData* ptAppData)
         gptGfx->cleanup_command_pool(ptAppData->atCmdPools[i]);
         gptGfx->cleanup_semaphore(ptAppData->aptSemaphores[i]);
     }
+    pl_sb_free(ptAppData->sbcTempBuffer);
     gptDrawBackend->cleanup_font_atlas(NULL);
     gptUi->cleanup();
     gptDrawBackend->cleanup();
@@ -467,7 +476,7 @@ pl_app_update(plAppData* ptAppData)
         if(gptUi->begin_collapsing_header("Information", 0))
         {
             
-            gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION);
+            gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
             #ifdef PL_METAL_BACKEND
             gptUi->text("Graphics Backend: Metal");
             #elif PL_VULKAN_BACKEND
@@ -489,7 +498,7 @@ pl_app_update(plAppData* ptAppData)
     }
 
     if(ptAppData->bShowUiDemo)
-        gptUi->show_demo_window(&ptAppData->bShowUiDemo);
+        pl_show_ui_demo_window(ptAppData);
         
     if(ptAppData->bShowUiStyle)
         gptUi->show_style_editor_window(&ptAppData->bShowUiStyle);
@@ -540,6 +549,756 @@ pl_app_update(plAppData* ptAppData)
 
     gptGfx->return_command_buffer(ptCommandBuffer);
     pl_end_profile_frame();
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] full demo
+//-----------------------------------------------------------------------------
+
+void
+pl_show_ui_demo_window(plAppData* ptAppData)
+{
+    if(gptUi->begin_window("UI Demo", &ptAppData->bShowUiDemo, PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR))
+    {
+
+        static const float pfRatios0[] = {1.0f};
+        gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios0);
+
+        if(gptUi->begin_collapsing_header("Help", 0))
+        {
+            gptUi->text("Under construction");
+            gptUi->end_collapsing_header();
+        }
+    
+        if(gptUi->begin_collapsing_header("Window Options", 0))
+        {
+            gptUi->text("Under construction");
+            gptUi->end_collapsing_header();
+        }
+
+        if(gptUi->begin_collapsing_header("Widgets", 0))
+        {
+            if(gptUi->tree_node("Basic", 0))
+            {
+
+                gptUi->layout_static(0.0f, 100, 2);
+                gptUi->button("Button");
+                gptUi->checkbox("Checkbox", NULL);
+
+                gptUi->layout_dynamic(0.0f, 2);
+                gptUi->button("Button");
+                gptUi->checkbox("Checkbox", NULL);
+
+                gptUi->layout_dynamic(0.0f, 1);
+                static char buff[64] = {'c', 'a', 'a'};
+                gptUi->input_text("label 0", buff, 64, 0);
+                static char buff2[64] = {'c', 'c', 'c'};
+                gptUi->input_text_hint("label 1", "hint", buff2, 64, 0);
+
+                static float fValue = 3.14f;
+                static int iValue117 = 117;
+
+                gptUi->input_float("label 2", &fValue, "%0.3f", 0);
+                gptUi->input_int("label 3", &iValue117, 0);
+
+                static int iValue = 0;
+                gptUi->layout_row_begin(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3);
+
+                gptUi->layout_row_push(0.33f);
+                gptUi->radio_button("Option 1", &iValue, 0);
+
+                gptUi->layout_row_push(0.33f);
+                gptUi->radio_button("Option 2", &iValue, 1);
+
+                gptUi->layout_row_push(0.34f);
+                gptUi->radio_button("Option 3", &iValue, 2);
+
+                gptUi->layout_row_end();
+
+                const float pfRatios[] = {1.0f};
+                gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+                gptUi->separator();
+                gptUi->labeled_text("Label", "Value");
+                static int iValue1 = 0;
+                static float fValue1 = 23.0f;
+                static float fValue2 = 100.0f;
+                static int iValue2 = 3;
+                gptUi->slider_float("float slider 1", &fValue1, 0.0f, 100.0f, 0);
+                gptUi->slider_float("float slider 2", &fValue2, -50.0f, 100.0f, 0);
+                gptUi->slider_int("int slider 1", &iValue1, 0, 10, 0);
+                gptUi->slider_int("int slider 2", &iValue2, -5, 10, 0);
+                gptUi->drag_float("float drag", &fValue2, 1.0f, -100.0f, 100.0f, 0);
+                static int aiIntArray[4] = {0};
+                gptUi->input_int2("input int 2", aiIntArray, 0);
+                gptUi->input_int3("input int 3", aiIntArray, 0);
+                gptUi->input_int4("input int 4", aiIntArray, 0);
+
+                static float afFloatArray[4] = {0};
+                gptUi->input_float2("input float 2", afFloatArray, "%0.3f", 0);
+                gptUi->input_float3("input float 3", afFloatArray, "%0.3f", 0);
+                gptUi->input_float4("input float 4", afFloatArray, "%0.3f", 0);
+
+                if(gptUi->menu_item("Menu item 0", NULL, false, true))
+                {
+                    printf("menu item 0\n");
+                }
+
+                if(gptUi->menu_item("Menu item selected", "CTRL+M", true, true))
+                {
+                    printf("menu item selected\n");
+                }
+
+                if(gptUi->menu_item("Menu item disabled", NULL, false, false))
+                {
+                    printf("menu item disabled\n");
+                }
+
+                static bool bMenuSelection = false;
+                if(gptUi->menu_item_toggle("Menu item toggle", NULL, &bMenuSelection, true))
+                {
+                    printf("menu item toggle\n");
+                }
+
+                if(gptUi->begin_menu("menu (not ready)", true))
+                {
+
+                    if(gptUi->menu_item("Menu item 0", NULL, false, true))
+                    {
+                        printf("menu item 0\n");
+                    }
+
+                    if(gptUi->menu_item("Menu item selected", "CTRL+M", true, true))
+                    {
+                        printf("menu item selected\n");
+                    }
+
+                    if(gptUi->menu_item("Menu item disabled", NULL, false, false))
+                    {
+                        printf("menu item disabled\n");
+                    }
+                    if(gptUi->begin_menu("sub menu", true))
+                    {
+
+                        if(gptUi->menu_item("Menu item 0", NULL, false, true))
+                        {
+                            printf("menu item 0\n");
+                        }
+                        gptUi->end_menu();
+                    }
+                    gptUi->end_menu();
+                }
+
+
+                static uint32_t uComboSelect = 0;
+                static const char* apcCombo[] = {
+                    "Tomato",
+                    "Onion",
+                    "Carrot",
+                    "Lettuce",
+                    "Fish"
+                };
+                bool abCombo[5] = {0};
+                abCombo[uComboSelect] = true;
+                if(gptUi->begin_combo("Combo", apcCombo[uComboSelect], PL_UI_COMBO_FLAGS_NONE))
+                {
+                    for(uint32_t i = 0; i < 5; i++)
+                    {
+                        if(gptUi->selectable(apcCombo[i], &abCombo[i], 0))
+                        {
+                            uComboSelect = i;
+                            gptUi->close_current_popup();
+                        }
+                    }
+                    gptUi->end_combo();
+                }
+
+                const float pfRatios22[] = {200.0f, 120.0f};
+                gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfRatios22);
+                gptUi->button("Hover me!");
+                if(gptUi->was_last_item_hovered())
+                {
+                    gptUi->begin_tooltip();
+                    gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios22);
+                    gptUi->text("I'm a tooltip!");
+                    gptUi->end_tooltip();
+                }
+                gptUi->button("Just a button");
+
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("Selectables", 0))
+            {
+                static bool bSelectable0 = false;
+                static bool bSelectable1 = false;
+                static bool bSelectable2 = false;
+                gptUi->selectable("Selectable 1", &bSelectable0, 0);
+                gptUi->selectable("Selectable 2", &bSelectable1, 0);
+                gptUi->selectable("Selectable 3", &bSelectable2, 0);
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("Combo", 0))
+            {
+                plUiComboFlags tComboFlags = PL_UI_COMBO_FLAGS_NONE;
+
+                static bool bComboHeightSmall = false;
+                static bool bComboHeightRegular = false;
+                static bool bComboHeightLarge = false;
+                static bool bComboNoArrow = false;
+
+                gptUi->checkbox("PL_UI_COMBO_FLAGS_HEIGHT_SMALL", &bComboHeightSmall);
+                gptUi->checkbox("PL_UI_COMBO_FLAGS_HEIGHT_REGULAR", &bComboHeightRegular);
+                gptUi->checkbox("PL_UI_COMBO_FLAGS_HEIGHT_LARGE", &bComboHeightLarge);
+                gptUi->checkbox("PL_UI_COMBO_FLAGS_NO_ARROW_BUTTON", &bComboNoArrow);
+
+                if(bComboHeightSmall)   tComboFlags |= PL_UI_COMBO_FLAGS_HEIGHT_SMALL;
+                if(bComboHeightRegular) tComboFlags |= PL_UI_COMBO_FLAGS_HEIGHT_REGULAR;
+                if(bComboHeightLarge)   tComboFlags |= PL_UI_COMBO_FLAGS_HEIGHT_LARGE;
+                if(bComboNoArrow)       tComboFlags |= PL_UI_COMBO_FLAGS_NO_ARROW_BUTTON;
+
+                static uint32_t uComboSelect = 0;
+                static const char* apcCombo[] = {
+                    "Tomato",
+                    "Onion",
+                    "Carrot",
+                    "Lettuce",
+                    "Fish",
+                    "Beef",
+                    "Chicken",
+                    "Cereal",
+                    "Wheat",
+                    "Cane",
+                };
+                bool abCombo[10] = {0};
+                abCombo[uComboSelect] = true;
+                if(gptUi->begin_combo("Combo", apcCombo[uComboSelect], tComboFlags))
+                {
+                    for(uint32_t i = 0; i < 10; i++)
+                    {
+                        if(gptUi->selectable(apcCombo[i], &abCombo[i], 0))
+                        {
+                            uComboSelect = i;
+                            gptUi->close_current_popup();
+                        }
+                    }
+                    gptUi->end_combo();
+                }
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("Plotting", 0))
+            {
+                gptUi->progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("Trees", 0))
+            {
+                
+                if(gptUi->tree_node("Root Node", 0))
+                {
+                    if(gptUi->tree_node("Child 1", 0))
+                    {
+                        gptUi->button("Press me");
+                        gptUi->tree_pop();
+                    }
+                    if(gptUi->tree_node("Child 2", 0))
+                    {
+                        gptUi->button("Press me");
+                        gptUi->tree_pop();
+                    }
+                    gptUi->tree_pop();
+                }
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("Tabs", 0))
+            {
+                if(gptUi->begin_tab_bar("Tabs1", 0))
+                {
+                    if(gptUi->begin_tab("Tab 0", 0))
+                    {
+                        static bool bSelectable0 = false;
+                        static bool bSelectable1 = false;
+                        static bool bSelectable2 = false;
+                        gptUi->selectable("Selectable 1", &bSelectable0, 0);
+                        gptUi->selectable("Selectable 2", &bSelectable1, 0);
+                        gptUi->selectable("Selectable 3", &bSelectable2, 0);
+                        gptUi->end_tab();
+                    }
+
+                    if(gptUi->begin_tab("Tab 1", 0))
+                    {
+                        static int iValue = 0;
+                        gptUi->radio_button("Option 1", &iValue, 0);
+                        gptUi->radio_button("Option 2", &iValue, 1);
+                        gptUi->radio_button("Option 3", &iValue, 2);
+                        gptUi->end_tab();
+                    }
+
+                    if(gptUi->begin_tab("Tab 2", 0))
+                    {
+                        if(gptUi->begin_child("CHILD2", 0, 0))
+                        {
+                            const float pfRatios3[] = {600.0f};
+                            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios3);
+
+                            for(uint32_t i = 0; i < 25; i++)
+                                gptUi->text("Long text is happening11111111111111111111111111111111111111111111111111111111123456789");
+                            gptUi->end_child();
+                        }
+                        
+                        gptUi->end_tab();
+                    }
+                    gptUi->end_tab_bar();
+                }
+                gptUi->tree_pop();
+            }
+            gptUi->end_collapsing_header();
+        }
+
+        if(gptUi->begin_collapsing_header("Scrolling", 0))
+        {
+            const float pfRatios2[] = {0.5f, 0.50f};
+            const float pfRatios3[] = {600.0f};
+
+            gptUi->layout_static(0.0f, 200, 1);
+            static bool bUseClipper = true;
+            gptUi->checkbox("Use Clipper", &bUseClipper);
+            
+            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 300.0f, 2, pfRatios2);
+            if(gptUi->begin_child("CHILD", 0, 0))
+            {
+
+                gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
+
+
+                if(bUseClipper)
+                {
+                    plUiClipper tClipper = {1000000};
+                    while(gptUi->step_clipper(&tClipper))
+                    {
+                        for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
+                        {
+                            gptUi->text("%u Label", i);
+                            gptUi->text("%u Value", i);
+                        } 
+                    }
+                }
+                else
+                {
+                    for(uint32_t i = 0; i < 1000000; i++)
+                    {
+                            gptUi->text("%u Label", i);
+                            gptUi->text("%u Value", i);
+                    }
+                }
+
+
+                gptUi->end_child();
+            }
+            
+
+            if(gptUi->begin_child("CHILD2", 0, 0))
+            {
+                gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios3);
+
+                for(uint32_t i = 0; i < 25; i++)
+                    gptUi->text("Long text is happening11111111111111111111111111111111111111111111111111111111123456789");
+
+                gptUi->end_child();
+            }
+            
+
+            gptUi->end_collapsing_header();
+        }
+
+        if(gptUi->begin_collapsing_header("Layout Systems", 0))
+        {
+            gptUi->text("General Notes");
+            gptUi->text("  - systems ordered by increasing flexibility");
+            gptUi->separator();
+
+            if(gptUi->tree_node("System 1 - simple dynamic", 0))
+            {
+                static int iWidgetCount = 5;
+                static float fWidgetHeight = 0.0f;
+                gptUi->separator_text("Notes");
+                gptUi->text("  - wraps (i.e. will add rows)");
+                gptUi->text("  - evenly spaces widgets based on available space");
+                gptUi->text("  - height of 0.0f sets row height equal to minimum height");
+                gptUi->text("    of maximum height widget");
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Options");
+                gptUi->slider_int("Widget Count", &iWidgetCount, 1, 10, 0);
+                gptUi->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Example");
+                gptUi->layout_dynamic(fWidgetHeight, (uint32_t)iWidgetCount);
+                gptUi->vertical_spacing();
+                for(int i = 0; i < iWidgetCount * 2; i++)
+                {
+                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
+                    gptUi->button(ptAppData->sbcTempBuffer);
+                    pl_sb_reset(ptAppData->sbcTempBuffer);
+                }
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("System 2 - simple static", 0))
+            {
+                static int iWidgetCount = 5;
+                static float fWidgetWidth = 100.0f;
+                static float fWidgetHeight = 0.0f;
+                gptUi->separator_text("Notes");
+                gptUi->text("  - wraps (i.e. will add rows)");
+                gptUi->text("  - provides each widget with the same specified width");
+                gptUi->text("  - height of 0.0f sets row height equal to minimum height");
+                gptUi->text("    of maximum height widget");
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Options");
+                gptUi->slider_int("Widget Count", &iWidgetCount, 1, 10, 0);
+                gptUi->slider_float("Width", &fWidgetWidth, 50.0f, 500.0f, 0);
+                gptUi->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Example");
+                gptUi->layout_static(fWidgetHeight, fWidgetWidth, (uint32_t)iWidgetCount);
+                gptUi->vertical_spacing();
+                for(int i = 0; i < iWidgetCount * 2; i++)
+                {
+                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
+                    gptUi->button(ptAppData->sbcTempBuffer);
+                    pl_sb_reset(ptAppData->sbcTempBuffer);
+                }
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("System 3 - single system row", 0))
+            {
+                static bool bDynamicRow = false;
+                static int iWidgetCount = 2;
+                static float afWidgetStaticWidths[4] = {
+                    100.0f, 100.0f, 100.0f, 100.0f
+                };
+                static float afWidgetDynamicWidths[4] = {
+                    0.25f, 0.25f, 0.25f, 0.25f
+                };
+
+                static float fWidgetHeight = 0.0f;
+
+                gptUi->separator_text("Notes");
+                gptUi->text("  - does not wrap (i.e. will not add rows)");
+                gptUi->text("  - allows user to change widget widths individually");
+                gptUi->text("  - widths interpreted as ratios of available width when");
+                gptUi->text("    using PL_UI_LAYOUT_ROW_TYPE_DYNAMIC");
+                gptUi->text("  - widths interpreted as pixel width when using PL_UI_LAYOUT_ROW_TYPE_STATIC");
+                gptUi->text("  - height of 0.0f sets row height equal to minimum height");
+                gptUi->text("    of maximum height widget");
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Options");
+                gptUi->checkbox("Dynamic", &bDynamicRow);
+                gptUi->slider_int("Widget Count", &iWidgetCount, 1, 4, 0);
+                gptUi->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
+
+                if(bDynamicRow)
+                {
+                    for(int i = 0; i < iWidgetCount; i++)
+                    {
+                        gptUi->push_id_uint((uint32_t)i);
+                        gptUi->slider_float("Widget Width", &afWidgetDynamicWidths[i], 0.05f, 1.2f, 0);
+                        gptUi->pop_id();
+                    }
+                }
+                else
+                {
+                    for(int i = 0; i < iWidgetCount; i++)
+                    {
+                        gptUi->push_id_uint((uint32_t)i);
+                        gptUi->slider_float("Widget Width", &afWidgetStaticWidths[i], 50.0f, 500.0f, 0);
+                        gptUi->pop_id();
+                    }
+                }
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Example");
+                gptUi->layout_row_begin(bDynamicRow ? PL_UI_LAYOUT_ROW_TYPE_DYNAMIC : PL_UI_LAYOUT_ROW_TYPE_STATIC, fWidgetHeight, (uint32_t)iWidgetCount);
+                float* afWidgetWidths = bDynamicRow ? afWidgetDynamicWidths : afWidgetStaticWidths;
+                for(int i = 0; i < iWidgetCount; i++)
+                {
+                    gptUi->layout_row_push(afWidgetWidths[i]);
+                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
+                    gptUi->button(ptAppData->sbcTempBuffer);
+                    pl_sb_reset(ptAppData->sbcTempBuffer);
+                }
+                gptUi->layout_row_end();
+                gptUi->vertical_spacing();
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("System 4 - single system row (array form)", 0))
+            {
+                static bool bDynamicRow = false;
+                static int iWidgetCount = 2;
+                static float afWidgetStaticWidths[4] = {
+                    100.0f, 100.0f, 100.0f, 100.0f
+                };
+                static float afWidgetDynamicWidths[4] = {
+                    0.25f, 0.25f, 0.25f, 0.25f
+                };
+
+                static float fWidgetHeight = 0.0f;
+
+                gptUi->separator_text("Notes");
+                gptUi->text("  - same as System 3 but array form");
+                gptUi->text("  - wraps (i.e. will add rows)");
+                gptUi->text("  - allows user to change widget widths individually");
+                gptUi->text("  - widths interpreted as ratios of available width when");
+                gptUi->text("    using PL_UI_LAYOUT_ROW_TYPE_DYNAMIC");
+                gptUi->text("  - widths interpreted as pixel width when using PL_UI_LAYOUT_ROW_TYPE_STATIC");
+                gptUi->text("  - height of 0.0f sets row height equal to minimum height");
+                gptUi->text("    of maximum height widget");
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Options");
+                gptUi->checkbox("Dynamic", &bDynamicRow);
+                gptUi->slider_int("Widget Count", &iWidgetCount, 1, 4, 0);
+                gptUi->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
+
+                if(bDynamicRow)
+                {
+                    for(int i = 0; i < iWidgetCount; i++)
+                    {
+                        gptUi->push_id_uint((uint32_t)i);
+                        gptUi->slider_float("Widget Width", &afWidgetDynamicWidths[i], 0.05f, 1.2f, 0);
+                        gptUi->pop_id();
+                    }
+                }
+                else
+                {
+                    for(int i = 0; i < iWidgetCount; i++)
+                    {
+                        gptUi->push_id_uint((uint32_t)i);
+                        gptUi->slider_float("Widget Width", &afWidgetStaticWidths[i], 50.0f, 500.0f, 0);
+                        gptUi->pop_id();
+                    }
+                }
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Example");
+                float* afWidgetWidths = bDynamicRow ? afWidgetDynamicWidths : afWidgetStaticWidths;
+                gptUi->layout_row(bDynamicRow ? PL_UI_LAYOUT_ROW_TYPE_DYNAMIC : PL_UI_LAYOUT_ROW_TYPE_STATIC, fWidgetHeight, (uint32_t)iWidgetCount, afWidgetWidths);
+                for(int i = 0; i < iWidgetCount * 2; i++)
+                {
+                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
+                    gptUi->button(ptAppData->sbcTempBuffer);
+                    pl_sb_reset(ptAppData->sbcTempBuffer);
+                }
+                gptUi->vertical_spacing();
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("System 5 - template", 0))
+            {
+                static int iWidgetCount = 6;
+                static float fWidgetHeight = 0.0f;
+
+                gptUi->separator_text("Notes");
+                gptUi->text("  - most complex and second most flexible system");
+                gptUi->text("  - wraps (i.e. will add rows)");
+                gptUi->text("  - allows user to change widget systems individually");
+                gptUi->text("    - dynamic: changes based on available space");
+                gptUi->text("    - variable: same as dynamic but minimum width specified by user");
+                gptUi->text("    - static: pixel width explicitely specified by user");
+                gptUi->text("  - height of 0.0f sets row height equal to minimum height");
+                gptUi->text("    of maximum height widget");
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Options");
+                gptUi->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Example 0");
+
+                gptUi->layout_template_begin(fWidgetHeight);
+                gptUi->layout_template_push_dynamic();
+                gptUi->layout_template_push_variable(150.0f);
+                gptUi->layout_template_push_static(150.0f);
+                gptUi->layout_template_end();
+                gptUi->button("dynamic##0");
+                gptUi->button("variable 150.0f##0");
+                gptUi->button("static 150.0f##0");
+                gptUi->checkbox("dynamic##1", NULL);
+                gptUi->checkbox("variable 150.0f##1", NULL);
+                gptUi->checkbox("static 150.0f##1", NULL);
+                gptUi->vertical_spacing();
+
+                gptUi->layout_dynamic(0.0f, 1);
+                gptUi->separator_text("Example 1");
+                gptUi->layout_template_begin(fWidgetHeight);
+                gptUi->layout_template_push_static(150.0f);
+                gptUi->layout_template_push_variable(150.0f);
+                gptUi->layout_template_push_dynamic();
+                gptUi->layout_template_end();
+                gptUi->button("static 150.0f##2");
+                gptUi->button("variable 150.0f##2");
+                gptUi->button("dynamic##2");
+                gptUi->checkbox("static 150.0f##3", NULL);
+                gptUi->checkbox("variable 150.0f##3", NULL);
+                gptUi->checkbox("dynamic##3", NULL);
+
+                gptUi->layout_dynamic(0.0f, 1);
+                gptUi->separator_text("Example 2");
+                gptUi->layout_template_begin(fWidgetHeight);
+                gptUi->layout_template_push_variable(150.0f);
+                gptUi->layout_template_push_variable(300.0f);
+                gptUi->layout_template_push_dynamic();
+                gptUi->layout_template_end();
+                gptUi->button("variable 150.0f##4");
+                gptUi->button("variable 300.0f##4");
+                gptUi->button("dynamic##4");
+                gptUi->checkbox("static 150.0f##5", NULL);
+                gptUi->button("variable 300.0f##5");
+                gptUi->checkbox("dynamic##5", NULL);
+                
+                gptUi->vertical_spacing();
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("System 6 - space", 0))
+            {
+                gptUi->separator_text("Notes");
+                gptUi->text("  - most flexible system");
+                gptUi->vertical_spacing();
+
+                gptUi->separator_text("Example - static");
+
+                gptUi->layout_space_begin(PL_UI_LAYOUT_ROW_TYPE_STATIC, 500.0f, UINT32_MAX);
+
+                gptUi->layout_space_push(0.0f, 0.0f, 100.0f, 100.0f);
+                gptUi->button("w100 h100");
+
+                gptUi->layout_space_push(105.0f, 105.0f, 300.0f, 100.0f);
+                gptUi->button("x105 y105 w300 h100");
+
+                gptUi->layout_space_end();
+
+                gptUi->layout_dynamic(0.0f, 1);
+                gptUi->separator_text("Example - dynamic");
+
+                gptUi->layout_space_begin(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 300.0f, 2);
+
+                gptUi->layout_space_push(0.0f, 0.0f, 0.5f, 0.5f);
+                gptUi->button("x0 y0 w0.5 h0.5");
+
+                gptUi->layout_space_push(0.5f, 0.5f, 0.5f, 0.5f);
+                gptUi->button("x0.5 y0.5 w0.5 h0.5");
+
+                gptUi->layout_space_end();
+
+                gptUi->tree_pop();
+            }
+
+            if(gptUi->tree_node("Misc. Testing", 0))
+            {
+                const float pfRatios[] = {1.0f};
+                const float pfRatios2[] = {0.5f, 0.5f};
+                const float pfRatios3[] = {0.5f * 0.5f, 0.25f * 0.5f, 0.25f * 0.5f};
+                gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
+                if(gptUi->begin_collapsing_header("Information", 0))
+                {
+                    gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                    #ifdef PL_METAL_BACKEND
+                    gptUi->text("Graphics Backend: Metal");
+                    #elif PL_VULKAN_BACKEND
+                    gptUi->text("Graphics Backend: Vulkan");
+                    #else
+                    gptUi->text("Graphics Backend: Unknown");
+                    #endif
+
+                    gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3, pfRatios3);
+                    if(gptUi->begin_collapsing_header("sub0", 0))
+                    {
+                        gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUi->end_collapsing_header();
+                    }
+                    if(gptUi->begin_collapsing_header("sub1", 0))
+                    {
+                        gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUi->end_collapsing_header();
+                    }
+                    if(gptUi->begin_collapsing_header("sub2", 0))
+                    {
+                        gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUi->end_collapsing_header();
+                    }
+
+                    gptUi->end_collapsing_header();
+                }
+                if(gptUi->begin_collapsing_header("App Options", 0))
+                {
+                    gptUi->checkbox("Freeze Culling Camera", NULL);
+                    int iCascadeCount  = 2;
+                    gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0);
+
+                    gptUi->end_collapsing_header();
+                }
+                
+                if(gptUi->begin_collapsing_header("Graphics", 0))
+                {
+                    gptUi->checkbox("Freeze Culling Camera", NULL);
+                    int iCascadeCount  = 2;
+                    gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0);
+
+                    gptUi->end_collapsing_header();
+                }
+                if(gptUi->begin_tab_bar("tab bar2", 0))
+                {
+                    if(gptUi->begin_tab("tab0000000000", 0))
+                    {
+                        gptUi->checkbox("Entities", NULL);
+                        gptUi->end_tab();
+                    }
+                    if(gptUi->begin_tab("tab1", 0))
+                    {
+                        gptUi->checkbox("Profiling", NULL);
+                        gptUi->checkbox("Profiling", NULL);
+                        gptUi->checkbox("Profiling", NULL);
+                        gptUi->checkbox("Profiling", NULL);
+                        gptUi->end_tab();
+                    }
+                    gptUi->end_tab_bar();
+                }
+
+                gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+                if(gptUi->begin_collapsing_header("Tools", 0))
+                {
+                    gptUi->checkbox("Device Memory Analyzer", NULL);
+                    gptUi->checkbox("Device Memory Analyzer", NULL);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(gptUi->begin_collapsing_header("Debug", 0))
+                {
+                    gptUi->button("resize");
+                    gptUi->checkbox("Always Resize", NULL);
+                    gptUi->end_collapsing_header();
+                }
+
+                gptUi->tree_pop();
+            }
+            gptUi->end_collapsing_header();
+        }
+    }
+    gptUi->end_window();
 }
 
 //-----------------------------------------------------------------------------

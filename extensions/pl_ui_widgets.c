@@ -1,7 +1,4 @@
 #include "pl_ui_internal.h"
-#include <float.h> // FLT_MAX
-#define PL_MATH_INCLUDE_FUNCTIONS
-#include "pl_math.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] stb_text mess

@@ -38,6 +38,9 @@
 #include "pl_network_ext.h"
 #include "pl_threads_ext.h"
 #include "pl_atomics_ext.h"
+#include "pl_window_ext.h"
+#include "pl_library_ext.h"
+#include "pl_file_ext.h"
 
 // editor
 #include "pl_gizmo.h"
@@ -91,7 +94,6 @@ typedef struct _plEditorData
 
     // ui options
     plDebugApiInfo tDebugInfo;
-    bool           bShowUiDemo;
     bool           bShowUiDebug;
     bool           bShowUiStyle;
     bool           bShowEntityWindow;

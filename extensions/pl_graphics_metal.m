@@ -21,7 +21,6 @@ Index of this file:
 #include "pl.h"
 #include "pl_profile.h"
 #include "pl_memory.h"
-#include "pl_ext.inc"
 #include "pl_graphics_internal.h"
 
 // metal stuff
@@ -1534,7 +1533,7 @@ pl_create_device(const plDeviceInit* ptInit)
 
     uint32_t uDeviceCount = 16;
     plDeviceInfo atDeviceInfos[16] = {0};
-    gptGfx->enumerate_devices(atDeviceInfos, &uDeviceCount);
+    pl_enumerate_devices(atDeviceInfos, &uDeviceCount);
 
     memcpy(&ptDevice->tInfo, &atDeviceInfos[ptInit->uDeviceIdx], sizeof(plDeviceInfo));
 

@@ -24,7 +24,18 @@ Index of this file:
 #include "pl_atomics_ext.h"
 #include <math.h>
 #include <string.h>
-#include "pl_ext.inc"
+
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    static const plAtomicsI* gptAtomics = NULL;
+    static const plThreadsI* gptThreads = NULL;
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -433,7 +444,7 @@ pl__cleanup(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+PL_EXPORT void
 pl_load_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plJobI tApi = {
@@ -445,19 +456,24 @@ pl_load_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plJobI, &tApi);
 
+    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptAtomics = pl_get_api_latest(ptApiRegistry, plAtomicsI);
+    gptThreads = pl_get_api_latest(ptApiRegistry, plThreadsI);
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+
     if(bReload)
     {
-        gptJobCtx = gptDataRegistry->get_data("plJobContext");
+        gptJobCtx = ptDataRegistry->get_data("plJobContext");
     }
     else
     {
         static plJobContext gtJobCtx = {0};
         gptJobCtx = &gtJobCtx;
-        gptDataRegistry->set_data("plJobContext", gptJobCtx);
+        ptDataRegistry->set_data("plJobContext", gptJobCtx);
     }
 }
 
-static void
+PL_EXPORT void
 pl_unload_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

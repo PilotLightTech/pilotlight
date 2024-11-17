@@ -40,7 +40,21 @@ Index of this file:
 #include "pl.h"
 #include "pl_stats_ext.h"
 #include "pl_ds.h"
-#include "pl_ext.inc"
+
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -232,7 +246,7 @@ pl__get_counter_data(char const* pcName)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+PL_EXPORT void
 pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plStatsI tApi = {
@@ -245,9 +259,12 @@ pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plStatsI, &tApi);
 
+    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+
     if(bReload)
     {
-        gptStatsCtx = gptDataRegistry->get_data("plStatsContext");
+        gptStatsCtx = ptDataRegistry->get_data("plStatsContext");
     }
     else // first load
     {
@@ -256,11 +273,11 @@ pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
             .uMaxFrames  = 120
         };
         gptStatsCtx = &gtStatsCtx;
-        gptDataRegistry->set_data("plStatsContext", gptStatsCtx);
+        ptDataRegistry->set_data("plStatsContext", gptStatsCtx);
     }
 }
 
-static void
+PL_EXPORT void
 pl_unload_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

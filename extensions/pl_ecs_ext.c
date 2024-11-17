@@ -29,7 +29,25 @@ Index of this file:
 // extensions
 #include "pl_job_ext.h"
 #include "pl_script_ext.h"
-#include "pl_ext.inc"
+
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
+    static plApiRegistryI*             gptApiRegistry       = NULL;
+    static const plExtensionRegistryI* gptExtensionRegistry = NULL;
+    static const plJobI*               gptJob               = NULL;
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -1744,6 +1762,11 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plCameraI, &tApi1);
 
+    gptApiRegistry = ptApiRegistry;
+    gptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
+    gptJob = pl_get_api_latest(ptApiRegistry, plJobI);
+
+
     if(bReload)
     {
         uLogChannelEcs = pl_get_log_channel_id("ECS");
@@ -1770,3 +1793,15 @@ pl_unload_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plCameraI* ptApi1 = pl_get_api_latest(ptApiRegistry, plCameraI);
     ptApiRegistry->remove_api(ptApi1);
 }
+
+#ifndef PL_UNITY_BUILD
+
+    #define PL_LOG_IMPLEMENTATION
+    #include "pl_log.h"
+    #undef PL_LOG_IMPLEMENTATION
+
+    #define PL_PROFILE_IMPLEMENTATION
+    #include "pl_profile.h"
+    #undef PL_PROFILE_IMPLEMENTATION
+
+#endif

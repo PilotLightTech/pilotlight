@@ -35,6 +35,7 @@ Index of this file:
 #include "pl_math.h"
 
 // extensions
+#include "pl_window_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_graphics_ext.h"
@@ -95,8 +96,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     // set log & profile contexts
-    pl_set_log_context(ptDataRegistry->get_data("log"));
-    pl_set_profile_context(ptDataRegistry->get_data("profile"));
+    pl_set_log_context(ptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
+    pl_set_profile_context(ptDataRegistry->get_data(PL_PROFILE_CONTEXT_NAME));
 
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
@@ -124,8 +125,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
 
     // load extensions
-    ptExtensionRegistry->load("pl_ext", NULL, NULL, true);
-    ptExtensionRegistry->load("pl_ext_os", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
     
     // load required apis (NULL if not available)
     gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);

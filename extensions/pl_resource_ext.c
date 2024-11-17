@@ -7,7 +7,21 @@
 #include "pl_resource_ext.h"
 #include "pl_ds.h"
 #include "pl_log.h"
-#include "pl_ext.inc"
+
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -196,16 +210,17 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .unload_resource    = pl_unload_resource
     };
     pl_set_api(ptApiRegistry, plResourceI, &tApi);
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     if(bReload)
     {
-        gptResourceManager = gptDataRegistry->get_data("plResourceManager");
+        gptResourceManager = ptDataRegistry->get_data("plResourceManager");
     }
     else
     {
         static plResourceManager gtResourceManager = {0};
         gptResourceManager = &gtResourceManager;
-        gptDataRegistry->set_data("plResourceManager", gptResourceManager);
+        ptDataRegistry->set_data("plResourceManager", gptResourceManager);
     }
 }
 

@@ -34,11 +34,8 @@ import pl_build.backend_macos as apple
 # where to output build scripts
 working_directory = os.path.dirname(os.path.abspath(__file__)) + "/../src"
 
-with pl.project("pilotlight"):
+with pl.project("pilotlight deploy"):
     
-    # used to decide hot reloading
-    pl.set_hot_reload_target("../out/pilot_light")
-
     # project wide settings
     pl.set_output_directory("../out")
     pl.add_link_directories("../out")
@@ -84,7 +81,7 @@ with pl.project("pilotlight"):
                     linker_flags=["-Wl,-rpath,/usr/local/lib"],
                     compiler_flags=["-std=c99", "-fmodules", "-ObjC", "-fPIC"])
     pl.add_profile(compiler_filter=["clang"],
-                    configuration_filter=["debug", "vulkan"],
+                    configuration_filter=["debug"],
                     compiler_flags=["--debug", "-g"])
 
     # graphics backends
@@ -92,24 +89,179 @@ with pl.project("pilotlight"):
                     definitions=["PL_VULKAN_BACKEND"])
     pl.add_profile(configuration_filter=["debug", "release"], platform_filter=["Darwin"],
                     definitions=["PL_METAL_BACKEND"])
-    pl.add_profile(configuration_filter=["vulkan"],
-                    definitions=["PL_VULKAN_BACKEND"])
     
     # configs
-    pl.add_profile(configuration_filter=["debug", "vulkan"], definitions=["_DEBUG"])
+    pl.add_profile(configuration_filter=["debug"], definitions=["_DEBUG"])
     pl.add_profile(configuration_filter=["release"], definitions=["NDEBUG"])
                     
     #-----------------------------------------------------------------------------
     # [SECTION] extensions
     #-----------------------------------------------------------------------------
 
-    with pl.target("pl_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+    extensions = [
+        "pl_image_ext",
+        "pl_stats_ext",
+        "pl_rect_pack_ext",
+        "pl_string_intern_ext",
+        "pl_draw_ext",
+        "pl_job_ext",
+        "pl_gpu_allocators_ext",
+        "pl_ecs_ext",
+        "pl_debug_ext",
+        "pl_renderer_ext",
+        "pl_draw_backend_ext",
+        "pl_resource_ext",
+        "pl_model_loader_ext",
+        "pl_ui_ext"
+    ]
 
-        pl.add_source_files("../extensions/pl_ext.c")
-        pl.set_output_binary("pl_ext")
+    for extension in extensions:
+
+        with pl.target(extension, pl.TargetType.DYNAMIC_LIBRARY, False):
+
+            pl.add_source_files("../extensions/" + extension + ".c")
+            
+            # default config
+            with pl.configuration("debug"):
+
+                pl.set_output_binary(extension + "d")
+
+                # win32
+                with pl.platform("Windows"):
+
+                    with pl.compiler("msvc"):
+                        pass
+
+                # linux
+                with pl.platform("Linux"):
+                    with pl.compiler("gcc"):
+                        pass
+
+                # macos
+                with pl.platform("Darwin"):
+                    with pl.compiler("clang"):
+                        pass
+
+            # release
+            with pl.configuration("release"):
+
+                pl.set_output_binary(extension)
+
+                # win32
+                with pl.platform("Windows"):
+
+                    with pl.compiler("msvc"):
+                        pass
+
+                # linux
+                with pl.platform("Linux"):
+                    with pl.compiler("gcc"):
+                        pass
+
+                # macos
+                with pl.platform("Darwin"):
+                    with pl.compiler("clang"):
+                        pass
+    
+    #-----------------------------------------------------------------------------
+    # [SECTION] extensions
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_graphics_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
+
+        pl.add_source_files("../extensions/pl_graphics_ext.c")
 
         # default config
         with pl.configuration("debug"):
+
+            pl.set_output_binary("pl_graphics_extd")
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    
+                    pl.add_include_directories("%VULKAN_SDK%\\Include")
+                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
+                    pl.add_static_link_libraries("vulkan-1")
+                    # pl.add_linker_flags("-nodefaultlib:MSVCRT")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_dynamic_link_libraries("vulkan")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+
+        # release
+        with pl.configuration("release"):
+
+            pl.set_output_binary("pl_graphics_ext")
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_include_directories("%VULKAN_SDK%\\Include")
+                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
+                    pl.add_static_link_libraries("vulkan-1")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_dynamic_link_libraries("vulkan")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_compiler_flags("-Wno-deprecated-declarations")
+
+    #-----------------------------------------------------------------------------
+    # [SECTION] extensions
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_shader_ext", pl.TargetType.DYNAMIC_LIBRARY, True):
+
+        pl.add_source_files("../extensions/pl_shader_ext.c")
+        
+
+        # default config
+        with pl.configuration("debug"):
+
+            pl.set_output_binary("pl_shader_extd")
+
+            # win32
+            with pl.platform("Windows"):
+
+                with pl.compiler("msvc"):
+                    pl.add_include_directories("%VULKAN_SDK%\\Include")
+                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
+                    pl.add_static_link_libraries("shaderc_combined")
+                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_dynamic_link_libraries("shaderc_shared")
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
+
+        # release
+        with pl.configuration("release"):
+
+            pl.set_output_binary("pl_shader_ext")
 
             # win32
             with pl.platform("Windows"):
@@ -118,191 +270,33 @@ with pl.project("pilotlight"):
                     pl.add_static_link_libraries("shaderc_combined")
                     pl.add_include_directories("%VULKAN_SDK%\\Include")
                     pl.add_link_directories('%VULKAN_SDK%\\Lib')
-                    pl.add_static_link_libraries("vulkan-1")
-                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
 
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("shaderc_shared", "xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
+                    pl.add_dynamic_link_libraries("shaderc_shared")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_link_directories('$VULKAN_SDK/lib')
-                    pl.add_dynamic_link_libraries("vulkan")
 
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
-                    pl.add_compiler_flags("-Wno-deprecated-declarations")
 
-        # release
-        with pl.configuration("release"):
-
-            # win32
-            with pl.platform("Windows"):
-
-                with pl.compiler("msvc"):
-                    pl.add_static_link_libraries("shaderc_combined")
-                    pl.add_include_directories("%VULKAN_SDK%\\Include")
-                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
-                    pl.add_static_link_libraries("vulkan-1")
-                    # pl.add_linker_flags("-nodefaultlib:MSVCRT")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("shaderc_shared", "xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_link_directories('$VULKAN_SDK/lib')
-                    pl.add_dynamic_link_libraries("vulkan")
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
-                    pl.add_compiler_flags("-Wno-deprecated-declarations")
-
-        # vulkan on macos
-        with pl.configuration("vulkan"):
-
-            # mac os
-            with pl.platform("Darwin"):
-
-                with pl.compiler("clang"):
-                    pl.add_dynamic_link_libraries("shaderc_shared", "pthread")
-                    pl.add_dynamic_link_libraries("vulkan")
-
-    #-----------------------------------------------------------------------------
-    # [SECTION] os extensions
-    #-----------------------------------------------------------------------------
-
-    with pl.target("pl_ext_os", pl.TargetType.DYNAMIC_LIBRARY, False):
-
-        pl.set_output_binary("pl_ext_os")
-
-        # default config
-        with pl.configuration("debug"):
-
-            # win32
-            with pl.platform("Windows"):
-
-                with pl.compiler("msvc"):
-                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
-                    pl.add_source_files("../extensions/pl_os_ext_win32.c")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("pthread")
-                    pl.add_source_files("../extensions/pl_os_ext_linux.c")
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_compiler_flags("-Wno-deprecated-declarations")
-                    pl.add_source_files("../extensions/pl_os_ext_macos.m")
-
-        # release
-        with pl.configuration("release"):
-
-            # win32
-            with pl.platform("Windows"):
-
-                with pl.compiler("msvc"):
-                    pl.add_source_files("../extensions/pl_os_ext_win32.c")
-                    # pl.add_linker_flags("-nodefaultlib:MSVCRT")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("pthread")
-                    pl.add_source_files("../extensions/pl_os_ext_linux.c")
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_compiler_flags("-Wno-deprecated-declarations")
-                    pl.add_source_files("../extensions/pl_os_ext_macos.m")
-
-        # vulkan on macos
-        with pl.configuration("vulkan"):
-
-            # mac os
-            with pl.platform("Darwin"):
-
-                with pl.compiler("clang"):
-                    pl.add_source_files("../extensions/pl_os_ext_macos.m")
-
-    #-----------------------------------------------------------------------------
-    # [SECTION] experimental extensions
-    #-----------------------------------------------------------------------------
-
-    # vulkan backend extensions
-    with pl.target("pl_ext_proto", pl.TargetType.DYNAMIC_LIBRARY, True):
-
-        pl.add_source_files("../extensions/pl_ext_proto.c")
-        pl.set_output_binary("pl_ext_proto")
-
-        # default config
-        with pl.configuration("debug"):
-
-            # win32
-            with pl.platform("Windows"):
-
-                with pl.compiler("msvc"):
-                    pl.add_linker_flags("-nodefaultlib:MSVCRT")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pass
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_compiler_flags("-Wno-deprecated-declarations")
-
-        # release
-        with pl.configuration("release"):
-
-            # win32
-            with pl.platform("Windows"):
-
-                with pl.compiler("msvc"):
-                    # pl.add_linker_flags("-nodefaultlib:MSVCRT")
-                    pass
-                    
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pass
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_compiler_flags("-Wno-deprecated-declarations")
-
-        # vulkan on macos
-        with pl.configuration("vulkan"):
-
-            # mac os
-            with pl.platform("Darwin"):
-
-                with pl.compiler("clang"):
-                    pass
-                    
     #-----------------------------------------------------------------------------
     # [SECTION] scripts
     #-----------------------------------------------------------------------------
 
     # vulkan backend
-    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, False):
 
         pl.add_source_files("../extensions/pl_script_camera.c")
-        pl.set_output_binary("pl_script_camera")
+        
 
         # default config
         with pl.configuration("debug"):
+
+            pl.set_output_binary("pl_script_camerad")
 
             # win32
             with pl.platform("Windows"):
@@ -322,6 +316,8 @@ with pl.project("pilotlight"):
         # release
         with pl.configuration("release"):
 
+            pl.set_output_binary("pl_script_camera")
+
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
@@ -333,65 +329,6 @@ with pl.project("pilotlight"):
                     pass
 
             # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
-
-        # vulkan on macos
-        with pl.configuration("vulkan"):
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_dynamic_link_libraries("shaderc_shared")
-
-    #-----------------------------------------------------------------------------
-    # [SECTION] app
-    #-----------------------------------------------------------------------------
-
-    with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
-
-        pl.add_source_files("../sandbox/app.c")
-        pl.set_output_binary("app")
-
-        # default config
-        with pl.configuration("debug"):
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pass
-            
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
-
-            # mac os
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
-
-        # release
-        with pl.configuration("release"):
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pass
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
-
-            # mac os
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
-
-        # vulkan on macos
-        with pl.configuration("vulkan"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pass
@@ -402,10 +339,10 @@ with pl.project("pilotlight"):
 
     with pl.target("pilot_light", pl.TargetType.EXECUTABLE):
     
-        pl.set_output_binary("pilot_light")
-
         # default config
         with pl.configuration("debug"):
+
+            pl.set_output_binary("pilot_lightd")
 
             # win32
             with pl.platform("Windows"):
@@ -428,6 +365,8 @@ with pl.project("pilotlight"):
         # release
         with pl.configuration("release"):
 
+            pl.set_output_binary("pilot_light")
+
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
@@ -446,24 +385,13 @@ with pl.project("pilotlight"):
                     pl.add_source_files("pl_main_macos.m")
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
 
-        # vulkan on macos
-        with pl.configuration("vulkan"):
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_source_files("pl_main_macos.m")
-                    pl.add_compiler_flags("-Wno-deprecated-declarations")
-                    
 #-----------------------------------------------------------------------------
 # [SECTION] generate scripts
 #-----------------------------------------------------------------------------
 
 if plat.system() == "Windows":
-    win32.generate_build(working_directory + '/' + "build.bat")
+    win32.generate_build(working_directory + '/' + "deployment_build.bat")
 elif plat.system() == "Darwin":
-    apple.generate_build(working_directory + '/' + "build.sh")
+    apple.generate_build(working_directory + '/' + "deployment_build.sh")
 elif plat.system() == "Linux":
-    linux.generate_build(working_directory + '/' + "build.sh")
-
-win32.generate_build(working_directory + '/' + "build_win32.bat")
-apple.generate_build(working_directory + '/' + "build_macos.sh")
-linux.generate_build(working_directory + '/' + "build_linux.sh")
+    linux.generate_build(working_directory + '/' + "deployment_build.sh")

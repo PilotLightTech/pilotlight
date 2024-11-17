@@ -6,6 +6,7 @@
 /*
 Index of this file:
 // [SECTION] header mess
+// [SECTION] defines
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
@@ -13,7 +14,6 @@ Index of this file:
 // [SECTION] api structs
 // [SECTION] enums
 // [SECTION] IO struct
-// [SECTION] structs
 // [SECTION] defines
 */
 
@@ -25,20 +25,25 @@ Index of this file:
 #define PL_H
 
 // framework version XYYZZ
-#define PILOT_LIGHT_VERSION    "1.0.0"
+#define PILOT_LIGHT_VERSION_STRING "1.0.0"
 #define PILOT_LIGHT_VERSION_NUM 10000
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#define PL_LOG_CONTEXT_NAME     "PL_LOG_CONTEXT_NAME"
+#define PL_PROFILE_CONTEXT_NAME "PL_PROFILE_CONTEXT_NAME"
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plExtensionRegistryI_version (plVersion){1, 0, 0}
-#define plMemoryI_version            (plVersion){1, 0, 0}
-#define plIOI_version                (plVersion){1, 0, 0}
-#define plDataRegistryI_version      (plVersion){1, 0, 0}
-#define plWindowI_version            (plVersion){1, 0, 0}
-#define plLibraryI_version           (plVersion){1, 0, 0}
-#define plFileI_version              (plVersion){1, 0, 0}
+#define PILOT_LIGHT_VERSION          (plVersion){1, 0, 0}
+#define plExtensionRegistryI_version PILOT_LIGHT_VERSION
+#define plMemoryI_version            PILOT_LIGHT_VERSION
+#define plIOI_version                PILOT_LIGHT_VERSION
+#define plDataRegistryI_version      PILOT_LIGHT_VERSION
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -55,13 +60,9 @@ Index of this file:
 
 // types
 typedef struct _plVersion         plVersion;
-typedef struct _plWindow          plWindow;
-typedef struct _plWindowDesc      plWindowDesc;
-typedef struct _plLibraryDesc     plLibraryDesc;
 typedef struct _plAllocationEntry plAllocationEntry;
 typedef union  _plDataID          plDataID;
 typedef struct _plDataObject      plDataObject;    // opaque type
-typedef struct _plSharedLibrary   plSharedLibrary; // opaque type
 typedef struct _plIO              plIO;         // configuration & IO between app & pilotlight ui
 typedef struct _plKeyData         plKeyData;    // individual key status (down, down duration, etc.)
 typedef struct _plInputEvent      plInputEvent; // holds data for input events (opaque structure)
@@ -72,8 +73,6 @@ typedef int plMouseButton;      // -> enum plMouseButton_      // Enum: A mouse 
 typedef int plMouseCursor;      // -> enum plMouseCursor_      // Enum: Mouse cursor shape (PL_MOUSE_CURSOR_XXX)
 typedef int plInputEventType;   // -> enum plInputEventType_   // Enum: An input event type (PL_INPUT_EVENT_TYPE_XXX)
 typedef int plInputEventSource; // -> enum plInputEventSource_ // Enum: An input event source (PL_INPUT_EVENT_SOURCE_XXX)
-typedef int plOSResult;         // -> enum _plOSResult         // Enum:
-typedef int plFileResult;       // -> enum _plFileResult       // Enum:
 typedef int plKeyChord;
 
 // character types
@@ -95,7 +94,7 @@ typedef uint16_t plUiWChar;
 typedef struct _plApiRegistryI
 {
 
-    const void* (*set_api)   (const char* name, plVersion, const void* api, size_t interfaceSize);
+    void        (*set_api)   (const char* name, plVersion, const void* api, size_t interfaceSize);
     const void* (*get_api)   (const char* name, plVersion);
     void        (*remove_api)(const void* api);
     
@@ -159,8 +158,8 @@ typedef struct _plIOI
     void (*clear_input_characters)(void);
 
     // misc.
-    int         (*get_version_number)(void);
-    const char* (*get_version)       (void);
+    plVersion   (*get_version)       (void);
+    const char* (*get_version_string)(void);
 
 } plIOI;
 
@@ -193,38 +192,6 @@ typedef struct _plDataRegistryI
     void          (*commit)    (plDataObject*);
     
 } plDataRegistryI;
-
-typedef struct _plWindowI
-{
-
-    plOSResult (*create_window) (plWindowDesc, plWindow** windowPtrOut);
-    void       (*destroy_window)(plWindow*);
-    
-} plWindowI;
-
-typedef struct _plLibraryI
-{
-
-    plOSResult (*load)         (plLibraryDesc, plSharedLibrary** libraryPtrOut);
-    bool       (*has_changed)  (plSharedLibrary*);
-    void       (*reload)       (plSharedLibrary*);
-    void*      (*load_function)(plSharedLibrary*, const char*);
-    
-} plLibraryI;
-
-typedef struct _plFileI
-{
-
-    // simple file ops
-    bool         (*exists)(const char* path);
-    plFileResult (*delete)(const char* path);
-    plFileResult (*copy)  (const char* source, const char* destination);
-
-    // binary files
-    plFileResult (*binary_read) (const char* file, size_t* sizeOut, uint8_t* buffer); // pass NULL for buffer to get size
-    plFileResult (*binary_write)(const char* file, size_t, uint8_t* buffer);
-
-} plFileI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -324,18 +291,6 @@ enum plMouseCursor_
     PL_MOUSE_CURSOR_HAND,
     PL_MOUSE_CURSOR_NOT_ALLOWED,
     PL_MOUSE_CURSOR_COUNT
-};
-
-enum _plOSResult
-{
-    PL_OS_RESULT_FAIL    = 0,
-    PL_OS_RESULT_SUCCESS = 1
-};
-
-enum _plFileResult
-{
-    PL_FILE_RESULT_FAIL    = 0,
-    PL_FILE_RESULT_SUCCESS = 1
 };
 
 //-----------------------------------------------------------------------------
@@ -448,33 +403,6 @@ typedef struct _plIO
     float _fFrameRateSecPerFrameAccum;
 
 } plIO;
-
-//-----------------------------------------------------------------------------
-// [SECTION] structs
-//-----------------------------------------------------------------------------
-
-typedef struct _plWindowDesc
-{
-    const char* pcTitle;
-    uint32_t    uWidth;
-    uint32_t    uHeight;
-    int         iXPos;
-    int         iYPos;
-    const void* pNext;
-} plWindowDesc;
-
-typedef struct _plWindow
-{
-    plWindowDesc tDesc;
-    void*        _pPlatformData;
-} plWindow;
-
-typedef struct _plLibraryDesc
-{
-    const char* pcName;             // name of library (without extension)
-    const char* pcTransitionalName; // default: pcName + '_'
-    const char* pcLockFile;         // default: "lock.tmp"
-} plLibraryDesc;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs (not for public use, subject to change)

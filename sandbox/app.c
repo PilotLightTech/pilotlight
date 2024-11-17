@@ -32,8 +32,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 {
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
-    pl_set_log_context(ptDataRegistry->get_data("log"));
-    pl_set_profile_context(ptDataRegistry->get_data("profile"));
+    pl_set_log_context(ptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
+    pl_set_profile_context(ptDataRegistry->get_data(PL_PROFILE_CONTEXT_NAME));
 
     if(ptEditorData) // reload
     {
@@ -64,9 +64,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     // load extensions
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
-    ptExtensionRegistry->load("pl_ext", NULL, NULL, true);
-    ptExtensionRegistry->load("pl_ext_os", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_ext_proto", NULL, NULL, true);
+    ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
     
     // load apis
     gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
@@ -391,7 +389,7 @@ pl_app_update(plEditorData* ptEditorData)
         gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
         if(gptUi->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
         {
-            gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION);
+            gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
             #ifdef PL_METAL_BACKEND
             gptUi->text("Graphics Backend: Metal");
             #elif PL_VULKAN_BACKEND
@@ -434,7 +432,6 @@ pl_app_update(plEditorData* ptEditorData)
         if(gptUi->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface", 0))
         {
             gptUi->checkbox("UI Debug", &ptEditorData->bShowUiDebug);
-            gptUi->checkbox("UI Demo", &ptEditorData->bShowUiDemo);
             gptUi->checkbox("UI Style", &ptEditorData->bShowUiStyle);
             gptUi->end_collapsing_header();
         }
@@ -459,13 +456,6 @@ pl_app_update(plEditorData* ptEditorData)
     }
 
     gptDebug->show_debug_windows(&ptEditorData->tDebugInfo);
-
-    if(ptEditorData->bShowUiDemo)
-    {
-        pl_begin_profile_sample(0, "ui demo");
-        gptUi->show_demo_window(&ptEditorData->bShowUiDemo);
-        pl_end_profile_sample(0);
-    }
         
     if(ptEditorData->bShowUiStyle)
         gptUi->show_style_editor_window(&ptEditorData->bShowUiStyle);

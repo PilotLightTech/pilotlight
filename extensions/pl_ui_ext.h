@@ -95,7 +95,6 @@ typedef struct _plUiI
     // tools
     void (*show_debug_window)       (bool* open);
     void (*show_style_editor_window)(bool* open);
-    void (*show_demo_window)        (bool* open);
 
     // styling
     void (*set_dark_theme)  (void);

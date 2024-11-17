@@ -40,13 +40,48 @@ Index of this file:
 #include "pl_draw_backend_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
-#include "pl_ext.inc"
+#include "pl_file_ext.h"
 
 #define PL_MAX_VIEWS_PER_SCENE 4
 #define PL_MAX_LIGHTS 1000
 
 #ifndef PL_DEVICE_BUDDY_BLOCK_SIZE
     #define PL_DEVICE_BUDDY_BLOCK_SIZE 268435456
+#endif
+
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
+    static const plDataRegistryI*  gptDataRegistry  = NULL;
+    static const plGraphicsI*      gptGfx           = NULL;
+    static const plImageI*         gptImage         = NULL;
+    static const plStatsI*         gptStats         = NULL;
+    static const plGPUAllocatorsI* gptGpuAllocators = NULL;
+    static const plJobI*           gptJob           = NULL;
+    static const plDrawI*          gptDraw          = NULL;
+    static const plDrawBackendI*   gptDrawBackend   = NULL;
+    static const plUiI*            gptUI            = NULL;
+    static const plIOI*            gptIOI           = NULL;
+    static const plShaderI*        gptShader        = NULL;
+    static const plFileI*          gptFile          = NULL;
+    
+    // experimental
+    static const plCameraI*   gptCamera   = NULL;
+    static const plResourceI* gptResource = NULL;
+    static const plEcsI*      gptECS      = NULL;
+
+    static struct _plIO* gptIO = 0;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -428,7 +463,7 @@ static bool pl__sat_visibility_test(plCameraComponent*, const plAABB*);
 
 // shader variant system
 static plShaderHandle pl__get_shader_variant(uint32_t uSceneHandle, plShaderHandle tHandle, const plShaderVariant* ptVariant);
-static size_t         pl__get_data_type_size(plDataType tType);
+static size_t         pl__get_data_type_size2(plDataType tType);
 static plBlendState   pl__get_blend_state(plBlendMode tBlendMode);
 
 // job system tasks
@@ -2627,7 +2662,7 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
         for(uint32_t j = 0; j < ptOutlineShader->tDesc._uConstantCount; j++)
         {
             const plSpecializationConstant* ptConstant = &ptOutlineShader->tDesc.atConstants[j];
-            szSpecializationSize += pl__get_data_type_size(ptConstant->tType);
+            szSpecializationSize += pl__get_data_type_size2(ptConstant->tType);
         }
 
         // const uint64_t ulVariantHash = pl_hm_hash(tOutlineVariant.pTempConstantData, szSpecializationSize, tOutlineVariant.tGraphicsState.ulValue);
@@ -5701,7 +5736,7 @@ pl__get_shader_variant(uint32_t uSceneHandle, plShaderHandle tHandle, const plSh
     for(uint32_t i = 0; i < ptShader->tDesc._uConstantCount; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
-        szSpecializationSize += pl__get_data_type_size(ptConstant->tType);
+        szSpecializationSize += pl__get_data_type_size2(ptConstant->tType);
     }
 
     const uint64_t ulVariantHash = pl_hm_hash(ptVariant->pTempConstantData, szSpecializationSize, ptVariant->tGraphicsState.ulValue);
@@ -6049,7 +6084,7 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
 }
 
 static size_t
-pl__get_data_type_size(plDataType tType)
+pl__get_data_type_size2(plDataType tType)
 {
     switch(tType)
     {
@@ -6120,7 +6155,7 @@ pl__get_data_type_size(plDataType tType)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+PL_EXPORT void
 pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plRendererI tApi = {
@@ -6149,13 +6184,42 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .resize                        = pl_refr_resize,
     };
     pl_set_api(ptApiRegistry, plRendererI, &tApi);
+
+    // core apis
+    gptDataRegistry  = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+    gptIOI           = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
+    gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
+    gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptIO            = gptIOI->get_io();
+    gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
+    gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
+    gptJob           = pl_get_api_latest(ptApiRegistry, plJobI);
+
+    // set contexts
+    pl_set_profile_context(gptDataRegistry->get_data(PL_PROFILE_CONTEXT_NAME));
+    pl_set_log_context(gptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
+
+    
+    gptECS         = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
+    gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptUI          = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
+    #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
+        gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
+    #endif
+
     if(bReload)
     {
         gptData = gptDataRegistry->get_data("ref renderer data");
     }   
 }
 
-static void
+PL_EXPORT void
 pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
@@ -6164,3 +6228,25 @@ pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plRendererI* ptApi = pl_get_api_latest(ptApiRegistry, plRendererI);
     ptApiRegistry->remove_api(ptApi);
 }
+
+#ifndef PL_UNITY_BUILD
+
+    #define PL_LOG_IMPLEMENTATION
+    #include "pl_log.h"
+    #undef PL_LOG_IMPLEMENTATION
+
+    #define PL_PROFILE_IMPLEMENTATION
+    #include "pl_profile.h"
+    #undef PL_PROFILE_IMPLEMENTATION
+
+    #define PL_MEMORY_IMPLEMENTATION
+    #include "pl_memory.h"
+    #undef PL_MEMORY_IMPLEMENTATION
+
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
+#endif

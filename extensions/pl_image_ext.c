@@ -19,6 +19,12 @@ Index of this file:
 #include "stb_image.h"
 #include "stb_image_write.h"
 
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+static const struct _plMemoryI* gptMemory = 0;
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
@@ -67,7 +73,7 @@ pl_write_image(char const *pcFileName, const void *pData, const plImageWriteInfo
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+PL_EXPORT void
 pl_load_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plImageI tApi = {
@@ -83,9 +89,11 @@ pl_load_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .set_ldr_to_hdr_scale   = stbi_ldr_to_hdr_scale
     };
     pl_set_api(ptApiRegistry, plImageI, &tApi);
+
+    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
 }
 
-static void
+PL_EXPORT void
 pl_unload_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
@@ -94,3 +102,29 @@ pl_unload_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plImageI* ptApi = pl_get_api_latest(ptApiRegistry, plImageI);
     ptApiRegistry->remove_api(ptApi);
 }
+
+#ifndef PL_UNITY_BUILD
+
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #define PL_STRING_IMPLEMENTATION
+    #include "pl_string.h"
+    #undef PL_STRING_IMPLEMENTATION
+
+    #define STB_IMAGE_IMPLEMENTATION
+    #define STBI_MALLOC(x) PL_ALLOC(x)
+    #define STBI_FREE(x) PL_FREE(x)
+    #define STBI_REALLOC(x, y) PL_REALLOC(x, y)
+    #include "stb_image.h"
+    #undef STB_IMAGE_IMPLEMENTATION
+
+    #define STB_IMAGE_WRITE_IMPLEMENTATION
+    #define STBIW_MALLOC(x) PL_ALLOC(x)
+    #define STBIW_FREE(x) PL_FREE(x)
+    #define STBIW_REALLOC(x, y) PL_REALLOC(x, y)
+    #include "stb_image_write.h"
+    #undef STB_IMAGE_WRITE_IMPLEMENTATION
+
+#endif

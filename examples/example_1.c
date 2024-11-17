@@ -23,6 +23,7 @@ Index of this file:
 #include <stdio.h>
 #include <string.h> // memset
 #include "pl.h"
+#include "pl_window_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs

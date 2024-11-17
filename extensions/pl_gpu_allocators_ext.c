@@ -20,7 +20,25 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#include "pl_ext.inc"
+#include "pl_ds.h"
+
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
+    static const plGraphicsI* gptGfx = NULL;
+    static const plDataRegistryI* gptDataRegistry = NULL;
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -861,7 +879,7 @@ pl_cleanup_allocators(plDevice* ptDevice)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+PL_EXPORT void
 pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plGPUAllocatorsI tApi = {
@@ -874,9 +892,14 @@ pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .cleanup                        = pl_cleanup_allocators
     };
     pl_set_api(ptApiRegistry, plGPUAllocatorsI, &tApi);
+
+    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+    gptGfx = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+
 }
 
-static void
+PL_EXPORT void
 pl_unload_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
@@ -885,3 +908,11 @@ pl_unload_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plGPUAllocatorsI* ptApi = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
     ptApiRegistry->remove_api(ptApi);
 }
+
+#ifndef PL_UNITY_BUILD
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+#endif

@@ -1,5 +1,5 @@
 /*
-   pl_atomics_ext.h
+   pl_file_ext.h
 */
 
 /*
@@ -16,57 +16,56 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_ATOMICS_EXT_H
-#define PL_ATOMICS_EXT_H
+#ifndef PL_FILE_EXT_H
+#define PL_FILE_EXT_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdint.h>
-#include <stdbool.h>
+#include <stdint.h>  // uint8_t
+#include <stdbool.h> // bool
+#include <stddef.h>  // size_t
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plAtomicsI_version (plVersion){1, 0, 0}
+#define plFileI_version (plVersion){1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
-// basic types
-typedef struct _plAtomicCounter plAtomicCounter; // opaque type
-
 // enums
-typedef int plAtomicsResult; // -> enum _plAtomicsResult // Enum:
+typedef int plFileResult; // -> enum _plFileResult // Enum:
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-typedef struct _plAtomicsI
+typedef struct _plFileI
 {
 
-    plAtomicsResult (*create_atomic_counter)  (int64_t value, plAtomicCounter** counterPtrOut);
-    void            (*destroy_atomic_counter) (plAtomicCounter**);
-    void            (*atomic_store)           (plAtomicCounter*, int64_t value);
-    int64_t         (*atomic_load)            (plAtomicCounter*);
-    bool            (*atomic_compare_exchange)(plAtomicCounter*, int64_t expectedValue, int64_t desiredValue);
-    int64_t         (*atomic_increment)       (plAtomicCounter*);
-    int64_t         (*atomic_decrement)       (plAtomicCounter*);
+    // simple file ops
+    bool         (*exists)(const char* path);
+    plFileResult (*delete)(const char* path);
+    plFileResult (*copy)  (const char* source, const char* destination);
 
-} plAtomicsI;
+    // binary files
+    plFileResult (*binary_read) (const char* file, size_t* sizeOut, uint8_t* buffer); // pass NULL for buffer to get size
+    plFileResult (*binary_write)(const char* file, size_t, uint8_t* buffer);
+
+} plFileI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
-enum _plAtomicsResult
+enum _plFileResult
 {
-    PL_ATOMICS_RESULT_FAIL    = 0,
-    PL_ATOMICS_RESULT_SUCCESS = 1
+    PL_FILE_RESULT_FAIL    = 0,
+    PL_FILE_RESULT_SUCCESS = 1
 };
 
-#endif // PL_ATOMICS_EXT_H
+#endif // PL_FILE_EXT_H

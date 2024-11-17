@@ -20,6 +20,7 @@ Index of this file:
 #include "pl.h"
 #include "pl_model_loader_ext.h"
 #include "pl_stl.h"
+#include "pl_ds.h"
 #include "pl_string.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -27,7 +28,26 @@ Index of this file:
 // extensions
 #include "pl_resource_ext.h"
 #include "pl_ecs_ext.h"
-#include "pl_ext.inc"
+#include "pl_file_ext.h"
+
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
+    static const plResourceI* gptResource = NULL;
+    static const plEcsI*  gptECS = NULL;
+    static const plFileI* gptFile = NULL;
+#endif
 
 // misc
 #include "cgltf.h"
@@ -973,7 +993,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+PL_EXPORT void
 pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plModelLoaderI tApi = {
@@ -982,9 +1002,15 @@ pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .free_data = pl__free_data
     };
     pl_set_api(ptApiRegistry, plModelLoaderI, &tApi);
+
+    gptMemory      = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptECS         = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
+
 }
 
-static void
+PL_EXPORT void
 pl_unload_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
@@ -993,3 +1019,19 @@ pl_unload_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plModelLoaderI* ptApi = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
     ptApiRegistry->remove_api(ptApi);
 }
+
+#ifndef PL_UNITY_BUILD
+
+    #define PL_STRING_IMPLEMENTATION
+    #include "pl_string.h"
+    #undef PL_STRING_IMPLEMENTATION
+
+    #define PL_STL_IMPLEMENTATION
+    #include "pl_stl.h"
+    #undef PL_STL_IMPLEMENTATION
+
+    #define CGLTF_IMPLEMENTATION
+    #include "cgltf.h"
+    #undef CGLTF_IMPLEMENTATION
+
+#endif

@@ -43,6 +43,7 @@ jobs:
       run: | 
         cd scripts
         python gen_build.py
+        python gen_deploy.py
 
     - name: Build Pilot Light (DEBUG)
       shell: cmd
@@ -63,9 +64,7 @@ jobs:
         if not exist ../out/example_8.dll exit 1
         if not exist ../out/example_9.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
-        if not exist ../out/pl_ext.dll exit 1
-        if not exist ../out/pl_ext_os.dll exit 1
-        if not exist ../out/pl_ext_proto.dll exit 1
+        if not exist ../out/pl_unity_ext.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
         cd ..
 
@@ -93,10 +92,39 @@ jobs:
         if not exist ../out/example_8.dll exit 1
         if not exist ../out/example_9.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
-        if not exist ../out/pl_ext.dll exit 1
-        if not exist ../out/pl_ext_os.dll exit 1
-        if not exist ../out/pl_ext_proto.dll exit 1
+        if not exist ../out/pl_unity_ext.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
+
+    - name: Prep 3
+      shell: cmd
+      run: |
+        rmdir /s /q out
+
+    - name: Build Pilot Light Deployment (RELEASE)
+      shell: cmd
+      run: |
+        set VULKAN_SDK=D:/a/VulkanSDK
+        cd src
+        call deployment_build.bat -c release
+        if not exist ../out/pl_debug_ext.dll exit 1
+        if not exist ../out/pl_draw_backend_ext.dll exit 1
+        if not exist ../out/pl_draw_ext.dll exit 1
+        if not exist ../out/pl_ecs_ext.dll exit 1
+        if not exist ../out/pl_gpu_allocators_ext.dll exit 1
+        if not exist ../out/pl_graphics_ext.dll exit 1
+        if not exist ../out/pl_image_ext.dll exit 1
+        if not exist ../out/pl_job_ext.dll exit 1
+        if not exist ../out/pl_model_loader_ext.dll exit 1
+        if not exist ../out/pl_rect_pack_ext.dll exit 1
+        if not exist ../out/pl_renderer_ext.dll exit 1
+        if not exist ../out/pl_resource_ext.dll exit 1
+        if not exist ../out/pl_shader_ext.dll exit 1
+        if not exist ../out/pl_stats_ext.dll exit 1
+        if not exist ../out/pl_string_intern_ext.dll exit 1
+        if not exist ../out/pl_ui_ext.dll exit 1
+        if not exist ../out/pilot_light.exe exit 1
+        if not exist ../out/pl_script_camera.dll exit 1
+        cd ..
 
     - name: Package Pilot Light
       shell: cmd
@@ -136,6 +164,7 @@ jobs:
         cd $GITHUB_WORKSPACE
         cd scripts
         python3 gen_build.py
+        python3 gen_deploy.py
 
     - name: Build Pilot Light (DEBUG)
       run: |
@@ -161,9 +190,7 @@ jobs:
         test -f ./out/example_6.dylib || exit 1
         test -f ./out/example_8.dylib || exit 1
         test -f ./out/example_9.dylib || exit 1
-        test -f ./out/pl_ext.dylib || exit 1
-        test -f ./out/pl_ext_os.dylib || exit 1
-        test -f ./out/pl_ext_proto.dylib || exit 1
+        test -f ./out/pl_unity_ext.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
 
     - name: Prep 2
@@ -195,9 +222,41 @@ jobs:
         test -f ./out/example_6.dylib || exit 1
         test -f ./out/example_8.dylib || exit 1
         test -f ./out/example_9.dylib || exit 1
-        test -f ./out/pl_ext.dylib || exit 1
-        test -f ./out/pl_ext_os.dylib || exit 1
-        test -f ./out/pl_ext_proto.dylib || exit 1
+        test -f ./out/pl_unity_ext.dylib || exit 1
+        test -f ./out/pl_script_camera.dylib || exit 1
+
+    - name: Prep 3
+      run: |
+        cd $GITHUB_WORKSPACE
+        rm -r out
+
+    - name: Build Pilot Light Deployment (RELEASE)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x deployment_build.sh
+        ./deployment_build.sh -c release
+        cd ..
+        cd out
+        chmod +x pilot_light
+        cd ..
+        test -f ./out/pilot_light || exit 1
+        test -f ./out/pl_debug_ext.dylib || exit 1
+        test -f ./out/pl_draw_backend_ext.dylib || exit 1
+        test -f ./out/pl_draw_ext.dylib || exit 1
+        test -f ./out/pl_ecs_ext.dylib || exit 1
+        test -f ./out/pl_gpu_allocators_ext.dylib || exit 1
+        test -f ./out/pl_graphics_ext.dylib || exit 1
+        test -f ./out/pl_image_ext.dylib || exit 1
+        test -f ./out/pl_job_ext.dylib || exit 1
+        test -f ./out/pl_model_loader_ext.dylib || exit 1
+        test -f ./out/pl_rect_pack_ext.dylib || exit 1
+        test -f ./out/pl_renderer_ext.dylib || exit 1
+        test -f ./out/pl_resource_ext.dylib || exit 1
+        test -f ./out/pl_shader_ext.dylib || exit 1
+        test -f ./out/pl_stats_ext.dylib || exit 1
+        test -f ./out/pl_string_intern_ext.dylib || exit 1
+        test -f ./out/pl_ui_ext.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
 
     - name: Package Pilot Light
@@ -245,6 +304,7 @@ jobs:
         cd $GITHUB_WORKSPACE
         cd scripts
         python3 gen_build.py
+        python3 gen_deploy.py
 
     - name: Build Pilot Light (DEBUG)
       run: |
@@ -270,9 +330,7 @@ jobs:
         test -f ./out/example_6.so || exit 1
         test -f ./out/example_8.so || exit 1
         test -f ./out/example_9.so || exit 1
-        test -f ./out/pl_ext.so || exit 1
-        test -f ./out/pl_ext_os.so || exit 1
-        test -f ./out/pl_ext_proto.so || exit 1
+        test -f ./out/pl_unity_ext.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
 
     - name: Prep 2
@@ -304,9 +362,41 @@ jobs:
         test -f ./out/example_6.so || exit 1
         test -f ./out/example_8.so || exit 1
         test -f ./out/example_9.so || exit 1
-        test -f ./out/pl_ext.so || exit 1
-        test -f ./out/pl_ext_os.so || exit 1
-        test -f ./out/pl_ext_proto.so || exit 1
+        test -f ./out/pl_unity_ext.so || exit 1
+        test -f ./out/pl_script_camera.so || exit 1
+
+    - name: Prep 3
+      run: |
+        cd $GITHUB_WORKSPACE
+        rm -r out
+
+    - name: Build Pilot Light Deployment (RELEASE)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd src
+        chmod +x deployment_build.sh
+        ./deployment_build.sh -c release
+        cd ..
+        cd out
+        chmod +x pilot_light
+        cd ..
+        test -f ./out/pilot_light || exit 1
+        test -f ./out/pl_debug_ext.so || exit 1
+        test -f ./out/pl_draw_backend_ext.so || exit 1
+        test -f ./out/pl_draw_ext.so || exit 1
+        test -f ./out/pl_ecs_ext.so || exit 1
+        test -f ./out/pl_gpu_allocators_ext.so || exit 1
+        test -f ./out/pl_graphics_ext.so || exit 1
+        test -f ./out/pl_image_ext.so || exit 1
+        test -f ./out/pl_job_ext.so || exit 1
+        test -f ./out/pl_model_loader_ext.so || exit 1
+        test -f ./out/pl_rect_pack_ext.so || exit 1
+        test -f ./out/pl_renderer_ext.so || exit 1
+        test -f ./out/pl_resource_ext.so || exit 1
+        test -f ./out/pl_shader_ext.so || exit 1
+        test -f ./out/pl_stats_ext.so || exit 1
+        test -f ./out/pl_string_intern_ext.so || exit 1
+        test -f ./out/pl_ui_ext.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
 
     - name: Package Pilot Light

@@ -1,7 +1,9 @@
 #include <float.h>
 #include "pl.h"
 #include "pl_memory.h"
+#include "pl_ds.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
+#include "pl_math.h"
 
 // extensions
 #include "pl_graphics_ext.h"
@@ -10,7 +12,19 @@
 #include "pl_draw_ext.h"
 #include "pl_stats_ext.h"
 
-#include "pl_ext.inc"
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    static const plGraphicsI*      gptGfx           = NULL;
+    static const plStatsI*         gptStats         = NULL;
+    static const plDrawI*          gptDraw          = NULL;
+    static const plShaderI*        gptShader        = NULL;
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -986,7 +1000,7 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         {
             tPos.x = fWidth * 0.5f * (1.0f + tPos.x);
             tPos.y = fHeight * 0.5f * (1.0f + tPos.y);
-            pl_add_text_ex(ptDrawlist->ptLayer,
+            gptDraw->add_text(ptDrawlist->ptLayer,
                 (plVec2){roundf(tPos.x + 0.5f), roundf(tPos.y + 0.5f)},
                 ptText->acText,
                 (plDrawTextOptions){
@@ -1005,7 +1019,7 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+PL_EXPORT void
 pl_load_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
@@ -1021,17 +1035,23 @@ pl_load_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plDrawBackendI, &tApi);
 
+    gptMemory            = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptStats             = pl_get_api_latest(ptApiRegistry, plStatsI);
+    gptGfx               = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptDraw              = pl_get_api_latest(ptApiRegistry, plDrawI);
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+
     if(bReload)
-        gptDrawBackendCtx = gptDataRegistry->get_data("plDrawBackendContext");
+        gptDrawBackendCtx = ptDataRegistry->get_data("plDrawBackendContext");
     else  // first load
     {
         static plDrawBackendContext tCtx = {0};
         gptDrawBackendCtx = &tCtx;
-        gptDataRegistry->set_data("plDrawBackendContext", gptDrawBackendCtx);
+        ptDataRegistry->set_data("plDrawBackendContext", gptDrawBackendCtx);
     }
 }
 
-static void
+PL_EXPORT void
 pl_unload_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
@@ -1040,3 +1060,17 @@ pl_unload_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plDrawBackendI* ptApi = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     ptApiRegistry->remove_api(ptApi);
 }
+
+#ifndef PL_UNITY_BUILD
+
+    #define PL_MEMORY_IMPLEMENTATION
+    #include "pl_memory.h"
+    #undef PL_MEMORY_IMPLEMENTATION
+
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
+#endif

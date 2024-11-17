@@ -1,9 +1,35 @@
 #ifndef PL_GRAPHICS_INTERNAL_EXT_H
 #define PL_GRAPHICS_INTERNAL_EXT_H
 
+#include "pl.h"
+#include "pl_ds.h"
+#include "pl_log.h"
+#include "pl_threads_ext.h"
 #include "pl_graphics_ext.h"
+#include "pl_window_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
+
+#ifdef PL_UNITY_BUILD
+#include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
+    static const plDataRegistryI* gptDataRegistry = NULL;
+    static const plThreadsI* gptThreads = NULL;
+    static const plIOI* gptIOI = NULL;
+
+    static plIO* gptIO = NULL;
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
