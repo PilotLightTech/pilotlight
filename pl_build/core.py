@@ -14,7 +14,7 @@
 # [SECTION] version
 #-----------------------------------------------------------------------------
 
-__version__ = "1.0.11"
+__version__ = "1.0.12"
 
 #-----------------------------------------------------------------------------
 # [SECTION] imports
@@ -287,6 +287,7 @@ def target(name: str, target_type: TargetType = TargetType.EXECUTABLE, reloadabl
         _context._target_lock_file = None
         _context._target_reloadable = False
         _context._target_output_directory = None
+        _context._target_output_binary = None
         _context._target_definitions = []
         _context._target_include_directories = []
         _context._target_link_directories = []
@@ -316,6 +317,7 @@ def configuration(name: str):
     finally:
         _context._config_name = None
         _context._config_output_directory = None
+        _context._config_output_binary = None
         _context._config_definitions = []
         _context._config_include_directories = []
         _context._config_link_directories = []
@@ -332,6 +334,7 @@ def platform(name: str):
     finally:
         _context._platform_name = None
         _context._platform_output_directory = None
+        _context._platform_output_binary = None
         _context._platform_definitions = []
         _context._platform_include_directories = []
         _context._platform_link_directories = []
