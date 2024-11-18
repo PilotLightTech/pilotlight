@@ -1,3 +1,22 @@
+/*
+   pl_gpu_allocaters_ext.c
+*/
+
+/*
+Index of this file:
+// [SECTION] includes
+// [SECTION] internal structs
+// [SECTION] globals
+// [SECTION] internal api
+// [SECTION] public api implementation
+// [SECTION] extension loading
+// [SECTION] unity build
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
 #include <float.h>
 #include "pl.h"
 #include "pl_memory.h"
@@ -14,16 +33,6 @@
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
-#else
-    static const plMemoryI*  gptMemory = NULL;
-    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
-    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
-    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
-
-    static const plGraphicsI*      gptGfx           = NULL;
-    static const plStatsI*         gptStats         = NULL;
-    static const plDrawI*          gptDraw          = NULL;
-    static const plShaderI*        gptShader        = NULL;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -75,6 +84,18 @@ typedef struct _plDrawBackendContext
 //-----------------------------------------------------------------------------
 
 static plDrawBackendContext* gptDrawBackendCtx = NULL;
+
+#ifndef PL_UNITY_BUILD
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    static const plGraphicsI*      gptGfx           = NULL;
+    static const plStatsI*         gptStats         = NULL;
+    static const plDrawI*          gptDraw          = NULL;
+    static const plShaderI*        gptShader        = NULL;
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -1060,6 +1081,10 @@ pl_unload_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plDrawBackendI* ptApi = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     ptApiRegistry->remove_api(ptApi);
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
 
 #ifndef PL_UNITY_BUILD
 
