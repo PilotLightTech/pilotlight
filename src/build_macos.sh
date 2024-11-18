@@ -87,7 +87,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
@@ -124,7 +124,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -161,7 +161,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -201,7 +201,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
@@ -283,7 +283,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
@@ -320,7 +320,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
@@ -357,7 +357,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
@@ -397,7 +397,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
@@ -479,7 +479,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -516,7 +516,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -553,7 +553,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -593,7 +593,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../sandbox -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "

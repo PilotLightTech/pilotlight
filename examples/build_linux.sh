@@ -95,7 +95,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -124,7 +124,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_1 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -153,7 +153,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_2 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -182,7 +182,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_3 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -211,7 +211,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_4 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -240,7 +240,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_5 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -269,7 +269,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_6 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -298,7 +298,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_8 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -327,7 +327,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_9 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -408,7 +408,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -437,7 +437,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_1 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -466,7 +466,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_2 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -495,7 +495,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_3 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -524,7 +524,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_4 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -553,7 +553,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_5 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -582,7 +582,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_6 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -611,7 +611,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_8 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
@@ -640,7 +640,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_9 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "

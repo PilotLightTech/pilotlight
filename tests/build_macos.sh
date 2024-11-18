@@ -84,7 +84,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES=""
+PL_DEFINES="-DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
@@ -163,7 +163,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES=""
+PL_DEFINES="-DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "

@@ -91,8 +91,8 @@ with pl.project("pilotlight deploy"):
                     definitions=["PL_METAL_BACKEND"])
     
     # configs
-    pl.add_profile(configuration_filter=["debug"], definitions=["_DEBUG"])
-    pl.add_profile(configuration_filter=["release"], definitions=["NDEBUG"])
+    pl.add_profile(configuration_filter=["debug"], definitions=["_DEBUG", "PL_CONFIG_DEBUG"])
+    pl.add_profile(configuration_filter=["release"], definitions=["NDEBUG", "PL_CONFIG_RELEASE"])
                     
     #-----------------------------------------------------------------------------
     # [SECTION] extensions
@@ -390,8 +390,8 @@ with pl.project("pilotlight deploy"):
 #-----------------------------------------------------------------------------
 
 if plat.system() == "Windows":
-    win32.generate_build(working_directory + '/' + "deployment_build.bat")
+    win32.generate_build(working_directory + '/' + "build_distribute.bat")
 elif plat.system() == "Darwin":
-    apple.generate_build(working_directory + '/' + "deployment_build.sh")
+    apple.generate_build(working_directory + '/' + "build_distribute.sh")
 elif plat.system() == "Linux":
-    linux.generate_build(working_directory + '/' + "deployment_build.sh")
+    linux.generate_build(working_directory + '/' + "build_distribute.sh")

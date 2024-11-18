@@ -104,7 +104,7 @@
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -134,7 +134,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_1 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -164,7 +164,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_2 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -194,7 +194,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_3 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -224,7 +224,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_4 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -254,7 +254,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_5 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -284,7 +284,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_6 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -314,7 +314,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_8 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -344,7 +344,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_9 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -445,7 +445,7 @@ goto ExitLabel
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
@@ -475,7 +475,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_1 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
@@ -505,7 +505,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_2 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
@@ -535,7 +535,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_3 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
@@ -565,7 +565,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_4 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
@@ -595,7 +595,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_5 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
@@ -625,7 +625,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_6 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
@@ -655,7 +655,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_8 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
@@ -685,7 +685,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_9 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS 
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 

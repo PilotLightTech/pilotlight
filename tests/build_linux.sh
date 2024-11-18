@@ -81,7 +81,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES=""
+PL_DEFINES="-DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
@@ -151,7 +151,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES=""
+PL_DEFINES="-DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "

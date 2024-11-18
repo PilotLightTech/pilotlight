@@ -44,6 +44,8 @@ with pl.project("pilotlight_tests"):
 
         with pl.configuration("debug"):
 
+            pl.add_definitions("PL_CONFIG_DEBUG")
+
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
@@ -69,6 +71,8 @@ with pl.project("pilotlight_tests"):
                     pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
 
         with pl.configuration("release"):
+
+            pl.add_definitions("PL_CONFIG_RELEASE")
 
             # win32
             with pl.platform("Windows"):

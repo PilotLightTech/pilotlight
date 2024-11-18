@@ -82,7 +82,7 @@
 :: skip during hot reload
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light_test
 
-@set PL_DEFINES=-D_DEBUG 
+@set PL_DEFINES=-DPL_CONFIG_DEBUG -D_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -168,6 +168,7 @@ goto ExitLabel
 :: skip during hot reload
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light_test
 
+@set PL_DEFINES=-DPL_CONFIG_RELEASE 
 @set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
@@ -184,7 +185,7 @@ goto ExitLabel
 @if %PL_HOT_RELOAD_STATUS% equ 1 ( goto Cleanuppilot_light_test )
 
 :: call compiler
-cl %PL_INCLUDE_DIRECTORIES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light_test.exe" -Fo"../out/" -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_test_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pilot_light_test.exe" -Fo"../out/" -link %PL_LINKER_FLAGS% -PDB:"../out/pilot_light_test_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%

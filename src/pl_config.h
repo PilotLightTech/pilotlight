@@ -16,16 +16,16 @@
 // general
 #define PL_MEMORY_TRACKING_ON
 #define PL_USE_STB_SPRINTF
-#define PL_MAX_API_FUNCTIONS 256
-#define PL_MAX_NAME_LENGTH 1024
-#define PL_MAX_PATH_LENGTH 1024
+// #define PL_MAX_API_FUNCTIONS 256
+// #define PL_MAX_NAME_LENGTH 1024
+// #define PL_MAX_PATH_LENGTH 1024
 
 // profiling
 #define PL_PROFILE_ON
 
 // logging (see pl_log.h)
 #define PL_LOG_ON
-#define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_ALL
+// #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_ALL
 
 // shaders
 // #define PL_OFFLINE_SHADERS_ONLY

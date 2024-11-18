@@ -486,9 +486,27 @@ typedef struct _plVersion
     #define PL_ASSERT(x) assert((x))
 #endif
 
+#ifndef PL_MAX_API_FUNCTIONS
+    #define PL_MAX_API_FUNCTIONS 256
+#endif
+
+#ifndef PL_MAX_NAME_LENGTH
+    #define PL_MAX_NAME_LENGTH 1024
+#endif
+
+#ifndef PL_MAX_PATH_LENGTH
+    #define PL_MAX_PATH_LENGTH 1024
+#endif
+
 // log settings
 #ifndef PL_GLOBAL_LOG_LEVEL
-    #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_ALL
+    #if defined(PL_CONFIG_DEBUG)
+        #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_DEBUG
+    #elif defined(PL_CONFIG_RELEASE)
+        #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_INFO
+    #else
+        #define PL_GLOBAL_LOG_LEVEL PL_LOG_LEVEL_ALL
+    #endif
 #endif
 
 #endif // PL_H

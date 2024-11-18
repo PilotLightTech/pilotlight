@@ -36,7 +36,7 @@ with pl.project("pilotlight_examples"):
     # project wide settings
     pl.set_output_directory("../out")
     pl.add_link_directories("../out")
-    pl.add_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS")
+    pl.add_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS", "PL_CONFIG_DEBUG")
     pl.add_include_directories("../examples", "../src", "../libs", "../extensions", "../out", "../dependencies/stb")
         
     #-----------------------------------------------------------------------------

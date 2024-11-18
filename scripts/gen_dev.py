@@ -99,8 +99,8 @@ with pl.project("pilotlight"):
                     definitions=["PL_UNITY_BUILD"])
     
     # configs
-    pl.add_profile(configuration_filter=["debug", "vulkan"], definitions=["_DEBUG"])
-    pl.add_profile(configuration_filter=["release"], definitions=["NDEBUG"])
+    pl.add_profile(configuration_filter=["debug", "vulkan"], definitions=["_DEBUG", "PL_CONFIG_DEBUG"])
+    pl.add_profile(configuration_filter=["release"], definitions=["NDEBUG", "PL_CONFIG_RELEASE"])
                     
     #-----------------------------------------------------------------------------
     # [SECTION] extensions
