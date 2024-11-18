@@ -33,7 +33,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     pl_set_log_context(ptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
-    pl_set_profile_context(ptDataRegistry->get_data(PL_PROFILE_CONTEXT_NAME));
 
     if(ptEditorData) // reload
     {
@@ -56,11 +55,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         gptMemory      = pl_get_api_latest(ptApiRegistry, plMemoryI);
         gptNetwork     = pl_get_api_latest(ptApiRegistry, plNetworkI);
         gptString      = pl_get_api_latest(ptApiRegistry, plStringInternI);
+        gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
 
         return ptEditorData;
     }
 
-    pl_begin_profile_frame();
+    
 
     // load extensions
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
@@ -84,6 +84,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptMemory      = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptNetwork     = pl_get_api_latest(ptApiRegistry, plNetworkI);
     gptString      = pl_get_api_latest(ptApiRegistry, plStringInternI);
+    gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
+
+    gptProfile->begin_frame();
     
     // add some context to data registry
     ptEditorData = PL_ALLOC(sizeof(plEditorData));
@@ -169,13 +172,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     ptEditorData->uSceneHandle0 = gptRenderer->create_scene();
 
-    pl_begin_profile_sample(0, "load environments");
-    gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
-    pl_end_profile_sample(0);
 
-    pl_begin_profile_sample(0, "create scene views");
+    gptProfile->begin_sample(0, "load environments");
+    gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
+    gptProfile->end_sample(0);
+
+    gptProfile->begin_sample(0, "create scene views");
     ptEditorData->uViewHandle0 = gptRenderer->create_view(ptEditorData->uSceneHandle0, ptIO->tMainViewportSize);
-    pl_end_profile_sample(0);
+    gptProfile->end_sample(0);
 
     // temporary draw layer for submitting fullscreen quad of offscreen render
     ptEditorData->ptDrawLayer = gptDraw->request_2d_layer(gptUi->get_draw_list());
@@ -207,7 +211,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     
     plModelLoaderData tLoaderData0 = {0};
 
-    pl_begin_profile_sample(0, "load models 0");
+    gptProfile->begin_sample(0, "load models 0");
     const plMat4 tTransform = pl_mat4_translate_xyz(0.0f, 1.0f, 0.0f);
     gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", &tTransform, &tLoaderData0);
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
@@ -216,13 +220,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/kenny.glb", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptEditorData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
     gptModelLoader->free_data(&tLoaderData0);
-    pl_end_profile_sample(0);
+    gptProfile->end_sample(0);
 
-    pl_begin_profile_sample(0, "finalize scene 0");
+    gptProfile->begin_sample(0, "finalize scene 0");
     gptRenderer->finalize_scene(ptEditorData->uSceneHandle0);
-    pl_end_profile_sample(0);
+    gptProfile->end_sample(0);
 
-    pl_end_profile_frame();
+    gptProfile->end_frame();
 
     // plTransformComponent* ptTargetTransform = NULL;
     // ptEditorData->tTrackPoint = gptEcs->create_transform(ptMainComponentLibrary, "track 0", &ptTargetTransform);
@@ -238,10 +242,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     // temporary for profiling loading procedures
     uint32_t uSampleSize = 0;
-    plProfileSample* ptSamples = pl_get_last_frame_samples(0, &uSampleSize);
+    plProfileCpuSample* ptSamples = gptProfile->get_last_frame_samples(0, &uSampleSize);
     const char* pcSpacing = "                    ";
     for(uint32_t i = 0; i < uSampleSize; i++)
-        printf("%s %s : %0.6f\n", &pcSpacing[20 - ptSamples[i].uDepth * 2], ptSamples[i].pcName, ptSamples[i].dDuration);
+        printf("%s %s : %0.6f\n", &pcSpacing[20 - ptSamples[i]._uDepth * 2], ptSamples[i].pcName, ptSamples[i].dDuration);
 
     return ptEditorData;
 }
@@ -292,8 +296,8 @@ PL_EXPORT void
 pl_app_update(plEditorData* ptEditorData)
 {
     // begin profiling frame
-    pl_begin_profile_frame();
-    pl_begin_profile_sample(0, __FUNCTION__);
+    gptProfile->begin_frame();
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     gptIO->new_frame();
 
@@ -309,8 +313,8 @@ pl_app_update(plEditorData* ptEditorData)
 
     if(!gptRenderer->begin_frame())
     {
-        pl_end_profile_sample(0);
-        pl_end_profile_frame();
+        pl_end_cpu_sample(gptProfile, 0);
+        gptProfile->end_frame();
         return;
     }
 
@@ -468,8 +472,8 @@ pl_app_update(plEditorData* ptEditorData)
 
     gptRenderer->end_frame();
 
-    pl_end_profile_sample(0);
-    pl_end_profile_frame();
+    pl_end_cpu_sample(gptProfile, 0);
+    gptProfile->end_frame();
 }
 
 //-----------------------------------------------------------------------------
@@ -484,12 +488,6 @@ pl_app_update(plEditorData* ptEditorData)
 #define PL_LOG_IMPLEMENTATION
 #include "pl_log.h"
 #undef PL_LOG_IMPLEMENTATION
-
-#define PL_PROFILE_ALLOC(x) PL_ALLOC(x)
-#define PL_PROFILE_FREE(x) PL_FREE(x)
-#define PL_PROFILE_IMPLEMENTATION
-#include "pl_profile.h"
-#undef PL_PROFILE_IMPLEMENTATION
 
 #ifdef PL_USE_STB_SPRINTF
     #define STB_SPRINTF_IMPLEMENTATION

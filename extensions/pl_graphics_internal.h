@@ -7,6 +7,7 @@
 #include "pl_threads_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_window_ext.h"
+#include "pl_profile_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
@@ -26,6 +27,7 @@
 
     static const plDataRegistryI* gptDataRegistry = NULL;
     static const plThreadsI* gptThreads = NULL;
+    static const plProfileI* gptProfile = NULL;
     static const plIOI* gptIOI = NULL;
 
     static plIO* gptIO = NULL;

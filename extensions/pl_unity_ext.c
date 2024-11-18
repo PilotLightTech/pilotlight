@@ -37,6 +37,7 @@ Index of this file:
 #include "pl_model_loader_ext.c"
 #include "pl_renderer_ext.c"
 #include "pl_debug_ext.c"
+#include "pl_profile_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -66,11 +67,11 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptECS               = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptCamera            = pl_get_api_latest(ptApiRegistry, plCameraI);
     gptResource          = pl_get_api_latest(ptApiRegistry, plResourceI);
+    gptProfile           = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptIO = gptIOI->get_io();
 
 
     // misc
-    pl_set_profile_context(gptDataRegistry->get_data(PL_PROFILE_CONTEXT_NAME));
     pl_set_log_context(gptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
 
     pl_load_image_ext(ptApiRegistry, bReload);
@@ -94,6 +95,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_model_loader_ext(ptApiRegistry, bReload);
     pl_load_renderer_ext(ptApiRegistry, bReload);
     pl_load_debug_ext(ptApiRegistry, bReload);
+    pl_load_profile_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -117,6 +119,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_model_loader_ext(ptApiRegistry, bReload);
     pl_unload_renderer_ext(ptApiRegistry, bReload);
     pl_unload_debug_ext(ptApiRegistry, bReload);
+    pl_unload_profile_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------
@@ -128,12 +131,6 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 #define PL_LOG_IMPLEMENTATION
 #include "pl_log.h"
 #undef PL_LOG_IMPLEMENTATION
-
-#define PL_PROFILE_ALLOC(x) PL_ALLOC(x)
-#define PL_PROFILE_FREE(x) PL_FREE(x)
-#define PL_PROFILE_IMPLEMENTATION
-#include "pl_profile.h"
-#undef PL_PROFILE_IMPLEMENTATION
 
 #define PL_STRING_IMPLEMENTATION
 #include "pl_string.h"

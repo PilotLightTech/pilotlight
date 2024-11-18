@@ -99,6 +99,7 @@ with pl.project("pilotlight deploy"):
     #-----------------------------------------------------------------------------
 
     extensions = [
+        "pl_profile_ext",
         "pl_image_ext",
         "pl_stats_ext",
         "pl_rect_pack_ext",

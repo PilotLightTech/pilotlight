@@ -123,8 +123,8 @@ typedef struct _plProfileContext plProfileContext; // opaque type
 #define pl_get_profile_context()          pl__get_profile_context()
 
 // frames
-#define pl_begin_profile_frame() pl__begin_profile_frame()
-#define pl_end_profile_frame()   pl__end_profile_frame()
+#define pl_begin_profile_frame()  pl__begin_profile_frame()
+#define pl_end_profile_frame()    pl__end_profile_frame()
 
 // samples
 #define pl_begin_profile_sample(uThreadIndex, pcName)   pl__begin_profile_sample((uThreadIndex), (pcName))
@@ -161,8 +161,8 @@ void              pl__set_profile_context    (plProfileContext*);
 plProfileContext* pl__get_profile_context    (void);
 
 // frames
-void pl__begin_profile_frame(void);
-void pl__end_profile_frame  (void);
+void   pl__begin_profile_frame (void);
+void   pl__end_profile_frame   (void);
 
 // samples
 void              pl__begin_profile_sample(uint32_t uThreadIndex, const char* pcName);
@@ -174,11 +174,12 @@ plProfileSample*  pl__get_last_frame_samples(uint32_t uThreadIndex, uint32_t* pu
     #define pl_cleanup_profile_context() //
     #define pl_set_profile_context(ptContext) //
     #define pl_get_profile_context() NULL
-    #define pl_begin_profile_frame(ulFrame) //
+    #define pl_begin_profile_frame() //
     #define pl_end_profile_frame() //
-    #define pl_begin_profile_sample(pcName) //
-    #define pl_end_profile_sample() //
-    #define pl_get_last_frame_samples(puSize) NULL
+    #define pl_begin_profile_sampleuThreadIndex(uThreadIndex, pcName) //
+    #define pl_end_profile_sample(uThreadIndex) //
+    #define pl_get_last_frame_samples(uThreadIndex, puSize) NULL
+    #define pl_get_profile_overhead() 0.0
 #endif
 
 #endif // PL_PROFILE_H
@@ -220,6 +221,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <stdbool.h> // bool
+#include <string.h> // memset
 
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
@@ -412,6 +414,15 @@ pl__get_profile_context(void)
 void
 pl__begin_profile_frame(void)
 {
+
+    if(gptProfileContext == NULL)
+    {
+        plProfileInit tInit = {
+            .uThreadCount = 1
+        };
+        pl__create_profile_context(tInit);
+    }
+
     gptProfileContext->ulFrame++;
 
     for(uint32_t i = 0; i < gptProfileContext->uThreadCount; i++)

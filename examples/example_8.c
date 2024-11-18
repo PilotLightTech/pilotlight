@@ -27,7 +27,6 @@ Index of this file:
 
 #include <stdio.h>
 #include "pl.h"
-#include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_ds.h"
 #include "pl_memory.h"
@@ -40,6 +39,7 @@ Index of this file:
 #include "pl_draw_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_draw_backend_ext.h"
+#include "pl_profile_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -102,6 +102,7 @@ const plGraphicsI*    gptGfx         = NULL;
 const plDrawI*        gptDraw        = NULL;
 const plShaderI*      gptShader      = NULL;
 const plDrawBackendI* gptDrawBackend = NULL;
+const plProfileI*     gptProfile     = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper function declarations
@@ -129,7 +130,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // set log & profile contexts
     pl_set_log_context(ptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
-    pl_set_profile_context(ptDataRegistry->get_data(PL_PROFILE_CONTEXT_NAME));
 
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
@@ -143,6 +143,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
         gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
         gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
+        gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
 
         return ptAppData;
     }
@@ -165,6 +166,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
+    gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -464,7 +466,7 @@ pl_app_resize(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
-    pl_begin_profile_frame();
+    gptProfile->begin_frame();
 
     gptIO->new_frame();
     gptDrawBackend->new_frame();
@@ -481,7 +483,7 @@ pl_app_update(plAppData* ptAppData)
     if(!gptGfx->acquire_swapchain_image(ptAppData->ptSwapchain))
     {
         pl_app_resize(ptAppData);
-        pl_end_profile_frame();
+        gptProfile->end_frame();
         return;
     }
 
@@ -589,7 +591,7 @@ pl_app_update(plAppData* ptAppData)
         pl_app_resize(ptAppData);
 
     gptGfx->return_command_buffer(ptCommandBuffer);
-    pl_end_profile_frame();
+    gptProfile->end_frame();
 }
 
 //-----------------------------------------------------------------------------
@@ -675,7 +677,3 @@ camera_update(plCamera* ptCamera)
 #define PL_LOG_IMPLEMENTATION
 #include "pl_log.h"
 #undef PL_LOG_IMPLEMENTATION
-
-#define PL_PROFILE_IMPLEMENTATION
-#include "pl_profile.h"
-#undef PL_PROFILE_IMPLEMENTATION

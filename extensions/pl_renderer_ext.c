@@ -20,7 +20,6 @@ Index of this file:
 #include <float.h> // FLT_MAX
 #include "pl.h"
 #include "pl_renderer_ext.h"
-#include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_ds.h"
 #include "pl_string.h"
@@ -30,6 +29,7 @@ Index of this file:
 
 // extensions
 #include "pl_graphics_ext.h"
+#include "pl_profile_ext.h"
 #include "pl_ecs_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_image_ext.h"
@@ -75,6 +75,7 @@ Index of this file:
     static const plIOI*            gptIOI           = NULL;
     static const plShaderI*        gptShader        = NULL;
     static const plFileI*          gptFile          = NULL;
+    static const plProfileI*       gptProfile       = NULL;
     
     // experimental
     static const plCameraI*   gptCamera   = NULL;
@@ -1884,7 +1885,7 @@ pl_refr_get_swapchain(void)
 static void
 pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int iResolution)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     const int iSamples = 512;
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plDevice* ptDevice = gptData->ptDevice;
@@ -1949,21 +1950,21 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     int iPanoramaWidth = 0;
     int iPanoramaHeight = 0;
     int iUnused = 0;
-    pl_begin_profile_sample(0, "load image");
+    pl_begin_cpu_sample(gptProfile, 0, "load image");
     size_t szImageFileSize = 0;
     gptFile->binary_read(pcPath, &szImageFileSize, NULL);
     unsigned char* pucBuffer = PL_ALLOC(szImageFileSize);
     gptFile->binary_read(pcPath, &szImageFileSize, pucBuffer);
     float* pfPanoramaData = gptImage->load_hdr(pucBuffer, (int)szImageFileSize, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
     PL_FREE(pucBuffer);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
     PL_ASSERT(pfPanoramaData);
 
     ptScene->iEnvironmentMips = (uint32_t)floorf(log2f((float)pl_maxi(iResolution, iResolution))) - 3; // guarantee final dispatch during filtering is 16 threads
 
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
 
-    pl_begin_profile_sample(0, "step 0");
+    pl_begin_cpu_sample(gptProfile, 0, "step 0");
     {
         int aiSkyboxSpecializationData[] = {iResolution, iPanoramaWidth, iPanoramaHeight};
         const plComputeShaderDesc tSkyboxComputeShaderDesc = {
@@ -2187,9 +2188,9 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){-fCubeSide,  fCubeSide,  fCubeSide}));
         pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){ fCubeSide,  fCubeSide,  fCubeSide})); 
     }
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 
-    pl_begin_profile_sample(0, "step 1");
+    pl_begin_cpu_sample(gptProfile, 0, "step 1");
 
     plComputeShaderDesc tFilterComputeShaderDesc = {
         .tShader = gptShader->load_glsl("../shaders/filter_environment.comp", "main", NULL, NULL),
@@ -2281,13 +2282,13 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         atSpecularComputeShaders[i] = gptGfx->create_compute_shader(ptDevice, &tFilterComputeShaderDesc);
     }
     pl_temp_allocator_reset(&gptData->tTempAllocator);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 
     // create lut
     
     {
 
-        pl_begin_profile_sample(0, "step 2");
+        pl_begin_cpu_sample(gptProfile, 0, "step 2");
         plBufferHandle atLutBuffers[7] = {0};
         const plBufferDesc tInputBufferDesc = {
             .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
@@ -2343,9 +2344,9 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .uThreadPerGroupY = 16,
             .uThreadPerGroupZ = 3
         };
-        pl_end_profile_sample(0);
+        pl_end_cpu_sample(gptProfile, 0);
 
-        pl_begin_profile_sample(0, "step 3");
+        pl_begin_cpu_sample(gptProfile, 0, "step 3");
         plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
         gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
@@ -2370,9 +2371,9 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .tUsage      = PL_TEXTURE_USAGE_SAMPLED
         };
         ptScene->tGGXLUTTexture = pl__refr_create_texture_with_data(&tTextureDesc, "lut texture", 0, ptLutBuffer->tMemoryAllocation.pHostMapped, uFaceSize);
-        pl_end_profile_sample(0);
+        pl_end_cpu_sample(gptProfile, 0);
 
-        pl_begin_profile_sample(0, "step 4");
+        pl_begin_cpu_sample(gptProfile, 0, "step 4");
         ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
         gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
@@ -2421,11 +2422,11 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
         for(uint32_t i = 0; i < 7; i++)
             gptGfx->destroy_buffer(ptDevice, atLutBuffers[i]);
-        pl_end_profile_sample(0);
+        pl_end_cpu_sample(gptProfile, 0);
     }
     
 
-    pl_begin_profile_sample(0, "step 5");
+    pl_begin_cpu_sample(gptProfile, 0, "step 5");
     {
         const plTextureDesc tTextureDesc = {
             .tDimensions = {(float)iResolution, (float)iResolution, 1},
@@ -2542,8 +2543,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             gptGfx->queue_buffer_for_deletion(ptDevice, atInnerComputeBuffers[j]);
     }
 
-    pl_end_profile_sample(0);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static plTextureHandle
@@ -2836,7 +2837,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    pl_begin_profile_sample(0, "load textures");
+    pl_begin_cpu_sample(gptProfile, 0, "load textures");
     plHashMap* ptMaterialBindGroupDict = {0};
     plBindGroupHandle* sbtMaterialBindGroups = NULL;
     plMaterialComponent* sbtMaterials = ptScene->tComponentLibrary.tMaterialComponentManager.pComponents;
@@ -2850,11 +2851,11 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     };
     gptJob->dispatch_batch(uMaterialCount, 0, tJobDesc, &ptCounter);
     gptJob->wait_for_counter(ptCounter);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~materials~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    pl_begin_profile_sample(0, "load materials");
+    pl_begin_cpu_sample(gptProfile, 0, "load materials");
     for(uint32_t i = 0; i < uMaterialCount; i++)
     {
         plMaterialComponent* ptMaterial = &sbtMaterials[i];
@@ -2890,7 +2891,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         gptGfx->update_bind_group(ptDevice, sbtMaterialBindGroups[i], &tBGData1);
         pl_hm_insert(ptMaterialBindGroupDict, (uint64_t)ptMaterial, (uint64_t)i);
     }
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~CPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2899,7 +2900,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
     // fill CPU buffers & drawable list
-    pl_begin_profile_sample(0, "create shaders");
+    pl_begin_cpu_sample(gptProfile, 0, "create shaders");
 
     plDrawable* sbtDrawables[] = {
         ptScene->sbtOpaqueDrawables,
@@ -3070,14 +3071,14 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     ptScene->ptOpaqueHashmap = atHashmaps[0];
     ptScene->ptTransparentHashmap = atHashmaps[1];
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 
     pl_hm_free(ptMaterialBindGroupDict);
     pl_sb_free(sbtMaterialBindGroups);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~GPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    pl_begin_profile_sample(0, "fill GPU buffers");
+    pl_begin_cpu_sample(gptProfile, 0, "fill GPU buffers");
 
     const plBufferDesc tShaderBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE,
@@ -3301,13 +3302,13 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     pl_sb_free(ptScene->sbtVertexDataBuffer);
     pl_sb_free(ptScene->sbuIndexBuffer);
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
 pl_refr_run_ecs(uint32_t uSceneHandle)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     gptECS->run_script_update_system(&ptScene->tComponentLibrary);
     gptECS->run_animation_update_system(&ptScene->tComponentLibrary, gptIOI->get_io()->fDeltaTime);
@@ -3316,13 +3317,13 @@ pl_refr_run_ecs(uint32_t uSceneHandle)
     gptECS->run_inverse_kinematics_update_system(&ptScene->tComponentLibrary);
     gptECS->run_skin_update_system(&ptScene->tComponentLibrary);
     gptECS->run_object_update_system(&ptScene->tComponentLibrary);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
 pl_refr_update_skin_textures(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
@@ -3376,13 +3377,13 @@ pl_refr_update_skin_textures(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHa
 
     gptGfx->end_blit_pass(ptBlitEncoder);
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
 pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
 
@@ -3424,7 +3425,7 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
     }
     gptGfx->end_compute_pass(ptComputeEncoder);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 typedef struct _plCullData
@@ -3451,7 +3452,7 @@ pl__refr_cull_job(uint32_t uJobIndex, void* pData)
 static void
 pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     // for convience
     plDevice*     ptDevice   = gptData->ptDevice;
@@ -3469,7 +3470,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
 
     if(!(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW))
     {
-        pl_end_profile_sample(0);
+        pl_end_cpu_sample(gptProfile, 0);
         return;
     }
 
@@ -3786,7 +3787,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
         gptGfx->end_render_pass(ptEncoder);
     }
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static plEntity
@@ -3798,7 +3799,7 @@ pl_refr_get_picked_entity(void)
 static void
 pl_refr_post_process_scene(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, const plMat4* ptMVP)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     // for convience
     plDevice*     ptDevice   = gptData->ptDevice;
@@ -3888,13 +3889,13 @@ pl_refr_post_process_scene(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHand
     gptDrawBackend->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
 
     gptGfx->end_render_pass(ptEncoder);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
 pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     // for convience
     plCommandPool*     ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
@@ -4881,7 +4882,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         *pdVisibleTransparentObjects = (double)(pl_sb_size(ptView->sbtVisibleTransparentDrawables));
     }
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
@@ -4951,7 +4952,7 @@ pl_refr_resize(void)
 static bool
 pl_refr_begin_frame(void)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     if(gptData->bReloadSwapchain)
     {
@@ -4965,7 +4966,7 @@ pl_refr_begin_frame(void)
         gptGfx->recreate_swapchain(gptData->ptSwap, &tDesc);
         
         pl_refr_resize();
-        pl_end_profile_sample(0);
+        pl_end_cpu_sample(gptProfile, 0);
         return false;
     }
 
@@ -4984,18 +4985,18 @@ pl_refr_begin_frame(void)
         };
         gptGfx->recreate_swapchain(gptData->ptSwap, &tDesc);
         pl_refr_resize();
-        pl_end_profile_sample(0);
+        pl_end_cpu_sample(gptProfile, 0);
         return false;
     }
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
     return true;
 }
 
 static void
 pl_refr_end_frame(void)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
     plDevice*   ptDevice   = gptData->ptDevice;
@@ -5017,12 +5018,12 @@ pl_refr_end_frame(void)
     plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptData->tMainRenderPass);
 
     // render ui
-    pl_begin_profile_sample(0, "render ui");
+    pl_begin_cpu_sample(gptProfile, 0, "render ui");
     plIO* ptIO = gptIOI->get_io();
     gptUI->end_frame();
     gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
     gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 
     gptGfx->end_render_pass(ptEncoder);
 
@@ -5047,7 +5048,7 @@ pl_refr_end_frame(void)
     }
 
     gptGfx->return_command_buffer(ptCommandBuffer);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static plDrawList3D*
@@ -6196,9 +6197,9 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
     gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
     gptJob           = pl_get_api_latest(ptApiRegistry, plJobI);
+    gptProfile       = pl_get_api_latest(ptApiRegistry, plJobI);
 
     // set contexts
-    pl_set_profile_context(gptDataRegistry->get_data(PL_PROFILE_CONTEXT_NAME));
     pl_set_log_context(gptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
 
     
@@ -6236,12 +6237,6 @@ pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #define PL_LOG_IMPLEMENTATION
     #include "pl_log.h"
     #undef PL_LOG_IMPLEMENTATION
-
-    #define PL_PROFILE_ALLOC(x) PL_ALLOC(x)
-    #define PL_PROFILE_FREE(x) PL_FREE(x)
-    #define PL_PROFILE_IMPLEMENTATION
-    #include "pl_profile.h"
-    #undef PL_PROFILE_IMPLEMENTATION
 
     #define PL_MEMORY_IMPLEMENTATION
     #include "pl_memory.h"

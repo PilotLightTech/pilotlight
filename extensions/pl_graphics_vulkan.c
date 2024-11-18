@@ -20,7 +20,6 @@ Index of this file:
 
 #include "pl.h"
 #include "pl_ds.h"
-#include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_string.h"
 #include "pl_memory.h"
@@ -1941,7 +1940,7 @@ pl_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandl
 void
 pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAreas)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
@@ -2111,7 +2110,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
                 vkCmdDrawIndexed(ptCmdBuffer->tCmdBuffer, uTriangleCount * 3, uInstanceCount, uIndexBufferOffset, uVertexBufferOffset, uInstanceStart);
         }
     }
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 void
@@ -2996,7 +2995,7 @@ pl_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainI
 void
 pl_begin_frame(plDevice* ptDevice)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
     ptCurrentFrame->uCurrentBufferIndex = 0;
@@ -3004,13 +3003,13 @@ pl_begin_frame(plDevice* ptDevice)
     PL_VULKAN(vkWaitForFences(ptDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight, VK_TRUE, UINT64_MAX));
     pl__garbage_collect(ptDevice);
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 bool
 pl_acquire_swapchain_image(plSwapchain* ptSwap)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plDevice* ptDevice = ptSwap->ptDevice;
 
@@ -3019,7 +3018,7 @@ pl_acquire_swapchain_image(plSwapchain* ptSwap)
     {
         if (err == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            pl_end_profile_sample(0);
+            pl_end_cpu_sample(gptProfile, 0);
             return false;
         }
     }
@@ -3027,7 +3026,7 @@ pl_acquire_swapchain_image(plSwapchain* ptSwap)
     {
         PL_VULKAN(err);
     }
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
     return true;
 }
 
@@ -3040,7 +3039,7 @@ pl_end_command_recording(plCommandBuffer* ptCommandBuffer)
 bool
 pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwapchain **ptSwaps, uint32_t uSwapchainCount)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plIO* ptIOCtx = gptIOI->get_io();
 
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
@@ -3130,7 +3129,7 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
     if (tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
         pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-        pl_end_profile_sample(0);
+        pl_end_cpu_sample(gptProfile, 0);
         return false;
     }
     else
@@ -3139,14 +3138,14 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
     }
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
     pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
     return true;
 }
 
 void
 pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     ptSwap->tInfo.bVSync = ptInit->bVSync;
     ptSwap->tInfo.uWidth = ptInit->uWidth;
     ptSwap->tInfo.uHeight = ptInit->uHeight;
@@ -3155,7 +3154,7 @@ pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
         ptSwap->tInfo.tSampleCount = 1;
 
     pl__create_swapchain(ptInit->uWidth, ptInit->uHeight, ptSwap);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 void
@@ -4982,7 +4981,7 @@ pl__pilotlight_format(VkFormat tFormat)
 static void
 pl__garbage_collect(plDevice* ptDevice)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
@@ -5137,5 +5136,5 @@ pl__garbage_collect(plDevice* ptDevice)
     pl_sb_reset(ptCurrentFrame->sbtRawFrameBuffers);
     pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }

@@ -33,7 +33,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #define PL_LOG_CONTEXT_NAME     "PL_LOG_CONTEXT_NAME"
-#define PL_PROFILE_CONTEXT_NAME "PL_PROFILE_CONTEXT_NAME"
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis

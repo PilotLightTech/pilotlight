@@ -31,7 +31,6 @@ Index of this file:
 #include <string.h>  // strcmp
 #include "pl_internal.h"
 #include "pl_ds.h"
-#include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_memory.h"
 #include "pl_string.h"
@@ -46,6 +45,7 @@ Index of this file:
 #include "pl_threads_ext.h"
 #include "pl_network_ext.h"
 #include "pl_virtual_memory_ext.h"
+#include "pl_profile_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -1521,12 +1521,6 @@ pl__load_core_apis(void)
     gptIOI               = pl_get_api_latest(ptApiRegistry, plIOI);
     gptApiRegistry       = ptApiRegistry;
 
-    plProfileInit tProfileInit = {
-        .uThreadCount = pl_get_hardware_thread_count()
-    };
-    plProfileContext* ptProfileCtx = pl_create_profile_context(tProfileInit);
-
-    gptDataRegistry->set_data(PL_PROFILE_CONTEXT_NAME, ptProfileCtx);
     gptDataRegistry->set_data(PL_LOG_CONTEXT_NAME, ptLogCtx);
 }
 
@@ -1534,7 +1528,6 @@ void
 pl__unload_core_apis(void)
 {
     pl_cleanup_log_context();
-    pl_cleanup_profile_context();
 
     // data registry
     for(uint32_t i = 0; i < pl_sb_size(gtDataRegistryData.sbtDataObjects); i++)
@@ -1720,9 +1713,3 @@ pl__unload_ext_apis(void)
 #define PL_LOG_IMPLEMENTATION
 #include "pl_log.h"
 #undef PL_LOG_IMPLEMENTATION
-
-#define PL_PROFILE_ALLOC(x) PL_ALLOC(x)
-#define PL_PROFILE_FREE(x) PL_FREE(x)
-#define PL_PROFILE_IMPLEMENTATION
-#include "pl_profile.h"
-#undef PL_PROFILE_IMPLEMENTATION

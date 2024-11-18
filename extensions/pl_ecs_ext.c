@@ -23,12 +23,12 @@ Index of this file:
 #include "pl_ecs_ext.h"
 #include "pl_ds.h"
 #include "pl_math.h"
-#include "pl_profile.h"
 #include "pl_log.h"
 
 // extensions
 #include "pl_job_ext.h"
 #include "pl_script_ext.h"
+#include "pl_profile_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -47,6 +47,7 @@ Index of this file:
     static plApiRegistryI*             gptApiRegistry       = NULL;
     static const plExtensionRegistryI* gptExtensionRegistry = NULL;
     static const plJobI*               gptJob               = NULL;
+    static const plProfileI*           gptProfile           = NULL;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -990,7 +991,7 @@ pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity)
 static void
 pl_run_skin_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plSkinComponent* sbtComponents = ptLibrary->tSkinComponentManager.pComponents;
 
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
@@ -1014,7 +1015,7 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
         }
     }
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
@@ -1067,7 +1068,7 @@ pl__object_update_job(uint32_t uJobIndex, void* pData)
 static void
 pl_run_object_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     
     plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
@@ -1080,13 +1081,13 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
     gptJob->dispatch_batch(uComponentCount, 0, tJobDesc, &ptCounter);
     gptJob->wait_for_counter(ptCounter);
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
 pl_run_transform_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plTransformComponent* sbtComponents = ptLibrary->tTransformComponentManager.pComponents;
 
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
@@ -1096,13 +1097,13 @@ pl_run_transform_update_system(plComponentLibrary* ptLibrary)
         ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
     }
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
 pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     const uint32_t uComponentCount = pl_sb_size(ptLibrary->tHierarchyComponentManager.sbtEntities);
     for(uint32_t i = 0; i < uComponentCount; i++)
@@ -1115,13 +1116,13 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
             ptChildTransform->tWorld = pl_mul_mat4(&ptParentTransform->tWorld, &ptChildTransform->tWorld);
     }
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
 pl_run_script_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plScriptComponent* sbtComponents = ptLibrary->tScriptComponentManager.pComponents;
 
@@ -1137,13 +1138,13 @@ pl_run_script_update_system(plComponentLibrary* ptLibrary)
         if(sbtComponents[i].tFlags & PL_SCRIPT_FLAG_PLAY_ONCE)
             sbtComponents[i].tFlags = PL_SCRIPT_FLAG_NONE;
     }
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
 pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plAnimationComponent* sbtComponents = ptLibrary->tAnimationComponentManager.pComponents;
     
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
@@ -1327,13 +1328,13 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
         }
     }
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
 pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plInverseKinematicsComponent* sbtComponents = ptLibrary->tInverseKinematicsComponentManager.pComponents;
     plTransformComponent* sbtTransforms = ptLibrary->tTransformComponentManager.pComponents;
@@ -1483,7 +1484,7 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
 
     pl_sb_reset(ptData->sbtTransformsCopy);
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
@@ -1765,7 +1766,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptApiRegistry = ptApiRegistry;
     gptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
     gptJob = pl_get_api_latest(ptApiRegistry, plJobI);
-
+    gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
 
     if(bReload)
     {
@@ -1801,11 +1802,5 @@ pl_unload_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #define PL_LOG_IMPLEMENTATION
     #include "pl_log.h"
     #undef PL_LOG_IMPLEMENTATION
-
-    #define PL_PROFILE_ALLOC(x) PL_ALLOC(x)
-    #define PL_PROFILE_FREE(x) PL_FREE(x)
-    #define PL_PROFILE_IMPLEMENTATION
-    #include "pl_profile.h"
-    #undef PL_PROFILE_IMPLEMENTATION
 
 #endif

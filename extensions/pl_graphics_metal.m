@@ -19,7 +19,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl.h"
-#include "pl_profile.h"
 #include "pl_memory.h"
 #include "pl_graphics_internal.h"
 
@@ -1726,7 +1725,7 @@ pl_request_command_buffer(plCommandPool* ptPool)
 static void
 pl_begin_frame(plDevice* ptDevice)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     // Wait until the inflight command buffer has completed its work
     // gptGraphics->tSwapchain.uCurrentImageIndex = gptGraphics->uCurrentFrameIndex;
@@ -1744,13 +1743,13 @@ pl_begin_frame(plDevice* ptDevice)
         bFirstRun = false;
     }
     
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static bool
 pl_acquire_swapchain_image(plSwapchain* ptSwapchain)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plDevice* ptDevice = ptSwapchain->ptDevice;
 
@@ -1763,11 +1762,11 @@ pl_acquire_swapchain_image(plSwapchain* ptSwapchain)
 
     if(!gptGraphics->tCurrentDrawable)
     {
-        pl_end_profile_sample(0);
+        pl_end_cpu_sample(gptProfile, 0);
         return false;
     }
 
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
     return true;
 }
 
@@ -2178,7 +2177,7 @@ pl_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandl
 static void
 pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
@@ -2397,7 +2396,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             }
         }
     }
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
@@ -2746,7 +2745,7 @@ pl__metal_stage_flags(plStageFlags tFlags)
 static void
 pl__garbage_collect(plDevice* ptDevice)
 {
-    pl_begin_profile_sample(0, __FUNCTION__);
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
 
@@ -2868,7 +2867,7 @@ pl__garbage_collect(plDevice* ptDevice)
     pl_sb_reset(ptGarbage->sbtMemory);
     pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);
-    pl_end_profile_sample(0);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 //-----------------------------------------------------------------------------

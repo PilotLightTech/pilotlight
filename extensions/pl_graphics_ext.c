@@ -770,6 +770,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
 
     gptThreads = pl_get_api_latest(ptApiRegistry, plThreadsI);
+    gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
 
     if(bReload)
     {
@@ -797,10 +798,6 @@ pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #define PL_LOG_IMPLEMENTATION
     #include "pl_log.h"
     #undef PL_LOG_IMPLEMENTATION
-
-    #define PL_PROFILE_IMPLEMENTATION
-    #include "pl_profile.h"
-    #undef PL_PROFILE_IMPLEMENTATION
 
     #define PL_STRING_IMPLEMENTATION
     #include "pl_string.h"

@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <float.h>
 #include "pl.h"
-#include "pl_profile.h"
 #include "pl_log.h"
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -22,6 +21,7 @@
 
 // extensions
 #include "pl_image_ext.h"
+#include "pl_profile_ext.h"
 #include "pl_stats_ext.h"
 #include "pl_ecs_ext.h"
 #include "pl_graphics_ext.h"
@@ -68,6 +68,7 @@ static const plShaderI*       gptShader      = NULL;
 static const plMemoryI*       gptMemory      = NULL;
 static const plNetworkI*      gptNetwork     = NULL;
 static const plStringInternI* gptString      = NULL;
+static const plProfileI*      gptProfile     = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
