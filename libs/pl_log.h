@@ -727,7 +727,11 @@ pl__cleanup_log_context(void)
             plLogChannel* ptChannel = &gptLogContext->atChannels[i];
             if(ptChannel->pcBuffer)
                 PL_LOG_FREE(ptChannel->pcBuffer);
-            ptChannel->ptEntries         = NULL;
+            if(ptChannel->ptEntries)
+            {
+                PL_LOG_FREE(ptChannel->ptEntries);
+            }
+            ptChannel->ptEntries       = NULL;
             ptChannel->pcBuffer        = NULL;
             ptChannel->szBufferCapacity = 0;
             ptChannel->szBufferSize     = 0;
