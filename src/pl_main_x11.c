@@ -154,6 +154,12 @@ int main(int argc, char *argv[])
         {
             printf("\nPilot Light - light weight game engine\n\n");
             printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            #ifdef PL_CONFIG_DEBUG
+                printf("Config: debug\n\n");
+            #endif
+            #ifdef PL_CONFIG_RELEASE
+                printf("Config: release\n\n");
+            #endif
             return 0;
         }
         else if(strcmp(argv[i], "--extensions") == 0)
@@ -166,7 +172,13 @@ int main(int argc, char *argv[])
             plVersion tNetworkExtVersion = plNetworkI_version;
             plVersion tLibraryVersion = plLibraryI_version;
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            #ifdef PL_CONFIG_DEBUG
+                printf("Config: debug\n\n");
+            #endif
+            #ifdef PL_CONFIG_RELEASE
+                printf("Config: release\n\n");
+            #endif
             printf("Embedded Extensions:\n");
             printf("   pl_window_ext:         %u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uMinor);
             printf("   pl_file_ext:           %u.%u.%u\n", tFileExtVersion.uMajor, tFileExtVersion.uMinor, tFileExtVersion.uMinor);
@@ -180,7 +192,13 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("\nPilot Light - light weight game engine\n");
-            printf("Version: %s\n\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            #ifdef PL_CONFIG_DEBUG
+                printf("Config: debug\n\n");
+            #endif
+            #ifdef PL_CONFIG_RELEASE
+                printf("Config: release\n\n");
+            #endif
             printf("Usage: pilot_light [options]\n\n");
             printf("Options:\n");
             printf("-h              %s\n", "Displays this information.");
