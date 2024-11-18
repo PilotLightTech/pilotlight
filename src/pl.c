@@ -209,6 +209,9 @@ const plApiRegistryI* pl__load_api_registry(void);
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
+// logging
+uint64_t guRuntimeLogChannel = 0;
+
 // data registry
 plHashMap*         gptHashmap = NULL;
 plDataRegistryData gtDataRegistryData = {0};
@@ -261,7 +264,8 @@ pl__check_apis(void)
 
         if(!ptCurrentEntry->bSet) // not set
         {
-            printf("API Not Found: %s\n", ptCurrentEntry->pcName);
+            pl_log_error_f(guRuntimeLogChannel, "Compatible API not found for %u.%u.%u %s",
+                ptCurrentEntry->tVersion.uMajor, ptCurrentEntry->tVersion.uMinor, ptCurrentEntry->tVersion.uPatch, ptCurrentEntry->pcName);
             bResult = false;
         }
         ptCurrentEntry = ptCurrentEntry->ptNext;
@@ -285,6 +289,9 @@ pl__set_api(const char* pcName, plVersion tVersion, const void* pInterface, size
             {
                 memcpy(ptCurrentEntry->apBuffer, pInterface, szInterfaceSize);
                 ptCurrentEntry->bSet = true;
+                pl_log_trace_f(guRuntimeLogChannel, "API %s %u.%u set.", pcName,
+                    tVersion.uMajor, tVersion.uMinor);
+                
             }
             else if(!ptCurrentEntry->bSet && tVersion.uMajor > 0) // not set, lets see if we are compatible
             {
@@ -293,6 +300,8 @@ pl__set_api(const char* pcName, plVersion tVersion, const void* pInterface, size
                 {
                     memcpy(ptCurrentEntry->apBuffer, pInterface, szInterfaceSize);
                     ptCurrentEntry->bSet = true;
+                    pl_log_info_f(guRuntimeLogChannel, "API %u.%u %s set with compatible version %u.%u",
+                        ptCurrentEntry->tVersion.uMajor, ptCurrentEntry->tVersion.uMinor, pcName, tVersion.uMajor, tVersion.uMinor);
                 }
             }
         }
@@ -324,6 +333,7 @@ pl__get_api(const char* pcName, plVersion tVersion)
             ptCurrentEntry->tVersion.uMinor == tVersion.uMinor &&
             ptCurrentEntry->tVersion.uPatch == tVersion.uPatch)
         {
+            pl_log_trace_f(guRuntimeLogChannel, "API %u.%u, %s requested and received.", tVersion.uMajor, tVersion.uMinor, pcName);
             return ptCurrentEntry->apBuffer;
         }
 
@@ -339,7 +349,11 @@ pl__get_api(const char* pcName, plVersion tVersion)
             if(strcmp(pcName, ptCurrentEntry->pcName) == 0)
             {   
                 if(ptCurrentEntry->tVersion.uMajor == tVersion.uMajor && ptCurrentEntry->tVersion.uMinor >= tVersion.uMinor)
+                {
+                    pl_log_info_f(guRuntimeLogChannel, "API %u.%u %s requested but received compatible version %u.%u",
+                        tVersion.uMajor, tVersion.uMinor, pcName, ptCurrentEntry->tVersion.uMajor, ptCurrentEntry->tVersion.uMinor);
                     return ptCurrentEntry->apBuffer;
+                }
             } 
             ptCurrentEntry = ptCurrentEntry->ptNext;
         }
@@ -1485,6 +1499,16 @@ pl__load_core_apis(void)
 
     gptMemory = &tMemoryApi;
 
+    plLogContext* ptLogCtx = pl_create_log_context();
+    
+    // setup log channels
+    plLogChannelInit tLogInit = {
+        .tType       = PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER,
+        .uEntryCount = 1024
+    };
+    guRuntimeLogChannel = pl_add_log_channel("Runtime", tLogInit);
+    pl_log_info(guRuntimeLogChannel, "Runtime Logging Setup");
+
     // core apis
     pl_set_api(ptApiRegistry, plIOI, &tIOApi);
     pl_set_api(ptApiRegistry, plDataRegistryI, &tDataRegistryApi);
@@ -1501,12 +1525,9 @@ pl__load_core_apis(void)
         .uThreadCount = pl_get_hardware_thread_count()
     };
     plProfileContext* ptProfileCtx = pl_create_profile_context(tProfileInit);
-    plLogContext*     ptLogCtx     = pl_create_log_context();
 
     gptDataRegistry->set_data(PL_PROFILE_CONTEXT_NAME, ptProfileCtx);
     gptDataRegistry->set_data(PL_LOG_CONTEXT_NAME, ptLogCtx);
-
-    pl_log_info(0, "Setup logging");
 }
 
 void
