@@ -7,8 +7,9 @@ import glob
 debug_package = False
 
 if len(sys.argv) > 1:
-    if sys.argv[1] == "debug":
-        debug_package = True
+    for i in range(1, len(sys.argv)):
+        if sys.argv[i] == "debug":
+            debug_package = True
 
 if not os.path.isdir("../out"):
     print("ERROR: Pilot Light not built", file=sys.stderr)
@@ -19,7 +20,12 @@ if not os.path.isdir("../out/pilotlight"):
 
 target_directory = "../out/pilotlight"
 
-# extensions
+# scripts
+scripts = [
+    "pl_script_camera"
+]
+
+# extension headers
 extension_headers = [
     "pl_atomics_ext.h",
     "pl_debug_ext.h",
@@ -46,6 +52,7 @@ extension_headers = [
     "pl_window_ext.h"
 ]
 
+# extension binaries
 extensions = [
     "pl_debug_ext",
     "pl_draw_backend_ext",
@@ -62,17 +69,14 @@ extensions = [
     "pl_shader_ext",
     "pl_stats_ext",
     "pl_string_intern_ext",
-    "pl_ui_ext"
+    "pl_ui_ext",
+    "pl_unity_ext",
+    "app",
 ]
 
 if debug_package:
     for i in range(len(extensions)):
         extensions[i] = extensions[i] + "d"
-
-# scripts
-scripts = [
-    "pl_script_camera"
-]
 
 if os.path.isdir(target_directory):
     shutil.rmtree(target_directory)
@@ -113,6 +117,7 @@ shutil.copy("../libs/pl_math.h", target_directory + "/include/pl_math.h")
 shutil.copy("../libs/pl_json.h", target_directory + "/include/pl_json.h")
 shutil.copy("../libs/pl_stl.h", target_directory + "/include/pl_stl.h")
 shutil.copy("../libs/pl_string.h", target_directory + "/include/pl_string.h")
+shutil.copy("../libs/pl_test.h", target_directory + "/include/pl_test.h")
 
 # copy stb libs
 shutil.copy("../dependencies/stb/stb_sprintf.h", target_directory + "/include/stb_sprintf.h")

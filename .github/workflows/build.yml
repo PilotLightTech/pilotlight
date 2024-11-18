@@ -95,11 +95,6 @@ jobs:
         if not exist ../out/pl_unity_ext.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
 
-    - name: Prep 3
-      shell: cmd
-      run: |
-        rmdir /s /q out
-
     - name: Build Pilot Light Deployment (RELEASE)
       shell: cmd
       run: |
@@ -224,11 +219,6 @@ jobs:
         test -f ./out/example_9.dylib || exit 1
         test -f ./out/pl_unity_ext.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
-
-    - name: Prep 3
-      run: |
-        cd $GITHUB_WORKSPACE
-        rm -r out
 
     - name: Build Pilot Light Deployment (RELEASE)
       run: |
@@ -364,11 +354,6 @@ jobs:
         test -f ./out/example_9.so || exit 1
         test -f ./out/pl_unity_ext.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
-
-    - name: Prep 3
-      run: |
-        cd $GITHUB_WORKSPACE
-        rm -r out
 
     - name: Build Pilot Light Deployment (RELEASE)
       run: |
