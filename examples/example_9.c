@@ -476,8 +476,6 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->cleanup_device(ptAppData->ptDevice);
     gptGfx->cleanup();
     gptWindows->destroy_window(ptAppData->ptWindow);
-    pl_cleanup_profile_context();
-    pl_cleanup_log_context();
     free(ptAppData);
 }
 

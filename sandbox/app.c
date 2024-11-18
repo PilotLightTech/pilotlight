@@ -261,8 +261,6 @@ pl_app_shutdown(plEditorData* ptEditorData)
     gptDrawBackend->cleanup();
     gptRenderer->cleanup();
     gptWindows->destroy_window(ptEditorData->ptWindow);
-    pl_cleanup_profile_context();
-    pl_cleanup_log_context();
     PL_FREE(ptEditorData);
 }
 
@@ -481,10 +479,14 @@ pl_app_update(plEditorData* ptEditorData)
 #include "pl_gizmo.c"
 #include "pl_ecs_tools.c"
 
+#define PL_LOG_ALLOC(x) PL_ALLOC(x)
+#define PL_LOG_FREE(x) PL_FREE(x)
 #define PL_LOG_IMPLEMENTATION
 #include "pl_log.h"
 #undef PL_LOG_IMPLEMENTATION
 
+#define PL_PROFILE_ALLOC(x) PL_ALLOC(x)
+#define PL_PROFILE_FREE(x) PL_FREE(x)
 #define PL_PROFILE_IMPLEMENTATION
 #include "pl_profile.h"
 #undef PL_PROFILE_IMPLEMENTATION

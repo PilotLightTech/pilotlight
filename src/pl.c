@@ -1512,6 +1512,9 @@ pl__load_core_apis(void)
 void
 pl__unload_core_apis(void)
 {
+    pl_cleanup_log_context();
+    pl_cleanup_profile_context();
+
     // data registry
     for(uint32_t i = 0; i < pl_sb_size(gtDataRegistryData.sbtDataObjects); i++)
     {
@@ -1691,10 +1694,14 @@ pl__unload_ext_apis(void)
 #include "pl_string.h"
 #undef PL_STRING_IMPLEMENTATION
 
+#define PL_LOG_ALLOC(x) PL_ALLOC(x)
+#define PL_LOG_FREE(x) PL_FREE(x)
 #define PL_LOG_IMPLEMENTATION
 #include "pl_log.h"
 #undef PL_LOG_IMPLEMENTATION
 
+#define PL_PROFILE_ALLOC(x) PL_ALLOC(x)
+#define PL_PROFILE_FREE(x) PL_FREE(x)
 #define PL_PROFILE_IMPLEMENTATION
 #include "pl_profile.h"
 #undef PL_PROFILE_IMPLEMENTATION

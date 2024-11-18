@@ -1168,10 +1168,14 @@ pl_unload_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
 #ifndef PL_UNITY_BUILD
 
+    #define PL_LOG_ALLOC(x) PL_ALLOC(x)
+    #define PL_LOG_FREE(x) PL_FREE(x)
     #define PL_LOG_IMPLEMENTATION
     #include "pl_log.h"
     #undef PL_LOG_IMPLEMENTATION
 
+    #define PL_PROFILE_ALLOC(x) PL_ALLOC(x)
+    #define PL_PROFILE_FREE(x) PL_FREE(x)
     #define PL_PROFILE_IMPLEMENTATION
     #include "pl_profile.h"
     #undef PL_PROFILE_IMPLEMENTATION
