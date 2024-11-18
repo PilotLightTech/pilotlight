@@ -25,8 +25,8 @@ examples/build.bat
 examples/build.sh
 tests/build.bat
 tests/build.sh
-src/deployment_build.bat
-src/deployment_build.sh
+src/build_distribute.bat
+src/build_distribute.sh
 
 # custom or user or mod
 src/*_user.*

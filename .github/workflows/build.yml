@@ -43,7 +43,7 @@ jobs:
       run: | 
         cd scripts
         python gen_build.py
-        python gen_deploy.py
+        python gen_distribute.py
 
     - name: Build Pilot Light (DEBUG)
       shell: cmd
@@ -105,7 +105,7 @@ jobs:
       run: |
         set VULKAN_SDK=D:/a/VulkanSDK
         cd src
-        call deployment_build.bat -c release
+        call build_distribute.bat -c release
         if not exist ../out/pl_debug_ext.dll exit 1
         if not exist ../out/pl_draw_backend_ext.dll exit 1
         if not exist ../out/pl_draw_ext.dll exit 1
@@ -164,7 +164,7 @@ jobs:
         cd $GITHUB_WORKSPACE
         cd scripts
         python3 gen_build.py
-        python3 gen_deploy.py
+        python3 gen_distribute.py
 
     - name: Build Pilot Light (DEBUG)
       run: |
@@ -234,8 +234,8 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE
         cd src
-        chmod +x deployment_build.sh
-        ./deployment_build.sh -c release
+        chmod +x build_distribute.sh
+        ./build_distribute.sh -c release
         cd ..
         cd out
         chmod +x pilot_light
@@ -304,7 +304,7 @@ jobs:
         cd $GITHUB_WORKSPACE
         cd scripts
         python3 gen_build.py
-        python3 gen_deploy.py
+        python3 gen_distribute.py
 
     - name: Build Pilot Light (DEBUG)
       run: |
@@ -374,8 +374,8 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE
         cd src
-        chmod +x deployment_build.sh
-        ./deployment_build.sh -c release
+        chmod +x build_distribute.sh
+        ./build_distribute.sh -c release
         cd ..
         cd out
         chmod +x pilot_light
