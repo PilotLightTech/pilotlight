@@ -59,13 +59,14 @@ typedef struct _plThreadsI
 {
 
     // threads
-    plThreadResult (*create_thread) (plThreadProcedure, void* data, plThread** threadPtrOut);
-    void           (*destroy_thread)(plThread** threadPtr);
-    void           (*join_thread)   (plThread*);
-    uint32_t       (*get_thread_id) (plThread*);
-    void           (*yield_thread)  (void);
-    void           (*sleep_thread)  (uint32_t milliSec);
+    plThreadResult (*create_thread)            (plThreadProcedure, void* data, plThread** threadPtrOut);
+    void           (*destroy_thread)           (plThread** threadPtr);
+    void           (*join_thread)              (plThread*);
+    uint64_t       (*get_thread_id)            (plThread*);
+    void           (*yield_thread)             (void);
+    void           (*sleep_thread)             (uint32_t milliSec);
     uint32_t       (*get_hardware_thread_count)(void);
+    uint64_t       (*get_current_thread_id)    (void);
 
     // thread local storage
     plThreadResult (*allocate_thread_local_key) (plThreadKey** keyPtrOut);

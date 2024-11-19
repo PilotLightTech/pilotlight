@@ -44,6 +44,8 @@ void*            gpUserData    = NULL;
 plIO*            gptIOCtx      = NULL;
 plWindow**       gsbtWindows = NULL;
 
+plThread**       gsbtThreads = NULL;
+
 // apis
 const plDataRegistryI*      gptDataRegistry      = NULL;
 const plApiRegistryI*       gptApiRegistry       = NULL;
@@ -114,7 +116,8 @@ plThreadResult pl_create_thread (plThreadProcedure, void* pData, plThread** ppTh
 void           pl_destroy_thread(plThread**);
 void           pl_join_thread   (plThread*);
 void           pl_yield_thread  (void);
-uint32_t       pl_get_thread_id (plThread*);
+uint64_t       pl_get_thread_id (plThread*);
+uint64_t       pl_get_current_thread_id(void);
 
 // thread api: mutex
 plThreadResult pl_create_mutex (plMutex** ppMutexOut);

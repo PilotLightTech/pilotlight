@@ -1478,7 +1478,7 @@ typedef struct _plThread
 {
     HANDLE        tHandle;
     plThreadData* ptData;
-    uint32_t      uID;
+    uint64_t      uID;
 } plThread;
 
 typedef struct _plMutex
@@ -1541,12 +1541,11 @@ pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** ppThread
     HANDLE tHandle = CreateThread(0, 1024, thread_procedure, ptData, 0, NULL);
     if(tHandle)
     {
-        static uint32_t uNextThreadId = 0;
-        uNextThreadId++;
+        DWORD tID = GetThreadId(tHandle);
         *ppThreadOut = PL_ALLOC(sizeof(plThread));
-        (*ppThreadOut)->uID = uNextThreadId;
         (*ppThreadOut)->ptData = ptData;
         (*ppThreadOut)->tHandle = tHandle;
+        (*ppThreadOut)->uID = (uint64_t)tID;
         return PL_THREAD_RESULT_SUCCESS;
     }
     PL_FREE(ptData);
@@ -1776,10 +1775,17 @@ pl_get_thread_local_data(plThreadKey* ptKey)
     return lpvData;
 }
 
-uint32_t
+uint64_t
 pl_get_thread_id(plThread* ptThread)
 {
     return ptThread->uID;
+}
+
+uint64_t
+pl_get_current_thread_id(void)
+{
+    DWORD tID = GetCurrentThreadId();
+    return (uint64_t)tID;
 }
 
 void

@@ -1670,7 +1670,7 @@ typedef struct
 typedef struct _plThread
 {
     pthread_t tHandle;
-    uint32_t  uID;
+    uint64_t  uID;
 } plThread;
 
 typedef struct _plMutex
@@ -1708,10 +1708,27 @@ int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t
 int pthread_barrier_destroy(pthread_barrier_t *barrier);
 int pthread_barrier_wait(pthread_barrier_t *barrier);
 
-uint32_t
+uint64_t
 pl_get_thread_id(plThread* ptThread)
 {
     return ptThread->uID;
+}
+
+uint64_t
+pl_get_current_thread_id(void)
+{
+    pthread_t tId = pthread_self();
+
+    const uint32_t uThreadCount = pl_sb_size(gsbtThreads);
+    for(uint32_t i = 0; i < uThreadCount; i++)
+    {
+        if(pthread_equal(tId, gsbtThreads[i]->tHandle))
+        {
+            return gsbtThreads[i]->uID;
+        }
+    }
+
+    return UINT64_MAX;
 }
 
 void
@@ -1738,7 +1755,7 @@ pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThrea
         PL_ASSERT(false);
         return PL_THREAD_RESULT_FAIL;
     }
-    static uint32_t uNextThreadId = 0;
+    static uint32_t uNextThreadId = 1;
     uNextThreadId++;
     (*pptThreadOut)->uID = uNextThreadId;
     return PL_THREAD_RESULT_SUCCESS;
@@ -1754,6 +1771,17 @@ void
 pl_destroy_thread(plThread** ppThread)
 {
     pl_join_thread(*ppThread);
+
+    const uint32_t uThreadCount = pl_sb_size(gsbtThreads);
+    for(uint32_t i = 0; i < uThreadCount; i++)
+    {
+        if(gsbtThreads[i] == (*ppThread))
+        {
+            pl_sb_del_swap(gsbtThreads, i);
+            break;
+        }
+    }
+
     PL_FREE(*ppThread);
     *ppThread = NULL;
 }

@@ -1351,7 +1351,7 @@ pl_send_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszS
 typedef struct _plThread
 {
     pthread_t tHandle;
-    uint32_t  uID;
+    uint64_t  uID;
 } plThread;
 
 typedef struct _plMutex
@@ -1400,24 +1400,42 @@ pl_sleep(uint32_t millisec)
     while (res);
 }
 
-uint32_t
+uint64_t
 pl_get_thread_id(plThread* ptThread)
 {
     return ptThread->uID;
+}
+
+uint64_t
+pl_get_current_thread_id(void)
+{
+    pthread_t tId = pthread_self();
+
+    const uint32_t uThreadCount = pl_sb_size(gsbtThreads);
+    for(uint32_t i = 0; i < uThreadCount; i++)
+    {
+        if(pthread_equal(tId, gsbtThreads[i]->tHandle))
+        {
+            return gsbtThreads[i]->uID;
+        }
+    }
+
+    return UINT64_MAX;
 }
 
 plThreadResult
 pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThreadOut)
 {
     *pptThreadOut = PL_ALLOC(sizeof(plThread));
-    if(pthread_create(&(*pptThreadOut)->tHandle, NULL, ptProcedure, pData))
+    plThread* ptThread = *pptThreadOut;
+    if(pthread_create(&ptThread->tHandle, NULL, ptProcedure, pData))
     {
         PL_ASSERT(false);
         return PL_THREAD_RESULT_FAIL;
     }
-    static uint32_t uNextThreadId = 0;
-    uNextThreadId++;
-    (*pptThreadOut)->uID = uNextThreadId;
+    static uint64_t uThreadID = 1;
+    (*pptThreadOut)->uID = uThreadID++;
+    pl_sb_push(gsbtThreads, ptThread);
     return PL_THREAD_RESULT_SUCCESS;
 }
 
@@ -1431,6 +1449,17 @@ void
 pl_destroy_thread(plThread** ppThread)
 {
     pl_join_thread(*ppThread);
+
+    const uint32_t uThreadCount = pl_sb_size(gsbtThreads);
+    for(uint32_t i = 0; i < uThreadCount; i++)
+    {
+        if(gsbtThreads[i] == (*ppThread))
+        {
+            pl_sb_del_swap(gsbtThreads, i);
+            break;
+        }
+    }
+
     PL_FREE(*ppThread);
     *ppThread = NULL;
 }
@@ -1444,7 +1473,7 @@ pl_yield_thread(void)
 plThreadResult
 pl_create_mutex(plMutex** pptMutexOut)
 {
-    *pptMutexOut = PL_ALLOC(sizeof(plMutex));
+    *pptMutexOut = malloc(sizeof(plMutex));
     if(pthread_mutex_init(&(*pptMutexOut)->tHandle, NULL)) //-V522
     {
         PL_ASSERT(false);
@@ -1469,7 +1498,7 @@ void
 pl_destroy_mutex(plMutex** pptMutex)
 {
     pthread_mutex_destroy(&(*pptMutex)->tHandle);
-    PL_FREE((*pptMutex));
+    free((*pptMutex));
     *pptMutex = NULL;
 }
 
