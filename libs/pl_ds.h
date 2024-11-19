@@ -4,13 +4,12 @@
 */
 
 // library version (format XYYZZ)
-#define PL_DS_VERSION    "1.1.0"
-#define PL_DS_VERSION_NUM 10100
+#define PL_DS_VERSION    "1.0.0"
+#define PL_DS_VERSION_NUM 10000
 
 /*
 Index of this file:
 // [SECTION] documentation
-// [SECTION] revisions
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] forward declarations
@@ -180,15 +179,6 @@ COMPILE TIME OPTIONS
         PL_DS_HASHMAP_INITIAL_SIZE (default is 256) // should be power of 2
     * Change assert by defining:
         PL_DS_ASSERT(x)
-*/
-
-//-----------------------------------------------------------------------------
-// [SECTION] revisions
-//-----------------------------------------------------------------------------
-
-/*
-    1.1  (2024-11) optimization
-    1.0  (2024-09) stable
 */
 
 //-----------------------------------------------------------------------------
