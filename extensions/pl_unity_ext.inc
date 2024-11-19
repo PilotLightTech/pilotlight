@@ -31,6 +31,7 @@ static const struct _plFileI*              gptFile              = 0;
 static const struct _plMemoryI*            gptMemory            = 0;
 static const struct _plStringInternI*      gptString            = 0;
 static const struct _plProfileI*           gptProfile           = 0;
+static const struct _plLogI*               gptLog               = 0;
 
 // experimental
 static const struct _plCameraI*   gptCamera   = 0;

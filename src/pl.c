@@ -31,7 +31,6 @@ Index of this file:
 #include <string.h>  // strcmp
 #include "pl_internal.h"
 #include "pl_ds.h"
-#include "pl_log.h"
 #include "pl_memory.h"
 #include "pl_string.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -264,7 +263,7 @@ pl__check_apis(void)
 
         if(!ptCurrentEntry->bSet) // not set
         {
-            pl_log_error_f(guRuntimeLogChannel, "Compatible API not found for %u.%u.%u %s",
+            printf("[ERROR] Compatible API not found for %u.%u.%u %s\n",
                 ptCurrentEntry->tVersion.uMajor, ptCurrentEntry->tVersion.uMinor, ptCurrentEntry->tVersion.uPatch, ptCurrentEntry->pcName);
             bResult = false;
         }
@@ -289,8 +288,6 @@ pl__set_api(const char* pcName, plVersion tVersion, const void* pInterface, size
             {
                 memcpy(ptCurrentEntry->apBuffer, pInterface, szInterfaceSize);
                 ptCurrentEntry->bSet = true;
-                pl_log_trace_f(guRuntimeLogChannel, "API %s %u.%u set.", pcName,
-                    tVersion.uMajor, tVersion.uMinor);
                 
             }
             else if(!ptCurrentEntry->bSet && tVersion.uMajor > 0) // not set, lets see if we are compatible
@@ -300,7 +297,7 @@ pl__set_api(const char* pcName, plVersion tVersion, const void* pInterface, size
                 {
                     memcpy(ptCurrentEntry->apBuffer, pInterface, szInterfaceSize);
                     ptCurrentEntry->bSet = true;
-                    pl_log_info_f(guRuntimeLogChannel, "API %u.%u %s set with compatible version %u.%u",
+                    printf("[INFO] API %u.%u %s set with compatible version %u.%u\n",
                         ptCurrentEntry->tVersion.uMajor, ptCurrentEntry->tVersion.uMinor, pcName, tVersion.uMajor, tVersion.uMinor);
                 }
             }
@@ -333,7 +330,6 @@ pl__get_api(const char* pcName, plVersion tVersion)
             ptCurrentEntry->tVersion.uMinor == tVersion.uMinor &&
             ptCurrentEntry->tVersion.uPatch == tVersion.uPatch)
         {
-            pl_log_trace_f(guRuntimeLogChannel, "API %u.%u, %s requested and received.", tVersion.uMajor, tVersion.uMinor, pcName);
             return ptCurrentEntry->apBuffer;
         }
 
@@ -350,7 +346,7 @@ pl__get_api(const char* pcName, plVersion tVersion)
             {   
                 if(ptCurrentEntry->tVersion.uMajor == tVersion.uMajor && ptCurrentEntry->tVersion.uMinor >= tVersion.uMinor)
                 {
-                    pl_log_info_f(guRuntimeLogChannel, "API %u.%u %s requested but received compatible version %u.%u",
+                    printf("[INFO] API %u.%u %s requested but received compatible version %u.%u\n",
                         tVersion.uMajor, tVersion.uMinor, pcName, ptCurrentEntry->tVersion.uMajor, ptCurrentEntry->tVersion.uMinor);
                     return ptCurrentEntry->apBuffer;
                 }
@@ -1499,16 +1495,6 @@ pl__load_core_apis(void)
 
     gptMemory = &tMemoryApi;
 
-    plLogContext* ptLogCtx = pl_create_log_context();
-    
-    // setup log channels
-    plLogChannelInit tLogInit = {
-        .tType       = PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER,
-        .uEntryCount = 1024
-    };
-    guRuntimeLogChannel = pl_add_log_channel("Runtime", tLogInit);
-    pl_log_info(guRuntimeLogChannel, "Runtime Logging Setup");
-
     // core apis
     pl_set_api(ptApiRegistry, plIOI, &tIOApi);
     pl_set_api(ptApiRegistry, plDataRegistryI, &tDataRegistryApi);
@@ -1520,14 +1506,11 @@ pl__load_core_apis(void)
     gptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
     gptIOI               = pl_get_api_latest(ptApiRegistry, plIOI);
     gptApiRegistry       = ptApiRegistry;
-
-    gptDataRegistry->set_data(PL_LOG_CONTEXT_NAME, ptLogCtx);
 }
 
 void
 pl__unload_core_apis(void)
 {
-    pl_cleanup_log_context();
 
     // data registry
     for(uint32_t i = 0; i < pl_sb_size(gtDataRegistryData.sbtDataObjects); i++)
@@ -1620,6 +1603,7 @@ pl__load_ext_apis(void)
         .yield_thread                = pl_yield_thread,
         .sleep_thread                = pl_sleep,
         .get_thread_id               = pl_get_thread_id,
+        .get_current_thread_id       = pl_get_current_thread_id,
         .create_mutex                = pl_create_mutex,
         .destroy_mutex               = pl_destroy_mutex,
         .lock_mutex                  = pl_lock_mutex,
@@ -1707,9 +1691,3 @@ pl__unload_ext_apis(void)
 #define PL_STRING_IMPLEMENTATION
 #include "pl_string.h"
 #undef PL_STRING_IMPLEMENTATION
-
-#define PL_LOG_ALLOC(x) PL_ALLOC(x)
-#define PL_LOG_FREE(x) PL_FREE(x)
-#define PL_LOG_IMPLEMENTATION
-#include "pl_log.h"
-#undef PL_LOG_IMPLEMENTATION

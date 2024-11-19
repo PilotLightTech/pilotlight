@@ -18,7 +18,6 @@ Index of this file:
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
 // [SECTION] helper function definitions
-// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -27,13 +26,13 @@ Index of this file:
 
 #include <stdio.h>
 #include "pl.h"
-#include "pl_log.h"
 #include "pl_ds.h"
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
 // extensions
+#include "pl_log_ext.h"
 #include "pl_window_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
@@ -127,9 +126,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // retrieve the data registry API, this is the API used for sharing data
     // between extensions & the runtime
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-
-    // set log & profile contexts
-    pl_set_log_context(ptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
 
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
@@ -669,11 +665,3 @@ camera_update(plCamera* ptCamera)
     ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
     ptCamera->tProjMat.col[3].w = 0.0f;  
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] unity build
-//-----------------------------------------------------------------------------
-
-#define PL_LOG_IMPLEMENTATION
-#include "pl_log.h"
-#undef PL_LOG_IMPLEMENTATION

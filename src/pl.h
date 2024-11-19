@@ -6,7 +6,6 @@
 /*
 Index of this file:
 // [SECTION] header mess
-// [SECTION] defines
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
@@ -27,12 +26,6 @@ Index of this file:
 // framework version XYYZZ
 #define PILOT_LIGHT_VERSION_STRING "1.0.0"
 #define PILOT_LIGHT_VERSION_NUM 10000
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#define PL_LOG_CONTEXT_NAME     "PL_LOG_CONTEXT_NAME"
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis

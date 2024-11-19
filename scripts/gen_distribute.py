@@ -106,6 +106,7 @@ with pl.project("pilotlight deploy"):
         "pl_string_intern_ext",
         "pl_draw_ext",
         "pl_job_ext",
+        "pl_log_ext",
         "pl_gpu_allocators_ext",
         "pl_ecs_ext",
         "pl_debug_ext",

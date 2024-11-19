@@ -264,6 +264,8 @@ typedef int plChannelType;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
+#ifndef PL_LOG_REMOVE_ALL_MACROS 
+
 #ifdef PL_LOG_ON
 
     // setup/shutdown
@@ -333,6 +335,8 @@ typedef int plChannelType;
     #define pl_log_fatal(uID, pcMessage) //
     #define pl_log_fatal_f(...) //
 #endif
+
+#endif // PL_LOG_REMOVE_ALL_MACROS
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -417,6 +421,7 @@ void pl__log_warn_va (uint64_t uID, const char* cPFormat, va_list args);
 void pl__log_error_va(uint64_t uID, const char* cPFormat, va_list args);
 void pl__log_fatal_va(uint64_t uID, const char* cPFormat, va_list args);
 
+#ifndef PL_LOG_REMOVE_ALL_MACROS
 #ifndef PL_LOG_ON
     #define pl_create_log_context() NULL
     #define pl_cleanup_log_context() //
@@ -431,6 +436,7 @@ void pl__log_fatal_va(uint64_t uID, const char* cPFormat, va_list args);
     #define pl_log(pcPrefix, iPrefixSize, uLevel, uID, pcMessage) //
     #define pl_log_f(...) //
 #endif
+#endif // PL_LOG_REMOVE_ALL_MACROS
 
 #endif // PL_LOG_H
 
@@ -704,14 +710,26 @@ pl__create_log_context(void)
         .tType       = PL_CHANNEL_TYPE_CONSOLE | PL_CHANNEL_TYPE_BUFFER,
         .uEntryCount = 1024
     };
-    pl_add_log_channel("Default", tLogInit);
+    pl__add_log_channel("Default", tLogInit);
 
-    pl_log_trace_f(0, "<- global enabled");
-    pl_log_debug_f(0, "<- global enabled");
-    pl_log_info_f(0, "<- global enabled");
-    pl_log_warn_f(0, "<- global enabled");
-    pl_log_error_f(0, "<- global enabled");
-    pl_log_fatal_f(0, "<- global enabled");
+    #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_TRACE + 1 && defined(PL_LOG_ON)
+        pl__log_trace_p(0, "<- global enabled");
+    #endif
+    #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_DEBUG + 1 && defined(PL_LOG_ON)
+        pl__log_debug_p(0, "<- global enabled");
+    #endif
+    #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_INFO + 1 && defined(PL_LOG_ON)
+        pl__log_info_p(0, "<- global enabled");
+    #endif
+    #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_WARN + 1 && defined(PL_LOG_ON)
+        pl__log_warn_p(0, "<- global enabled");
+    #endif
+    #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_ERROR + 1 && defined(PL_LOG_ON)
+        pl__log_error_p(0, "<- global enabled");
+    #endif
+    #if PL_GLOBAL_LOG_LEVEL < PL_LOG_LEVEL_FATAL + 1 && defined(PL_LOG_ON)
+        pl__log_fatal_p(0, "<- global enabled");
+    #endif
     
     return gptLogContext;
 }

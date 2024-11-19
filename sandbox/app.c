@@ -32,8 +32,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 {
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
-    pl_set_log_context(ptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
-
     if(ptEditorData) // reload
     {
 
@@ -482,12 +480,6 @@ pl_app_update(plEditorData* ptEditorData)
 
 #include "pl_gizmo.c"
 #include "pl_ecs_tools.c"
-
-#define PL_LOG_ALLOC(x) PL_ALLOC(x)
-#define PL_LOG_FREE(x) PL_FREE(x)
-#define PL_LOG_IMPLEMENTATION
-#include "pl_log.h"
-#undef PL_LOG_IMPLEMENTATION
 
 #ifdef PL_USE_STB_SPRINTF
     #define STB_SPRINTF_IMPLEMENTATION

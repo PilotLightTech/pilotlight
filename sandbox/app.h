@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <float.h>
 #include "pl.h"
-#include "pl_log.h"
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -22,6 +21,7 @@
 // extensions
 #include "pl_image_ext.h"
 #include "pl_profile_ext.h"
+#include "pl_log_ext.h"
 #include "pl_stats_ext.h"
 #include "pl_ecs_ext.h"
 #include "pl_graphics_ext.h"

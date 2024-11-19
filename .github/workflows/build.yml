@@ -109,6 +109,7 @@ jobs:
         if not exist ../out/pl_graphics_ext.dll exit 1
         if not exist ../out/pl_image_ext.dll exit 1
         if not exist ../out/pl_job_ext.dll exit 1
+        if not exist ../out/pl_log_ext.dll exit 1
         if not exist ../out/pl_model_loader_ext.dll exit 1
         if not exist ../out/pl_profile_ext.dll exit 1
         if not exist ../out/pl_rect_pack_ext.dll exit 1
@@ -240,6 +241,7 @@ jobs:
         test -f ./out/pl_graphics_ext.dylib || exit 1
         test -f ./out/pl_image_ext.dylib || exit 1
         test -f ./out/pl_job_ext.dylib || exit 1
+        test -f ./out/pl_log_ext.dylib || exit 1
         test -f ./out/pl_model_loader_ext.dylib || exit 1
         test -f ./out/pl_profile_ext.dylib || exit 1
         test -f ./out/pl_rect_pack_ext.dylib || exit 1
@@ -376,6 +378,7 @@ jobs:
         test -f ./out/pl_graphics_ext.so || exit 1
         test -f ./out/pl_image_ext.so || exit 1
         test -f ./out/pl_job_ext.so || exit 1
+        test -f ./out/pl_log_ext.so || exit 1
         test -f ./out/pl_model_loader_ext.so || exit 1
         test -f ./out/pl_profile_ext.so || exit 1
         test -f ./out/pl_rect_pack_ext.so || exit 1

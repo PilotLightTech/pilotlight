@@ -38,6 +38,7 @@ Index of this file:
 #include "pl_renderer_ext.c"
 #include "pl_debug_ext.c"
 #include "pl_profile_ext.c"
+#include "pl_log_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -68,12 +69,10 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptCamera            = pl_get_api_latest(ptApiRegistry, plCameraI);
     gptResource          = pl_get_api_latest(ptApiRegistry, plResourceI);
     gptProfile           = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptLog               = pl_get_api_latest(ptApiRegistry, plLogI);
     gptIO = gptIOI->get_io();
 
-
-    // misc
-    pl_set_log_context(gptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
-
+    pl_load_log_ext(ptApiRegistry, bReload);
     pl_load_image_ext(ptApiRegistry, bReload);
     pl_load_rect_pack_ext(ptApiRegistry, bReload);
     pl_load_stats_ext(ptApiRegistry, bReload);
@@ -120,17 +119,12 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_renderer_ext(ptApiRegistry, bReload);
     pl_unload_debug_ext(ptApiRegistry, bReload);
     pl_unload_profile_ext(ptApiRegistry, bReload);
+    pl_unload_log_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------
 // [SECTION] unity build #2
 //-----------------------------------------------------------------------------
-
-#define PL_LOG_ALLOC(x) PL_ALLOC(x)
-#define PL_LOG_FREE(x) PL_FREE(x)
-#define PL_LOG_IMPLEMENTATION
-#include "pl_log.h"
-#undef PL_LOG_IMPLEMENTATION
 
 #define PL_STRING_IMPLEMENTATION
 #include "pl_string.h"

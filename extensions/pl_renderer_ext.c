@@ -20,7 +20,6 @@ Index of this file:
 #include <float.h> // FLT_MAX
 #include "pl.h"
 #include "pl_renderer_ext.h"
-#include "pl_log.h"
 #include "pl_ds.h"
 #include "pl_string.h"
 #include "pl_memory.h"
@@ -30,6 +29,7 @@ Index of this file:
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_profile_ext.h"
+#include "pl_log_ext.h"
 #include "pl_ecs_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_image_ext.h"
@@ -76,6 +76,7 @@ Index of this file:
     static const plShaderI*        gptShader        = NULL;
     static const plFileI*          gptFile          = NULL;
     static const plProfileI*       gptProfile       = NULL;
+    static const plLogI*           gptLog           = NULL;
     
     // experimental
     static const plCameraI*   gptCamera   = NULL;
@@ -494,11 +495,11 @@ pl_refr_initialize(plWindow* ptWindow)
     gptDataRegistry->set_data("ref renderer data", gptData);
 
     // add specific log channel for renderer
-    plLogChannelInit tLogInit = {
-        .tType       = PL_CHANNEL_TYPE_BUFFER,
+    plLogExtChannelInit tLogInit = {
+        .tType       = PL_LOG_CHANNEL_TYPE_BUFFER,
         .uEntryCount = 1024
     };
-    gptData->uLogChannel = pl_add_log_channel("Renderer", tLogInit);
+    gptData->uLogChannel = gptLog->add_channel("Renderer", tLogInit);
 
     // default options
     gptData->bVSync = true;
@@ -6198,11 +6199,8 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
     gptJob           = pl_get_api_latest(ptApiRegistry, plJobI);
     gptProfile       = pl_get_api_latest(ptApiRegistry, plJobI);
+    gptLog           = pl_get_api_latest(ptApiRegistry, plLogI);
 
-    // set contexts
-    pl_set_log_context(gptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
-
-    
     gptECS         = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
     gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
@@ -6231,12 +6229,6 @@ pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 #ifndef PL_UNITY_BUILD
-
-    #define PL_LOG_ALLOC(x) PL_ALLOC(x)
-    #define PL_LOG_FREE(x) PL_FREE(x)
-    #define PL_LOG_IMPLEMENTATION
-    #include "pl_log.h"
-    #undef PL_LOG_IMPLEMENTATION
 
     #define PL_MEMORY_IMPLEMENTATION
     #include "pl_memory.h"

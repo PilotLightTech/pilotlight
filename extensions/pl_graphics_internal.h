@@ -3,7 +3,7 @@
 
 #include "pl.h"
 #include "pl_ds.h"
-#include "pl_log.h"
+#include "pl_log_ext.h"
 #include "pl_threads_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_window_ext.h"
@@ -28,6 +28,7 @@
     static const plDataRegistryI* gptDataRegistry = NULL;
     static const plThreadsI* gptThreads = NULL;
     static const plProfileI* gptProfile = NULL;
+    static const plLogI* gptLog = NULL;
     static const plIOI* gptIOI = NULL;
 
     static plIO* gptIO = NULL;

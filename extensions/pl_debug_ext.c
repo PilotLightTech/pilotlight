@@ -27,7 +27,6 @@ Index of this file:
 
 // extra
 #include "pl_memory.h"
-#include "pl_log.h"
 
 // extensions
 #include "pl_draw_ext.h"
@@ -36,6 +35,7 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #include "pl_gpu_allocators_ext.h"
 #include "pl_profile_ext.h"
+#include "pl_log_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -97,6 +97,7 @@ static plDebugContext* gptDebugCtx = NULL;
     static const plUiI*            gptUI            = NULL;
     static const plIOI*            gptIOI           = NULL;
     static const plProfileI*       gptProfile       = NULL;
+    static const plLogI*           gptLog           = NULL;
 
     static plIO* gptIO = NULL;
 
@@ -1015,17 +1016,17 @@ pl__show_logging(bool* bValue)
         gptUI->layout_dynamic(0.0f, 1);
         if(gptUI->begin_tab_bar("tab bar", 0))
         {
-            uint32_t uChannelCount = (uint32_t)pl_get_log_channel_count();
+            uint32_t uChannelCount = (uint32_t)gptLog->get_channel_count();
             for(uint32_t i = 0; i < uChannelCount; i++)
             {
 
-                plLogChannelInfo tInfo = {0};
-                bool bResult = pl_get_log_channel_info(i, &tInfo);
+                plLogExtChannelInfo tInfo = {0};
+                bool bResult = gptLog->get_channel_info(i, &tInfo);
 
                 uint64_t uEntryCount = tInfo.uEntryCount;
-                plLogEntry* ptEntries = tInfo.ptEntries;
+                plLogExtEntry* ptEntries = tInfo.ptEntries;
 
-                if(tInfo.tType & PL_CHANNEL_TYPE_CYCLIC_BUFFER)
+                if(tInfo.tType & PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER)
                 {
                     if(gptUI->begin_tab(tInfo.pcName, 0))
                     {
@@ -1046,7 +1047,7 @@ pl__show_logging(bool* bValue)
                                     for(uint32_t j = tClipper.uDisplayStart; j < tClipper.uDisplayEnd; j++)
                                     {
                                         uint32_t uActualIndex0 = (uIndexStart + j) % (uint32_t)uLogCount;
-                                        const plLogEntry* ptEntry = &ptEntries[uActualIndex0];
+                                        const plLogExtEntry* ptEntry = &ptEntries[uActualIndex0];
                                         gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &tInfo.pcBuffer[ptEntry->uOffset]);
                                     } 
                                 }
@@ -1056,7 +1057,7 @@ pl__show_logging(bool* bValue)
                                     for(uint32_t j = i; j < uLogCount; j++)
                                     {
                                         uint32_t uActualIndex0 = (uIndexStart + j) % (uint32_t)uLogCount;
-                                        const plLogEntry* ptEntry = &ptEntries[uActualIndex0];
+                                        const plLogExtEntry* ptEntry = &ptEntries[uActualIndex0];
                                         if(bActiveLevels[ptEntry->uLevel / 1000 - 5])
                                         {
                                             gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &tInfo.pcBuffer[ptEntry->uOffset]);
@@ -1068,7 +1069,7 @@ pl__show_logging(bool* bValue)
                         gptUI->end_tab();
                     }
                 }
-                else if(tInfo.tType & PL_CHANNEL_TYPE_BUFFER)
+                else if(tInfo.tType & PL_LOG_CHANNEL_TYPE_BUFFER)
                 {
                     if(gptUI->begin_tab(tInfo.pcName, 0))
                     {
@@ -1085,7 +1086,7 @@ pl__show_logging(bool* bValue)
                                 {
                                     for(uint32_t j = tClipper.uDisplayStart; j < tClipper.uDisplayEnd; j++)
                                     {
-                                        plLogEntry* ptEntry = &ptEntries[j];
+                                        plLogExtEntry* ptEntry = &ptEntries[j];
                                         gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &tInfo.pcBuffer[ptEntry->uOffset]);
                                     } 
                                 }
@@ -1094,7 +1095,7 @@ pl__show_logging(bool* bValue)
                             {
                                 for(uint32_t j = 0; j < uEntryCount; j++)
                                 {
-                                    plLogEntry* ptEntry = &ptEntries[j];
+                                    plLogExtEntry* ptEntry = &ptEntries[j];
                                     if(bActiveLevels[ptEntry->uLevel / 1000 - 5])
                                         gptUI->color_text(atColors[ptEntry->uLevel / 1000 - 5], &tInfo.pcBuffer[ptEntry->uOffset]);
                                 } 
@@ -1135,6 +1136,7 @@ pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
         gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
         gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
+        gptLog           = pl_get_api_latest(ptApiRegistry, plLogI);
     // #endif
 
     if(bReload)
@@ -1175,12 +1177,6 @@ pl_unload_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 //-----------------------------------------------------------------------------
 
 #ifndef PL_UNITY_BUILD
-
-    #define PL_LOG_ALLOC(x) PL_ALLOC(x)
-    #define PL_LOG_FREE(x) PL_FREE(x)
-    #define PL_LOG_IMPLEMENTATION
-    #include "pl_log.h"
-    #undef PL_LOG_IMPLEMENTATION
 
     #define PL_MEMORY_IMPLEMENTATION
     #include "pl_memory.h"

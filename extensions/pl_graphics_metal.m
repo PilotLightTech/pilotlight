@@ -1437,14 +1437,14 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     gptGraphics->bValidationActive = ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
     gptGraphics->uFramesInFlight = pl_min(pl_max(ptDesc->uFramesInFlight, 2), PL_MAX_FRAMES_IN_FLIGHT);
 
-    plLogChannelInit tLogInit = {
-        .tType       = PL_CHANNEL_TYPE_CYCLIC_BUFFER,
+    // setup logging
+    plLogExtChannelInit tLogInit = {
+        .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER,
         .uEntryCount = 256
     };
-    uLogChannelGraphics = pl_add_log_channel("Graphics", tLogInit);
+    uLogChannelGraphics = gptLog->add_channel("Graphics", tLogInit);
     uint32_t uLogLevel = PL_LOG_LEVEL_INFO;
-
-    pl_set_log_level(uLogChannelGraphics, uLogLevel);
+    gptLog->set_level(uLogChannelGraphics, uLogLevel);
 
     return true;
 }

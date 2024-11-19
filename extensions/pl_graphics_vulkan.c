@@ -20,7 +20,6 @@ Index of this file:
 
 #include "pl.h"
 #include "pl_ds.h"
-#include "pl_log.h"
 #include "pl_string.h"
 #include "pl_memory.h"
 #include "pl_graphics_internal.h"
@@ -2242,13 +2241,13 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     gptGraphics = &gtGraphics;
 
     // setup logging
-    plLogChannelInit tLogInit = {
-        .tType       = PL_CHANNEL_TYPE_CYCLIC_BUFFER,
+    plLogExtChannelInit tLogInit = {
+        .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER,
         .uEntryCount = 256
     };
-    uLogChannelGraphics = pl_add_log_channel("Graphics", tLogInit);
+    uLogChannelGraphics = gptLog->add_channel("Graphics", tLogInit);
     uint32_t uLogLevel = PL_LOG_LEVEL_INFO;
-    pl_set_log_level(uLogChannelGraphics, uLogLevel);
+    gptLog->set_level(uLogChannelGraphics, uLogLevel);
 
     // save context for hot-reloads
     gptDataRegistry->set_data("plGraphics", gptGraphics);
@@ -2310,7 +2309,7 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
         {
             if (strcmp(apcExtensions[i], ptAvailableExtensions[j].extensionName) == 0)
             {
-                pl_log_trace_f(uLogChannelGraphics, "extension %s found", ptAvailableExtensions[j].extensionName);
+                pl_log_trace_f(gptLog, uLogChannelGraphics, "extension %s found", ptAvailableExtensions[j].extensionName);
                 extensionFound = true;
                 break;
             }
@@ -2327,7 +2326,7 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     {
         for (uint32_t i = 0; i < uMissingExtensionCount; i++)
         {
-            pl_log_error_f(uLogChannelGraphics, "  * %s", apcMissingExtensions[i]);
+            pl_log_error_f(gptLog, uLogChannelGraphics, "  * %s", apcMissingExtensions[i]);
         }
 
         PL_ASSERT(false && "Can't find all requested extensions");
@@ -2360,7 +2359,7 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
         {
             if (strcmp(pcValidationLayer, ptAvailableLayers[i].layerName) == 0)
             {
-                pl_log_trace_f(uLogChannelGraphics, "layer %s found", ptAvailableLayers[i].layerName);
+                pl_log_trace_f(gptLog, uLogChannelGraphics, "layer %s found", ptAvailableLayers[i].layerName);
                 bLayerFound = true;
                 break;
             }
@@ -2421,7 +2420,7 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     };
 
     PL_VULKAN(vkCreateInstance(&tCreateInfo, NULL, &gptGraphics->tInstance));
-    pl_log_trace_f(uLogChannelGraphics, "created vulkan instance");
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "created vulkan instance");
 
     // cleanup
     if (ptAvailableLayers)
@@ -2439,7 +2438,7 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
         PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(gptGraphics->tInstance, "vkCreateDebugUtilsMessengerEXT");
         PL_ASSERT(func != NULL && "failed to set up debug messenger!");
         PL_VULKAN(func(gptGraphics->tInstance, pCreateInfoNext, NULL, &gptGraphics->tDbgMessenger));
-        pl_log_trace_f(uLogChannelGraphics, "enabled Vulkan validation layers");
+        pl_log_trace_f(gptLog, uLogChannelGraphics, "enabled Vulkan validation layers");
     }
 
     return true;
@@ -4393,21 +4392,21 @@ pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugU
     if (tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
     {
         printf("error validation layer: %s\n", ptCallbackData->pMessage);
-        pl_log_error_f(uLogChannelGraphics, "error validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_error_f(gptLog, uLogChannelGraphics, "error validation layer: %s\n", ptCallbackData->pMessage);
     }
 
     else if (tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
-        pl_log_warn_f(uLogChannelGraphics, "warn validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_warn_f(gptLog, uLogChannelGraphics, "warn validation layer: %s\n", ptCallbackData->pMessage);
     }
 
     else if (tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
     {
-        pl_log_info_f(uLogChannelGraphics, "info validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_info_f(gptLog, uLogChannelGraphics, "info validation layer: %s\n", ptCallbackData->pMessage);
     }
     else if (tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
     {
-        pl_log_trace_f(uLogChannelGraphics, "trace validation layer: %s\n", ptCallbackData->pMessage);
+        pl_log_trace_f(gptLog, uLogChannelGraphics, "trace validation layer: %s\n", ptCallbackData->pMessage);
     }
 
     return VK_FALSE;

@@ -6,7 +6,7 @@
 #include "pl.h"
 #include "pl_resource_ext.h"
 #include "pl_ds.h"
-#include "pl_log.h"
+#include "pl_log_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"

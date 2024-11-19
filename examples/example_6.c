@@ -28,13 +28,13 @@ Index of this file:
 
 #include <stdio.h>
 #include "pl.h"
-#include "pl_log.h"
 #include "pl_ds.h"
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
 // extensions
+#include "pl_log_ext.h"
 #include "pl_window_ext.h"
 #include "pl_file_ext.h"
 #include "pl_graphics_ext.h"
@@ -106,9 +106,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // retrieve the data registry API, this is the API used for sharing data
     // between extensions & the runtime
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-
-    // set log & profile contexts
-    pl_set_log_context(ptDataRegistry->get_data(PL_LOG_CONTEXT_NAME));
 
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
@@ -675,11 +672,3 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->return_command_buffer(ptCommandBuffer);
     gptProfile->end_frame();
 }
-
-//-----------------------------------------------------------------------------
-// [SECTION] unity build
-//-----------------------------------------------------------------------------
-
-#define PL_LOG_IMPLEMENTATION
-#include "pl_log.h"
-#undef PL_LOG_IMPLEMENTATION
