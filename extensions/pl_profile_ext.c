@@ -17,7 +17,6 @@ Index of this file:
 
 #include "pl.h"
 #include "pl_profile_ext.h"
-#include "pl_threads_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -27,7 +26,6 @@ Index of this file:
     #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
     #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
-    const plThreadsI* gptThreads = NULL;
     const plDataRegistryI* gptDataRegistry = NULL;
 #endif
 
@@ -48,10 +46,15 @@ static plProfileContext* gptProfileCtx = NULL;
 //-----------------------------------------------------------------------------
 
 void
-pl_initialize_profile_ext(void)
+pl_initialize_profile_ext(uint32_t uThreadCount)
 {
+    if(gptProfileCtx)
+    {
+        pl_cleanup_profile_context();
+    }
+
     plProfileInit tInit = {
-        .uThreadCount = gptThreads->get_hardware_thread_count()
+        .uThreadCount = uThreadCount
     };
     gptProfileCtx = pl_create_profile_context(tInit);
     gptDataRegistry->set_data("plProfileContext", gptProfileCtx);
@@ -79,6 +82,7 @@ PL_EXPORT void
 pl_load_profile_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plProfileI tApi = {
+        .set_thread_count        = pl_initialize_profile_ext,
         .begin_frame             = pl__begin_profile_frame,
         .end_frame               = pl__end_profile_frame,
         .begin_sample            = pl__begin_profile_sample,
@@ -90,12 +94,19 @@ pl_load_profile_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-    gptThreads = pl_get_api_latest(ptApiRegistry, plThreadsI);
 
     if(bReload)
     {
         gptProfileCtx = gptDataRegistry->get_data("plProfileContext");
         pl_set_profile_context(gptProfileCtx);
+    }
+    else
+    {
+        plProfileInit tInit = {
+            .uThreadCount = 4
+        };
+        gptProfileCtx = pl_create_profile_context(tInit);
+        gptDataRegistry->set_data("plProfileContext", gptProfileCtx);
     }
 }
 

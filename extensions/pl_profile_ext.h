@@ -57,6 +57,8 @@ typedef struct _plProfileI
     plProfileCpuSample* (*get_last_frame_samples) (uint32_t threadIndex, uint32_t* sizeOut);
     double              (*get_last_frame_overhead)(uint32_t threadIndex);
 
+    // misc.
+    void (*set_thread_count)(uint32_t threadCount); // default is 4, used for indexing
 } plProfileI;
 
 //-----------------------------------------------------------------------------
