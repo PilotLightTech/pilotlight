@@ -176,7 +176,7 @@ COMPILE TIME OPTIONS
         PL_DS_ALLOC(x)
         PL_DS_FREE(x)
     * Change initial hashmap size:
-        PL_DS_HASHMAP_INITIAL_SIZE (default is 256) // should be power of 2
+        PL_DS_HASHMAP_INITIAL_SIZE (default is 1024) // should be power of 2
     * Change assert by defining:
         PL_DS_ASSERT(x)
 */
@@ -209,7 +209,7 @@ COMPILE TIME OPTIONS
 #endif
 
 #ifndef PL_DS_HASHMAP_INITIAL_SIZE
-    #define PL_DS_HASHMAP_INITIAL_SIZE 256
+    #define PL_DS_HASHMAP_INITIAL_SIZE 1024
 #endif
 
 //-----------------------------------------------------------------------------
