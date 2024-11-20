@@ -1137,6 +1137,7 @@ pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
         gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
         gptLog           = pl_get_api_latest(ptApiRegistry, plLogI);
+        gptIO = gptIOI->get_io();
     // #endif
 
     if(bReload)

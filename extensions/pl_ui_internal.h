@@ -66,7 +66,7 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static const plDataRegistryI*      gptDataRegistry      = NULL;
+    // static const plDataRegistryI*      gptDataRegistry      = NULL;
     static const plDrawI*              gptDraw              = NULL;
     static const plIOI*                gptIOI               = NULL;
     static plIO* gptIO = NULL;

@@ -2583,15 +2583,22 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plUiI, &tApi);
 
+    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptDraw = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptIOI = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptIO = gptIOI->get_io();
+
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+
     if(bReload)
     {
-        gptCtx = gptDataRegistry->get_data("plUiContext");
+        gptCtx = ptDataRegistry->get_data("plUiContext");
     }
     else // first load
     {
         static plUiContext tContext = {0};
         gptCtx = &tContext;
-        gptDataRegistry->set_data("plUiContext", gptCtx);
+        ptDataRegistry->set_data("plUiContext", gptCtx);
     }
 }
 

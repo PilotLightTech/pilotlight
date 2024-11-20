@@ -54,6 +54,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         gptNetwork     = pl_get_api_latest(ptApiRegistry, plNetworkI);
         gptString      = pl_get_api_latest(ptApiRegistry, plStringInternI);
         gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
+        gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
 
         return ptEditorData;
     }
@@ -83,6 +84,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptNetwork     = pl_get_api_latest(ptApiRegistry, plNetworkI);
     gptString      = pl_get_api_latest(ptApiRegistry, plStringInternI);
     gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
 
     gptProfile->begin_frame();
     
@@ -141,6 +143,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         .uRangeCount = 1
     };
     // ptEditorData->tDefaultFont = gptDraw->add_default_font();
+
     ptEditorData->tDefaultFont = gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
 
     const plFontRange tIconRange = {
