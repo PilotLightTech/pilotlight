@@ -74,13 +74,14 @@ extensions = [
     "pl_stats_ext",
     "pl_string_intern_ext",
     "pl_ui_ext",
-    "pl_unity_ext",
     "app",
 ]
 
 if debug_package:
     for i in range(len(extensions)):
         extensions[i] = extensions[i] + "d"
+
+extensions.append("pl_unity_ext")
 
 if os.path.isdir(target_directory):
     shutil.rmtree(target_directory)

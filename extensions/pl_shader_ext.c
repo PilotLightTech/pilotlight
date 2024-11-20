@@ -437,6 +437,9 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plShaderI, &tApi);
 
+    gptFile = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     if(bReload)
     {

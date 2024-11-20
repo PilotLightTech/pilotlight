@@ -1060,6 +1060,7 @@ pl_load_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptStats             = pl_get_api_latest(ptApiRegistry, plStatsI);
     gptGfx               = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptDraw              = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptShader            = pl_get_api_latest(ptApiRegistry, plShaderI);
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     if(bReload)

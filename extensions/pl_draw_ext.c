@@ -3619,11 +3619,11 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     #ifndef PL_UNITY_BUILD
         gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptFile   = pl_get_api_latest(ptApiRegistry, plFileI);
     #endif
 
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-
 
     if(bReload)
         gptDrawCtx = ptDataRegistry->get_data("plDrawContext");

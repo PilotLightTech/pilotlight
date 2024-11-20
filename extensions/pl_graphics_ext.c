@@ -769,9 +769,13 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
 
+    gptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     gptThreads = pl_get_api_latest(ptApiRegistry, plThreadsI);
     gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog     = pl_get_api_latest(ptApiRegistry, plLogI);
+    gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptIOI     = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptIO      = gptIOI->get_io();
 
     if(bReload)
     {

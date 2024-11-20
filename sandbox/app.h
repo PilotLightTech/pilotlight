@@ -69,6 +69,7 @@ static const plMemoryI*       gptMemory      = NULL;
 static const plNetworkI*      gptNetwork     = NULL;
 static const plStringInternI* gptString      = NULL;
 static const plProfileI*      gptProfile     = NULL;
+static const plFileI*         gptFile        = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)

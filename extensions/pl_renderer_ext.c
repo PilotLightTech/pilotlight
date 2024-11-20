@@ -4515,7 +4515,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
          //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity selection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        if(gptData->uClickedFrame == uFrameIdx)
+        if(gptData->uClickedFrame == uFrameIdx && uViewHandle == 0)
         {
             gptData->uClickedFrame = UINT32_MAX;
             plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptView->tPickTexture);
@@ -4532,7 +4532,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         }
 
         bool bOwnMouse = gptUI->wants_mouse_capture();
-        if(!bOwnMouse && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false))
+        if(!bOwnMouse && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false) && uViewHandle == 0)
         {
             gptData->uClickedFrame = uFrameIdx;
 
@@ -6198,7 +6198,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
     gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
     gptJob           = pl_get_api_latest(ptApiRegistry, plJobI);
-    gptProfile       = pl_get_api_latest(ptApiRegistry, plJobI);
+    gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog           = pl_get_api_latest(ptApiRegistry, plLogI);
 
     gptECS         = pl_get_api_latest(ptApiRegistry, plEcsI);
