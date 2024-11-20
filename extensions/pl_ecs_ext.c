@@ -1020,11 +1020,11 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
 }
 
 static void
-pl__object_update_job(uint32_t uJobIndex, void* pData)
+pl__object_update_job(plInvocationData tInvoData, void* pData)
 {
     plComponentLibrary* ptLibrary = pData;
     plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
-    plObjectComponent* ptObject = &sbtComponents[uJobIndex];
+    plObjectComponent* ptObject = &sbtComponents[tInvoData.uGlobalIndex];
     plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
     plMeshComponent* ptMesh = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
     plSkinComponent* ptSkinComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, ptMesh->tSkinComponent);

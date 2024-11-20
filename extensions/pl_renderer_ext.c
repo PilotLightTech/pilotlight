@@ -469,8 +469,8 @@ static size_t         pl__get_data_type_size2(plDataType tType);
 static plBlendState   pl__get_blend_state(plBlendMode tBlendMode);
 
 // job system tasks
-static void pl__refr_job           (uint32_t uJobIndex, void* pData);
-static void pl__refr_cull_job      (uint32_t uJobIndex, void* pData);
+static void pl__refr_job     (plInvocationData tInvoData, void* pData);
+static void pl__refr_cull_job(plInvocationData tInvoData, void* pData);
 
 // resource creation helpers
 static plTextureHandle pl__refr_create_texture              (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
@@ -3437,16 +3437,16 @@ typedef struct _plCullData
 } plCullData;
 
 static void
-pl__refr_cull_job(uint32_t uJobIndex, void* pData)
+pl__refr_cull_job(plInvocationData tInvoData, void* pData)
 {
     plCullData* ptCullData = pData;
     plRefScene* ptScene = ptCullData->ptScene;
-    plDrawable tDrawable = ptCullData->atDrawables[uJobIndex];
+    plDrawable tDrawable = ptCullData->atDrawables[tInvoData.uGlobalIndex];
     plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tDrawable.tEntity);
-    ptCullData->atDrawables[uJobIndex].bCulled = true;
+    ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = true;
     if(pl__sat_visibility_test(ptCullData->ptCullCamera, &ptMesh->tAABBFinal))
     {
-        ptCullData->atDrawables[uJobIndex].bCulled = false;
+        ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
     }
 }
 
@@ -5830,11 +5830,11 @@ pl__get_blend_state(plBlendMode tBlendMode)
 }
 
 static void
-pl__refr_job(uint32_t uJobIndex, void* pData)
+pl__refr_job(plInvocationData tInvoData, void* pData)
 {
     plMaterialComponent* sbtMaterials = pData;
 
-    plMaterialComponent* ptMaterial = &sbtMaterials[uJobIndex];
+    plMaterialComponent* ptMaterial = &sbtMaterials[tInvoData.uGlobalIndex];
     int texWidth, texHeight, texNumChannels;
     int texForceNumChannels = 4;
 

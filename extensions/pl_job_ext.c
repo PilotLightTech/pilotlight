@@ -62,11 +62,10 @@ typedef struct _plAtomicCounterNode
 
 typedef struct _plSubmittedBatch
 {
-    void            (*task)(uint32_t, void*);
+    void            (*task)(plInvocationData, void*);
     void*            pData;
     plAtomicCounter* ptCounter;
-    uint32_t         uJobIndex;
-    uint32_t         uGroupSize;
+    plInvocationData tInvocationData;
 } plSubmittedBatch;
 
 typedef struct _plJobContext
@@ -177,8 +176,9 @@ pl__dispatch_jobs(uint32_t uJobCount, plJobDesc* ptJobs, plAtomicCounter** pptCo
                 gptJobCtx->atBatches[gptJobCtx->uBackIndex].task = ptJobs[i].task;
                 gptJobCtx->atBatches[gptJobCtx->uBackIndex].pData = ptJobs[i].pData;
                 gptJobCtx->atBatches[gptJobCtx->uBackIndex].ptCounter = ptCounter;
-                gptJobCtx->atBatches[gptJobCtx->uBackIndex].uJobIndex = i;
-                gptJobCtx->atBatches[gptJobCtx->uBackIndex].uGroupSize = 1;
+                gptJobCtx->atBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchIndex = 0;
+                gptJobCtx->atBatches[gptJobCtx->uBackIndex].tInvocationData.uGlobalIndex = i;
+                gptJobCtx->atBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchSize = 1;
                 gptJobCtx->uBackIndex--;
                 if(gptJobCtx->uBackIndex == UINT32_MAX) // wrap around
                     gptJobCtx->uBackIndex = PL_MAX_BATCHES - 1;
@@ -210,8 +210,9 @@ pl__pop_batch_off_queue(plSubmittedBatch* ptBatchOut)
                 gptJobCtx->atBatches[gptJobCtx->uFrontIndex].pData = NULL;
                 gptJobCtx->atBatches[gptJobCtx->uFrontIndex].task = NULL;
                 gptJobCtx->atBatches[gptJobCtx->uFrontIndex].ptCounter = NULL;
-                gptJobCtx->atBatches[gptJobCtx->uFrontIndex].uGroupSize = UINT32_MAX;
-                gptJobCtx->atBatches[gptJobCtx->uFrontIndex].uJobIndex = UINT32_MAX;
+                gptJobCtx->atBatches[gptJobCtx->uFrontIndex].tInvocationData.uBatchSize = UINT32_MAX;
+                gptJobCtx->atBatches[gptJobCtx->uFrontIndex].tInvocationData.uGlobalIndex = UINT32_MAX;
+                gptJobCtx->atBatches[gptJobCtx->uFrontIndex].tInvocationData.uBatchIndex = UINT32_MAX;
                 gptJobCtx->uFrontIndex--;
                 if(gptJobCtx->uFrontIndex == UINT32_MAX) // wrap
                     gptJobCtx->uFrontIndex = PL_MAX_BATCHES - 1;
@@ -279,8 +280,9 @@ pl__dispatch_batch(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc tJobDesc, 
                 gptJobCtx->atBatches[gptJobCtx->uBackIndex].task = tJobDesc.task;
                 gptJobCtx->atBatches[gptJobCtx->uBackIndex].pData = tJobDesc.pData;
                 gptJobCtx->atBatches[gptJobCtx->uBackIndex].ptCounter = ptCounter;
-                gptJobCtx->atBatches[gptJobCtx->uBackIndex].uJobIndex = i * uGroupSize;
-                gptJobCtx->atBatches[gptJobCtx->uBackIndex].uGroupSize = uGroupSize;
+                gptJobCtx->atBatches[gptJobCtx->uBackIndex].tInvocationData.uGlobalIndex = i * uGroupSize;
+                gptJobCtx->atBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchSize = uGroupSize;
+                gptJobCtx->atBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchIndex = i;
                 gptJobCtx->uBackIndex--;
                 if(gptJobCtx->uBackIndex == UINT32_MAX) // wrap around
                     gptJobCtx->uBackIndex = PL_MAX_BATCHES - 1;
@@ -293,8 +295,9 @@ pl__dispatch_batch(uint32_t uJobCount, uint32_t uGroupSize, plJobDesc tJobDesc, 
                 gptJobCtx->atBatches[gptJobCtx->uBackIndex].task = tJobDesc.task;
                 gptJobCtx->atBatches[gptJobCtx->uBackIndex].pData = tJobDesc.pData;
                 gptJobCtx->atBatches[gptJobCtx->uBackIndex].ptCounter = ptCounter;
-                gptJobCtx->atBatches[gptJobCtx->uBackIndex].uJobIndex = uBatches * uGroupSize;
-                gptJobCtx->atBatches[gptJobCtx->uBackIndex].uGroupSize = uLeftOverJobs;
+                gptJobCtx->atBatches[gptJobCtx->uBackIndex].tInvocationData.uGlobalIndex = uBatches * uGroupSize;
+                gptJobCtx->atBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchIndex = uBatches;
+                gptJobCtx->atBatches[gptJobCtx->uBackIndex].tInvocationData.uBatchSize = uLeftOverJobs;
                 gptJobCtx->uBackIndex--;
                 if(gptJobCtx->uBackIndex == UINT32_MAX) // wrap around
                     gptJobCtx->uBackIndex = PL_MAX_BATCHES - 1; 
@@ -364,8 +367,13 @@ pl__thread_procedure(void* pData)
         if(pl__pop_batch_off_queue(&tBatch))
         {
             // run tasks
-            for(uint32_t i = 0; i < tBatch.uGroupSize; i++)
-                tBatch.task(tBatch.uJobIndex + i, tBatch.pData);
+            plInvocationData tInvocationData = tBatch.tInvocationData;
+            for(uint32_t i = 0; i < tBatch.tInvocationData.uBatchSize; i++)
+            {
+                tInvocationData.uLocalIndex = i;
+                tInvocationData.uGlobalIndex = tBatch.tInvocationData.uGlobalIndex + i;
+                tBatch.task(tInvocationData, tBatch.pData);
+            }
 
             // decrement atomic counter
             if(tBatch.ptCounter)
@@ -407,8 +415,9 @@ pl__initialize(uint32_t uThreadCount)
     {
         gptJobCtx->atBatches[i].task = NULL;
         gptJobCtx->atBatches[i].pData = NULL;
-        gptJobCtx->atBatches[i].uJobIndex = UINT32_MAX;
-        gptJobCtx->atBatches[i].uGroupSize = UINT32_MAX;
+        gptJobCtx->atBatches[i].tInvocationData.uBatchIndex = UINT32_MAX;
+        gptJobCtx->atBatches[i].tInvocationData.uGlobalIndex = UINT32_MAX;
+        gptJobCtx->atBatches[i].tInvocationData.uBatchSize = UINT32_MAX;
         gptAtomics->create_atomic_counter(0, &gptJobCtx->atNodes[i].ptCounter);
         gptJobCtx->atNodes[i].uNodeIndex = i;
         gptJobCtx->atNodes[i].uNextNode = i + 1;
@@ -435,7 +444,7 @@ pl__cleanup(void)
     {
         gptJobCtx->atBatches[i].task = NULL;
         gptJobCtx->atBatches[i].pData = NULL;
-        gptJobCtx->atBatches[i].uJobIndex = UINT32_MAX;
+        gptJobCtx->atBatches[i].tInvocationData.uGlobalIndex = UINT32_MAX;
         gptAtomics->destroy_atomic_counter(&gptJobCtx->atNodes[i].ptCounter);
     }
 }

@@ -37,7 +37,8 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plJobDesc plJobDesc;
+typedef struct _plJobDesc        plJobDesc;
+typedef struct _plInvocationData plInvocationData;
 
 // external
 typedef struct _plAtomicCounter plAtomicCounter; // pl_os.h
@@ -61,12 +62,12 @@ typedef struct _plJobI
     // batch usage
     //   Follows more of a compute shader design. All jobs use the same data which can be indexed
     //   using the job index. If the jobs are small, consider increasing the group size.
-    //   - uJobCount  : how many jobs to generate
-    //   - uGroupSize : how many jobs to execute per thread serially (set 0 for optimal group size)
+    //   - jobCount  : how many jobs to generate
+    //   - groupSize : how many jobs to execute per thread serially (set 0 for optimal group size)
     //   - pass NULL for the atomic counter pointer if you don't need to wait (fire & forget)
     void (*dispatch_batch)(uint32_t jobCount, uint32_t groupSize, plJobDesc, plAtomicCounter**);
     
-    // waits for counter to reach 0 and returns the counter for reuse but subsequent dispatches
+    // waits for counter to reach 0 and returns the counter for reuse by subsequent dispatches
     void (*wait_for_counter)(plAtomicCounter*);
 } plJobI;
 
@@ -74,9 +75,17 @@ typedef struct _plJobI
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plInvocationData
+{
+    uint32_t uBatchIndex;
+    uint32_t uLocalIndex;
+    uint32_t uGlobalIndex;
+    uint32_t uBatchSize;
+} plInvocationData;
+
 typedef struct _plJobDesc
 {
-    void (*task)(uint32_t uJobIndex, void* pData);
+    void (*task)(plInvocationData, void* data);
     void* pData;
 } plJobDesc;
 
