@@ -183,10 +183,12 @@ with pl.project("pilotlight"):
     with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, True):
 
         pl.add_source_files("../extensions/pl_script_camera.c")
-        pl.set_output_binary("pl_script_camera")
+        
 
         # default config
         with pl.configuration("debug"):
+
+            pl.set_output_binary("pl_script_camerad")
 
             # win32
             with pl.platform("Windows"):
@@ -206,6 +208,8 @@ with pl.project("pilotlight"):
         # release
         with pl.configuration("release"):
 
+            pl.set_output_binary("pl_script_camera")
+
             # win32
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
@@ -223,6 +227,8 @@ with pl.project("pilotlight"):
 
         # vulkan on macos
         with pl.configuration("vulkan"):
+
+            pl.set_output_binary("pl_script_camera")
 
             # macos
             with pl.platform("Darwin"):

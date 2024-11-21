@@ -73,8 +73,8 @@ else
     PL_HOT_RELOAD_STATUS=0
     rm -f ../out/pl_unity_ext.so
     rm -f ../out/pl_unity_ext_*.so
-    rm -f ../out/pl_script_camera.so
-    rm -f ../out/pl_script_camera_*.so
+    rm -f ../out/pl_script_camerad.so
+    rm -f ../out/pl_script_camerad_*.so
     rm -f ../out/app.so
     rm -f ../out/app_*.so
     rm -f ../out/pilot_light
@@ -127,7 +127,7 @@ echo
 echo ${YELLOW}Step: pl_script_camera${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pl_script_camera.so"
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./../out/pl_script_camerad.so"
 
 # check build status
 if [ $? -ne 0 ]

@@ -76,9 +76,9 @@
     @if exist "../out/pl_unity_ext.dll" del "..\out\pl_unity_ext.dll"
     @if exist "../out/pl_unity_ext_*.dll" del "..\out\pl_unity_ext_*.dll"
     @if exist "../out/pl_unity_ext_*.pdb" del "..\out\pl_unity_ext_*.pdb"
-    @if exist "../out/pl_script_camera.dll" del "..\out\pl_script_camera.dll"
-    @if exist "../out/pl_script_camera_*.dll" del "..\out\pl_script_camera_*.dll"
-    @if exist "../out/pl_script_camera_*.pdb" del "..\out\pl_script_camera_*.pdb"
+    @if exist "../out/pl_script_camerad.dll" del "..\out\pl_script_camerad.dll"
+    @if exist "../out/pl_script_camerad_*.dll" del "..\out\pl_script_camerad_*.dll"
+    @if exist "../out/pl_script_camerad_*.pdb" del "..\out\pl_script_camerad_*.pdb"
     @if exist "../out/app.dll" del "..\out\app.dll"
     @if exist "../out/app_*.dll" del "..\out\app_*.dll"
     @if exist "../out/app_*.pdb" del "..\out\app_*.pdb"
@@ -132,7 +132,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mStep: pl_script_camera[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_script_camera.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_script_camera_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_script_camerad.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_script_camerad_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
