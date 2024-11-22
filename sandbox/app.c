@@ -95,7 +95,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     // initialize shader extension
     static const plShaderOptions tDefaultShaderOptions = {
-        .uIncludeDirectoriesCount = 1,
         .apcIncludeDirectories = {
             "../shaders/"
         }

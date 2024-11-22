@@ -92,8 +92,10 @@ typedef struct _plShaderOptions
     plShaderOptimizationLevel      tOptimizationLevel;
     const plShaderMacroDefinition* ptMacroDefinitions;
     uint32_t                       uMacroDefinitionCount;
-    const char*                    apcIncludeDirectories[PL_MAX_SHADER_INCLUDE_DIRECTORIES];
-    uint32_t                       uIncludeDirectoriesCount;
+    const char*                    apcIncludeDirectories[PL_MAX_SHADER_INCLUDE_DIRECTORIES + 1];
+
+    // [INTERNAL]
+    uint32_t _uIncludeDirectoriesCount;
 } plShaderOptions;
 
 //-----------------------------------------------------------------------------

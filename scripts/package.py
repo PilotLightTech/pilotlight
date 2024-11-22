@@ -73,8 +73,7 @@ extensions = [
     "pl_shader_ext",
     "pl_stats_ext",
     "pl_string_intern_ext",
-    "pl_ui_ext",
-    "app",
+    "pl_ui_ext"
 ]
 
 if debug_package:

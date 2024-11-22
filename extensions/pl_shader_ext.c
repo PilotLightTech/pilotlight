@@ -79,7 +79,7 @@ pl_shaderc_include_resolve_fn(void* pUserData, const char* pcRequestedSource, in
 {
     plShaderOptions* ptOptions = pUserData;
     const char** apcIncludeDirectories = ptOptions ? ptOptions->apcIncludeDirectories : gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories;
-    const uint32_t uIncludeDirectoriesCount = ptOptions ? ptOptions->uIncludeDirectoriesCount : gptShaderCtx->tDefaultShaderOptions.uIncludeDirectoriesCount;
+    const uint32_t uIncludeDirectoriesCount = ptOptions ? ptOptions->_uIncludeDirectoriesCount : gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount;
 
     shaderc_include_result* ptResult = pl_temp_allocator_alloc(&gptShaderCtx->tTempAllocator, sizeof(shaderc_include_result));
     ptResult->user_data = ptOptions;
@@ -132,16 +132,21 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
         return true;
     gptShaderCtx->bInitialized = true;
 
+
+
     gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = "./";
-    gptShaderCtx->tDefaultShaderOptions.uIncludeDirectoriesCount = 1;
+    gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount = 1;
 
     if(ptShaderOptions)
     {
-        for(uint32_t i = 0; i < ptShaderOptions->uIncludeDirectoriesCount; i++)
+        for(uint32_t i = 0; i < PL_MAX_SHADER_INCLUDE_DIRECTORIES; i++)
         {
-            gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[i + 1] = ptShaderOptions->apcIncludeDirectories[i];
+            if(ptShaderOptions->apcIncludeDirectories[i])
+                gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[i + 1] = ptShaderOptions->apcIncludeDirectories[i];
+            else
+                break;
+            gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount++;
         }
-        gptShaderCtx->tDefaultShaderOptions.uIncludeDirectoriesCount = ptShaderOptions->uIncludeDirectoriesCount + 1;
     }
     
     #ifndef PL_OFFLINE_SHADERS_ONLY
@@ -184,6 +189,19 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     #ifndef PL_OFFLINE_SHADERS_ONLY
     shaderc_compiler_t tCompiler = shaderc_compiler_initialize();
     shaderc_compile_options_t tOptions = shaderc_compile_options_initialize();
+
+    if(ptOptions)
+    {
+        ptOptions->_uIncludeDirectoriesCount = 0;
+        for(uint32_t i = 0; i < PL_MAX_SHADER_INCLUDE_DIRECTORIES; i++)
+        {
+            if(ptOptions->apcIncludeDirectories[i])
+                ptOptions->_uIncludeDirectoriesCount++;
+            else
+                break;
+        }
+    }
+
     shaderc_compile_options_set_include_callbacks(tOptions, pl_shaderc_include_resolve_fn, pl_shaderc_include_result_release_fn, ptOptions);
 
     if(ptOptions == NULL)

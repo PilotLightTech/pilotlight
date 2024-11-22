@@ -118,7 +118,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // load extensions
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
     
-    // load required apis (NULL if not available)
+    // load required apis
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
     gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
@@ -217,7 +217,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // initialize shader extension
     static const plShaderOptions tDefaultShaderOptions = {
-        .uIncludeDirectoriesCount = 1,
         .apcIncludeDirectories = {
             "../examples/shaders/"
         }
