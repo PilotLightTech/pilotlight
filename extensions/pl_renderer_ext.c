@@ -788,7 +788,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .atVertexBufferLayouts = {
             {
                 .uByteStride  = sizeof(float) * 3,
-                .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
+                .atAttributes = { {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT3}}
             }
         },
         .pTempConstantData = aiConstantData,
@@ -866,7 +866,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .atVertexBufferLayouts = {
             {
                 .uByteStride = sizeof(float) * 3,
-                .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
+                .atAttributes = { {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT3}}
             }
         },
         .pTempConstantData = aiConstantData,
@@ -953,7 +953,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .atVertexBufferLayouts = {
             {
                 .uByteStride = sizeof(float) * 3,
-                .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
+                .atAttributes = { {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT3}}
             }
         },
         .pTempConstantData = aiConstantData,
@@ -1010,7 +1010,7 @@ pl_refr_initialize(plWindow* ptWindow)
         .atVertexBufferLayouts = {
             {
                 .uByteStride = sizeof(float) * 3,
-                .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
+                .atAttributes = { {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT3}}
             }
         },
         .atBlendStates = {
@@ -1048,8 +1048,8 @@ pl_refr_initialize(plWindow* ptWindow)
             {
                 .uByteStride = sizeof(float) * 4,
                 .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
+                    {.uByteOffset = 0,                 .tFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
                 }
             }
         },
@@ -1913,7 +1913,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .atVertexBufferLayouts = {
                 {
                     .uByteStride = sizeof(float) * 3,
-                    .atAttributes = { {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32B32_FLOAT}}
+                    .atAttributes = { {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT3}}
                 }
             },
             .atBlendStates = {
@@ -3186,8 +3186,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 {
                     .uByteStride = sizeof(float) * 4,
                     .atAttributes = {
-                        {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32_FLOAT},
-                        {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT}
+                        {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
+                        {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2}
                     }
                 }
             },
@@ -3276,8 +3276,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             {
                 .uByteStride = sizeof(float) * 4,
                 .atAttributes = {
-                    {.uByteOffset = 0, .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT}
+                    {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2}
                 }
             }
         },

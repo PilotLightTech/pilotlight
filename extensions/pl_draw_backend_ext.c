@@ -397,8 +397,8 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
                 {
                     .uByteStride = sizeof(float) * 4,
                     .atAttributes = {
-                        {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                        {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32_UINT},
+                        {.uByteOffset = 0,                 .tFormat = PL_VERTEX_FORMAT_FLOAT3},
+                        {.uByteOffset = sizeof(float) * 3, .tFormat = PL_VERTEX_FORMAT_UINT},
                     }
                 }
             },
@@ -441,10 +441,10 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
                 {
                     .uByteStride = sizeof(float) * 10,
                     .atAttributes = {
-                        {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                        {.uByteOffset = sizeof(float) * 3, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                        {.uByteOffset = sizeof(float) * 6, .tFormat = PL_FORMAT_R32G32B32_FLOAT},
-                        {.uByteOffset = sizeof(float) * 9, .tFormat = PL_FORMAT_R32_UINT},
+                        {.uByteOffset = 0,                 .tFormat = PL_VERTEX_FORMAT_FLOAT3},
+                        {.uByteOffset = sizeof(float) * 3, .tFormat = PL_VERTEX_FORMAT_FLOAT3},
+                        {.uByteOffset = sizeof(float) * 6, .tFormat = PL_VERTEX_FORMAT_FLOAT3},
+                        {.uByteOffset = sizeof(float) * 9, .tFormat = PL_VERTEX_FORMAT_UINT},
                     }
                 }
             },
@@ -510,9 +510,9 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
             {
                 .uByteStride = sizeof(float) * 5,
                 .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R32_UINT},
+                    {.uByteOffset = 0,                 .tFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_VERTEX_FORMAT_UINT},
                 }
             }
         },
@@ -565,9 +565,9 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
             {
                 .uByteStride = sizeof(float) * 5,
                 .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_FORMAT_R32_UINT},
+                    {.uByteOffset = 0,                 .tFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_VERTEX_FORMAT_UINT},
                 }
             }
         },

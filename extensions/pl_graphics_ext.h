@@ -172,6 +172,7 @@ typedef int plTextureType;           // -> enum _plTextureType            // Enu
 typedef int plTextureUsage;          // -> enum _plTextureUsage           // Flag: texture type (PL_TEXTURE_USAGE_XXXX)
 typedef int plCompareMode;           // -> enum _plCompareMode            // Enum: texture sampling comparison modes (PL_COMPARE_MODE_XXXX)
 typedef int plFormat;                // -> enum _plFormat                 // Enum: formats (PL_FORMAT_XXXX)
+typedef int plVertexFormat;          // -> enum _plVertexFormat           // Enum: formats (PL_FORMAT_VERTEX_XXXX)
 typedef int plBufferUsage;           // -> enum _plBufferUsage            // Flag: buffer usage flags (PL_BUFFER_USAGE_XXXX)
 typedef int plStageFlags;            // -> enum _plStageFlags             // Flag: GPU pipeline stage (PL_STAGE_XXXX)
 typedef int plCullMode;              // -> enum _plCullMode               // Flag: face culling mode (PL_CULL_MODE_XXXX)
@@ -644,8 +645,8 @@ typedef struct _plBlendState
 
 typedef struct _plVertexAttribute
 {
-    uint32_t uByteOffset;
-    plFormat tFormat;
+    uint32_t       uByteOffset;
+    plVertexFormat tFormat;
 } plVertexAttribute;
 
 typedef struct _plVertexBufferLayout
@@ -1102,27 +1103,6 @@ enum _plCullMode
     PL_CULL_MODE_CULL_BACK  = 1 << 1,
 };
 
-enum _plFormat
-{
-    PL_FORMAT_UNKNOWN = 0,
-    PL_FORMAT_R32G32B32_FLOAT,
-    PL_FORMAT_R32G32B32A32_FLOAT,
-    PL_FORMAT_R8G8B8A8_UNORM,
-    PL_FORMAT_R32G32_FLOAT,
-    PL_FORMAT_R32_UINT,
-    PL_FORMAT_R8_UNORM,
-    PL_FORMAT_R8G8_UNORM,
-    PL_FORMAT_R8G8B8A8_SRGB,
-    PL_FORMAT_B8G8R8A8_SRGB,
-    PL_FORMAT_B8G8R8A8_UNORM,
-    PL_FORMAT_D32_FLOAT,
-    PL_FORMAT_D32_FLOAT_S8_UINT,
-    PL_FORMAT_D24_UNORM_S8_UINT,
-    PL_FORMAT_D16_UNORM_S8_UINT,
-
-    PL_FORMAT_COUNT
-};
-
 enum _plBufferBindingType
 {
     PL_BUFFER_BINDING_TYPE_UNSPECIFIED,
@@ -1247,6 +1227,190 @@ enum _plDataType
     PL_DATA_TYPE_UNSIGNED_LONG2,
     PL_DATA_TYPE_UNSIGNED_LONG3,
     PL_DATA_TYPE_UNSIGNED_LONG4,
+};
+
+enum _plVertexFormat
+{
+    PL_VERTEX_FORMAT_UNKNOWN = 0,
+
+    PL_VERTEX_FORMAT_HALF,
+    PL_VERTEX_FORMAT_HALF2,
+    PL_VERTEX_FORMAT_HALF3,
+    PL_VERTEX_FORMAT_HALF4,
+
+    PL_VERTEX_FORMAT_FLOAT,
+    PL_VERTEX_FORMAT_FLOAT2,
+    PL_VERTEX_FORMAT_FLOAT3,
+    PL_VERTEX_FORMAT_FLOAT4,
+
+    PL_VERTEX_FORMAT_UCHAR,
+    PL_VERTEX_FORMAT_UCHAR2,
+    PL_VERTEX_FORMAT_UCHAR3,
+    PL_VERTEX_FORMAT_UCHAR4,
+
+    PL_VERTEX_FORMAT_CHAR,
+    PL_VERTEX_FORMAT_CHAR2,
+    PL_VERTEX_FORMAT_CHAR3,
+    PL_VERTEX_FORMAT_CHAR4,
+
+    PL_VERTEX_FORMAT_USHORT,
+    PL_VERTEX_FORMAT_USHORT2,
+    PL_VERTEX_FORMAT_USHORT3,
+    PL_VERTEX_FORMAT_USHORT4,
+
+    PL_VERTEX_FORMAT_SHORT,
+    PL_VERTEX_FORMAT_SHORT2,
+    PL_VERTEX_FORMAT_SHORT3,
+    PL_VERTEX_FORMAT_SHORT4,   
+    
+    PL_VERTEX_FORMAT_UINT,
+    PL_VERTEX_FORMAT_UINT2,
+    PL_VERTEX_FORMAT_UINT3,
+    PL_VERTEX_FORMAT_UINT4,
+
+    PL_VERTEX_FORMAT_INT,
+    PL_VERTEX_FORMAT_INT2,
+    PL_VERTEX_FORMAT_INT3,
+    PL_VERTEX_FORMAT_INT4,    
+
+    PL_VERTEX_FORMAT_COUNT
+};
+
+enum _plFormat
+{
+    PL_FORMAT_UNKNOWN = 0,
+
+    // vertex format only
+    PL_FORMAT_R32G32B32_FLOAT,
+
+    // 8-bit pixel formats
+    PL_FORMAT_R8_UNORM,
+    PL_FORMAT_R8_SNORM,
+    PL_FORMAT_R8_UINT,
+    PL_FORMAT_R8_SINT,
+    PL_FORMAT_R8_SRGB,
+
+    // 16-bit pixel formats
+    PL_FORMAT_R8G8_UNORM,
+    PL_FORMAT_R16_UNORM,
+    PL_FORMAT_R16_SNORM,
+    PL_FORMAT_R16_UINT,
+    PL_FORMAT_R16_SINT,
+    PL_FORMAT_R16_FLOAT,
+    PL_FORMAT_R8G8_SNORM,
+    PL_FORMAT_R8G8_UINT,
+    PL_FORMAT_R8G8_SINT,
+    PL_FORMAT_R8G8_SRGB,
+
+    // packed 16-bit pixel formats
+    PL_FORMAT_B5G6R5_UNORM,
+    PL_FORMAT_A1R5G5B5_UNORM,
+    PL_FORMAT_B5G5R5A1_UNORM,
+
+    // 32-bit pixel formats
+    PL_FORMAT_R8G8B8A8_SRGB,
+    PL_FORMAT_B8G8R8A8_SRGB,
+    PL_FORMAT_B8G8R8A8_UNORM,
+    PL_FORMAT_R8G8B8A8_UNORM,
+    PL_FORMAT_R32_UINT,
+    PL_FORMAT_R32_SINT,
+    PL_FORMAT_R32_FLOAT,
+    PL_FORMAT_R16G16_UNORM,
+    PL_FORMAT_R16G16_SNORM,
+    PL_FORMAT_R16G16_UINT,
+    PL_FORMAT_R16G16_SINT,
+    PL_FORMAT_R16G16_FLOAT,
+    PL_FORMAT_R8G8B8A8_SNORM,
+    PL_FORMAT_R8G8B8A8_UINT,
+    PL_FORMAT_R8G8B8A8_SINT,
+
+    // packed 32-bit pixel formats
+    PL_FORMAT_B10G10R10A2_UNORM,
+    PL_FORMAT_R10G10B10A2_UNORM,
+    PL_FORMAT_R10G10B10A2_UINT,
+    PL_FORMAT_R11G11B10_FLOAT,
+    PL_FORMAT_R9G9B9E5_FLOAT,
+
+    // 64-bit pixel formats
+    PL_FORMAT_R32G32_FLOAT,
+    PL_FORMAT_R32G32_UINT,
+    PL_FORMAT_R32G32_SINT,
+    PL_FORMAT_R16G16B16A16_UNORM,
+    PL_FORMAT_R16G16B16A16_SNORM,
+    PL_FORMAT_R16G16B16A16_UINT,
+    PL_FORMAT_R16G16B16A16_SINT,
+    PL_FORMAT_R16G16B16A16_FLOAT,
+
+    // 128-bit pixel formats
+    PL_FORMAT_R32G32B32A32_FLOAT,
+    PL_FORMAT_R32G32B32A32_UINT,
+    PL_FORMAT_R32G32B32A32_SINT,
+
+    // compressed bc pixel formats
+    PL_FORMAT_BC1_RGBA_UNORM,
+    PL_FORMAT_BC1_RGBA_SRGB,
+    PL_FORMAT_BC2_UNORM,
+    PL_FORMAT_BC2_SRGB,
+    PL_FORMAT_BC3_UNORM,
+    PL_FORMAT_BC3_SRGB,
+    PL_FORMAT_BC4_UNORM,
+    PL_FORMAT_BC4_SNORM,
+    PL_FORMAT_BC5_UNORM,
+    PL_FORMAT_BC5_SNORM,
+    PL_FORMAT_BC6H_UFLOAT, 
+    PL_FORMAT_BC6H_FLOAT,
+    PL_FORMAT_BC7_UNORM,
+    PL_FORMAT_BC7_SRGB,
+
+    // compressed eac/etc pixel formats
+    PL_FORMAT_ETC2_R8G8B8_UNORM,
+    PL_FORMAT_ETC2_R8G8B8_SRGB,
+    PL_FORMAT_ETC2_R8G8B8A1_UNORM,
+    PL_FORMAT_ETC2_R8G8B8A1_SRGB,
+    PL_FORMAT_EAC_R11_UNORM,
+    PL_FORMAT_EAC_R11_SNORM,
+    PL_FORMAT_EAC_R11G11_UNORM,
+    PL_FORMAT_EAC_R11G11_SNORM,
+
+    // compressed astc pixel formats
+    PL_FORMAT_ASTC_4x4_UNORM,
+    PL_FORMAT_ASTC_4x4_SRGB,
+    PL_FORMAT_ASTC_5x4_UNORM,
+    PL_FORMAT_ASTC_5x4_SRGB,
+    PL_FORMAT_ASTC_5x5_UNORM,
+    PL_FORMAT_ASTC_5x5_SRGB,
+    PL_FORMAT_ASTC_6x5_UNORM,
+    PL_FORMAT_ASTC_6x5_SRGB,
+    PL_FORMAT_ASTC_6x6_UNORM,
+    PL_FORMAT_ASTC_6x6_SRGB,
+    PL_FORMAT_ASTC_8x5_UNORM,
+    PL_FORMAT_ASTC_8x5_SRGB,
+    PL_FORMAT_ASTC_8x6_UNORM,
+    PL_FORMAT_ASTC_8x6_SRGB,
+    PL_FORMAT_ASTC_8x8_UNORM,
+    PL_FORMAT_ASTC_8x8_SRGB,
+    PL_FORMAT_ASTC_10x5_UNORM, 
+    PL_FORMAT_ASTC_10x5_SRGB,
+    PL_FORMAT_ASTC_10x6_UNORM,
+    PL_FORMAT_ASTC_10x6_SRGB,
+    PL_FORMAT_ASTC_10x8_UNORM,
+    PL_FORMAT_ASTC_10x8_SRGB,
+    PL_FORMAT_ASTC_10x10_UNORM,
+    PL_FORMAT_ASTC_10x10_SRGB,
+    PL_FORMAT_ASTC_12x10_UNORM,
+    PL_FORMAT_ASTC_12x10_SRGB,
+    PL_FORMAT_ASTC_12x12_UNORM,
+    PL_FORMAT_ASTC_12x12_SRGB,
+
+    // depth
+    PL_FORMAT_D32_FLOAT,
+    PL_FORMAT_D32_FLOAT_S8_UINT,
+    PL_FORMAT_D24_UNORM_S8_UINT,
+    PL_FORMAT_D16_UNORM_S8_UINT,
+    PL_FORMAT_D16_UNORM,
+    PL_FORMAT_S8_UINT,
+    
+    PL_FORMAT_COUNT
 };
 
 //-----------------------------------------------------------------------------

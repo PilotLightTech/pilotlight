@@ -502,8 +502,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             {
                 .uByteStride = sizeof(float) * 4,
                 .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_FORMAT_R32G32_FLOAT},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_FORMAT_R32G32_FLOAT},
+                    {.uByteOffset = 0,                 .tFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
                 }
             }
         },

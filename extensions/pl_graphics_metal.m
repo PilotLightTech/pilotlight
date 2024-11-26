@@ -277,7 +277,7 @@ static MTLSamplerAddressMode  pl__metal_wrap(plAddressMode tWrap);
 static MTLCompareFunction     pl__metal_compare(plCompareMode tCompare);
 static MTLStencilOperation    pl__metal_stencil_op(plStencilOp tOp);
 static MTLPixelFormat         pl__metal_format(plFormat tFormat);
-static MTLVertexFormat        pl__metal_vertex_format(plFormat tFormat);
+static MTLVertexFormat        pl__metal_vertex_format(plVertexFormat tFormat);
 static MTLCullMode            pl__metal_cull(plCullMode tCullMode);
 static MTLLoadAction          pl__metal_load_op   (plLoadOp tOp);
 static MTLStoreAction         pl__metal_store_op  (plStoreOp tOp);
@@ -1231,7 +1231,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     uint32_t uCurrentAttributeCount = 0;
     for(uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
     {
-        if(ptDescription->atVertexBufferLayouts[0].atAttributes[i].tFormat == PL_FORMAT_UNKNOWN)
+        if(ptDescription->atVertexBufferLayouts[0].atAttributes[i].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
             break;
         vertexDescriptor.attributes[i].bufferIndex = 4;
         vertexDescriptor.attributes[i].offset = ptDescription->atVertexBufferLayouts[0].atAttributes[i].uByteOffset;
@@ -2692,6 +2692,98 @@ pl__metal_format(plFormat tFormat)
         case PL_FORMAT_D32_FLOAT:          return MTLPixelFormatDepth32Float;
         case PL_FORMAT_D32_FLOAT_S8_UINT:  return MTLPixelFormatDepth32Float_Stencil8;
         case PL_FORMAT_D24_UNORM_S8_UINT:  return MTLPixelFormatDepth24Unorm_Stencil8;
+        case PL_FORMAT_D16_UNORM_S8_UINT:   return MTLPixelFormatDepth16Unorm;
+        case PL_FORMAT_R8_SNORM:            return MTLPixelFormatR8Unorm;
+        case PL_FORMAT_R8_UINT:             return MTLPixelFormatR8Uint; 
+        case PL_FORMAT_R8_SINT:             return MTLPixelFormatR8Sint;
+        case PL_FORMAT_R8_SRGB:             return MTLPixelFormatR8Unorm_sRGB;
+        case PL_FORMAT_R16_UNORM:           return MTLPixelFormatR16Unorm; 
+        case PL_FORMAT_R16_SNORM:           return MTLPixelFormatR16Snorm;
+        case PL_FORMAT_R16_UINT:            return MTLPixelFormatR16Uint;
+        case PL_FORMAT_R16_SINT:            return MTLPixelFormatR16Sint;
+        case PL_FORMAT_R16_FLOAT:           return MTLPixelFormatR16Float;
+        case PL_FORMAT_R8G8_SNORM:          return MTLPixelFormatRG8Snorm;
+        case PL_FORMAT_R8G8_UINT:           return MTLPixelFormatRG8Uint;
+        case PL_FORMAT_R8G8_SINT:           return MTLPixelFormatRG8Sint;
+        case PL_FORMAT_R8G8_SRGB:           return MTLPixelFormatRG8Unorm_sRGB;
+        case PL_FORMAT_B5G6R5_UNORM:        return MTLPixelFormatB5G6R5Unorm;
+        case PL_FORMAT_A1R5G5B5_UNORM:      return MTLPixelFormatA1BGR5Unorm;
+        case PL_FORMAT_B5G5R5A1_UNORM:      return MTLPixelFormatBGR5A1Unorm;
+        case PL_FORMAT_R32_SINT:            return MTLPixelFormatR32Sint;
+        case PL_FORMAT_R32_FLOAT:           return MTLPixelFormatR32Float;
+        case PL_FORMAT_R16G16_UNORM:        return MTLPixelFormatRG16Unorm;
+        case PL_FORMAT_R16G16_SNORM:        return MTLPixelFormatRG16Snorm;
+        case PL_FORMAT_R16G16_UINT:         return MTLPixelFormatRG16Uint;
+        case PL_FORMAT_R16G16_SINT:         return MTLPixelFormatRG16Sint;
+        case PL_FORMAT_R16G16_FLOAT:        return MTLPixelFormatRG16Float;
+        case PL_FORMAT_R8G8B8A8_SNORM:      return MTLPixelFormatRGBA8Snorm;
+        case PL_FORMAT_R8G8B8A8_UINT:       return MTLPixelFormatRGBA8Uint;
+        case PL_FORMAT_R8G8B8A8_SINT:       return MTLPixelFormatRGBA8Sint;
+        case PL_FORMAT_B10G10R10A2_UNORM:   return MTLPixelFormatBGR10A2Unorm;
+        case PL_FORMAT_R10G10B10A2_UNORM:   return MTLPixelFormatRGB10A2Unorm;
+        case PL_FORMAT_R10G10B10A2_UINT:    return MTLPixelFormatRGB10A2Uint;
+        case PL_FORMAT_R11G11B10_FLOAT:     return MTLPixelFormatRG11B10Float;
+        case PL_FORMAT_R9G9B9E5_FLOAT:      return MTLPixelFormatRGB9E5Float;
+        case PL_FORMAT_R32G32_UINT:         return MTLPixelFormatRG32Uint;
+        case PL_FORMAT_R32G32_SINT:         return MTLPixelFormatRG32Sint;
+        case PL_FORMAT_R16G16B16A16_UNORM:  return MTLPixelFormatRGBA16Unorm;
+        case PL_FORMAT_R16G16B16A16_SNORM:  return MTLPixelFormatRGBA16Snorm;
+        case PL_FORMAT_R16G16B16A16_UINT:   return MTLPixelFormatRGBA16Uint;
+        case PL_FORMAT_R16G16B16A16_SINT:   return MTLPixelFormatRGBA16Sint;
+        case PL_FORMAT_R16G16B16A16_FLOAT:  return MTLPixelFormatRGBA16Float;
+        case PL_FORMAT_R32G32B32A32_UINT:   return MTLPixelFormatRGBA32Uint;
+        case PL_FORMAT_R32G32B32A32_SINT:   return MTLPixelFormatRGBA32Sint;
+        case PL_FORMAT_BC1_RGBA_UNORM:      return MTLPixelFormatBC1_RGBA;
+        case PL_FORMAT_BC1_RGBA_SRGB:       return MTLPixelFormatBC1_RGBA_sRGB;
+        case PL_FORMAT_BC2_UNORM:           return MTLPixelFormatBC2_RGBA;
+        case PL_FORMAT_BC2_SRGB:            return MTLPixelFormatBC2_RGBA_sRGB;
+        case PL_FORMAT_BC3_UNORM:           return MTLPixelFormatBC3_RGBA;
+        case PL_FORMAT_BC3_SRGB:            return MTLPixelFormatBC3_RGBA_sRGB;
+        case PL_FORMAT_BC4_UNORM:           return MTLPixelFormatBC4_RUnorm;
+        case PL_FORMAT_BC4_SNORM:           return MTLPixelFormatBC4_RSnorm;
+        case PL_FORMAT_BC5_UNORM:           return MTLPixelFormatBC5_RGUnorm;
+        case PL_FORMAT_BC5_SNORM:           return MTLPixelFormatBC5_RGSnorm;
+        case PL_FORMAT_BC6H_UFLOAT:         return MTLPixelFormatBC6H_RGBUfloat;
+        case PL_FORMAT_BC6H_FLOAT:          return MTLPixelFormatBC6H_RGBFloat;
+        case PL_FORMAT_BC7_UNORM:           return MTLPixelFormatBC7_RGBAUnorm;
+        case PL_FORMAT_BC7_SRGB:            return MTLPixelFormatBC7_RGBAUnorm_sRGB;
+        case PL_FORMAT_ETC2_R8G8B8_UNORM:   return MTLPixelFormatETC2_RGB8;
+        case PL_FORMAT_ETC2_R8G8B8_SRGB:    return MTLPixelFormatETC2_RGB8_sRGB;
+        case PL_FORMAT_ETC2_R8G8B8A1_UNORM: return MTLPixelFormatETC2_RGB8A1;
+        case PL_FORMAT_ETC2_R8G8B8A1_SRGB:  return MTLPixelFormatETC2_RGB8A1_sRGB;
+        case PL_FORMAT_EAC_R11_UNORM:       return MTLPixelFormatEAC_R11Unorm;
+        case PL_FORMAT_EAC_R11_SNORM:       return MTLPixelFormatEAC_R11Snorm;
+        case PL_FORMAT_EAC_R11G11_UNORM:    return MTLPixelFormatEAC_RG11Unorm;
+        case PL_FORMAT_EAC_R11G11_SNORM:    return MTLPixelFormatEAC_RG11Snorm;
+        case PL_FORMAT_ASTC_4x4_UNORM:      return MTLPixelFormatASTC_4x4_LDR;
+        case PL_FORMAT_ASTC_4x4_SRGB:       return MTLPixelFormatASTC_4x4_sRGB;
+        case PL_FORMAT_ASTC_5x4_UNORM:      return MTLPixelFormatASTC_4x4_LDR;
+        case PL_FORMAT_ASTC_5x4_SRGB:       return MTLPixelFormatASTC_5x4_sRGB;
+        case PL_FORMAT_ASTC_5x5_UNORM:      return MTLPixelFormatASTC_5x5_LDR;
+        case PL_FORMAT_ASTC_5x5_SRGB:       return MTLPixelFormatASTC_5x5_sRGB;
+        case PL_FORMAT_ASTC_6x5_UNORM:      return MTLPixelFormatASTC_6x5_LDR;
+        case PL_FORMAT_ASTC_6x5_SRGB:       return MTLPixelFormatASTC_6x5_sRGB;
+        case PL_FORMAT_ASTC_6x6_UNORM:      return MTLPixelFormatASTC_6x6_LDR;
+        case PL_FORMAT_ASTC_6x6_SRGB:       return MTLPixelFormatASTC_6x6_sRGB;
+        case PL_FORMAT_ASTC_8x5_UNORM:      return MTLPixelFormatASTC_8x5_LDR;
+        case PL_FORMAT_ASTC_8x5_SRGB:       return MTLPixelFormatASTC_8x5_sRGB;
+        case PL_FORMAT_ASTC_8x6_UNORM:      return MTLPixelFormatASTC_8x6_LDR;
+        case PL_FORMAT_ASTC_8x6_SRGB:       return MTLPixelFormatASTC_8x6_sRGB;
+        case PL_FORMAT_ASTC_8x8_UNORM:      return MTLPixelFormatASTC_8x8_LDR;
+        case PL_FORMAT_ASTC_8x8_SRGB:       return MTLPixelFormatASTC_8x8_sRGB;
+        case PL_FORMAT_ASTC_10x5_UNORM:     return MTLPixelFormatASTC_10x5_LDR; 
+        case PL_FORMAT_ASTC_10x5_SRGB:      return MTLPixelFormatASTC_10x5_sRGB;
+        case PL_FORMAT_ASTC_10x6_UNORM:     return MTLPixelFormatASTC_10x6_LDR;
+        case PL_FORMAT_ASTC_10x6_SRGB:      return MTLPixelFormatASTC_10x6_sRGB;
+        case PL_FORMAT_ASTC_10x8_UNORM:     return MTLPixelFormatASTC_10x8_LDR;
+        case PL_FORMAT_ASTC_10x8_SRGB:      return MTLPixelFormatASTC_10x8_sRGB;
+        case PL_FORMAT_ASTC_10x10_UNORM:    return MTLPixelFormatASTC_10x10_LDR;
+        case PL_FORMAT_ASTC_10x10_SRGB:     return MTLPixelFormatASTC_10x10_sRGB;
+        case PL_FORMAT_ASTC_12x10_UNORM:    return MTLPixelFormatASTC_12x10_LDR;
+        case PL_FORMAT_ASTC_12x10_SRGB:     return MTLPixelFormatASTC_12x10_sRGB;
+        case PL_FORMAT_ASTC_12x12_UNORM:    return MTLPixelFormatASTC_12x12_LDR;
+        case PL_FORMAT_ASTC_12x12_SRGB:     return MTLPixelFormatASTC_12x12_sRGB;
+        case PL_FORMAT_S8_UINT:             return MTLPixelFormatStencil8;
     }
 
     PL_ASSERT(false && "Unsupported format");
@@ -2699,18 +2791,42 @@ pl__metal_format(plFormat tFormat)
 }
 
 static MTLVertexFormat
-pl__metal_vertex_format(plFormat tFormat)
+pl__metal_vertex_format(plVertexFormat tFormat)
 {
     switch(tFormat)
     {
-        case PL_FORMAT_R32G32B32A32_FLOAT: return MTLVertexFormatFloat4;
-        case PL_FORMAT_R32G32B32_FLOAT:    return MTLVertexFormatFloat3;
-        case PL_FORMAT_R32G32_FLOAT:       return MTLVertexFormatFloat2;
-
-        case PL_FORMAT_B8G8R8A8_UNORM:
-        case PL_FORMAT_R8G8B8A8_UNORM:     return MTLVertexFormatUChar4;
-
-        case PL_FORMAT_R32_UINT:           return MTLVertexFormatUInt;
+        case PL_VERTEX_FORMAT_HALF:    return MTLVertexFormatHalf;
+        case PL_VERTEX_FORMAT_HALF2:   return MTLVertexFormatHalf2;
+        case PL_VERTEX_FORMAT_HALF3:   return MTLVertexFormatHalf3;
+        case PL_VERTEX_FORMAT_HALF4:   return MTLVertexFormatHalf4;
+        case PL_VERTEX_FORMAT_FLOAT:   return MTLVertexFormatFloat;
+        case PL_VERTEX_FORMAT_FLOAT2:  return MTLVertexFormatFloat2;
+        case PL_VERTEX_FORMAT_FLOAT3:  return MTLVertexFormatFloat3;
+        case PL_VERTEX_FORMAT_FLOAT4:  return MTLVertexFormatFloat4;
+        case PL_VERTEX_FORMAT_UCHAR:   return MTLVertexFormatUChar;
+        case PL_VERTEX_FORMAT_UCHAR2:  return MTLVertexFormatUChar2;
+        case PL_VERTEX_FORMAT_UCHAR3:  return MTLVertexFormatUChar3;
+        case PL_VERTEX_FORMAT_UCHAR4:  return MTLVertexFormatUChar4;
+        case PL_VERTEX_FORMAT_CHAR:    return MTLVertexFormatChar;
+        case PL_VERTEX_FORMAT_CHAR2:   return MTLVertexFormatChar2;
+        case PL_VERTEX_FORMAT_CHAR3:   return MTLVertexFormatChar3;
+        case PL_VERTEX_FORMAT_CHAR4:   return MTLVertexFormatChar4;
+        case PL_VERTEX_FORMAT_USHORT:  return MTLVertexFormatUShort;
+        case PL_VERTEX_FORMAT_USHORT2: return MTLVertexFormatUShort2;
+        case PL_VERTEX_FORMAT_USHORT3: return MTLVertexFormatUShort3;
+        case PL_VERTEX_FORMAT_USHORT4: return MTLVertexFormatUShort4;
+        case PL_VERTEX_FORMAT_SHORT:   return MTLVertexFormatShort;
+        case PL_VERTEX_FORMAT_SHORT2:  return MTLVertexFormatShort2;
+        case PL_VERTEX_FORMAT_SHORT3:  return MTLVertexFormatShort3;
+        case PL_VERTEX_FORMAT_SHORT4:  return MTLVertexFormatShort4;
+        case PL_VERTEX_FORMAT_UINT:    return MTLVertexFormatUInt;
+        case PL_VERTEX_FORMAT_UINT2:   return MTLVertexFormatUInt2;
+        case PL_VERTEX_FORMAT_UINT3:   return MTLVertexFormatUInt3;
+        case PL_VERTEX_FORMAT_UINT4:   return MTLVertexFormatUInt4;
+        case PL_VERTEX_FORMAT_INT:     return MTLVertexFormatInt;
+        case PL_VERTEX_FORMAT_INT2:    return MTLVertexFormatInt2;
+        case PL_VERTEX_FORMAT_INT3:    return MTLVertexFormatInt3;
+        case PL_VERTEX_FORMAT_INT4:    return MTLVertexFormatInt4;
     }
 
     PL_ASSERT(false && "Unsupported vertex format");
