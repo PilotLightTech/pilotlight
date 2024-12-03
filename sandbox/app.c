@@ -59,8 +59,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         return ptEditorData;
     }
 
-    
-
     // load extensions
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
@@ -172,15 +170,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     ptEditorData->uSceneHandle0 = gptRenderer->create_scene();
 
-
-    gptProfile->begin_sample(0, "load environments");
-    gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
-    gptProfile->end_sample(0);
-
-    gptProfile->begin_sample(0, "create scene views");
-    ptEditorData->uViewHandle0 = gptRenderer->create_view(ptEditorData->uSceneHandle0, ptIO->tMainViewportSize);
-    gptProfile->end_sample(0);
-
     // temporary draw layer for submitting fullscreen quad of offscreen render
     ptEditorData->ptDrawLayer = gptDraw->request_2d_layer(gptUi->get_draw_list());
 
@@ -212,25 +201,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
 
     // load models
-    
-    plModelLoaderData tLoaderData0 = {0};
 
-    gptProfile->begin_sample(0, "load models 0");
-    const plMat4 tTransform = pl_mat4_translate_xyz(0.0f, 1.0f, 0.0f);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", &tTransform, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/kenny.glb", NULL, &tLoaderData0);
-    gptRenderer->add_drawable_objects_to_scene(ptEditorData->uSceneHandle0, tLoaderData0.uOpaqueCount, tLoaderData0.atOpaqueObjects, tLoaderData0.uTransparentCount, tLoaderData0.atTransparentObjects);
-    gptModelLoader->free_data(&tLoaderData0);
-    gptProfile->end_sample(0);
-
-    gptProfile->begin_sample(0, "finalize scene 0");
-    gptRenderer->finalize_scene(ptEditorData->uSceneHandle0);
-    gptProfile->end_sample(0);
-
-    gptProfile->end_frame();
 
     // plTransformComponent* ptTargetTransform = NULL;
     // ptEditorData->tTrackPoint = gptEcs->create_transform(ptMainComponentLibrary, "track 0", &ptTargetTransform);
@@ -243,13 +214,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     // ptIK->tTarget = ptEditorData->tTrackPoint;
     // ptIK->uChainLength = 2;
     // ptIK->uIterationCount = 5;
-
-    // temporary for profiling loading procedures
-    uint32_t uSampleSize = 0;
-    plProfileCpuSample* ptSamples = gptProfile->get_last_frame_samples(0, &uSampleSize);
-    const char* pcSpacing = "                    ";
-    for(uint32_t i = 0; i < uSampleSize; i++)
-        printf("%s %s : %0.6f\n", &pcSpacing[20 - ptSamples[i]._uDepth * 2], ptSamples[i].pcName, ptSamples[i].dDuration);
 
     return ptEditorData;
 }
@@ -311,7 +275,8 @@ pl_app_update(plEditorData* ptEditorData)
     if(ptEditorData->bResize || ptEditorData->bAlwaysResize)
     {
         // gptOS->sleep(32);
-        gptRenderer->resize_view(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0, ptIO->tMainViewportSize);
+        if(ptEditorData->bSceneLoaded)
+            gptRenderer->resize_view(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0, ptIO->tMainViewportSize);
         ptEditorData->bResize = false;
     }
 
@@ -343,47 +308,51 @@ pl_app_update(plEditorData* ptEditorData)
     plCameraComponent* ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptEditorData->tCullCamera);
     gptCamera->update(ptCullCamera);
 
-    // run ecs system
-    gptRenderer->run_ecs(ptEditorData->uSceneHandle0);
-
-    plEntity tNextEntity = gptRenderer->get_picked_entity();
-    if(tNextEntity.ulData == 0)
+    if(ptEditorData->bSceneLoaded)
     {
-        ptEditorData->tSelectedEntity.ulData = UINT64_MAX;
-        gptRenderer->select_entities(ptEditorData->uSceneHandle0, 0, NULL);
-    }
-    else if(tNextEntity.ulData != UINT64_MAX && ptEditorData->tSelectedEntity.ulData != tNextEntity.ulData)
-    {
-        ptEditorData->tSelectedEntity = tNextEntity;
-        gptRenderer->select_entities(ptEditorData->uSceneHandle0, 1, &ptEditorData->tSelectedEntity);
-    }
+        // run ecs system
+        gptRenderer->run_ecs(ptEditorData->uSceneHandle0);
 
-    if(gptIO->is_key_pressed(PL_KEY_M, true))
-        pl_change_gizmo_mode(ptEditorData->ptGizmoData);
 
-    if(ptEditorData->bShowEntityWindow)
-    {
-        if(pl_show_ecs_window(&ptEditorData->tSelectedEntity, ptMainComponentLibrary, &ptEditorData->bShowEntityWindow))
+        plEntity tNextEntity = gptRenderer->get_picked_entity();
+        if(tNextEntity.ulData == 0)
         {
-            if(ptEditorData->tSelectedEntity.ulData == UINT64_MAX)
-                gptRenderer->select_entities(ptEditorData->uSceneHandle0, 0, NULL);
-            else
-                gptRenderer->select_entities(ptEditorData->uSceneHandle0, 1, &ptEditorData->tSelectedEntity);
+            ptEditorData->tSelectedEntity.ulData = UINT64_MAX;
+            gptRenderer->select_entities(ptEditorData->uSceneHandle0, 0, NULL);
         }
-    }
+        else if(tNextEntity.ulData != UINT64_MAX && ptEditorData->tSelectedEntity.ulData != tNextEntity.ulData)
+        {
+            ptEditorData->tSelectedEntity = tNextEntity;
+            gptRenderer->select_entities(ptEditorData->uSceneHandle0, 1, &ptEditorData->tSelectedEntity);
+        }
 
-    if(ptEditorData->tSelectedEntity.uIndex != UINT32_MAX)
-    {
-        plDrawList3D* ptGizmoDrawlist =  gptRenderer->get_gizmo_drawlist(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0);
-        pl_gizmo(ptEditorData->ptGizmoData, ptGizmoDrawlist, ptMainComponentLibrary, ptCamera, ptEditorData->tSelectedEntity);
-    }
+        if(gptIO->is_key_pressed(PL_KEY_M, true))
+            pl_change_gizmo_mode(ptEditorData->ptGizmoData);
 
-    const plViewOptions tViewOptions = {
-        .ptViewCamera = &ptEditorData->tMainCamera,
-        .ptCullCamera = ptEditorData->bFreezeCullCamera ? &ptEditorData->tCullCamera : NULL,
-        .ptSunLight = &ptEditorData->tSunlight
-    };
-    gptRenderer->render_scene(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0, tViewOptions);
+        if(ptEditorData->bShowEntityWindow)
+        {
+            if(pl_show_ecs_window(&ptEditorData->tSelectedEntity, ptMainComponentLibrary, &ptEditorData->bShowEntityWindow))
+            {
+                if(ptEditorData->tSelectedEntity.ulData == UINT64_MAX)
+                    gptRenderer->select_entities(ptEditorData->uSceneHandle0, 0, NULL);
+                else
+                    gptRenderer->select_entities(ptEditorData->uSceneHandle0, 1, &ptEditorData->tSelectedEntity);
+            }
+        }
+
+        if(ptEditorData->tSelectedEntity.uIndex != UINT32_MAX)
+        {
+            plDrawList3D* ptGizmoDrawlist =  gptRenderer->get_gizmo_drawlist(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0);
+            pl_gizmo(ptEditorData->ptGizmoData, ptGizmoDrawlist, ptMainComponentLibrary, ptCamera, ptEditorData->tSelectedEntity);
+        }
+    
+        const plViewOptions tViewOptions = {
+            .ptViewCamera = &ptEditorData->tMainCamera,
+            .ptCullCamera = ptEditorData->bFreezeCullCamera ? &ptEditorData->tCullCamera : NULL,
+            .ptSunLight = &ptEditorData->tSunlight
+        };
+        gptRenderer->render_scene(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0, tViewOptions);
+    }
 
     gptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
 
@@ -410,13 +379,6 @@ pl_app_update(plEditorData* ptEditorData)
             if(gptUi->checkbox("Freeze Culling Camera", &ptEditorData->bFreezeCullCamera))
             {
                 *ptCullCamera = *ptCamera;
-            }
-
-            plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary,  PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSunlight);
-            int iCascadeCount  = (int)ptLight->uCascadeCount;
-            if(gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0))
-            {
-                ptLight->uCascadeCount = (uint32_t)iCascadeCount;
             }
 
             gptUi->end_collapsing_header();
@@ -453,6 +415,83 @@ pl_app_update(plEditorData* ptEditorData)
             gptUi->slider_float("x", &ptLight->tDirection.x, -1.0f, 1.0f, 0);
             gptUi->slider_float("y", &ptLight->tDirection.y, -1.0f, 1.0f, 0);
             gptUi->slider_float("z", &ptLight->tDirection.z, -1.0f, 1.0f, 0);
+            gptUi->end_collapsing_header();
+        }
+
+        if(gptUi->begin_collapsing_header(ICON_FA_PHOTO_FILM " Renderer", 0))
+        {
+
+            plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary,  PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSunlight);
+            int iCascadeCount  = (int)ptLight->uCascadeCount;
+            if(gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0))
+            {
+                ptLight->uCascadeCount = (uint32_t)iCascadeCount;
+            }
+
+            if(gptUi->button("Reload Shaders"))
+            {
+                gptRenderer->reload_scene_shaders(ptEditorData->uSceneHandle0);
+            }
+
+            if(!ptEditorData->bSceneLoaded)
+            {
+                if(gptUi->button("Load Sponza"))
+                {
+                    gptProfile->begin_sample(0, "load environments");
+                    gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
+                    gptProfile->end_sample(0);
+
+                    gptProfile->begin_sample(0, "create scene views");
+                    ptEditorData->uViewHandle0 = gptRenderer->create_view(ptEditorData->uSceneHandle0, ptIO->tMainViewportSize);
+                    gptProfile->end_sample(0);
+
+                    plModelLoaderData tLoaderData0 = {0};
+
+                    gptProfile->begin_sample(0, "load models 0");
+                    // const plMat4 tTransform = pl_mat4_translate_xyz(0.0f, 1.0f, 0.0f);
+                    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", &tTransform, &tLoaderData0);
+                    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+                    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
+                    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
+                    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/kenny.glb", NULL, &tLoaderData0);
+                    gptRenderer->add_drawable_objects_to_scene(ptEditorData->uSceneHandle0, tLoaderData0.uDeferredCount, tLoaderData0.atDeferredObjects, tLoaderData0.uForwardCount, tLoaderData0.atForwardObjects);
+                    gptModelLoader->free_data(&tLoaderData0);
+                    gptProfile->end_sample(0);
+
+                    gptProfile->begin_sample(0, "finalize scene 0");
+                    gptRenderer->finalize_scene(ptEditorData->uSceneHandle0);
+                    gptProfile->end_sample(0);
+
+                    ptEditorData->bSceneLoaded = true;
+                }
+
+                if(gptUi->button("Load Dance Floor"))
+                {
+                    gptProfile->begin_sample(0, "load environments");
+                    gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
+                    gptProfile->end_sample(0);
+
+                    gptProfile->begin_sample(0, "create scene views");
+                    ptEditorData->uViewHandle0 = gptRenderer->create_view(ptEditorData->uSceneHandle0, ptIO->tMainViewportSize);
+                    gptProfile->end_sample(0);
+
+                    plModelLoaderData tLoaderData0 = {0};
+
+                    gptProfile->begin_sample(0, "load models 0");
+                    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
+                    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
+                    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/kenny.glb", NULL, &tLoaderData0);
+                    gptRenderer->add_drawable_objects_to_scene(ptEditorData->uSceneHandle0, tLoaderData0.uDeferredCount, tLoaderData0.atDeferredObjects, tLoaderData0.uForwardCount, tLoaderData0.atForwardObjects);
+                    gptModelLoader->free_data(&tLoaderData0);
+                    gptProfile->end_sample(0);
+
+                    gptProfile->begin_sample(0, "finalize scene 0");
+                    gptRenderer->finalize_scene(ptEditorData->uSceneHandle0);
+                    gptProfile->end_sample(0);
+
+                    ptEditorData->bSceneLoaded = true;
+                }
+            }
 
             gptUi->end_collapsing_header();
         }
@@ -470,7 +509,8 @@ pl_app_update(plEditorData* ptEditorData)
         gptUi->show_debug_window(&ptEditorData->bShowUiDebug);
 
     // add full screen quad for offscreen render
-    gptDraw->add_image(ptEditorData->ptDrawLayer, gptRenderer->get_view_color_texture(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0).uData, (plVec2){0}, ptIO->tMainViewportSize);
+    if(ptEditorData->bSceneLoaded)
+        gptDraw->add_image(ptEditorData->ptDrawLayer, gptRenderer->get_view_color_texture(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0).uData, (plVec2){0}, ptIO->tMainViewportSize);
 
     gptDraw->submit_2d_layer(ptEditorData->ptDrawLayer);
 

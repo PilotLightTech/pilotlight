@@ -31,7 +31,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plModelLoaderI_version (plVersion){0, 1, 0}
+#define plModelLoaderI_version (plVersion){0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -62,10 +62,10 @@ typedef struct _plModelLoaderI
 
 typedef struct _plModelLoaderData
 {
-    uint32_t  uOpaqueCount;
-    plEntity* atOpaqueObjects;
-    uint32_t  uTransparentCount;
-    plEntity* atTransparentObjects;
+    uint32_t  uDeferredCount;
+    plEntity* atDeferredObjects;
+    uint32_t  uForwardCount;
+    plEntity* atForwardObjects;
 } plModelLoaderData;
 
 #endif // PL_MODEL_LOADER_EXT_H

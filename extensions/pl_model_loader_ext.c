@@ -84,12 +84,12 @@ static void pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const c
 static void
 pl__free_data(plModelLoaderData* ptData)
 {
-    pl_sb_free(ptData->atOpaqueObjects);
-    pl_sb_free(ptData->atTransparentObjects);
-    ptData->uOpaqueCount = 0;
-    ptData->uTransparentCount = 0;
-    ptData->atOpaqueObjects = NULL;
-    ptData->atTransparentObjects = NULL;
+    pl_sb_free(ptData->atDeferredObjects);
+    pl_sb_free(ptData->atForwardObjects);
+    ptData->uDeferredCount = 0;
+    ptData->uForwardCount = 0;
+    ptData->atDeferredObjects = NULL;
+    ptData->atForwardObjects = NULL;
 }
 
 static bool
@@ -151,11 +151,11 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
     }
 
     if(tColor.a == 1.0f)
-        pl_sb_push(ptDataOut->atOpaqueObjects, tEntity);
+        pl_sb_push(ptDataOut->atDeferredObjects, tEntity);
     else
-        pl_sb_push(ptDataOut->atTransparentObjects, tEntity);
-    ptDataOut->uOpaqueCount = pl_sb_size(ptDataOut->atOpaqueObjects);
-    ptDataOut->uTransparentCount = pl_sb_size(ptDataOut->atTransparentObjects);
+        pl_sb_push(ptDataOut->atForwardObjects, tEntity);
+    ptDataOut->uDeferredCount = pl_sb_size(ptDataOut->atDeferredObjects);
+    ptDataOut->uForwardCount = pl_sb_size(ptDataOut->atForwardObjects);
     return true;
 }
 
@@ -354,8 +354,8 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
     pl_hm_free(tLoadingData.ptSkinHashmap);
     pl_hm_free(tLoadingData.ptMaterialHashMap);
     pl_sb_free(tLoadingData.sbtMaterialEntities);
-    ptDataOut->uOpaqueCount = pl_sb_size(ptDataOut->atOpaqueObjects);
-    ptDataOut->uTransparentCount = pl_sb_size(ptDataOut->atTransparentObjects);
+    ptDataOut->uDeferredCount = pl_sb_size(ptDataOut->atDeferredObjects);
+    ptDataOut->uForwardCount = pl_sb_size(ptDataOut->atForwardObjects);
     return true;
 }
 
@@ -975,9 +975,9 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                     bOpaque = false;
 
                 if(bOpaque)
-                    pl_sb_push(ptData->atOpaqueObjects, tNewObject);
+                    pl_sb_push(ptData->atDeferredObjects, tNewObject);
                 else
-                    pl_sb_push(ptData->atTransparentObjects, tNewObject);
+                    pl_sb_push(ptData->atForwardObjects, tNewObject);
             }
         }
     }

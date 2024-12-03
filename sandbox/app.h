@@ -125,6 +125,7 @@ typedef struct _plEditorData
     plFont* tDefaultFont;
 
     // experiment
+    bool bSceneLoaded;
     plEntity tTrackPoint;
 
 } plEditorData;
