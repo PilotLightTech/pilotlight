@@ -103,7 +103,6 @@ layout(location = 0) in vec3 inPos;
 // output
 layout(location = 0) out struct plShaderOut {
     vec3 tPosition;
-    vec4 tWorldPosition;
     vec2 tUV[8];
     vec4 tColor;
     vec3 tWorldNormal;
@@ -186,6 +185,5 @@ void main()
     tShaderIn.tUV[5] = inTexCoord5;
     tShaderIn.tUV[6] = inTexCoord6;
     tShaderIn.tUV[7] = inTexCoord7;
-    tShaderIn.tWorldPosition = gl_Position / gl_Position.w;
     tShaderIn.tColor = inColor0;
 }

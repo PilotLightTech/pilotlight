@@ -101,13 +101,13 @@ NormalInfo pl_get_normal_info(int iUVSet)
     vec2 uv_dx = dFdx(UV);
     vec2 uv_dy = dFdy(UV);
 
-    if (length(uv_dx) <= 1e-2) {
-      uv_dx = vec2(1.0, 0.0);
-    }
+    // if (length(uv_dx) <= 1e-2) {
+    //   uv_dx = vec2(1.0, 0.0);
+    // }
 
-    if (length(uv_dy) <= 1e-2) {
-      uv_dy = vec2(0.0, 1.0);
-    }
+    // if (length(uv_dy) <= 1e-2) {
+    //   uv_dy = vec2(0.0, 1.0);
+    // }
 
     vec3 t_ = (uv_dy.t * dFdx(tShaderIn.tPosition) - uv_dx.t * dFdy(tShaderIn.tPosition)) /
         (uv_dx.s * uv_dy.t - uv_dy.s * uv_dx.t);

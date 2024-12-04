@@ -94,7 +94,6 @@ layout(location = 0) out vec4 outColor;
 // output
 layout(location = 0) in struct plShaderIn {
     vec3 tPosition;
-    vec4 tWorldPosition;
     vec2 tUV[8];
     vec4 tColor;
     vec3 tWorldNormal;
@@ -119,13 +118,13 @@ NormalInfo pl_get_normal_info(int iUVSet)
     vec2 uv_dx = dFdx(UV);
     vec2 uv_dy = dFdy(UV);
 
-    if (length(uv_dx) <= 1e-2) {
-      uv_dx = vec2(1.0, 0.0);
-    }
+    // if (length(uv_dx) <= 1e-2) {
+    //   uv_dx = vec2(1.0, 0.0);
+    // }
 
-    if (length(uv_dy) <= 1e-2) {
-      uv_dy = vec2(0.0, 1.0);
-    }
+    // if (length(uv_dy) <= 1e-2) {
+    //   uv_dy = vec2(0.0, 1.0);
+    // }
 
     vec3 t_ = (uv_dy.t * dFdx(tShaderIn.tPosition) - uv_dx.t * dFdy(tShaderIn.tPosition)) /
         (uv_dx.s * uv_dy.t - uv_dy.s * uv_dx.t);
@@ -173,9 +172,17 @@ NormalInfo pl_get_normal_info(int iUVSet)
     info.ng = ng;
     if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP)) 
     {
+
         info.ntex = texture(sampler2D(tNormalTexture, tDefaultSampler), UV).rgb * 2.0 - vec3(1.0);
-        // info.ntex *= vec3(0.2, 0.2, 1.0);
-        // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
+        // if (gl_FrontFacing == false)
+        // {
+        //     info.ntex.x *= -1.0;
+        //     info.ntex.z *= -1.0;
+        // }
+        // else
+        // {
+        //     info.ntex.y *= -1.0;
+        // }
         info.ntex = normalize(info.ntex);
         info.n = normalize(mat3(t, b, ng) * info.ntex);
     }
@@ -571,6 +578,9 @@ void main()
 
     // outColor = vec4(linearTosRGB(color.rgb), tBaseColor.a);
     outColor = vec4(color.rgb, tBaseColor.a);
+    // outColor = vec4(n, 1.0);
+    // outColor = vec4(tNormalInfo.ng, tBaseColor.a);
+    // outColor = vec4(tNormalInfo.ntex, tBaseColor.a);
 
     // if(gl_FragCoord.x < 600.0)
     // {
