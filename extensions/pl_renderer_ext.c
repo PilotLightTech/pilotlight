@@ -264,7 +264,7 @@ pl_refr_initialize(plWindow* ptWindow)
             { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true },  // depth buffer
             { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }, // final output
             { .tFormat = PL_FORMAT_R8G8B8A8_SRGB },      // albedo
-            { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }, // normal
+            { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT }, // normal
             { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }, // position
             { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }, // AO, roughness, metallic, specular weight
         },
@@ -554,6 +554,16 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .pcDebugName   = "g-buffer"
     };
 
+    const plTextureDesc tNormalTextureDesc = {
+        .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
+        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "g-buffer normal"
+    };
+
     const plTextureDesc tAlbedoTextureDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
         .tFormat       = PL_FORMAT_R8G8B8A8_SRGB,
@@ -649,7 +659,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         ptView->tFinalTextureHandle[i]      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture[i]);
         ptView->tRawOutputTexture[i]        = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen raw", i, PL_TEXTURE_USAGE_SAMPLED);
         ptView->tAlbedoTexture[i]           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
-        ptView->tNormalTexture[i]           = pl__refr_create_texture(&tAttachmentTextureDesc, "normal original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
+        ptView->tNormalTexture[i]           = pl__refr_create_texture(&tNormalTextureDesc, "normal original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tPositionTexture[i]         = pl__refr_create_texture(&tAttachmentTextureDesc, "position original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tAOMetalRoughnessTexture[i] = pl__refr_create_texture(&tEmmissiveTexDesc, "metalroughness original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tDepthTexture[i]            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth original", i, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT);
@@ -940,6 +950,16 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT
     };
 
+    const plTextureDesc tNormalTextureDesc = {
+        .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
+        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "g-buffer normal"
+    };
+
     const plTextureDesc tAlbedoTextureDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
         .tFormat       = PL_FORMAT_R8G8B8A8_SRGB,
@@ -1017,7 +1037,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         ptView->tFinalTextureHandle[i]      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture[i]);
         ptView->tRawOutputTexture[i]        = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen raw", i, PL_TEXTURE_USAGE_SAMPLED);
         ptView->tAlbedoTexture[i]           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
-        ptView->tNormalTexture[i]           = pl__refr_create_texture(&tAttachmentTextureDesc, "normal original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
+        ptView->tNormalTexture[i]           = pl__refr_create_texture(&tNormalTextureDesc, "normal original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tPositionTexture[i]         = pl__refr_create_texture(&tAttachmentTextureDesc, "position original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tAOMetalRoughnessTexture[i] = pl__refr_create_texture(&tEmmissiveTexDesc, "metalroughness original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tDepthTexture[i]            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth original", i, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT);
@@ -2371,6 +2391,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
             }
         }
     }
+
+    pl_sb_free(sbtMaterialBindGroups);
 
     pl_end_cpu_sample(gptProfile, 0);
 }
