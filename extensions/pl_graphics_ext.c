@@ -265,14 +265,17 @@ pl_draw_stream_reset(plDrawStream* ptStream, uint32_t uDrawCount)
     ptStream->_tCurrentDraw.uInstanceCount = UINT32_MAX;
     ptStream->_tCurrentDraw.uTriangleCount = UINT32_MAX;
 
-    if(uDrawCount * 13 > ptStream->_uStreamCapacity)
+    if(uDrawCount * 14 > ptStream->_uStreamCapacity)
     {
         uint32_t* auOldStream = ptStream->_auStream;
-        uint32_t uNewCapacity = uDrawCount * 13;
+        uint32_t uNewCapacity = uDrawCount * 14;
         ptStream->_auStream = PL_ALLOC(sizeof(uint32_t) * uNewCapacity);
         memset(ptStream->_auStream, 0, sizeof(uint32_t) * uNewCapacity);
         ptStream->_uStreamCapacity = uNewCapacity;
-        PL_FREE(auOldStream);
+        if(auOldStream)
+        {
+            PL_FREE(auOldStream);
+        }
     }
 }
 
