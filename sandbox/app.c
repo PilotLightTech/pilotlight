@@ -95,7 +95,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     static const plShaderOptions tDefaultShaderOptions = {
         .apcIncludeDirectories = {
             "../shaders/"
-        }
+        },
+        #ifndef PL_OFFLINE_SHADERS_ONLY
+        .tFlags = PL_SHADER_FLAGS_ALWAYS_COMPILE
+        #endif
     };
     gptShader->initialize(&tDefaultShaderOptions);
 

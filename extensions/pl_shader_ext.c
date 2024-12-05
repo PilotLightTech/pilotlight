@@ -134,6 +134,7 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
 
 
 
+    gptShaderCtx->tDefaultShaderOptions.tFlags = ptShaderOptions->tFlags;
     gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = "./";
     gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount = 1;
 
