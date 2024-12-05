@@ -1280,9 +1280,6 @@ enum _plFormat
 {
     PL_FORMAT_UNKNOWN = 0,
 
-    // vertex format only
-    PL_FORMAT_R32G32B32_FLOAT,
-
     // 8-bit pixel formats
     PL_FORMAT_R8_UNORM,
     PL_FORMAT_R8_SNORM,

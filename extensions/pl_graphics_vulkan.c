@@ -4764,7 +4764,6 @@ pl__vulkan_format(plFormat tFormat)
     switch (tFormat)
     {
         case PL_FORMAT_R32G32B32A32_FLOAT:  return VK_FORMAT_R32G32B32A32_SFLOAT;
-        case PL_FORMAT_R32G32B32_FLOAT:     return VK_FORMAT_R32G32B32_SFLOAT;
         case PL_FORMAT_R8G8B8A8_UNORM:      return VK_FORMAT_R8G8B8A8_UNORM;
         case PL_FORMAT_R32G32_FLOAT:        return VK_FORMAT_R32G32_SFLOAT;
         case PL_FORMAT_R8G8B8A8_SRGB:       return VK_FORMAT_R8G8B8A8_SRGB;
@@ -5066,7 +5065,6 @@ pl__pilotlight_format(VkFormat tFormat)
     switch (tFormat)
     {
             case VK_FORMAT_R32G32B32A32_SFLOAT:       return PL_FORMAT_R32G32B32A32_FLOAT;
-            case VK_FORMAT_R32G32B32_SFLOAT:          return PL_FORMAT_R32G32B32_FLOAT;
             case VK_FORMAT_R8G8B8A8_UNORM:            return PL_FORMAT_R8G8B8A8_UNORM;
             case VK_FORMAT_R32G32_SFLOAT:             return PL_FORMAT_R32G32_FLOAT;
             case VK_FORMAT_R8G8B8A8_SRGB:             return PL_FORMAT_R8G8B8A8_SRGB;
