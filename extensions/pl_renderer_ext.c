@@ -264,9 +264,9 @@ pl_refr_initialize(plWindow* ptWindow)
             { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true },  // depth buffer
             { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }, // final output
             { .tFormat = PL_FORMAT_R8G8B8A8_SRGB },      // albedo
-            { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT }, // normal
+            { .tFormat = PL_FORMAT_R16G16_FLOAT }, // normal
             { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }, // position
-            { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }, // AO, roughness, metallic, specular weight
+            { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT }, // AO, roughness, metallic, specular weight
         },
         .atSubpasses = {
             { // G-buffer fill
@@ -352,7 +352,7 @@ pl_refr_initialize(plWindow* ptWindow)
     pl_refr_create_global_shaders();
 
     const plComputeShaderDesc tComputeShaderDesc = {
-        .tShader = gptShader->compile_glsl("../shaders/jumpfloodalgo.comp", "main", NULL),
+        .tShader = gptShader->load_glsl("../shaders/jumpfloodalgo.comp", "main", NULL, NULL),
         .atBindGroupLayouts = {
             {
                 .atTextureBindings = {
@@ -556,7 +556,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     const plTextureDesc tNormalTextureDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
-        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        // .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .tFormat       = PL_FORMAT_R16G16_FLOAT,
         .uLayers       = 1,
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
@@ -606,7 +607,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     const plTextureDesc tEmmissiveTexDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
+        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
         .uLayers       = 1,
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
@@ -952,7 +953,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
 
     const plTextureDesc tNormalTextureDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
-        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .tFormat       = PL_FORMAT_R16G16_FLOAT,
         .uLayers       = 1,
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
@@ -989,7 +990,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
 
     const plTextureDesc tEmmissiveTexDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
+        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
         .uLayers       = 1,
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
@@ -1037,7 +1038,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         ptView->tFinalTextureHandle[i]      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture[i]);
         ptView->tRawOutputTexture[i]        = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen raw", i, PL_TEXTURE_USAGE_SAMPLED);
         ptView->tAlbedoTexture[i]           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
-        ptView->tNormalTexture[i]           = pl__refr_create_texture(&tNormalTextureDesc, "normal original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
+        ptView->tNormalTexture[i]           = pl__refr_create_texture(&tNormalTextureDesc, "normal resize", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tPositionTexture[i]         = pl__refr_create_texture(&tAttachmentTextureDesc, "position original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tAOMetalRoughnessTexture[i] = pl__refr_create_texture(&tEmmissiveTexDesc, "metalroughness original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tDepthTexture[i]            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth original", i, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT);
@@ -1206,8 +1207,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     {
         // create skybox shader
         plShaderDesc tSkyboxShaderDesc = {
-            .tPixelShader = gptShader->compile_glsl("../shaders/skybox.frag", "main", NULL),
-            .tVertexShader = gptShader->compile_glsl("../shaders/skybox.vert", "main", NULL),
+            .tPixelShader = gptShader->load_glsl("../shaders/skybox.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("../shaders/skybox.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
@@ -1278,7 +1279,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     {
         int aiSkyboxSpecializationData[] = {iResolution, iPanoramaWidth, iPanoramaHeight};
         const plComputeShaderDesc tSkyboxComputeShaderDesc = {
-            .tShader = gptShader->compile_glsl("../shaders/panorama_to_cubemap.comp", "main", NULL),
+            .tShader = gptShader->load_glsl("../shaders/panorama_to_cubemap.comp", "main", NULL, NULL),
             .pTempConstantData = aiSkyboxSpecializationData,
             .atConstants = {
                 { .uID = 0, .uOffset = 0,               .tType = PL_DATA_TYPE_INT},
@@ -1503,7 +1504,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     pl_begin_cpu_sample(gptProfile, 0, "step 1");
 
     plComputeShaderDesc tFilterComputeShaderDesc = {
-        .tShader = gptShader->compile_glsl("../shaders/filter_environment.comp", "main", NULL),
+        .tShader = gptShader->load_glsl("../shaders/filter_environment.comp", "main", NULL, NULL),
         .atConstants = {
             { .uID = 0, .uOffset = 0,  .tType = PL_DATA_TYPE_INT},
             { .uID = 1, .uOffset = 4,  .tType = PL_DATA_TYPE_FLOAT},
@@ -2134,8 +2135,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
         const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
         int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_size(sbtLights)};
         plShaderDesc tLightingShaderDesc = {
-            .tPixelShader = gptShader->compile_glsl("../shaders/lighting.frag", "main", NULL),
-            .tVertexShader = gptShader->compile_glsl("../shaders/lighting.vert", "main", NULL),
+            .tPixelShader = gptShader->load_glsl("../shaders/lighting.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("../shaders/lighting.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -2224,8 +2225,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
     }
 
     const plShaderDesc tTonemapShaderDesc = {
-        .tPixelShader = gptShader->compile_glsl("../shaders/tonemap.frag", "main", NULL),
-        .tVertexShader = gptShader->compile_glsl("../shaders/full_quad.vert", "main", NULL),
+        .tPixelShader = gptShader->load_glsl("../shaders/tonemap.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("../shaders/full_quad.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -2737,8 +2738,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     {
         int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_size(sbtLights)};
         plShaderDesc tLightingShaderDesc = {
-            .tPixelShader = gptShader->compile_glsl("../shaders/lighting.frag", "main", NULL),
-            .tVertexShader = gptShader->compile_glsl("../shaders/lighting.vert", "main", NULL),
+            .tPixelShader = gptShader->load_glsl("../shaders/lighting.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("../shaders/lighting.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -2827,8 +2828,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     }
 
     const plShaderDesc tTonemapShaderDesc = {
-        .tPixelShader = gptShader->compile_glsl("../shaders/tonemap.frag", "main", NULL),
-        .tVertexShader = gptShader->compile_glsl("../shaders/full_quad.vert", "main", NULL),
+        .tPixelShader = gptShader->load_glsl("../shaders/tonemap.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("../shaders/full_quad.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,

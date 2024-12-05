@@ -69,7 +69,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 //-----------------------------------------------------------------------------
 
 layout(location = 0) out vec4 outAlbedo;
-layout(location = 1) out vec4 outNormal;
+layout(location = 1) out vec2 outNormal;
 layout(location = 2) out vec4 outPosition;
 layout(location = 3) out vec4 outAOMetalnessRoughness;
 
@@ -218,6 +218,20 @@ MaterialInfo getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor,
     return info;
 }
 
+vec2 OctWrap( vec2 v ) {
+    vec2 w = 1.0 - abs( v.yx );
+    if (v.x < 0.0) w.x = -w.x;
+    if (v.y < 0.0) w.y = -w.y;
+    return w;
+}
+ 
+vec2 Encode( vec3 n ) {
+    n /= ( abs( n.x ) + abs( n.y ) + abs( n.z ) );
+    n.xy = n.z > 0.0 ? n.xy : OctWrap( n.xy );
+    n.xy = n.xy * 0.5 + 0.5;
+    return n.xy;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] entry
 //-----------------------------------------------------------------------------
@@ -257,7 +271,7 @@ void main()
 
     // fill g-buffer
     outAlbedo = tBaseColor;
-    outNormal = vec4(tNormalInfo.n, 1.0);
+    outNormal = Encode(tNormalInfo.n);
     outPosition = vec4(tShaderIn.tPosition, 1.0);
     outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, material.u_MipCount);
 }
