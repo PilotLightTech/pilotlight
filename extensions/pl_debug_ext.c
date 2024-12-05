@@ -581,19 +581,38 @@ pl__show_statistics(bool* bValue)
     const uint32_t uStatsMaxFrames = gptStats->get_max_frames();
 
     // selectable values
-    
+
+    uint32_t uNameCount = 0;
+    gptDebugCtx->ppcNames = gptStats->get_names(&uNameCount);
+
     if(gptDebugCtx->sbbValues == NULL) // first run
     {
-        uint32_t uNameCount = 0;
-        gptDebugCtx->ppcNames = gptStats->get_names(&uNameCount);
+
         pl_sb_resize(gptDebugCtx->sbbValues, uNameCount);
         pl_sb_resize(gptDebugCtx->sbppdValues, uNameCount);
         pl_sb_resize(gptDebugCtx->sbppdFrameValues, uNameCount);
         gptDebugCtx->sbbValues[0] = true;
-        gptDebugCtx->uSelectedCount++;
+        gptDebugCtx->uSelectedCount = 1;
         gptDebugCtx->uMaxSelectedCount = gptDebugCtx->uSelectedCount;
         pl_sb_resize(gptDebugCtx->sbdRawValues, uStatsMaxFrames *  gptDebugCtx->uMaxSelectedCount);
         *gptStats->get_counter_data(gptDebugCtx->ppcNames[0]) = gptDebugCtx->sbppdValues[0];
+        for(uint32_t i = 0; i < uNameCount; i++)
+        {
+            gptDebugCtx->sbppdFrameValues[i] = gptStats->get_counter_data(gptDebugCtx->ppcNames[i]);
+            float fCurrentWidth = gptDraw->calculate_text_size(gptDebugCtx->ppcNames[i], (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x;
+            if(fCurrentWidth > gptDebugCtx->fLegendWidth)
+                gptDebugCtx->fLegendWidth = fCurrentWidth;
+        }
+    }
+    
+    if(uNameCount != pl_sb_size(gptDebugCtx->sbbValues))
+    {
+
+        pl_sb_resize(gptDebugCtx->sbbValues, uNameCount);
+        pl_sb_resize(gptDebugCtx->sbppdValues, uNameCount);
+        pl_sb_resize(gptDebugCtx->sbppdFrameValues, uNameCount);
+        gptDebugCtx->uMaxSelectedCount = uNameCount;
+        pl_sb_resize(gptDebugCtx->sbdRawValues, uStatsMaxFrames *  gptDebugCtx->uMaxSelectedCount);
         for(uint32_t i = 0; i < uNameCount; i++)
         {
             gptDebugCtx->sbppdFrameValues[i] = gptStats->get_counter_data(gptDebugCtx->ppcNames[i]);
