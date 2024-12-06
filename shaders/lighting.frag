@@ -165,7 +165,7 @@ vec3 getDiffuseLight(vec3 n)
 
 vec4 getSpecularSample(vec3 reflection, float lod)
 {
-    // reflection.z = -reflection.z; uncomment if not reverse z
+    // reflection.z = -reflection.z; // uncomment if not reverse z
     return textureLod(samplerCube(u_GGXEnvSampler, tEnvSampler), reflection, lod);
 }
 
@@ -275,22 +275,16 @@ void main()
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
     
-    // float depth = (1 - subpassLoad(tDepthSampler).r) * 2.0 - 1.0;
     float depth = subpassLoad(tDepthSampler).r;
     vec3 ndcSpace = vec3(gl_FragCoord.x / tGlobalInfo.tViewportSize.x, gl_FragCoord.y / tGlobalInfo.tViewportSize.y, depth);
-    // vec3 clipSpace = ndcSpace * 2.0 - 1.0;
     vec3 clipSpace = ndcSpace;
     clipSpace.xy = clipSpace.xy * 2.0 - 1.0;
     vec4 homoLocation = inverse(tGlobalInfo.tCameraProjection) * vec4(clipSpace, 1.0);
-
-    // gl_FragCoord.x
 
 
     // vec4 tWorldPosition0 = subpassLoad(tPositionSampler);
     vec4 tViewPosition = homoLocation;
     tViewPosition.xyz = tViewPosition.xyz / tViewPosition.w;
-    // vec4 tViewPosition = tViewPosition0;
-    // vec4 tViewPosition = tGlobalInfo.tCameraView * vec4(tWorldPosition0.xyz, 1.0);
     tViewPosition.x = tViewPosition.x;
     tViewPosition.y = tViewPosition.y;
     tViewPosition.z = tViewPosition.z;
@@ -311,7 +305,7 @@ void main()
 
     const float fPerceptualRoughness = AORoughnessMetalnessData.b;
     float specularWeight = 1.0;
-    vec3 v = normalize(tGlobalInfo.tCameraPos - inverse(tGlobalInfo.tCameraView) * tViewPosition).xyz;
+    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tWorldPosition.xyz);
     int iMips = int(AORoughnessMetalnessData.a);
 
     // Calculate lighting contribution from image based lighting source (IBL)
