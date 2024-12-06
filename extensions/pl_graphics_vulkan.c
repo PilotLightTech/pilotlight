@@ -1439,7 +1439,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         .lineWidth               = 1.0f,
         .cullMode                = pl__vulkan_cull((plCullMode)ptDescription->tGraphicsState.ulCullMode),
         .frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthBiasEnable         = VK_FALSE
+        .depthBiasEnable         = VK_TRUE
     };
 
     VkPipelineShaderStageCreateInfo tFragShaderStageInfo = {
@@ -1845,6 +1845,7 @@ pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass)
 
     vkCmdSetViewport(ptCmdBuffer->tCmdBuffer, 0, 1, &tViewport);
     vkCmdSetScissor(ptCmdBuffer->tCmdBuffer, 0, 1, &tScissor);
+    vkCmdSetDepthBias(ptCmdBuffer->tCmdBuffer, 0.0f, 0.0f, 1.0f);
 
     plRenderEncoder* ptEncoder = pl__get_new_render_encoder();
     ptEncoder->ptCommandBuffer = ptCmdBuffer;
