@@ -475,6 +475,10 @@ main()
 
         tColor = pl_lut(tLutUV.x, tLutUV.y);
         tLUTOut.atPixelData[iCurrentLUTPixel] = vec4(tColor, 1.0);
+        if(iCurrentLUTPixel == 0)
+        {
+            tLUTOut.atPixelData[0] = tLUTOut.atPixelData[1];
+        }
     }
     
     
