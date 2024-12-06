@@ -189,6 +189,7 @@ typedef struct _plGPULightShadowData
 
 typedef struct _BindGroup_0
 {
+    plVec4 tViewportSize;
     plVec4 tCameraPos;
     plMat4 tCameraView;
     plMat4 tCameraProjection;   
@@ -226,7 +227,6 @@ typedef struct _plRefView
 
     // g-buffer textures
     plTextureHandle tAlbedoTexture[PL_MAX_FRAMES_IN_FLIGHT];
-    plTextureHandle tPositionTexture[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle tNormalTexture[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle tAOMetalRoughnessTexture[PL_MAX_FRAMES_IN_FLIGHT];
     plTextureHandle tRawOutputTexture[PL_MAX_FRAMES_IN_FLIGHT];

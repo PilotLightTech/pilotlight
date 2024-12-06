@@ -20,6 +20,7 @@ layout(constant_id = 4) const int iRenderingFlags = 0;
 
 layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
+    vec4 tViewportSize;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
@@ -70,8 +71,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 
 layout(location = 0) out vec4 outAlbedo;
 layout(location = 1) out vec2 outNormal;
-layout(location = 2) out vec4 outPosition;
-layout(location = 3) out vec4 outAOMetalnessRoughness;
+layout(location = 2) out vec4 outAOMetalnessRoughness;
 
 // output
 layout(location = 0) in struct plShaderIn {
@@ -272,7 +272,6 @@ void main()
     // fill g-buffer
     outAlbedo = tBaseColor;
     outNormal = Encode(tNormalInfo.n);
-    outPosition = vec4(tShaderIn.tWorldPosition, 1.0);
     outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, material.u_MipCount);
 }
 

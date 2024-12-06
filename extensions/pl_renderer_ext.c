@@ -265,19 +265,18 @@ pl_refr_initialize(plWindow* ptWindow)
             { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }, // final output
             { .tFormat = PL_FORMAT_R8G8B8A8_SRGB },      // albedo
             { .tFormat = PL_FORMAT_R16G16_FLOAT }, // normal
-            { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }, // position
             { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT }, // AO, roughness, metallic, specular weight
         },
         .atSubpasses = {
             { // G-buffer fill
-                .uRenderTargetCount = 5,
-                .auRenderTargets = {0, 2, 3, 4, 5}
+                .uRenderTargetCount = 4,
+                .auRenderTargets = {0, 2, 3, 4}
             },
             { // lighting
                 .uRenderTargetCount = 1,
                 .auRenderTargets = {1},
-                .uSubpassInputCount = 5,
-                .auSubpassInputs = {0, 2, 3, 4, 5},
+                .uSubpassInputCount = 4,
+                .auSubpassInputs = {0, 2, 3, 4},
             },
             { // transparencies
                 .uRenderTargetCount = 2,
@@ -544,16 +543,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .pcDebugName   = "pick depth original"
     };
 
-    const plTextureDesc tAttachmentTextureDesc = {
-        .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .pcDebugName   = "g-buffer"
-    };
-
     const plTextureDesc tNormalTextureDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
         // .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
@@ -638,8 +627,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
             {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
             {.uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
             {.uSlot = 2, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-            {.uSlot = 3, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-            {.uSlot = 4, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
+            {.uSlot = 3, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
         }
     };
 
@@ -661,7 +649,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         ptView->tRawOutputTexture[i]        = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen raw", i, PL_TEXTURE_USAGE_SAMPLED);
         ptView->tAlbedoTexture[i]           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tNormalTexture[i]           = pl__refr_create_texture(&tNormalTextureDesc, "normal original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
-        ptView->tPositionTexture[i]         = pl__refr_create_texture(&tAttachmentTextureDesc, "position original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tAOMetalRoughnessTexture[i] = pl__refr_create_texture(&tEmmissiveTexDesc, "metalroughness original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tDepthTexture[i]            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth original", i, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT);
         ptView->atUVMaskTexture0[i]         = pl__refr_create_texture(&tMaskTextureDesc, "uv mask texture 0", i, PL_TEXTURE_USAGE_STORAGE);
@@ -690,23 +677,18 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
                 .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
             },
             {
-                .tTexture = ptView->tPositionTexture[i],
+                .tTexture = ptView->tAOMetalRoughnessTexture[i],
                 .uSlot    = 2,
                 .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
             },
             {
-                .tTexture = ptView->tAOMetalRoughnessTexture[i],
-                .uSlot    = 3,
-                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
-            },
-            {
                 .tTexture = ptView->tDepthTexture[i],
-                .uSlot    = 4,
+                .uSlot    = 3,
                 .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
             }
         };
         const plBindGroupUpdateData tBGData = {
-            .uTextureCount = 5,
+            .uTextureCount = 4,
             .atTextureBindings = atBGTextureData
         };
         gptGfx->update_bind_group(gptData->ptDevice, ptView->tLightingBindGroup[i], &tBGData);
@@ -720,8 +702,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         atAttachmentSets[i].atViewAttachments[1] = ptView->tRawOutputTexture[i];
         atAttachmentSets[i].atViewAttachments[2] = ptView->tAlbedoTexture[i];
         atAttachmentSets[i].atViewAttachments[3] = ptView->tNormalTexture[i];
-        atAttachmentSets[i].atViewAttachments[4] = ptView->tPositionTexture[i];
-        atAttachmentSets[i].atViewAttachments[5] = ptView->tAOMetalRoughnessTexture[i];
+        atAttachmentSets[i].atViewAttachments[4] = ptView->tAOMetalRoughnessTexture[i];
 
         atUVAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture[i];
         atUVAttachmentSets[i].atViewAttachments[1] = ptView->atUVMaskTexture0[i];
@@ -942,15 +923,6 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT
     };
 
-    const plTextureDesc tAttachmentTextureDesc = {
-        .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT
-    };
-
     const plTextureDesc tNormalTextureDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
         .tFormat       = PL_FORMAT_R16G16_FLOAT,
@@ -1002,8 +974,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
             {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
             {.uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
             {.uSlot = 2, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-            {.uSlot = 3, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-            {.uSlot = 4, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
+            {.uSlot = 3, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
         }
     };
 
@@ -1028,7 +999,6 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tRawOutputTexture[i]);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAlbedoTexture[i]);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tNormalTexture[i]);
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tPositionTexture[i]);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAOMetalRoughnessTexture[i]);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tDepthTexture[i]);
         gptGfx->queue_bind_group_for_deletion(ptDevice, ptView->tLightingBindGroup[i]);
@@ -1039,7 +1009,6 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         ptView->tRawOutputTexture[i]        = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen raw", i, PL_TEXTURE_USAGE_SAMPLED);
         ptView->tAlbedoTexture[i]           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tNormalTexture[i]           = pl__refr_create_texture(&tNormalTextureDesc, "normal resize", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
-        ptView->tPositionTexture[i]         = pl__refr_create_texture(&tAttachmentTextureDesc, "position original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tAOMetalRoughnessTexture[i] = pl__refr_create_texture(&tEmmissiveTexDesc, "metalroughness original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
         ptView->tDepthTexture[i]            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth original", i, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT);
         ptView->atUVMaskTexture0[i]         = pl__refr_create_texture(&tMaskTextureDesc, "uv mask texture 0", i, PL_TEXTURE_USAGE_STORAGE);
@@ -1066,23 +1035,18 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
                 .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
             },
             {
-                .tTexture = ptView->tPositionTexture[i],
+                .tTexture = ptView->tAOMetalRoughnessTexture[i],
                 .uSlot    = 2,
                 .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
             },
             {
-                .tTexture = ptView->tAOMetalRoughnessTexture[i],
-                .uSlot    = 3,
-                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
-            },
-            {
                 .tTexture = ptView->tDepthTexture[i],
-                .uSlot    = 4,
+                .uSlot    = 3,
                 .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
             }
         };
         const plBindGroupUpdateData tBGData = {
-            .uTextureCount = 5,
+            .uTextureCount = 4,
             .atTextureBindings = atBGTextureData
         };
         gptGfx->update_bind_group(gptData->ptDevice, ptView->tLightingBindGroup[i], &tBGData);
@@ -1096,8 +1060,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
         atAttachmentSets[i].atViewAttachments[1] = ptView->tRawOutputTexture[i];
         atAttachmentSets[i].atViewAttachments[2] = ptView->tAlbedoTexture[i];
         atAttachmentSets[i].atViewAttachments[3] = ptView->tNormalTexture[i];
-        atAttachmentSets[i].atViewAttachments[4] = ptView->tPositionTexture[i];
-        atAttachmentSets[i].atViewAttachments[5] = ptView->tAOMetalRoughnessTexture[i];
+        atAttachmentSets[i].atViewAttachments[4] = ptView->tAOMetalRoughnessTexture[i];
         
         atPostProcessAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture[i];
         atPostProcessAttachmentSets[i].atViewAttachments[1] = ptView->tFinalTexture[i];
@@ -2199,8 +2162,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
                         { .uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
                         { .uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
                         { .uSlot = 2, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-                        { .uSlot = 3, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-                        { .uSlot = 4, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
+                        { .uSlot = 3, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
                     },
                 },
                 {
@@ -2379,7 +2341,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
                     .pTempConstantData = aiConstantData0,
                     .tGraphicsState    = {
                         .ulDepthWriteEnabled  = 1,
-                        .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+                        .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
                         .ulCullMode           = PL_CULL_MODE_NONE,
                         .ulWireframe          = 0,
                         .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -2802,8 +2764,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                         { .uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
                         { .uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
                         { .uSlot = 2, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-                        { .uSlot = 3, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-                        { .uSlot = 4, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
+                        { .uSlot = 3, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
                     },
                 },
                 {
@@ -2974,6 +2935,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const BindGroup_0 tBindGroupBuffer = {
+        .tViewportSize         = {.xy = ptView->tTargetSize},
         .tCameraPos            = ptCamera->tPos,
         .tCameraProjection     = ptCamera->tProjMat,
         .tCameraView           = ptCamera->tViewMat,

@@ -19,6 +19,7 @@ layout(constant_id = 1) const int iLightCount = 1;
 
 layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
+    vec4 tViewportSize;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
@@ -46,9 +47,8 @@ layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 
 layout(input_attachment_index = 1, set = 1, binding = 0)  uniform subpassInput tAlbedoSampler;
 layout(input_attachment_index = 2, set = 1, binding = 1)  uniform subpassInput tNormalTexture;
-layout(input_attachment_index = 3, set = 1, binding = 2)  uniform subpassInput tPositionSampler;
-layout(input_attachment_index = 4, set = 1, binding = 3)  uniform subpassInput tAOMetalRoughnessTexture;
-layout(input_attachment_index = 0, set = 1, binding = 4)  uniform subpassInput tDepthSampler;
+layout(input_attachment_index = 3, set = 1, binding = 2)  uniform subpassInput tAOMetalRoughnessTexture;
+layout(input_attachment_index = 0, set = 1, binding = 3)  uniform subpassInput tDepthSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 2
@@ -275,17 +275,27 @@ void main()
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
     
+    // float depth = (1 - subpassLoad(tDepthSampler).r) * 2.0 - 1.0;
     float depth = subpassLoad(tDepthSampler).r;
-    vec4 clipSpace = vec4(gl_FragCoord.xy, depth, 1.0);
-    vec4 homoLocation = inverse(tGlobalInfo.tCameraViewProjection) * clipSpace;
+    vec3 ndcSpace = vec3(gl_FragCoord.x / tGlobalInfo.tViewportSize.x, gl_FragCoord.y / tGlobalInfo.tViewportSize.y, depth);
+    // vec3 clipSpace = ndcSpace * 2.0 - 1.0;
+    vec3 clipSpace = ndcSpace;
+    clipSpace.xy = clipSpace.xy * 2.0 - 1.0;
+    vec4 homoLocation = inverse(tGlobalInfo.tCameraProjection) * vec4(clipSpace, 1.0);
 
     // gl_FragCoord.x
 
 
-    vec4 tWorldPosition = subpassLoad(tPositionSampler);
-    // vec3 tWorldPosition = homoLocation.xyz / homoLocation.w;
-    // vec3 tViewPosition = homoLocation.xyz / homoLocation.w;
-    vec4 tViewPosition = tGlobalInfo.tCameraView * vec4(tWorldPosition.xyz, 1.0);
+    // vec4 tWorldPosition0 = subpassLoad(tPositionSampler);
+    vec4 tViewPosition = homoLocation;
+    tViewPosition.xyz = tViewPosition.xyz / tViewPosition.w;
+    // vec4 tViewPosition = tViewPosition0;
+    // vec4 tViewPosition = tGlobalInfo.tCameraView * vec4(tWorldPosition0.xyz, 1.0);
+    tViewPosition.x = tViewPosition.x;
+    tViewPosition.y = tViewPosition.y;
+    tViewPosition.z = tViewPosition.z;
+    tViewPosition.w = 1.0;
+    vec4 tWorldPosition = inverse(tGlobalInfo.tCameraView) * tViewPosition;
     vec3 n = Decode(subpassLoad(tNormalTexture).xy);
 
     const vec3 f90 = vec3(1.0);
@@ -301,8 +311,7 @@ void main()
 
     const float fPerceptualRoughness = AORoughnessMetalnessData.b;
     float specularWeight = 1.0;
-    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tWorldPosition.xyz);
-    // vec3 v = normalize(tViewPosition.xyz);
+    vec3 v = normalize(tGlobalInfo.tCameraPos - inverse(tGlobalInfo.tCameraView) * tViewPosition).xyz;
     int iMips = int(AORoughnessMetalnessData.a);
 
     // Calculate lighting contribution from image based lighting source (IBL)
@@ -401,7 +410,12 @@ void main()
     vec3 color = diffuse + specular;
 
     outColor = vec4(color.rgb, tBaseColor.a);
+    // outColor = vec4(ndcSpace.rgb, tBaseColor.a);
+    // outColor = vec4(gl_FragCoord.x, 0, 0, tBaseColor.a);
+    // outColor = vec4(v.r, v.g, v.b, tBaseColor.a);
+    // outColor = vec4(v.r, v.g, v.b, tBaseColor.a);
     // outColor = vec4(tWorldPosition.rgb, tBaseColor.a);
+    // outColor = vec4(tViewPosition.rgb, tBaseColor.a);
     // outColor = vec4(n, tBaseColor.a);
 
     // if(gl_FragCoord.x < 900.0)

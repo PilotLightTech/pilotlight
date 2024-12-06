@@ -19,6 +19,7 @@ layout(constant_id = 3) const int iMaterialFlags = 0;
 
 struct plCameraInfo
 {
+    vec4 tViewportSize;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;

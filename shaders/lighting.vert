@@ -81,6 +81,7 @@ struct tMaterial
 
 layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
+    vec4 tViewportSize;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
