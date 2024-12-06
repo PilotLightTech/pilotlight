@@ -424,6 +424,8 @@ pl_app_update(plEditorData* ptEditorData)
         if(gptUi->begin_collapsing_header(ICON_FA_PHOTO_FILM " Renderer", 0))
         {
 
+            const float pfWidths[] = {200.0f};
+            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
             plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary,  PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSunlight);
             int iCascadeCount  = (int)ptLight->uCascadeCount;
             if(gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0))
@@ -431,6 +433,7 @@ pl_app_update(plEditorData* ptEditorData)
                 ptLight->uCascadeCount = (uint32_t)iCascadeCount;
             }
 
+            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfWidths);
             if(gptUi->button("Reload Shaders"))
             {
                 gptRenderer->reload_scene_shaders(ptEditorData->uSceneHandle0);
@@ -438,63 +441,101 @@ pl_app_update(plEditorData* ptEditorData)
 
             if(!ptEditorData->bSceneLoaded)
             {
-                if(gptUi->button("Load Sponza"))
-                {
-                    gptProfile->begin_sample(0, "load environments");
-                    gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
-                    gptProfile->end_sample(0);
 
-                    gptProfile->begin_sample(0, "create scene views");
+                static uint32_t uComboSelect = 1;
+                static const char* apcEnvMaps[] = {
+                    "none",
+                    "helipad",
+                    "chromatic",
+                    "directional",
+                    "doge2",
+                    "ennis",
+                    "field",
+                    "footprint_court",
+                    "neutral",
+                    "papermill",
+                    "pisa",
+                };
+                bool abCombo[11] = {0};
+                abCombo[uComboSelect] = true;
+                gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+                if(gptUi->begin_combo("Environment", apcEnvMaps[uComboSelect], PL_UI_COMBO_FLAGS_NONE))
+                {
+                    for(uint32_t i = 0; i < 10; i++)
+                    {
+                        if(gptUi->selectable(apcEnvMaps[i], &abCombo[i], 0))
+                        {
+                            uComboSelect = i;
+                            gptUi->close_current_popup();
+                        }
+                    }
+                    gptUi->end_combo();
+                }
+
+                static bool abModels[] = {
+                    false,
+                    false,
+                    false,
+                    false,
+                    true,
+                    true,
+                };
+
+                static const char* apcModels[] = {
+                    "Sponza",
+                    "DamagedHelmet",
+                    "NormalTangentTest",
+                    "NormalTangentMirrorTest",
+                    "Humanoid",
+                    "Floor",
+                };
+
+                static const char* apcModelPaths[] = {
+                    "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf",
+                    "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf",
+                    "../data/glTF-Sample-Assets-main/Models/NormalTangentTest/glTF/NormalTangentTest.gltf",
+                    "../data/glTF-Sample-Assets-main/Models/NormalTangentMirrorTest/glTF/NormalTangentMirrorTest.gltf",
+                    "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf",
+                    "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf",
+                };
+
+                gptUi->separator_text("Test Models");
+                for(uint32_t i = 0; i < 6; i++)
+                    gptUi->selectable(apcModels[i], &abModels[i], 0);
+
+
+                gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfWidths);
+                if(gptUi->button("Load Scene"))
+                {
+                    
+                    if(uComboSelect > 0)
+                    {
+                        char* sbcData = NULL;
+                        pl_sb_sprintf(sbcData, "../data/pilotlight-assets-master/environments/%s.hdr", apcEnvMaps[uComboSelect]);
+                        gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, sbcData, 256);
+                        pl_sb_free(sbcData);
+                    }
+
                     ptEditorData->uViewHandle0 = gptRenderer->create_view(ptEditorData->uSceneHandle0, ptIO->tMainViewportSize);
-                    gptProfile->end_sample(0);
 
                     plModelLoaderData tLoaderData0 = {0};
 
-                    gptProfile->begin_sample(0, "load models 0");
-                    // const plMat4 tTransform = pl_mat4_translate_xyz(0.0f, 1.0f, 0.0f);
-                    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf", &tTransform, &tLoaderData0);
-                    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
-                    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/glTF-Sample-Assets-main/Models/NormalTangentTest/glTF/NormalTangentTest.gltf", NULL, &tLoaderData0);
-                    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
-                    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
-                    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/kenny.glb", NULL, &tLoaderData0);
+                    for(uint32_t i = 0; i < 6; i++)
+                    {
+                        if(abModels[i])
+                        {
+                            gptModelLoader->load_gltf(ptMainComponentLibrary, apcModelPaths[i], NULL, &tLoaderData0);
+                        }
+                    }
+
                     gptRenderer->add_drawable_objects_to_scene(ptEditorData->uSceneHandle0, tLoaderData0.uDeferredCount, tLoaderData0.atDeferredObjects, tLoaderData0.uForwardCount, tLoaderData0.atForwardObjects);
                     gptModelLoader->free_data(&tLoaderData0);
-                    gptProfile->end_sample(0);
 
-                    gptProfile->begin_sample(0, "finalize scene 0");
                     gptRenderer->finalize_scene(ptEditorData->uSceneHandle0);
-                    gptProfile->end_sample(0);
 
                     ptEditorData->bSceneLoaded = true;
                 }
 
-                if(gptUi->button("Load Dance Floor"))
-                {
-                    gptProfile->begin_sample(0, "load environments");
-                    gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, "../data/pilotlight-assets-master/environments/helipad.hdr", 256);
-                    gptProfile->end_sample(0);
-
-                    gptProfile->begin_sample(0, "create scene views");
-                    ptEditorData->uViewHandle0 = gptRenderer->create_view(ptEditorData->uSceneHandle0, ptIO->tMainViewportSize);
-                    gptProfile->end_sample(0);
-
-                    plModelLoaderData tLoaderData0 = {0};
-
-                    gptProfile->begin_sample(0, "load models 0");
-                    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
-                    gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
-                    // gptModelLoader->load_gltf(ptMainComponentLibrary, "../data/kenny.glb", NULL, &tLoaderData0);
-                    gptRenderer->add_drawable_objects_to_scene(ptEditorData->uSceneHandle0, tLoaderData0.uDeferredCount, tLoaderData0.atDeferredObjects, tLoaderData0.uForwardCount, tLoaderData0.atForwardObjects);
-                    gptModelLoader->free_data(&tLoaderData0);
-                    gptProfile->end_sample(0);
-
-                    gptProfile->begin_sample(0, "finalize scene 0");
-                    gptRenderer->finalize_scene(ptEditorData->uSceneHandle0);
-                    gptProfile->end_sample(0);
-
-                    ptEditorData->bSceneLoaded = true;
-                }
             }
 
             gptUi->end_collapsing_header();
