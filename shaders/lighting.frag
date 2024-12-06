@@ -158,14 +158,14 @@ vec3 BRDF_specularGGX(vec3 f0, vec3 f90, float alphaRoughness, float specularWei
 
 vec3 getDiffuseLight(vec3 n)
 {
-    n.z = -n.z;
+    // n.z = -n.z; uncomment if not reverse z
     return texture(samplerCube(u_LambertianEnvSampler, tEnvSampler), n).rgb;
 }
 
 
 vec4 getSpecularSample(vec3 reflection, float lod)
 {
-    reflection.z = -reflection.z;
+    // reflection.z = -reflection.z; uncomment if not reverse z
     return textureLod(samplerCube(u_GGXEnvSampler, tEnvSampler), reflection, lod);
 }
 
@@ -224,16 +224,14 @@ const mat4 biasMat = mat4(
 float textureProj(vec4 shadowCoord, vec2 offset, uint cascadeIndex)
 {
 	float shadow = 1.0;
-	float bias = 0.0005;
-    float comp = shadowCoord.z - bias;
     vec2 comp2 = shadowCoord.st + offset;
 
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
     {
 		float dist = texture(sampler2D(shadowmap[cascadeIndex], tShadowSampler), comp2).r;
-		if (shadowCoord.w > 0 && dist < comp)
+		if (shadowCoord.w > 0 && dist < shadowCoord.z)
         {
-			shadow = 0.1; // ambient
+			shadow = 0.01; // ambient
 		}
 	}
 	return shadow;
@@ -276,7 +274,18 @@ void main()
 {
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
-    vec4 tPosition = subpassLoad(tPositionSampler);
+    
+    float depth = subpassLoad(tDepthSampler).r;
+    vec4 clipSpace = vec4(gl_FragCoord.xy, depth, 1.0);
+    vec4 homoLocation = inverse(tGlobalInfo.tCameraViewProjection) * clipSpace;
+
+    // gl_FragCoord.x
+
+
+    vec4 tWorldPosition = subpassLoad(tPositionSampler);
+    // vec3 tWorldPosition = homoLocation.xyz / homoLocation.w;
+    // vec3 tViewPosition = homoLocation.xyz / homoLocation.w;
+    vec4 tViewPosition = tGlobalInfo.tCameraView * vec4(tWorldPosition.xyz, 1.0);
     vec3 n = Decode(subpassLoad(tNormalTexture).xy);
 
     const vec3 f90 = vec3(1.0);
@@ -291,8 +300,9 @@ void main()
     vec3 f0 = mix(vec3(0.04), tBaseColor.rgb, fMetalness);
 
     const float fPerceptualRoughness = AORoughnessMetalnessData.b;
-    float specularWeight = tPosition.a;
-    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tPosition.xyz);
+    float specularWeight = 1.0;
+    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tWorldPosition.xyz);
+    // vec3 v = normalize(tViewPosition.xyz);
     int iMips = int(AORoughnessMetalnessData.a);
 
     // Calculate lighting contribution from image based lighting source (IBL)
@@ -326,17 +336,17 @@ void main()
 
                 // Get cascade index for the current fragment's view position
                 
-                vec4 inViewPos = tGlobalInfo.tCameraView * vec4(tPosition.xyz, 1.0);
+                
                 for(uint j = 0; j < tLightData.iCascadeCount - 1; ++j)
                 {
-                    if(inViewPos.z > tShadowData.cascadeSplits[j])
+                    if(tViewPosition.z > tShadowData.cascadeSplits[j])
                     {	
                         cascadeIndex = j + 1;
                     }
                 }  
 
                 // Depth compare for shadowing
-	            vec4 shadowCoord = (biasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * vec4(tPosition.xyz, 1.0);	
+	            vec4 shadowCoord = (biasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * vec4(tWorldPosition.xyz, 1.0);	
                 shadow = 0;
                 shadow = textureProj(shadowCoord / shadowCoord.w, vec2(0.0), cascadeIndex);
                 // shadow = filterPCF(shadowCoord / shadowCoord.w, cascadeIndex);
@@ -344,7 +354,7 @@ void main()
 
             if(tLightData.iType != PL_LIGHT_TYPE_DIRECTIONAL)
             {
-                pointToLight = tLightData.tPosition - tPosition.xyz;
+                pointToLight = tLightData.tPosition - tWorldPosition.xyz;
             }
             else
             {
@@ -390,10 +400,11 @@ void main()
 
     vec3 color = diffuse + specular;
 
-    // outColor = vec4(linearTosRGB(color.rgb), tBaseColor.a);
     outColor = vec4(color.rgb, tBaseColor.a);
+    // outColor = vec4(tWorldPosition.rgb, tBaseColor.a);
+    // outColor = vec4(n, tBaseColor.a);
 
-    // if(gl_FragCoord.x < 600.0)
+    // if(gl_FragCoord.x < 900.0)
     // {
     //     switch(cascadeIndex) {
     //         case 0 : 

@@ -52,7 +52,8 @@ void
 main() 
 {
     gl_Position = tGlobalInfo.tCameraProjection * tGlobalInfo.tCameraView * tObjectInfo.tModel * vec4(inPos, 1.0);
-    gl_Position.w = gl_Position.z;
+    gl_Position.z = 0.0;
+    // gl_Position.w = gl_Position.z; uncomment if not reverse z
     tShaderOut.tWorldPosition = inPos;
-    // tShaderOut.tWorldPosition.z = -inPos.z;
+    tShaderOut.tWorldPosition.z = -inPos.z;
 }

@@ -760,7 +760,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
                 .tStencilStoreOp = PL_STORE_OP_STORE,
                 .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .fClearZ         = 1.0f
+                .fClearZ         = 0.0f
         },
         .atColorTargets = {
             {
@@ -812,7 +812,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
                 .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
                 .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .fClearZ         = 1.0f
+                .fClearZ         = 0.0f
         },
         .atColorTargets = {
             {
@@ -836,7 +836,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
                 .tStencilStoreOp = PL_STORE_OP_STORE,
                 .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .fClearZ         = 1.0f
+                .fClearZ         = 0.0f
         },
         .atColorTargets = {
             {
@@ -880,7 +880,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
                 .tStencilStoreOp = PL_STORE_OP_STORE,
                 .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .fClearZ         = 1.0f
+                .fClearZ         = 0.0f
         },
         .atColorTargets = {
             {
@@ -1211,7 +1211,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
             .tVertexShader = gptShader->load_glsl("../shaders/skybox.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
-                .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+                .ulDepthMode          = PL_COMPARE_MODE_EQUAL,
                 .ulCullMode           = PL_CULL_MODE_NONE,
                 .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
                 .ulStencilRef         = 0xff,
@@ -1658,6 +1658,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         pl_end_cpu_sample(gptProfile, 0);
 
         pl_begin_cpu_sample(gptProfile, 0, "step 3");
+        plBuffer* ptLutBuffer = gptGfx->get_buffer(ptDevice, atLutBuffers[6]);
+        memset(ptLutBuffer->tMemoryAllocation.pHostMapped, 0, uFaceSize);
         plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
         gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
@@ -1671,7 +1673,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         gptGfx->return_command_buffer(ptCommandBuffer);
         gptGfx->queue_compute_shader_for_deletion(ptDevice, tLUTShader);
 
-        plBuffer* ptLutBuffer = gptGfx->get_buffer(ptDevice, atLutBuffers[6]);
+        
         
         const plTextureDesc tTextureDesc = {
             .tDimensions = {(float)iResolution, (float)iResolution, 1},
@@ -2295,7 +2297,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
     plGraphicsState atTemplateVariants[] = {
         {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER,
             .ulCullMode           = PL_CULL_MODE_CULL_BACK,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
@@ -2306,7 +2308,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
         },
         {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
@@ -2377,7 +2379,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
                     .pTempConstantData = aiConstantData0,
                     .tGraphicsState    = {
                         .ulDepthWriteEnabled  = 1,
-                        .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+                        .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
                         .ulCullMode           = PL_CULL_MODE_NONE,
                         .ulWireframe          = 0,
                         .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -2490,7 +2492,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     plGraphicsState atTemplateVariants[] = {
         {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER,
             .ulCullMode           = PL_CULL_MODE_CULL_BACK,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
@@ -2501,7 +2503,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         },
         {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
@@ -3176,6 +3178,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tRenderPass);
+        gptGfx->set_depth_bias(ptEncoder, 0.0f, 0.0f, 0.0f);
 
         gptJob->wait_for_counter(ptOpaqueCounter);
         pl_end_cpu_sample(gptProfile, 0); // prep scene

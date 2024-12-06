@@ -75,8 +75,8 @@ layout(location = 3) out vec4 outAOMetalnessRoughness;
 
 // output
 layout(location = 0) in struct plShaderIn {
-    vec3 tPosition;
-    vec4 tWorldPosition;
+    vec3 tWorldPosition;
+    vec4 tViewPosition;
     vec2 tUV[8];
     vec4 tColor;
     vec3 tWorldNormal;
@@ -109,7 +109,7 @@ NormalInfo pl_get_normal_info(int iUVSet)
     //   uv_dy = vec2(0.0, 1.0);
     // }
 
-    vec3 t_ = (uv_dy.t * dFdx(tShaderIn.tPosition) - uv_dx.t * dFdy(tShaderIn.tPosition)) /
+    vec3 t_ = (uv_dy.t * dFdx(tShaderIn.tWorldPosition) - uv_dx.t * dFdy(tShaderIn.tWorldPosition)) /
         (uv_dx.s * uv_dy.t - uv_dy.s * uv_dx.t);
 
     vec3 n, t, b, ng;
@@ -136,7 +136,7 @@ NormalInfo pl_get_normal_info(int iUVSet)
     }
     else
     {
-        ng = normalize(cross(dFdx(tShaderIn.tPosition), dFdy(tShaderIn.tPosition)));
+        ng = normalize(cross(dFdx(tShaderIn.tWorldPosition), dFdy(tShaderIn.tWorldPosition)));
         t = normalize(t_ - ng * dot(ng, t_));
         b = cross(ng, t);
     }
@@ -272,7 +272,7 @@ void main()
     // fill g-buffer
     outAlbedo = tBaseColor;
     outNormal = Encode(tNormalInfo.n);
-    outPosition = vec4(tShaderIn.tPosition, 1.0);
+    outPosition = vec4(tShaderIn.tWorldPosition, 1.0);
     outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, material.u_MipCount);
 }
 

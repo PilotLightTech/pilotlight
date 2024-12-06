@@ -761,15 +761,15 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
         }
 
         plVec3 atCameraCorners[] = {
-            { -1.0f,  1.0f, 0.0f },
-            { -1.0f, -1.0f, 0.0f },
-            {  1.0f, -1.0f, 0.0f },
-            {  1.0f,  1.0f, 0.0f },
             { -1.0f,  1.0f, 1.0f },
             { -1.0f, -1.0f, 1.0f },
             {  1.0f, -1.0f, 1.0f },
             {  1.0f,  1.0f, 1.0f },
-        };
+            { -1.0f,  1.0f, 0.0f },
+            { -1.0f, -1.0f, 0.0f },
+            {  1.0f, -1.0f, 0.0f },
+            {  1.0f,  1.0f, 0.0f },
+        }; // x is reversed for reverse z here currently
         plMat4 tCameraInversion = pl_mul_mat4(&ptSceneCamera->tProjMat, &ptSceneCamera->tViewMat);
         tCameraInversion = pl_mat4_invert(&tCameraInversion);
         for(uint32_t i = 0; i < 8; i++)
@@ -957,6 +957,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
         gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
 
         plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tShadowData.atOpaqueRenderPasses[uCascade]);
+        gptGfx->set_depth_bias(ptEncoder, 0.005f, 0.0f, 1.0f);
 
         for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
         {
@@ -1189,7 +1190,7 @@ pl_refr_create_global_shaders(void)
         .tVertexShader = gptShader->load_glsl("../shaders/primitive.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER,
             .ulCullMode           = PL_CULL_MODE_CULL_BACK,
             .ulWireframe          = 0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -1267,7 +1268,7 @@ pl_refr_create_global_shaders(void)
         .tVertexShader = gptShader->load_glsl("../shaders/transparent.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulWireframe          = 0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -1411,7 +1412,7 @@ pl_refr_create_global_shaders(void)
         .tVertexShader = gptShader->load_glsl("../shaders/picking.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulWireframe          = 0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -1482,7 +1483,7 @@ pl_refr_create_global_shaders(void)
             .tVertexShader = gptShader->load_glsl("../shaders/skybox.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
-                .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+                .ulDepthMode          = PL_COMPARE_MODE_EQUAL,
                 .ulCullMode           = PL_CULL_MODE_NONE,
                 .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
                 .ulStencilRef         = 0xff,

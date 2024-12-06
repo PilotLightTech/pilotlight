@@ -314,14 +314,14 @@ vec3 BRDF_specularGGX(vec3 f0, vec3 f90, float alphaRoughness, float specularWei
 
 vec3 getDiffuseLight(vec3 n)
 {
-    n.z = -n.z;
+    // n.z = -n.z; uncomment if not reverse z
     return texture(samplerCube(u_LambertianEnvSampler, tEnvSampler), n).rgb;
 }
 
 
 vec4 getSpecularSample(vec3 reflection, float lod)
 {
-    reflection.z = -reflection.z;
+    // reflection.z = -reflection.z; uncomment if not reverse z
     // return textureLod(u_GGXEnvSampler, u_EnvRotation * reflection, lod) * u_EnvIntensity;
     return textureLod(samplerCube(u_GGXEnvSampler, tEnvSampler), reflection, lod);
 }
@@ -383,12 +383,12 @@ const mat4 biasMat = mat4(
 float textureProj(vec4 shadowCoord, vec2 offset, uint cascadeIndex)
 {
 	float shadow = 1.0;
-	float bias = 0.0005;
-
-	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) {
+	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
+    {
 		float dist = texture(sampler2D(shadowmap[cascadeIndex], tShadowSampler), shadowCoord.st + offset).r;
-		if (shadowCoord.w > 0 && dist < shadowCoord.z - bias) {
-			shadow = 0.1; // ambient
+		if (shadowCoord.w > 0 && dist < shadowCoord.z)
+        {
+			shadow = 0.01; // ambient
 		}
 	}
 	return shadow;
@@ -521,7 +521,7 @@ void main()
                         cascadeIndex = j + 1;
                     }
                 }  
-
+                
                 // Depth compare for shadowing
 	            vec4 shadowCoord = (biasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * vec4(tShaderIn.tPosition.xyz, 1.0);	
                 shadow = 0;
