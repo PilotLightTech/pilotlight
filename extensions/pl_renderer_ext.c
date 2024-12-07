@@ -262,10 +262,10 @@ pl_refr_initialize(plWindow* ptWindow)
     const plRenderPassLayoutDesc tRenderPassLayoutDesc = {
         .atRenderTargets = {
             { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true },  // depth buffer
-            { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT }, // final output
+            { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT }, // final output
             { .tFormat = PL_FORMAT_R8G8B8A8_SRGB },      // albedo
             { .tFormat = PL_FORMAT_R16G16_FLOAT }, // normal
-            { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT }, // AO, roughness, metallic, specular weight
+            { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT }, // AO, roughness, metallic, mip count
         },
         .atSubpasses = {
             { // G-buffer fill
@@ -321,7 +321,7 @@ pl_refr_initialize(plWindow* ptWindow)
     const plRenderPassLayoutDesc tPostProcessRenderPassLayoutDesc = {
         .atRenderTargets = {
             { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true }, // depth
-            { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT },
+            { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT },
         },
         .atSubpasses = {
             {
@@ -509,13 +509,13 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     plRefView* ptView = &ptScene->atViews[uViewHandle];
 
     ptView->tTargetSize = tDimensions;
-    ptView->tShadowData.tResolution.x = 1024.0f * 4.0f;
-    ptView->tShadowData.tResolution.y = 1024.0f * 4.0f;
+    ptView->tShadowData.tResolution.x = 1024.0f * 2.0f;
+    ptView->tShadowData.tResolution.y = 1024.0f * 2.0f;
 
     // create offscreen per-frame resources
     const plTextureDesc tRawOutputTextureDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
+        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
         .uLayers       = 1,
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
@@ -898,7 +898,7 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
     // recreate offscreen color & depth textures
     const plTextureDesc tRawOutputTextureDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
+        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
         .uLayers       = 1,
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
