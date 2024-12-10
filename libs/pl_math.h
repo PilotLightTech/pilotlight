@@ -14,8 +14,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_MATH_VERSION    "1.0.0"
-#define PL_MATH_VERSION_NUM 10000
+#define PL_MATH_VERSION    "1.0.1"
+#define PL_MATH_VERSION_NUM 10001
 
 /*
 Index of this file:
@@ -350,7 +350,7 @@ static inline plMat4 pl_mul_mat4t   (const plMat4* ptLeft, const plMat4* ptRight
 static inline plVec4 pl_mul_quat                 (plVec4 tQ1, plVec4 tQ2)                      { return pl_create_vec4(tQ1.w * tQ2.x + tQ1.x * tQ2.w + tQ1.y * tQ2.z - tQ1.z * tQ2.y, tQ1.w * tQ2.y - tQ1.x * tQ2.z + tQ1.y * tQ2.w + tQ1.z * tQ2.x, tQ1.w * tQ2.z + tQ1.x * tQ2.y - tQ1.y * tQ2.x + tQ1.z * tQ2.w, tQ1.w * tQ2.w - tQ1.x * tQ2.x - tQ1.y * tQ2.y - tQ1.z * tQ2.z);}
 static inline plVec4 pl_quat_rotation_normal     (float fAngle, float fX, float fY, float fZ)  { const float fSin2 = sinf(0.5f * fAngle); return pl_create_vec4(fSin2 * fX, fSin2 * fY, fSin2 * fZ, cosf(0.5f * fAngle));}
 static inline plVec4 pl_quat_rotation_normal_vec3(float fAngle, plVec3 tNormalAxis)            { return pl_quat_rotation_normal(fAngle, tNormalAxis.x, tNormalAxis.y, tNormalAxis.z);}
-static inline plVec4 pl_norm_quat                (plVec4 tQ)                                   { const plVec3 tNorm = pl_norm_vec3(tQ.xyz); return pl_create_vec4(tNorm.x, tNorm.y, tNorm.z, tQ.w);}
+static inline plVec4 pl_norm_quat                (plVec4 tQ)                                   { return pl_norm_vec4(tQ);}
 static inline plVec4 pl_quat_slerp               (plVec4 tQ1, plVec4 tQ2, float fT);
 static inline void   pl_decompose_matrix         (const plMat4* ptM, plVec3* ptS, plVec4* ptQ, plVec3* ptT);
 
