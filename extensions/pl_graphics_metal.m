@@ -141,12 +141,12 @@ typedef struct _plMetalBindGroup
 {
     id<MTLBuffer> tShaderArgumentBuffer;
     plBindGroupLayout tLayout;
-    plTextureHandle atTextureBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
     plBufferHandle  atBufferBindings[PL_MAX_BUFFERS_PER_BIND_GROUP];
     plSamplerHandle atSamplerBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
     uint32_t uHeapCount;
     id<MTLHeap> atRequiredHeaps[PL_MAX_TEXTURES_PER_BIND_GROUP * PL_MAX_BUFFERS_PER_BIND_GROUP];
     uint32_t uOffset;
+    plTextureHandle* sbtTextures;
 } plMetalBindGroup;
 
 typedef struct _plMetalShader
@@ -870,7 +870,9 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     NSUInteger argumentBufferLength = sizeof(uint64_t) * uDescriptorCount;
     MTLSizeAndAlign tSizeAlign = [ptDevice->tDevice heapBufferSizeAndAlignWithLength:argumentBufferLength options:MTLResourceStorageModeShared];
 
-    plMetalBindGroup tMetalBindGroup = {0};
+    plMetalBindGroup tMetalBindGroup = {
+        .tLayout = *ptLayout
+    };
 
     tMetalBindGroup.tShaderArgumentBuffer = ptDesc->ptPool->tArgumentBuffer.tBuffer;
     tMetalBindGroup.uOffset = ptDesc->ptPool->szCurrentArgumentOffset;
@@ -927,7 +929,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[ptUpdate->tTexture.uIndex];
         MTLResourceID* pptDestination = (MTLResourceID*)&pulDescriptorStart[ptUpdate->uSlot + ptUpdate->uIndex];
         *pptDestination = ptMetalTexture->tTexture.gpuResourceID;
-        ptMetalBindGroup->atTextureBindings[i] = ptUpdate->tTexture;
+        pl_sb_push(ptMetalBindGroup->sbtTextures, ptUpdate->tTexture);
 
         bool bHeapFound = false;
         for(uint32_t j = 0; j < ptMetalBindGroup->uHeapCount; j++)
@@ -2034,6 +2036,13 @@ pl_bind_compute_bind_groups(
             [ptEncoder->tEncoder useHeap:ptBindGroup->atRequiredHeaps[j]];
         }
 
+        for(uint32_t k = 0; k < pl_sb_size(ptBindGroup->sbtTextures); k++)
+        {
+            const plTextureHandle tTextureHandle = ptBindGroup->sbtTextures[k];
+            plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
+            [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead | MTLResourceUsageWrite];  
+        }
+
         [ptEncoder->tEncoder setBuffer:ptBindGroup->tShaderArgumentBuffer
             offset:ptBindGroup->uOffset
             atIndex:uFirst + i];
@@ -2062,9 +2071,9 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
             [ptEncoder->tEncoder useHeap:ptBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
         }
 
-        for(uint32_t k = 0; k < ptBindGroup->tLayout._uTextureBindingCount; k++)
+        for(uint32_t k = 0; k < pl_sb_size(ptBindGroup->sbtTextures); k++)
         {
-            const plTextureHandle tTextureHandle = ptBindGroup->atTextureBindings[k];
+            const plTextureHandle tTextureHandle = ptBindGroup->sbtTextures[k];
             plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
             [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
         }
@@ -2265,9 +2274,9 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                     [ptEncoder->tEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
                 }
 
-                for(uint32_t k = 0; k < ptMetalBindGroup->tLayout._uTextureBindingCount; k++)
+                for(uint32_t k = 0; k < pl_sb_size(ptMetalBindGroup->sbtTextures); k++)
                 {
-                    const plTextureHandle tTextureHandle = ptMetalBindGroup->atTextureBindings[k];
+                    const plTextureHandle tTextureHandle = ptMetalBindGroup->sbtTextures[k];
                     plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
@@ -2287,9 +2296,9 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                     [ptEncoder->tEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
                 }
 
-                for(uint32_t k = 0; k < ptMetalBindGroup->tLayout._uTextureBindingCount; k++)
+                for(uint32_t k = 0; k < pl_sb_size(ptMetalBindGroup->sbtTextures); k++)
                 {
-                    const plTextureHandle tTextureHandle = ptMetalBindGroup->atTextureBindings[k];
+                    const plTextureHandle tTextureHandle = ptMetalBindGroup->sbtTextures[k];
                     plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
@@ -2309,9 +2318,13 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                     [ptEncoder->tEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
                 }
 
-                for(uint32_t k = 0; k < ptMetalBindGroup->tLayout._uTextureBindingCount; k++)
+                for(uint32_t k = 0; k < pl_sb_size(ptMetalBindGroup->sbtTextures); k++)
                 {
-                    const plTextureHandle tTextureHandle = ptMetalBindGroup->atTextureBindings[k];
+                    const plTextureHandle tTextureHandle = ptMetalBindGroup->sbtTextures[k];
+                    if(tTextureHandle.uIndex > 21 && tTextureHandle.uIndex < 26)
+                    {
+                        int a = 5;
+                    }
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment]; 
                 }
 

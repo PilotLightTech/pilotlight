@@ -1782,15 +1782,27 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
 
         const size_t uMaxFaceSize = (size_t)iResolution * (size_t)iResolution * 4 * sizeof(float);
-        const plBufferDesc tOutputBufferDesc = {
-            .tUsage    = PL_BUFFER_USAGE_STORAGE,
-            .szByteSize = uMaxFaceSize,
-            .pcDebugName = "inner buffer"
+
+        static const char* apcBufferNames[] = {
+            "output buffer 0",
+            "output buffer 1",
+            "output buffer 2",
+            "output buffer 3",
+            "output buffer 4",
+            "output buffer 5",
+            "output buffer 6"
         };
 
         plBufferHandle atInnerComputeBuffers[7] = {0};
         for(uint32_t j = 0; j < 7; j++)
+        {
+            const plBufferDesc tOutputBufferDesc = {
+                .tUsage    = PL_BUFFER_USAGE_STORAGE,
+                .szByteSize = uMaxFaceSize,
+                .pcDebugName = apcBufferNames[j]
+            };
             atInnerComputeBuffers[j] = pl__refr_create_local_buffer(&tOutputBufferDesc, "inner buffer", j, NULL);
+        }
 
         const plBindGroupDesc tFilterComputeBindGroupDesc = {
             .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
