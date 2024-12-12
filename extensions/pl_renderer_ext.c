@@ -515,6 +515,7 @@ pl_refr_create_scene(void)
             },
             .atTextureBindings = {
                 {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true},
+                {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
             }
     };
 
@@ -544,8 +545,8 @@ pl_refr_create_scene(void)
     gptGfx->update_bind_group(gptData->ptDevice, ptScene->tGlobalBindGroup, &tGlobalBindGroupData);
 
     ptScene->uGGXLUT = pl__get_bindless_texture_index(uSceneHandle, gptData->tDummyTexture);
-    ptScene->uLambertianEnvSampler = pl__get_bindless_texture_index(uSceneHandle, gptData->tDummyTextureCube);
-    ptScene->uGGXEnvSampler = pl__get_bindless_texture_index(uSceneHandle, gptData->tDummyTextureCube);
+    ptScene->uLambertianEnvSampler = pl__get_bindless_cube_texture_index(uSceneHandle, gptData->tDummyTextureCube);
+    ptScene->uGGXEnvSampler = pl__get_bindless_cube_texture_index(uSceneHandle, gptData->tDummyTextureCube);
 
     return uSceneHandle;
 }
@@ -1875,8 +1876,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     }
 
     ptScene->uGGXLUT = pl__get_bindless_texture_index(uSceneHandle, ptScene->tGGXLUTTexture);
-    ptScene->uLambertianEnvSampler = pl__get_bindless_texture_index(uSceneHandle, ptScene->tLambertianEnvTexture);
-    ptScene->uGGXEnvSampler = pl__get_bindless_texture_index(uSceneHandle, ptScene->tGGXEnvTexture);
+    ptScene->uLambertianEnvSampler = pl__get_bindless_cube_texture_index(uSceneHandle, ptScene->tLambertianEnvTexture);
+    ptScene->uGGXEnvSampler = pl__get_bindless_cube_texture_index(uSceneHandle, ptScene->tGGXEnvTexture);
 
     pl_end_cpu_sample(gptProfile, 0);
     pl_end_cpu_sample(gptProfile, 0);
@@ -2206,7 +2207,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
                         {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                     },
                     .atTextureBindings = {
-                        {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
+                        {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true},
+                        {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
                     }
                 },
                 {
@@ -2775,7 +2777,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                         {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                     },
                     .atTextureBindings = {
-                        {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
+                        {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true},
+                        {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
                     }
                 },
                 {

@@ -329,7 +329,9 @@ typedef struct _plRefScene
 
     // bindless texture system
     uint32_t          uTextureIndexCount;
+    uint32_t          uCubeTextureIndexCount;
     plHashMap*        ptTextureIndexHashmap; // texture handle <-> index
+    plHashMap*        ptCubeTextureIndexHashmap; // texture handle <-> index
     plBindGroupHandle tGlobalBindGroup;
 
     // material hashmaps (material component <-> GPU material)
@@ -521,6 +523,7 @@ static void                    pl_refr_create_global_shaders(void);
 static size_t                  pl__get_data_type_size2(plDataType tType);
 static plBlendState            pl__get_blend_state(plBlendMode tBlendMode);
 static uint32_t                pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle);
+static uint32_t                pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle);
 
 
 #endif // PL_RENDERER_INTERNAL_EXT_H

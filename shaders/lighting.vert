@@ -93,8 +93,8 @@ layout(set = 0, binding = 1) readonly buffer plMaterialInfo
 layout(set = 0, binding = 2)  uniform sampler tDefaultSampler;
 layout(set = 0, binding = 3)  uniform sampler tEnvSampler;
 
-layout(set = 0, binding = 4)  uniform texture2D at2DTextures[];
-layout(set = 0, binding = 4)  uniform textureCube atCubeTextures[];
+layout(set = 0, binding = 4)  uniform texture2D at2DTextures[1];
+layout(set = 0, binding = 5)  uniform textureCube atCubeTextures[1];
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
