@@ -12,12 +12,13 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
+    uint uLambertianEnvSampler;
+    uint uGGXEnvSampler;
+    uint uGGXLUT;
+    uint _uUnUsed;
 } tGlobalInfo;
 
-layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer0{ vec4 atVertexData[]; } tVertexBuffer0;
-layout(std140, set = 0, binding = 2) readonly buffer _tVertexBuffer1{ vec4 atVertexData[]; } tVertexBuffer1;
-
-layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 1)  uniform sampler tDefaultSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 1
@@ -52,11 +53,7 @@ layout(location = 0) out vec4 outColor;
 const float GAMMA = 2.2;
 const float INV_GAMMA = 1.0 / GAMMA;
 
-vec3
-pl_linear_to_srgb(vec3 color)
-{
-    return pow(color, vec3(INV_GAMMA));
-}
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry
@@ -66,6 +63,5 @@ void
 main() 
 {
     vec3 tVectorOut = normalize(tShaderIn.tWorldPosition);
-    // outColor = vec4(pl_linear_to_srgb(texture(samplerCube(samplerCubeMap, tDefaultSampler), tVectorOut).rgb), 1.0);
     outColor = vec4(texture(samplerCube(samplerCubeMap, tDefaultSampler), tVectorOut).rgb, 1.0);
 }

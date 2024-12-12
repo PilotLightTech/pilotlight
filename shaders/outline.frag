@@ -19,6 +19,10 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
+    uint uLambertianEnvSampler;
+    uint uGGXEnvSampler;
+    uint uGGXLUT;
+    uint _uUnUsed;
 } tGlobalInfo;
 
 layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
@@ -46,8 +50,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 // output
 layout(location = 0) out vec4 outColor;
 
-void
-main() 
+void main() 
 {
     outColor = tObjectInfo.tColor;
 }

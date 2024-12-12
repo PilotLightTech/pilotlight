@@ -845,7 +845,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
         if (ptLayout->atTextureBindings[i]._bVariableDescriptorCount)
         {
-            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
             bHasVariableDescriptors = true;
         }
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
@@ -903,7 +903,8 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
         .descriptorPool     = ptDesc->ptPool->tDescriptorPool,
         .descriptorSetCount = 1,
         .pSetLayouts        = &tDescriptorSetLayout,
-        .pNext              = bHasVariableDescriptors ? &tVariableDescriptorCountAllocInfo : NULL
+        // .pNext              = bHasVariableDescriptors ? &tVariableDescriptorCountAllocInfo : NULL
+        .pNext              = NULL
     };
     PL_VULKAN(vkAllocateDescriptorSets(ptDevice->tLogicalDevice, &tAllocInfo, &tVulkanBindGroup.tDescriptorSet));
 
@@ -4045,7 +4046,7 @@ pl__create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, co
             tBinding.descriptorCount = 1;
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
         if (ptLayout->atTextureBindings[i]._bVariableDescriptorCount)
-            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 

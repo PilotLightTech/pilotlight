@@ -12,12 +12,13 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
+    uint uLambertianEnvSampler;
+    uint uGGXEnvSampler;
+    uint uGGXLUT;
+    uint _uUnUsed;
 } tGlobalInfo;
 
-layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer0{ vec4 atVertexData[]; } tVertexBuffer0;
-layout(std140, set = 0, binding = 2) readonly buffer _tVertexBuffer1{ vec4 atVertexData[]; } tVertexBuffer1;
-
-layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 1)  uniform sampler tDefaultSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 1

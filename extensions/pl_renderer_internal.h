@@ -123,19 +123,17 @@ typedef struct _plSkinData
 
 typedef struct _plDrawable
 {
-    plEntity          tEntity;
-    plBindGroupHandle tMaterialBindGroup;
-    plBindGroupHandle tShadowMaterialBindGroup;
-    uint32_t          uDataOffset;
-    uint32_t          uVertexOffset;
-    uint32_t          uVertexCount;
-    uint32_t          uIndexOffset;
-    uint32_t          uIndexCount;
-    uint32_t          uMaterialIndex;
-    plShaderHandle    tShader;
-    plShaderHandle    tShadowShader;
-    uint32_t          uSkinIndex;
-    bool              bCulled;
+    plEntity       tEntity;
+    uint32_t       uDataOffset;
+    uint32_t       uVertexOffset;
+    uint32_t       uVertexCount;
+    uint32_t       uIndexOffset;
+    uint32_t       uIndexCount;
+    uint32_t       uMaterialIndex;
+    plShaderHandle tShader;
+    plShaderHandle tShadowShader;
+    uint32_t       uSkinIndex;
+    bool           bCulled;
 } plDrawable;
 
 typedef struct _plGPUMaterial
@@ -154,15 +152,18 @@ typedef struct _plGPUMaterial
     // Alpha mode
     float fAlphaCutoff;
     float fOcclusionStrength;
-    int _unused1[2];
-
     int iBaseColorUVSet;
     int iNormalUVSet;
+
     int iEmissiveUVSet;
     int iOcclusionUVSet;
-
     int iMetallicRoughnessUVSet;
-    int _unused2[3];
+    int iBaseColorTexIdx;
+    
+    int iNormalTexIdx;
+    int iEmissiveTexIdx;
+    int iMetallicRoughnessTexIdx;
+    int iOcclusionTexIdx;
 } plGPUMaterial;
 
 typedef struct _plGPULight
@@ -194,6 +195,11 @@ typedef struct _BindGroup_0
     plMat4 tCameraView;
     plMat4 tCameraProjection;   
     plMat4 tCameraViewProjection;
+    
+    uint32_t uLambertianEnvSampler;
+    uint32_t uGGXEnvSampler;
+    uint32_t uGGXLUT;
+    uint32_t _uUnUsed;
 } BindGroup_0;
 
 typedef struct _DynamicData
@@ -277,9 +283,13 @@ typedef struct _plRefScene
     plTextureHandle   tSkyboxTexture;
     plBindGroupHandle tSkyboxBindGroup;
     plTextureHandle   tGGXLUTTexture;
+    uint32_t          uGGXLUT;
     plTextureHandle   tLambertianEnvTexture;
+    uint32_t          uLambertianEnvSampler;
     plTextureHandle   tGGXEnvTexture;
+    uint32_t          uGGXEnvSampler;
 
+        
     // shared bind groups
     plBindGroupHandle tSkinBindGroup0;
 
@@ -317,8 +327,14 @@ typedef struct _plRefScene
     plHashMap* ptDeferredHashmap;
     plHashMap* ptForwardHashmap;
 
-    // material bindgroup reuse hashmaps
-    plHashMap* ptShadowBindgroupHashmap;
+    // bindless texture system
+    uint32_t          uTextureIndexCount;
+    plHashMap*        ptTextureIndexHashmap; // texture handle <-> index
+    plBindGroupHandle tGlobalBindGroup;
+
+    // material hashmaps (material component <-> GPU material)
+    plMaterialComponent* sbtMaterials;
+    plHashMap* ptMaterialHashmap;
 
 } plRefScene;
 
@@ -407,6 +423,10 @@ typedef struct _plRefRendererData
 
     // dynamic buffer system
     plDynamicDataBlock tCurrentDynamicDataBlock;
+
+    // texture lookup (resource handle <-> texture handle)
+    plTextureHandle*  sbtTextureHandles;
+    plHashMap*        ptTextureHashmap;
 
     // graphics options
     bool     bReloadSwapchain;
@@ -500,6 +520,7 @@ static void                    pl__add_drawable_data_to_global_buffer(plRefScene
 static void                    pl_refr_create_global_shaders(void);
 static size_t                  pl__get_data_type_size2(plDataType tType);
 static plBlendState            pl__get_blend_state(plBlendMode tBlendMode);
+static uint32_t                pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle);
 
 
 #endif // PL_RENDERER_INTERNAL_EXT_H
