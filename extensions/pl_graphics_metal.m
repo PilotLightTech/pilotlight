@@ -759,7 +759,9 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTexture** p
     else if(tDesc.tType == PL_TEXTURE_TYPE_CUBE)
         ptTextureDescriptor.textureType = MTLTextureTypeCube;
     else if(tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+    {
         ptTextureDescriptor.textureType = MTLTextureType2DArray;
+    }
     else
     {
         PL_ASSERT(false && "unsupported texture type");
@@ -859,7 +861,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     for(uint32_t i = 0; i < ptLayout->_uTextureBindingCount; i++)
     {
         uint32_t uCurrentDescriptorCount = ptLayout->atTextureBindings[i].uDescriptorCount;
-        if(uCurrentDescriptorCount== 0)
+        if(uCurrentDescriptorCount == 0)
             uCurrentDescriptorCount = 1;
         if(uCurrentDescriptorCount > 1)
             uDescriptorCount += ptLayout->atTextureBindings[i].uDescriptorCount - 1;
@@ -888,7 +890,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
 
     plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tHandle.uIndex];
     plBindGroup* ptBindGroup = pl__get_bind_group(ptDevice, tHandle);
-    ptMetalBindGroup->uHeapCount = 0;
+    // ptMetalBindGroup->uHeapCount = 0;
     const char* pcDescriptorStart = ptMetalBindGroup->tShaderArgumentBuffer.contents;
 
     uint64_t* pulDescriptorStart = (uint64_t*)&pcDescriptorStart[ptMetalBindGroup->uOffset];

@@ -77,8 +77,8 @@ else
     PL_HOT_RELOAD_STATUS=0
     rm -f ../out/pl_unity_ext.dylib
     rm -f ../out/pl_unity_ext_*.dylib
-    rm -f ../out/pl_script_camerad.dylib
-    rm -f ../out/pl_script_camerad_*.dylib
+    rm -f ../out/pl_script_camera.dylib
+    rm -f ../out/pl_script_camera_*.dylib
     rm -f ../out/app.dylib
     rm -f ../out/app_*.dylib
     rm -f ../out/pilot_light
@@ -146,7 +146,7 @@ echo
 echo ${YELLOW}Step: pl_script_camera${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_script_camerad.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./../out/pl_script_camera.dylib"
 
 # check build status
 if [ $? -ne 0 ]

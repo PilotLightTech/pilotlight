@@ -514,8 +514,8 @@ pl_refr_create_scene(void)
                 {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
             },
             .atTextureBindings = {
-                {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true},
-                {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
+                {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true},
+                {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true}
             }
     };
 
@@ -1160,6 +1160,7 @@ pl_refr_cleanup(void)
         pl_hm_free(ptScene->ptForwardHashmap);
         pl_hm_free(ptScene->ptMaterialHashmap);
         pl_hm_free(ptScene->ptTextureIndexHashmap);
+        pl_hm_free(ptScene->ptCubeTextureIndexHashmap);
         gptECS->cleanup_component_library(&ptScene->tComponentLibrary);
     }
     for(uint32_t i = 0; i < pl_sb_size(gptData->_sbtVariantHandles); i++)
@@ -2207,8 +2208,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
                         {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                     },
                     .atTextureBindings = {
-                        {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true},
-                        {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
+                        {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true},
+                        {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true}
                     }
                 },
                 {
@@ -2777,8 +2778,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                         {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                     },
                     .atTextureBindings = {
-                        {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true},
-                        {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
+                        {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true},
+                        {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true}
                     }
                 },
                 {

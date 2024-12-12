@@ -57,6 +57,8 @@ Index of this file:
     #define PL_DEVICE_BUDDY_BLOCK_SIZE 268435456
 #endif
 
+#define PL_MAX_BINDLESS_TEXTURES 4096
+
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
 #else

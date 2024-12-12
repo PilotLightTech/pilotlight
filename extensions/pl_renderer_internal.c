@@ -1193,8 +1193,8 @@ pl_refr_create_global_shaders(void)
                     {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true},
-                    {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
+                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true},
+                    {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true}
                 }
             },
             {
@@ -1262,8 +1262,8 @@ pl_refr_create_global_shaders(void)
                     {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true},
-                    {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
+                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true},
+                    {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true}
                 }
             },
             {
@@ -1335,8 +1335,8 @@ pl_refr_create_global_shaders(void)
                     {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true},
-                    {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4096, ._bVariableDescriptorCount = true}
+                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true},
+                    {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, ._bVariableDescriptorCount = true}
                 }
             },
             {
@@ -1976,7 +1976,7 @@ pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle tText
     const plBindGroupUpdateTextureData tGlobalTextureData[] = {
         {
             .tTexture = tTexture,
-            .uSlot    = 5,
+            .uSlot    = 4100,
             .uIndex   = (uint32_t)ulValue,
             .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
         },
