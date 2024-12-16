@@ -37,7 +37,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plShaderI_version (plVersion){1, 0, 1}
+#define plShaderI_version (plVersion){1, 0, 2}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
