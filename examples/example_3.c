@@ -218,6 +218,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // begin blit pass, copy buffer, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+
     plSwapchainInfo tInfo = gptGfx->get_swapchain_info(ptAppData->ptSwapchain);
     const plTextureDesc tColorTextureDesc = {
         .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
@@ -249,6 +251,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // set initial usage
     gptGfx->set_texture_usage(ptEncoder, ptAppData->tMSAATexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
 
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
@@ -379,6 +382,8 @@ pl_app_resize(plAppData* ptAppData)
 
     // begin blit pass, copy buffer, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+
     plSwapchainInfo tInfo = gptGfx->get_swapchain_info(ptAppData->ptSwapchain);
     const plTextureDesc tColorTextureDesc = {
         .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
@@ -413,6 +418,7 @@ pl_app_resize(plAppData* ptAppData)
     // set initial usage
     gptGfx->set_texture_usage(ptEncoder, ptAppData->tMSAATexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
 
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
@@ -518,7 +524,7 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass);
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass, NULL);
 
     // submits UI drawlist/layers
     plIO* ptIO = gptIO->get_io();

@@ -400,7 +400,7 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass);
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass, NULL);
 
     // submit nonindexed draw using basic API
     gptGfx->bind_shader(ptEncoder, ptAppData->tShader);

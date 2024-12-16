@@ -329,8 +329,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // begin blit pass, copy buffer, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     gptGfx->copy_buffer(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * 24);
     gptGfx->copy_buffer(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * 6);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
@@ -474,7 +476,7 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass);
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass, NULL);
 
     // submit nonindexed draw using basic API
     gptGfx->bind_shader(ptEncoder, ptAppData->tShader);

@@ -283,6 +283,8 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     // begin blit pass, copy texture, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
 
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+
     gptGfx->set_texture_usage(ptEncoder, tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
 
     const plBufferImageCopy tBufferImageCopy = {
@@ -293,6 +295,7 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     };
 
     gptGfx->copy_buffer_to_texture(ptEncoder, tStagingBuffer, tTexture, 1, &tBufferImageCopy);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording

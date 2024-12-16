@@ -85,6 +85,14 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[tSlot].tResource) == false)
         return gptData->tDummyTexture;
     
+    // check if it exists already
+
+    if(pl_hm_has_key(gptData->ptTextureHashmap, ptMaterial->atTextureMaps[tSlot].tResource.ulData))
+    {
+        uint64_t ulValue = pl_hm_lookup(gptData->ptTextureHashmap, ptMaterial->atTextureMaps[tSlot].tResource.ulData);
+        return gptData->sbtTextureHandles[ulValue];
+    }
+
     size_t szResourceSize = 0;
 
     plTextureHandle tTexture = {0};
@@ -116,6 +124,15 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
         };
         tTexture = pl__refr_create_texture_with_data(&tTextureDesc, ptMaterial->atTextureMaps[tSlot].acName, 0, rawBytes, szResourceSize);
     }
+
+    uint64_t ulValue = pl_hm_get_free_index(gptData->ptTextureHashmap);
+    if(ulValue == UINT64_MAX)
+    {
+        ulValue = pl_sb_size(gptData->sbtTextureHandles);
+        pl_sb_add(gptData->sbtTextureHandles);
+    }
+    gptData->sbtTextureHandles[ulValue] = tTexture;
+    pl_hm_insert(gptData->ptTextureHashmap, ptMaterial->atTextureMaps[tSlot].tResource.ulData, ulValue);
 
     return tTexture;
 }
@@ -152,7 +169,9 @@ pl__refr_create_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     gptGfx->set_texture_usage(ptBlitEncoder, tHandle, tInitialUsage, 0);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptBlitEncoder);
     gptGfx->end_command_recording(ptCommandBuffer);
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
@@ -193,6 +212,7 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     gptGfx->set_texture_usage(ptBlitEncoder, tHandle, PL_TEXTURE_USAGE_SAMPLED, 0);
 
 
@@ -218,6 +238,7 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
         gptGfx->generate_mipmaps(ptBlitEncoder, tHandle);
     }
 
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptBlitEncoder);
     gptGfx->end_command_recording(ptCommandBuffer);
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
@@ -318,7 +339,10 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
         
         // begin blit pass, copy buffer, end pass
         plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+        gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+
         gptGfx->copy_buffer(ptEncoder, gptData->tStagingBufferHandle[0], tHandle, 0, 0, ptDesc->szByteSize);
+        gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptEncoder);
 
         // finish recording
@@ -601,6 +625,8 @@ pl_refr_update_skin_textures(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHa
     plDevice* ptDevice = gptData->ptDevice;
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+
     uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
     // update skin textures
@@ -649,6 +675,7 @@ pl_refr_update_skin_textures(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHa
         gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptData->tStagingBufferHandle[uFrameIdx], ptScene->sbtSkinData[i].atDynamicTexture[uFrameIdx], 1, &tBufferImageCopy);
     }
 
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptBlitEncoder);
 
     pl_end_cpu_sample(gptProfile, 0);
@@ -672,33 +699,49 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
         int iUnused;
     } SkinDynamicData;
 
-    plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer);
-
-    for(uint32_t i = 0; i < uSkinCount; i++)
+    if(uSkinCount)
     {
-        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-        SkinDynamicData* ptDynamicData = (SkinDynamicData*)tDynamicBinding.pcData;
-        ptDynamicData->iSourceDataOffset = ptScene->sbtSkinData[i].iSourceDataOffset;
-        ptDynamicData->iDestDataOffset = ptScene->sbtSkinData[i].iDestDataOffset;
-        ptDynamicData->iDestVertexOffset = ptScene->sbtSkinData[i].iDestVertexOffset;
 
-        const plDispatch tDispach = {
-            .uGroupCountX     = ptScene->sbtSkinData[i].uVertexCount,
-            .uGroupCountY     = 1,
-            .uGroupCountZ     = 1,
-            .uThreadPerGroupX = 1,
-            .uThreadPerGroupY = 1,
-            .uThreadPerGroupZ = 1
+        const plPassBufferResource atPassBuffers[] = {
+            { .tHandle = ptScene->tSkinStorageBuffer, .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_READ },
+            { .tHandle = ptScene->tVertexBuffer,      .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->tStorageBuffer,     .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
         };
-        const plBindGroupHandle atBindGroups[] = {
-            ptScene->tSkinBindGroup0,
-            ptScene->sbtSkinData[i].tTempBindGroup
+
+        const plPassResources tPassResources = {
+            .uBufferCount = 3,
+            .atBuffers = atPassBuffers
         };
-        gptGfx->bind_compute_bind_groups(ptComputeEncoder, ptScene->sbtSkinData[i].tShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
-        gptGfx->bind_compute_shader(ptComputeEncoder, ptScene->sbtSkinData[i].tShader);
-        gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
+
+        plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
+        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE, PL_ACCESS_SHADER_READ, PL_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE);
+        for(uint32_t i = 0; i < uSkinCount; i++)
+        {
+            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+            SkinDynamicData* ptDynamicData = (SkinDynamicData*)tDynamicBinding.pcData;
+            ptDynamicData->iSourceDataOffset = ptScene->sbtSkinData[i].iSourceDataOffset;
+            ptDynamicData->iDestDataOffset = ptScene->sbtSkinData[i].iDestDataOffset;
+            ptDynamicData->iDestVertexOffset = ptScene->sbtSkinData[i].iDestVertexOffset;
+
+            const plDispatch tDispach = {
+                .uGroupCountX     = ptScene->sbtSkinData[i].uVertexCount,
+                .uGroupCountY     = 1,
+                .uGroupCountZ     = 1,
+                .uThreadPerGroupX = 1,
+                .uThreadPerGroupY = 1,
+                .uThreadPerGroupZ = 1
+            };
+            const plBindGroupHandle atBindGroups[] = {
+                ptScene->tSkinBindGroup0,
+                ptScene->sbtSkinData[i].tTempBindGroup
+            };
+            gptGfx->bind_compute_bind_groups(ptComputeEncoder, ptScene->sbtSkinData[i].tShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
+            gptGfx->bind_compute_shader(ptComputeEncoder, ptScene->sbtSkinData[i].tShader);
+            gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
+        }
+        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE, PL_ACCESS_SHADER_READ);
+        gptGfx->end_compute_pass(ptComputeEncoder);
     }
-    gptGfx->end_compute_pass(ptComputeEncoder);
     pl_end_cpu_sample(gptProfile, 0);
 }
 
@@ -834,21 +877,8 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
                 .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                 .uSlot = 0,
                 .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-            },
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 1,
-                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-            },
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 2,
-                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-            },
-        },
-        .atSamplerBindings = {
-            {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
-        },
+            }
+        }
     };
     const plBindGroupDesc tGlobalBGDesc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
@@ -864,62 +894,15 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
             .tBuffer       = ptView->tShadowData.atCameraBuffers[uFrameIdx],
             .uSlot         = 0,
             .szBufferRange = sizeof(BindGroup_0) * ptLight->uCascadeCount
-        },
-        {
-            .tBuffer       = ptScene->tStorageBuffer,
-            .uSlot         = 1,
-            .szBufferRange = ptStorageBuffer->tDesc.szByteSize
-        },
-        {
-            .tBuffer       = ptScene->tMaterialDataBuffer,
-            .uSlot         = 2,
-            .szBufferRange = sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer)
-        },
-    };
-
-    plBindGroupUpdateSamplerData tSamplerData[] = {
-        {
-            .tSampler = gptData->tDefaultSampler,
-            .uSlot    = 3
         }
     };
 
     plBindGroupUpdateData tBGData0 = {
-        .uBufferCount = 3,
-        .atBufferBindings = atBufferData,
-        .uSamplerCount = 1,
-        .atSamplerBindings = tSamplerData
+        .uBufferCount = 1,
+        .atBufferBindings = atBufferData
     };
     gptGfx->update_bind_group(gptData->ptDevice, tGlobalBG, &tBGData0);
     gptGfx->queue_bind_group_for_deletion(ptDevice, tGlobalBG);
-
-    plBindGroupLayout tOpaqueBG1Layout = {
-        .atTextureBindings = {
-            {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-        }
-    };
-    const plBindGroupDesc tOpaqueBG1Desc = {
-        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-        .ptLayout    = &tOpaqueBG1Layout,
-        .pcDebugName = "temporary opaque global bind group"
-    };
-    plBindGroupHandle tOpaqueBG1 = gptGfx->create_bind_group(ptDevice, &tOpaqueBG1Desc);
-    
-    const plBindGroupUpdateTextureData tTextureData[] = {
-        {
-            .tTexture = gptData->tDummyTexture,
-            .uSlot    = 0,
-            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED,
-            .uIndex = 0
-        }
-    };
-
-    plBindGroupUpdateData tBGData1 = {
-        .uTextureCount = 1,
-        .atTextureBindings = tTextureData
-    };
-    gptGfx->update_bind_group(gptData->ptDevice, tOpaqueBG1, &tBGData1);
-    gptGfx->queue_bind_group_for_deletion(ptDevice, tOpaqueBG1);
 
     const uint32_t uOpaqueDrawableCount = pl_sb_size(ptScene->sbtDeferredDrawables);
     const uint32_t uTransparentDrawableCount = pl_sb_size(ptScene->sbtForwardDrawables);
@@ -956,7 +939,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
 
         gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
 
-        plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tShadowData.atOpaqueRenderPasses[uCascade]);
+        plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tShadowData.atOpaqueRenderPasses[uCascade], NULL);
         gptGfx->set_depth_bias(ptEncoder, 0.005f, 0.0f, 1.0f);
 
         for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
@@ -987,8 +970,8 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
                 .uIndexOffset         = tDrawable.uIndexOffset,
                 .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
                 .atBindGroups = {
-                    tGlobalBG,
-                    tOpaqueBG1
+                    ptScene->tGlobalBindGroup,
+                    tGlobalBG
                 },
                 .auDynamicBufferOffsets = {
                     tDynamicBinding.uByteOffset
@@ -1026,8 +1009,10 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
                 .uIndexOffset         = tDrawable.uIndexOffset,
                 .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
                 .atBindGroups = {
-                    tGlobalBG,
-                    tDrawable.tShadowMaterialBindGroup
+                    ptScene->tGlobalBindGroup,
+                    tGlobalBG
+                    // tGlobalBG,
+                    // tDrawable.tShadowMaterialBindGroup
                 },
                 .auDynamicBufferOffsets = {
                     tDynamicBinding.uByteOffset
@@ -1058,7 +1043,7 @@ pl_refr_post_process_scene(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHand
 
     const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tPostProcessRenderPass)->tDesc.tDimensions;
 
-    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tPostProcessRenderPass);
+    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tPostProcessRenderPass, NULL);
 
     plDrawIndex tDraw = {
         .tIndexBuffer   = gptData->tFullQuadIndexBuffer,
@@ -1219,7 +1204,7 @@ pl_refr_create_global_shaders(void)
             {
                 .atBufferBindings = {
                     {
-                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 0,
                         .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
                     },
@@ -1227,32 +1212,26 @@ pl_refr_create_global_shaders(void)
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 1,
                         .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-                    },
-                    {
-                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                        .uSlot = 2,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
                     }
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    {.uSlot = 2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
                 .atTextureBindings = {
-                    {.uSlot =   5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1}
+                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                    {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
                 }
             },
             {
-                .atTextureBindings = {
-                    {.uSlot =   0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                }
-            }
+                .atBufferBindings = {
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .uSlot = 0,
+                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                    }
+                },
+            },
         }
     };
     for(uint32_t i = 0; i < 5; i++)
@@ -1294,7 +1273,7 @@ pl_refr_create_global_shaders(void)
             {
                 .atBufferBindings = {
                     {
-                        .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 0,
                         .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
                     },
@@ -1302,43 +1281,29 @@ pl_refr_create_global_shaders(void)
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 1,
                         .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
-                    },
-                    {
-                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                        .uSlot = 2,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
                     }
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    {.uSlot = 2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
                 .atTextureBindings = {
-                    {.uSlot =   5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1}
+                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                    {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
                 }
             },
             {
                 .atBufferBindings = {
                     { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4},
+                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4},
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    {.uSlot = 7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
-            },
-            {
-                .atTextureBindings = {
-                    {.uSlot =   0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                    {.uSlot =   4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1}
-                }
             }
         }
     };
@@ -1380,18 +1345,30 @@ pl_refr_create_global_shaders(void)
         .atBindGroupLayouts = {
             {
                 .atBufferBindings = {
-                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                        .uSlot = 0,
+                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                    },
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                        .uSlot = 1,
+                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                    }
                 },
                 .atSamplerBindings = {
+                    {.uSlot = 2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                     {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
+                .atTextureBindings = {
+                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                    {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
+                }
             },
             {
-                .atTextureBindings = {
-                    {.uSlot = 0, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                }
+                .atBufferBindings = {
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                },
             }
         }
     };
@@ -1506,18 +1483,10 @@ pl_refr_create_global_shaders(void)
             .atBindGroupLayouts = {
                 {
                     .atBufferBindings = {
-                        { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                        { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                        { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                        { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                     },
                     .atSamplerBindings = {
-                        {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                        {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    },
-                    .atTextureBindings = {
-                        {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot = 6, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot = 7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1}
+                        {.uSlot = 1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                     }
                 },
                 {
@@ -1716,14 +1685,12 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
     // get actual components
     plObjectComponent*   ptObject   = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
     plMeshComponent*     ptMesh     = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
-    plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
 
     const uint32_t uVertexPosStartIndex  = pl_sb_size(ptScene->sbtVertexPosBuffer);
     const uint32_t uIndexBufferStart     = pl_sb_size(ptScene->sbuIndexBuffer);
     const uint32_t uVertexDataStartIndex = pl_sb_size(ptScene->sbtVertexDataBuffer);
     const uint32_t uIndexCount           = pl_sb_size(ptMesh->sbuIndices);
     const uint32_t uVertexCount          = pl_sb_size(ptMesh->sbtVertexPositions);
-    const uint32_t uMaterialIndex        = pl_sb_size(ptScene->sbtMaterialBuffer);
 
     // add index buffer data
     pl_sb_add_n(ptScene->sbuIndexBuffer, uIndexCount);
@@ -1831,29 +1798,11 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
 
     PL_ASSERT(uOffset == uStride && "sanity check");
 
-    plGPUMaterial tMaterial = {
-        .iMipCount = ptScene->iEnvironmentMips,
-        .fMetallicFactor = ptMaterial->fMetalness,
-        .fRoughnessFactor = ptMaterial->fRoughness,
-        .tBaseColorFactor = ptMaterial->tBaseColor,
-        .tEmissiveFactor = ptMaterial->tEmissiveColor.rgb,
-        .fAlphaCutoff = ptMaterial->fAlphaCutoff,
-        .fOcclusionStrength = 1.0f,
-        .fEmissiveStrength = 1.0f,
-        .iBaseColorUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].uUVSet,
-        .iNormalUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].uUVSet,
-        .iEmissiveUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].uUVSet,
-        .iOcclusionUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].uUVSet,
-        .iMetallicRoughnessUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].uUVSet,
-    };
-    pl_sb_push(ptScene->sbtMaterialBuffer, tMaterial);
-
     atDrawables[uDrawableIndex].uIndexCount      = uIndexCount;
     atDrawables[uDrawableIndex].uVertexCount     = uVertexCount;
     atDrawables[uDrawableIndex].uIndexOffset     = uIndexBufferStart;
     atDrawables[uDrawableIndex].uVertexOffset    = uVertexPosStartIndex;
     atDrawables[uDrawableIndex].uDataOffset      = uVertexDataStartIndex;
-    atDrawables[uDrawableIndex].uMaterialIndex   = uMaterialIndex;
 }
 
 static plBlendState
@@ -1993,4 +1942,78 @@ pl__get_data_type_size2(plDataType tType)
 
     PL_ASSERT(false && "Unsupported data type");
     return 0;
+}
+
+static uint32_t
+pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle tTexture)
+{
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+
+    if(pl_hm_has_key(ptScene->ptTextureIndexHashmap, tTexture.uData))
+    {
+        return (uint32_t)pl_hm_lookup(ptScene->ptTextureIndexHashmap, tTexture.uData);
+    }
+
+    uint64_t ulValue = pl_hm_get_free_index(ptScene->ptTextureIndexHashmap);
+    if(ulValue == UINT64_MAX)
+    {
+        ulValue = ptScene->uTextureIndexCount++;
+
+        // TODO: handle when greater than 4096
+    }
+    
+    const plBindGroupUpdateTextureData tGlobalTextureData[] = {
+        {
+            .tTexture = tTexture,
+            .uSlot    = 4,
+            .uIndex   = (uint32_t)ulValue,
+            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+        },
+    };
+
+    plBindGroupUpdateData tGlobalBindGroupData = {
+        .uTextureCount = 1,
+        .atTextureBindings = tGlobalTextureData
+    };
+
+    gptGfx->update_bind_group(gptData->ptDevice, ptScene->tGlobalBindGroup, &tGlobalBindGroupData);
+
+    return (uint32_t)ulValue;
+}
+
+static uint32_t
+pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle tTexture)
+{
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+
+    if(pl_hm_has_key(ptScene->ptCubeTextureIndexHashmap, tTexture.uData))
+    {
+        return (uint32_t)pl_hm_lookup(ptScene->ptCubeTextureIndexHashmap, tTexture.uData);
+    }
+
+    uint64_t ulValue = pl_hm_get_free_index(ptScene->ptCubeTextureIndexHashmap);
+    if(ulValue == UINT64_MAX)
+    {
+        ulValue = ptScene->uCubeTextureIndexCount++;
+
+        // TODO: handle when greater than 4096
+    }
+    
+    const plBindGroupUpdateTextureData tGlobalTextureData[] = {
+        {
+            .tTexture = tTexture,
+            .uSlot    = 4100,
+            .uIndex   = (uint32_t)ulValue,
+            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+        },
+    };
+
+    plBindGroupUpdateData tGlobalBindGroupData = {
+        .uTextureCount = 1,
+        .atTextureBindings = tGlobalTextureData
+    };
+
+    gptGfx->update_bind_group(gptData->ptDevice, ptScene->tGlobalBindGroup, &tGlobalBindGroupData);
+
+    return (uint32_t)ulValue;
 }

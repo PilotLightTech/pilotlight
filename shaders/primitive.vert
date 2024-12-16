@@ -1,5 +1,6 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 
 #include "defines.glsl"
 #include "material.glsl"
@@ -18,30 +19,37 @@ layout(constant_id = 4) const int iRenderingFlags = 0;
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
 
-layout(set = 0, binding = 0) uniform _plGlobalInfo
+layout(std140, set = 0, binding = 0) readonly buffer _tVertexBuffer
+{
+	vec4 atVertexData[];
+} tVertexBuffer;
+
+layout(set = 0, binding = 1) readonly buffer plMaterialInfo
+{
+    tMaterial atMaterials[];
+} tMaterialInfo;
+
+layout(set = 0, binding = 2)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 3)  uniform sampler tEnvSampler;
+layout(set = 0, binding = 4)  uniform texture2D at2DTextures[4096];
+layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 2
+//-----------------------------------------------------------------------------
+
+layout(set = 1, binding = 0) uniform _plGlobalInfo
 {
     vec4 tViewportSize;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
+    uint uLambertianEnvSampler;
+    uint uGGXEnvSampler;
+    uint uGGXLUT;
+    uint _uUnUsed;
 } tGlobalInfo;
-
-layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
-{
-	vec4 atVertexData[];
-} tVertexBuffer;
-
-layout(set = 0, binding = 2) readonly buffer plMaterialInfo
-{
-    tMaterial atMaterials[];
-} tMaterialInfo;
-
-layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
-layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
-layout (set = 0, binding = 5) uniform textureCube u_LambertianEnvSampler;
-layout (set = 0, binding = 6) uniform textureCube u_GGXEnvSampler;
-layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group

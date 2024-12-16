@@ -351,6 +351,7 @@ static plFormat              pl__pilotlight_format   (VkFormat);
 static VkStencilOp           pl__vulkan_stencil_op   (plStencilOp);
 static VkBlendFactor         pl__vulkan_blend_factor (plBlendFactor);
 static VkBlendOp             pl__vulkan_blend_op     (plBlendOp);
+static VkAccessFlags         pl__vulkan_access_flags (plAccessFlags);
 
 // misc
 static plDeviceMemoryAllocation pl__allocate_staging_dynamic(struct plDeviceMemoryAllocatorO*, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
@@ -843,9 +844,9 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
             tBinding.descriptorCount = 1;
 
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
-        if (ptLayout->atTextureBindings[i]._bVariableDescriptorCount)
+        if (ptLayout->atTextureBindings[i].bNonUniformIndexing)
         {
-            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
             bHasVariableDescriptors = true;
         }
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
@@ -903,7 +904,8 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
         .descriptorPool     = ptDesc->ptPool->tDescriptorPool,
         .descriptorSetCount = 1,
         .pSetLayouts        = &tDescriptorSetLayout,
-        .pNext              = bHasVariableDescriptors ? &tVariableDescriptorCountAllocInfo : NULL
+        // .pNext              = bHasVariableDescriptors ? &tVariableDescriptorCountAllocInfo : NULL
+        .pNext              = NULL
     };
     PL_VULKAN(vkAllocateDescriptorSets(ptDevice->tLogicalDevice, &tAllocInfo, &tVulkanBindGroup.tDescriptorSet));
 
@@ -1734,7 +1736,7 @@ pl_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginComman
 }
 
 plRenderEncoder*
-pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass)
+pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, const plPassResources* ptResource)
 {
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
@@ -1855,7 +1857,7 @@ pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass)
 }
 
 void
-pl_next_subpass(plRenderEncoder* ptEncoder)
+pl_next_subpass(plRenderEncoder* ptEncoder, const plPassResources* ptResource)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     ptEncoder->uCurrentSubpass++;
@@ -3334,20 +3336,45 @@ pl_cleanup_device(plDevice* ptDevice)
     pl__cleanup_common_device(ptDevice);
 }
 
-plComputeEncoder*
-pl_begin_compute_pass(plCommandBuffer* ptCmdBuffer)
+void
+pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
 {
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT
+        .srcAccessMask = pl__vulkan_access_flags(beforeAccesses),
+        .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
     };
 
-    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer,
-                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl__vulkan_stage_flags(beforeStages), pl__vulkan_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+}
 
+void
+pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+{
+    VkMemoryBarrier tMemoryBarrier = {
+        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .srcAccessMask = pl__vulkan_access_flags(beforeAccesses),
+        .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
+    };
+
+    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl__vulkan_stage_flags(beforeStages), pl__vulkan_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+}
+
+void
+pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+{
+    VkMemoryBarrier tMemoryBarrier = {
+        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .srcAccessMask = pl__vulkan_access_flags(beforeAccesses),
+        .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
+    };
+
+    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl__vulkan_stage_flags(beforeStages), pl__vulkan_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+}
+
+plComputeEncoder*
+pl_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResources* ptResources)
+{
     plComputeEncoder* ptEncoder = pl__get_new_compute_encoder();
     ptEncoder->ptCommandBuffer = ptCmdBuffer;
     return ptEncoder;
@@ -3356,35 +3383,12 @@ pl_begin_compute_pass(plCommandBuffer* ptCmdBuffer)
 void
 pl_end_compute_pass(plComputeEncoder* ptEncoder)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
-
-    VkMemoryBarrier tMemoryBarrier = {
-        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT
-    };
-    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer,
-                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
-
     pl__return_compute_encoder(ptEncoder);
 }
 
 plBlitEncoder*
 pl_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
 {
-
-    VkMemoryBarrier tMemoryBarrier = {
-        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT,
-        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT
-    };
-    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer,
-                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
-
     plBlitEncoder* ptEncoder = pl__get_new_blit_encoder();
     ptEncoder->ptCommandBuffer = ptCmdBuffer;
     return ptEncoder;
@@ -3393,17 +3397,6 @@ pl_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
 void
 pl_end_blit_pass(plBlitEncoder* ptEncoder)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
-
-    VkMemoryBarrier tMemoryBarrier = {
-        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT
-    };
-    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
-                         0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
-
     pl__return_blit_encoder(ptEncoder);
 }
 
@@ -4044,8 +4037,8 @@ pl__create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, co
         if (tBinding.descriptorCount == 0)
             tBinding.descriptorCount = 1;
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
-        if (ptLayout->atTextureBindings[i]._bVariableDescriptorCount)
-            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+        if (ptLayout->atTextureBindings[i].bNonUniformIndexing)
+            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
@@ -5056,6 +5049,25 @@ pl__vulkan_stage_flags(plStageFlags tFlags)
         tResult |= VK_SHADER_STAGE_FRAGMENT_BIT;
     if (tFlags & PL_STAGE_COMPUTE)
         tResult |= VK_SHADER_STAGE_COMPUTE_BIT;
+    if(tFlags & PL_STAGE_TRANSFER)
+        tResult |= VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+    return tResult;
+}
+
+static VkAccessFlags
+pl__vulkan_access_flags(plAccessFlags tFlags)
+{
+    VkAccessFlags tResult = 0;
+
+    if (tFlags & PL_ACCESS_SHADER_READ)
+        tResult |= VK_ACCESS_SHADER_READ_BIT;
+    if (tFlags & PL_ACCESS_SHADER_WRITE)
+        tResult |= VK_ACCESS_SHADER_WRITE_BIT;
+    if (tFlags & PL_ACCESS_TRANSFER_WRITE)
+        tResult |= VK_ACCESS_TRANSFER_WRITE_BIT;
+    if(tFlags & PL_ACCESS_TRANSFER_READ)
+        tResult |= VK_ACCESS_TRANSFER_READ_BIT;
 
     return tResult;
 }

@@ -18,20 +18,20 @@ struct tMaterial
     // Alpha mode
     float u_AlphaCutoff;
     float u_OcclusionStrength;
-    float u_Unused0;
-    float u_Unused1;
-    //-------------------------- ( 16 bytes )
-
     int BaseColorUVSet;
     int NormalUVSet;
-    int EmissiveUVSet;
-    int OcclusionUVSet;
     //-------------------------- ( 16 bytes )
 
+    int EmissiveUVSet;
+    int OcclusionUVSet;
     int MetallicRoughnessUVSet;
-    float u_Unused2;
-    float u_Unused3;
-    float u_Unused4;
+    int iBaseColorTexIdx;
+    //-------------------------- ( 16 bytes )
+
+    int iNormalTexIdx;
+    int iEmissiveTexIdx;
+    int iMetallicRoughnessTexIdx;
+    int iOcclusionTexIdx;
     //-------------------------- ( 16 bytes )
 };
 

@@ -1,5 +1,6 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 
 #include "defines.glsl"
 #include "material.glsl"
@@ -21,57 +22,50 @@ layout(constant_id = 5) const int iLightCount = 1;
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
 
-layout(set = 0, binding = 0) uniform _plGlobalInfo
+layout(std140, set = 0, binding = 0) readonly buffer _tVertexBuffer
+{
+	vec4 atVertexData[];
+} tVertexBuffer;
+
+layout(set = 0, binding = 1) readonly buffer plMaterialInfo
+{
+    tMaterial atMaterials[];
+} tMaterialInfo;
+
+layout(set = 0, binding = 2)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 3)  uniform sampler tEnvSampler;
+layout(set = 0, binding = 4)  uniform texture2D at2DTextures[4096];
+layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 1
+//-----------------------------------------------------------------------------
+
+layout(set = 1, binding = 0) uniform _plGlobalInfo
 {
     vec4 tViewportSize;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
+    uint uLambertianEnvSampler;
+    uint uGGXEnvSampler;
+    uint uGGXLUT;
+    uint _uUnUsed;
 } tGlobalInfo;
 
-layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
-{
-	vec4 atVertexData[];
-} tVertexBuffer;
-
-layout(set = 0, binding = 2) readonly buffer plMaterialInfo
-{
-    tMaterial atMaterials[];
-} tMaterialInfo;
-
-layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
-layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
-layout (set = 0, binding = 5) uniform textureCube u_LambertianEnvSampler;
-layout (set = 0, binding = 6) uniform textureCube u_GGXEnvSampler;
-layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 1
-//-----------------------------------------------------------------------------
-
-layout(set = 1, binding = 0) uniform _plLightInfo
+layout(set = 1, binding = 1) uniform _plLightInfo
 {
     plLightData atData[1000];
 } tLightInfo;
 
-layout(set = 1, binding = 1) readonly buffer plShadowData
+layout(set = 1, binding = 2) readonly buffer plShadowData
 {
     plLightShadowData atData[];
 } tShadowData;
 
-layout (set = 1, binding = 2) uniform texture2D shadowmap[4];
-layout(set = 1, binding = 6)  uniform sampler tShadowSampler;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 2
-//-----------------------------------------------------------------------------
-
-layout(set = 2, binding = 0)   uniform texture2D tBaseColorTexture;
-layout(set = 2, binding = 1)   uniform texture2D tNormalTexture;
-layout(set = 2, binding = 2)   uniform texture2D tEmissiveTexture;
-layout(set = 2, binding = 3)   uniform texture2D tMetallicRoughnessTexture;
-layout(set = 2, binding = 4)   uniform texture2D tOcclusionTexture;
+layout (set = 1, binding = 3) uniform texture2D shadowmap[4];
+layout(set = 1, binding = 7)  uniform sampler tShadowSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -173,8 +167,8 @@ NormalInfo pl_get_normal_info(int iUVSet)
     info.ng = ng;
     if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP)) 
     {
-
-        info.ntex = texture(sampler2D(tNormalTexture, tDefaultSampler), UV).rgb * 2.0 - vec3(1.0);
+        tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
+        info.ntex = texture(sampler2D(at2DTextures[nonuniformEXT(material.iNormalTexIdx)], tDefaultSampler), UV).rgb * 2.0 - vec3(1.0);
         // if (gl_FrontFacing == false)
         // {
         //     info.ntex.x *= -1.0;
@@ -219,7 +213,8 @@ vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
     // else if(bool(MATERIAL_METALLICROUGHNESS) && bool(HAS_BASE_COLOR_MAP))
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
-        baseColor *= texture(sampler2D(tBaseColorTexture, tDefaultSampler), tShaderIn.tUV[iUVSet]);
+        tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
+        baseColor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tDefaultSampler), tShaderIn.tUV[iUVSet]);
     }
     return baseColor * tShaderIn.tColor;
 }
@@ -233,7 +228,8 @@ MaterialInfo getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor,
     {
         // Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
         // This layout intentionally reserves the 'r' channel for (optional) occlusion map data
-        vec4 mrSample = texture(sampler2D(tMetallicRoughnessTexture, tDefaultSampler), tShaderIn.tUV[UVSet]);
+        tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
+        vec4 mrSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.iMetallicRoughnessTexIdx)], tDefaultSampler), tShaderIn.tUV[UVSet]);
         info.perceptualRoughness *= mrSample.g;
         info.metallic *= mrSample.b;
     }
@@ -316,7 +312,7 @@ vec3 BRDF_specularGGX(vec3 f0, vec3 f90, float alphaRoughness, float specularWei
 vec3 getDiffuseLight(vec3 n)
 {
     // n.z = -n.z; uncomment if not reverse z
-    return texture(samplerCube(u_LambertianEnvSampler, tEnvSampler), n).rgb;
+    return texture(samplerCube(atCubeTextures[nonuniformEXT(tGlobalInfo.uLambertianEnvSampler)], tEnvSampler), n).rgb;
 }
 
 
@@ -324,7 +320,7 @@ vec4 getSpecularSample(vec3 reflection, float lod)
 {
     // reflection.z = -reflection.z; uncomment if not reverse z
     // return textureLod(u_GGXEnvSampler, u_EnvRotation * reflection, lod) * u_EnvIntensity;
-    return textureLod(samplerCube(u_GGXEnvSampler, tEnvSampler), reflection, lod);
+    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tGlobalInfo.uGGXEnvSampler)], tEnvSampler), reflection, lod);
 }
 
 vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount)
@@ -334,7 +330,7 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularW
     vec3 reflection = normalize(reflect(-v, n));
 
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
-    vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tGlobalInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
     vec4 specularSample = getSpecularSample(reflection, lod);
 
     vec3 specularLight = specularSample.rgb;
@@ -354,7 +350,7 @@ vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor
 {
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
-    vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tGlobalInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
 
     vec3 irradiance = getDiffuseLight(n);
 
@@ -462,14 +458,14 @@ void main()
     vec3 f_emissive = material.u_EmissiveFactor;
     if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
     {
-        f_emissive *= texture(sampler2D(tEmissiveTexture, tDefaultSampler), tShaderIn.tUV[material.EmissiveUVSet]).rgb;
+        f_emissive *= texture(sampler2D(at2DTextures[nonuniformEXT(material.iEmissiveTexIdx)], tDefaultSampler), tShaderIn.tUV[material.EmissiveUVSet]).rgb;
     }
     
     // ambient occlusion
     float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
-        ao = texture(sampler2D(tOcclusionTexture, tDefaultSampler), tShaderIn.tUV[material.OcclusionUVSet]).r;
+        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.iOcclusionTexIdx)], tDefaultSampler), tShaderIn.tUV[material.OcclusionUVSet]).r;
     }
 
     // fill g-buffer

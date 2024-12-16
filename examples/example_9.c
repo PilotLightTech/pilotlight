@@ -331,6 +331,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // begin blit pass, copy buffer, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
     const plTextureDesc tColorTextureDesc = {
         .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
@@ -392,6 +393,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         atAttachmentSets[i].atViewAttachments[1] = ptAppData->atColorTexture[i];
     }
 
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
@@ -623,7 +625,7 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo0);
 
     // begin offscreen renderpass
-    plRenderEncoder* ptEncoder0 = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tOffscreenRenderPass);
+    plRenderEncoder* ptEncoder0 = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tOffscreenRenderPass, NULL);
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,
@@ -657,7 +659,7 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo1);
 
     // begin main renderpass (directly to swapchain)
-    plRenderEncoder* ptEncoder1 = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass);
+    plRenderEncoder* ptEncoder1 = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass, NULL);
 
     // submit drawlists
     gptDrawBackend->submit_2d_drawlist(ptAppData->ptAppDrawlist, ptEncoder1, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
@@ -769,6 +771,7 @@ resize_offscreen_resources(plAppData* ptAppData)
 
     // begin blit pass, copy buffer, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
     plIO* ptIO = gptIO->get_io();
     ptAppData->tCamera.fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y;
@@ -835,6 +838,7 @@ resize_offscreen_resources(plAppData* ptAppData)
         atAttachmentSets[i].atViewAttachments[1] = ptAppData->atColorTexture[i];
     }
 
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording

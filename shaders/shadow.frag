@@ -1,5 +1,6 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 
 #include "defines.glsl"
 #include "material.glsl"
@@ -17,6 +18,25 @@ layout(constant_id = 3) const int iMaterialFlags = 0;
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
 
+layout(std140, set = 0, binding = 0) readonly buffer _tVertexBuffer
+{
+	vec4 atVertexData[];
+} tVertexBuffer;
+
+layout(set = 0, binding = 1) readonly buffer plMaterialInfo
+{
+    tMaterial atMaterials[];
+} tMaterialInfo;
+
+layout(set = 0, binding = 2)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 3)  uniform sampler tEnvSampler;
+layout(set = 0, binding = 4)  uniform texture2D at2DTextures[4096];
+layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 1
+//-----------------------------------------------------------------------------
+
 struct plCameraInfo
 {
     vec4 tViewportSize;
@@ -24,30 +44,16 @@ struct plCameraInfo
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
+    uint uLambertianEnvSampler;
+    uint uGGXEnvSampler;
+    uint uGGXLUT;
+    uint _uUnUsed;
 };
 
-layout(set = 0, binding = 0) readonly buffer _plGlobalInfo
+layout(set = 1, binding = 0) readonly buffer _plCameraInfo
 {
     plCameraInfo atInfo[];
-} tGlobalInfo;
-
-layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
-{
-	vec4 atVertexData[];
-} tVertexBuffer;
-
-layout(set = 0, binding = 2) readonly buffer plMaterialInfo
-{
-    tMaterial atMaterials[];
-} tMaterialInfo;
-
-layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 0
-//-----------------------------------------------------------------------------
-
-layout(set = 1, binding = 0) uniform texture2D tBaseColorTexture;
+} tCameraInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -88,7 +94,8 @@ vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
 
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
-        baseColor *= texture(sampler2D(tBaseColorTexture, tDefaultSampler), tShaderIn.tUV[iUVSet]);
+        tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
+        baseColor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tDefaultSampler), tShaderIn.tUV[iUVSet]);
     }
     return baseColor;
 }

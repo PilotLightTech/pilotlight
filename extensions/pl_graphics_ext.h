@@ -1,6 +1,6 @@
 /*
    pl_graphics_ext.h
-    * a light wrapper over Vulkan & Metal 2.0
+    * a light wrapper over Vulkan & Metal 3.0
 */
 
 /*
@@ -47,7 +47,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version (plVersion){1, 0, 2}
+#define plGraphicsI_version (plVersion){1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -90,10 +90,13 @@ typedef struct _plSwapchainInfo plSwapchainInfo; // swapchain information
 typedef struct _plSwapchainInit plSwapchainInit; // swapchain creation options
 
 // encoders
-typedef struct _plRenderEncoder   plRenderEncoder;  // opaque type for command buffer encoder for render ops
-typedef struct _plComputeEncoder  plComputeEncoder; // opaque type for command buffer encoder for compute ops
-typedef struct _plBlitEncoder     plBlitEncoder;    // opaque type for command buffer encoder for blit ops
-typedef struct _plBufferImageCopy plBufferImageCopy;// used for copying between buffers & textures with blit encoder
+typedef struct _plRenderEncoder       plRenderEncoder;       // opaque type for command buffer encoder for render ops
+typedef struct _plComputeEncoder      plComputeEncoder;      // opaque type for command buffer encoder for compute ops
+typedef struct _plBlitEncoder         plBlitEncoder;         // opaque type for command buffer encoder for blit ops
+typedef struct _plBufferImageCopy     plBufferImageCopy;     // used for copying between buffers & textures with blit encoder
+typedef struct _plPassTextureResource plPassTextureResource;
+typedef struct _plPassBufferResource  plPassBufferResource;
+typedef struct _plPassResources       plPassResources;
 
 // bind groups
 typedef struct _plBindGroup                  plBindGroup;                  // bind group resource
@@ -164,34 +167,36 @@ PL_DEFINE_HANDLE(plRenderPassHandle);
 PL_DEFINE_HANDLE(plRenderPassLayoutHandle);
 
 // enums
-typedef int plMipmapMode;            // -> enum _plMipmapMode             // Enum: mipmap filter modes (PL_MIPMAP_MODE_XXXX)
-typedef int plAddressMode;           // -> enum _plAddressMode            // Enum: addressing mode sampling textures outside image (PL_ADDRESS_MODE_XXXX)
-typedef int plFilter;                // -> enum _plFilter                 // Enum: texture lookup filters (PL_FILTER_XXXX)
-typedef int plSampleCount;           // -> enum _plSampleCount            // Enum: texture sample count (PL_SAMPLE_COUNT_XXXX)
-typedef int plTextureType;           // -> enum _plTextureType            // Enum: texture type (PL_TEXTURE_TYPE_XXXX)
-typedef int plTextureUsage;          // -> enum _plTextureUsage           // Flag: texture type (PL_TEXTURE_USAGE_XXXX)
-typedef int plCompareMode;           // -> enum _plCompareMode            // Enum: texture sampling comparison modes (PL_COMPARE_MODE_XXXX)
-typedef int plFormat;                // -> enum _plFormat                 // Enum: formats (PL_FORMAT_XXXX)
-typedef int plVertexFormat;          // -> enum _plVertexFormat           // Enum: formats (PL_FORMAT_VERTEX_XXXX)
-typedef int plBufferUsage;           // -> enum _plBufferUsage            // Flag: buffer usage flags (PL_BUFFER_USAGE_XXXX)
-typedef int plStageFlags;            // -> enum _plStageFlags             // Flag: GPU pipeline stage (PL_STAGE_XXXX)
-typedef int plCullMode;              // -> enum _plCullMode               // Flag: face culling mode (PL_CULL_MODE_XXXX)
-typedef int plBufferBindingType;     // -> enum _plBufferBindingType      // Enum: buffer binding type for bind groups (PL_BUFFER_BINDING_TYPE_XXXX)
-typedef int plTextureBindingType;    // -> enum _plTextureBindingType     // Enum: image binding type for bind groups (PL_TEXTURE_BINDING_TYPE_XXXX)
-typedef int plBindGroupPoolFlags;    // -> enum _plBindGroupPoolFlags     // Flags: flags for creating bind group pools (PL_BIND_GROUP_POOL_FLAGS_XXXX)
-typedef int plMemoryMode;            // -> enum _plMemoryMode             // Enum: memory modes for allocating memory (PL_MEMORY_XXXX)
-typedef int plStencilOp;             // -> enum _plStencilOp              // Enum: stencil operations (PL_STENCIL_OP_XXXX)
-typedef int plLoadOp;                // -> enum _plLoadOp                 // Enum: render pass target load operations (PL_LOAD_OP_XXXX)
-typedef int plStoreOp;               // -> enum _plStoreOp                // Enum: render pass target store operations (PL_STORE_OP_XXXX)
-typedef int plBlendOp;               // -> enum _plBlendOp                // Enum: blend operations (PL_BLEND_OP_XXXX)
-typedef int plBlendFactor;           // -> enum _plBlendFactor            // Enum: blend operation factors (PL_BLEND_FACTOR_XXXX)
-typedef int plDataType;              // -> enum _plDataType               // Enum: data types
-typedef int plGraphicsInitFlags;     // -> enum _plGraphicsInitFlags      // Flags: graphics initialization flags (PL_GRAPHICS_INIT_FLAGS_XXXX)
-typedef int plDeviceInitFlags;       // -> enum _plDeviceInitFlags        // Flags: device initialization flags (PL_DEVICE_INIT_FLAGS_XXXX)
-typedef int plVendorId;              // -> enum _plVendorId               // Enum: device vendors (PL_VENDOR_ID_XXXX)
-typedef int plDeviceType;            // -> enum _plDeviceType             // Enum: device type (PL_DEVICE_TYPE_XXXX)
-typedef int plDeviceCapability;      // -> enum _plDeviceCapability       // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
-typedef int plCommandPoolResetFlags; // -> enum _plCommandPoolResetFlags  // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
+typedef int plMipmapMode;             // -> enum _plMipmapMode             // Enum: mipmap filter modes (PL_MIPMAP_MODE_XXXX)
+typedef int plAddressMode;            // -> enum _plAddressMode            // Enum: addressing mode sampling textures outside image (PL_ADDRESS_MODE_XXXX)
+typedef int plFilter;                 // -> enum _plFilter                 // Enum: texture lookup filters (PL_FILTER_XXXX)
+typedef int plSampleCount;            // -> enum _plSampleCount            // Enum: texture sample count (PL_SAMPLE_COUNT_XXXX)
+typedef int plTextureType;            // -> enum _plTextureType            // Enum: texture type (PL_TEXTURE_TYPE_XXXX)
+typedef int plTextureUsage;           // -> enum _plTextureUsage           // Flag: texture type (PL_TEXTURE_USAGE_XXXX)
+typedef int plCompareMode;            // -> enum _plCompareMode            // Enum: texture sampling comparison modes (PL_COMPARE_MODE_XXXX)
+typedef int plFormat;                 // -> enum _plFormat                 // Enum: formats (PL_FORMAT_XXXX)
+typedef int plVertexFormat;           // -> enum _plVertexFormat           // Enum: formats (PL_FORMAT_VERTEX_XXXX)
+typedef int plBufferUsage;            // -> enum _plBufferUsage            // Flag: buffer usage flags (PL_BUFFER_USAGE_XXXX)
+typedef int plStageFlags;             // -> enum _plStageFlags             // Flag: GPU pipeline stage (PL_STAGE_XXXX)
+typedef int plAccessFlags;            // -> enum _plAccessFlags            // Flag: GPU pipeline stage (PL_ACCESS_XXXX)
+typedef int plCullMode;               // -> enum _plCullMode               // Flag: face culling mode (PL_CULL_MODE_XXXX)
+typedef int plBufferBindingType;      // -> enum _plBufferBindingType      // Enum: buffer binding type for bind groups (PL_BUFFER_BINDING_TYPE_XXXX)
+typedef int plTextureBindingType;     // -> enum _plTextureBindingType     // Enum: image binding type for bind groups (PL_TEXTURE_BINDING_TYPE_XXXX)
+typedef int plBindGroupPoolFlags;     // -> enum _plBindGroupPoolFlags     // Flags: flags for creating bind group pools (PL_BIND_GROUP_POOL_FLAGS_XXXX)
+typedef int plMemoryMode;             // -> enum _plMemoryMode             // Enum: memory modes for allocating memory (PL_MEMORY_XXXX)
+typedef int plStencilOp;              // -> enum _plStencilOp              // Enum: stencil operations (PL_STENCIL_OP_XXXX)
+typedef int plLoadOp;                 // -> enum _plLoadOp                 // Enum: render pass target load operations (PL_LOAD_OP_XXXX)
+typedef int plStoreOp;                // -> enum _plStoreOp                // Enum: render pass target store operations (PL_STORE_OP_XXXX)
+typedef int plBlendOp;                // -> enum _plBlendOp                // Enum: blend operations (PL_BLEND_OP_XXXX)
+typedef int plBlendFactor;            // -> enum _plBlendFactor            // Enum: blend operation factors (PL_BLEND_FACTOR_XXXX)
+typedef int plDataType;               // -> enum _plDataType               // Enum: data types
+typedef int plGraphicsInitFlags;      // -> enum _plGraphicsInitFlags      // Flags: graphics initialization flags (PL_GRAPHICS_INIT_FLAGS_XXXX)
+typedef int plDeviceInitFlags;        // -> enum _plDeviceInitFlags        // Flags: device initialization flags (PL_DEVICE_INIT_FLAGS_XXXX)
+typedef int plVendorId;               // -> enum _plVendorId               // Enum: device vendors (PL_VENDOR_ID_XXXX)
+typedef int plDeviceType;             // -> enum _plDeviceType             // Enum: device type (PL_DEVICE_TYPE_XXXX)
+typedef int plDeviceCapability;       // -> enum _plDeviceCapability       // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
+typedef int plCommandPoolResetFlags;  // -> enum _plCommandPoolResetFlags  // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
+typedef int plPassResourceUsageFlags; // -> enum _plPassResourceUsageFlags // Flags: resource usage (PL_PASS_RESOURCE_USAGE_XXXX)
 
 // external
 typedef struct _plWindow plWindow; // pl_os.h
@@ -254,8 +259,8 @@ typedef struct _plGraphicsI
     void             (*submit_command_buffer)  (plCommandBuffer*, const plSubmitInfo*);
 
     // render encoder
-    plRenderEncoder*   (*begin_render_pass)         (plCommandBuffer*, plRenderPassHandle); // do not store
-    void               (*next_subpass)              (plRenderEncoder*);
+    plRenderEncoder*   (*begin_render_pass)         (plCommandBuffer*, plRenderPassHandle, const plPassResources*); // do not store
+    void               (*next_subpass)              (plRenderEncoder*, const plPassResources*);
     void               (*end_render_pass)           (plRenderEncoder*);
     plRenderPassHandle (*get_encoder_render_pass)   (plRenderEncoder*);
     uint32_t           (*get_render_encoder_subpass)(plRenderEncoder*);
@@ -281,7 +286,7 @@ typedef struct _plGraphicsI
     void (*bind_shader)              (plRenderEncoder*, plShaderHandle);
 
     // compute encoder
-    plComputeEncoder* (*begin_compute_pass)      (plCommandBuffer*); // do not store
+    plComputeEncoder* (*begin_compute_pass)      (plCommandBuffer*, const plPassResources*); // do not store
     void              (*end_compute_pass)        (plComputeEncoder*);
     void              (*dispatch)                (plComputeEncoder*, uint32_t dispatchCount, const plDispatch*);
     void              (*bind_compute_shader)     (plComputeEncoder*, plComputeShaderHandle);
@@ -295,6 +300,16 @@ typedef struct _plGraphicsI
     void           (*copy_texture_to_buffer)   (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
     void           (*generate_mipmaps)         (plBlitEncoder*, plTextureHandle);
     void           (*copy_buffer)              (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint32_t sourceOffset, uint32_t destinationOffset, size_t);
+
+    // global barriers
+    void (*pipeline_barrier_blit)   (plBlitEncoder*,    plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses);
+    void (*pipeline_barrier_compute)(plComputeEncoder*, plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses);
+    void (*pipeline_barrier_render) (plRenderEncoder*,  plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses);
+
+    // resource barriers (not ready)
+    void (*_unused0)(void);
+    void (*_unused1)(void);
+    void (*_unused2)(void);
 
     //-----------------------------------------------------------------------------
 
@@ -491,9 +506,7 @@ typedef struct _plTextureBinding
     uint32_t             uSlot;
     uint32_t             uDescriptorCount; // 0 - will become 1
     plStageFlags         tStages;
-
-    // [INTERNAL]
-    bool _bVariableDescriptorCount;
+    bool                 bNonUniformIndexing; // only available if device capability has PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING
 } plTextureBinding;
 
 typedef struct _plBufferBinding
@@ -555,6 +568,28 @@ typedef struct _plBindGroupUpdateData
     const plBindGroupUpdateTextureData* atTextureBindings;
     const plBindGroupUpdateSamplerData* atSamplerBindings;
 } plBindGroupUpdateData;
+
+typedef struct _plPassTextureResource
+{
+    plTextureHandle          tHandle;
+    plStageFlags             tStages;
+    plPassResourceUsageFlags tUsage;
+} plPassTextureResource;
+
+typedef struct _plPassBufferResource
+{
+    plBufferHandle           tHandle;
+    plStageFlags             tStages;
+    plPassResourceUsageFlags tUsage;
+} plPassBufferResource;
+
+typedef struct _plPassResources
+{
+    uint32_t                     uBufferCount;
+    uint32_t                     uTextureCount;
+    const plPassBufferResource*  atBuffers;
+    const plPassTextureResource* atTextures;
+} plPassResources;
 
 typedef struct _plBindGroupLayout
 {
@@ -961,6 +996,13 @@ typedef struct _plDeviceInit
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
+enum _plPassResourceUsageFlags
+{
+    PL_PASS_RESOURCE_USAGE_NONE  = 0,
+    PL_PASS_RESOURCE_USAGE_READ  = 1 << 0,
+    PL_PASS_RESOURCE_USAGE_WRITE = 1 << 1,
+};
+
 enum _plBindGroupPoolFlags
 {
     PL_BIND_GROUP_POOL_FLAGS_NONE             = 0,
@@ -1089,11 +1131,21 @@ enum _plGraphicsInitFlags
 
 enum _plStageFlags
 {
-    PL_STAGE_NONE    = 0,
-    PL_STAGE_VERTEX  = 1 << 0,
-    PL_STAGE_PIXEL   = 1 << 1,
-    PL_STAGE_COMPUTE = 1 << 2,
-    PL_STAGE_ALL     = PL_STAGE_VERTEX | PL_STAGE_PIXEL | PL_STAGE_COMPUTE
+    PL_STAGE_NONE     = 0,
+    PL_STAGE_VERTEX   = 1 << 0,
+    PL_STAGE_PIXEL    = 1 << 1,
+    PL_STAGE_COMPUTE  = 1 << 2,
+    PL_STAGE_TRANSFER = 1 << 3,
+    PL_STAGE_ALL     = PL_STAGE_VERTEX | PL_STAGE_PIXEL | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER
+};
+
+enum _plAccessFlags
+{
+    PL_ACCESS_NONE           = 0,
+    PL_ACCESS_SHADER_READ    = 1 << 0,
+    PL_ACCESS_SHADER_WRITE   = 1 << 1,
+    PL_ACCESS_TRANSFER_WRITE = 1 << 2,
+    PL_ACCESS_TRANSFER_READ  = 1 << 3
 };
 
 enum _plCullMode

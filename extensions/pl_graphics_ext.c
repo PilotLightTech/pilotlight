@@ -769,6 +769,9 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_bind_group_pool                 = pl_create_bind_group_pool,
         .cleanup_bind_group_pool                = pl_cleanup_bind_group_pool,
         .reset_bind_group_pool                  = pl_reset_bind_group_pool,
+        .pipeline_barrier_blit                  = pl_pipeline_barrier_blit,
+        .pipeline_barrier_render                = pl_pipeline_barrier_render,
+        .pipeline_barrier_compute               = pl_pipeline_barrier_compute
     };
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
 

@@ -275,6 +275,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // begin blit pass, copy buffer, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
     // create main render pass
     const plRenderPassDesc tMainRenderPassDesc = {
@@ -335,7 +336,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         atMainAttachmentSets[i].atViewAttachments[1] = atSwapchainImages[i];
     }
     ptAppData->tMainRenderPass = gptGfx->create_render_pass(ptAppData->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
-
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
@@ -405,6 +406,7 @@ pl_app_resize(plAppData* ptAppData)
 
     // begin blit pass, copy buffer, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     const plTextureDesc tDepthTextureDesc = {
         .tDimensions   = {gptIO->get_io()->tMainViewportSize.x, gptIO->get_io()->tMainViewportSize.y, 1},
         .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
@@ -441,6 +443,7 @@ pl_app_resize(plAppData* ptAppData)
         atMainAttachmentSets[i].atViewAttachments[1] = atSwapchainImages[i];
     }
 
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
@@ -558,7 +561,7 @@ pl_app_update(plAppData* ptAppData)
     gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo0);
 
     // begin offscreen renderpass
-    plRenderEncoder* ptEncoder0 = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass);
+    plRenderEncoder* ptEncoder0 = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tMainRenderPass, NULL);
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,

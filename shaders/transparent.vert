@@ -1,5 +1,6 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
+#extension GL_EXT_nonuniform_qualifier : enable
 
 #include "defines.glsl"
 #include "material.glsl"
@@ -20,66 +21,51 @@ layout(constant_id = 5) const int iLightCount = 1;
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
 
-layout(set = 0, binding = 0) uniform _plGlobalInfo
+layout(std140, set = 0, binding = 0) readonly buffer _tVertexBuffer
+{
+	vec4 atVertexData[];
+} tVertexBuffer;
+
+layout(set = 0, binding = 1) readonly buffer plMaterialInfo
+{
+    tMaterial atMaterials[];
+} tMaterialInfo;
+
+layout(set = 0, binding = 2)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 3)  uniform sampler tEnvSampler;
+layout(set = 0, binding = 4)  uniform texture2D at2DTextures[4096];
+layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 1
+//-----------------------------------------------------------------------------
+
+layout(set = 1, binding = 0) uniform _plGlobalInfo
 {
     vec4 tViewportSize;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
+    uint uLambertianEnvSampler;
+    uint uGGXEnvSampler;
+    uint uGGXLUT;
+    uint _uUnUsed;
 } tGlobalInfo;
 
-layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer
-{
-	vec4 atVertexData[];
-} tVertexBuffer;
-
-layout(set = 0, binding = 2) readonly buffer plMaterialInfo
-{
-    tMaterial atMaterials[];
-} tMaterialInfo;
-
-layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
-layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
-layout (set = 0, binding = 5) uniform textureCube u_LambertianEnvSampler;
-layout (set = 0, binding = 6) uniform textureCube u_GGXEnvSampler;
-layout (set = 0, binding = 7) uniform texture2D u_GGXLUT;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 1
-//-----------------------------------------------------------------------------
-
-layout(set = 1, binding = 0) uniform _plLightInfo
+layout(set = 1, binding = 1) uniform _plLightInfo
 {
     plLightData atData[iLightCount];
 } tLightInfo;
 
-layout(set = 1, binding = 1) readonly buffer plShadowData
+layout(set = 1, binding = 2) readonly buffer plShadowData
 {
     plLightShadowData atData[];
 } tShadowData;
 
-layout (set = 1, binding = 2) uniform texture2D shadowmap[4];
-layout(set = 1, binding = 6)  uniform sampler tShadowSampler;
+layout (set = 1, binding = 3) uniform texture2D shadowmap[4];
+layout(set = 1, binding = 7)  uniform sampler tShadowSampler;
 
-
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 2
-//-----------------------------------------------------------------------------
-
-layout(set = 2, binding = 0)   uniform texture2D tBaseColorTexture;
-layout(set = 2, binding = 1)   uniform texture2D tNormalTexture;
-layout(set = 2, binding = 2)   uniform texture2D tEmissiveTexture;
-layout(set = 2, binding = 3)   uniform texture2D tMetallicRoughnessTexture;
-layout(set = 2, binding = 4)   uniform texture2D tOcclusionTexture;
-layout(set = 2, binding = 5)   uniform texture2D tClearcoatTexture;
-layout(set = 2, binding = 6)   uniform texture2D tClearcoatRoughnessTexture;
-layout(set = 2, binding = 7)   uniform texture2D tClearcoatNormalTexture;
-layout(set = 2, binding = 8)   uniform texture2D tIridescenceTexture;
-layout(set = 2, binding = 9)   uniform texture2D tIridescenceThicknessTexture;
-layout(set = 2, binding = 10)  uniform texture2D tSpecularTexture;
-layout(set = 2, binding = 11)  uniform texture2D tSpecularColorTexture;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group

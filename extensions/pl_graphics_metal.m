@@ -14,6 +14,8 @@ Index of this file:
 // [SECTION] unity build
 */
 
+
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -46,6 +48,7 @@ typedef struct _plRenderEncoder
     uint32_t                    uCurrentSubpass;
     id<MTLRenderCommandEncoder> tEncoder;
     plRenderEncoder*            ptNext;
+    uint64_t                    uHeapUsageMask;
 } plRenderEncoder;
 
 typedef struct _plComputeEncoder
@@ -53,6 +56,7 @@ typedef struct _plComputeEncoder
     plCommandBuffer*             ptCommandBuffer;
     id<MTLComputeCommandEncoder> tEncoder;
     plComputeEncoder*            ptNext;
+    uint64_t                     uHeapUsageMask;
 } plComputeEncoder;
 
 typedef struct _plBlitEncoder
@@ -89,7 +93,7 @@ typedef struct _plMetalRenderPass
 typedef struct _plMetalBuffer
 {
     id<MTLBuffer> tBuffer;
-    id<MTLHeap>   tHeap;
+    uint64_t      uHeap;
 } plMetalBuffer;
 
 typedef struct _plCommandPool
@@ -118,10 +122,10 @@ typedef struct _plFrameContext
 
 typedef struct _plMetalTexture
 {
-    id<MTLTexture> tTexture;
-    id<MTLHeap>    tHeap;
+    id<MTLTexture>        tTexture;
+    uint64_t              uHeap;
     MTLTextureDescriptor* ptTextureDescriptor;
-    bool        bOriginalView;
+    bool                  bOriginalView;
 } plMetalTexture;
 
 typedef struct _plMetalSampler
@@ -131,22 +135,20 @@ typedef struct _plMetalSampler
 
 typedef struct _plTimelineSemaphore
 {
-    plDevice*          ptDevice;
-    id<MTLEvent>       tEvent;
-    id<MTLSharedEvent> tSharedEvent;
+    plDevice*            ptDevice;
+    id<MTLEvent>         tEvent;
+    id<MTLSharedEvent>   tSharedEvent;
     plTimelineSemaphore* ptNext;
 } plTimelineSemaphore;
 
 typedef struct _plMetalBindGroup
 {
-    id<MTLBuffer> tShaderArgumentBuffer;
+    id<MTLBuffer>     tShaderArgumentBuffer;
     plBindGroupLayout tLayout;
-    plTextureHandle atTextureBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
-    plBufferHandle  atBufferBindings[PL_MAX_BUFFERS_PER_BIND_GROUP];
-    plSamplerHandle atSamplerBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
-    uint32_t uHeapCount;
-    id<MTLHeap> atRequiredHeaps[PL_MAX_TEXTURES_PER_BIND_GROUP * PL_MAX_BUFFERS_PER_BIND_GROUP];
-    uint32_t uOffset;
+    plSamplerHandle   atSamplerBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
+    uint64_t          uHeapUsageMask;
+    uint32_t          uOffset;
+    plTextureHandle*  sbtTextures;
 } plMetalBindGroup;
 
 typedef struct _plMetalShader
@@ -248,6 +250,9 @@ typedef struct _plDevice
 
     // metal specifics
     id<MTLDevice> tDevice;
+
+    id<MTLHeap> atHeaps[64];
+    uint64_t*   sbuFreeHeaps;
     
 } plDevice;
 
@@ -688,7 +693,7 @@ pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDev
         tStorageMode = MTLResourceStorageModePrivate;
     }
 
-    ptMetalBuffer->tBuffer = [(id<MTLHeap>)ptAllocation->uHandle newBufferWithLength:ptAllocation->ulSize options:tStorageMode offset:ptAllocation->ulOffset];
+    ptMetalBuffer->tBuffer = [ptDevice->atHeaps[ptAllocation->uHandle] newBufferWithLength:ptAllocation->ulSize options:tStorageMode offset:ptAllocation->ulOffset];
     ptMetalBuffer->tBuffer.label = [NSString stringWithUTF8String:ptBuffer->tDesc.pcDebugName];
 
     if(ptAllocation->tMemoryMode != PL_MEMORY_GPU)
@@ -696,7 +701,7 @@ pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDev
         memset(ptMetalBuffer->tBuffer.contents, 0, ptAllocation->ulSize);
         ptBuffer->tMemoryAllocation.pHostMapped = ptMetalBuffer->tBuffer.contents;
     }
-    ptMetalBuffer->tHeap = (id<MTLHeap>)ptAllocation->uHandle;
+    ptMetalBuffer->uHeap = ptAllocation->uHandle;
 }
 
 static void
@@ -759,7 +764,9 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTexture** p
     else if(tDesc.tType == PL_TEXTURE_TYPE_CUBE)
         ptTextureDescriptor.textureType = MTLTextureTypeCube;
     else if(tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+    {
         ptTextureDescriptor.textureType = MTLTextureType2DArray;
+    }
     else
     {
         PL_ASSERT(false && "unsupported texture type");
@@ -859,7 +866,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     for(uint32_t i = 0; i < ptLayout->_uTextureBindingCount; i++)
     {
         uint32_t uCurrentDescriptorCount = ptLayout->atTextureBindings[i].uDescriptorCount;
-        if(uCurrentDescriptorCount== 0)
+        if(uCurrentDescriptorCount == 0)
             uCurrentDescriptorCount = 1;
         if(uCurrentDescriptorCount > 1)
             uDescriptorCount += ptLayout->atTextureBindings[i].uDescriptorCount - 1;
@@ -868,7 +875,9 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     NSUInteger argumentBufferLength = sizeof(uint64_t) * uDescriptorCount;
     MTLSizeAndAlign tSizeAlign = [ptDevice->tDevice heapBufferSizeAndAlignWithLength:argumentBufferLength options:MTLResourceStorageModeShared];
 
-    plMetalBindGroup tMetalBindGroup = {0};
+    plMetalBindGroup tMetalBindGroup = {
+        .tLayout = *ptLayout,
+    };
 
     tMetalBindGroup.tShaderArgumentBuffer = ptDesc->ptPool->tArgumentBuffer.tBuffer;
     tMetalBindGroup.uOffset = ptDesc->ptPool->szCurrentArgumentOffset;
@@ -888,7 +897,6 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
 
     plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tHandle.uIndex];
     plBindGroup* ptBindGroup = pl__get_bind_group(ptDevice, tHandle);
-    ptMetalBindGroup->uHeapCount = 0;
     const char* pcDescriptorStart = ptMetalBindGroup->tShaderArgumentBuffer.contents;
 
     uint64_t* pulDescriptorStart = (uint64_t*)&pcDescriptorStart[ptMetalBindGroup->uOffset];
@@ -899,23 +907,8 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         plMetalBuffer* ptMetalBuffer = &ptDevice->sbtBuffersHot[ptUpdate->tBuffer.uIndex];
         uint64_t* ppfDestination = &pulDescriptorStart[ptUpdate->uSlot];
         *ppfDestination = ptMetalBuffer->tBuffer.gpuAddress;
-        ptMetalBindGroup->atBufferBindings[i] = ptUpdate->tBuffer;
 
-        bool bHeapFound = false;
-        for(uint32_t j = 0; j < ptMetalBindGroup->uHeapCount; j++)
-        {
-            if(ptMetalBindGroup->atRequiredHeaps[j] == ptMetalBuffer->tHeap)
-            {
-                bHeapFound = true;
-                break;
-            }
-        }
-
-        if(!bHeapFound)
-        {
-            ptMetalBindGroup->atRequiredHeaps[ptMetalBindGroup->uHeapCount] = ptMetalBuffer->tHeap;
-            ptMetalBindGroup->uHeapCount++;
-        }
+        ptMetalBindGroup->uHeapUsageMask |= (1ULL << ptMetalBuffer->uHeap);
     }
 
     for(uint32_t i = 0; i < ptData->uTextureCount; i++)
@@ -925,23 +918,14 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[ptUpdate->tTexture.uIndex];
         MTLResourceID* pptDestination = (MTLResourceID*)&pulDescriptorStart[ptUpdate->uSlot + ptUpdate->uIndex];
         *pptDestination = ptMetalTexture->tTexture.gpuResourceID;
-        ptMetalBindGroup->atTextureBindings[i] = ptUpdate->tTexture;
 
-        bool bHeapFound = false;
-        for(uint32_t j = 0; j < ptMetalBindGroup->uHeapCount; j++)
+        int iCommonBits = ptTexture->tDesc.tUsage & (PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_COLOR_ATTACHMENT |PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE);
+        if(iCommonBits)
         {
-            if(ptMetalBindGroup->atRequiredHeaps[j] == ptMetalTexture->tHeap)
-            {
-                bHeapFound = true;
-                break;
-            }
+            pl_sb_push(ptMetalBindGroup->sbtTextures, ptUpdate->tTexture);
         }
 
-        if(!bHeapFound)
-        {
-            ptMetalBindGroup->atRequiredHeaps[ptMetalBindGroup->uHeapCount] = ptMetalTexture->tHeap;
-            ptMetalBindGroup->uHeapCount++;
-        }
+        ptMetalBindGroup->uHeapUsageMask |= (1ULL << ptMetalTexture->uHeap);
     }
 
     for(uint32_t i = 0; i < ptData->uSamplerCount; i++)
@@ -1013,8 +997,8 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
     }
     ptMetalTexture->ptTextureDescriptor.storageMode = tStorageMode;
 
-    ptMetalTexture->tTexture = [(id<MTLHeap>)ptAllocation->uHandle newTextureWithDescriptor:ptMetalTexture->ptTextureDescriptor offset:ptAllocation->ulOffset];
-    ptMetalTexture->tHeap = (id<MTLHeap>)ptAllocation->uHandle;
+    ptMetalTexture->tTexture = [ptDevice->atHeaps[ptAllocation->uHandle] newTextureWithDescriptor:ptMetalTexture->ptTextureDescriptor offset:ptAllocation->ulOffset];
+    ptMetalTexture->uHeap = ptAllocation->uHandle;
     ptMetalTexture->tTexture.label = [NSString stringWithUTF8String:ptTexture->tDesc.pcDebugName];
     [ptMetalTexture->ptTextureDescriptor release];
     ptMetalTexture->ptTextureDescriptor = nil;
@@ -1083,7 +1067,7 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
             slices:tSliceRange];
 
     ptNewMetalTexture->tTexture.label = [NSString stringWithUTF8String:ptViewDesc->pcDebugName];
-    ptNewMetalTexture->tHeap = ptOldMetalTexture->tHeap;
+    ptNewMetalTexture->uHeap = ptOldMetalTexture->uHeap;
     return tHandle;
 }
 
@@ -1106,7 +1090,7 @@ pl_allocate_dynamic_data_block(plDevice* ptDevice)
             pl_sprintf(atNameBuffer, "D-BUF-F%d-%d", (int)gptGraphics->uCurrentFrameIndex, (int)ptFrame->uCurrentBufferIndex);
 
             ptDynamicBuffer->tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, ptDevice->tInit.szDynamicBufferBlockSize, 0, atNameBuffer);
-            ptDynamicBuffer->tBuffer = [(id<MTLHeap>)ptDynamicBuffer->tMemory.uHandle newBufferWithLength:ptDevice->tInit.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
+            ptDynamicBuffer->tBuffer = [ptDevice->atHeaps[ptDynamicBuffer->tMemory.uHandle] newBufferWithLength:ptDevice->tInit.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
             ptDynamicBuffer->tBuffer.label = [NSString stringWithUTF8String:"buddy allocator"];
             gptGraphics->szHostMemoryInUse += ptDevice->tInit.szDynamicBufferBlockSize;
         }
@@ -1401,7 +1385,7 @@ pl_allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uT
 
     plDeviceMemoryAllocation tAllocation = {
         .pHostMapped = NULL,
-        .uHandle     = 0,
+        .uHandle     = UINT64_MAX,
         .ulOffset    = 0,
         .ulSize      = ulSize,
         .ptAllocator = ptData->ptAllocator,
@@ -1423,7 +1407,7 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
     plDeviceMemoryAllocation tBlock = {.uHandle = ptAllocation->uHandle};
     pl_free_memory(ptData->ptDevice, &tBlock);
     gptGraphics->szHostMemoryInUse -= ptAllocation->ulSize;
-    ptAllocation->uHandle = 0;
+    ptAllocation->uHandle = UINT64_MAX;
     ptAllocation->ulSize = 0;
     ptAllocation->ulOffset = 0;
 }
@@ -1503,6 +1487,10 @@ pl_create_device(const plDeviceInit* ptInit)
     memset(ptDevice, 0, sizeof(plDevice));
     ptDevice->tInit = *ptInit;
 
+    pl_sb_resize(ptDevice->sbuFreeHeaps, 64);
+    for(uint64_t i = 0; i < 64; i++)
+        ptDevice->sbuFreeHeaps[i] = 63 - i;
+
     pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
     pl_sb_add(ptDevice->sbtRenderPassesHot);
     pl_sb_add(ptDevice->sbtShadersHot);
@@ -1557,13 +1545,6 @@ pl_create_device(const plDeviceInit* ptInit)
     ptDevice->ptDynamicAllocator = &tAllocator;
     plDeviceMemoryAllocatorI* ptDynamicAllocator = &tAllocator;
 
-    MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];
-    ptHeapDescriptor.storageMode = MTLStorageModeShared;
-    ptHeapDescriptor.size        = ptDevice->szDynamicArgumentBufferHeapSize;
-    ptHeapDescriptor.type        = MTLHeapTypePlacement;
-    ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
-    // ptHeapDescriptor.sparsePageSize = MTLSparsePageSize256;
-
     pl_sb_resize(ptDevice->sbtGarbage, gptGraphics->uFramesInFlight + 1);
     gptGraphics->tFence = [ptDevice->tDevice newFence];
     plTempAllocator tTempAllocator = {0};
@@ -1576,7 +1557,7 @@ pl_create_device(const plDeviceInit* ptInit)
         static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
         pl_sprintf(atNameBuffer, "D-BUF-F%d-0", (int)i);
         tFrame.sbtDynamicBuffers[0].tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, ptDevice->tInit.szDynamicBufferBlockSize, 0,atNameBuffer);
-        tFrame.sbtDynamicBuffers[0].tBuffer = [(id<MTLHeap>)tFrame.sbtDynamicBuffers[0].tMemory.uHandle newBufferWithLength:ptDevice->tInit.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
+        tFrame.sbtDynamicBuffers[0].tBuffer = [ptDevice->atHeaps[tFrame.sbtDynamicBuffers[0].tMemory.uHandle] newBufferWithLength:ptDevice->tInit.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
         tFrame.sbtDynamicBuffers[0].tBuffer.label = [NSString stringWithUTF8String:pl_temp_allocator_sprintf(&tTempAllocator, "Dynamic Buffer: %u, 0", i)];
         pl_sb_push(ptDevice->sbtFrames, tFrame);
     }
@@ -1843,11 +1824,12 @@ pl_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubmitInfo, p
 }
 
 static void
-pl_next_subpass(plRenderEncoder* ptEncoder)
+pl_next_subpass(plRenderEncoder* ptEncoder, const plPassResources* ptResources)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     ptEncoder->uCurrentSubpass++;
+    ptEncoder->uHeapUsageMask = 0;
 
     plMetalRenderPass* ptMetalRenderPass = &ptDevice->sbtRenderPassesHot[ptEncoder->tRenderPassHandle.uIndex];
 
@@ -1858,13 +1840,108 @@ pl_next_subpass(plRenderEncoder* ptEncoder)
     tNewRenderEncoder.label = @"subpass encoder";
     [tNewRenderEncoder waitForFence:ptMetalRenderPass->tFence beforeStages:MTLRenderStageFragment | MTLRenderStageVertex];
     ptEncoder->tEncoder = tNewRenderEncoder;
+
+    if(ptResources)
+    {
+        for(uint32_t i = 0; i < ptResources->uBufferCount; i++)
+        {
+            const plPassBufferResource* ptResource = &ptResources->atBuffers[i];
+            const plBuffer* ptBuffer = &ptCmdBuffer->ptDevice->sbtBuffersCold[ptResource->tHandle.uIndex];
+            const plMetalBuffer* ptMetalBuffer = &ptCmdBuffer->ptDevice->sbtBuffersHot[ptResource->tHandle.uIndex];
+
+            MTLResourceUsage tUsage = 0;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_READ)
+                tUsage |= MTLResourceUsageRead;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_WRITE)
+                tUsage |= MTLResourceUsageWrite;
+
+            if(!(ptEncoder->uHeapUsageMask & (1ULL << ptBuffer->tMemoryAllocation.uHandle)))
+            {
+                [ptEncoder->tEncoder useHeap:ptCmdBuffer->ptDevice->atHeaps[ptBuffer->tMemoryAllocation.uHandle] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+            }
+
+            ptEncoder->uHeapUsageMask |= (1ULL << ptBuffer->tMemoryAllocation.uHandle);
+            
+            [ptEncoder->tEncoder useResource:ptMetalBuffer->tBuffer usage:tUsage stages:pl__metal_stage_flags(ptResource->tStages)];  
+        }
+
+        for(uint32_t i = 0; i < ptResources->uTextureCount; i++)
+        {
+            const plPassTextureResource* ptResource = &ptResources->atTextures[i];
+            const plTexture* ptTexture = &ptCmdBuffer->ptDevice->sbtTexturesCold[ptResource->tHandle.uIndex];
+            const plMetalTexture* ptMetalTexture = &ptCmdBuffer->ptDevice->sbtTexturesHot[ptResource->tHandle.uIndex];
+
+            MTLResourceUsage tUsage = 0;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_READ)
+                tUsage |= MTLResourceUsageRead;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_WRITE)
+                tUsage |= MTLResourceUsageWrite;
+
+            if(!(ptEncoder->uHeapUsageMask & (1ULL << ptTexture->tMemoryAllocation.uHandle)))
+            {
+                [ptEncoder->tEncoder useHeap:ptCmdBuffer->ptDevice->atHeaps[ptTexture->tMemoryAllocation.uHandle] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+            }
+
+            ptEncoder->uHeapUsageMask |= (1ULL << ptTexture->tMemoryAllocation.uHandle);
+
+            [ptEncoder->tEncoder useResource:ptMetalTexture->tTexture usage:tUsage];  
+        }
+    }
 }
 
 static plRenderEncoder*
-pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass)
+pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, const plPassResources* ptResources)
 {
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plRenderEncoder* ptEncoder = pl__get_new_render_encoder();
+    ptEncoder->uHeapUsageMask = 0;
+
+    if(ptResources)
+    {
+        for(uint32_t i = 0; i < ptResources->uBufferCount; i++)
+        {
+            const plPassBufferResource* ptResource = &ptResources->atBuffers[i];
+            const plBuffer* ptBuffer = &ptCmdBuffer->ptDevice->sbtBuffersCold[ptResource->tHandle.uIndex];
+            const plMetalBuffer* ptMetalBuffer = &ptCmdBuffer->ptDevice->sbtBuffersHot[ptResource->tHandle.uIndex];
+
+            MTLResourceUsage tUsage = 0;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_READ)
+                tUsage |= MTLResourceUsageRead;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_WRITE)
+                tUsage |= MTLResourceUsageWrite;
+
+            if(!(ptEncoder->uHeapUsageMask & (1ULL << ptBuffer->tMemoryAllocation.uHandle)))
+            {
+                [ptEncoder->tEncoder useHeap:ptCmdBuffer->ptDevice->atHeaps[ptBuffer->tMemoryAllocation.uHandle] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+            }
+
+            ptEncoder->uHeapUsageMask |= (1ULL << ptBuffer->tMemoryAllocation.uHandle);
+            
+            [ptEncoder->tEncoder useResource:ptMetalBuffer->tBuffer usage:tUsage stages:pl__metal_stage_flags(ptResource->tStages)];  
+        }
+
+        for(uint32_t i = 0; i < ptResources->uTextureCount; i++)
+        {
+            const plPassTextureResource* ptResource = &ptResources->atTextures[i];
+            const plTexture* ptTexture = &ptCmdBuffer->ptDevice->sbtTexturesCold[ptResource->tHandle.uIndex];
+            const plMetalTexture* ptMetalTexture = &ptCmdBuffer->ptDevice->sbtTexturesHot[ptResource->tHandle.uIndex];
+
+            MTLResourceUsage tUsage = 0;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_READ)
+                tUsage |= MTLResourceUsageRead;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_WRITE)
+                tUsage |= MTLResourceUsageWrite;
+
+            if(!(ptEncoder->uHeapUsageMask & (1ULL << ptTexture->tMemoryAllocation.uHandle)))
+            {
+                [ptEncoder->tEncoder useHeap:ptCmdBuffer->ptDevice->atHeaps[ptTexture->tMemoryAllocation.uHandle] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+            }
+
+            ptEncoder->uHeapUsageMask |= (1ULL << ptTexture->tMemoryAllocation.uHandle);
+
+            [ptEncoder->tEncoder useResource:ptMetalTexture->tTexture usage:tUsage stages:pl__metal_stage_flags(ptResource->tStages)];  
+        }
+    }
 
     plRenderPass* ptRenderPass = pl_get_render_pass(ptDevice, tPass);
     plMetalRenderPass* ptMetalRenderPass = &ptDevice->sbtRenderPassesHot[tPass.uIndex];
@@ -1976,18 +2053,86 @@ pl_end_blit_pass(plBlitEncoder* ptEncoder)
     pl__return_blit_encoder(ptEncoder);
 }
 
+void
+pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+{
+
+}
+
+void
+pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+{
+    [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeBuffers | MTLBarrierScopeTextures];
+}
+
+void
+pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+{
+    [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeRenderTargets | MTLBarrierScopeBuffers | MTLBarrierScopeTextures afterStages:pl__metal_stage_flags(beforeStages) beforeStages:pl__metal_stage_flags(afterStages)];
+}
+
 static plComputeEncoder*
-pl_begin_compute_pass(plCommandBuffer* ptCmdBuffer)
+pl_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResources* ptResources)
 {
     plComputeEncoder* ptEncoder = pl__get_new_compute_encoder();
     ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer computeCommandEncoder];
     ptEncoder->ptCommandBuffer = ptCmdBuffer;
+    ptEncoder->uHeapUsageMask = 0;
+
+    if(ptResources)
+    {
+        for(uint32_t i = 0; i < ptResources->uBufferCount; i++)
+        {
+            const plPassBufferResource* ptResource = &ptResources->atBuffers[i];
+            const plBuffer* ptBuffer = &ptCmdBuffer->ptDevice->sbtBuffersCold[ptResource->tHandle.uIndex];
+            const plMetalBuffer* ptMetalBuffer = &ptCmdBuffer->ptDevice->sbtBuffersHot[ptResource->tHandle.uIndex];
+
+            MTLResourceUsage tUsage = 0;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_READ)
+                tUsage |= MTLResourceUsageRead;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_WRITE)
+                tUsage |= MTLResourceUsageWrite;
+
+            if(!(ptEncoder->uHeapUsageMask & (1ULL << ptBuffer->tMemoryAllocation.uHandle)))
+            {
+                [ptEncoder->tEncoder useHeap:ptCmdBuffer->ptDevice->atHeaps[ptBuffer->tMemoryAllocation.uHandle]];
+            }
+
+            ptEncoder->uHeapUsageMask |= (1ULL << ptBuffer->tMemoryAllocation.uHandle);
+            
+            [ptEncoder->tEncoder useResource:ptMetalBuffer->tBuffer usage:tUsage];  
+        }
+
+        for(uint32_t i = 0; i < ptResources->uTextureCount; i++)
+        {
+            const plPassTextureResource* ptResource = &ptResources->atTextures[i];
+            const plTexture* ptTexture = &ptCmdBuffer->ptDevice->sbtTexturesCold[ptResource->tHandle.uIndex];
+            const plMetalTexture* ptMetalTexture = &ptCmdBuffer->ptDevice->sbtTexturesHot[ptResource->tHandle.uIndex];
+
+            MTLResourceUsage tUsage = 0;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_READ)
+                tUsage |= MTLResourceUsageRead;
+            if(ptResource->tUsage & PL_PASS_RESOURCE_USAGE_WRITE)
+                tUsage |= MTLResourceUsageWrite;
+
+            if(!(ptEncoder->uHeapUsageMask & (1ULL << ptTexture->tMemoryAllocation.uHandle)))
+            {
+                [ptEncoder->tEncoder useHeap:ptCmdBuffer->ptDevice->atHeaps[ptTexture->tMemoryAllocation.uHandle]];
+            }
+
+            ptEncoder->uHeapUsageMask |= (1ULL << ptTexture->tMemoryAllocation.uHandle);
+
+            [ptEncoder->tEncoder useResource:ptMetalTexture->tTexture usage:tUsage];  
+        }
+    }
+
     return ptEncoder;
 }
 
 static void
 pl_end_compute_pass(plComputeEncoder* ptEncoder)
 {
+    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
     [ptEncoder->tEncoder endEncoding];
     pl__return_compute_encoder(ptEncoder);
 }
@@ -2018,18 +2163,33 @@ pl_bind_compute_bind_groups(
         [ptEncoder->tEncoder setBuffer:ptFrame->sbtDynamicBuffers[ptDynamicBinding->uBufferHandle].tBuffer offset:ptDynamicBinding->uByteOffset atIndex:3];
     }
 
-    // for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
-    // {
-    //     [ptEncoder->tEncoder useHeap:ptDevice->sbtFrames[i].tDescriptorHeap];
-    // }
-
     for(uint32_t i = 0; i < uCount; i++)
     {
         plMetalBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsHot[atBindGroups[i].uIndex];
-        
-        for(uint32 j = 0; j < ptBindGroup->uHeapCount; j++)
+
+        ptEncoder->uHeapUsageMask |= ptBindGroup->uHeapUsageMask;
+
+        for(uint64_t k = 0; k < 64; k++)
         {
-            [ptEncoder->tEncoder useHeap:ptBindGroup->atRequiredHeaps[j]];
+            if(ptEncoder->uHeapUsageMask & (1ULL << k))
+            {
+                [ptEncoder->tEncoder useHeap:ptDevice->atHeaps[k]];
+            }
+        }
+        
+        const uint32_t uTextureCount = pl_sb_size(ptBindGroup->sbtTextures);
+        for(uint32_t k = 0; k < uTextureCount; k++)
+        {
+            const plTextureHandle tTextureHandle = ptBindGroup->sbtTextures[k];
+            plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
+            if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_STORAGE)
+            {
+                [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead | MTLResourceUsageWrite];  
+            }
+            else
+            {
+                [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead];  
+            }
         }
 
         [ptEncoder->tEncoder setBuffer:ptBindGroup->tShaderArgumentBuffer
@@ -2055,14 +2215,20 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
     {
         plMetalBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsHot[atBindGroups[i].uIndex];
 
-        for(uint32 j = 0; j < ptBindGroup->uHeapCount; j++)
+        ptEncoder->uHeapUsageMask |= ptBindGroup->uHeapUsageMask;
+
+        for(uint64_t k = 0; k < 64; k++)
         {
-            [ptEncoder->tEncoder useHeap:ptBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+            if(ptEncoder->uHeapUsageMask & (1ULL << k))
+            {
+                [ptEncoder->tEncoder useHeap:ptDevice->atHeaps[k] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+            }
         }
 
-        for(uint32_t k = 0; k < ptBindGroup->tLayout._uTextureBindingCount; k++)
+        const uint32_t uTextureCount = pl_sb_size(ptBindGroup->sbtTextures);
+        for(uint32_t k = 0; k < uTextureCount; k++)
         {
-            const plTextureHandle tTextureHandle = ptBindGroup->atTextureBindings[k];
+            const plTextureHandle tTextureHandle = ptBindGroup->sbtTextures[k];
             plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
             [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
         }
@@ -2182,11 +2348,6 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
-    // for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
-    // {
-    //     [ptEncoder->tEncoder useHeap:ptDevice->sbtFrames[i].tDescriptorHeap stages:MTLRenderStageVertex | MTLRenderStageFragment];
-    // }
-
     for(uint32_t i = 0; i < uAreaCount; i++)
     {
         plDrawArea* ptArea = &atAreas[i];
@@ -2258,14 +2419,21 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
                 plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
 
-                for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
+                ptEncoder->uHeapUsageMask |= ptMetalBindGroup->uHeapUsageMask;
+
+                // TODO: optimize to not go through all 64
+                for(uint64_t k = 0; k < 64; k++)
                 {
-                    [ptEncoder->tEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+                    if(ptEncoder->uHeapUsageMask & (1ULL << k))
+                    {
+                        [ptEncoder->tEncoder useHeap:ptDevice->atHeaps[k] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+                    }
                 }
 
-                for(uint32_t k = 0; k < ptMetalBindGroup->tLayout._uTextureBindingCount; k++)
+                const uint32_t uTextureCount = pl_sb_size(ptMetalBindGroup->sbtTextures);
+                for(uint32_t k = 0; k < uTextureCount; k++)
                 {
-                    const plTextureHandle tTextureHandle = ptMetalBindGroup->atTextureBindings[k];
+                    const plTextureHandle tTextureHandle = ptMetalBindGroup->sbtTextures[k];
                     plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
@@ -2280,14 +2448,21 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
                 plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
 
-                for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
+                ptEncoder->uHeapUsageMask |= ptMetalBindGroup->uHeapUsageMask;
+
+                // TODO: optimize to not go through all 64
+                for(uint64_t k = 0; k < 64; k++)
                 {
-                    [ptEncoder->tEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+                    if(ptEncoder->uHeapUsageMask & (1ULL << k))
+                    {
+                        [ptEncoder->tEncoder useHeap:ptDevice->atHeaps[k] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+                    }
                 }
 
-                for(uint32_t k = 0; k < ptMetalBindGroup->tLayout._uTextureBindingCount; k++)
+                const uint32_t uTextureCount = pl_sb_size(ptMetalBindGroup->sbtTextures);
+                for(uint32_t k = 0; k < uTextureCount; k++)
                 {
-                    const plTextureHandle tTextureHandle = ptMetalBindGroup->atTextureBindings[k];
+                    const plTextureHandle tTextureHandle = ptMetalBindGroup->sbtTextures[k];
                     plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
@@ -2301,15 +2476,22 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             {
                 const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
                 plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
-                
-                for(uint32 j = 0; j < ptMetalBindGroup->uHeapCount; j++)
-                {
-                    [ptEncoder->tEncoder useHeap:ptMetalBindGroup->atRequiredHeaps[j] stages:MTLRenderStageVertex | MTLRenderStageFragment];
-                }
 
-                for(uint32_t k = 0; k < ptMetalBindGroup->tLayout._uTextureBindingCount; k++)
+                ptEncoder->uHeapUsageMask |= ptMetalBindGroup->uHeapUsageMask;
+
+                // TODO: optimize to not go through all 64
+                for(uint64_t k = 0; k < 64; k++)
                 {
-                    const plTextureHandle tTextureHandle = ptMetalBindGroup->atTextureBindings[k];
+                    if(ptEncoder->uHeapUsageMask & (1ULL << k))
+                    {
+                        [ptEncoder->tEncoder useHeap:ptDevice->atHeaps[k] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+                    }
+                }
+                
+                const uint32_t uTextureCount = pl_sb_size(ptMetalBindGroup->sbtTextures);
+                for(uint32_t k = 0; k < uTextureCount; k++)
+                {
+                    const plTextureHandle tTextureHandle = ptMetalBindGroup->sbtTextures[k];
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment]; 
                 }
 
@@ -2320,7 +2502,16 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
 
             if(uDirtyMask & PL_DRAW_STREAM_BIT_DYNAMIC_BUFFER_0)
             {
-                
+                ptEncoder->uHeapUsageMask |= (1ULL << ptFrame->sbtDynamicBuffers[ptStream->_auStream[uCurrentStreamIndex]].tMemory.uHandle);
+
+                for(uint64_t k = 0; k < 64; k++)
+                {
+                    if(ptEncoder->uHeapUsageMask & (1ULL << k))
+                    {
+                        [ptEncoder->tEncoder useHeap:ptDevice->atHeaps[k] stages:MTLRenderStageVertex | MTLRenderStageFragment];
+                    }
+                }
+
                 [ptEncoder->tEncoder setVertexBuffer:ptFrame->sbtDynamicBuffers[ptStream->_auStream[uCurrentStreamIndex]].tBuffer offset:0 atIndex:3];
                 [ptEncoder->tEncoder setFragmentBuffer:ptFrame->sbtDynamicBuffers[ptStream->_auStream[uCurrentStreamIndex]].tBuffer offset:0 atIndex:3];
 
@@ -2932,6 +3123,7 @@ pl__garbage_collect(plDevice* ptDevice)
     {
         const uint16_t iBindGroupIndex = ptGarbage->sbtBindGroups[i].uIndex;
         plMetalBindGroup* ptMetalResource = &ptDevice->sbtBindGroupsHot[iBindGroupIndex];
+        pl_sb_reset(ptMetalResource->sbtTextures);
         [ptMetalResource->tShaderArgumentBuffer release];
         ptMetalResource->tShaderArgumentBuffer = nil;
         pl_sb_push(ptDevice->sbtBindGroupFreeIndices, iBindGroupIndex);
@@ -2999,7 +3191,7 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
     }
 
     plDeviceMemoryAllocation tBlock = {
-        .uHandle = 0,
+        .uHandle = UINT64_MAX,
         .ulSize  = (uint64_t)szSize,
         .tMemoryMode = tMemoryMode
     };
@@ -3022,7 +3214,18 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
 
     id<MTLHeap> tNewHeap = [ptDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor];
     tNewHeap.label = [NSString stringWithUTF8String:pcName];
-    tBlock.uHandle = (uint64_t)tNewHeap;
+    // tBlock.uHandle = (uint64_t)tNewHeap;
+
+    if(pl_sb_size(ptDevice->sbuFreeHeaps) > 0)
+    {
+        uint64_t uFreeIndex = pl_sb_pop(ptDevice->sbuFreeHeaps);
+        ptDevice->atHeaps[uFreeIndex] = tNewHeap;
+        tBlock.uHandle = uFreeIndex;
+    }
+    else
+    {
+        PL_ASSERT(false && "only 64 allocations allowed");
+    }
     
     [ptHeapDescriptor release];
     return tBlock;
@@ -3031,11 +3234,13 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
 static void
 pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
-    id<MTLHeap> tHeap = (id<MTLHeap>)ptBlock->uHandle;
+    id<MTLHeap> tHeap = ptDevice->atHeaps[ptBlock->uHandle];
+    pl_sb_push(ptDevice->sbuFreeHeaps, ptBlock->uHandle);
 
     [tHeap setPurgeableState:MTLPurgeableStateEmpty];
     [tHeap release];
     tHeap = nil;
+    ptDevice->atHeaps[ptBlock->uHandle] = nil;
 
     if(ptBlock->tMemoryMode == PL_MEMORY_GPU)
     {
@@ -3045,7 +3250,7 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
     {
         gptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
     }
-    ptBlock->uHandle = 0;
+    ptBlock->uHandle = UINT64_MAX;
     ptBlock->pHostMapped = NULL;
     ptBlock->ulSize = 0;
     ptBlock->tMemoryMode = 0;

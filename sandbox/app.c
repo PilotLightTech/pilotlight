@@ -97,7 +97,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
             "../shaders/"
         },
         #ifndef PL_OFFLINE_SHADERS_ONLY
-        .tFlags = PL_SHADER_FLAGS_ALWAYS_COMPILE
+        .tFlags = PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG
         #endif
     };
     gptShader->initialize(&tDefaultShaderOptions);
@@ -271,19 +271,19 @@ pl_app_update(plEditorData* ptEditorData)
     // for convience
     plIO* ptIO = gptIO->get_io();
 
+    if(!gptRenderer->begin_frame())
+    {
+        pl_end_cpu_sample(gptProfile, 0);
+        gptProfile->end_frame();
+        return;
+    }
+
     if(ptEditorData->bResize || ptEditorData->bAlwaysResize)
     {
         // gptOS->sleep(32);
         if(ptEditorData->bSceneLoaded)
             gptRenderer->resize_view(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0, ptIO->tMainViewportSize);
         ptEditorData->bResize = false;
-    }
-
-    if(!gptRenderer->begin_frame())
-    {
-        pl_end_cpu_sample(gptProfile, 0);
-        gptProfile->end_frame();
-        return;
     }
 
     gptDrawBackend->new_frame();
