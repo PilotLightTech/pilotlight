@@ -195,8 +195,7 @@ pl_cleanup_draw_backend(void)
         gptGfx->destroy_buffer(ptDevice, gptDrawBackendCtx->atBufferInfo[i].tVertexBuffer);
         gptGfx->destroy_buffer(ptDevice, gptDrawBackendCtx->at3DBufferInfo[i].tVertexBuffer);
         gptGfx->destroy_buffer(ptDevice, gptDrawBackendCtx->atLineBufferInfo[i].tVertexBuffer);
-        gptGfx->destroy_buffer(ptDevice, gptDrawBackendCtx->atIndexBuffer[i]);  
-        gptGfx->destroy_buffer(ptDevice, gptDrawBackendCtx->atIndexBuffer[i]);  
+        gptGfx->destroy_buffer(ptDevice, gptDrawBackendCtx->atIndexBuffer[i]);
     }
 
     gptGfx->cleanup_bind_group_pool(gptDrawBackendCtx->ptBindGroupPool);

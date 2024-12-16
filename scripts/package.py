@@ -144,23 +144,16 @@ for extension in extensions:
 # copy scripts
 for script in scripts:
     if platform.system() == "Windows":
-        if debug_package:
-            shutil.move("../out/" + script + "d.dll", target_directory + "/bin/")
-        else:
-            shutil.move("../out/" + script + ".dll", target_directory + "/bin/")
+        shutil.move("../out/" + script + ".dll", target_directory + "/bin/")
         for file in glob.glob("../out/" + script + "d_*.pdb"):
             shutil.move(file, target_directory + "/bin/")
     elif platform.system() == "Darwin":
+        shutil.move("../out/" + script + ".dylib", target_directory + "/bin/")
         if debug_package:
-            shutil.move("../out/" + script + "d.dylib", target_directory + "/bin/")
             shutil.copytree("../out/" + script + "d.dylib.dSYM", target_directory + "/bin/" + script + "d.dylib.dSYM")
-        else:
-            shutil.move("../out/" + script + ".dylib", target_directory + "/bin/")
+            
     elif platform.system() == "Linux":
-        if debug_package:
-            shutil.move("../out/" + script + "d.so", target_directory + "/bin/")
-        else:
-            shutil.move("../out/" + script + ".so", target_directory + "/bin/")
+        shutil.move("../out/" + script + ".so", target_directory + "/bin/")
 
 # copy libs & executable
 if platform.system() == "Windows":

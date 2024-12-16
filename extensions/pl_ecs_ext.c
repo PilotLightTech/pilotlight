@@ -332,7 +332,7 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
             {
                 plEntity tLastEntity = pl_sb_back(ptLibrary->_ptManagers[i]->sbtEntities);
                 pl_hm_remove(ptLibrary->_ptManagers[i]->ptHashmap, tLastEntity.uIndex);
-                pl_hm_get_free_index(ptLibrary->_ptManagers[i]->ptHashmap); // burn slot
+                uint64_t _unUsed = pl_hm_get_free_index(ptLibrary->_ptManagers[i]->ptHashmap); // burn slot
                 pl_hm_insert(ptLibrary->_ptManagers[i]->ptHashmap, tLastEntity.uIndex, uEntityValue);
             }
 
