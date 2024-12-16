@@ -84,6 +84,9 @@ main()
 
     const int iSrcpixelIndex = iColumnindex + iRowindex * iWidth;
 
-    const vec3 tColor = vec3(tBufferIn.atPixelData[iSrcpixelIndex].r, tBufferIn.atPixelData[iSrcpixelIndex].g, tBufferIn.atPixelData[iSrcpixelIndex].b);
-    pl_write_face(iCurrentPixel, iFace, tColor);
+    if(iSrcpixelIndex < iWidth * iHeight)
+    {
+        const vec3 tColor = vec3(tBufferIn.atPixelData[iSrcpixelIndex].r, tBufferIn.atPixelData[iSrcpixelIndex].g, tBufferIn.atPixelData[iSrcpixelIndex].b);
+        pl_write_face(iCurrentPixel, iFace, tColor);
+    }
 }
