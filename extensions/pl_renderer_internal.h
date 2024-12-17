@@ -188,6 +188,10 @@ typedef struct _plGPULightShadowData
 {
 	plVec4 cascadeSplits;
 	plMat4 cascadeViewProjMat[4];
+    int iShadowMapTexIdx;
+    float fFactor;
+    float fXOffset;
+    float fYOffset;
 } plGPULightShadowData;
 
 typedef struct _BindGroup_0
@@ -217,9 +221,9 @@ typedef struct _plShadowData
 {
     plVec2          tResolution;
     plTextureHandle tDepthTexture[PL_MAX_FRAMES_IN_FLIGHT];
-    plTextureHandle atDepthTextureViews[PL_MAX_SHADOW_CASCADES][PL_MAX_FRAMES_IN_FLIGHT];
+    uint32_t        atDepthTextureBindlessIndices[PL_MAX_FRAMES_IN_FLIGHT];
 
-    plRenderPassHandle atOpaqueRenderPasses[PL_MAX_SHADOW_CASCADES];
+    plRenderPassHandle tOpaqueRenderPass;
 
     plBufferHandle atCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
 } plShadowData;
@@ -512,7 +516,7 @@ static bool pl__sat_visibility_test(plCameraComponent*, const plAABB*);
 // scene render helpers
 static void pl_refr_update_skin_textures(plCommandBuffer*, uint32_t);
 static void pl_refr_perform_skinning(plCommandBuffer*, uint32_t);
-static void pl_refr_generate_cascaded_shadow_map(plCommandBuffer*, uint32_t, uint32_t, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda);
+static void pl_refr_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, uint32_t, uint32_t, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda, plVec2 tOffset);
 static void pl_refr_post_process_scene(plCommandBuffer*, uint32_t, uint32_t, const plMat4*);
 
 // shader variant system

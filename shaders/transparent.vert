@@ -63,8 +63,8 @@ layout(set = 1, binding = 2) readonly buffer plShadowData
     plLightShadowData atData[];
 } tShadowData;
 
-layout (set = 1, binding = 3) uniform texture2D shadowmap[4];
-layout(set = 1, binding = 7)  uniform sampler tShadowSampler;
+layout (set = 1, binding = 3) uniform texture2D shadowmap;
+layout(set = 1, binding = 4)  uniform sampler tShadowSampler;
 
 
 //-----------------------------------------------------------------------------

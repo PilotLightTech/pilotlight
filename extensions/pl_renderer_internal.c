@@ -746,7 +746,7 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
 }
 
 static void
-pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda)
+pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda, plVec2 tOffset)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
@@ -760,17 +760,19 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
     plCameraComponent* ptSceneCamera = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, tCamera);
     plLightComponent* ptLight = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_LIGHT, tLight);
 
-    pl_sb_reset(ptView->sbtLightShadowData);
-    pl_sb_add(ptView->sbtLightShadowData);
-    
-
     if(!(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW))
     {
         pl_end_cpu_sample(gptProfile, 0);
         return;
     }
 
+    pl_sb_add(ptView->sbtLightShadowData);
+
     plGPULightShadowData* ptShadowData = &ptView->sbtLightShadowData[pl_sb_size(ptView->sbtLightShadowData) - 1];
+    ptShadowData->iShadowMapTexIdx = ptView->tShadowData.atDepthTextureBindlessIndices[uFrameIdx];
+    ptShadowData->fFactor = 0.25f;
+    ptShadowData->fXOffset = tOffset.x;
+    ptShadowData->fYOffset = tOffset.y;
     const float fNearClip = ptSceneCamera->fNearZ;
     const float fFarClip = ptSceneCamera->fFarZ;
     const float fClipRange = fFarClip - fNearClip;
@@ -907,20 +909,9 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
     const uint32_t uOpaqueDrawableCount = pl_sb_size(ptScene->sbtDeferredDrawables);
     const uint32_t uTransparentDrawableCount = pl_sb_size(ptScene->sbtForwardDrawables);
 
-    const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tShadowData.atOpaqueRenderPasses[0])->tDesc.tDimensions;
+    // const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tShadowData.tOpaqueRenderPass)->tDesc.tDimensions;
 
-    plDrawArea tArea = {
-       .ptDrawStream = ptStream,
-       .tScissor = {
-            .uWidth  = (uint32_t)tDimensions.x,
-            .uHeight = (uint32_t)tDimensions.y,
-       },
-       .tViewport = {
-            .fWidth  = tDimensions.x,
-            .fHeight = tDimensions.y,
-            .fMaxDepth = 1.0f
-       }
-    };
+    const float fShadowResolution = 2048.0f;
 
     typedef struct _plShadowDynamicData
     {
@@ -931,6 +922,7 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
         plMat4 tModel;
     } plShadowDynamicData;
 
+    
     for(uint32_t uCascade = 0; uCascade < ptLight->uCascadeCount; uCascade++)
     {
 
@@ -939,7 +931,6 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
 
         gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
 
-        plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tShadowData.atOpaqueRenderPasses[uCascade], NULL);
         gptGfx->set_depth_bias(ptEncoder, 0.005f, 0.0f, 1.0f);
 
         for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
@@ -1011,8 +1002,6 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
                 .atBindGroups = {
                     ptScene->tGlobalBindGroup,
                     tGlobalBG
-                    // tGlobalBG,
-                    // tDrawable.tShadowMaterialBindGroup
                 },
                 .auDynamicBufferOffsets = {
                     tDynamicBinding.uByteOffset
@@ -1020,10 +1009,27 @@ pl_refr_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, uint32_t 
                 .uInstanceOffset = 0,
                 .uInstanceCount = 1
             });
-        }
+
+        };
+
+        plDrawArea tArea = 
+        {
+            .ptDrawStream = ptStream,
+            .tScissor = {
+                    .iOffsetX = (int)((float)uCascade * fShadowResolution),
+                    .uWidth  = (uint32_t)fShadowResolution,
+                    .uHeight = (uint32_t)fShadowResolution,
+                },
+            .tViewport = {
+                    .fX = (float)uCascade * fShadowResolution,
+                    .fWidth  = fShadowResolution,
+                    .fHeight = fShadowResolution,
+                    .fMaxDepth = 1.0f
+                }
+        };
 
         gptGfx->draw_stream(ptEncoder, 1, &tArea);
-        gptGfx->end_render_pass(ptEncoder);
+        
     }
 
     pl_end_cpu_sample(gptProfile, 0);
@@ -1298,11 +1304,8 @@ pl_refr_create_global_shaders(void)
                     { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                     { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
-                .atTextureBindings = {
-                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 4},
-                },
                 .atSamplerBindings = {
-                    {.uSlot = 7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
             }
         }
