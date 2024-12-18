@@ -219,12 +219,6 @@ typedef struct _DynamicData
 
 typedef struct _plShadowData
 {
-    plVec2          tResolution;
-    plTextureHandle tDepthTexture[PL_MAX_FRAMES_IN_FLIGHT];
-    uint32_t        atDepthTextureBindlessIndices[PL_MAX_FRAMES_IN_FLIGHT];
-
-    plRenderPassHandle tOpaqueRenderPass;
-
     plBufferHandle atCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
 } plShadowData;
 
@@ -436,6 +430,12 @@ typedef struct _plRefRendererData
     plTextureHandle*  sbtTextureHandles;
     plHashMap*        ptTextureHashmap;
 
+    // shadow atlas
+    plRenderPassHandle tShadowRenderPass;
+    plVec2             tShadowAtlasResolution;
+    plTextureHandle    tShadowTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    uint32_t           atShadowTextureBindlessIndices[PL_MAX_FRAMES_IN_FLIGHT];
+
     // graphics options
     bool     bReloadSwapchain;
     bool     bReloadMSAA;
@@ -516,7 +516,7 @@ static bool pl__sat_visibility_test(plCameraComponent*, const plAABB*);
 // scene render helpers
 static void pl_refr_update_skin_textures(plCommandBuffer*, uint32_t);
 static void pl_refr_perform_skinning(plCommandBuffer*, uint32_t);
-static void pl_refr_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, uint32_t, uint32_t, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda, plVec2 tOffset);
+static void pl_refr_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, uint32_t, uint32_t, plEntity tCamera);
 static void pl_refr_post_process_scene(plCommandBuffer*, uint32_t, uint32_t, const plMat4*);
 
 // shader variant system

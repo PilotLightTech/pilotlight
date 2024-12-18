@@ -192,12 +192,17 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptCamera->update(ptCullCamera);
 
     // create lights
-    gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f}, NULL);
+    // gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f}, NULL);
 
     plLightComponent* ptLight = NULL;
     ptEditorData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "sunlight", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
     ptLight->uCascadeCount = 4;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
+
+    plLightComponent* ptLight2 = NULL;
+    gptEcs->create_directional_light(ptMainComponentLibrary, "sunlight2", (plVec3){0.0f, -1.0f, -1.0f}, &ptLight2);
+    ptLight2->uCascadeCount = 4;
+    ptLight2->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
 
     // load models
 
@@ -347,8 +352,7 @@ pl_app_update(plEditorData* ptEditorData)
     
         const plViewOptions tViewOptions = {
             .ptViewCamera = &ptEditorData->tMainCamera,
-            .ptCullCamera = ptEditorData->bFreezeCullCamera ? &ptEditorData->tCullCamera : NULL,
-            .ptSunLight = &ptEditorData->tSunlight
+            .ptCullCamera = ptEditorData->bFreezeCullCamera ? &ptEditorData->tCullCamera : NULL
         };
         gptRenderer->render_scene(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0, tViewOptions);
     }

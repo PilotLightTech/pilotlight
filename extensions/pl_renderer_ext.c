@@ -567,8 +567,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     plRefView* ptView = &ptScene->atViews[uViewHandle];
 
     ptView->tTargetSize = tDimensions;
-    ptView->tShadowData.tResolution.x = 1024.0f * 8.0f;
-    ptView->tShadowData.tResolution.y = 1024.0f * 8.0f;
+
 
     // create offscreen per-frame resources
     const plTextureDesc tRawOutputTextureDesc = {
@@ -630,16 +629,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
         .pcDebugName   = "offscreen depth texture"
-    };
-
-    const plTextureDesc tShadowDepthTextureDesc = {
-        .tDimensions   = {ptView->tShadowData.tResolution.x, ptView->tShadowData.tResolution.y, 1},
-        .tFormat       = PL_FORMAT_D32_FLOAT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
-        .pcDebugName   = "shadow map"
     };
 
     const plTextureDesc tMaskTextureDesc = {
@@ -770,10 +759,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
         ptView->atLightShadowDataBuffer[i] = pl__refr_create_staging_buffer(&atLightShadowDataBufferDesc, "shadow", i);
         ptView->tShadowData.atCameraBuffers[i] = pl__refr_create_staging_buffer(&atCameraBuffersDesc, "shadow buffer", i);
-        ptView->tShadowData.tDepthTexture[i] = pl__refr_create_texture(&tShadowDepthTextureDesc, "shadow map", i, PL_TEXTURE_USAGE_SAMPLED);
-        ptView->tShadowData.atDepthTextureBindlessIndices[i] = pl__get_bindless_texture_index(uSceneHandle, ptView->tShadowData.tDepthTexture[i]);
 
-        atShadowAttachmentSets[i].atViewAttachments[0] = ptView->tShadowData.tDepthTexture[i];
     }
 
     const plRenderPassDesc tRenderPassDesc = {
@@ -881,19 +867,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     ptView->pt3DGizmoDrawList = gptDraw->request_3d_drawlist();
     ptView->pt3DSelectionDrawList = gptDraw->request_3d_drawlist();
 
-    const plRenderPassDesc tDepthRenderPassDesc = {
-        .tLayout = gptData->tDepthRenderPassLayout,
-        .tDepthTarget = {
-                .tLoadOp         = PL_LOAD_OP_CLEAR,
-                .tStoreOp        = PL_STORE_OP_STORE,
-                .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
-                .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
-                .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
-                .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
-                .fClearZ         = 1.0f
-        },
-        .tDimensions = {.x = ptView->tShadowData.tResolution.x, .y = ptView->tShadowData.tResolution.y}
-    };
+
 
     // create offscreen renderpass
     const plRenderPassDesc tUVRenderPass0Desc = {
@@ -920,7 +894,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     };
     ptView->tUVRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tUVRenderPass0Desc, atUVAttachmentSets);
 
-    ptView->tShadowData.tOpaqueRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tDepthRenderPassDesc, atShadowAttachmentSets);
 
     return uViewHandle;
 }
@@ -2935,6 +2908,45 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
 
     gptGfx->update_bind_group(gptData->ptDevice, ptScene->tGlobalBindGroup, &tGlobalBindGroupData);
 
+    gptData->tShadowAtlasResolution.x = 1024.0f * 8.0f;
+    gptData->tShadowAtlasResolution.y = 1024.0f * 8.0f;
+
+    const plTextureDesc tShadowDepthTextureDesc = {
+        .tDimensions   = {gptData->tShadowAtlasResolution.x, gptData->tShadowAtlasResolution.y, 1},
+        .tFormat       = PL_FORMAT_D32_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "shadow map"
+    };
+
+    const plRenderPassDesc tDepthRenderPassDesc = {
+        .tLayout = gptData->tDepthRenderPassLayout,
+        .tDepthTarget = {
+                .tLoadOp         = PL_LOAD_OP_CLEAR,
+                .tStoreOp        = PL_STORE_OP_STORE,
+                .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
+                .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
+                .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
+                .fClearZ         = 1.0f
+        },
+        .tDimensions = {.x = gptData->tShadowAtlasResolution.x, .y = gptData->tShadowAtlasResolution.y}
+    };
+
+    plRenderPassAttachments atShadowAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
+    
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        gptData->tShadowTexture[i] = pl__refr_create_texture(&tShadowDepthTextureDesc, "shadow map", i, PL_TEXTURE_USAGE_SAMPLED);
+        gptData->atShadowTextureBindlessIndices[i] = pl__get_bindless_texture_index(uSceneHandle, gptData->tShadowTexture[i]);
+
+        atShadowAttachmentSets[i].atViewAttachments[0] = gptData->tShadowTexture[i];
+    }
+
+    gptData->tShadowRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tDepthRenderPassDesc, atShadowAttachmentSets);
+
     pl_end_cpu_sample(gptProfile, 0);
 }
 
@@ -3189,9 +3201,9 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
         pl_sb_reset(ptView->sbtLightShadowData);
 
-        plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tShadowData.tOpaqueRenderPass, NULL);
+        plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptData->tShadowRenderPass, NULL);
 
-        pl_refr_generate_cascaded_shadow_map(ptEncoder, ptCommandBuffer, uSceneHandle, uViewHandle, *tOptions.ptViewCamera, *tOptions.ptSunLight, gptData->fLambdaSplit, (plVec2){0});
+        pl_refr_generate_cascaded_shadow_map(ptEncoder, ptCommandBuffer, uSceneHandle, uViewHandle, *tOptions.ptViewCamera);
 
         gptGfx->end_render_pass(ptEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);

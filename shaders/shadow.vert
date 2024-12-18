@@ -34,25 +34,12 @@ layout(set = 0, binding = 4)  uniform texture2D at2DTextures[4096];
 layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
 
 //-----------------------------------------------------------------------------
-// [SECTION] bind group 0
+// [SECTION] bind group 1
 //-----------------------------------------------------------------------------
-
-struct plCameraInfo
-{
-    vec4 tViewportSize;
-    vec4 tCameraPos;
-    mat4 tCameraView;
-    mat4 tCameraProjection;
-    mat4 tCameraViewProjection;
-    uint uLambertianEnvSampler;
-    uint uGGXEnvSampler;
-    uint uGGXLUT;
-    uint _uUnUsed;
-};
 
 layout(set = 1, binding = 0) readonly buffer _plCameraInfo
 {
-    plCameraInfo atInfo[];
+    mat4 atCameraProjs[];
 } tCameraInfo;
 
 //-----------------------------------------------------------------------------
@@ -127,7 +114,7 @@ void main()
     }
 
     vec4 pos = tObjectInfo.tModel * inPosition;
-    gl_Position = tCameraInfo.atInfo[tObjectInfo.iIndex].tCameraViewProjection * pos;
+    gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.iIndex] * pos;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tUV[2] = inTexCoord2;
