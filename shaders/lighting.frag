@@ -228,13 +228,6 @@ const mat4 biasMat = mat4(
 	0.5, 0.5, 0.0, 1.0 
 );
 
-const vec2 atCascadeOffsets[4] = {
-    vec2(0),
-    vec2(0, 0.5),
-    vec2(0.5, 0),
-    vec2(0.5, 0.5),
-};
-
 float textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 {
 	float shadow = 1.0;
@@ -242,7 +235,7 @@ float textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
     {
-		float dist = texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), comp2).r;
+		float dist = 1.0 - texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), comp2).r;
 		if (shadowCoord.w > 0 && dist < shadowCoord.z)
         {
 			shadow = 0.01; // ambient
@@ -368,11 +361,11 @@ void main()
                 abiasMat[1][1] *= tShadowData.fFactor;
                 abiasMat[3][0] *= tShadowData.fFactor;
                 abiasMat[3][1] *= tShadowData.fFactor;
-	            vec4 shadowCoord = (abiasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * vec4(tWorldPosition.xyz, 1.0);	
+	            vec4 shadowCoord = (abiasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * vec4(tWorldPosition.xyz, 1.0);
+                // shadowCoord.z = -shadowCoord.z;
                 shadow = 0;
-                // shadow = textureProj(shadowCoord / shadowCoord.w, atCascadeOffsets[cascadeIndex], tShadowData.iShadowMapTexIdx);
-                // shadow = filterPCF(shadowCoord / shadowCoord.w, atCascadeOffsets[cascadeIndex], tShadowData.iShadowMapTexIdx);
-                shadow = filterPCF(shadowCoord / shadowCoord.w, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * 0.25, 0), tShadowData.iShadowMapTexIdx);
+                // shadow = textureProj(shadowCoord / shadowCoord.w, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                shadow = filterPCF(shadowCoord / shadowCoord.w, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
             }
 
             if(tLightData.iType != PL_LIGHT_TYPE_DIRECTIONAL)

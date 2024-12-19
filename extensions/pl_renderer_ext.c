@@ -2425,7 +2425,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
                     .pTempConstantData = aiConstantData0,
                     .tGraphicsState    = {
                         .ulDepthWriteEnabled  = 1,
-                        .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+                        .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
                         .ulCullMode           = PL_CULL_MODE_NONE,
                         .ulWireframe          = 0,
                         .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -2645,7 +2645,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                     .pTempConstantData = aiConstantData0,
                     .tGraphicsState    = {
                         .ulDepthWriteEnabled  = 1,
-                        .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+                        .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
                         .ulCullMode           = PL_CULL_MODE_NONE,
                         .ulWireframe          = 0,
                         .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -2930,7 +2930,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
                 .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
                 .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
-                .fClearZ         = 1.0f
+                .fClearZ         = 0.0f
         },
         .tDimensions = {.x = gptData->tShadowAtlasResolution.x, .y = gptData->tShadowAtlasResolution.y}
     };

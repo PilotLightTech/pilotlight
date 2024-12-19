@@ -115,6 +115,7 @@ void main()
 
     vec4 pos = tObjectInfo.tModel * inPosition;
     gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.iIndex] * pos;
+    gl_Position.z = 1.0 - gl_Position.z;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tUV[2] = inTexCoord2;

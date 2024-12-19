@@ -365,12 +365,20 @@ pl__sat_visibility_test(plCameraComponent* ptCamera, const plAABB* ptAABB)
 {
     const float fTanFov = tanf(0.5f * ptCamera->fFieldOfView);
 
-    const float fZNear = ptCamera->fNearZ;
-    const float fZFar = ptCamera->fFarZ;
+    // const float fZNear = ptCamera->fNearZ;
+    // const float fZFar = ptCamera->fFarZ;
+
+    // reverse z
+    const float fZFar = ptCamera->fNearZ;
+    const float fZNear = ptCamera->fFarZ;
 
     // half width, half height
-    const float fXNear = ptCamera->fAspectRatio * ptCamera->fNearZ * fTanFov;
-    const float fYNear = ptCamera->fNearZ * fTanFov;
+    // const float fXNear = ptCamera->fAspectRatio * ptCamera->fNearZ * fTanFov;
+    // const float fYNear = ptCamera->fNearZ * fTanFov;
+
+    // reverse z
+    const float fXNear = ptCamera->fAspectRatio * ptCamera->fFarZ * fTanFov;
+    const float fYNear = ptCamera->fFarZ * fTanFov;
 
     // consider four adjacent corners of the AABB
     plVec3 atCorners[] = {
@@ -760,12 +768,22 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
     plCameraComponent* ptSceneCamera = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, tCamera);
 
     // common calculations
-    const float fNearClip = ptSceneCamera->fNearZ;
-    const float fFarClip = ptSceneCamera->fFarZ;
+    // const float fFarClip = ptSceneCamera->fFarZ;
+    // const float fNearClip = ptSceneCamera->fNearZ;
+    const float fNearClip = ptSceneCamera->fFarZ;
+    const float fFarClip = ptSceneCamera->fNearZ;
     const float fClipRange = fFarClip - fNearClip;
+    // const float fClipRange = fNearClip - fFarClip;
 
     const float fMinZ = fNearClip;
     const float fMaxZ = fNearClip + fClipRange;
+
+    // const float fRange = fMaxZ - fMinZ;
+    // const float fRatio = fMaxZ / fMinZ;
+
+
+    // const float fMinZ = fFarClip;
+    // const float fMaxZ = fFarClip + fClipRange;
 
     const float fRange = fMaxZ - fMinZ;
     const float fRatio = fMaxZ / fMinZ;
@@ -831,9 +849,12 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                 { -1.0f, -1.0f, 0.0f },
                 {  1.0f, -1.0f, 0.0f },
                 {  1.0f,  1.0f, 0.0f },
-            }; // x is reversed for reverse z here currently
+            };
+            // plMat4 tCameraInversion = pl_mul_mat4(&tCameraProjMat, &ptSceneCamera->tViewMat);
             plMat4 tCameraInversion = pl_mul_mat4(&ptSceneCamera->tProjMat, &ptSceneCamera->tViewMat);
             tCameraInversion = pl_mat4_invert(&tCameraInversion);
+
+            // convert to world space
             for(uint32_t i = 0; i < 8; i++)
             {
                 plVec4 tInvCorner = pl_mul_mat4_vec4(&tCameraInversion, (plVec4){.xyz = atCameraCorners[i], .w = 1.0f});
@@ -880,7 +901,9 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
             tShadowCamera.fNearZ = 0.01f;
             fLastSplitDist = fSplitDist;
 
+            // tShadowCamera.tProjMat.col[2].z *= -1.0f;
             atCamViewProjs[uCascade] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
+            
             ptShadowData->cascadeViewProjMat[uCascade] = atCamViewProjs[uCascade];
         }
 
@@ -956,7 +979,8 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
             gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
 
-            gptGfx->set_depth_bias(ptEncoder, 0.005f, 0.0f, 1.0f);
+            gptGfx->set_depth_bias(ptEncoder, 0.005f, 0.0f, -1.0f);
+            // gptGfx->set_depth_bias(ptEncoder, 0.0f, 0.0f, 0.0f);
 
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
@@ -1350,7 +1374,7 @@ pl_refr_create_global_shaders(void)
         .tVertexShader = gptShader->load_glsl("../shaders/shadow.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulWireframe          = 0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
