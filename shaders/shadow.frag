@@ -37,22 +37,9 @@ layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-struct plCameraInfo
-{
-    vec4 tViewportSize;
-    vec4 tCameraPos;
-    mat4 tCameraView;
-    mat4 tCameraProjection;
-    mat4 tCameraViewProjection;
-    uint uLambertianEnvSampler;
-    uint uGGXEnvSampler;
-    uint uGGXLUT;
-    uint _uUnUsed;
-};
-
 layout(set = 1, binding = 0) readonly buffer _plCameraInfo
 {
-    plCameraInfo atInfo[];
+    mat4 atCameraProjs[];
 } tCameraInfo;
 
 //-----------------------------------------------------------------------------

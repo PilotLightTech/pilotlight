@@ -49,6 +49,7 @@ Index of this file:
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_file_ext.h"
+#include "pl_rect_pack_ext.h"
 
 #define PL_MAX_VIEWS_PER_SCENE 4
 #define PL_MAX_LIGHTS 1000
@@ -87,6 +88,7 @@ Index of this file:
     static const plFileI*          gptFile          = NULL;
     static const plProfileI*       gptProfile       = NULL;
     static const plLogI*           gptLog           = NULL;
+    static const plRectPackI*      gptRect          = NULL;
     
     // experimental
     static const plCameraI*   gptCamera   = NULL;
@@ -188,6 +190,10 @@ typedef struct _plGPULightShadowData
 {
 	plVec4 cascadeSplits;
 	plMat4 cascadeViewProjMat[4];
+    int iShadowMapTexIdx;
+    float fFactor;
+    float fXOffset;
+    float fYOffset;
 } plGPULightShadowData;
 
 typedef struct _BindGroup_0
@@ -215,12 +221,6 @@ typedef struct _DynamicData
 
 typedef struct _plShadowData
 {
-    plVec2          tResolution;
-    plTextureHandle tDepthTexture[PL_MAX_FRAMES_IN_FLIGHT];
-    plTextureHandle atDepthTextureViews[PL_MAX_SHADOW_CASCADES][PL_MAX_FRAMES_IN_FLIGHT];
-
-    plRenderPassHandle atOpaqueRenderPasses[PL_MAX_SHADOW_CASCADES];
-
     plBufferHandle atCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
 } plShadowData;
 
@@ -432,6 +432,13 @@ typedef struct _plRefRendererData
     plTextureHandle*  sbtTextureHandles;
     plHashMap*        ptTextureHashmap;
 
+    // shadow atlas
+    plPackRect*        sbtShadowRects;
+    plRenderPassHandle tShadowRenderPass;
+    uint32_t           uShadowAtlasResolution;
+    plTextureHandle    tShadowTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    uint32_t           atShadowTextureBindlessIndices[PL_MAX_FRAMES_IN_FLIGHT];
+
     // graphics options
     bool     bReloadSwapchain;
     bool     bReloadMSAA;
@@ -443,6 +450,8 @@ typedef struct _plRefRendererData
     bool     bDrawVisibleBoundingBoxes;
     bool     bShowSelectedBoundingBox;
     bool     bMultiViewportShadows;
+    float    fShadowConstantDepthBias;
+    float    fShadowSlopeDepthBias;
     uint32_t uOutlineWidth;
 } plRefRendererData;
 
@@ -502,6 +511,7 @@ static void pl__refr_cull_job(plInvocationData, void*);
 // resource creation helpers
 static plTextureHandle pl__create_texture_helper            (plMaterialComponent*, plTextureSlot, bool bHdr, int iMips);
 static plTextureHandle pl__refr_create_texture              (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
+static plTextureHandle pl__refr_create_local_texture        (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
 static plTextureHandle pl__refr_create_texture_with_data    (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);
 static plBufferHandle  pl__refr_create_staging_buffer       (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
 static plBufferHandle  pl__refr_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
@@ -513,7 +523,7 @@ static bool pl__sat_visibility_test(plCameraComponent*, const plAABB*);
 // scene render helpers
 static void pl_refr_update_skin_textures(plCommandBuffer*, uint32_t);
 static void pl_refr_perform_skinning(plCommandBuffer*, uint32_t);
-static void pl_refr_generate_cascaded_shadow_map(plCommandBuffer*, uint32_t, uint32_t, plEntity tCamera, plEntity tLight, float fCascadeSplitLambda);
+static void pl_refr_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, uint32_t, uint32_t, plEntity tCamera);
 static void pl_refr_post_process_scene(plCommandBuffer*, uint32_t, uint32_t, const plMat4*);
 
 // shader variant system

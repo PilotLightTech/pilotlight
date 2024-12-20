@@ -105,7 +105,6 @@ typedef struct _plViewOptions
 {
     plEntity* ptViewCamera;
     plEntity* ptCullCamera;
-    plEntity* ptSunLight;
 } plViewOptions;
 
 #endif // PL_RENDERER_EXT_H

@@ -68,8 +68,7 @@ layout(set = 2, binding = 2) readonly buffer plShadowData
     plLightShadowData atData[];
 } tShadowData;
 
-layout (set = 2, binding = 3) uniform texture2D shadowmap[4];
-layout(set = 2, binding = 7)  uniform sampler tShadowSampler;
+layout(set = 2, binding = 3)  uniform sampler tShadowSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -229,28 +228,28 @@ const mat4 biasMat = mat4(
 	0.5, 0.5, 0.0, 1.0 
 );
 
-float textureProj(vec4 shadowCoord, vec2 offset, uint cascadeIndex)
+float textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 {
 	float shadow = 1.0;
     vec2 comp2 = shadowCoord.st + offset;
 
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
     {
-		float dist = texture(sampler2D(shadowmap[cascadeIndex], tShadowSampler), comp2).r;
+		float dist = 1.0 - texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), comp2).r;
 		if (shadowCoord.w > 0 && dist < shadowCoord.z)
         {
-			shadow = 0.01; // ambient
+			shadow = 0.0; // ambient
 		}
 	}
 	return shadow;
 }
 
-float filterPCF(vec4 sc, uint cascadeIndex)
+float filterPCF(vec4 sc, vec2 offset, int textureIndex)
 {
-	ivec2 texDim = textureSize(sampler2D(shadowmap[cascadeIndex], tShadowSampler), 0).xy;
-	float scale = 0.75;
-	float dx = scale * 1.0 / float(texDim.x);
-	float dy = scale * 1.0 / float(texDim.y);
+	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), 0).xy;
+	float scale = 1.0;
+	float dx = scale * 1.0 / (float(texDim.x));
+	float dy = scale * 1.0 / (float(texDim.y));
 
 	float shadowFactor = 0.0;
 	int count = 0;
@@ -258,7 +257,7 @@ float filterPCF(vec4 sc, uint cascadeIndex)
 	
 	for (int x = -range; x <= range; x++) {
 		for (int y = -range; y <= range; y++) {
-			shadowFactor += textureProj(sc, vec2(dx*x, dy*y), cascadeIndex);
+			shadowFactor += textureProj(sc, vec2(dx*x, dy*y) + offset, textureIndex);
 			count++;
 		}
 	}
@@ -357,10 +356,16 @@ void main()
                 }  
 
                 // Depth compare for shadowing
-	            vec4 shadowCoord = (biasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * vec4(tWorldPosition.xyz, 1.0);	
+                mat4 abiasMat = biasMat;
+                abiasMat[0][0] *= tShadowData.fFactor;
+                abiasMat[1][1] *= tShadowData.fFactor;
+                abiasMat[3][0] *= tShadowData.fFactor;
+                abiasMat[3][1] *= tShadowData.fFactor;
+	            vec4 shadowCoord = (abiasMat * tShadowData.cascadeViewProjMat[cascadeIndex]) * vec4(tWorldPosition.xyz, 1.0);
+                // shadowCoord.z = -shadowCoord.z;
                 shadow = 0;
-                shadow = textureProj(shadowCoord / shadowCoord.w, vec2(0.0), cascadeIndex);
-                // shadow = filterPCF(shadowCoord / shadowCoord.w, cascadeIndex);
+                // shadow = textureProj(shadowCoord / shadowCoord.w, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                shadow = filterPCF(shadowCoord / shadowCoord.w, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
             }
 
             if(tLightData.iType != PL_LIGHT_TYPE_DIRECTIONAL)
