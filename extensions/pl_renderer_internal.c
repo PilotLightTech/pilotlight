@@ -1315,9 +1315,28 @@ pl_refr_create_global_shaders(void)
     }
     gptData->tForwardShader = gptGfx->create_shader(gptData->ptDevice, &tForwardShaderDescription);
 
+
+    static const plShaderMacroDefinition tDefinition = {
+        .pcName = "PL_MULTIPLE_VIEWPORTS",
+        .szNameLength = 21
+    };
+    static plShaderOptions tShadowShaderOptions = {
+        .uMacroDefinitionCount = 1,
+        .ptMacroDefinitions = &tDefinition,
+        .apcIncludeDirectories = {
+            "../shaders/"
+        },
+        #ifndef PL_OFFLINE_SHADERS_ONLY
+        .tFlags = PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG
+        #endif
+    };
+
+    plShaderModule tShadowPixelShader = gptShader->load_glsl("../shaders/shadow.frag", "main", NULL, NULL);
+    plShaderModule tVertexShader = gptShader->load_glsl("../shaders/shadow.vert", "main", NULL, gptData->bMultiViewportShadows ? &tShadowShaderOptions : NULL);
+
     plShaderDesc tShadowShaderDescription = {
-        .tPixelShader = gptShader->load_glsl("../shaders/shadow.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("../shaders/shadow.vert", "main", NULL, NULL),
+        .tPixelShader = tShadowPixelShader,
+        .tVertexShader = tVertexShader,
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
             .ulDepthMode          = PL_COMPARE_MODE_LESS_OR_EQUAL,

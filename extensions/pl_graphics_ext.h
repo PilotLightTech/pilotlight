@@ -38,6 +38,7 @@ Index of this file:
 #define PL_MAX_SUBPASSES 8
 #define PL_MAX_TIMELINE_SEMAPHORES 8
 #define PL_MAX_VERTEX_ATTRIBUTES 8
+#define PL_MAX_VIEWPORTS 16
 
 // macros
 #define PL_DEFINE_HANDLE(x) \
@@ -47,7 +48,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version (plVersion){1, 1, 0}
+#define plGraphicsI_version (plVersion){1, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -885,8 +886,8 @@ typedef struct _plBufferImageCopy
 
 typedef struct _plDrawArea
 {
-    plRenderViewport tViewport;
-    plScissor        tScissor;
+    plRenderViewport atViewports[PL_MAX_VIEWPORTS];
+    plScissor        atScissors[PL_MAX_VIEWPORTS];
     plDrawStream*    ptDrawStream;
 } plDrawArea;
 
@@ -1108,7 +1109,8 @@ enum _plDeviceCapability
     PL_DEVICE_CAPABILITY_NONE                = 0,
     PL_DEVICE_CAPABILITY_SWAPCHAIN           = 1 << 0,
     PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING = 1 << 1,
-    PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY  = 1 << 2
+    PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY  = 1 << 2,
+    PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS  = 1 << 3
 };
 
 enum _plCommandPoolResetFlags

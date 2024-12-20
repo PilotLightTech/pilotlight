@@ -135,6 +135,10 @@ pl_refr_initialize(plWindow* ptWindow)
     };
     gptData->ptDevice = gptGfx->create_device(&tDeviceInit);
 
+    gptData->tDeviceInfo = atDeviceInfos[iBestDvcIdx];
+    if(gptData->tDeviceInfo.tCapabilities & PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS)
+        gptData->bMultiViewportShadows = true;
+
     // create main bind group pool
     const plBindGroupPoolDesc tBindGroupPoolDesc = {
         .tFlags                      = PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET | PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING,
@@ -3226,14 +3230,20 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
 
     plDrawArea tArea = {
        .ptDrawStream = ptStream,
-       .tScissor = {
-            .uWidth  = (uint32_t)tDimensions.x,
-            .uHeight = (uint32_t)tDimensions.y,
+       .atScissors = 
+       {
+            {
+                .uWidth  = (uint32_t)tDimensions.x,
+                .uHeight = (uint32_t)tDimensions.y,
+            }
        },
-       .tViewport = {
-            .fWidth  = tDimensions.x,
-            .fHeight = tDimensions.y,
-            .fMaxDepth = 1.0f
+       .atViewports =
+       {
+            {
+                .fWidth  = tDimensions.x,
+                .fHeight = tDimensions.y,
+                .fMaxDepth = 1.0f
+            }
        }
     };
     

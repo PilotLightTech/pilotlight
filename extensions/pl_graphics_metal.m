@@ -1457,7 +1457,7 @@ pl_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
 
     // printf("%s\n", [tDevice.architecture.name UTF8String]);
     atDeviceInfo[0].tType = PL_DEVICE_TYPE_INTEGRATED;
-    atDeviceInfo[0].tCapabilities = PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING | PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY | PL_DEVICE_CAPABILITY_SWAPCHAIN;
+    atDeviceInfo[0].tCapabilities = PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING | PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY | PL_DEVICE_CAPABILITY_SWAPCHAIN | PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS;
 
     if(tDevice.hasUnifiedMemory)
     {
@@ -2353,23 +2353,40 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
         plDrawArea* ptArea = &atAreas[i];
         plDrawStream* ptStream = ptArea->ptDrawStream;
 
-        MTLScissorRect tScissorRect = {
-            .x      = (NSUInteger)(ptArea->tScissor.iOffsetX),
-            .y      = (NSUInteger)(ptArea->tScissor.iOffsetY),
-            .width  = (NSUInteger)(ptArea->tScissor.uWidth),
-            .height = (NSUInteger)(ptArea->tScissor.uHeight)
-        };
-        [ptEncoder->tEncoder setScissorRect:tScissorRect];
+        MTLScissorRect atScissors[PL_MAX_VIEWPORTS] = {0};
+        MTLViewport atViewports[PL_MAX_VIEWPORTS] = {0};
 
-        MTLViewport tViewport = {
-            .originX = ptArea->tViewport.fX,
-            .originY = ptArea->tViewport.fY,
-            .width   = ptArea->tViewport.fWidth,
-            .height  = ptArea->tViewport.fHeight,
-            .znear   = 0,
-            .zfar    = 1.0
-        };
-        [ptEncoder->tEncoder setViewport:tViewport];
+        uint32_t uViewportCount = 0;
+
+        for(uint32_t j = 0; j < PL_MAX_VIEWPORTS; j++)
+        {
+
+            if(ptArea->atViewports[j].fWidth == 0.0f)
+            {
+                break;
+            }
+
+            atScissors[j] = (MTLScissorRect){
+                .x      = (NSUInteger)(ptArea->atScissors[j].iOffsetX),
+                .y      = (NSUInteger)(ptArea->atScissors[j].iOffsetY),
+                .width  = (NSUInteger)(ptArea->atScissors[j].uWidth),
+                .height = (NSUInteger)(ptArea->atScissors[j].uHeight)
+            };
+
+            atViewports[j] = (MTLViewport){
+                .originX = ptArea->atViewports[j].fX,
+                .originY = ptArea->atViewports[j].fY,
+                .width   = ptArea->atViewports[j].fWidth,
+                .height  = ptArea->atViewports[j].fHeight,
+                .znear   = 0,
+                .zfar    = 1.0
+            };
+
+            uViewportCount++;
+        }
+
+        [ptEncoder->tEncoder setViewports:atViewports count:uViewportCount];
+        [ptEncoder->tEncoder setScissorRects:atScissors count:uViewportCount];
 
         const uint32_t uTokens = ptStream->_uStreamCount;
         uint32_t uCurrentStreamIndex = 0;

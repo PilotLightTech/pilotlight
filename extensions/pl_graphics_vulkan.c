@@ -1955,28 +1955,44 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
     {
         plDrawArea* ptArea = &atAreas[i];
 
-        const VkRect2D tScissor = {
-            .offset = {
-                .x = ptArea->tScissor.iOffsetX,
-                .y = ptArea->tScissor.iOffsetY
-            },
-            .extent = {
-                .width = ptArea->tScissor.uWidth,
-                .height = ptArea->tScissor.uHeight
+        VkRect2D atScissors[PL_MAX_VIEWPORTS] = {0};
+        VkViewport atViewports[PL_MAX_VIEWPORTS] = {0};
+
+        uint32_t uViewportCount = 0;
+
+        for(uint32_t j = 0; j < PL_MAX_VIEWPORTS; j++)
+        {
+
+            if(ptArea->atViewports[j].fWidth == 0.0f)
+            {
+                break;
             }
-        };
 
-        const VkViewport tViewport = {
-            .x        = ptArea->tViewport.fX,
-            .y        = ptArea->tViewport.fY,
-            .width    = ptArea->tViewport.fWidth,
-            .height   = ptArea->tViewport.fHeight,
-            .minDepth = ptArea->tViewport.fMinDepth,
-            .maxDepth = ptArea->tViewport.fMaxDepth
-        };
+            atScissors[j] = (VkRect2D){
+                .offset = {
+                    .x = ptArea->atScissors[j].iOffsetX,
+                    .y = ptArea->atScissors[j].iOffsetY
+                },
+                .extent = {
+                    .width = ptArea->atScissors[j].uWidth,
+                    .height = ptArea->atScissors[j].uHeight
+                }
+            };
 
-        vkCmdSetViewport(ptCmdBuffer->tCmdBuffer, 0, 1, &tViewport);
-        vkCmdSetScissor(ptCmdBuffer->tCmdBuffer, 0, 1, &tScissor);
+            atViewports[j] = (VkViewport){
+                .x        = ptArea->atViewports[j].fX,
+                .y        = ptArea->atViewports[j].fY,
+                .width    = ptArea->atViewports[j].fWidth,
+                .height   = ptArea->atViewports[j].fHeight,
+                .minDepth = ptArea->atViewports[j].fMinDepth,
+                .maxDepth = ptArea->atViewports[j].fMaxDepth
+            };
+
+            uViewportCount++;
+        }
+
+        vkCmdSetViewport(ptCmdBuffer->tCmdBuffer, 0, uViewportCount, atViewports);
+        vkCmdSetScissor(ptCmdBuffer->tCmdBuffer, 0, uViewportCount, atScissors);
 
         plDrawStream* ptStream = ptArea->ptDrawStream;
 
@@ -2120,7 +2136,7 @@ void
 pl_set_depth_bias(plRenderEncoder* ptEncoder, float fDepthBiasConstantFactor, float fDepthBiasClamp, float fDepthBiasSlopeFactor)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
-    vkCmdSetDepthBias(ptCmdBuffer->tCmdBuffer, fDepthBiasConstantFactor, 0.0f, fDepthBiasSlopeFactor);
+    vkCmdSetDepthBias(ptCmdBuffer->tCmdBuffer, fDepthBiasConstantFactor, fDepthBiasClamp, fDepthBiasSlopeFactor);
 }
 
 void
@@ -2273,7 +2289,7 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     if (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED)
     {
         apcExtensions[uExtensionCount++] = VK_KHR_SURFACE_EXTENSION_NAME;
-
+        
     #ifdef _WIN32
             apcExtensions[uExtensionCount++] = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
     #elif defined(__ANDROID__)
@@ -2580,6 +2596,9 @@ pl_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCount)
 
         if (tDeviceFeatures.samplerAnisotropy)
             atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY;
+
+        if (tDeviceFeatures.multiViewport)
+            atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS;
     }
 }
 
@@ -2692,6 +2711,8 @@ pl_create_device(const plDeviceInit* ptInit)
     #if defined(__APPLE__)
         apcDeviceExts[uDeviceExtensionCount++] = "VK_KHR_portability_subset";
     #endif
+
+    apcDeviceExts[uDeviceExtensionCount++] = VK_EXT_SHADER_VIEWPORT_INDEX_LAYER_EXTENSION_NAME;
 
     // get device features
     VkPhysicalDeviceFeatures tDeviceFeatures = {0};

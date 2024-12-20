@@ -442,6 +442,7 @@ typedef struct _plRefRendererData
     bool     bDrawAllBoundingBoxes;
     bool     bDrawVisibleBoundingBoxes;
     bool     bShowSelectedBoundingBox;
+    bool     bMultiViewportShadows;
     uint32_t uOutlineWidth;
 } plRefRendererData;
 
