@@ -127,7 +127,7 @@ typedef struct _plEcsI
     plEntity (*create_skin)               (plComponentLibrary*, const char* pcName, plSkinComponent**);
     plEntity (*create_animation)          (plComponentLibrary*, const char* pcName, plAnimationComponent**);
     plEntity (*create_animation_data)     (plComponentLibrary*, const char* pcName, plAnimationDataComponent**);
-    plEntity (*create_perspective_camera) (plComponentLibrary*, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, plCameraComponent**);
+    plEntity (*create_perspective_camera) (plComponentLibrary*, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCameraComponent**);
     plEntity (*create_orthographic_camera)(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent**);
     plEntity (*create_directional_light)  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
     plEntity (*create_point_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
@@ -231,7 +231,10 @@ enum _plBlendMode
 enum _plCameraType
 {
     PL_CAMERA_TYPE_PERSPECTIVE,
-    PL_CAMERA_TYPE_ORTHOGRAPHIC
+    PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
+    PL_CAMERA_TYPE_ORTHOGRAPHIC,
+
+    PL_CAMERA_TYPE_COUNT
 };
 
 enum _plAnimationMode
@@ -459,6 +462,7 @@ typedef struct _plLightComponent
     float        fRange;
     plVec3       tPosition;
     plVec3       tDirection;
+    uint32_t     uShadowResolution; // 0 -> automatic
     float        afCascadeSplits[PL_MAX_SHADOW_CASCADES];
     uint32_t     uCascadeCount;
 } plLightComponent;

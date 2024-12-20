@@ -92,7 +92,7 @@ static plEntity pl_ecs_create_material           (plComponentLibrary*, const cha
 static plEntity pl_ecs_create_skin               (plComponentLibrary*, const char* pcName, plSkinComponent**);
 static plEntity pl_ecs_create_animation          (plComponentLibrary*, const char* pcName, plAnimationComponent**);
 static plEntity pl_ecs_create_animation_data     (plComponentLibrary*, const char* pcName, plAnimationDataComponent**);
-static plEntity pl_ecs_create_perspective_camera (plComponentLibrary*, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, plCameraComponent**);
+static plEntity pl_ecs_create_perspective_camera (plComponentLibrary*, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCameraComponent**);
 static plEntity pl_ecs_create_orthographic_camera(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent**);
 static plEntity pl_ecs_create_directional_light  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
 static plEntity pl_ecs_create_point_light        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
@@ -903,14 +903,14 @@ pl_ecs_create_animation_data(plComponentLibrary* ptLibrary, const char* pcName, 
 }
 
 static plEntity
-pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, plCameraComponent** pptCompOut)
+pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCameraComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     pl_log_debug_f(gptLog, uLogChannelEcs, "created camera: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     const plCameraComponent tCamera = {
-        .tType        = PL_CAMERA_TYPE_PERSPECTIVE,
+        .tType        = bReverseZ ? PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z : PL_CAMERA_TYPE_PERSPECTIVE,
         .tPos         = tPos,
         .fNearZ       = fNearZ,
         .fFarZ        = fFarZ,
@@ -1584,22 +1584,46 @@ pl_camera_update(plCameraComponent* ptCamera)
     ptCamera->tViewMat   = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    if(ptCamera->tType == PL_CAMERA_TYPE_PERSPECTIVE)
+    switch(ptCamera->tType)
     {
-        const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
-        ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
-        ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
-        ptCamera->tProjMat.col[2].z = ptCamera->fNearZ / (ptCamera->fNearZ - ptCamera->fFarZ);
-        ptCamera->tProjMat.col[2].w = 1.0f;
-        ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
-        ptCamera->tProjMat.col[3].w = 0.0f;  
-    }
-    else if(ptCamera->tType == PL_CAMERA_TYPE_ORTHOGRAPHIC)
-    {
-        ptCamera->tProjMat.col[0].x = 2.0f / ptCamera->fWidth;
-        ptCamera->tProjMat.col[1].y = 2.0f / ptCamera->fHeight;
-        ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
-        ptCamera->tProjMat.col[3].w = 1.0f;
+        case PL_CAMERA_TYPE_PERSPECTIVE:
+        {
+            const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
+            ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
+            ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
+            ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
+            ptCamera->tProjMat.col[2].w = 1.0f;
+            ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
+            ptCamera->tProjMat.col[3].w = 0.0f;  
+            break;
+        }
+
+        case PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z:
+        {
+            const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
+            ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
+            ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
+            ptCamera->tProjMat.col[2].z = ptCamera->fNearZ / (ptCamera->fNearZ - ptCamera->fFarZ);
+            ptCamera->tProjMat.col[2].w = 1.0f;
+            ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
+            ptCamera->tProjMat.col[3].w = 0.0f;  
+            break;
+        }
+
+        case PL_CAMERA_TYPE_ORTHOGRAPHIC:
+        {
+            ptCamera->tProjMat.col[0].x = 2.0f / ptCamera->fWidth;
+            ptCamera->tProjMat.col[1].y = 2.0f / ptCamera->fHeight;
+            ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
+            ptCamera->tProjMat.col[3].w = 1.0f;
+            break;
+        }
+
+        default:
+        {
+            PL_ASSERT(false && "Unknown camera component type");
+            break;
+        }
     }
 }
 
