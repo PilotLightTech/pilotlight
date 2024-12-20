@@ -2900,7 +2900,7 @@ pl__metal_format(plFormat tFormat)
         case PL_FORMAT_D32_FLOAT:          return MTLPixelFormatDepth32Float;
         case PL_FORMAT_D32_FLOAT_S8_UINT:  return MTLPixelFormatDepth32Float_Stencil8;
         case PL_FORMAT_D24_UNORM_S8_UINT:  return MTLPixelFormatDepth24Unorm_Stencil8;
-        case PL_FORMAT_D16_UNORM_S8_UINT:   return MTLPixelFormatDepth16Unorm;
+        case PL_FORMAT_D16_UNORM:           return MTLPixelFormatDepth16Unorm;
         case PL_FORMAT_R8_SNORM:            return MTLPixelFormatR8Unorm;
         case PL_FORMAT_R8_UINT:             return MTLPixelFormatR8Uint; 
         case PL_FORMAT_R8_SINT:             return MTLPixelFormatR8Sint;
