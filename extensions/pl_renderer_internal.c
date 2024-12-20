@@ -1119,7 +1119,7 @@ pl_refr_post_process_scene(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHand
     gptGfx->bind_graphics_bind_groups(ptEncoder, ptScene->tTonemapShader, 0, 1, &tJFABindGroup0, 1, &tDynamicBinding);
     gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
-    gptDrawBackend->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
+    gptDrawBackend->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
 
     gptGfx->end_render_pass(ptEncoder);
     pl_end_cpu_sample(gptProfile, 0);

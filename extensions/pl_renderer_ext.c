@@ -3592,7 +3592,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
             gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tTransformMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
         }
 
-        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, ptEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
+        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, ptEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
         gptDrawBackend->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
         gptGfx->end_render_pass(ptEncoder);
 

@@ -385,7 +385,7 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
             .tVertexShader = gptShader->load_glsl("../shaders/draw_3d.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE ? 1 : 0,
-                .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_ALWAYS,
+                .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? (tFlags & PL_DRAW_FLAG_REVERSE_Z_DEPTH ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_LESS) : PL_COMPARE_MODE_ALWAYS,
                 .ulCullMode           = ulCullMode,
                 .ulWireframe          = 0,
                 .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -429,7 +429,7 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
             .tVertexShader = gptShader->load_glsl("../shaders/draw_3d_line.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE,
-                .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_ALWAYS,
+                .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? (tFlags & PL_DRAW_FLAG_REVERSE_Z_DEPTH ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_LESS) : PL_COMPARE_MODE_ALWAYS,
                 .ulCullMode           = ulCullMode,
                 .ulWireframe          = 0,
                 .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,

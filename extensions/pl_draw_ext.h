@@ -206,12 +206,13 @@ typedef struct _plDrawI
 
 enum _plDrawFlags
 {
-    PL_DRAW_FLAG_NONE          = 0,
-    PL_DRAW_FLAG_DEPTH_TEST    = 1 << 0,
-    PL_DRAW_FLAG_DEPTH_WRITE   = 1 << 1,
-    PL_DRAW_FLAG_CULL_FRONT    = 1 << 2,
-    PL_DRAW_FLAG_CULL_BACK     = 1 << 3,
-    PL_DRAW_FLAG_FRONT_FACE_CW = 1 << 4,
+    PL_DRAW_FLAG_NONE            = 0,
+    PL_DRAW_FLAG_DEPTH_TEST      = 1 << 0,
+    PL_DRAW_FLAG_DEPTH_WRITE     = 1 << 1,
+    PL_DRAW_FLAG_CULL_FRONT      = 1 << 2,
+    PL_DRAW_FLAG_CULL_BACK       = 1 << 3,
+    PL_DRAW_FLAG_FRONT_FACE_CW   = 1 << 4,
+    PL_DRAW_FLAG_REVERSE_Z_DEPTH = 1 << 5,
 };
 
 enum _plDrawRectFlags
