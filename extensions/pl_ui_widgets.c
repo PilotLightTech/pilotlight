@@ -1743,6 +1743,8 @@ bool
 pl_input_float(const char* pcLabel, float* pfValue, const char* pcFormat, plUiInputTextFlags tFlags)
 {
     char acBuffer[64] = {0};
+    if(pcFormat == NULL)
+        pcFormat = "%0.3f";
     pl_sprintf(acBuffer, pcFormat, *pfValue);
 
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
@@ -1761,6 +1763,8 @@ pl_input_float(const char* pcLabel, float* pfValue, const char* pcFormat, plUiIn
 bool
 pl_input_float2(const char* pcLabel, float* afValue, const char* pcFormat, plUiInputTextFlags tFlags)
 {
+    if(pcFormat == NULL)
+        pcFormat = "%0.3f";
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
@@ -1803,6 +1807,8 @@ pl_input_float2(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
 bool
 pl_input_float3(const char* pcLabel, float* afValue, const char* pcFormat, plUiInputTextFlags tFlags)
 {
+    if(pcFormat == NULL)
+        pcFormat = "%0.3f";
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
@@ -1845,6 +1851,8 @@ pl_input_float3(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
 bool
 pl_input_float4(const char* pcLabel, float* afValue, const char* pcFormat, plUiInputTextFlags tFlags)
 {
+    if(pcFormat == NULL)
+        pcFormat = "%0.3f";
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
@@ -2935,6 +2943,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
 bool
 pl_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
 {
+    if(pcFormat == NULL)
+        pcFormat = "%0.3f";
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
@@ -3134,6 +3144,8 @@ pl_slider_int(const char* pcLabel, int* piValue, int iMin, int iMax, plUiSliderF
 bool
 pl_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, float fMax, const char* pcFormat, plUiSliderFlags tFlags)
 {
+    if(pcFormat == NULL)
+        pcFormat = "%0.3f";
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
