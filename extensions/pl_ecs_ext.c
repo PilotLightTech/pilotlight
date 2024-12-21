@@ -655,6 +655,7 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             .tDirection          = {0.0f, -1.0f, 0.0f},
             .fIntensity          = 1.0f,
             .fRange              = 10.0f,
+            .fRadius             = 0.025f,
             .tType               = PL_LIGHT_TYPE_DIRECTIONAL,
             .uCascadeCount       = 0,
             .tFlags              = 0,

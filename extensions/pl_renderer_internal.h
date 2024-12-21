@@ -183,13 +183,14 @@ typedef struct _plGPULight
 
     int iShadowIndex;
     int iCascadeCount;
-    int _unused[2];
+    int iCastShadow;
+    int _unused[1];
 } plGPULight;
 
 typedef struct _plGPULightShadowData
 {
 	plVec4 cascadeSplits;
-	plMat4 cascadeViewProjMat[4];
+	plMat4 cascadeViewProjMat[6];
     int iShadowMapTexIdx;
     float fFactor;
     float fXOffset;

@@ -815,6 +815,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
     // count rects
     pl_sb_reset(gptData->sbtShadowRects);
+    uint32_t uShadowCastingLightIndex = 0;
     const uint32_t uLightCount = pl_sb_size(sbtLights);
     for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
     {
@@ -826,11 +827,26 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
             continue;
         }
 
-        plPackRect tPackRect = {
-            .iWidth  = (int)(ptLight->uShadowResolution * ptLight->uCascadeCount),
-            .iHeight = (int)ptLight->uShadowResolution
-        };
-        pl_sb_push(gptData->sbtShadowRects, tPackRect);
+        if(ptLight->tType == PL_LIGHT_TYPE_DIRECTIONAL)
+        {
+            plPackRect tPackRect = {
+                .iWidth  = (int)(ptLight->uShadowResolution * ptLight->uCascadeCount),
+                .iHeight = (int)ptLight->uShadowResolution,
+                .iId     = (int)uShadowCastingLightIndex
+            };
+            pl_sb_push(gptData->sbtShadowRects, tPackRect);
+            uShadowCastingLightIndex += PL_MAX_SHADOW_CASCADES;
+        }
+        else if(ptLight->tType == PL_LIGHT_TYPE_POINT)
+        {
+            plPackRect tPackRect = {
+                .iWidth  = (int)(ptLight->uShadowResolution * 2),
+                .iHeight = (int)(ptLight->uShadowResolution * 3),
+                .iId     = (int)uShadowCastingLightIndex
+            };
+            pl_sb_push(gptData->sbtShadowRects, tPackRect);
+            uShadowCastingLightIndex += 6;
+        }
     }
 
     gptRect->pack_rects(gptData->uShadowAtlasResolution, gptData->uShadowAtlasResolution,
@@ -838,7 +854,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
     float fCascadeSplitLambda = gptData->fLambdaSplit;
     uint32_t uCameraBufferOffset = 0;
-    uint32_t uShadowCastingLightIndex = 0;
+    uShadowCastingLightIndex = 0;
     for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
     {
         const plLightComponent* ptLight = &sbtLights[uLightIndex];
@@ -862,98 +878,139 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
         ptShadowData->fXOffset = (float)ptRect->iX / (float)gptData->uShadowAtlasResolution;
         ptShadowData->fYOffset = (float)ptRect->iY / (float)gptData->uShadowAtlasResolution;
 
-        plMat4 atCamViewProjs[PL_MAX_SHADOW_CASCADES] = {0};
-        float fLastSplitDist = 0.0;
-        float afLambdaCascadeSplits[PL_MAX_SHADOW_CASCADES] = {0};
-        for(uint32_t uCascade = 0; uCascade < ptLight->uCascadeCount; uCascade++)
+        if(ptLight->tType == PL_LIGHT_TYPE_DIRECTIONAL)
         {
-            float fSplitDist = 0.0f;
-            if(fCascadeSplitLambda > 0.0f)
+            plMat4 atCamViewProjs[PL_MAX_SHADOW_CASCADES] = {0};
+            float fLastSplitDist = 0.0;
+            float afLambdaCascadeSplits[PL_MAX_SHADOW_CASCADES] = {0};
+            for(uint32_t uCascade = 0; uCascade < ptLight->uCascadeCount; uCascade++)
             {
-                const float p = (uCascade + 1) / (float)ptLight->uCascadeCount;
-                const float fLog = fMinZ * powf(fRatio, p);
-                const float fUniform = fMinZ + fRange * p;
-                const float fD = fCascadeSplitLambda * (fLog - fUniform) + fUniform;
-                afLambdaCascadeSplits[uCascade] = (fD - fNearClip) / fClipRange;
-                fSplitDist = afLambdaCascadeSplits[uCascade];
-                ptShadowData->cascadeSplits.d[uCascade] = (fNearClip + fSplitDist * fClipRange);
+                float fSplitDist = 0.0f;
+                if(fCascadeSplitLambda > 0.0f)
+                {
+                    const float p = (uCascade + 1) / (float)ptLight->uCascadeCount;
+                    const float fLog = fMinZ * powf(fRatio, p);
+                    const float fUniform = fMinZ + fRange * p;
+                    const float fD = fCascadeSplitLambda * (fLog - fUniform) + fUniform;
+                    afLambdaCascadeSplits[uCascade] = (fD - fNearClip) / fClipRange;
+                    fSplitDist = afLambdaCascadeSplits[uCascade];
+                    ptShadowData->cascadeSplits.d[uCascade] = (fNearClip + fSplitDist * fClipRange);
+                }
+                else
+                {
+                    fSplitDist = ptLight->afCascadeSplits[uCascade] / fClipRange;
+                    ptShadowData->cascadeSplits.d[uCascade] = ptLight->afCascadeSplits[uCascade];
+                }
+
+                plVec3 atCameraCorners[] = {
+                    { -1.0f,  1.0f, 1.0f },
+                    { -1.0f, -1.0f, 1.0f },
+                    {  1.0f, -1.0f, 1.0f },
+                    {  1.0f,  1.0f, 1.0f },
+                    { -1.0f,  1.0f, 0.0f },
+                    { -1.0f, -1.0f, 0.0f },
+                    {  1.0f, -1.0f, 0.0f },
+                    {  1.0f,  1.0f, 0.0f },
+                };
+                // plMat4 tCameraInversion = pl_mul_mat4(&tCameraProjMat, &ptSceneCamera->tViewMat);
+                plMat4 tCameraInversion = pl_mul_mat4(&ptSceneCamera->tProjMat, &ptSceneCamera->tViewMat);
+                tCameraInversion = pl_mat4_invert(&tCameraInversion);
+
+                // convert to world space
+                for(uint32_t i = 0; i < 8; i++)
+                {
+                    plVec4 tInvCorner = pl_mul_mat4_vec4(&tCameraInversion, (plVec4){.xyz = atCameraCorners[i], .w = 1.0f});
+                    atCameraCorners[i] = pl_div_vec3_scalarf(tInvCorner.xyz, tInvCorner.w);
+                }
+
+                for(uint32_t i = 0; i < 4; i++)
+                {
+                    const plVec3 tDist = pl_sub_vec3(atCameraCorners[i + 4], atCameraCorners[i]);
+                    atCameraCorners[i + 4] = pl_add_vec3(atCameraCorners[i], pl_mul_vec3_scalarf(tDist, fSplitDist));
+                    atCameraCorners[i] = pl_add_vec3(atCameraCorners[i], pl_mul_vec3_scalarf(tDist, fLastSplitDist));
+                }
+
+                // get frustum center
+                plVec3 tFrustumCenter = {0};
+                for(uint32_t i = 0; i < 8; i++)
+                    tFrustumCenter = pl_add_vec3(tFrustumCenter, atCameraCorners[i]);
+                tFrustumCenter = pl_div_vec3_scalarf(tFrustumCenter, 8.0f);
+
+                float fRadius = 0.0f;
+                for (uint32_t i = 0; i < 8; i++)
+                {
+                    float fDistance = pl_length_vec3(pl_sub_vec3(atCameraCorners[i], tFrustumCenter));
+                    fRadius = pl_max(fRadius, fDistance);
+                }
+                fRadius = ceilf(fRadius * 16.0f) / 16.0f;
+
+                plVec3 tDirection = ptLight->tDirection;
+
+                tDirection = pl_norm_vec3(tDirection);
+                plVec3 tEye = pl_sub_vec3(tFrustumCenter, pl_mul_vec3_scalarf(tDirection, fRadius + 50.0f));
+
+                plCameraComponent tShadowCamera = {
+                    .tType = PL_CAMERA_TYPE_ORTHOGRAPHIC
+                };
+                gptCamera->look_at(&tShadowCamera, tEye, tFrustumCenter);
+                tShadowCamera.fWidth = fRadius * 2.0f;
+                tShadowCamera.fHeight = fRadius * 2.0f;
+                tShadowCamera.fNearZ = 0.0f;
+                tShadowCamera.fFarZ = fRadius * 2.0f + 50.0f;
+                gptCamera->update(&tShadowCamera);
+                tShadowCamera.fAspectRatio = 1.0f;
+                tShadowCamera.fFieldOfView = atan2f(fRadius, (fRadius + 50.0f));
+                tShadowCamera.fNearZ = 0.01f;
+                fLastSplitDist = fSplitDist;
+
+                // tShadowCamera.tProjMat.col[2].z *= -1.0f;
+                atCamViewProjs[uCascade] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
+                
+                ptShadowData->cascadeViewProjMat[uCascade] = atCamViewProjs[uCascade];
             }
-            else
-            {
-                fSplitDist = ptLight->afCascadeSplits[uCascade] / fClipRange;
-                ptShadowData->cascadeSplits.d[uCascade] = ptLight->afCascadeSplits[uCascade];
-            }
 
-            plVec3 atCameraCorners[] = {
-                { -1.0f,  1.0f, 1.0f },
-                { -1.0f, -1.0f, 1.0f },
-                {  1.0f, -1.0f, 1.0f },
-                {  1.0f,  1.0f, 1.0f },
-                { -1.0f,  1.0f, 0.0f },
-                { -1.0f, -1.0f, 0.0f },
-                {  1.0f, -1.0f, 0.0f },
-                {  1.0f,  1.0f, 0.0f },
-            };
-            // plMat4 tCameraInversion = pl_mul_mat4(&tCameraProjMat, &ptSceneCamera->tViewMat);
-            plMat4 tCameraInversion = pl_mul_mat4(&ptSceneCamera->tProjMat, &ptSceneCamera->tViewMat);
-            tCameraInversion = pl_mat4_invert(&tCameraInversion);
-
-            // convert to world space
-            for(uint32_t i = 0; i < 8; i++)
-            {
-                plVec4 tInvCorner = pl_mul_mat4_vec4(&tCameraInversion, (plVec4){.xyz = atCameraCorners[i], .w = 1.0f});
-                atCameraCorners[i] = pl_div_vec3_scalarf(tInvCorner.xyz, tInvCorner.w);
-            }
-
-            for(uint32_t i = 0; i < 4; i++)
-            {
-                const plVec3 tDist = pl_sub_vec3(atCameraCorners[i + 4], atCameraCorners[i]);
-                atCameraCorners[i + 4] = pl_add_vec3(atCameraCorners[i], pl_mul_vec3_scalarf(tDist, fSplitDist));
-                atCameraCorners[i] = pl_add_vec3(atCameraCorners[i], pl_mul_vec3_scalarf(tDist, fLastSplitDist));
-            }
-
-            // get frustum center
-            plVec3 tFrustumCenter = {0};
-            for(uint32_t i = 0; i < 8; i++)
-                tFrustumCenter = pl_add_vec3(tFrustumCenter, atCameraCorners[i]);
-            tFrustumCenter = pl_div_vec3_scalarf(tFrustumCenter, 8.0f);
-
-            float fRadius = 0.0f;
-            for (uint32_t i = 0; i < 8; i++)
-            {
-                float fDistance = pl_length_vec3(pl_sub_vec3(atCameraCorners[i], tFrustumCenter));
-                fRadius = pl_max(fRadius, fDistance);
-            }
-            fRadius = ceilf(fRadius * 16.0f) / 16.0f;
-
-            plVec3 tDirection = ptLight->tDirection;
-
-            tDirection = pl_norm_vec3(tDirection);
-            plVec3 tEye = pl_sub_vec3(tFrustumCenter, pl_mul_vec3_scalarf(tDirection, fRadius + 50.0f));
-
-            plCameraComponent tShadowCamera = {
-                .tType = PL_CAMERA_TYPE_ORTHOGRAPHIC
-            };
-            gptCamera->look_at(&tShadowCamera, tEye, tFrustumCenter);
-            tShadowCamera.fWidth = fRadius * 2.0f;
-            tShadowCamera.fHeight = fRadius * 2.0f;
-            tShadowCamera.fNearZ = 0.0f;
-            tShadowCamera.fFarZ = fRadius * 2.0f + 50.0f;
-            gptCamera->update(&tShadowCamera);
-            tShadowCamera.fAspectRatio = 1.0f;
-            tShadowCamera.fFieldOfView = atan2f(fRadius, (fRadius + 50.0f));
-            tShadowCamera.fNearZ = 0.01f;
-            fLastSplitDist = fSplitDist;
-
-            // tShadowCamera.tProjMat.col[2].z *= -1.0f;
-            atCamViewProjs[uCascade] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
-            
-            ptShadowData->cascadeViewProjMat[uCascade] = atCamViewProjs[uCascade];
+            char* pcBufferStart = gptGfx->get_buffer(ptDevice, ptView->tShadowData.atCameraBuffers[uFrameIdx])->tMemoryAllocation.pHostMapped;
+            memcpy(&pcBufferStart[uCameraBufferOffset], atCamViewProjs, sizeof(plMat4) * PL_MAX_SHADOW_CASCADES);
+            uCameraBufferOffset += sizeof(plMat4) * PL_MAX_SHADOW_CASCADES;
         }
 
-        char* pcBufferStart = gptGfx->get_buffer(ptDevice, ptView->tShadowData.atCameraBuffers[uFrameIdx])->tMemoryAllocation.pHostMapped;
-        memcpy(&pcBufferStart[uCameraBufferOffset], atCamViewProjs, sizeof(plMat4) * PL_MAX_SHADOW_CASCADES);
-        uCameraBufferOffset += sizeof(plMat4) * PL_MAX_SHADOW_CASCADES;
+        else if(ptLight->tType == PL_LIGHT_TYPE_POINT)
+        {
+
+            plMat4 atCamViewProjs[6] = {0};
+
+            plCameraComponent tShadowCamera = {
+                .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
+                .tPos         = ptLight->tPosition,
+                .fNearZ       = ptLight->fRadius,
+                .fFarZ        = ptLight->fRange,
+                .fFieldOfView = PL_PI_2,
+                .fAspectRatio = 1.0f
+            };
+            gptCamera->update(&tShadowCamera);
+
+            const plVec2 atPitchYaw[6] = {
+                {0.0, 0.0},
+                {0.0, PL_PI},
+                {0.0, PL_PI_2},
+                {0.0, -PL_PI_2},
+                {PL_PI_2, 0.0},
+                {-PL_PI_2, 0.0}
+            };
+
+            for(uint32_t i = 0; i < 6; i++)
+            {
+
+                gptCamera->set_pitch_yaw(&tShadowCamera, atPitchYaw[i].x, atPitchYaw[i].y);
+                gptCamera->update(&tShadowCamera);
+                atCamViewProjs[i] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
+                ptShadowData->cascadeViewProjMat[i] = atCamViewProjs[i];
+            }
+
+            char* pcBufferStart = gptGfx->get_buffer(ptDevice, ptView->tShadowData.atCameraBuffers[uFrameIdx])->tMemoryAllocation.pHostMapped;
+            memcpy(&pcBufferStart[uCameraBufferOffset], atCamViewProjs, sizeof(plMat4) * 6);
+            uCameraBufferOffset += sizeof(plMat4) * 6;
+        }
 
         uShadowCastingLightIndex++;
     }
@@ -980,7 +1037,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
         {
             .tBuffer       = ptView->tShadowData.atCameraBuffers[uFrameIdx],
             .uSlot         = 0,
-            .szBufferRange = sizeof(plMat4) * PL_MAX_SHADOW_CASCADES * uLightCount
+            .szBufferRange = uCameraBufferOffset
         }
     };
 
@@ -1016,6 +1073,11 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
             continue;
         }
 
+        const uint32_t uInstanceCount = ptLight->tType == PL_LIGHT_TYPE_DIRECTIONAL ? ptLight->uCascadeCount : 6;
+
+        const plPackRect* ptRect = &gptData->sbtShadowRects[uShadowCastingLightIndex];
+        const uint32_t uCameraBufferIndex = (uint32_t)ptRect->iId;
+
         
         if(gptData->bMultiViewportShadows)
         {
@@ -1040,8 +1102,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                 ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
                 ptDynamicData->tModel = ptTransform->tWorld;
                 ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                // ptDynamicData->iIndex = (int)uCascade + uShadowCastingLightIndex * PL_MAX_SHADOW_CASCADES;
-                ptDynamicData->iIndex = (int)uShadowCastingLightIndex * PL_MAX_SHADOW_CASCADES;
+                ptDynamicData->iIndex = (int)uCameraBufferIndex;
 
                 pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                 {
@@ -1063,7 +1124,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                         tDynamicBinding.uByteOffset
                     },
                     .uInstanceOffset = 0,
-                    .uInstanceCount = ptLight->uCascadeCount
+                    .uInstanceCount = uInstanceCount
                 });
             }
 
@@ -1080,8 +1141,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                 ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
                 ptDynamicData->tModel = ptTransform->tWorld;
                 ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                // ptDynamicData->iIndex = (int)uCascade + uShadowCastingLightIndex * PL_MAX_SHADOW_CASCADES;
-                ptDynamicData->iIndex = (int)uShadowCastingLightIndex * PL_MAX_SHADOW_CASCADES;
+                ptDynamicData->iIndex = (int)uCameraBufferIndex;
 
                 pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                 {
@@ -1103,75 +1163,168 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                         tDynamicBinding.uByteOffset
                     },
                     .uInstanceOffset = 0,
-                    .uInstanceCount = ptLight->uCascadeCount
+                    .uInstanceCount = uInstanceCount
                 });
 
             };
-
-            const plPackRect* ptRect = &gptData->sbtShadowRects[uShadowCastingLightIndex];
-
-            plDrawArea tArea = 
+  
+            if(ptLight->tType == PL_LIGHT_TYPE_DIRECTIONAL)
             {
-                .ptDrawStream = ptStream,
-                .atScissors = {
-                    {
-                        .iOffsetX = (int)(ptRect->iX + 0 * ptLight->uShadowResolution),
-                        .iOffsetY = ptRect->iY,
-                        .uWidth  = ptLight->uShadowResolution,
-                        .uHeight = ptLight->uShadowResolution,
+                plDrawArea tArea = 
+                {
+                    .ptDrawStream = ptStream,
+                    .atScissors = {
+                        {
+                            .iOffsetX = (int)(ptRect->iX + 0 * ptLight->uShadowResolution),
+                            .iOffsetY = ptRect->iY,
+                            .uWidth  = ptLight->uShadowResolution,
+                            .uHeight = ptLight->uShadowResolution,
+                        },
+                        {
+                            .iOffsetX = (int)(ptRect->iX + 1 * ptLight->uShadowResolution),
+                            .iOffsetY = ptRect->iY,
+                            .uWidth  = ptLight->uShadowResolution,
+                            .uHeight = ptLight->uShadowResolution,
+                        },
+                        {
+                            .iOffsetX = (int)(ptRect->iX + 2 * ptLight->uShadowResolution),
+                            .iOffsetY = ptRect->iY,
+                            .uWidth  = ptLight->uShadowResolution,
+                            .uHeight = ptLight->uShadowResolution,
+                        },
+                        {
+                            .iOffsetX = (int)(ptRect->iX + 3 * ptLight->uShadowResolution),
+                            .iOffsetY = ptRect->iY,
+                            .uWidth  = ptLight->uShadowResolution,
+                            .uHeight = ptLight->uShadowResolution,
+                        }
                     },
-                    {
-                        .iOffsetX = (int)(ptRect->iX + 1 * ptLight->uShadowResolution),
-                        .iOffsetY = ptRect->iY,
-                        .uWidth  = ptLight->uShadowResolution,
-                        .uHeight = ptLight->uShadowResolution,
-                    },
-                    {
-                        .iOffsetX = (int)(ptRect->iX + 2 * ptLight->uShadowResolution),
-                        .iOffsetY = ptRect->iY,
-                        .uWidth  = ptLight->uShadowResolution,
-                        .uHeight = ptLight->uShadowResolution,
-                    },
-                    {
-                        .iOffsetX = (int)(ptRect->iX + 3 * ptLight->uShadowResolution),
-                        .iOffsetY = ptRect->iY,
-                        .uWidth  = ptLight->uShadowResolution,
-                        .uHeight = ptLight->uShadowResolution,
+                    .atViewports = {
+                        {
+                            .fX = (float)(ptRect->iX + 0 * ptLight->uShadowResolution),
+                            .fY = (float)ptRect->iY,
+                            .fWidth  = (float)ptLight->uShadowResolution,
+                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fMaxDepth = 1.0f
+                        },
+                        {
+                            .fX = (float)(ptRect->iX + 1 * ptLight->uShadowResolution),
+                            .fY = (float)ptRect->iY,
+                            .fWidth  = (float)ptLight->uShadowResolution,
+                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fMaxDepth = 1.0f
+                        },
+                        {
+                            .fX = (float)(ptRect->iX + 2 * ptLight->uShadowResolution),
+                            .fY = (float)ptRect->iY,
+                            .fWidth  = (float)ptLight->uShadowResolution,
+                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fMaxDepth = 1.0f
+                        },
+                        {
+                            .fX = (float)(ptRect->iX + 3 * ptLight->uShadowResolution),
+                            .fY = (float)ptRect->iY,
+                            .fWidth  = (float)ptLight->uShadowResolution,
+                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fMaxDepth = 1.0f
+                        },
                     }
-                },
-                .atViewports = {
-                    {
-                        .fX = (float)(ptRect->iX + 0 * ptLight->uShadowResolution),
-                        .fY = (float)ptRect->iY,
-                        .fWidth  = (float)ptLight->uShadowResolution,
-                        .fHeight = (float)ptLight->uShadowResolution,
-                        .fMaxDepth = 1.0f
-                    },
-                    {
-                        .fX = (float)(ptRect->iX + 1 * ptLight->uShadowResolution),
-                        .fY = (float)ptRect->iY,
-                        .fWidth  = (float)ptLight->uShadowResolution,
-                        .fHeight = (float)ptLight->uShadowResolution,
-                        .fMaxDepth = 1.0f
-                    },
-                    {
-                        .fX = (float)(ptRect->iX + 2 * ptLight->uShadowResolution),
-                        .fY = (float)ptRect->iY,
-                        .fWidth  = (float)ptLight->uShadowResolution,
-                        .fHeight = (float)ptLight->uShadowResolution,
-                        .fMaxDepth = 1.0f
-                    },
-                    {
-                        .fX = (float)(ptRect->iX + 3 * ptLight->uShadowResolution),
-                        .fY = (float)ptRect->iY,
-                        .fWidth  = (float)ptLight->uShadowResolution,
-                        .fHeight = (float)ptLight->uShadowResolution,
-                        .fMaxDepth = 1.0f
-                    },
-                }
-            };
+                };
 
-            gptGfx->draw_stream(ptEncoder, 1, &tArea);  
+                gptGfx->draw_stream(ptEncoder, 1, &tArea);
+            }
+            
+            else if(ptLight->tType == PL_LIGHT_TYPE_POINT)
+            {
+                plDrawArea tArea = 
+                {
+                    .ptDrawStream = ptStream,
+                    .atScissors = {
+                        {
+                            .iOffsetX = (int)(ptRect->iX),
+                            .iOffsetY = ptRect->iY,
+                            .uWidth  = ptLight->uShadowResolution,
+                            .uHeight = ptLight->uShadowResolution,
+                        },
+                        {
+                            .iOffsetX = (int)(ptRect->iX + ptLight->uShadowResolution),
+                            .iOffsetY = ptRect->iY,
+                            .uWidth  = ptLight->uShadowResolution,
+                            .uHeight = ptLight->uShadowResolution,
+                        },
+                        {
+                            .iOffsetX = ptRect->iX,
+                            .iOffsetY = (int)(ptRect->iY + ptLight->uShadowResolution),
+                            .uWidth  = ptLight->uShadowResolution,
+                            .uHeight = ptLight->uShadowResolution,
+                        },
+                        {
+                            .iOffsetX = (int)(ptRect->iX + ptLight->uShadowResolution),
+                            .iOffsetY = (int)(ptRect->iY + ptLight->uShadowResolution),
+                            .uWidth  = ptLight->uShadowResolution,
+                            .uHeight = ptLight->uShadowResolution,
+                        },
+                        {
+                            .iOffsetX = ptRect->iX,
+                            .iOffsetY = (int)(ptRect->iY + 2 * ptLight->uShadowResolution),
+                            .uWidth  = ptLight->uShadowResolution,
+                            .uHeight = ptLight->uShadowResolution,
+                        },
+                        {
+                            .iOffsetX = (int)(ptRect->iX + ptLight->uShadowResolution),
+                            .iOffsetY = (int)(ptRect->iY + 2 * ptLight->uShadowResolution),
+                            .uWidth  = ptLight->uShadowResolution,
+                            .uHeight = ptLight->uShadowResolution,
+                        },
+                    },
+                    .atViewports = {
+                        {
+                            .fX = (float)(ptRect->iX),
+                            .fY = (float)ptRect->iY,
+                            .fWidth  = (float)ptLight->uShadowResolution,
+                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fMaxDepth = 1.0f
+                        },
+                        {
+                            .fX = (float)(ptRect->iX + ptLight->uShadowResolution),
+                            .fY = (float)ptRect->iY,
+                            .fWidth  = (float)ptLight->uShadowResolution,
+                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fMaxDepth = 1.0f
+                        },
+                        {
+                            .fX = (float)ptRect->iX,
+                            .fY = (float)(ptRect->iY + ptLight->uShadowResolution),
+                            .fWidth  = (float)ptLight->uShadowResolution,
+                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fMaxDepth = 1.0f
+                        },
+                        {
+                            .fX = (float)(ptRect->iX + ptLight->uShadowResolution),
+                            .fY = (float)(ptRect->iY + ptLight->uShadowResolution),
+                            .fWidth  = (float)ptLight->uShadowResolution,
+                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fMaxDepth = 1.0f
+                        },
+                        {
+                            .fX = (float)ptRect->iX,
+                            .fY = (float)(ptRect->iY + 2 * ptLight->uShadowResolution),
+                            .fWidth  = (float)ptLight->uShadowResolution,
+                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fMaxDepth = 1.0f
+                        },
+                        {
+                            .fX = (float)(ptRect->iX + ptLight->uShadowResolution),
+                            .fY = (float)(ptRect->iY + 2 * ptLight->uShadowResolution),
+                            .fWidth  = (float)ptLight->uShadowResolution,
+                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fMaxDepth = 1.0f
+                        }
+                    }
+                };
+
+                gptGfx->draw_stream(ptEncoder, 1, &tArea);
+            }
         }
         else
         {
@@ -1198,7 +1351,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                     ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
                     ptDynamicData->tModel = ptTransform->tWorld;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                    ptDynamicData->iIndex = (int)uCascade + uShadowCastingLightIndex * PL_MAX_SHADOW_CASCADES;
+                    ptDynamicData->iIndex = (int)uCascade + uCameraBufferIndex;
 
                     pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                     {
@@ -1237,7 +1390,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                     ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
                     ptDynamicData->tModel = ptTransform->tWorld;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                    ptDynamicData->iIndex = (int)uCascade + uShadowCastingLightIndex * PL_MAX_SHADOW_CASCADES;
+                    ptDynamicData->iIndex = (int)uCascade + uCameraBufferIndex;
 
                     pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                     {
@@ -1263,8 +1416,6 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                     });
 
                 };
-
-                const plPackRect* ptRect = &gptData->sbtShadowRects[uShadowCastingLightIndex];
 
                 plDrawArea tArea = 
                 {

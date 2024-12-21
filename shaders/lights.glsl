@@ -12,12 +12,13 @@ struct plLightData
 
     int iShadowIndex;
     int iCascadeCount;
+    int iCastShadow;
 };
 
 struct plLightShadowData
 {
 	vec4 cascadeSplits;
-	mat4 cascadeViewProjMat[4];
+	mat4 cascadeViewProjMat[6];
     int iShadowMapTexIdx;
     float fFactor;
     float fXOffset;

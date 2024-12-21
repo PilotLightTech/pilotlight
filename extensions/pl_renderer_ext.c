@@ -3337,6 +3337,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions 
                 .tDirection = ptLight->tDirection,
                 .tColor     = ptLight->tColor,
                 .iShadowIndex = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? iShadowIndex++ : 0,
+                .iCastShadow = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW,
                 .iCascadeCount = (int)ptLight->uCascadeCount
             };
             ptScene->sbtLightData[i] = tLight;

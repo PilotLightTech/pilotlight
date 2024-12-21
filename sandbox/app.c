@@ -200,7 +200,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptLight->uShadowResolution = 2048;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
 
-    gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f}, NULL);
+
+    plLightComponent* ptPointLight = NULL;
+    gptEcs->create_point_light(ptMainComponentLibrary, "pointlight", (plVec3){0.0f, 1.0f, 3.0f}, &ptPointLight);
+    ptPointLight->uShadowResolution = 512;
+    ptPointLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
 
     // load models
 
@@ -423,13 +427,13 @@ pl_app_update(plEditorData* ptEditorData)
         {
 
             const float pfWidths[] = {200.0f};
-            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-            plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary,  PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSunlight);
-            int iCascadeCount  = (int)ptLight->uCascadeCount;
-            if(gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0))
-            {
-                ptLight->uCascadeCount = (uint32_t)iCascadeCount;
-            }
+            // gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+            // plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary,  PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSunlight);
+            // int iCascadeCount  = (int)ptLight->uCascadeCount;
+            // if(gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0))
+            // {
+            //     ptLight->uCascadeCount = (uint32_t)iCascadeCount;
+            // }
 
             gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfWidths);
             if(gptUi->button("Reload Shaders"))
