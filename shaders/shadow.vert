@@ -121,7 +121,13 @@ void main()
     #else
         gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.iIndex] * pos;
     #endif
-    gl_Position.z = 1.0 - gl_Position.z;
+
+    // if(tObjectInfo.tModel[2][3] == 0.0) // orthographic
+        // gl_Position.z = 1.0 - gl_Position.z;
+        // gl_Position.z = gl_Position.z / gl_Position.w;
+
+    // branchless way
+    gl_Position.z = (1 - tObjectInfo.tModel[2][3]) - (1 - 2 * tObjectInfo.tModel[2][3]) * gl_Position.z;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tUV[2] = inTexCoord2;

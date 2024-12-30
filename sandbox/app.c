@@ -200,7 +200,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptLight->uShadowResolution = 2048;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
 
-    gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f}, NULL);
+    gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
+    ptLight->uShadowResolution = 2048;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
 
     // load models
 
@@ -352,7 +354,7 @@ pl_app_update(plEditorData* ptEditorData)
             .ptViewCamera = &ptEditorData->tMainCamera,
             .ptCullCamera = ptEditorData->bFreezeCullCamera ? &ptEditorData->tCullCamera : NULL
         };
-        gptRenderer->render_scene(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0, tViewOptions);
+        gptRenderer->render_scene(ptEditorData->uSceneHandle0, &ptEditorData->uViewHandle0, &tViewOptions, 1);
     }
 
     gptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);

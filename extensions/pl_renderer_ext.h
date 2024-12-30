@@ -81,7 +81,7 @@ typedef struct _plRendererI
 
     // per frame
     void (*run_ecs)     (uint32_t uSceneHandle);
-    void (*render_scene)(uint32_t uSceneHandle, uint32_t uViewHandle, plViewOptions tOptions);
+    void (*render_scene)(uint32_t uSceneHandle, const uint32_t* auViewHandles, const plViewOptions* atOptions, uint32_t uViewCount);
     bool (*begin_frame) (void);
     void (*end_frame)   (void);
     plEntity (*get_picked_entity)(void);

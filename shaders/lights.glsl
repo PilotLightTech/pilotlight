@@ -1,5 +1,5 @@
 
-struct plLightData
+struct plDLightData
 {
     vec3  tPosition;
     float fIntensity;
@@ -12,12 +12,37 @@ struct plLightData
 
     int iShadowIndex;
     int iCascadeCount;
+    int iCastShadow;
 };
 
-struct plLightShadowData
+struct plPLightData
+{
+    vec3  tPosition;
+    float fIntensity;
+
+    vec3  tDirection;
+    int   iType;
+
+    vec3  tColor;
+    float fRange;
+
+    int iShadowIndex;
+    int iCastShadow;
+};
+
+struct plDLightShadowData
 {
 	vec4 cascadeSplits;
-	mat4 cascadeViewProjMat[4];
+	mat4 viewProjMat[4];
+    int iShadowMapTexIdx;
+    float fFactor;
+    float fXOffset;
+    float fYOffset;
+};
+
+struct plPLightShadowData
+{
+	mat4 viewProjMat[6];
     int iShadowMapTexIdx;
     float fFactor;
     float fXOffset;
@@ -36,15 +61,15 @@ getRangeAttenuation(float range, float dist)
 }
 
 vec3
-getLighIntensity(plLightData light, vec3 pointToLight)
+getDLightIntensity(plDLightData light, vec3 pointToLight)
 {
     float rangeAttenuation = 1.0;
+    return rangeAttenuation * light.fIntensity * light.tColor;
+}
 
-    if (light.iType != PL_LIGHT_TYPE_DIRECTIONAL)
-    {
-        rangeAttenuation = getRangeAttenuation(light.fRange, length(pointToLight));
-    }
-
-
+vec3
+getPLightIntensity(plPLightData light, vec3 pointToLight)
+{
+    float rangeAttenuation = getRangeAttenuation(light.fRange, length(pointToLight));
     return rangeAttenuation * light.fIntensity * light.tColor;
 }

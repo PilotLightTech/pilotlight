@@ -15,7 +15,8 @@ layout(constant_id = 1) const int iDataStride = 0;
 layout(constant_id = 2) const int iTextureMappingFlags = 0;
 layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iRenderingFlags = 0;
-layout(constant_id = 5) const int iLightCount = 1;
+layout(constant_id = 5) const int iDirectionLightCount = 1;
+layout(constant_id = 6) const int iPointLightCount = 1;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
@@ -52,20 +53,6 @@ layout(set = 1, binding = 0) uniform _plGlobalInfo
     uint uGGXLUT;
     uint _uUnUsed;
 } tGlobalInfo;
-
-layout(set = 1, binding = 1) uniform _plLightInfo
-{
-    plLightData atData[iLightCount];
-} tLightInfo;
-
-layout(set = 1, binding = 2) readonly buffer plShadowData
-{
-    plLightShadowData atData[];
-} tShadowData;
-
-layout (set = 1, binding = 3) uniform texture2D shadowmap;
-layout(set = 1, binding = 4)  uniform sampler tShadowSampler;
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group

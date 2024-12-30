@@ -460,6 +460,7 @@ typedef struct _plLightComponent
     plVec3       tColor;
     float        fIntensity;
     float        fRange;
+    float        fRadius;
     plVec3       tPosition;
     plVec3       tDirection;
     uint32_t     uShadowResolution; // 0 -> automatic
