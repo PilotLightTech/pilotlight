@@ -942,7 +942,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
 
         sbtBufferDescInfos[i].buffer = ptVulkanBuffer->tBuffer;
         sbtBufferDescInfos[i].offset = ptData->atBufferBindings[i].szOffset;
-        sbtBufferDescInfos[i].range = ptData->atBufferBindings[i].szBufferRange;
+        sbtBufferDescInfos[i].range = ptData->atBufferBindings[i].szBufferRange == 0 ? VK_WHOLE_SIZE : ptData->atBufferBindings[i].szBufferRange;
 
         sbtWrites[uCurrentWrite].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sbtWrites[uCurrentWrite].dstBinding = ptData->atBufferBindings[i].uSlot;
