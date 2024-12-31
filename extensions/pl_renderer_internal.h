@@ -474,7 +474,6 @@ typedef struct _plRefRendererData
     bool     bReloadSwapchain;
     bool     bReloadMSAA;
     bool     bVSync;
-    float    fLambdaSplit;
     bool     bShowOrigin;
     bool     bFrustumCulling;
     bool     bDrawAllBoundingBoxes;

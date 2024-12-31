@@ -172,6 +172,8 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->text("Color:       (%0.3f, %0.3f, %0.3f)", ptLightComp->tColor.r, ptLightComp->tColor.g, ptLightComp->tColor.b);
                     gptUi->text("Direction:   (%0.3f, %0.3f, %0.3f)", ptLightComp->tDirection.r, ptLightComp->tDirection.g, ptLightComp->tDirection.b);
                     gptUi->text("Intensity:   %0.3f", ptLightComp->fIntensity);
+                    gptUi->text("Radius:   %0.3f", ptLightComp->fRadius);
+                    gptUi->text("Range:   %0.3f", ptLightComp->fRange);
                     gptUi->text("Cast Shadow: %s", ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? "true" : "false");
                 }
 

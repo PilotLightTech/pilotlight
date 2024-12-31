@@ -84,7 +84,6 @@ pl_refr_initialize(plWindow* ptWindow)
     // default options
     gptData->bVSync = true;
     gptData->uOutlineWidth = 4;
-    gptData->fLambdaSplit = 0.95f;
     gptData->bFrustumCulling = true;
     gptData->fShadowConstantDepthBias = -1.25f;
     gptData->fShadowSlopeDepthBias = -10.75f;
@@ -3661,7 +3660,20 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtPLightData); i++)
             {
                 const plVec4 tColor = {.rgb = ptScene->sbtPLightData[i].tColor, .a = 1.0f};
-                gptDraw->add_3d_cross(ptView->pt3DDrawList, ptScene->sbtPLightData[i].tPosition, 0.02f, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.25f});
+                // gptDraw->add_3d_cross(ptView->pt3DDrawList, ptScene->sbtPLightData[i].tPosition, 0.02f, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.25f});
+                plDrawSphereDesc tSphere = {
+                    .fRadius = 0.025f,
+                    .tCenter = ptScene->sbtPLightData[i].tPosition,
+                    .uLatBands = 6,
+                    .uLongBands = 6
+                };
+                gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
+                tSphere.fRadius = ptScene->sbtPLightData[i].fRange;
+                plDrawSphereDesc tSphere2 = {
+                    .fRadius = ptScene->sbtPLightData[i].fRange,
+                    .tCenter = ptScene->sbtPLightData[i].tPosition
+                };
+                gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
             }
 
             // debug drawing
@@ -4373,7 +4385,6 @@ pl_show_graphics_options(const char* pcTitle)
             gptData->bReloadSwapchain = true;
         gptUI->checkbox("Show Origin", &gptData->bShowOrigin);
         gptUI->checkbox("Frustum Culling", &gptData->bFrustumCulling);
-        gptUI->slider_float("Lambda Split", &gptData->fLambdaSplit, 0.0f, 1.0f, 0);
         gptUI->checkbox("Draw All Bounding Boxes", &gptData->bDrawAllBoundingBoxes);
         gptUI->checkbox("Draw Visible Bounding Boxes", &gptData->bDrawVisibleBoundingBoxes);
         gptUI->checkbox("Show Selected Bounding Box", &gptData->bShowSelectedBoundingBox);

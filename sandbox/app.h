@@ -107,6 +107,7 @@ typedef struct _plEditorData
     plEntity     tCullCamera;
     plEntity     tMainCamera;
     plEntity     tSunlight;
+    plEntity     tPointLight;
 
     // views
     uint32_t uSceneHandle0;

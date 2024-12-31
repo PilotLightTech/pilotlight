@@ -904,7 +904,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                 .fFieldOfView = PL_PI_2,
                 .fAspectRatio = 1.0f
             };
-            gptCamera->update(&tShadowCamera);
+            // gptCamera->update(&tShadowCamera);
 
             const plVec2 atPitchYaw[6] = {
                 {0.0, 0.0},
@@ -1322,7 +1322,6 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
     int iLastIndex = -1;
     int iCurrentView = -1;
-    float fCascadeSplitLambda = gptData->fLambdaSplit;
     uint32_t uDCameraBufferOffset = 0;
     for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
     {
@@ -1358,22 +1357,8 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
         float afLambdaCascadeSplits[PL_MAX_SHADOW_CASCADES] = {0};
         for(uint32_t uCascade = 0; uCascade < ptLight->uCascadeCount; uCascade++)
         {
-            float fSplitDist = 0.0f;
-            if(fCascadeSplitLambda > 0.0f)
-            {
-                const float p = (uCascade + 1) / (float)ptLight->uCascadeCount;
-                const float fLog = fMinZ * powf(fRatio, p);
-                const float fUniform = fMinZ + fRange * p;
-                const float fD = fCascadeSplitLambda * (fLog - fUniform) + fUniform;
-                afLambdaCascadeSplits[uCascade] = (fD - fNearClip) / fClipRange;
-                fSplitDist = afLambdaCascadeSplits[uCascade];
-                ptShadowData->cascadeSplits.d[uCascade] = (fNearClip + fSplitDist * fClipRange);
-            }
-            else
-            {
-                fSplitDist = ptLight->afCascadeSplits[uCascade] / fClipRange;
-                ptShadowData->cascadeSplits.d[uCascade] = ptLight->afCascadeSplits[uCascade];
-            }
+            float fSplitDist = ptLight->afCascadeSplits[uCascade] / fClipRange;
+            ptShadowData->cascadeSplits.d[uCascade] = ptLight->afCascadeSplits[uCascade];
 
             plVec3 atCameraCorners[] = {
                 { -1.0f,  1.0f, 1.0f },
@@ -1431,9 +1416,9 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
             tShadowCamera.fNearZ = 0.0f;
             tShadowCamera.fFarZ = fRadius * 2.0f + 50.0f;
             gptCamera->update(&tShadowCamera);
-            tShadowCamera.fAspectRatio = 1.0f;
-            tShadowCamera.fFieldOfView = atan2f(fRadius, (fRadius + 50.0f));
-            tShadowCamera.fNearZ = 0.01f;
+            // tShadowCamera.fAspectRatio = 1.0f;
+            // tShadowCamera.fFieldOfView = atan2f(fRadius, (fRadius + 50.0f));
+            // tShadowCamera.fNearZ = 0.01f;
             fLastSplitDist = fSplitDist;
 
             // tShadowCamera.tProjMat.col[2].z *= -1.0f;
@@ -2159,6 +2144,7 @@ pl_refr_create_global_shaders(void)
     gptData->tAlphaShadowShader = gptGfx->create_shader(gptData->ptDevice, &tShadowShaderDescription);
     tShadowShaderDescription.tPixelShader.puCode = NULL;
     tShadowShaderDescription.tPixelShader.szCodeSize = 0;
+    tShadowShaderDescription.tGraphicsState.ulCullMode = PL_CULL_MODE_CULL_BACK;
     gptData->tShadowShader = gptGfx->create_shader(gptData->ptDevice, &tShadowShaderDescription);
         
     const plShaderDesc tPickShaderDescription = {

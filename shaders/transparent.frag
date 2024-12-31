@@ -395,7 +395,7 @@ float textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
     {
-		float dist = 1.0 - texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), comp2).r;
+		float dist = 1.0 - texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), comp2).r * shadowCoord.w;
 		if (shadowCoord.w > 0 && dist < shadowCoord.z)
         {
 			shadow = 0.0; // ambient
@@ -568,8 +568,8 @@ void main()
                 abiasMat[3][1] *= tShadowData.fFactor;
 	            vec4 shadowCoord = (abiasMat * tShadowData.viewProjMat[cascadeIndex]) * vec4(tShaderIn.tPosition.xyz, 1.0);	
                 shadow = 0;
-                // shadow = textureProj(shadowCoord / shadowCoord.w, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-                shadow = filterPCF(shadowCoord / shadowCoord.w, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                // shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
             }
 
             // BSTF
@@ -602,23 +602,27 @@ void main()
 
                 vec3 result = sampleCube(-normalize(pointToLight));
 	            vec4 shadowCoord = tShadowData.viewProjMat[int(result.z)] * vec4(tShaderIn.tPosition.xyz, 1.0);
-                shadow = 1.0;
-                const vec2 faceoffsets[6] = {
-                    vec2(0, 0),
-                    vec2(1, 0),
-                    vec2(0, 1),
-                    vec2(1, 1),
-                    vec2(0, 2),
-                    vec2(1, 2),
-                };
-                vec2 sampleLocation = vec2(tShadowData.fXOffset, tShadowData.fYOffset) + (result.xy * tShadowData.fFactor) + (faceoffsets[int(result.z)] * tShadowData.fFactor);
-                float dist = texture(sampler2D(at2DTextures[nonuniformEXT(tShadowData.iShadowMapTexIdx)], tShadowSampler), sampleLocation).r;
-                float fDist = shadowCoord.z;
-                dist = 1 - dist * shadowCoord.w;
-
-                if(shadowCoord.w > 0 && dist < fDist)
+                if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
                 {
-                    shadow = 0.0;
+                    shadow = 1.0;
+                    const vec2 faceoffsets[6] = {
+                        vec2(0, 0),
+                        vec2(1, 0),
+                        vec2(0, 1),
+                        vec2(1, 1),
+                        vec2(0, 2),
+                        vec2(1, 2),
+                    };
+                    vec2 sampleLocation = vec2(tShadowData.fXOffset, tShadowData.fYOffset) + (result.xy * tShadowData.fFactor) + (faceoffsets[int(result.z)] * tShadowData.fFactor);
+                    float dist = texture(sampler2D(at2DTextures[nonuniformEXT(tShadowData.iShadowMapTexIdx)], tShadowSampler), sampleLocation).r;
+                    float fDist = shadowCoord.z;
+                    dist = dist * shadowCoord.w;
+                    // dist = 1 - dist * shadowCoord.w;
+
+                    if(shadowCoord.w > 0 && dist > fDist)
+                    {
+                        shadow = 0.0;
+                    }
                 }
             }
 
