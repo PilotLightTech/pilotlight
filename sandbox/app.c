@@ -180,8 +180,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     // create main camera
     plCameraComponent* ptMainCamera = NULL;
-    ptEditorData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-9.6f, 2.096f, 0.86f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
-    gptCamera->set_pitch_yaw(ptMainCamera, -0.245f, 1.816f);
+    ptEditorData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-4.7f, 4.2f, -3.256f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 148.0f, true, &ptMainCamera);
+    gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
     gptCamera->update(ptMainCamera);
     gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING, ptEditorData->tMainCamera, NULL);
 
@@ -195,20 +195,29 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     // gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f}, NULL);
 
     plLightComponent* ptLight = NULL;
-    ptEditorData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "sunlight", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
+    ptEditorData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "direction light", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
     ptLight->uCascadeCount = 4;
-    ptLight->uShadowResolution = 2048;
+    ptLight->uShadowResolution = 1024;
     ptLight->afCascadeSplits[0] = 2.0f;
     ptLight->afCascadeSplits[1] = 8.0f;
     ptLight->afCascadeSplits[2] = 15.0f;
     ptLight->afCascadeSplits[3] = 35.0f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
-    ptEditorData->tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
-    ptLight->uShadowResolution = 2048;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
-    plTransformComponent* ptLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tPointLight);
-    ptLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 0.0f};
+    ptEditorData->tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
+    ptLight->uShadowResolution = 1024;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tPointLight);
+    ptPLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 2.0f};
+
+    ptEditorData->tSpotLight = gptEcs->create_spot_light(ptMainComponentLibrary, "spot light", (plVec3){0.0f, 2.0f, 0.0f}, (plVec3){0.0, -1.0f, 0.0f}, &ptLight);
+    ptLight->uShadowResolution = 1024;
+    ptLight->fRange = 5.0f;
+    ptLight->fRadius = 0.025f;
+    ptLight->fIntensity = 20.0f;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tSpotLight);
+    ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, 0.0f};
 
     // load models
 
@@ -322,6 +331,10 @@ pl_app_update(plEditorData* ptEditorData)
     plLightComponent* ptPointLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptEditorData->tPointLight);
     ptPointLight->tPosition = ptLightTransform->tTranslation;
 
+    plTransformComponent* ptSLightTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tSpotLight);
+    plLightComponent* ptSpotLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSpotLight);
+    ptSpotLight->tPosition = ptSLightTransform->tTranslation;
+
     if(ptEditorData->bSceneLoaded)
     {
         // run ecs system
@@ -368,7 +381,7 @@ pl_app_update(plEditorData* ptEditorData)
     }
 
     gptUi->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
-    gptUi->set_next_window_size((plVec2){500.0f, 800.0f}, PL_UI_COND_ONCE);
+    gptUi->set_next_window_size((plVec2){500.0f, 900.0f}, PL_UI_COND_ONCE);
 
     if(gptUi->begin_window("Pilot Light", NULL, PL_UI_WINDOW_FLAGS_NONE))
     {
@@ -419,60 +432,15 @@ pl_app_update(plEditorData* ptEditorData)
         }
 
         gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-        if(gptUi->begin_collapsing_header(ICON_FA_BUG " Debug", 0))
-        {
-            if(gptUi->button("resize"))
-                ptEditorData->bResize = true;
-            gptUi->checkbox("Always Resize", &ptEditorData->bAlwaysResize);
-
-            plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSunlight);
-            gptUi->slider_float("x", &ptLight->tDirection.x, -1.0f, 1.0f, 0);
-            gptUi->slider_float("y", &ptLight->tDirection.y, -1.0f, 1.0f, 0);
-            gptUi->slider_float("z", &ptLight->tDirection.z, -1.0f, 1.0f, 0);
-            gptUi->end_collapsing_header();
-        }
 
         if(gptUi->begin_collapsing_header(ICON_FA_PHOTO_FILM " Renderer", 0))
         {
 
+            if(gptUi->button("resize"))
+                ptEditorData->bResize = true;
+            gptUi->checkbox("Always Resize", &ptEditorData->bAlwaysResize);
+
             const float pfWidths[] = {200.0f};
-            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-            plLightComponent* ptLight = gptEcs->get_component(ptMainComponentLibrary,  PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSunlight);
-            // plLightComponent* ptPointLight = gptEcs->get_component(ptMainComponentLibrary,  PL_COMPONENT_TYPE_LIGHT, ptEditorData->tPointLight);
-
-            if(ptLight)
-            {
-                int iCascadeCount  = (int)ptLight->uCascadeCount;
-                if(gptUi->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0))
-                {
-                    ptLight->uCascadeCount = (uint32_t)iCascadeCount;
-                }
-
-                // int iResolution = (int)ptLight->uShadowResolution;
-                gptUi->input_float4("Cascades", ptLight->afCascadeSplits, NULL, 0);
-            }
-
-            if(ptPointLight)
-            {
-                gptUi->input_float("Point Light Radius", &ptPointLight->fRadius, NULL, 0);
-                gptUi->input_float("Point Light Range", &ptPointLight->fRange, NULL, 0);
-                int iResolution = (int)ptPointLight->uShadowResolution;
-                uint32_t auResolutions[] = {
-                    128,
-                    256,
-                    512,
-                    1024,
-                    2048
-                };
-                static int iSelection = 4;
-                gptUi->radio_button("Point Light Resolution: 128", &iSelection, 0);
-                gptUi->radio_button("Point Light Resolution: 256", &iSelection, 1);
-                gptUi->radio_button("Point Light Resolution: 512", &iSelection, 2);
-                gptUi->radio_button("Point Light Resolution: 1024", &iSelection, 3);
-                gptUi->radio_button("Point Light Resolution: 2048", &iSelection, 4);
-                ptPointLight->uShadowResolution = auResolutions[iSelection];
-            }
-
             gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfWidths);
             if(gptUi->button("Reload Shaders"))
             {
@@ -519,6 +487,7 @@ pl_app_update(plEditorData* ptEditorData)
                     false,
                     true,
                     true,
+                    false,
                 };
 
                 static const char* apcModels[] = {
@@ -528,6 +497,7 @@ pl_app_update(plEditorData* ptEditorData)
                     "NormalTangentMirrorTest",
                     "Humanoid",
                     "Floor",
+                    "Test",
                 };
 
                 static const char* apcModelPaths[] = {
@@ -537,10 +507,11 @@ pl_app_update(plEditorData* ptEditorData)
                     "../data/glTF-Sample-Assets-main/Models/NormalTangentMirrorTest/glTF/NormalTangentMirrorTest.gltf",
                     "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf",
                     "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf",
+                    "../data/testing/testing.gltf",
                 };
 
                 gptUi->separator_text("Test Models");
-                for(uint32_t i = 0; i < 6; i++)
+                for(uint32_t i = 0; i < 7; i++)
                     gptUi->selectable(apcModels[i], &abModels[i], 0);
 
 
@@ -560,7 +531,7 @@ pl_app_update(plEditorData* ptEditorData)
 
                     plModelLoaderData tLoaderData0 = {0};
 
-                    for(uint32_t i = 0; i < 6; i++)
+                    for(uint32_t i = 0; i < 7; i++)
                     {
                         if(abModels[i])
                         {

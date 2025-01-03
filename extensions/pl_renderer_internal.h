@@ -52,7 +52,7 @@ Index of this file:
 #include "pl_rect_pack_ext.h"
 
 #define PL_MAX_VIEWS_PER_SCENE 4
-#define PL_MAX_LIGHTS 1000
+#define PL_MAX_LIGHTS 500
 
 #ifndef PL_DEVICE_BUDDY_BLOCK_SIZE
     #define PL_DEVICE_BUDDY_BLOCK_SIZE 268435456
@@ -170,13 +170,13 @@ typedef struct _plGPUMaterial
     int iOcclusionTexIdx;
 } plGPUMaterial;
 
-typedef struct _plGPUDLight
+typedef struct _plGPULight
 {
     plVec3 tPosition;
     float  fIntensity;
 
     plVec3 tDirection;
-    int    iType;
+    float fInnerConeCos;
 
     plVec3 tColor;
     float  fRange;
@@ -184,43 +184,21 @@ typedef struct _plGPUDLight
     int iShadowIndex;
     int iCascadeCount;
     int iCastShadow;
-    int _unused[1];
-} plGPUDLight;
+    float fOuterConeCos;
 
-typedef struct _plGPUDLightShadowData
+    int iType;
+    int _unused[3];
+} plGPULight;
+
+typedef struct _plGPULightShadowData
 {
-	plVec4 cascadeSplits;
-	plMat4 cascadeViewProjMat[4];
-    int iShadowMapTexIdx;
-    float fFactor;
-    float fXOffset;
-    float fYOffset;
-} plGPUDLightShadowData;
-
-typedef struct _plGPUPLight
-{
-    plVec3 tPosition;
-    float  fIntensity;
-
-    plVec3 tDirection;
-    int    iType;
-
-    plVec3 tColor;
-    float  fRange;
-
-    int iShadowIndex;
-    int iCastShadow;
-    int _unused[2];
-} plGPUPLight;
-
-typedef struct _plGPUPLightShadowData
-{
+    plVec4 tCascadeSplits;
 	plMat4 viewProjMat[6];
     int iShadowMapTexIdx;
     float fFactor;
     float fXOffset;
     float fYOffset;
-} plGPUPLightShadowData;
+} plGPULightShadowData;
 
 typedef struct _BindGroup_0
 {
@@ -292,7 +270,7 @@ typedef struct _plRefView
     // shadows
     plBufferHandle atDShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atDLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    plGPUDLightShadowData* sbtDLightShadowData;
+    plGPULightShadowData* sbtDLightShadowData;
 } plRefView;
 
 typedef struct _plRefScene
@@ -322,8 +300,9 @@ typedef struct _plRefScene
     uint32_t*      sbuIndexBuffer;
     plGPUMaterial* sbtMaterialBuffer;
     plVec4*        sbtSkinVertexDataBuffer;
-    plGPUDLight*    sbtDLightData;
-    plGPUPLight*    sbtPLightData;
+    plGPULight*    sbtDLightData;
+    plGPULight*    sbtPLightData;
+    plGPULight*    sbtSLightData;
 
     // GPU buffers
     plBufferHandle tVertexBuffer;
@@ -333,6 +312,7 @@ typedef struct _plRefScene
     plBufferHandle tSkinStorageBuffer;
     plBufferHandle atDLightBuffer[PL_MAX_VIEWS_PER_SCENE];
     plBufferHandle atPLightBuffer[PL_MAX_VIEWS_PER_SCENE];
+    plBufferHandle atSLightBuffer[PL_MAX_VIEWS_PER_SCENE];
 
     // views
     uint32_t    uViewCount;
@@ -374,7 +354,11 @@ typedef struct _plRefScene
     // shadows
     plBufferHandle atPShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atPLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    plGPUPLightShadowData* sbtPLightShadowData;
+    plGPULightShadowData* sbtPLightShadowData;
+
+    plBufferHandle atSShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atSLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plGPULightShadowData* sbtSLightShadowData;
 
 } plRefScene;
 

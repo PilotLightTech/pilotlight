@@ -15,8 +15,9 @@ layout(constant_id = 1) const int iDataStride = 0;
 layout(constant_id = 2) const int iTextureMappingFlags = 0;
 layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iRenderingFlags = 0;
-layout(constant_id = 5) const int iDirectionLightCount = 1;
-layout(constant_id = 6) const int iPointLightCount = 1;
+layout(constant_id = 5) const int iDirectionLightCount = 0;
+layout(constant_id = 6) const int iPointLightCount = 0;
+layout(constant_id = 7) const int iSpotLightCount = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0

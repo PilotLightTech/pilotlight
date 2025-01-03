@@ -575,6 +575,9 @@ pl_refr_create_scene(void)
         ptScene->atPLightShadowDataBuffer[i] = pl__refr_create_staging_buffer(&atLightShadowDataBufferDesc, "p shadow", i);
         ptScene->atPShadowCameraBuffers[i] = pl__refr_create_staging_buffer(&atCameraBuffersDesc, "p shadow buffer", i);
 
+        ptScene->atSLightShadowDataBuffer[i] = pl__refr_create_staging_buffer(&atLightShadowDataBufferDesc, "s shadow", i);
+        ptScene->atSShadowCameraBuffers[i] = pl__refr_create_staging_buffer(&atCameraBuffersDesc, "s shadow buffer", i);
+
     }
 
     return uSceneHandle;
@@ -1131,6 +1134,7 @@ pl_refr_cleanup(void)
             pl_sb_free(ptView->sbtDLightShadowData);
         }
         pl_sb_free(ptScene->sbtPLightShadowData);
+        pl_sb_free(ptScene->sbtSLightShadowData);
         pl_sb_free(ptScene->sbtPLightData);
         pl_sb_free(ptScene->sbtDLightData);
         pl_sb_free(ptScene->sbtVertexPosBuffer);
@@ -2013,12 +2017,12 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
             .tGraphicsState    = tOutlineVariantTemp
         };
 
-        size_t szSpecializationSize = 0;
-        for(uint32_t j = 0; j < ptOutlineShader->tDesc._uConstantCount; j++)
-        {
-            const plSpecializationConstant* ptConstant = &ptOutlineShader->tDesc.atConstants[j];
-            szSpecializationSize += pl__get_data_type_size2(ptConstant->tType);
-        }
+        // size_t szSpecializationSize = 0;
+        // for(uint32_t j = 0; j < ptOutlineShader->tDesc._uConstantCount; j++)
+        // {
+        //     const plSpecializationConstant* ptConstant = &ptOutlineShader->tDesc.atConstants[j];
+        //     szSpecializationSize += pl__get_data_type_size2(ptConstant->tType);
+        // }
 
         // const uint64_t ulVariantHash = pl_hm_hash(tOutlineVariant.pTempConstantData, szSpecializationSize, tOutlineVariant.tGraphicsState.ulValue);
         // pl_hm_remove(&gptData->ptVariantHashmap, ulVariantHash);
@@ -2073,14 +2077,15 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
         }
 
         // choose shader variant
-        int aiConstantData0[7] = {
+        int aiConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
             iDataStride,
             iTextureMappingFlags,
             PL_INFO_MATERIAL_METALLICROUGHNESS,
             iSceneWideRenderingFlags,
             pl_sb_capacity(ptScene->sbtDLightData),
-            pl_sb_capacity(ptScene->sbtPLightData)
+            pl_sb_capacity(ptScene->sbtPLightData),
+            pl_sb_capacity(ptScene->sbtSLightData)
         };
 
         if(pl_hm_has_key(ptScene->ptDeferredHashmap, tEntity.ulData))
@@ -2220,7 +2225,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
     {
         const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
 
-        int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtDLightData), pl_sb_capacity(ptScene->sbtPLightData)};
+        int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtDLightData), pl_sb_capacity(ptScene->sbtPLightData), pl_sb_capacity(ptScene->sbtSLightData)};
         plShaderDesc tLightingShaderDesc = {
             .tPixelShader = gptShader->load_glsl("../shaders/lighting.frag", "main", NULL, NULL),
             .tVertexShader = gptShader->load_glsl("../shaders/lighting.vert", "main", NULL, NULL),
@@ -2286,16 +2291,18 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
                         { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                         { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                         { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                        { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                        { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                         { .uSlot = 4, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                        { .uSlot = 5, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                        { .uSlot = 6, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                     },
                     .atSamplerBindings = {
-                        {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                        {.uSlot = 7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                     },
                 }
             }
         };
-        for(uint32_t i = 0; i < 3; i++)
+        for(uint32_t i = 0; i < 4; i++)
         {
             tLightingShaderDesc.atConstants[i].uID = i;
             tLightingShaderDesc.atConstants[i].uOffset = i * sizeof(int);
@@ -2437,6 +2444,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
                 iSceneWideRenderingFlags,
                 pl_sb_capacity(ptScene->sbtDLightData),
                 pl_sb_capacity(ptScene->sbtPLightData),
+                pl_sb_capacity(ptScene->sbtSLightData)
             };
 
             plGraphicsState tVariantTemp = atTemplateVariants[uDrawableBatchIndex];
@@ -2559,16 +2567,20 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     pl_sb_reserve(ptScene->sbtVertexPosBuffer, 15000000);
     int iDLightCount = 0;
     int iPLightCount = 0;
+    int iSLightCount = 0;
     for(uint32_t i = 0; i < pl_sb_size(sbtLights); i++)
     {
         if(sbtLights[i].tType == PL_LIGHT_TYPE_DIRECTIONAL)
             iDLightCount++;
         else if(sbtLights[i].tType == PL_LIGHT_TYPE_POINT)
             iPLightCount++;
+        else if(sbtLights[i].tType == PL_LIGHT_TYPE_SPOT)
+            iSLightCount++;
     }
 
     pl_sb_reserve(ptScene->sbtDLightData, iDLightCount);
     pl_sb_reserve(ptScene->sbtPLightData, iPLightCount);
+    pl_sb_reserve(ptScene->sbtSLightData, iSLightCount);
 
     for(uint32_t uDrawableBatchIndex = 0; uDrawableBatchIndex < 2; uDrawableBatchIndex++)
     {
@@ -2670,7 +2682,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                 PL_INFO_MATERIAL_METALLICROUGHNESS,
                 iSceneWideRenderingFlags,
                 iDLightCount,
-                iPLightCount
+                iPLightCount,
+                iSLightCount
             };
 
             plGraphicsState tVariantTemp = atTemplateVariants[uDrawableBatchIndex];
@@ -2749,20 +2762,27 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
 
     const plBufferDesc tDLightBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_UNIFORM,
-        .szByteSize = sizeof(plGPUDLight) * PL_MAX_LIGHTS,
+        .szByteSize = sizeof(plGPULight) * PL_MAX_LIGHTS,
         .pcDebugName = "D light buffer"
     };
 
     const plBufferDesc tPLightBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_UNIFORM,
-        .szByteSize = sizeof(plGPUPLight) * PL_MAX_LIGHTS,
+        .szByteSize = sizeof(plGPULight) * PL_MAX_LIGHTS,
         .pcDebugName = "P light buffer"
+    };
+
+    const plBufferDesc tSLightBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_UNIFORM,
+        .szByteSize = sizeof(plGPULight) * PL_MAX_LIGHTS,
+        .pcDebugName = "S light buffer"
     };
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
         ptScene->atDLightBuffer[i] = pl__refr_create_staging_buffer(&tDLightBufferDesc, "d light", i);
         ptScene->atPLightBuffer[i] = pl__refr_create_staging_buffer(&tPLightBufferDesc, "p light", i);
+        ptScene->atSLightBuffer[i] = pl__refr_create_staging_buffer(&tSLightBufferDesc, "s light", i);
     }
 
     ptScene->tMaterialDataBuffer = pl__refr_create_local_buffer(&tShaderBufferDesc,  "shader", uSceneHandle, ptScene->sbtMaterialBuffer);
@@ -2812,7 +2832,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
 
     // create lighting shader
     {
-        int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtDLightData), pl_sb_capacity(ptScene->sbtPLightData)};
+        int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtDLightData), pl_sb_capacity(ptScene->sbtPLightData), pl_sb_capacity(ptScene->sbtSLightData)};
         plShaderDesc tLightingShaderDesc = {
             .tPixelShader = gptShader->load_glsl("../shaders/lighting.frag", "main", NULL, NULL),
             .tVertexShader = gptShader->load_glsl("../shaders/lighting.vert", "main", NULL, NULL),
@@ -2878,16 +2898,18 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                         { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                         { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                         { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                        { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                        { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                         { .uSlot = 4, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                        { .uSlot = 5, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                        { .uSlot = 6, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
                     },
                     .atSamplerBindings = {
-                        {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                        {.uSlot = 7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                     },
                 }
             }
         };
-        for(uint32_t i = 0; i < 3; i++)
+        for(uint32_t i = 0; i < 4; i++)
         {
             tLightingShaderDesc.atConstants[i].uID = i;
             tLightingShaderDesc.atConstants[i].uOffset = i * sizeof(int);
@@ -3054,6 +3076,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
     plDevice*          ptDevice     = gptData->ptDevice;
     plDrawStream*      ptStream     = &gptData->tDrawStream;
     plRefScene*        ptScene      = &gptData->sbtScenes[uSceneHandle];
+    const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update skin textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -3119,6 +3142,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
         pl_sb_reset(ptScene->sbtPLightShadowData);
+        pl_sb_reset(ptScene->sbtSLightShadowData);
 
         plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptScene->tFirstShadowRenderPass, NULL);
 
@@ -3421,16 +3445,18 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             gptGfx->next_subpass(ptEncoder, NULL);
 
             plBuffer* ptDShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptView->atDLightShadowDataBuffer[uFrameIdx]);
-            memcpy(ptDShadowDataBuffer->tMemoryAllocation.pHostMapped, ptView->sbtDLightShadowData, sizeof(plGPUDLightShadowData) * pl_sb_size(ptView->sbtDLightShadowData));
+            memcpy(ptDShadowDataBuffer->tMemoryAllocation.pHostMapped, ptView->sbtDLightShadowData, sizeof(plGPULightShadowData) * pl_sb_size(ptView->sbtDLightShadowData));
             
 
             plBuffer* ptPShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->atPLightShadowDataBuffer[uFrameIdx]);
-            memcpy(ptPShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtPLightShadowData, sizeof(plGPUPLightShadowData) * pl_sb_size(ptScene->sbtPLightShadowData));
+            memcpy(ptPShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtPLightShadowData, sizeof(plGPULightShadowData) * pl_sb_size(ptScene->sbtPLightShadowData));
             
-
-            const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
+            plBuffer* ptSShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSLightShadowDataBuffer[uFrameIdx]);
+            memcpy(ptSShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtSLightShadowData, sizeof(plGPULightShadowData) * pl_sb_size(ptScene->sbtSLightShadowData));
+            
             pl_sb_reset(ptScene->sbtPLightData);
             pl_sb_reset(ptScene->sbtDLightData);
+            pl_sb_reset(ptScene->sbtSLightData);
             for(uint32_t i = 0; i < pl_sb_size(sbtLights); i++)
             {
                 const plLightComponent* ptLight = &sbtLights[i];
@@ -3438,7 +3464,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                 if(ptLight->tType == PL_LIGHT_TYPE_DIRECTIONAL)
                 {   
 
-                    const plGPUDLight tLight = {
+                    const plGPULight tLight = {
                         .fIntensity = ptLight->fIntensity,
                         .fRange     = ptLight->fRange,
                         .tPosition  = ptLight->tPosition,
@@ -3446,23 +3472,41 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                         .tColor     = ptLight->tColor,
                         .iShadowIndex = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? pl_sb_size(ptScene->sbtDLightData) : 0,
                         .iCastShadow = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW,
-                        .iCascadeCount = (int)ptLight->uCascadeCount
+                        .iCascadeCount = (int)ptLight->uCascadeCount,
+                        .iType = ptLight->tType
                     };
 
                     pl_sb_push(ptScene->sbtDLightData, tLight);
                 }
                 else if(ptLight->tType == PL_LIGHT_TYPE_POINT)
                 {  
-                    const plGPUPLight tLight = {
+                    const plGPULight tLight = {
                         .fIntensity = ptLight->fIntensity,
                         .fRange     = ptLight->fRange,
                         .tPosition  = ptLight->tPosition,
                         .tDirection = ptLight->tDirection,
                         .tColor     = ptLight->tColor,
                         .iShadowIndex = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? pl_sb_size(ptScene->sbtPLightData) : 0,
-                        .iCastShadow = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW
+                        .iCastShadow = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW,
+                        .iType = ptLight->tType
                     };
                     pl_sb_push(ptScene->sbtPLightData, tLight);
+                }
+                else if(ptLight->tType == PL_LIGHT_TYPE_SPOT)
+                {  
+                    const plGPULight tLight = {
+                        .fIntensity = ptLight->fIntensity,
+                        .fRange     = ptLight->fRange,
+                        .tPosition  = ptLight->tPosition,
+                        .tDirection = ptLight->tDirection,
+                        .tColor     = ptLight->tColor,
+                        .iShadowIndex = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? pl_sb_size(ptScene->sbtSLightData) : 0,
+                        .iCastShadow = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW,
+                        .iType       = ptLight->tType,
+                        .fInnerConeCos = cosf(ptLight->fInnerConeAngle),
+                        .fOuterConeCos = cosf(ptLight->fOuterConeAngle),
+                    };
+                    pl_sb_push(ptScene->sbtSLightData, tLight);
                 }
             }
 
@@ -3471,11 +3515,13 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                     { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
                     { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
                     { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
-                    { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
+                    { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
                     { .uSlot = 4, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
+                    { .uSlot = 5, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
+                    { .uSlot = 6, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 5, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    {.uSlot = 7, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
                 },
             };
             const plBindGroupDesc tLightBGDesc = {
@@ -3488,21 +3534,23 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             const plBindGroupUpdateBufferData atLightBufferData[] = 
             {
                 { .uSlot = 0, .tBuffer = ptView->atGlobalBuffers[uFrameIdx], .szBufferRange = sizeof(BindGroup_0) },
-                { .uSlot = 1, .tBuffer = ptScene->atDLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGPUDLight) * pl_sb_size(ptScene->sbtDLightData)},
-                { .uSlot = 2, .tBuffer = ptScene->atPLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGPUPLight) * pl_sb_size(ptScene->sbtPLightData)},
-                { .uSlot = 3, .tBuffer = ptView->atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGPUDLightShadowData) * pl_sb_size(ptView->sbtDLightShadowData)},
-                { .uSlot = 4, .tBuffer = ptScene->atPLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGPUPLightShadowData) * pl_sb_size(ptScene->sbtPLightShadowData)},
+                { .uSlot = 1, .tBuffer = ptScene->atDLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGPULight) * pl_sb_size(ptScene->sbtDLightData)},
+                { .uSlot = 2, .tBuffer = ptScene->atPLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGPULight) * pl_sb_size(ptScene->sbtPLightData)},
+                { .uSlot = 3, .tBuffer = ptScene->atSLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGPULight) * pl_sb_size(ptScene->sbtSLightData)},
+                { .uSlot = 4, .tBuffer = ptView->atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGPULightShadowData) * pl_sb_size(ptView->sbtDLightShadowData)},
+                { .uSlot = 5, .tBuffer = ptScene->atPLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGPULightShadowData) * pl_sb_size(ptScene->sbtPLightShadowData)},
+                { .uSlot = 6, .tBuffer = ptScene->atSLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGPULightShadowData) * pl_sb_size(ptScene->sbtSLightShadowData)},
             };
 
             plBindGroupUpdateSamplerData tShadowSamplerData[] = {
                 {
                     .tSampler = gptData->tShadowSampler,
-                    .uSlot    = 5
+                    .uSlot    = 7
                 }
             };
 
             plBindGroupUpdateData tBGData2 = {
-                .uBufferCount = 5,
+                .uBufferCount = 7,
                 .atBufferBindings = atLightBufferData,
                 .uSamplerCount = 1,
                 .atSamplerBindings = tShadowSamplerData
@@ -3511,8 +3559,10 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             gptGfx->queue_bind_group_for_deletion(ptDevice, tLightBindGroup2);
             plBuffer* ptDLightingBuffer = gptGfx->get_buffer(ptDevice, ptScene->atDLightBuffer[uFrameIdx]);
             plBuffer* ptPLightingBuffer = gptGfx->get_buffer(ptDevice, ptScene->atPLightBuffer[uFrameIdx]);
-            memcpy(ptDLightingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtDLightData, sizeof(plGPUDLight) * pl_sb_size(ptScene->sbtDLightData));
-            memcpy(ptPLightingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtPLightData, sizeof(plGPUPLight) * pl_sb_size(ptScene->sbtPLightData));
+            plBuffer* ptSLightingBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSLightBuffer[uFrameIdx]);
+            memcpy(ptDLightingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtDLightData, sizeof(plGPULight) * pl_sb_size(ptScene->sbtDLightData));
+            memcpy(ptPLightingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtPLightData, sizeof(plGPULight) * pl_sb_size(ptScene->sbtPLightData));
+            memcpy(ptSLightingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtSLightData, sizeof(plGPULight) * pl_sb_size(ptScene->sbtSLightData));
 
             typedef struct _plLightingDynamicData{
                 int iDataOffset;
@@ -3657,23 +3707,64 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             }
 
             // light drawing (temporary)
-            for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtPLightData); i++)
+            for(uint32_t i = 0; i < pl_sb_size(sbtLights); i++)
             {
-                const plVec4 tColor = {.rgb = ptScene->sbtPLightData[i].tColor, .a = 1.0f};
-                // gptDraw->add_3d_cross(ptView->pt3DDrawList, ptScene->sbtPLightData[i].tPosition, 0.02f, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.25f});
-                plDrawSphereDesc tSphere = {
-                    .fRadius = 0.025f,
-                    .tCenter = ptScene->sbtPLightData[i].tPosition,
-                    .uLatBands = 6,
-                    .uLongBands = 6
-                };
-                gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
-                tSphere.fRadius = ptScene->sbtPLightData[i].fRange;
-                plDrawSphereDesc tSphere2 = {
-                    .fRadius = ptScene->sbtPLightData[i].fRange,
-                    .tCenter = ptScene->sbtPLightData[i].tPosition
-                };
-                gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
+                if(sbtLights[i].tFlags & PL_LIGHT_FLAG_VISUALIZER)
+                {
+                    const plVec4 tColor = {.rgb = sbtLights[i].tColor, .a = 1.0f};
+                    if(sbtLights[i].tType == PL_LIGHT_TYPE_POINT)
+                    {
+                        plDrawSphereDesc tSphere = {
+                            .fRadius = sbtLights[i].fRadius,
+                            .tCenter = sbtLights[i].tPosition,
+                            .uLatBands = 6,
+                            .uLongBands = 6
+                        };
+                        gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
+                        tSphere.fRadius = sbtLights[i].fRange;
+                        plDrawSphereDesc tSphere2 = {
+                            .fRadius = sbtLights[i].fRange,
+                            .tCenter = sbtLights[i].tPosition
+                        };
+                        gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    }
+                    else if(sbtLights[i].tType == PL_LIGHT_TYPE_SPOT)
+                    {
+                        plDrawConeDesc tCone0 = {
+                            .fRadius = tanf(sbtLights[i].fOuterConeAngle) * sbtLights[i].fRange,
+                            .tTipPos = sbtLights[i].tPosition,
+                            .tBasePos = pl_add_vec3(sbtLights[i].tPosition, pl_mul_vec3_scalarf(sbtLights[i].tDirection, sbtLights[i].fRange))
+                        };
+                        gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+
+                        if(sbtLights[i].fInnerConeAngle > 0.0f)
+                        {
+                            plDrawConeDesc tCone1 = {
+                                .fRadius = tanf(sbtLights[i].fInnerConeAngle) * sbtLights[i].fRange,
+                                .tTipPos = sbtLights[i].tPosition,
+                                .tBasePos = pl_add_vec3(sbtLights[i].tPosition, pl_mul_vec3_scalarf(sbtLights[i].tDirection, sbtLights[i].fRange))
+                            };
+                            gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone1, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                        }
+                    }
+
+                    else if(sbtLights[i].tType == PL_LIGHT_TYPE_DIRECTIONAL)
+                    {
+                        plVec3 tDirection = pl_norm_vec3(sbtLights[i].tDirection);
+                        plDrawConeDesc tCone0 = {
+                            .fRadius = 0.125f,
+                            .tBasePos = (plVec3){0.0f, 3.0f, 0.0f},
+                            .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, 0.25f))
+                        };
+                        gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                        plDrawCylinderDesc tCylinder = {
+                            .fRadius = 0.0625f,
+                            .tBasePos = tCone0.tBasePos,
+                            .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, -0.25f))
+                        };
+                        gptDraw->add_3d_cylinder(ptView->pt3DDrawList, tCylinder, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    }
+                }
             }
 
             // debug drawing
@@ -3871,7 +3962,13 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
 
             ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
-            gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
+
+            const plBeginCommandInfo tBeginInfo2 = {
+                .uWaitSemaphoreCount   = 1,
+                .atWaitSempahores      = {tSemHandle},
+                .auWaitSemaphoreValues = {ulValue},
+            };
+            gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo2);
 
             if(bRenderPickTexture)
             {
@@ -4384,6 +4481,11 @@ pl_show_graphics_options(const char* pcTitle)
         if(gptUI->checkbox("VSync", &gptData->bVSync))
             gptData->bReloadSwapchain = true;
         gptUI->checkbox("Show Origin", &gptData->bShowOrigin);
+        if(gptUI->checkbox("MultiViewport Shadows", &gptData->bMultiViewportShadows))
+        {
+            for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
+                pl_refr_reload_scene_shaders(i);
+        }
         gptUI->checkbox("Frustum Culling", &gptData->bFrustumCulling);
         gptUI->checkbox("Draw All Bounding Boxes", &gptData->bDrawAllBoundingBoxes);
         gptUI->checkbox("Draw Visible Bounding Boxes", &gptData->bDrawVisibleBoundingBoxes);

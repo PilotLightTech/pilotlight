@@ -96,6 +96,7 @@ static plEntity pl_ecs_create_perspective_camera (plComponentLibrary*, const cha
 static plEntity pl_ecs_create_orthographic_camera(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent**);
 static plEntity pl_ecs_create_directional_light  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
 static plEntity pl_ecs_create_point_light        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
+static plEntity pl_ecs_create_spot_light         (plComponentLibrary*, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent**);
 static plEntity pl_ecs_create_script             (plComponentLibrary*, const char* pcFile, plScriptFlags, plScriptComponent**);
 static void     pl_ecs_attach_script             (plComponentLibrary*, const char* pcFile, plScriptFlags, plEntity, plScriptComponent**);
 
@@ -215,6 +216,8 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
 
     ptLibrary->pInternal = PL_ALLOC(sizeof(plComponentLibraryData));
     memset(ptLibrary->pInternal, 0, sizeof(plComponentLibraryData));
+
+    pl_sb_push(ptLibrary->sbtEntityGenerations, UINT32_MAX);
 
     pl_log_info(gptLog, uLogChannelEcs, "initialized component library");
 }
@@ -654,8 +657,10 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             .tColor              = {1.0f, 1.0f, 1.0f},
             .tDirection          = {0.0f, -1.0f, 0.0f},
             .fIntensity          = 1.0f,
-            .fRange              = 10.0f,
+            .fRange              = 5.0f,
             .fRadius             = 0.025f,
+            .fInnerConeAngle     = 0.0f,
+            .fOuterConeAngle     = PL_PI_4 * 0.5f,
             .tType               = PL_LIGHT_TYPE_DIRECTIONAL,
             .uCascadeCount       = 0,
             .tFlags              = 0,
@@ -755,6 +760,22 @@ pl_ecs_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plV
     plLightComponent* ptLight =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tNewEntity);
     ptLight->tPosition = tPosition;
     ptLight->tType = PL_LIGHT_TYPE_POINT;
+
+    if(pptCompOut)
+        *pptCompOut = ptLight;
+    return tNewEntity;
+}
+
+static plEntity
+pl_ecs_create_spot_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent** pptCompOut)
+{
+    pcName = pcName ? pcName : "unnamed spot light";
+    pl_log_debug_f(gptLog, uLogChannelEcs, "created spot light: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+    plLightComponent* ptLight =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tNewEntity);
+    ptLight->tPosition = tPosition;
+    ptLight->tDirection = tDirection;
+    ptLight->tType = PL_LIGHT_TYPE_SPOT;
 
     if(pptCompOut)
         *pptCompOut = ptLight;
@@ -1760,6 +1781,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_animation_data                = pl_ecs_create_animation_data,
         .create_directional_light             = pl_ecs_create_directional_light,
         .create_point_light                   = pl_ecs_create_point_light,
+        .create_spot_light                    = pl_ecs_create_spot_light,
         .create_script                        = pl_ecs_create_script,
         .attach_script                        = pl_ecs_attach_script,
         .attach_component                     = pl_ecs_attach_component,

@@ -131,6 +131,7 @@ typedef struct _plEcsI
     plEntity (*create_orthographic_camera)(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent**);
     plEntity (*create_directional_light)  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
     plEntity (*create_point_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
+    plEntity (*create_spot_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent**);
 
     // scripts
     plEntity (*create_script)(plComponentLibrary*, const char* pcFile, plScriptFlags, plScriptComponent**);
@@ -289,14 +290,16 @@ enum _plMeshFormatFlags
 
 enum _plLightFlags
 {
-    PL_LIGHT_FLAG_NONE            = 0,
+    PL_LIGHT_FLAG_NONE        = 0,
     PL_LIGHT_FLAG_CAST_SHADOW = 1 << 0,
+    PL_LIGHT_FLAG_VISUALIZER  = 1 << 2,
 };
 
 enum _plLightType
 {
     PL_LIGHT_TYPE_DIRECTIONAL,
-    PL_LIGHT_TYPE_POINT
+    PL_LIGHT_TYPE_POINT,
+    PL_LIGHT_TYPE_SPOT
 };
 
 enum _plHumanoidBone
@@ -461,6 +464,8 @@ typedef struct _plLightComponent
     float        fIntensity;
     float        fRange;
     float        fRadius;
+    float        fInnerConeAngle; // default: 0
+    float        fOuterConeAngle; // default: 45
     plVec3       tPosition;
     plVec3       tDirection;
     uint32_t     uShadowResolution; // 0 -> automatic
