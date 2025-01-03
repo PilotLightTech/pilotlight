@@ -165,16 +165,92 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                 {
                     static const char* apcLightTypes[] = {
                         "PL_LIGHT_TYPE_DIRECTIONAL",
-                        "PL_LIGHT_TYPE_POINT"
+                        "PL_LIGHT_TYPE_POINT",
+                        "PL_LIGHT_TYPE_SPOT",
                     };
-                    gptUi->text("Type:        %s", apcLightTypes[ptLightComp->tType]);
-                    gptUi->text("Position:    (%0.3f, %0.3f, %0.3f)", ptLightComp->tPosition.r, ptLightComp->tPosition.g, ptLightComp->tPosition.b);
-                    gptUi->text("Color:       (%0.3f, %0.3f, %0.3f)", ptLightComp->tColor.r, ptLightComp->tColor.g, ptLightComp->tColor.b);
-                    gptUi->text("Direction:   (%0.3f, %0.3f, %0.3f)", ptLightComp->tDirection.r, ptLightComp->tDirection.g, ptLightComp->tDirection.b);
-                    gptUi->text("Intensity:   %0.3f", ptLightComp->fIntensity);
-                    gptUi->text("Radius:   %0.3f", ptLightComp->fRadius);
-                    gptUi->text("Range:   %0.3f", ptLightComp->fRange);
-                    gptUi->text("Cast Shadow: %s", ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW ? "true" : "false");
+                    gptUi->text("Type: %s", apcLightTypes[ptLightComp->tType]);
+
+                    bool bShowVisualizer = ptLightComp->tFlags & PL_LIGHT_FLAG_VISUALIZER;
+                    if(gptUi->checkbox("Visualizer:", &bShowVisualizer))
+                    {
+                        if(bShowVisualizer)
+                            ptLightComp->tFlags |= PL_LIGHT_FLAG_VISUALIZER;
+                        else
+                            ptLightComp->tFlags &= ~PL_LIGHT_FLAG_VISUALIZER;
+                    }
+
+                    gptUi->input_float3("Position:", ptLightComp->tPosition.d, NULL, 0);
+
+                    gptUi->separator_text("Color");
+                    gptUi->slider_float("r", &ptLightComp->tColor.x, 0.0f, 1.0f, 0);
+                    gptUi->slider_float("g", &ptLightComp->tColor.y, 0.0f, 1.0f, 0);
+                    gptUi->slider_float("b", &ptLightComp->tColor.z, 0.0f, 1.0f, 0);
+
+                    gptUi->slider_float("Intensity", &ptLightComp->fIntensity, 0.0f, 20.0f, 0);
+
+                    if(ptLightComp->tType != PL_LIGHT_TYPE_DIRECTIONAL)
+                    {
+                        gptUi->input_float("Radius:", &ptLightComp->fRadius, NULL, 0);
+                        gptUi->input_float("Range", &ptLightComp->fRange, NULL, 0);
+                    }
+
+                    if(ptLightComp->tType == PL_LIGHT_TYPE_SPOT)
+                    {
+                        gptUi->slider_float("Inner Cone Angle:", &ptLightComp->fInnerConeAngle, 0.0f, PL_PI_2, 0);
+                        gptUi->slider_float("Outer Cone Angle", &ptLightComp->fOuterConeAngle, 0.0f, PL_PI_2, 0);
+                    }
+
+
+                    if(ptLightComp->tType != PL_LIGHT_TYPE_POINT)
+                    {
+                        gptUi->separator_text("Direction");
+                        gptUi->slider_float("x", &ptLightComp->tDirection.x, -1.0f, 1.0f, 0);
+                        gptUi->slider_float("y", &ptLightComp->tDirection.y, -1.0f, 1.0f, 0);
+                        gptUi->slider_float("z", &ptLightComp->tDirection.z, -1.0f, 1.0f, 0);
+                    }
+
+                    gptUi->separator_text("Shadows");
+
+                    bool bCastShadow = ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW;
+                    if(gptUi->checkbox("Cast Shadow:", &bCastShadow))
+                    {
+                        if(bCastShadow)
+                            ptLightComp->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
+                        else
+                            ptLightComp->tFlags &= ~PL_LIGHT_FLAG_CAST_SHADOW;
+                    }
+
+                    if(bCastShadow)
+                    {
+                        int iResolution = (int)ptLightComp->uShadowResolution;
+                        uint32_t auResolutions[] = {
+                            128,
+                            256,
+                            512,
+                            1024,
+                            2048
+                        };
+                        static int iSelection = 3;
+                        gptUi->radio_button("Resolution: 128", &iSelection, 0);
+                        gptUi->radio_button("Resolution: 256", &iSelection, 1);
+                        gptUi->radio_button("Resolution: 512", &iSelection, 2);
+                        gptUi->radio_button("Resolution: 1024", &iSelection, 3);
+                        gptUi->radio_button("Resolution: 2048", &iSelection, 4);
+                        ptLightComp->uShadowResolution = auResolutions[iSelection];
+                    }
+
+                    if(ptLightComp->tType == PL_LIGHT_TYPE_DIRECTIONAL)
+                    {
+                        int iCascadeCount  = (int)ptLightComp->uCascadeCount;
+                        if(gptUi->slider_int("Cascades", &iCascadeCount, 1, 4, 0))
+                        {
+                            ptLightComp->uCascadeCount = (uint32_t)iCascadeCount;
+                        }
+
+                        // int iResolution = (int)ptLight->uShadowResolution;
+                        gptUi->input_float4("Cascade Splits", ptLightComp->afCascadeSplits, NULL, 0);
+                    }
+
                 }
 
                 if(ptMaterialComp && gptUi->begin_collapsing_header("Material", 0))
@@ -261,7 +337,9 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                     gptUi->text("Up:       (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tUpVec.x, ptCameraComp->_tUpVec.y, ptCameraComp->_tUpVec.z);
                     gptUi->text("Forward:  (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tForwardVec.x, ptCameraComp->_tForwardVec.y, ptCameraComp->_tForwardVec.z);
                     gptUi->text("Right:    (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tRightVec.x, ptCameraComp->_tRightVec.y, ptCameraComp->_tRightVec.z);
-                    gptUi->slider_float("Far Z Plane", &ptCameraComp->fFarZ, 10.0f, 400.0f, 0);
+                    gptUi->input_float3("Position", ptCameraComp->tPos.d, NULL, 0);
+                    gptUi->input_float("Near Z Plane", &ptCameraComp->fNearZ, NULL, 0);
+                    gptUi->input_float("Far Z Plane", &ptCameraComp->fFarZ, NULL, 0);
                     gptUi->end_collapsing_header();
                 }
 
