@@ -250,6 +250,32 @@ const mat4 biasMat = mat4(
 	0.5, 0.5, 0.0, 1.0 
 );
 
+vec2 poissonDisk[16] = vec2[]( 
+   vec2( -0.94201624, -0.39906216 ), 
+   vec2( 0.94558609, -0.76890725 ), 
+   vec2( -0.094184101, -0.92938870 ), 
+   vec2( 0.34495938, 0.29387760 ), 
+   vec2( -0.91588581, 0.45771432 ), 
+   vec2( -0.81544232, -0.87912464 ), 
+   vec2( -0.38277543, 0.27676845 ), 
+   vec2( 0.97484398, 0.75648379 ), 
+   vec2( 0.44323325, -0.97511554 ), 
+   vec2( 0.53742981, -0.47373420 ), 
+   vec2( -0.26496911, -0.41893023 ), 
+   vec2( 0.79197514, 0.19090188 ), 
+   vec2( -0.24188840, 0.99706507 ), 
+   vec2( -0.81409955, 0.91437590 ), 
+   vec2( 0.19984126, 0.78641367 ), 
+   vec2( 0.14383161, -0.14100790 ) 
+);
+
+float random(vec3 seed, int i)
+{
+    vec4 seed4 = vec4(seed, float(i));
+    float dot_product = dot(seed4, vec4(12.9898,78.233,45.164,94.673));
+    return fract(sin(dot_product) * 43758.5453);
+}
+
 float textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 {
 	float shadow = 1.0;
@@ -296,6 +322,26 @@ float filterPCF(vec4 sc, vec2 offset, int textureIndex)
 	for (int x = -range; x <= range; x++) {
 		for (int y = -range; y <= range; y++) {
 			shadowFactor += textureProj(sc, vec2(dx*x, dy*y) + offset, textureIndex);
+			count++;
+		}
+	}
+	return shadowFactor / count;
+}
+
+float filterPCF2(vec4 sc, vec2 offset, int textureIndex)
+{
+	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), 0).xy;
+	float scale = 1.0;
+	float dx = scale * 1.0 / (float(texDim.x));
+	float dy = scale * 1.0 / (float(texDim.y));
+
+	float shadowFactor = 0.0;
+	int count = 0;
+	int range = 1;
+	
+	for (int x = -range; x <= range; x++) {
+		for (int y = -range; y <= range; y++) {
+			shadowFactor += textureProj2(sc, vec2(dx*x, dy*y) + offset, textureIndex);
 			count++;
 		}
 	}
@@ -430,6 +476,13 @@ void main()
                 shadow = 0;
                 // shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
                 shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+
+                // for(int j = 0; j < 4; j++)
+                // {
+                //     int index = int(16.0*random(gl_FragCoord.xyy, j))%16;
+                //     shadow += 0.2 * textureProj(vec4(( poissonDisk[index] / 4000.0 + shadowCoord.xy), shadowCoord.z, shadowCoord.w), vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                // }
+                // shadow = clamp(shadow, 0.02, 1);
             }
 
             // BSTF
@@ -467,18 +520,20 @@ void main()
                 if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
                 {
                     shadowCoord.xyz /= shadowCoord.w;
-                    shadow = 1.0;
+                    shadow = 0.0;
                     shadowCoord.x = shadowCoord.x/2 + 0.5;
                     shadowCoord.y = shadowCoord.y/2 + 0.5;
+                    shadowCoord.xy *= tShadowData.fFactor;
 
-                    vec2 sampleLocation = vec2(tShadowData.fXOffset, tShadowData.fYOffset) + (shadowCoord.xy * tShadowData.fFactor);
-                    float dist = texture(sampler2D(at2DTextures[nonuniformEXT(tShadowData.iShadowMapTexIdx)], tShadowSampler), sampleLocation).r;
-                    float fDist = abs(shadowCoord.z);
+                    // shadow = textureProj2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    shadow = filterPCF2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
 
-                    if(dist > fDist)
-                    {
-                        shadow = 0.0;
-                    }
+                    // for(int j = 0; j < 4; j++)
+                    // {
+                    //     int index = int(16.0*random(gl_FragCoord.xyy, j))%16;
+                    //     shadow += 0.2 * textureProj2(vec4(( poissonDisk[index] / 2000.0 + shadowCoord.xy), shadowCoord.z, shadowCoord.w), vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    // }
+                    // shadow = clamp(shadow, 0.02, 1);
                 }
             }
 
@@ -524,15 +579,14 @@ void main()
                         vec2(0, 2),
                         vec2(1, 2),
                     };
-                    vec2 sampleLocation = vec2(tShadowData.fXOffset, tShadowData.fYOffset) + (result.xy * tShadowData.fFactor) + (faceoffsets[int(result.z)] * tShadowData.fFactor);
-                    float dist = texture(sampler2D(at2DTextures[nonuniformEXT(tShadowData.iShadowMapTexIdx)], tShadowSampler), sampleLocation).r;
-                    float fDist = shadowCoord.z;
-                    dist = dist * shadowCoord.w;
 
-                    if(shadowCoord.w > 0 && dist > fDist)
-                    {
-                        shadow = 0.0;
-                    }
+                    shadowCoord.xyz /= shadowCoord.w;
+                    result.xy *= tShadowData.fFactor;
+                    shadowCoord.xy = result.xy;
+                    shadow = textureProj2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                    // shadow = filterPCF2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+
+
                 }
             }
 
