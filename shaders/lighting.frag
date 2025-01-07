@@ -479,8 +479,9 @@ void main()
 
                 // for(int j = 0; j < 4; j++)
                 // {
-                //     int index = int(16.0*random(gl_FragCoord.xyy, j))%16;
-                //     shadow += 0.2 * textureProj(vec4(( poissonDisk[index] / 4000.0 + shadowCoord.xy), shadowCoord.z, shadowCoord.w), vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                //     // int index = int(16.0*random(gl_FragCoord.xyy, j))%16;
+                //     int index = int(16.0*random(tWorldPosition.xxx, j))%16;
+                //     shadow += 0.25 * textureProj(vec4(( poissonDisk[index] / 4000.0 + shadowCoord.xy), shadowCoord.z, shadowCoord.w), vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
                 // }
                 // shadow = clamp(shadow, 0.02, 1);
             }

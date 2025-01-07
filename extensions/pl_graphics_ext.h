@@ -700,6 +700,7 @@ typedef struct _plGraphicsState
             uint64_t ulDepthMode          :  4; // PL_COMPARE_MODE_XXXX
             uint64_t ulWireframe          :  1; // bool
             uint64_t ulDepthWriteEnabled  :  1; // bool
+            uint64_t ulDepthClampEnabled  :  1; // bool
             uint64_t ulCullMode           :  2; // PL_CULL_MODE_XXXX
             uint64_t ulStencilTestEnabled :  1; // bool
             uint64_t ulStencilMode        :  4; // PL_COMPARE_MODE_XXXX
@@ -708,7 +709,7 @@ typedef struct _plGraphicsState
             uint64_t ulStencilOpFail      :  3; // PL_STENCIL_OP_XXXX  
             uint64_t ulStencilOpDepthFail :  3; // PL_STENCIL_OP_XXXX
             uint64_t ulStencilOpPass      :  3; // PL_STENCIL_OP_XXXX
-            uint64_t _ulUnused            : 26;
+            uint64_t _ulUnused            : 25;
         };
         uint64_t ulValue;
     };

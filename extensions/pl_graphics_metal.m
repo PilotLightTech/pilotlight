@@ -157,6 +157,7 @@ typedef struct _plMetalShader
     id<MTLRenderPipelineState> tRenderPipelineState;
     MTLCullMode                tCullMode;
     MTLTriangleFillMode        tFillMode;
+    MTLDepthClipMode           tDepthClipMode;
     id<MTLLibrary>             tVertexLibrary;
     id<MTLLibrary>             tFragmentLibrary;
     uint64_t                   ulStencilRef;
@@ -1359,7 +1360,8 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     const plMetalShader tMetalShader = {
         .tDepthStencilState   = [ptDevice->tDevice newDepthStencilStateWithDescriptor:depthDescriptor],
         .tRenderPipelineState = [ptDevice->tDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error],
-        .tCullMode            = pl__metal_cull(ptDescription->tGraphicsState.ulCullMode)
+        .tCullMode            = pl__metal_cull(ptDescription->tGraphicsState.ulCullMode),
+        .tDepthClipMode       = ptDescription->tGraphicsState.ulDepthClampEnabled ? MTLDepthClipModeClamp : MTLDepthClipModeClip
     };
 
     if (error != nil)
@@ -1368,6 +1370,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     ptMetalShader->tDepthStencilState = tMetalShader.tDepthStencilState;
     ptMetalShader->tRenderPipelineState = tMetalShader.tRenderPipelineState;
     ptMetalShader->tCullMode = tMetalShader.tCullMode;
+    ptMetalShader->tDepthClipMode = tMetalShader.tDepthClipMode;
 
     return tHandle;
 }
@@ -2325,6 +2328,7 @@ pl_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
 
     [ptEncoder->tEncoder setStencilReferenceValue:ptMetalShader->ulStencilRef];
     [ptEncoder->tEncoder setCullMode:ptMetalShader->tCullMode];
+    [ptEncoder->tEncoder setDepthClipMode:ptMetalShader->tDepthClipMode];
     [ptEncoder->tEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
     [ptEncoder->tEncoder setDepthStencilState:ptMetalShader->tDepthStencilState];
     [ptEncoder->tEncoder setRenderPipelineState:ptMetalShader->tRenderPipelineState];
@@ -2411,6 +2415,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 const plShader* ptShader= &ptDevice->sbtShadersCold[tShaderHandle.uIndex];
                 plMetalShader* ptMetalShader = &ptDevice->sbtShadersHot[tShaderHandle.uIndex];
                 [ptEncoder->tEncoder setCullMode:ptMetalShader->tCullMode];
+                [ptEncoder->tEncoder setDepthClipMode:ptMetalShader->tDepthClipMode];
                 [ptEncoder->tEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
                 if(tCurrentDepthStencilState != ptMetalShader->tDepthStencilState)
                 {

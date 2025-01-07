@@ -1435,7 +1435,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 
     VkPipelineRasterizationStateCreateInfo tRasterizer = {
         .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable        = VK_FALSE,
+        .depthClampEnable        = ptDescription->tGraphicsState.ulDepthClampEnabled ? VK_TRUE : VK_FALSE,
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode             = ptDescription->tGraphicsState.ulWireframe ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL,
         .lineWidth               = 1.0f,
