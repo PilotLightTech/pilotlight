@@ -455,6 +455,7 @@ typedef struct _plRefRendererData
     plHashMap*        ptTextureHashmap;
 
     // graphics options
+    bool     bWireframe;
     bool     bReloadSwapchain;
     bool     bReloadMSAA;
     bool     bVSync;

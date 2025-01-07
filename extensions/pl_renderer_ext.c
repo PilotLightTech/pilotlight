@@ -2389,7 +2389,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
             .ulStencilMask        = 0xff,
             .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
+            .ulWireframe          = gptData->bWireframe
         },
         {
             .ulDepthWriteEnabled  = 1,
@@ -2400,7 +2401,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
             .ulStencilMask        = 0xff,
             .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
             .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
+            .ulWireframe          = gptData->bWireframe
         }
     };
     
@@ -2738,7 +2740,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     
     const plBufferDesc tIndexBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_INDEX,
-        .szByteSize = sizeof(uint32_t) * pl_sb_size(ptScene->sbuIndexBuffer),
+        .szByteSize = pl_max(sizeof(uint32_t) * pl_sb_size(ptScene->sbuIndexBuffer), 1024),
         .pcDebugName = "index buffer"
     };
     
@@ -4481,7 +4483,11 @@ pl_show_graphics_options(const char* pcTitle)
         if(gptUI->checkbox("VSync", &gptData->bVSync))
             gptData->bReloadSwapchain = true;
         gptUI->checkbox("Show Origin", &gptData->bShowOrigin);
-        if(gptUI->checkbox("MultiViewport Shadows", &gptData->bMultiViewportShadows))
+        bool bReloadShaders = false;
+        if(gptUI->checkbox("Wireframe", &gptData->bWireframe)) bReloadShaders = true;
+        if(gptUI->checkbox("MultiViewport Shadows", &gptData->bMultiViewportShadows)) bReloadShaders = true;
+
+        if(bReloadShaders)
         {
             for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
                 pl_refr_reload_scene_shaders(i);
