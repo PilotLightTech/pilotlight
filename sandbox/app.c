@@ -180,7 +180,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
 
     // create main camera
     plCameraComponent* ptMainCamera = NULL;
-    ptEditorData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-4.7f, 4.2f, -3.256f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 148.0f, true, &ptMainCamera);
+    ptEditorData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-4.7f, 4.2f, -3.256f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
     gptCamera->update(ptMainCamera);
     gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING, ptEditorData->tMainCamera, NULL);

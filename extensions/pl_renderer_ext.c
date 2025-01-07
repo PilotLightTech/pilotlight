@@ -2467,6 +2467,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
                     .pTempConstantData =  aiConstantData0,
                     .tGraphicsState    = {
                         .ulDepthWriteEnabled  = 1,
+                        .ulDepthClampEnabled  = 1,
                         .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
                         .ulCullMode           = PL_CULL_MODE_NONE,
                         .ulWireframe          = 0,

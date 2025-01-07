@@ -1464,6 +1464,8 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
     plCameraComponent* ptSceneCamera = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, tCamera);
+    const float g = 1.0f / tanf(ptSceneCamera->fFieldOfView / 2.0f);
+    const float s = ptSceneCamera->fAspectRatio;
 
     // common calculations
     const float fFarClip = ptSceneCamera->fFarZ;
@@ -1478,9 +1480,6 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
     const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
     const uint32_t uLightCount = pl_sb_size(ptScene->sbtShadowRects);
-
-    // count rects
-    // uint32_t uShadowCastingLightIndex = 0;
 
     int iLastIndex = -1;
     int iCurrentView = -1;
@@ -1515,78 +1514,91 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
         ptShadowData->fYOffset = (float)ptRect->iY / (float)ptScene->uShadowAtlasResolution;
 
         plMat4 atCamViewProjs[PL_MAX_SHADOW_CASCADES] = {0};
-        float fLastSplitDist = 0.0;
-        float afLambdaCascadeSplits[PL_MAX_SHADOW_CASCADES] = {0};
+        float fLastSplitDist = 0.0f;
+        const plVec3 tDirection = pl_norm_vec3(ptLight->tDirection);
         for(uint32_t uCascade = 0; uCascade < ptLight->uCascadeCount; uCascade++)
         {
-            float fSplitDist = ptLight->afCascadeSplits[uCascade] / fClipRange;
+            float fSplitDist = ptLight->afCascadeSplits[uCascade];
             ptShadowData->tCascadeSplits.d[uCascade] = ptLight->afCascadeSplits[uCascade];
 
-            plVec3 atCameraCorners[] = {
-                { -1.0f,  1.0f, 1.0f },
-                { -1.0f, -1.0f, 1.0f },
-                {  1.0f, -1.0f, 1.0f },
-                {  1.0f,  1.0f, 1.0f },
-                { -1.0f,  1.0f, 0.0f },
-                { -1.0f, -1.0f, 0.0f },
-                {  1.0f, -1.0f, 0.0f },
-                {  1.0f,  1.0f, 0.0f },
+            // camera space
+            plVec3 atCameraCorners2[] = {
+                { -fLastSplitDist * s / g,  fLastSplitDist / g, fLastSplitDist },
+                { -fLastSplitDist * s / g, -fLastSplitDist / g, fLastSplitDist },
+                {  fLastSplitDist * s / g, -fLastSplitDist / g, fLastSplitDist },
+                {  fLastSplitDist * s / g,  fLastSplitDist / g, fLastSplitDist },
+                { -fSplitDist * s / g,  fSplitDist / g, fSplitDist },
+                { -fSplitDist * s / g, -fSplitDist / g, fSplitDist },
+                {  fSplitDist * s / g, -fSplitDist / g, fSplitDist },
+                {  fSplitDist * s / g,  fSplitDist / g, fSplitDist },
             };
-            // plMat4 tCameraInversion = pl_mul_mat4(&tCameraProjMat, &ptSceneCamera->tViewMat);
-            plMat4 tCameraInversion = pl_mul_mat4(&ptSceneCamera->tProjMat, &ptSceneCamera->tViewMat);
-            tCameraInversion = pl_mat4_invert(&tCameraInversion);
+
+            // find max diagonal
+            float fD0 = ceilf(pl_length_vec3(pl_sub_vec3(atCameraCorners2[0], atCameraCorners2[6])));
+            float fD1 = ceilf(pl_length_vec3(pl_sub_vec3(atCameraCorners2[6], atCameraCorners2[4])));
+            float fD = pl_max(fD0, fD1) * 1.0f;
+            const float fUnitPerTexel = fD / (float)ptLight->uShadowResolution;
+
+            plMat4 tCameraInversion = pl_mat4_invert(&ptSceneCamera->tViewMat);
 
             // convert to world space
             for(uint32_t i = 0; i < 8; i++)
             {
-                plVec4 tInvCorner = pl_mul_mat4_vec4(&tCameraInversion, (plVec4){.xyz = atCameraCorners[i], .w = 1.0f});
-                atCameraCorners[i] = pl_div_vec3_scalarf(tInvCorner.xyz, tInvCorner.w);
+                plVec4 tInvCorner = pl_mul_mat4_vec4(&tCameraInversion, (plVec4){.xyz = atCameraCorners2[i], .w = 1.0f});
+                atCameraCorners2[i] = tInvCorner.xyz;
             }
 
-            for(uint32_t i = 0; i < 4; i++)
-            {
-                const plVec3 tDist = pl_sub_vec3(atCameraCorners[i + 4], atCameraCorners[i]);
-                atCameraCorners[i + 4] = pl_add_vec3(atCameraCorners[i], pl_mul_vec3_scalarf(tDist, fSplitDist));
-                atCameraCorners[i] = pl_add_vec3(atCameraCorners[i], pl_mul_vec3_scalarf(tDist, fLastSplitDist));
-            }
-
-            // get frustum center
-            plVec3 tFrustumCenter = {0};
-            for(uint32_t i = 0; i < 8; i++)
-                tFrustumCenter = pl_add_vec3(tFrustumCenter, atCameraCorners[i]);
-            tFrustumCenter = pl_div_vec3_scalarf(tFrustumCenter, 8.0f);
-
-            float fRadius = 0.0f;
-            for (uint32_t i = 0; i < 8; i++)
-            {
-                float fDistance = pl_length_vec3(pl_sub_vec3(atCameraCorners[i], tFrustumCenter));
-                fRadius = pl_max(fRadius, fDistance);
-            }
-            fRadius = ceilf(fRadius * 16.0f) / 16.0f;
-
-            plVec3 tDirection = ptLight->tDirection;
-
-            tDirection = pl_norm_vec3(tDirection);
-            plVec3 tEye = pl_sub_vec3(tFrustumCenter, pl_mul_vec3_scalarf(tDirection, fRadius + 50.0f));
-
+            // convert to light space
             plCameraComponent tShadowCamera = {
                 .tType = PL_CAMERA_TYPE_ORTHOGRAPHIC
             };
-            gptCamera->look_at(&tShadowCamera, tEye, tFrustumCenter);
-            tShadowCamera.fWidth = fRadius * 2.0f;
-            tShadowCamera.fHeight = fRadius * 2.0f;
+            gptCamera->look_at(&tShadowCamera, (plVec3){0}, tDirection);
+            tShadowCamera.fWidth = fD;
+            tShadowCamera.fHeight = fD;
             tShadowCamera.fNearZ = 0.0f;
-            tShadowCamera.fFarZ = fRadius * 2.0f + 50.0f;
+            tShadowCamera.fFarZ = fD;
             gptCamera->update(&tShadowCamera);
-            // tShadowCamera.fAspectRatio = 1.0f;
-            // tShadowCamera.fFieldOfView = atan2f(fRadius, (fRadius + 50.0f));
-            // tShadowCamera.fNearZ = 0.01f;
-            fLastSplitDist = fSplitDist;
 
-            // tShadowCamera.tProjMat.col[2].z *= -1.0f;
+            for(uint32_t i = 0; i < 8; i++)
+            {
+                plVec4 tInvCorner = pl_mul_mat4_vec4(&tShadowCamera.tViewMat, (plVec4){.xyz = atCameraCorners2[i], .w = 1.0f});
+                atCameraCorners2[i] = tInvCorner.xyz;
+            }
+
+            // find center
+            float fXMin = FLT_MAX;
+            float fXMax = -FLT_MAX;
+            float fYMin = FLT_MAX;
+            float fYMax = -FLT_MAX;
+            float fZMin = FLT_MAX;
+            float fZMax = -FLT_MAX;
+            for(uint32_t i = 0; i < 8; i++)
+            {
+                fXMin = pl_min(atCameraCorners2[i].x, fXMin);
+                fYMin = pl_min(atCameraCorners2[i].y, fYMin);
+                fZMin = pl_min(atCameraCorners2[i].z, fZMin);
+                fXMax = pl_max(atCameraCorners2[i].x, fXMax);
+                fYMax = pl_max(atCameraCorners2[i].y, fYMax);
+                fZMax = pl_max(atCameraCorners2[i].z, fZMax);
+            }
+
+            plVec4 tLightPosLightSpace = { 
+                fUnitPerTexel * floorf((fXMax + fXMin) / (fUnitPerTexel * 2.0f)),
+                fUnitPerTexel * floorf((fYMax + fYMin) / (fUnitPerTexel * 2.0f)),
+                fZMin,
+                1.0f
+            };
+
+
+            plMat4 tLightInversion = pl_mat4_invert(&tShadowCamera.tViewMat);
+            plVec4 tLightPos = pl_mul_mat4_vec4(&tLightInversion, (plVec4){.xyz = tLightPosLightSpace.xyz, .w = 1.0f});
+
+            gptCamera->look_at(&tShadowCamera, tLightPos.xyz, pl_add_vec3(tLightPos.xyz, tDirection));
+            gptCamera->update(&tShadowCamera);
+
             atCamViewProjs[uCascade] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
-            
             ptShadowData->viewProjMat[uCascade] = atCamViewProjs[uCascade];
+            fLastSplitDist = fSplitDist;
         }
 
         char* pcBufferStart = gptGfx->get_buffer(ptDevice, ptView->atDShadowCameraBuffers[uFrameIdx])->tMemoryAllocation.pHostMapped;
@@ -2246,6 +2258,7 @@ pl_refr_create_global_shaders(void)
         .tVertexShader = tVertexShader,
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
+            .ulDepthClampEnabled  = 1,
             .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulWireframe          = 0,
