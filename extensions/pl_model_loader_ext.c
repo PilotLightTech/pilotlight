@@ -591,6 +591,18 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                         (ptMesh->sbtVertexColors[ptAttribute->index])[i].a = (float)puRawData[3] * fConversion;
                     }
                 }
+                else if(ptAttribute->data->component_type == cgltf_component_type_r_8u)
+                {
+                    const float fConversion = 1.0f / (256.0f * 256.0f);
+                    for(size_t i = 0; i < szVertexCount; i++)
+                    {
+                        uint8_t* puRawData = (uint8_t*)&pucBufferStart[i * szStride];
+                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].r = (float)puRawData[0] * fConversion;
+                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].g = (float)puRawData[1] * fConversion;
+                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].b = (float)puRawData[2] * fConversion;
+                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].a = (float)puRawData[3] * fConversion;
+                    }
+                }
                 else
                 {
                     PL_ASSERT(false);
