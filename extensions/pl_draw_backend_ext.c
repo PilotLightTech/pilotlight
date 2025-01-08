@@ -671,6 +671,7 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
             .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace)
         };
         ptBufferInfo->uVertexBufferSize = (uint32_t)tBufferDesc.szByteSize;
+        ptBufferInfo->uVertexBufferOffset = 0;
 
         ptBufferInfo->tVertexBuffer = pl__create_staging_buffer(&tBufferDesc, "draw vtx buffer", uFrameIdx);
     }
@@ -678,7 +679,8 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
     // vertex GPU data transfer
     plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptBufferInfo->tVertexBuffer);
     char* pucMappedVertexBufferLocation = ptVertexBuffer->tMemoryAllocation.pHostMapped;
-    memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbtVertexBuffer, sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbtVertexBuffer));
+    size_t tVertexCopySize = sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbtVertexBuffer);
+    memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbtVertexBuffer, tVertexCopySize);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
