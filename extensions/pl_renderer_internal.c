@@ -1054,7 +1054,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
 
                     plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
                     ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                    ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                    ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                     ptDynamicData->tModel = ptTransform->tWorld;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                     ptDynamicData->iIndex = (int)uPCameraBufferIndex;
@@ -1071,6 +1071,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                         .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                         .uIndexOffset         = tDrawable.uIndexOffset,
                         .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                        .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                         .atBindGroups = {
                             ptScene->tGlobalBindGroup,
                             tGlobalBG0
@@ -1093,7 +1094,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
 
                     plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
                     ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                    ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                    ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                     ptDynamicData->tModel = ptTransform->tWorld;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                     ptDynamicData->iIndex = (int)uPCameraBufferIndex;
@@ -1110,6 +1111,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                         .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                         .uIndexOffset         = tDrawable.uIndexOffset,
                         .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                        .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                         .atBindGroups = {
                             ptScene->tGlobalBindGroup,
                             tGlobalBG0
@@ -1229,7 +1231,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
 
                         plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
                         ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                        ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                        ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                         ptDynamicData->tModel = ptTransform->tWorld;
                         ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                         ptDynamicData->iIndex = (int)uPCameraBufferIndex + uFaceIndex;
@@ -1246,6 +1248,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                             .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                             .uIndexOffset         = tDrawable.uIndexOffset,
                             .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                            .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                             .atBindGroups = {
                                 ptScene->tGlobalBindGroup,
                                 tGlobalBG0
@@ -1268,7 +1271,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
 
                         plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
                         ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                        ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                        ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                         ptDynamicData->tModel = ptTransform->tWorld;
                         ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                         ptDynamicData->iIndex = (int)uPCameraBufferIndex + uFaceIndex;
@@ -1285,6 +1288,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                             .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                             .uIndexOffset         = tDrawable.uIndexOffset,
                             .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                            .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                             .atBindGroups = {
                                 ptScene->tGlobalBindGroup,
                                 tGlobalBG0
@@ -1352,7 +1356,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
 
                 plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                 ptDynamicData->tModel = ptTransform->tWorld;
                 ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                 ptDynamicData->iIndex = (int)uSCameraBufferIndex;
@@ -1369,6 +1373,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                     .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                     .uIndexOffset         = tDrawable.uIndexOffset,
                     .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                    .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                     .atBindGroups = {
                         ptScene->tGlobalBindGroup,
                         tGlobalBG1
@@ -1391,7 +1396,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
 
                 plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                 ptDynamicData->tModel = ptTransform->tWorld;
                 ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                 ptDynamicData->iIndex = (int)uSCameraBufferIndex;
@@ -1408,6 +1413,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                     .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                     .uIndexOffset         = tDrawable.uIndexOffset,
                     .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                    .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                     .atBindGroups = {
                         ptScene->tGlobalBindGroup,
                         tGlobalBG1
@@ -1698,7 +1704,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
                 plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                 ptDynamicData->tModel = ptTransform->tWorld;
                 ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                 ptDynamicData->iIndex = (int)uDOffset;
@@ -1715,6 +1721,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                     .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                     .uIndexOffset         = tDrawable.uIndexOffset,
                     .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                    .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                     .atBindGroups = {
                         ptScene->tGlobalBindGroup,
                         tGlobalBG
@@ -1737,7 +1744,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
                 plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                 ptDynamicData->tModel = ptTransform->tWorld;
                 ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                 ptDynamicData->iIndex = (int)uDOffset;
@@ -1754,6 +1761,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                     .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                     .uIndexOffset         = tDrawable.uIndexOffset,
                     .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                    .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                     .atBindGroups = {
                         ptScene->tGlobalBindGroup,
                         tGlobalBG
@@ -1847,7 +1855,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
                     plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
                     ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                    ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                    ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                     ptDynamicData->tModel = ptTransform->tWorld;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                     ptDynamicData->iIndex = (int)uCascade + (int)uDOffset;
@@ -1864,6 +1872,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                         .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                         .uIndexOffset         = tDrawable.uIndexOffset,
                         .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                        .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                         .atBindGroups = {
                             ptScene->tGlobalBindGroup,
                             tGlobalBG
@@ -1886,7 +1895,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
                     plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
                     ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                    ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                    ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                     ptDynamicData->tModel = ptTransform->tWorld;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                     ptDynamicData->iIndex = (int)uCascade + (int)uDOffset;
@@ -1903,6 +1912,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                         .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                         .uIndexOffset         = tDrawable.uIndexOffset,
                         .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                        .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                         .atBindGroups = {
                             ptScene->tGlobalBindGroup,
                             tGlobalBG
@@ -2723,8 +2733,8 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
     }
 
     // color 0
-    const uint32_t uVertexColorCount = pl_sb_size(ptMesh->sbtVertexColors[0]);
-    for(uint32_t i = 0; i < uVertexColorCount; i++)
+    const uint32_t uVertexColorCount0 = pl_sb_size(ptMesh->sbtVertexColors[0]);
+    for(uint32_t i = 0; i < uVertexColorCount0; i++)
     {
         const plVec4* ptColor = &ptMesh->sbtVertexColors[0][i];
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].x = ptColor->r;
@@ -2733,7 +2743,20 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].w = ptColor->a;
     }
 
-    if(uVertexColorCount > 0)
+    if(uVertexColorCount0 > 0)
+        uOffset += 1;
+
+    const uint32_t uVertexColorCount1 = pl_sb_size(ptMesh->sbtVertexColors[1]);
+    for(uint32_t i = 0; i < uVertexColorCount1; i++)
+    {
+        const plVec4* ptColor = &ptMesh->sbtVertexColors[1][i];
+        ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].x = ptColor->r;
+        ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].y = ptColor->g;
+        ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].z = ptColor->b;
+        ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].w = ptColor->a;
+    }
+
+    if(uVertexColorCount1 > 0)
         uOffset += 1;
 
     PL_ASSERT(uOffset == uStride && "sanity check");

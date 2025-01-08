@@ -3413,7 +3413,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
                 DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                 ptDynamicData->tModel = ptTransform->tWorld;
                 ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
 
@@ -3429,6 +3429,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                     .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                     .uIndexOffset         = tDrawable.uIndexOffset,
                     .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                    .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                     .atBindGroups = {
                         ptScene->tGlobalBindGroup,
                         tViewBindGroup
@@ -3663,7 +3664,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
                 DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                ptDynamicData->iVertexOffset = tDrawable.uVertexOffset;
+                ptDynamicData->iVertexOffset = tDrawable.uIndexCount == 0 ? 0 : tDrawable.uVertexOffset;
                 ptDynamicData->tModel = ptTransform->tWorld;
                 ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
 
@@ -3679,6 +3680,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                     .tIndexBuffer         = tDrawable.uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer,
                     .uIndexOffset         = tDrawable.uIndexOffset,
                     .uTriangleCount       = tDrawable.uIndexCount == 0 ? tDrawable.uVertexCount / 3 : tDrawable.uIndexCount / 3,
+                    .uVertexOffset        = tDrawable.uIndexCount == 0 ? tDrawable.uVertexOffset : 0,
                     .atBindGroups = {
                         ptScene->tGlobalBindGroup,
                         tLightBindGroup2
@@ -3839,6 +3841,14 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                 unsigned char* pucMapping = &pucMapping2[uPos];
                 gptData->tPickedEntity.uIndex = pucMapping[0] + 256 * pucMapping[1] + 65536 * pucMapping[2];
                 gptData->tPickedEntity.uGeneration = ptScene->tComponentLibrary.sbtEntityGenerations[gptData->tPickedEntity.uIndex];
+
+                // plImageWriteInfo tBlah = {
+                //     .iWidth = (int)ptTexture->tDesc.tDimensions.x,
+                //     .iHeight = (int)ptTexture->tDesc.tDimensions.y,
+                //     .iComponents = 4,
+                //     .iByteStride = 4 * (int)ptTexture->tDesc.tDimensions.x
+                // };
+                // gptImage->write("pick.png", pucMapping2, &tBlah);
             }
 
             bool bOwnMouse = gptUI->wants_mouse_capture();
@@ -3909,13 +3919,25 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
                     gptGfx->bind_graphics_bind_groups(ptEncoder, gptData->tPickShader, 0, 1, &tPickBindGroup, 1, &tDynamicBinding);
 
-                    plDrawIndex tDraw = {
-                        .tIndexBuffer = ptScene->tIndexBuffer,
-                        .uIndexCount = tDrawable.uIndexCount,
-                        .uIndexStart = tDrawable.uIndexOffset,
-                        .uInstanceCount = 1
-                    };
-                    gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
+                    if(tDrawable.uIndexCount > 0)
+                    {
+                        plDrawIndex tDraw = {
+                            .tIndexBuffer = ptScene->tIndexBuffer,
+                            .uIndexCount = tDrawable.uIndexCount,
+                            .uIndexStart = tDrawable.uIndexOffset,
+                            .uInstanceCount = 1
+                        };
+                        gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
+                    }
+                    else
+                    {
+                        plDraw tDraw = {
+                            .uVertexStart = tDrawable.uVertexOffset,
+                            .uInstanceCount = 1,
+                            .uVertexCount = tDrawable.uVertexCount
+                        };
+                        gptGfx->draw(ptEncoder, 1, &tDraw);
+                    }
                 }
 
                 for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
@@ -3937,13 +3959,25 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
                     gptGfx->bind_graphics_bind_groups(ptEncoder, gptData->tPickShader, 0, 1, &tPickBindGroup, 1, &tDynamicBinding);
 
-                    plDrawIndex tDraw = {
-                        .tIndexBuffer = ptScene->tIndexBuffer,
-                        .uIndexCount = tDrawable.uIndexCount,
-                        .uIndexStart = tDrawable.uIndexOffset,
-                        .uInstanceCount = 1
-                    };
-                    gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
+                    if(tDrawable.uIndexCount > 0)
+                    {
+                        plDrawIndex tDraw = {
+                            .tIndexBuffer = ptScene->tIndexBuffer,
+                            .uIndexCount = tDrawable.uIndexCount,
+                            .uIndexStart = tDrawable.uIndexOffset,
+                            .uInstanceCount = 1
+                        };
+                        gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
+                    }
+                    else
+                    {
+                        plDraw tDraw = {
+                            .uVertexStart = tDrawable.uVertexOffset,
+                            .uInstanceCount = 1,
+                            .uVertexCount = tDrawable.uVertexCount
+                        };
+                        gptGfx->draw(ptEncoder, 1, &tDraw);
+                    }
                 }
                 gptGfx->end_render_pass(ptEncoder);
 
