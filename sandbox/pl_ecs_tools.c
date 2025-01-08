@@ -222,7 +222,6 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
 
                     if(bCastShadow)
                     {
-                        int iResolution = (int)ptLightComp->uShadowResolution;
                         uint32_t auResolutions[] = {
                             128,
                             256,
@@ -230,7 +229,12 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                             1024,
                             2048
                         };
-                        static int iSelection = 3;
+                        int iSelection = 0;
+                        if(ptLightComp->uShadowResolution == 128)       iSelection = 0;
+                        else if(ptLightComp->uShadowResolution == 256)  iSelection = 1;
+                        else if(ptLightComp->uShadowResolution == 512)  iSelection = 2;
+                        else if(ptLightComp->uShadowResolution == 1024) iSelection = 3;
+                        else if(ptLightComp->uShadowResolution == 2048) iSelection = 4;
                         gptUi->radio_button("Resolution: 128", &iSelection, 0);
                         gptUi->radio_button("Resolution: 256", &iSelection, 1);
                         gptUi->radio_button("Resolution: 512", &iSelection, 2);
