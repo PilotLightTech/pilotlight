@@ -35,7 +35,7 @@ Index of this file:
 // [SECTION] api
 //-----------------------------------------------------------------------------
 
-#define plUiI_version (plVersion){1, 0, 2}
+#define plUiI_version (plVersion){1, 0, 3}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
