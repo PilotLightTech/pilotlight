@@ -82,6 +82,7 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->uLogChannel = gptLog->add_channel("Renderer", tLogInit);
 
     // default options
+    gptData->pdDrawCalls = gptStats->get_counter("draw calls");
     gptData->bVSync = true;
     gptData->uOutlineWidth = 4;
     gptData->bFrustumCulling = true;
@@ -3402,6 +3403,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             }
 
             const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptView->sbtVisibleOpaqueDrawables);
+            *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
             gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount);
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
@@ -3576,6 +3578,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
             
             gptGfx->reset_draw_stream(ptStream, 1);
+            *gptData->pdDrawCalls += 1.0;
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
                 .tShader        = ptScene->tLightingShader,
@@ -3613,6 +3616,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                 *ptSkyboxDynamicData = pl_mat4_translate_vec3(ptCamera->tPos);
 
                 gptGfx->reset_draw_stream(ptStream, 1);
+                *gptData->pdDrawCalls += 1.0;
                 pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                 {
                     .tShader        = gptData->tSkyboxShader,
@@ -3654,6 +3658,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
             const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptView->sbtVisibleTransparentDrawables);
             gptGfx->reset_draw_stream(ptStream, uVisibleTransparentDrawCount);
+            *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
             for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
             {
                 const plDrawable tDrawable = ptView->sbtVisibleTransparentDrawables[i];
@@ -3898,6 +3903,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
                 gptGfx->bind_shader(ptEncoder, gptData->tPickShader);
                 gptGfx->bind_vertex_buffer(ptEncoder, ptScene->tVertexBuffer);
+                *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
                 for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                 {
                     const plDrawable tDrawable = ptView->sbtVisibleOpaqueDrawables[i];
@@ -3940,6 +3946,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                     }
                 }
 
+                *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
                 for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                 {
                     const plDrawable tDrawable = ptView->sbtVisibleTransparentDrawables[i];
@@ -4057,6 +4064,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                 .uIndexCount    = 6,
                 .uInstanceCount = 1,
             };
+            *gptData->pdDrawCalls += 1.0;
             gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
             // end render pass

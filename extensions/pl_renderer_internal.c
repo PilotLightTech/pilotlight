@@ -1043,7 +1043,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
 
                 gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
                 gptGfx->set_depth_bias(ptEncoder, gptData->fShadowConstantDepthBias, 0.0f, gptData->fShadowSlopeDepthBias);
-
+                *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
                 for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                 {
                     const plDrawable tDrawable = ptScene->sbtDeferredDrawables[i];
@@ -1084,6 +1084,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                     });
                 }
 
+                *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
                 for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                 {
                     const plDrawable tDrawable = ptScene->sbtForwardDrawables[i];
@@ -1221,6 +1222,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
 
                     gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
                     gptGfx->set_depth_bias(ptEncoder, gptData->fShadowConstantDepthBias, 0.0f, gptData->fShadowSlopeDepthBias);
+                    *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
                     for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                     {
                         const plDrawable tDrawable = ptScene->sbtDeferredDrawables[i];
@@ -1261,6 +1263,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                         });
                     }
 
+                    *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
                     for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                     {
                         const plDrawable tDrawable = ptScene->sbtForwardDrawables[i];
@@ -1346,6 +1349,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
 
             gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
             gptGfx->set_depth_bias(ptEncoder, gptData->fShadowConstantDepthBias, 0.0f, gptData->fShadowSlopeDepthBias);
+            *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
                 const plDrawable tDrawable = ptScene->sbtDeferredDrawables[i];
@@ -1386,6 +1390,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                 });
             }
 
+            *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
             for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
             {
                 const plDrawable tDrawable = ptScene->sbtForwardDrawables[i];
@@ -1693,7 +1698,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
             gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
             gptGfx->set_depth_bias(ptEncoder, gptData->fShadowConstantDepthBias, 0.0f, gptData->fShadowSlopeDepthBias);
-
+            *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
                 const plDrawable tDrawable = ptScene->sbtDeferredDrawables[i];
@@ -1734,6 +1739,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                 });
             }
 
+            *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
             for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
             {
                 const plDrawable tDrawable = ptScene->sbtForwardDrawables[i];
@@ -1845,6 +1851,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
                 gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
                 gptGfx->set_depth_bias(ptEncoder, gptData->fShadowConstantDepthBias, 0.0f, gptData->fShadowSlopeDepthBias);
+                *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
                 for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                 {
                     const plDrawable tDrawable = ptScene->sbtDeferredDrawables[i];
@@ -1885,6 +1892,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                     });
                 }
 
+                *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
                 for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                 {
                     const plDrawable tDrawable = ptScene->sbtForwardDrawables[i];
@@ -2045,6 +2053,7 @@ pl_refr_post_process_scene(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHand
     gptGfx->bind_shader(ptEncoder, ptScene->tTonemapShader);
     gptGfx->bind_vertex_buffer(ptEncoder, gptData->tFullQuadVertexBuffer);
     gptGfx->bind_graphics_bind_groups(ptEncoder, ptScene->tTonemapShader, 0, 1, &tJFABindGroup0, 1, &tDynamicBinding);
+    *gptData->pdDrawCalls += 1.0;
     gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
     gptDrawBackend->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);

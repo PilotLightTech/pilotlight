@@ -468,6 +468,9 @@ typedef struct _plRefRendererData
     float    fShadowConstantDepthBias;
     float    fShadowSlopeDepthBias;
     uint32_t uOutlineWidth;
+
+    // stats
+    double* pdDrawCalls;
 } plRefRendererData;
 
 typedef struct _plCullData
