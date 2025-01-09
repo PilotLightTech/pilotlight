@@ -465,6 +465,7 @@ typedef struct _plRefRendererData
     bool     bDrawVisibleBoundingBoxes;
     bool     bShowSelectedBoundingBox;
     bool     bMultiViewportShadows;
+    bool     bImageBasedLighting;
     float    fShadowConstantDepthBias;
     float    fShadowSlopeDepthBias;
     uint32_t uOutlineWidth;

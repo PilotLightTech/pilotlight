@@ -73,6 +73,7 @@ typedef struct _plRendererI
     
     // loading
     void (*load_skybox_from_panorama)(uint32_t uSceneHandle, const char* pcPath, int iResolution);
+    void (*create_environment_map_from_skybox)(uint32_t uSceneHandle);
     void (*finalize_scene)(uint32_t uSceneHandle);
     void (*reload_scene_shaders)(uint32_t uSceneHandle);
 

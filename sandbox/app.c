@@ -523,7 +523,8 @@ pl_app_update(plEditorData* ptEditorData)
                     {
                         char* sbcData = NULL;
                         pl_sb_sprintf(sbcData, "../data/pilotlight-assets-master/environments/%s.hdr", apcEnvMaps[uComboSelect]);
-                        gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, sbcData, 256);
+                        gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, sbcData, 1024);
+                        gptRenderer->create_environment_map_from_skybox(ptEditorData->uSceneHandle0);
                         pl_sb_free(sbcData);
                     }
 
