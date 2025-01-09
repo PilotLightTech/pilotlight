@@ -3837,6 +3837,9 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
         atCopyRegions[i].imageSubresource.mipLevel = ptRegions[i].uMipLevel;
         atCopyRegions[i].imageSubresource.baseArrayLayer = ptRegions[i].uBaseArrayLayer;
         atCopyRegions[i].imageSubresource.layerCount = ptRegions[i].uLayerCount;
+        atCopyRegions[i].imageOffset.x = ptRegions[i].iImageOffsetX;
+        atCopyRegions[i].imageOffset.y = ptRegions[i].iImageOffsetY;
+        atCopyRegions[i].imageOffset.z = ptRegions[i].iImageOffsetZ;
         atCopyRegions[i].imageExtent.width = ptRegions[i].uImageWidth;
         atCopyRegions[i].imageExtent.height = ptRegions[i].uImageHeight;
         atCopyRegions[i].imageExtent.depth = ptRegions[i].uImageDepth;
