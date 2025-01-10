@@ -55,6 +55,7 @@ typedef struct _plAnimationSampler plAnimationSampler;
 
 // ecs components
 typedef struct _plTagComponent               plTagComponent;
+typedef struct _plLayerComponent             plLayerComponent;
 typedef struct _plMeshComponent              plMeshComponent;
 typedef struct _plTransformComponent         plTransformComponent;
 typedef struct _plObjectComponent            plObjectComponent;
@@ -68,6 +69,7 @@ typedef struct _plInverseKinematicsComponent plInverseKinematicsComponent;
 typedef struct _plLightComponent             plLightComponent;
 typedef struct _plScriptComponent            plScriptComponent;
 typedef struct _plHumanoidComponent          plHumanoidComponent;
+typedef struct _plEnvironmentProbeComponent  plEnvironmentProbeComponent;
 
 // enums
 typedef int plShaderType;
@@ -84,6 +86,7 @@ typedef int plMeshFormatFlags;
 typedef int plLightFlags;
 typedef int plLightType;
 typedef int plHumanoidBone;
+typedef int plEnvironmentProbeFlags;
 
 typedef union _plEntity
 {
@@ -131,7 +134,8 @@ typedef struct _plEcsI
     plEntity (*create_orthographic_camera)(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent**);
     plEntity (*create_directional_light)  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
     plEntity (*create_point_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
-    plEntity (*create_spot_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent**);
+    plEntity (*create_spot_light)         (plComponentLibrary*, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent**);
+    plEntity (*create_environment_probe)  (plComponentLibrary*, const char* pcName, plVec3 tPosition, plEnvironmentProbeComponent**);
 
     // scripts
     plEntity (*create_script)(plComponentLibrary*, const char* pcFile, plScriptFlags, plScriptComponent**);
@@ -188,6 +192,8 @@ enum _plComponentType
     PL_COMPONENT_TYPE_LIGHT,
     PL_COMPONENT_TYPE_SCRIPT,
     PL_COMPONENT_TYPE_HUMANOID,
+    PL_COMPONENT_TYPE_ENVIRONMENT_PROBE,
+    PL_COMPONENT_TYPE_LAYER,
     
     PL_COMPONENT_TYPE_COUNT
 };
@@ -372,6 +378,13 @@ enum _plHumanoidBone
     PL_HUMANOID_BONE_COUNT
 };
 
+enum _plEnvironmentProbeFlags
+{
+    PL_ENVIRONMENT_PROBE_FLAGS_NONE     = 0,
+    PL_ENVIRONMENT_PROBE_FLAGS_DIRTY    = 1 << 0,
+    PL_ENVIRONMENT_PROBE_FLAGS_REALTIME = 1 << 1
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -442,6 +455,8 @@ typedef struct _plComponentLibrary
     plComponentManager tLightComponentManager;
     plComponentManager tScriptComponentManager;
     plComponentManager tHumanoidComponentManager;
+    plComponentManager tEnvironmentProbeCompManager;
+    plComponentManager tLayerComponentManager;
 
     plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
     void*               pInternal;
@@ -450,6 +465,14 @@ typedef struct _plComponentLibrary
 //-----------------------------------------------------------------------------
 // [SECTION] components
 //-----------------------------------------------------------------------------
+
+typedef struct _plEnvironmentProbeComponent
+{
+    plEnvironmentProbeFlags tFlags;
+    uint32_t                uResolution; // default: 128 (must be power of two)
+    plVec3                  tPosition;
+    float                   fRange;
+} plEnvironmentProbeComponent;
 
 typedef struct _plHumanoidComponent
 {
@@ -489,6 +512,14 @@ typedef struct _plTagComponent
     char acName[PL_MAX_NAME_LENGTH];
 } plTagComponent;
 
+typedef struct _plLayerComponent
+{
+    uint32_t uLayerMask;
+
+    // [INTERNAL]
+    uint32_t _uPropagationMask;
+} plLayerComponent;
+
 typedef struct _plTransformComponent
 {
     plVec3 tScale;
@@ -510,6 +541,7 @@ typedef struct _plMaterialComponent
     float           fNormalMapStrength;
     float           fOcclusionMapStrength;
     plTextureMap    atTextureMaps[PL_TEXTURE_SLOT_COUNT];
+    uint32_t        uLayerMask;
 } plMaterialComponent;
 
 typedef struct _plMeshComponent

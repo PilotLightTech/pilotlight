@@ -96,6 +96,7 @@ static plEntity pl_ecs_create_perspective_camera (plComponentLibrary*, const cha
 static plEntity pl_ecs_create_orthographic_camera(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCameraComponent**);
 static plEntity pl_ecs_create_directional_light  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
 static plEntity pl_ecs_create_point_light        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
+static plEntity pl_ecs_create_environment_probe  (plComponentLibrary*, const char* pcName, plVec3 tPosition, plEnvironmentProbeComponent**);
 static plEntity pl_ecs_create_spot_light         (plComponentLibrary*, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent**);
 static plEntity pl_ecs_create_script             (plComponentLibrary*, const char* pcFile, plScriptFlags, plScriptComponent**);
 static void     pl_ecs_attach_script             (plComponentLibrary*, const char* pcFile, plScriptFlags, plEntity, plScriptComponent**);
@@ -196,6 +197,12 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->tHumanoidComponentManager.tComponentType = PL_COMPONENT_TYPE_HUMANOID;
     ptLibrary->tHumanoidComponentManager.szStride = sizeof(plHumanoidComponent);
 
+    ptLibrary->tEnvironmentProbeCompManager.tComponentType = PL_COMPONENT_TYPE_ENVIRONMENT_PROBE;
+    ptLibrary->tEnvironmentProbeCompManager.szStride = sizeof(plEnvironmentProbeComponent);
+
+    ptLibrary->tLayerComponentManager.tComponentType = PL_COMPONENT_TYPE_LAYER;
+    ptLibrary->tLayerComponentManager.szStride = sizeof(plLayerComponent);
+
     ptLibrary->_ptManagers[0]  = &ptLibrary->tTagComponentManager;
     ptLibrary->_ptManagers[1]  = &ptLibrary->tTransformComponentManager;
     ptLibrary->_ptManagers[2]  = &ptLibrary->tMeshComponentManager;
@@ -210,6 +217,8 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->_ptManagers[11] = &ptLibrary->tLightComponentManager;
     ptLibrary->_ptManagers[12] = &ptLibrary->tScriptComponentManager;
     ptLibrary->_ptManagers[13] = &ptLibrary->tHumanoidComponentManager;
+    ptLibrary->_ptManagers[14] = &ptLibrary->tEnvironmentProbeCompManager;
+    ptLibrary->_ptManagers[15] = &ptLibrary->tLayerComponentManager;
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
         ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
@@ -436,6 +445,13 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                 case PL_COMPONENT_TYPE_HUMANOID:
                 {
                     plHumanoidComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_ENVIRONMENT_PROBE:
+                {
+                    plEnvironmentProbeComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
@@ -700,6 +716,32 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         return &sbComponents[uComponentIndex];
     }
 
+    case PL_COMPONENT_TYPE_ENVIRONMENT_PROBE:
+    {
+        plEnvironmentProbeComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plEnvironmentProbeComponent){
+            .fRange      = 10.0f,
+            .uResolution = 128
+        };
+        return &sbComponents[uComponentIndex];
+    }
+
+    case PL_COMPONENT_TYPE_LAYER:
+    {
+        plLayerComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plLayerComponent){
+            .uLayerMask = ~0u,
+            ._uPropagationMask = ~0u
+        };
+        return &sbComponents[uComponentIndex];
+    }
+
     }
 
     return NULL;
@@ -763,6 +805,20 @@ pl_ecs_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plV
 
     if(pptCompOut)
         *pptCompOut = ptLight;
+    return tNewEntity;
+}
+
+static plEntity
+pl_ecs_create_environment_probe(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plEnvironmentProbeComponent** pptCompOut)
+{
+    pcName = pcName ? pcName : "unnamed environment probe";
+    pl_log_debug_f(gptLog, uLogChannelEcs, "created environment probe: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+    plEnvironmentProbeComponent* ptProbe =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, tNewEntity);
+    ptProbe->tPosition = tPosition;
+
+    if(pptCompOut)
+        *pptCompOut = ptProbe;
     return tNewEntity;
 }
 
@@ -1782,6 +1838,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_directional_light             = pl_ecs_create_directional_light,
         .create_point_light                   = pl_ecs_create_point_light,
         .create_spot_light                    = pl_ecs_create_spot_light,
+        .create_environment_probe             = pl_ecs_create_environment_probe,
         .create_script                        = pl_ecs_create_script,
         .attach_script                        = pl_ecs_attach_script,
         .attach_component                     = pl_ecs_attach_component,
