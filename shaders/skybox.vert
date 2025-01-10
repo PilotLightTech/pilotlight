@@ -24,7 +24,7 @@ layout(set = 0, binding = 1)  uniform sampler tDefaultSampler;
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-layout(set = 1, binding = 0) uniform textureCube samplerCubeMap;
+layout(set = 1, binding = 0) uniform texture2D samplerCubeMap;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group

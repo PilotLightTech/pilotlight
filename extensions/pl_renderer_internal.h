@@ -223,6 +223,36 @@ typedef struct _DynamicData
     plMat4 tModel;
 } DynamicData;
 
+typedef struct _plEnvironmentProbeData
+{
+    plEntity tEntity;
+    plVec2             tTargetSize;
+
+    plRenderPassHandle tRenderPass;
+
+    // g-buffer textures
+    plTextureHandle tAlbedoTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    plTextureHandle tNormalTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    plTextureHandle tAOMetalRoughnessTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    plTextureHandle tRawOutputTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    plTextureHandle tDepthTexture[PL_MAX_FRAMES_IN_FLIGHT];
+    
+    // lighting
+    plBindGroupHandle tLightingBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
+
+    // GPU buffers
+    plBufferHandle atGlobalBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+
+    // submitted drawables
+    plDrawable* sbtVisibleOpaqueDrawables;
+    plDrawable* sbtVisibleTransparentDrawables;
+
+    // shadows
+    plBufferHandle atDShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atDLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plGPULightShadowData* sbtDLightShadowData;
+} plEnvironmentProbeData;
+
 typedef struct _plRefView
 {
     // renderpasses
@@ -282,7 +312,9 @@ typedef struct _plRefScene
     int               iEnvironmentMips;
     plDrawable        tSkyboxDrawable;
     plTextureHandle   tSkyboxTexture;
+    plTextureHandle   tSkyboxTextureAtlas;
     plBindGroupHandle tSkyboxBindGroup;
+    plBindGroupHandle tSkyboxAtlasBindGroup;
     plTextureHandle   tGGXLUTTexture;
     uint32_t          uGGXLUT;
     plTextureHandle   tLambertianEnvTexture;
@@ -360,6 +392,8 @@ typedef struct _plRefScene
     plBufferHandle atSLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plGPULightShadowData* sbtSLightShadowData;
 
+    // environment probes
+    plEnvironmentProbeData* sbtProbeData;
 } plRefScene;
 
 typedef struct _plRefRendererData
@@ -421,6 +455,7 @@ typedef struct _plRefRendererData
 
     // default textures & samplers & bindgroups
     plSamplerHandle   tDefaultSampler;
+    plSamplerHandle   tSkyboxSampler;
     plSamplerHandle   tShadowSampler;
     plSamplerHandle   tEnvSampler;
     plTextureHandle   tDummyTexture;
@@ -543,7 +578,7 @@ static bool pl__sat_visibility_test(plCameraComponent*, const plAABB*);
 static void pl_refr_update_skin_textures(plCommandBuffer*, uint32_t);
 static void pl_refr_perform_skinning(plCommandBuffer*, uint32_t);
 static bool pl_refr_pack_shadow_atlas(uint32_t uSceneHandle, const uint32_t* auViewHandles, uint32_t uViewCount);
-static void pl_refr_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, uint32_t, uint32_t, uint32_t, plEntity tCamera);
+static void pl_refr_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, uint32_t, uint32_t, plCameraComponent*);
 static void pl_refr_generate_shadow_maps(plRenderEncoder*, plCommandBuffer*, uint32_t);
 static void pl_refr_post_process_scene(plCommandBuffer*, uint32_t, uint32_t, const plMat4*);
 
@@ -559,6 +594,7 @@ static size_t                  pl__get_data_type_size2(plDataType tType);
 static plBlendState            pl__get_blend_state(plBlendMode tBlendMode);
 static uint32_t                pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle);
 static uint32_t                pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle);
+static void                    pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle);
 
 
 #endif // PL_RENDERER_INTERNAL_EXT_H

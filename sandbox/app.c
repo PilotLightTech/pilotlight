@@ -219,6 +219,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tSpotLight);
     ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, 0.0f};
 
+    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){1.0f, 1.0f, 1.0f}, NULL);
+
     // load models
 
 

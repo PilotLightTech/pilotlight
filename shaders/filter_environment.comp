@@ -2,7 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 layout(set = 0, binding = 0)  uniform sampler tDefaultSampler;
-layout(set = 0, binding = 1) uniform textureCube uCubeMap;
+layout(set = 0, binding = 1) uniform texture2D uCubeMap;
 layout(std140, set = 0, binding = 2) buffer _tBufferOut0{ vec4 atPixelData[]; } tFaceOut0;
 layout(std140, set = 0, binding = 3) buffer _tBufferOut1{ vec4 atPixelData[]; } tFaceOut1;
 layout(std140, set = 0, binding = 4) buffer _tBufferOut2{ vec4 atPixelData[]; } tFaceOut2;
@@ -28,6 +28,47 @@ layout(constant_id = 7) const int   giCurrentMipLevel = 0;
 #define PL_PI 3.1415926535897932384626433832795
 const float PL_GAMMA = 2.2;
 const float PL_INV_GAMMA = 1.0 / PL_GAMMA;
+
+vec3 sampleCube(vec3 v)
+{
+	vec3 vAbs = abs(v);
+	float ma;
+	vec2 uv;
+    int faceIndex = 0;
+	if(vAbs.z >= vAbs.x && vAbs.z >= vAbs.y)
+	{
+		faceIndex = v.z < 0 ? 1 : 0;
+		ma = 0.5 / vAbs.z;
+		uv = vec2(v.z < 0.0 ? -v.x : v.x, -v.y);
+	}
+	else if(vAbs.y >= vAbs.x)
+	{
+		faceIndex = v.y < 0.0 ? 5 : 4;
+		ma = 0.5 / vAbs.y;
+		uv = vec2(v.x, v.y < 0.0 ? -v.z : v.z);
+	}
+	else
+	{
+		faceIndex = v.x < 0.0 ? 3 : 2;
+		ma = 0.5 / vAbs.x;
+		uv = vec2(v.x < 0.0 ? v.z : -v.z, -v.y);
+	}
+	vec2 result = uv * ma + vec2(0.5, 0.5);
+
+    const vec2 faceoffsets[6] = {
+        vec2(0.0, 0.0 / 3.0),
+        vec2(0.5, 0.0 / 3.0),
+        vec2(0.0, 1.0 / 3.0),
+        vec2(0.5, 1.0 / 3.0),
+        vec2(0.0, 2.0 / 3.0),
+        vec2(0.5, 2.0 / 3.0)
+    };
+
+    result.xy *= vec2(0.5, 1.0 / 3.0);
+    result.xy += faceoffsets[faceIndex];
+
+    return vec3(result, faceIndex);
+}
 
 vec3
 pl_linear_to_srgb(vec3 tColor)
@@ -310,7 +351,8 @@ pl_filter_color(vec3 tN)
         if(giDistribution == cLambertian)
         {
             // sample lambertian at a lower giResolution to avoid fireflies
-            const vec3 tLambertian = pl_linear_to_srgb(textureLod(samplerCube(uCubeMap, tDefaultSampler), tH, fLod).rgb);
+            // const vec3 tLambertian = pl_linear_to_srgb(textureLod(samplerCube(uCubeMap, tDefaultSampler), tH, fLod).rgb);
+            const vec3 tLambertian = pl_linear_to_srgb(texture(sampler2D(uCubeMap, tDefaultSampler), sampleCube(tH).xy).rgb);
 
             //// the below operations cancel each other out
             // lambertian *= NdotH; // lamberts law
@@ -333,7 +375,8 @@ pl_filter_color(vec3 tN)
                     // without this the roughness=0 lod is too high
                     fLod = gfLodBias;
                 }
-                vec3 sampleColor = textureLod(samplerCube(uCubeMap, tDefaultSampler), tL, fLod).rgb;
+                // vec3 sampleColor = textureLod(samplerCube(uCubeMap, tDefaultSampler), tL, fLod).rgb;
+                vec3 sampleColor = texture(sampler2D(uCubeMap, tDefaultSampler), sampleCube(tL).xy).rgb;
                 tColor += sampleColor * fNdotL;
                 fWeight += fNdotL;
             }

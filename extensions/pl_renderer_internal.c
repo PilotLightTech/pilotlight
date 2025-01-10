@@ -1463,7 +1463,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
 }
 
 static void
-pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, uint32_t uViewCount, plEntity tCamera)
+pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle, uint32_t uViewHandle, plCameraComponent* ptSceneCamera)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
@@ -1474,7 +1474,6 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
     plRefView*    ptView     = &ptScene->atViews[uViewHandle];
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
-    plCameraComponent* ptSceneCamera = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, tCamera);
     const float g = 1.0f / tanf(ptSceneCamera->fFieldOfView / 2.0f);
     const float s = ptSceneCamera->fAspectRatio;
 
@@ -2989,3 +2988,225 @@ pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle tText
 
     return (uint32_t)ulValue;
 }
+
+static void
+pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
+{
+    // for convience
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+
+    plEnvironmentProbeComponent* ptProbe = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, tProbeHandle);
+
+    plEnvironmentProbeData tProbeData = {
+        .tEntity = tProbeHandle,
+        .tTargetSize = {(float)ptProbe->uResolution, (float)ptProbe->uResolution}
+    };
+
+
+    // create offscreen per-frame resources
+    const plTextureDesc tRawOutputTextureDesc = {
+        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
+        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "offscreen final"
+    };
+
+    const plTextureDesc tNormalTextureDesc = {
+        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
+        .tFormat       = PL_FORMAT_R16G16_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "g-buffer normal"
+    };
+
+    const plTextureDesc tAlbedoTextureDesc = {
+        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
+        .tFormat       = PL_FORMAT_R8G8B8A8_SRGB,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "albedo texture"
+    };
+
+    const plTextureDesc tDepthTextureDesc = {
+        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
+        .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "offscreen depth texture"
+    };
+
+    const plTextureDesc tMaskTextureDesc = {
+        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
+        .tFormat       = PL_FORMAT_R32G32_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
+        .pcDebugName   = "mask texture"
+    };
+
+    const plTextureDesc tEmmissiveTexDesc = {
+        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
+        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "emissive texture"
+    };
+
+    const plBufferDesc atGlobalBuffersDesc = {
+        .tUsage     = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+        .szByteSize = 134217728,
+        .pcDebugName = "global buffer"
+    };
+
+    const plBufferDesc atCameraBuffersDesc = {
+        .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .szByteSize = 4096,
+        .pcDebugName = "camera buffers"
+    };
+
+    const plBufferDesc atLightShadowDataBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .szByteSize = 134217728,
+        .pcDebugName = "shadow data buffer"
+    };
+
+    const plBindGroupLayout tLightingBindGroupLayout = {
+        .atTextureBindings = { 
+            {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
+            {.uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
+            {.uSlot = 2, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
+            {.uSlot = 3, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
+        }
+    };
+
+    // create offscreen render pass
+    plRenderPassAttachments atAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
+    plRenderPassAttachments atShadowAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        // textures
+        tProbeData.tRawOutputTexture[i]        = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen raw", i, PL_TEXTURE_USAGE_SAMPLED);
+        tProbeData.tAlbedoTexture[i]           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
+        tProbeData.tNormalTexture[i]           = pl__refr_create_texture(&tNormalTextureDesc, "normal original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
+        tProbeData.tAOMetalRoughnessTexture[i] = pl__refr_create_texture(&tEmmissiveTexDesc, "metalroughness original", i, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
+        tProbeData.tDepthTexture[i]            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth original", i, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT);
+
+        // buffers
+        tProbeData.atGlobalBuffers[i] = pl__refr_create_staging_buffer(&atGlobalBuffersDesc, "global", i);
+        
+        // lighting bind group
+        const plBindGroupDesc tLightingBindGroupDesc = {
+            .ptPool = gptData->ptBindGroupPool,
+            .ptLayout = &tLightingBindGroupLayout,
+            .pcDebugName = "lighting bind group"
+        };
+        tProbeData.tLightingBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
+
+        const plBindGroupUpdateTextureData atBGTextureData[] = {
+            {
+                .tTexture = tProbeData.tAlbedoTexture[i],
+                .uSlot    = 0,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = tProbeData.tNormalTexture[i],
+                .uSlot    = 1,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = tProbeData.tAOMetalRoughnessTexture[i],
+                .uSlot    = 2,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = tProbeData.tDepthTexture[i],
+                .uSlot    = 3,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            }
+        };
+        const plBindGroupUpdateData tBGData = {
+            .uTextureCount = 4,
+            .atTextureBindings = atBGTextureData
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, tProbeData.tLightingBindGroup[i], &tBGData);
+        pl_temp_allocator_reset(&gptData->tTempAllocator);
+
+        // attachment sets
+        atAttachmentSets[i].atViewAttachments[0] = tProbeData.tDepthTexture[i];
+        atAttachmentSets[i].atViewAttachments[1] = tProbeData.tRawOutputTexture[i];
+        atAttachmentSets[i].atViewAttachments[2] = tProbeData.tAlbedoTexture[i];
+        atAttachmentSets[i].atViewAttachments[3] = tProbeData.tNormalTexture[i];
+        atAttachmentSets[i].atViewAttachments[4] = tProbeData.tAOMetalRoughnessTexture[i];
+
+        tProbeData.atDLightShadowDataBuffer[i] = pl__refr_create_staging_buffer(&atLightShadowDataBufferDesc, "d shadow", i);
+        tProbeData.atDShadowCameraBuffers[i] = pl__refr_create_staging_buffer(&atCameraBuffersDesc, "d shadow buffer", i);
+
+    }
+
+    const plRenderPassDesc tRenderPassDesc = {
+        .tLayout = gptData->tRenderPassLayout,
+        .tDepthTarget = {
+                .tLoadOp         = PL_LOAD_OP_CLEAR,
+                .tStoreOp        = PL_STORE_OP_DONT_CARE,
+                .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
+                .tStencilStoreOp = PL_STORE_OP_STORE,
+                .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                .fClearZ         = 0.0f
+        },
+        .atColorTargets = {
+            {
+                .tLoadOp       = PL_LOAD_OP_CLEAR,
+                .tStoreOp      = PL_STORE_OP_STORE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
+                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+            },
+            {
+                .tLoadOp       = PL_LOAD_OP_CLEAR,
+                .tStoreOp      = PL_STORE_OP_STORE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+            },
+            {
+                .tLoadOp       = PL_LOAD_OP_CLEAR,
+                .tStoreOp      = PL_STORE_OP_STORE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+            },
+            {
+                .tLoadOp       = PL_LOAD_OP_CLEAR,
+                .tStoreOp      = PL_STORE_OP_STORE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+            },
+            {
+                .tLoadOp       = PL_LOAD_OP_CLEAR,
+                .tStoreOp      = PL_STORE_OP_STORE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tClearColor   = {0.0f, 0.0f, 0.0f, 0.0f}
+            }
+        },
+        .tDimensions = {.x = tProbeData.tTargetSize.x, .y = tProbeData.tTargetSize.y}
+    };
+    tProbeData.tRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tRenderPassDesc, atAttachmentSets);
+
+    pl_sb_push(ptScene->sbtProbeData, tProbeData);
+};
