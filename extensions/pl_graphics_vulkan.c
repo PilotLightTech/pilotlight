@@ -653,81 +653,86 @@ pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
         };
         pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
-        // perform blits
-        if (tFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)
+        // for(uint32_t uArrayIndex = 0; uArrayIndex < ptTexture->tDesc.uLayers; uArrayIndex++)
         {
-            VkImageSubresourceRange tMipSubResourceRange = {
-                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseArrayLayer = 0,
-                .layerCount     = ptTexture->tDesc.uLayers,
-                .levelCount     = 1
-            };
 
-            int iMipWidth  = (int)ptTexture->tDesc.tDimensions.x;
-            int iMipHeight = (int)ptTexture->tDesc.tDimensions.y;
 
-            for (uint32_t i = 1; i < ptTexture->tDesc.uMips; i++)
+            // perform blits
+            if (tFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)
             {
-                tMipSubResourceRange.baseMipLevel = i - 1;
-
-                pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-
-                VkImageBlit tBlit = {
-                    .srcOffsets[1] = {
-                        .x = iMipWidth,
-                        .y = iMipHeight,
-                        .z = 1
-                    },
-                    .srcSubresource = {
-                        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .mipLevel       = i - 1,
-                        .baseArrayLayer = 0,
-                        .layerCount     = 1
-                    },
-                    .dstOffsets[1] = {
-                        .x = 1,
-                        .y = 1,
-                        .z = 1
-                    },
-                    .dstSubresource = {
-                        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .mipLevel       = i,
-                        .baseArrayLayer = 0,
-                        .layerCount     = 1
-                    }
+                VkImageSubresourceRange tMipSubResourceRange = {
+                    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseArrayLayer = 0,
+                    .layerCount     = ptTexture->tDesc.uLayers,
+                    .levelCount     = 1
                 };
 
-                if (iMipWidth > 1)
-                    tBlit.dstOffsets[1].x = iMipWidth / 2;
+                int iMipWidth  = (int)ptTexture->tDesc.tDimensions.x;
+                int iMipHeight = (int)ptTexture->tDesc.tDimensions.y;
 
-                if (iMipHeight > 1)
-                    tBlit.dstOffsets[1].y = iMipHeight / 2;
+                for (uint32_t i = 1; i < ptTexture->tDesc.uMips; i++)
+                {
+                    tMipSubResourceRange.baseMipLevel = i - 1;
 
-                vkCmdBlitImage(ptCmdBuffer->tCmdBuffer, 
-                    ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    1, &tBlit, VK_FILTER_LINEAR);
+                    pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-                pl__transition_image_layout(ptCmdBuffer->tCmdBuffer,
-                    ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+                    VkImageBlit tBlit = {
+                        .srcOffsets[1] = {
+                            .x = iMipWidth,
+                            .y = iMipHeight,
+                            .z = 1
+                        },
+                        .srcSubresource = {
+                            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .mipLevel       = i - 1,
+                            .baseArrayLayer = 0,
+                            .layerCount     = 1
+                        },
+                        .dstOffsets[1] = {
+                            .x = 1,
+                            .y = 1,
+                            .z = 1
+                        },
+                        .dstSubresource = {
+                            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .mipLevel       = i,
+                            .baseArrayLayer = 0,
+                            .layerCount     = 1
+                        }
+                    };
 
-                if (iMipWidth > 1)
-                    iMipWidth /= 2;
+                    if (iMipWidth > 1)
+                        tBlit.dstOffsets[1].x = iMipWidth / 2;
 
-                if (iMipHeight > 1)
-                    iMipHeight /= 2;
+                    if (iMipHeight > 1)
+                        tBlit.dstOffsets[1].y = iMipHeight / 2;
+
+                    vkCmdBlitImage(ptCmdBuffer->tCmdBuffer, 
+                        ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
+                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
+                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        1, &tBlit, VK_FILTER_LINEAR);
+
+                    pl__transition_image_layout(ptCmdBuffer->tCmdBuffer,
+                        ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
+                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+                    if (iMipWidth > 1)
+                        iMipWidth /= 2;
+
+                    if (iMipHeight > 1)
+                        iMipHeight /= 2;
+                }
+
+                tMipSubResourceRange.baseMipLevel = ptTexture->tDesc.uMips - 1;
+                pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
             }
-
-            tMipSubResourceRange.baseMipLevel = ptTexture->tDesc.uMips - 1;
-            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-        }
-        else
-        {
-            PL_ASSERT(false && "format does not support linear blitting");
+            else
+            {
+                PL_ASSERT(false && "format does not support linear blitting");
+            }
         }
     }
 }
@@ -4213,10 +4218,10 @@ pl__fill_common_render_pass_data(plRenderPassLayoutDesc* ptDesc, plRenderPassLay
     ptDataOut->atSubpassDependencies[0] = (VkSubpassDependency){
         .srcSubpass      = VK_SUBPASS_EXTERNAL,
         .dstSubpass      = 0,
-        .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-        .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .srcAccessMask   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+        .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
         .dependencyFlags = 0
     };
 
@@ -4225,8 +4230,8 @@ pl__fill_common_render_pass_data(plRenderPassLayoutDesc* ptDesc, plRenderPassLay
         .dstSubpass      = VK_SUBPASS_EXTERNAL,
         .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
         .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-        .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+        .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
         .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
     };
 }
