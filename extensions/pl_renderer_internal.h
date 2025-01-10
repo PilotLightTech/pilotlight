@@ -135,6 +135,7 @@ typedef struct _plDrawable
     uint32_t       uIndexCount;
     uint32_t       uMaterialIndex;
     plShaderHandle tShader;
+    plShaderHandle tEnvShader;
     plShaderHandle tShadowShader;
     uint32_t       uSkinIndex;
     bool           bCulled;
@@ -226,8 +227,9 @@ typedef struct _DynamicData
 typedef struct _plEnvironmentProbeData
 {
     plEntity tEntity;
-    plVec2             tTargetSize;
+    plVec2 tTargetSize;
 
+    plRenderPassHandle tFirstRenderPass;
     plRenderPassHandle tRenderPass;
 
     // g-buffer textures
@@ -306,22 +308,15 @@ typedef struct _plRefView
 typedef struct _plRefScene
 {
     plShaderHandle tLightingShader;
+    plShaderHandle tEnvLightingShader;
     plShaderHandle tTonemapShader;
 
     // skybox resources (optional)
-    int               iEnvironmentMips;
     plDrawable        tSkyboxDrawable;
     plTextureHandle   tSkyboxTexture;
     plTextureHandle   tSkyboxTextureAtlas;
     plBindGroupHandle tSkyboxBindGroup;
     plBindGroupHandle tSkyboxAtlasBindGroup;
-    plTextureHandle   tGGXLUTTexture;
-    uint32_t          uGGXLUT;
-    plTextureHandle   tLambertianEnvTexture;
-    uint32_t          uLambertianEnvSampler;
-    plTextureHandle   tGGXEnvTexture;
-    uint32_t          uGGXEnvSampler;
-
         
     // shared bind groups
     plBindGroupHandle tSkinBindGroup0;
@@ -394,6 +389,14 @@ typedef struct _plRefScene
 
     // environment probes
     plEnvironmentProbeData* sbtProbeData;
+    plBufferHandle atFilterWorkingBuffers[7];
+    plTextureHandle   tGGXLUTTexture;
+    uint32_t          uGGXLUT;
+    plTextureHandle   tLambertianEnvTexture;
+    uint32_t          uLambertianEnvSampler;
+    plTextureHandle   tGGXEnvTexture;
+    uint32_t          uGGXEnvSampler;
+    int               iEnvironmentMips;
 } plRefScene;
 
 typedef struct _plRefRendererData
@@ -429,12 +432,13 @@ typedef struct _plRefRendererData
     plRenderPassLayoutHandle tPickRenderPassLayout;
 
     // shader templates (variants are made from these)
-    plShaderHandle tShadowShader;
-    plShaderHandle tAlphaShadowShader;
-    plShaderHandle tDeferredShader;
-    plShaderHandle tForwardShader;
-    plShaderHandle tSkyboxShader;
-    plShaderHandle tPickShader;
+    plShaderHandle        tShadowShader;
+    plShaderHandle        tAlphaShadowShader;
+    plShaderHandle        tDeferredShader;
+    plShaderHandle        tForwardShader;
+    plShaderHandle        tSkyboxShader;
+    plShaderHandle        tPickShader;
+    plComputeShaderHandle tEnvFilterShader;
 
     // outline shaders
     plShaderHandle        tUVShader;
@@ -594,7 +598,11 @@ static size_t                  pl__get_data_type_size2(plDataType tType);
 static plBlendState            pl__get_blend_state(plBlendMode tBlendMode);
 static uint32_t                pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle);
 static uint32_t                pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle);
-static void                    pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle);
+
+// environment probes
+static void pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle);
+static uint64_t pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue);
+static uint64_t pl_create_environment_map_from_texture(uint32_t uSceneHandle, plTextureHandle, uint64_t ulValue);
 
 
 #endif // PL_RENDERER_INTERNAL_EXT_H

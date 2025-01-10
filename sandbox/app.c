@@ -202,11 +202,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptLight->afCascadeSplits[1] = 8.0f;
     ptLight->afCascadeSplits[2] = 15.0f;
     ptLight->afCascadeSplits[3] = 35.0f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    // ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
     ptEditorData->tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
     ptLight->uShadowResolution = 1024;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    // ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
     plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tPointLight);
     ptPLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 2.0f};
 
@@ -215,11 +216,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptLight->fRange = 5.0f;
     ptLight->fRadius = 0.025f;
     ptLight->fIntensity = 20.0f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    // ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
     plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tSpotLight);
     ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, 0.0f};
 
-    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){1.0f, 1.0f, 1.0f}, NULL);
+    plEnvironmentProbeComponent* ptProbe = NULL;
+    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 2.0f, 0.0f}, &ptProbe);
+    ptProbe->fRange = 48.0f;
 
     // load models
 
@@ -526,7 +530,7 @@ pl_app_update(plEditorData* ptEditorData)
                         char* sbcData = NULL;
                         pl_sb_sprintf(sbcData, "../data/pilotlight-assets-master/environments/%s.hdr", apcEnvMaps[uComboSelect]);
                         gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, sbcData, 1024);
-                        gptRenderer->create_environment_map_from_skybox(ptEditorData->uSceneHandle0);
+                        // gptRenderer->create_environment_map_from_skybox(ptEditorData->uSceneHandle0);
                         pl_sb_free(sbcData);
                     }
 
