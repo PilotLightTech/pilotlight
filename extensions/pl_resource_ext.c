@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include "pl.h"
 #include "pl_resource_ext.h"
-#include "pl_ds.h"
 #include "pl_log_ext.h"
 
 #ifdef PL_UNITY_BUILD
@@ -22,6 +21,8 @@
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs

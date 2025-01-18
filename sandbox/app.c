@@ -197,16 +197,17 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     plLightComponent* ptLight = NULL;
     ptEditorData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "direction light", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
     ptLight->uCascadeCount = 4;
+    ptLight->fIntensity = 1.0f;
     ptLight->uShadowResolution = 1024;
-    ptLight->afCascadeSplits[0] = 2.0f;
-    ptLight->afCascadeSplits[1] = 8.0f;
-    ptLight->afCascadeSplits[2] = 15.0f;
-    ptLight->afCascadeSplits[3] = 35.0f;
+    ptLight->afCascadeSplits[0] = 5.0f;
+    ptLight->afCascadeSplits[1] = 10.0f;
+    ptLight->afCascadeSplits[2] = 20.0f;
+    ptLight->afCascadeSplits[3] = 48.0f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
     ptEditorData->tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
     ptLight->uShadowResolution = 1024;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
     plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tPointLight);
     ptPLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 2.0f};
 
@@ -219,8 +220,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tSpotLight);
     ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, 0.0f};
 
-    // load models
+    plEnvironmentProbeComponent* ptProbe = NULL;
+    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 2.0f, 2.0f}, &ptProbe);
+    ptProbe->fRange = 30.0f;
+    ptProbe->uResolution = 128;
+    ptProbe->tFlags = PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
 
+    // load models
 
     // plTransformComponent* ptTargetTransform = NULL;
     // ptEditorData->tTrackPoint = gptEcs->create_transform(ptMainComponentLibrary, "track 0", &ptTargetTransform);
@@ -326,14 +332,6 @@ pl_app_update(plEditorData* ptEditorData)
     plCameraComponent* ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptEditorData->tMainCamera);
     plCameraComponent* ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptEditorData->tCullCamera);
     gptCamera->update(ptCullCamera);
-
-    plTransformComponent* ptLightTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tPointLight);
-    plLightComponent* ptPointLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptEditorData->tPointLight);
-    ptPointLight->tPosition = ptLightTransform->tTranslation;
-
-    plTransformComponent* ptSLightTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tSpotLight);
-    plLightComponent* ptSpotLight = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_LIGHT, ptEditorData->tSpotLight);
-    ptSpotLight->tPosition = ptSLightTransform->tTranslation;
 
     if(ptEditorData->bSceneLoaded)
     {
@@ -450,7 +448,7 @@ pl_app_update(plEditorData* ptEditorData)
             if(!ptEditorData->bSceneLoaded)
             {
 
-                static uint32_t uComboSelect = 1;
+                static uint32_t uComboSelect = 2;
                 static const char* apcEnvMaps[] = {
                     "none",
                     "helipad",
@@ -485,7 +483,8 @@ pl_app_update(plEditorData* ptEditorData)
                     false,
                     false,
                     false,
-                    true,
+                    false,
+                    false,
                     true,
                     false,
                 };
@@ -497,6 +496,7 @@ pl_app_update(plEditorData* ptEditorData)
                     "NormalTangentMirrorTest",
                     "Humanoid",
                     "Floor",
+                    "Environment",
                     "Test",
                 };
 
@@ -507,11 +507,12 @@ pl_app_update(plEditorData* ptEditorData)
                     "../data/glTF-Sample-Assets-main/Models/NormalTangentMirrorTest/glTF/NormalTangentMirrorTest.gltf",
                     "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf",
                     "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf",
+                    "../data/glTF-Sample-Assets-main/Models/EnvironmentTest/glTF/EnvironmentTest.gltf",
                     "../data/testing/testing.gltf",
                 };
 
                 gptUi->separator_text("Test Models");
-                for(uint32_t i = 0; i < 7; i++)
+                for(uint32_t i = 0; i < 8; i++)
                     gptUi->selectable(apcModels[i], &abModels[i], 0);
 
 
@@ -524,7 +525,7 @@ pl_app_update(plEditorData* ptEditorData)
                         char* sbcData = NULL;
                         pl_sb_sprintf(sbcData, "../data/pilotlight-assets-master/environments/%s.hdr", apcEnvMaps[uComboSelect]);
                         gptRenderer->load_skybox_from_panorama(ptEditorData->uSceneHandle0, sbcData, 1024);
-                        gptRenderer->create_environment_map_from_skybox(ptEditorData->uSceneHandle0);
+                        // gptRenderer->create_environment_map_from_skybox(ptEditorData->uSceneHandle0);
                         pl_sb_free(sbcData);
                     }
 

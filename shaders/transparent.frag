@@ -43,17 +43,19 @@ layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-layout(set = 1, binding = 0) uniform _plGlobalInfo
+struct tGlobalData
 {
     vec4 tViewportSize;
+    vec4 tViewportInfo;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
-    uint uLambertianEnvSampler;
-    uint uGGXEnvSampler;
-    uint uGGXLUT;
-    uint _uUnUsed;
+};
+
+layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
+{
+    tGlobalData data[];
 } tGlobalInfo;
 
 layout(set = 1, binding = 1) uniform _plDLightInfo
@@ -99,6 +101,11 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     int  iMaterialIndex;
     int  iPadding;
     mat4 tModel;
+
+    uint uLambertianEnvSampler;
+    uint uGGXEnvSampler;
+    uint uGGXLUT;
+    uint uGlobalIndex;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -333,7 +340,7 @@ vec3 BRDF_specularGGX(vec3 f0, vec3 f90, float alphaRoughness, float specularWei
 vec3 getDiffuseLight(vec3 n)
 {
     // n.z = -n.z; uncomment if not reverse z
-    return texture(samplerCube(atCubeTextures[nonuniformEXT(tGlobalInfo.uLambertianEnvSampler)], tEnvSampler), n).rgb;
+    return texture(samplerCube(atCubeTextures[nonuniformEXT(tObjectInfo.uLambertianEnvSampler)], tEnvSampler), n).rgb;
 }
 
 
@@ -341,7 +348,7 @@ vec4 getSpecularSample(vec3 reflection, float lod)
 {
     // reflection.z = -reflection.z; uncomment if not reverse z
     // return textureLod(u_GGXEnvSampler, u_EnvRotation * reflection, lod) * u_EnvIntensity;
-    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tGlobalInfo.uGGXEnvSampler)], tEnvSampler), reflection, lod);
+    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tObjectInfo.uGGXEnvSampler)], tEnvSampler), reflection, lod);
 }
 
 vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount)
@@ -351,7 +358,7 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularW
     vec3 reflection = normalize(reflect(-v, n));
 
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tGlobalInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tObjectInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
     vec4 specularSample = getSpecularSample(reflection, lod);
 
     vec3 specularLight = specularSample.rgb;
@@ -371,7 +378,7 @@ vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor
 {
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tGlobalInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tObjectInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
 
     vec3 irradiance = getDiffuseLight(n);
 
@@ -563,7 +570,7 @@ void main()
     // outPosition = vec4(tShaderIn.tPosition, materialInfo.specularWeight);
     // outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
 
-    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tShaderIn.tPosition.xyz);
+    vec3 v = normalize(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraPos.xyz - tShaderIn.tPosition.xyz);
 
     // LIGHTING
     vec3 f_specular = vec3(0.0);
@@ -572,7 +579,8 @@ void main()
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL))
     {
-        f_specular +=  getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, materialInfo.f0, specularWeight, material.u_MipCount);
+        int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tObjectInfo.uGGXEnvSampler)], tEnvSampler));
+        f_specular +=  getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, materialInfo.f0, specularWeight, iMips);
         f_diffuse += getIBLRadianceLambertian(n, v, materialInfo.perceptualRoughness, materialInfo.c_diff, materialInfo.f0, specularWeight);
     }
 
@@ -583,6 +591,7 @@ void main()
     f_specular = vec3(0.0);
 
     uint cascadeIndex = 0;
+    const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
         for(int i = 0; i < iDirectionLightCount; i++)
@@ -592,13 +601,13 @@ void main()
             vec3 pointToLight = -tLightData.tDirection;
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
 
                 // Get cascade index for the current fragment's view position
                 
-                vec4 inViewPos = tGlobalInfo.tCameraView * vec4(tShaderIn.tPosition.xyz, 1.0);
+                vec4 inViewPos = tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraView * vec4(tShaderIn.tPosition.xyz, 1.0);
                 for(uint j = 0; j < tLightData.iCascadeCount - 1; ++j)
                 {
                     if(inViewPos.z > tShadowData.cascadeSplits[j])
@@ -646,7 +655,7 @@ void main()
 
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tSShadowData.atData[tLightData.iShadowIndex];
 
@@ -693,7 +702,7 @@ void main()
             vec3 pointToLight = tLightData.tPosition - tShaderIn.tPosition.xyz;
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tPShadowData.atData[tLightData.iShadowIndex];
 

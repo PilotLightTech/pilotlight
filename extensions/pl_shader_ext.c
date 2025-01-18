@@ -15,7 +15,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl.h"
-#include "pl_ds.h"
 
 // libs
 #include "pl_string.h"
@@ -34,8 +33,16 @@ Index of this file:
     #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
     #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
     static const plFileI* gptFile = NULL;
 #endif
+
+#include "pl_ds.h"
 
 // external
 #ifndef PL_OFFLINE_SHADERS_ONLY

@@ -97,12 +97,33 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                 plAnimationComponent*         ptAnimationComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, *ptSelectedEntity);
                 plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, *ptSelectedEntity);
                 plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, *ptSelectedEntity);
+                plEnvironmentProbeComponent*  ptProbeComp         = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, *ptSelectedEntity);
 
                 gptUi->text("Entity: %u, %u", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
 
                 if(ptTagComp && gptUi->begin_collapsing_header("Tag", 0))
                 {
                     gptUi->text("Name: %s", ptTagComp->acName);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptProbeComp && gptUi->begin_collapsing_header("Environment Probe", 0))
+                {
+                    gptUi->input_float3("Position", ptProbeComp->tPosition.d, NULL, 0);
+
+                    bool bRealTime = ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
+                    if(gptUi->checkbox("Real Time", &bRealTime))
+                    {
+                        if(bRealTime)
+                            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
+                        else
+                            ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
+                    }
+                    if(gptUi->button("Update"))
+                    {
+                        ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+                    }
+                    gptUi->input_float("Range:", &ptProbeComp->fRange, NULL, 0);
                     gptUi->end_collapsing_header();
                 }
 

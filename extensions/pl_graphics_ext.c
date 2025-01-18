@@ -716,6 +716,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .present                                = pl_present,
         .copy_buffer_to_texture                 = pl_copy_buffer_to_texture,
         .copy_texture_to_buffer                 = pl_copy_texture_to_buffer,
+        .copy_texture                           = pl_copy_texture,
         .generate_mipmaps                       = pl_generate_mipmaps,
         .copy_buffer                            = pl_copy_buffer,
         .signal_semaphore                       = pl_signal_semaphore,

@@ -15,14 +15,11 @@ layout(constant_id = 1) const int iDataStride = 0;
 layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
     vec4 tViewportSize;
+    vec4 tViewportInfo;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
-    uint uLambertianEnvSampler;
-    uint uGGXEnvSampler;
-    uint uGGXLUT;
-    uint _uUnUsed;
 } tGlobalInfo;
 
 layout(std140, set = 0, binding = 1) readonly buffer _tVertexBuffer

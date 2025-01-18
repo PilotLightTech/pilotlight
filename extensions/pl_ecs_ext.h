@@ -157,6 +157,9 @@ typedef struct _plEcsI
     void (*run_animation_update_system)         (plComponentLibrary*, float fDeltaTime);
     void (*run_inverse_kinematics_update_system)(plComponentLibrary*);
     void (*run_script_update_system)            (plComponentLibrary*);
+    void (*run_camera_update_system)            (plComponentLibrary*);
+    void (*run_light_update_system)             (plComponentLibrary*);
+    void (*run_environment_probe_update_system) (plComponentLibrary*);
 } plEcsI;
 
 typedef struct _plCameraI
@@ -218,9 +221,11 @@ enum _plShaderType
 
 enum _plMaterialFlags
 {
-    PL_MATERIAL_FLAG_NONE         = 0,
-    PL_MATERIAL_FLAG_DOUBLE_SIDED = 1 << 0,
-    PL_MATERIAL_FLAG_OUTLINE      = 1 << 1,
+    PL_MATERIAL_FLAG_NONE                = 0,
+    PL_MATERIAL_FLAG_DOUBLE_SIDED        = 1 << 0,
+    PL_MATERIAL_FLAG_OUTLINE             = 1 << 1,
+    PL_MATERIAL_FLAG_CAST_SHADOW         = 1 << 2,
+    PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW = 1 << 3
 };
 
 enum _plBlendMode

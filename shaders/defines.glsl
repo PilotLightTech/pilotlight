@@ -33,6 +33,7 @@ const int PL_MATERIAL_METALLICROUGHNESS = 1 << 0;
 // iRenderingFlags
 const int PL_RENDERING_FLAG_USE_PUNCTUAL = 1 << 0;
 const int PL_RENDERING_FLAG_USE_IBL      = 1 << 1;
+const int PL_RENDERING_FLAG_SHADOWS      = 1 << 2;
 
 // lights
 const int PL_LIGHT_TYPE_DIRECTIONAL = 0;

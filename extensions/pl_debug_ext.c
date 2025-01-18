@@ -20,7 +20,7 @@ Index of this file:
 // core
 #include <float.h>
 #include "pl.h"
-#include "pl_ds.h"
+
 #include "pl_debug_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -102,6 +102,8 @@ static plDebugContext* gptDebugCtx = NULL;
     static plIO* gptIO = NULL;
 
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api

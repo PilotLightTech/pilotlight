@@ -20,7 +20,6 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#include "pl_ds.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -39,6 +38,8 @@ Index of this file:
     static const plGraphicsI* gptGfx = NULL;
     static const plDataRegistryI* gptDataRegistry = NULL;
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines

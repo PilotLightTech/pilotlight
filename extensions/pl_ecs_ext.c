@@ -21,7 +21,6 @@ Index of this file:
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl.h"
 #include "pl_ecs_ext.h"
-#include "pl_ds.h"
 #include "pl_math.h"
 
 // extensions
@@ -50,6 +49,8 @@ Index of this file:
     static const plProfileI*           gptProfile           = NULL;
     static const plLogI*               gptLog               = NULL;
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -114,6 +115,9 @@ static void pl_run_hierarchy_update_system         (plComponentLibrary* ptLibrar
 static void pl_run_animation_update_system         (plComponentLibrary* ptLibrary, float fDeltaTime);
 static void pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary);
 static void pl_run_script_update_system            (plComponentLibrary* ptLibrary);
+static void pl_run_camera_update_system            (plComponentLibrary* ptLibrary);
+static void pl_run_light_update_system             (plComponentLibrary* ptLibrary);
+static void pl_run_probe_update_system             (plComponentLibrary* ptLibrary);
 
 // misc.
 static void pl_calculate_normals (plMeshComponent* atMeshes, uint32_t uComponentCount);
@@ -590,7 +594,7 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         ptManager->pComponents = sbComponents;
         sbComponents[uComponentIndex] = (plMaterialComponent){
             .tBlendMode            = PL_BLEND_MODE_OPAQUE,
-            .tFlags                = PL_MATERIAL_FLAG_NONE,
+            .tFlags                = PL_MATERIAL_FLAG_CAST_SHADOW | PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW,
             .tShaderType           = PL_SHADER_TYPE_PBR,
             .tBaseColor            = {1.0f, 1.0f, 1.0f, 1.0f},
             .tEmissiveColor        = {0.0f, 0.0f, 0.0f, 0.0f},
@@ -724,7 +728,8 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         ptManager->pComponents = sbComponents;
         sbComponents[uComponentIndex] = (plEnvironmentProbeComponent){
             .fRange      = 10.0f,
-            .uResolution = 128
+            .uResolution = 128,
+            .tFlags      = PL_ENVIRONMENT_PROBE_FLAGS_DIRTY
         };
         return &sbComponents[uComponentIndex];
     }
@@ -1218,6 +1223,74 @@ pl_run_script_update_system(plComponentLibrary* ptLibrary)
             sbtComponents[i].tFlags = PL_SCRIPT_FLAG_NONE;
     }
     pl_end_cpu_sample(gptProfile, 0);
+}
+
+static void
+pl_run_camera_update_system(plComponentLibrary* ptLibrary)
+{
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+
+    plCameraComponent* sbtComponents = ptLibrary->tCameraComponentManager.pComponents;
+
+    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    for(uint32_t i = 0; i < uComponentCount; i++)
+    {
+        plEntity tEntity = ptLibrary->tCameraComponentManager.sbtEntities[i];
+        if(pl_ecs_has_entity(&ptLibrary->tTransformComponentManager, tEntity))
+        {
+            plCameraComponent* ptCamera = &sbtComponents[i];
+            plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+            ptCamera->tPos = ptTransform->tWorld.col[3].xyz;
+            pl_camera_update(ptCamera);
+        }
+    }
+    pl_end_cpu_sample(gptProfile, 0);
+}
+
+static void
+pl_run_light_update_system(plComponentLibrary* ptLibrary)
+{
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+
+    plLightComponent* sbtComponents = ptLibrary->tLightComponentManager.pComponents;
+
+    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    for(uint32_t i = 0; i < uComponentCount; i++)
+    {
+        plEntity tEntity = ptLibrary->tLightComponentManager.sbtEntities[i];
+        if(pl_ecs_has_entity(&ptLibrary->tTransformComponentManager, tEntity))
+        {
+            plLightComponent* ptLight = &sbtComponents[i];
+            plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+            ptLight->tPosition = ptTransform->tWorld.col[3].xyz;
+
+            // TODO: direction
+        }
+    }
+    pl_end_cpu_sample(gptProfile, 0);
+}
+
+static void
+pl_run_probe_update_system(plComponentLibrary* ptLibrary)
+{
+    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+
+    plEnvironmentProbeComponent* sbtComponents = ptLibrary->tEnvironmentProbeCompManager.pComponents;
+
+    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    for(uint32_t i = 0; i < uComponentCount; i++)
+    {
+        plEntity tEntity = ptLibrary->tEnvironmentProbeCompManager.sbtEntities[i];
+        if(pl_ecs_has_entity(&ptLibrary->tTransformComponentManager, tEntity))
+        {
+            plEnvironmentProbeComponent* ptProbe = &sbtComponents[i];
+            plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+            ptProbe->tPosition = ptTransform->tWorld.col[3].xyz;
+
+            // TODO: direction
+        }
+    }
+    pl_end_cpu_sample(gptProfile, 0); 
 }
 
 static void
@@ -1851,7 +1924,10 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .run_skin_update_system               = pl_run_skin_update_system,
         .run_animation_update_system          = pl_run_animation_update_system,
         .run_inverse_kinematics_update_system = pl_run_inverse_kinematics_update_system,
-        .run_script_update_system             = pl_run_script_update_system
+        .run_script_update_system             = pl_run_script_update_system,
+        .run_camera_update_system             = pl_run_camera_update_system,
+        .run_light_update_system              = pl_run_light_update_system,
+        .run_environment_probe_update_system  = pl_run_probe_update_system
     };
     pl_set_api(ptApiRegistry, plEcsI, &tApi0);
 

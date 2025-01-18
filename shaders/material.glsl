@@ -2,7 +2,6 @@
 struct tMaterial
 {
     // Metallic Roughness
-    int   u_MipCount;
     float u_MetallicFactor;
     float u_RoughnessFactor;
     //-------------------------- ( 16 bytes )

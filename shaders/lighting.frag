@@ -47,17 +47,19 @@ layout(input_attachment_index = 0, set = 1, binding = 3)  uniform subpassInput t
 // [SECTION] bind group 2
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) uniform _plGlobalInfo
+struct tGlobalData
 {
     vec4 tViewportSize;
+    vec4 tViewportInfo;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
-    uint uLambertianEnvSampler;
-    uint uGGXEnvSampler;
-    uint uGGXLUT;
-    uint _uUnUsed;
+};
+
+layout(set = 2, binding = 0) readonly buffer _plGlobalInfo
+{
+    tGlobalData data[];
 } tGlobalInfo;
 
 layout(set = 2, binding = 1) uniform _plDLightInfo
@@ -98,8 +100,10 @@ layout(set = 2, binding = 7) uniform sampler tShadowSampler;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    int iDataOffset;
-    int iVertexOffset;
+    uint uLambertianEnvSampler;
+    uint uGGXEnvSampler;
+    uint uGGXLUT;
+    uint uGlobalIndex;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -183,17 +187,18 @@ vec3 BRDF_specularGGX(vec3 f0, vec3 f90, float alphaRoughness, float specularWei
 
 vec3 getDiffuseLight(vec3 n)
 {
-    // n.z = -n.z; uncomment if not reverse z
+    // n.z = -n.z; // uncomment if not reverse z
     // return texture(samplerCube(u_LambertianEnvSampler, tEnvSampler), n).rgb;
-    return texture(samplerCube(atCubeTextures[nonuniformEXT(tGlobalInfo.uLambertianEnvSampler)], tEnvSampler), n).rgb;
+    return texture(samplerCube(atCubeTextures[nonuniformEXT(tObjectInfo.uLambertianEnvSampler)], tEnvSampler), n).rgb;
 }
 
 
 vec4 getSpecularSample(vec3 reflection, float lod)
 {
     // reflection.z = -reflection.z; // uncomment if not reverse z
+    // reflection.x = -reflection.x; // uncomment if not reverse z
     // return textureLod(samplerCube(u_GGXEnvSampler, tEnvSampler), reflection, lod);
-    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tGlobalInfo.uGGXEnvSampler)], tEnvSampler), reflection, lod);
+    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tObjectInfo.uGGXEnvSampler)], tEnvSampler), reflection, lod);
 }
 
 vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount)
@@ -206,7 +211,7 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularW
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
     // vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tGlobalInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tObjectInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
 
     vec3 specularLight = specularSample.rgb;
 
@@ -225,7 +230,7 @@ vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
     // vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tGlobalInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tObjectInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
 
     // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results
     // Roughness dependent fresnel, from Fdez-Aguera
@@ -394,11 +399,16 @@ void main()
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
     
     float depth = subpassLoad(tDepthSampler).r;
-    vec3 ndcSpace = vec3(gl_FragCoord.x / tGlobalInfo.tViewportSize.x, gl_FragCoord.y / tGlobalInfo.tViewportSize.y, depth);
+    vec3 ndcSpace = vec3((gl_FragCoord.x - tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportInfo.x) / tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportSize.x, (gl_FragCoord.y - tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportInfo.y) / tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportSize.y, depth);
+
+
     vec3 clipSpace = ndcSpace;
     clipSpace.xy = clipSpace.xy * 2.0 - 1.0;
-    vec4 homoLocation = inverse(tGlobalInfo.tCameraProjection) * vec4(clipSpace, 1.0);
-
+    // clipSpace.x *= tGlobalInfo.tViewportSize.z;
+    // clipSpace.y *= tGlobalInfo.tViewportSize.w;
+    // clipSpace.x += tGlobalInfo.tViewportInfo.x;
+    // clipSpace.y += tGlobalInfo.tViewportInfo.y;
+    vec4 homoLocation = inverse(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraProjection) * vec4(clipSpace, 1.0);
 
     // vec4 tWorldPosition0 = subpassLoad(tPositionSampler);
     vec4 tViewPosition = homoLocation;
@@ -407,12 +417,11 @@ void main()
     tViewPosition.y = tViewPosition.y;
     tViewPosition.z = tViewPosition.z;
     tViewPosition.w = 1.0;
-    vec4 tWorldPosition = inverse(tGlobalInfo.tCameraView) * tViewPosition;
+    vec4 tWorldPosition = inverse(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraView) * tViewPosition;
     vec3 n = Decode(subpassLoad(tNormalTexture).xy);
 
     const vec3 f90 = vec3(1.0);
     
-
     // LIGHTING
     vec3 f_specular = vec3(0.0);
     vec3 f_diffuse = vec3(0.0);
@@ -423,8 +432,9 @@ void main()
 
     const float fPerceptualRoughness = AORoughnessMetalnessData.b;
     float specularWeight = 1.0;
-    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tWorldPosition.xyz);
-    int iMips = int(AORoughnessMetalnessData.a);
+    vec3 v = normalize(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
+    // int iMips = int(AORoughnessMetalnessData.a);
+    int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tObjectInfo.uGGXEnvSampler)], tEnvSampler));
 
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL))

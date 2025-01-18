@@ -19,7 +19,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl.h"
-#include "pl_ds.h"
 #include "pl_string.h"
 #include "pl_memory.h"
 #include "pl_graphics_internal.h"
@@ -628,6 +627,115 @@ pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHand
 }
 
 void
+pl_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
+{
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+
+    // allocate temporary memory
+    VkImageCopy* atCopyRegions = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkImageCopy) * uRegionCount);
+    memset(atCopyRegions, 0, sizeof(VkImageCopy) * uRegionCount);
+
+    VkImageSubresourceRange* atSubResourceRanges = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkImageSubresourceRange) * uRegionCount);
+    memset(atSubResourceRanges, 0, sizeof(VkImageSubresourceRange) * uRegionCount * 2);
+
+    // setup copy regions
+    plTexture* ptColdSrcTexture = pl__get_texture(ptDevice, tSrcHandle);
+    plTexture* ptColdDstTexture = pl__get_texture(ptDevice, tDstHandle);
+
+    uint32_t uCurrentSrcBaseArrayLevel = UINT32_MAX;
+    uint32_t uCurrentSrcMipLevel = UINT32_MAX;
+
+    uint32_t uCurrentDestBaseArrayLevel = UINT32_MAX;
+    uint32_t uCurrentDestMipLevel = UINT32_MAX;
+
+    for (uint32_t i = 0; i < uRegionCount; i++)
+    {
+
+        atSubResourceRanges[i].aspectMask = ptColdSrcTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atSubResourceRanges[i].baseMipLevel = ptRegions[i].uSourceMipLevel;
+        atSubResourceRanges[i].levelCount = ptRegions[i].uSourceLayerCount;
+        atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uSourceBaseArrayLayer;
+        atSubResourceRanges[i].layerCount = ptRegions[i].uSourceLayerCount;
+
+        atSubResourceRanges[i + uRegionCount].aspectMask = ptColdDstTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atSubResourceRanges[i + uRegionCount].baseMipLevel = ptRegions[i].uDestinationMipLevel;
+        atSubResourceRanges[i + uRegionCount].levelCount = ptRegions[i].uDestinationLayerCount;
+        atSubResourceRanges[i + uRegionCount].baseArrayLayer = ptRegions[i].uDestinationBaseArrayLayer;
+        atSubResourceRanges[i + uRegionCount].layerCount = ptRegions[i].uDestinationLayerCount;
+
+
+        if(uCurrentSrcBaseArrayLevel != atSubResourceRanges[i].baseArrayLayer || uCurrentSrcMipLevel != atSubResourceRanges[i].baseMipLevel)
+        {
+            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tSrcHandle.uIndex].tImage, pl__vulkan_layout(ptRegions[i].tSourceImageUsage), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            uCurrentSrcBaseArrayLevel = atSubResourceRanges[i].baseArrayLayer;
+            uCurrentSrcMipLevel = atSubResourceRanges[i].baseMipLevel;
+        }
+
+        if(uCurrentDestBaseArrayLevel != atSubResourceRanges[i + uRegionCount].baseArrayLayer || uCurrentDestMipLevel != atSubResourceRanges[i + uRegionCount].baseMipLevel)
+        {
+            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tDstHandle.uIndex].tImage, pl__vulkan_layout(ptRegions[i].tDestinationImageUsage), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, atSubResourceRanges[i + uRegionCount], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            uCurrentDestBaseArrayLevel = atSubResourceRanges[i + uRegionCount].baseArrayLayer;
+            uCurrentDestMipLevel = atSubResourceRanges[i + uRegionCount].baseMipLevel;
+        }
+
+
+        atCopyRegions[i].srcOffset.x = ptRegions[i].iSourceOffsetX;
+        atCopyRegions[i].srcOffset.y = ptRegions[i].iSourceOffsetY;
+        atCopyRegions[i].srcOffset.z = ptRegions[i].iSourceOffsetZ;
+
+        atCopyRegions[i].extent.width = ptRegions[i].uSourceExtentX;
+        atCopyRegions[i].extent.height = ptRegions[i].uSourceExtentY;
+        atCopyRegions[i].extent.depth = ptRegions[i].uSourceExtentZ;
+
+        atCopyRegions[i].srcSubresource.baseArrayLayer = ptRegions[i].uSourceBaseArrayLayer;
+        atCopyRegions[i].srcSubresource.layerCount = ptRegions[i].uSourceLayerCount;
+        atCopyRegions[i].srcSubresource.mipLevel = ptRegions[i].uSourceMipLevel;
+        atCopyRegions[i].srcSubresource.aspectMask = ptColdSrcTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+        atCopyRegions[i].dstOffset.x = ptRegions[i].iDestinationOffsetX;
+        atCopyRegions[i].dstOffset.y = ptRegions[i].iDestinationOffsetY;
+        atCopyRegions[i].dstOffset.z = ptRegions[i].iDestinationOffsetZ;
+
+        atCopyRegions[i].dstSubresource.baseArrayLayer = ptRegions[i].uDestinationBaseArrayLayer;
+        atCopyRegions[i].dstSubresource.layerCount = ptRegions[i].uDestinationLayerCount;
+        atCopyRegions[i].dstSubresource.mipLevel = ptRegions[i].uDestinationMipLevel;
+        atCopyRegions[i].dstSubresource.aspectMask = ptColdDstTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
+    vkCmdCopyImage(ptCmdBuffer->tCmdBuffer,
+        ptDevice->sbtTexturesHot[tSrcHandle.uIndex].tImage,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        ptDevice->sbtTexturesHot[tDstHandle.uIndex].tImage,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        uRegionCount,
+        atCopyRegions);
+
+    uCurrentSrcBaseArrayLevel = UINT32_MAX;
+    uCurrentSrcMipLevel = UINT32_MAX;
+    uCurrentDestBaseArrayLevel = UINT32_MAX;
+    uCurrentDestMipLevel = UINT32_MAX;
+
+    for (uint32_t i = 0; i < uRegionCount; i++)
+    {
+        if(uCurrentSrcBaseArrayLevel != atSubResourceRanges[i].baseArrayLayer || uCurrentSrcMipLevel != atSubResourceRanges[i].baseMipLevel)
+        {
+            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tSrcHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, pl__vulkan_layout(ptRegions[i].tSourceImageUsage), atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+            uCurrentSrcBaseArrayLevel = atSubResourceRanges[i].baseArrayLayer;
+            uCurrentSrcMipLevel = atSubResourceRanges[i].baseMipLevel;
+        }
+        if(uCurrentDestBaseArrayLevel != atSubResourceRanges[i + uRegionCount].baseArrayLayer || uCurrentDestMipLevel != atSubResourceRanges[i + uRegionCount].baseMipLevel)
+        {
+            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tDstHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, pl__vulkan_layout(ptRegions[i].tDestinationImageUsage), atSubResourceRanges[i + uRegionCount], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+            uCurrentDestBaseArrayLevel = atSubResourceRanges[i + uRegionCount].baseArrayLayer;
+            uCurrentDestMipLevel = atSubResourceRanges[i + uRegionCount].baseMipLevel;
+        }
+    }
+
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
+}
+
+void
 pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
@@ -686,18 +794,18 @@ pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
                             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
                             .mipLevel       = i - 1,
                             .baseArrayLayer = 0,
-                            .layerCount     = 1
+                            .layerCount     = ptTexture->tDesc.uLayers
                         },
                         .dstOffsets[1] = {
-                            .x = 1,
-                            .y = 1,
+                            .x = 0,
+                            .y = 0,
                             .z = 1
                         },
                         .dstSubresource = {
                             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
                             .mipLevel       = i,
                             .baseArrayLayer = 0,
-                            .layerCount     = 1
+                            .layerCount     = ptTexture->tDesc.uLayers
                         }
                     };
 
@@ -946,7 +1054,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         const plVulkanBuffer* ptVulkanBuffer = &ptDevice->sbtBuffersHot[ptData->atBufferBindings[i].tBuffer.uIndex];
 
         sbtBufferDescInfos[i].buffer = ptVulkanBuffer->tBuffer;
-        sbtBufferDescInfos[i].offset = ptData->atBufferBindings[i].szOffset;
+        sbtBufferDescInfos[i].offset = ptData->atBufferBindings[i]._szOffset;
         sbtBufferDescInfos[i].range = ptData->atBufferBindings[i].szBufferRange == 0 ? VK_WHOLE_SIZE : ptData->atBufferBindings[i].szBufferRange;
 
         sbtWrites[uCurrentWrite].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1293,7 +1401,6 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     plShaderHandle tHandle = pl__get_new_shader_handle(ptDevice);
     plShader* ptShader = pl__get_shader(ptDevice, tHandle);
     ptShader->tDesc = *ptDescription;
-    
     uint32_t uStageCount = 1;
 
     plVulkanShader* ptVulkanShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
@@ -4229,7 +4336,7 @@ pl__fill_common_render_pass_data(plRenderPassLayoutDesc* ptDesc, plRenderPassLay
         .srcSubpass      = ptDesc->_uSubpassCount - 1,
         .dstSubpass      = VK_SUBPASS_EXTERNAL,
         .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
         .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
         .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT

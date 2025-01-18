@@ -2,7 +2,6 @@
 #define PL_GRAPHICS_INTERNAL_EXT_H
 
 #include "pl.h"
-#include "pl_ds.h"
 #include "pl_log_ext.h"
 #include "pl_threads_ext.h"
 #include "pl_graphics_ext.h"
@@ -33,6 +32,8 @@
 
     static plIO* gptIO = NULL;
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
