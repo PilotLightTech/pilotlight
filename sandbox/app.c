@@ -195,7 +195,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     // gptEcs->create_point_light(ptMainComponentLibrary, "light", (plVec3){6.0f, 4.0f, -3.0f}, NULL);
 
     plLightComponent* ptLight = NULL;
-    ptEditorData->tSunlight = gptEcs->create_directional_light(ptMainComponentLibrary, "direction light", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
+    gptEcs->create_directional_light(ptMainComponentLibrary, "direction light", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
     ptLight->uCascadeCount = 4;
     ptLight->fIntensity = 1.0f;
     ptLight->uShadowResolution = 1024;
@@ -205,19 +205,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptLight->afCascadeSplits[3] = 48.0f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
-    ptEditorData->tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
+    plEntity tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
     ptLight->uShadowResolution = 1024;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
-    plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tPointLight);
+    plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tPointLight);
     ptPLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 2.0f};
 
-    ptEditorData->tSpotLight = gptEcs->create_spot_light(ptMainComponentLibrary, "spot light", (plVec3){0.0f, 2.0f, 0.0f}, (plVec3){0.0, -1.0f, 0.0f}, &ptLight);
+    plEntity tSpotLight = gptEcs->create_spot_light(ptMainComponentLibrary, "spot light", (plVec3){0.0f, 2.0f, 0.0f}, (plVec3){0.0, -1.0f, 0.0f}, &ptLight);
     ptLight->uShadowResolution = 1024;
     ptLight->fRange = 5.0f;
     ptLight->fRadius = 0.025f;
     ptLight->fIntensity = 20.0f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tSpotLight);
+    plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSpotLight);
     ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, 0.0f};
 
     plEnvironmentProbeComponent* ptProbe = NULL;
@@ -225,20 +225,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptProbe->fRange = 30.0f;
     ptProbe->uResolution = 128;
     ptProbe->tFlags = PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
-
-    // load models
-
-    // plTransformComponent* ptTargetTransform = NULL;
-    // ptEditorData->tTrackPoint = gptEcs->create_transform(ptMainComponentLibrary, "track 0", &ptTargetTransform);
-    // ptTargetTransform->tTranslation = (plVec3){0.1f, 0.017f};
-
-    // plHumanoidComponent* ptHuman =  gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_HUMANOID, (plEntity){.uIndex = 6});
-
-    // plInverseKinematicsComponent* ptIK = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, ptHuman->atBones[PL_HUMANOID_BONE_LEFT_FOOT]);
-    // ptIK->bEnabled = true;
-    // ptIK->tTarget = ptEditorData->tTrackPoint;
-    // ptIK->uChainLength = 2;
-    // ptIK->uIterationCount = 5;
 
     return ptEditorData;
 }

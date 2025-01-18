@@ -50,22 +50,22 @@ vec3
 pl_uv_to_xyz(int iFace, vec2 tUv)
 {
     if (iFace == 0) // right
-        return vec3(1.0, -tUv.y, -tUv.x);
+        return vec3(1.0, -tUv.y, tUv.x);
 
     else if (iFace == 1) // left
-        return vec3(-1.0, -tUv.y, tUv.x);
+        return vec3(-1.0, -tUv.y, -tUv.x);
 
     else if (iFace == 2) // top
-        return vec3(tUv.x, 1.0, tUv.y);
+        return vec3(tUv.x, 1.0, -tUv.y);
 
     else if (iFace == 3) // bottom
-        return vec3(tUv.x, -1.0, -tUv.y);
+        return vec3(tUv.x, -1.0, tUv.y);
 
     else if (iFace == 4) // front
-        return vec3(tUv.x, -tUv.y, 1.0);
+        return vec3(tUv.x, -tUv.y, -1.0);
 
     else //if(iFace == 5)
-        return vec3(-tUv.x, -tUv.y, -1.0);
+        return vec3(-tUv.x, -tUv.y, 1.0);
 }
 
 void
@@ -480,7 +480,7 @@ main()
         const vec3 tScan = pl_uv_to_xyz(iFace, tNewUV);
 
         vec3 tDirection = normalize(tScan);
-        tDirection.z = -tDirection.z;
+        // tDirection.z = -tDirection.z;
         // tDirection.x = -tDirection.x;
 
         tColor = pl_filter_color(tDirection);

@@ -1904,7 +1904,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
 
     pl_refr_create_global_shaders();
 
-    int iSceneWideRenderingFlags = 0;
+    int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
     if(gptData->bPunctualLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
     if(gptData->bImageBasedLighting)
@@ -1998,7 +1998,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
             tLightingShaderDesc.atConstants[i].tType = PL_DATA_TYPE_INT;
         }
         ptScene->tLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
-        aiLightingConstantData[0] = gptData->bPunctualLighting ? PL_RENDERING_FLAG_USE_PUNCTUAL : 0;
+        aiLightingConstantData[0] = gptData->bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
         ptScene->tEnvLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
     }
 
@@ -2201,7 +2201,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         gptGfx->update_bind_group(gptData->ptDevice, ptScene->tSkinBindGroup0, &tBGData0);
     }
 
-    int iSceneWideRenderingFlags = 0;
+    int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
     if(gptData->bPunctualLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
     if(gptData->bImageBasedLighting)
@@ -2293,7 +2293,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             tLightingShaderDesc.atConstants[i].tType = PL_DATA_TYPE_INT;
         }
         ptScene->tLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
-        aiLightingConstantData[0] = gptData->bPunctualLighting ? PL_RENDERING_FLAG_USE_PUNCTUAL : 0;
+        aiLightingConstantData[0] = gptData->bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
         ptScene->tEnvLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
     }
 

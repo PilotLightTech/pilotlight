@@ -246,18 +246,24 @@ typedef struct _plEnvironmentProbeData
     plEntity tEntity;
     plVec2 tTargetSize;
 
-    plRenderPassHandle tRenderPass;
+    plRenderPassHandle atRenderPasses[6];
 
     // g-buffer textures
     plTextureHandle tAlbedoTexture;
     plTextureHandle tNormalTexture;
     plTextureHandle tAOMetalRoughnessTexture;
     plTextureHandle tRawOutputTexture;
-    plTextureHandle tRawOutputCubeTexture;
     plTextureHandle tDepthTexture;
-    
+
+    // views
+    plTextureHandle atAlbedoTextureViews[6];
+    plTextureHandle atNormalTextureViews[6];
+    plTextureHandle atAOMetalRoughnessTextureViews[6];
+    plTextureHandle atRawOutputTextureViews[6];
+    plTextureHandle atDepthTextureViews[6];
+
     // lighting
-    plBindGroupHandle tLightingBindGroup;
+    plBindGroupHandle atLightingBindGroup[6];
 
     // GPU buffers
     plBufferHandle atGlobalBuffers[PL_MAX_FRAMES_IN_FLIGHT];

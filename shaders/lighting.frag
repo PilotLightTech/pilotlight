@@ -450,6 +450,7 @@ void main()
     f_specular = vec3(0.0);
 
     uint cascadeIndex = 0;
+    const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
         const float fAlphaRoughness = fPerceptualRoughness * fPerceptualRoughness;
@@ -461,7 +462,7 @@ void main()
             vec3 pointToLight = -tLightData.tDirection;
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
 
@@ -523,7 +524,7 @@ void main()
 
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tSShadowData.atData[tLightData.iShadowIndex];
 
@@ -573,7 +574,7 @@ void main()
 
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tPShadowData.atData[tLightData.iShadowIndex];
 

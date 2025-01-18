@@ -3049,72 +3049,52 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
     };
 
     // create offscreen per-frame resources
-    const plTextureDesc tRawOutputTextureDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x * 2.0f, tProbeData.tTargetSize.y * 3.0f, 1},
-        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .pcDebugName   = "offscreen final"
-    };
-
     const plTextureDesc tRawOutputTextureCubeDesc = {
         .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
         .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
         .uLayers       = 6,
         .uMips         = 0,
         .tType         = PL_TEXTURE_TYPE_CUBE,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
         .pcDebugName   = "offscreen final cube"
     };
 
     const plTextureDesc tNormalTextureDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x * 2.0f, tProbeData.tTargetSize.y * 3.0f, 1},
+        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
         .tFormat       = PL_FORMAT_R16G16_FLOAT,
-        .uLayers       = 1,
+        .uLayers       = 6,
         .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
+        .tType         = PL_TEXTURE_TYPE_CUBE,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
         .pcDebugName   = "g-buffer normal"
     };
 
     const plTextureDesc tAlbedoTextureDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x * 2.0f, tProbeData.tTargetSize.y * 3.0f, 1},
+        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
         .tFormat       = PL_FORMAT_R8G8B8A8_UNORM,
-        .uLayers       = 1,
+        .uLayers       = 6,
         .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
+        .tType         = PL_TEXTURE_TYPE_CUBE,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
         .pcDebugName   = "albedo texture"
     };
 
     const plTextureDesc tDepthTextureDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x * 2.0f, tProbeData.tTargetSize.y * 3.0f, 1},
+        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
         .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
-        .uLayers       = 1,
+        .uLayers       = 6,
         .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
+        .tType         = PL_TEXTURE_TYPE_CUBE,
         .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
         .pcDebugName   = "offscreen depth texture"
     };
 
-    const plTextureDesc tMaskTextureDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x * 2.0f, tProbeData.tTargetSize.y * 3.0f, 1},
-        .tFormat       = PL_FORMAT_R32G32_FLOAT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
-        .pcDebugName   = "mask texture"
-    };
-
     const plTextureDesc tEmmissiveTexDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x * 2.0f, tProbeData.tTargetSize.y * 3.0f, 1},
+        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
         .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
-        .uLayers       = 1,
+        .uLayers       = 6,
         .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
+        .tType         = PL_TEXTURE_TYPE_CUBE,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
         .pcDebugName   = "emissive texture"
     };
@@ -3146,53 +3126,65 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
         }
     };
 
-    // create offscreen render pass
-    plRenderPassAttachments atAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
-    plRenderPassAttachments atShadowAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
-
     // textures
-    tProbeData.tRawOutputTexture        = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen raw", 0, PL_TEXTURE_USAGE_SAMPLED);
-    tProbeData.tRawOutputCubeTexture    = pl__refr_create_texture(&tRawOutputTextureCubeDesc,  "offscreen raw cube", 0, PL_TEXTURE_USAGE_SAMPLED);
-    tProbeData.tAlbedoTexture           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original", 0, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
-    tProbeData.tNormalTexture           = pl__refr_create_texture(&tNormalTextureDesc, "normal original", 0, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
-    tProbeData.tAOMetalRoughnessTexture = pl__refr_create_texture(&tEmmissiveTexDesc, "metalroughness original", 0, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
+    tProbeData.tRawOutputTexture        = pl__refr_create_texture(&tRawOutputTextureCubeDesc,  "offscreen raw cube", 0, PL_TEXTURE_USAGE_SAMPLED);
+    tProbeData.tAlbedoTexture           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original", 0, PL_TEXTURE_USAGE_SAMPLED);
+    tProbeData.tNormalTexture           = pl__refr_create_texture(&tNormalTextureDesc, "normal original", 0, PL_TEXTURE_USAGE_SAMPLED);
+    tProbeData.tAOMetalRoughnessTexture = pl__refr_create_texture(&tEmmissiveTexDesc, "metalroughness original", 0, PL_TEXTURE_USAGE_SAMPLED);
     tProbeData.tDepthTexture            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth original", 0, PL_TEXTURE_USAGE_SAMPLED);
 
-    // lighting bind group
-    const plBindGroupDesc tLightingBindGroupDesc = {
-        .ptPool = gptData->ptBindGroupPool,
-        .ptLayout = &tLightingBindGroupLayout,
-        .pcDebugName = "lighting bind group"
+    plTextureViewDesc tAlbedoTextureViewDesc = {
+        .tFormat     = tAlbedoTextureDesc.tFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = tProbeData.tAlbedoTexture,
+        .tType       = PL_TEXTURE_TYPE_2D
     };
-    tProbeData.tLightingBindGroup = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
 
-    const plBindGroupUpdateTextureData atBGTextureData[] = {
-        {
-            .tTexture = tProbeData.tAlbedoTexture,
-            .uSlot    = 0,
-            .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
-        },
-        {
-            .tTexture = tProbeData.tNormalTexture,
-            .uSlot    = 1,
-            .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
-        },
-        {
-            .tTexture = tProbeData.tAOMetalRoughnessTexture,
-            .uSlot    = 2,
-            .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
-        },
-        {
-            .tTexture = tProbeData.tDepthTexture,
-            .uSlot    = 3,
-            .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
-        }
+    plTextureViewDesc tNormalTextureViewDesc = {
+        .tFormat     = tNormalTextureDesc.tFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = tProbeData.tNormalTexture,
+        .tType       = PL_TEXTURE_TYPE_2D
     };
-    const plBindGroupUpdateData tBGData = {
-        .uTextureCount = 4,
-        .atTextureBindings = atBGTextureData
+
+    plTextureViewDesc tEmmissiveTexureViewDesc = {
+        .tFormat     = tEmmissiveTexDesc.tFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = tProbeData.tAOMetalRoughnessTexture,
+        .tType       = PL_TEXTURE_TYPE_2D
     };
-    gptGfx->update_bind_group(gptData->ptDevice, tProbeData.tLightingBindGroup, &tBGData);
+
+    plTextureViewDesc tRawOutputTextureViewDesc = {
+        .tFormat     = tRawOutputTextureCubeDesc.tFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = tProbeData.tRawOutputTexture,
+        .tType       = PL_TEXTURE_TYPE_2D
+    };
+
+    plTextureViewDesc tDepthTextureViewDesc = {
+        .tFormat     = tDepthTextureDesc.tFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = tProbeData.tDepthTexture,
+        .tType       = PL_TEXTURE_TYPE_2D
+    };
+
+    // create offscreen render pass
+    plRenderPassAttachments atAttachmentSets[6][PL_MAX_FRAMES_IN_FLIGHT] = {0};
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -3200,16 +3192,71 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
         // buffers
         tProbeData.atGlobalBuffers[i] = pl__refr_create_staging_buffer(&atGlobalBuffersDesc, "global", i);
         
-        // attachment sets
-        atAttachmentSets[i].atViewAttachments[0] = tProbeData.tDepthTexture;
-        atAttachmentSets[i].atViewAttachments[1] = tProbeData.tRawOutputTexture;
-        atAttachmentSets[i].atViewAttachments[2] = tProbeData.tAlbedoTexture;
-        atAttachmentSets[i].atViewAttachments[3] = tProbeData.tNormalTexture;
-        atAttachmentSets[i].atViewAttachments[4] = tProbeData.tAOMetalRoughnessTexture;
+        for(uint32_t uFace = 0; uFace < 6; uFace++)
+        {
+
+            tAlbedoTextureViewDesc.uBaseLayer = uFace;
+            tNormalTextureViewDesc.uBaseLayer = uFace;
+            tEmmissiveTexureViewDesc.uBaseLayer = uFace;
+            tRawOutputTextureViewDesc.uBaseLayer = uFace;
+            tDepthTextureViewDesc.uBaseLayer = uFace;
+
+            tProbeData.atAlbedoTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tAlbedoTextureViewDesc);
+            tProbeData.atNormalTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tNormalTextureViewDesc);
+            tProbeData.atAOMetalRoughnessTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tEmmissiveTexureViewDesc);
+            tProbeData.atRawOutputTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tRawOutputTextureViewDesc);
+            tProbeData.atDepthTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tDepthTextureViewDesc);
+
+            // attachment sets
+            atAttachmentSets[uFace][i].atViewAttachments[0] = tProbeData.atDepthTextureViews[uFace];
+            atAttachmentSets[uFace][i].atViewAttachments[1] = tProbeData.atRawOutputTextureViews[uFace];
+            atAttachmentSets[uFace][i].atViewAttachments[2] = tProbeData.atAlbedoTextureViews[uFace];
+            atAttachmentSets[uFace][i].atViewAttachments[3] = tProbeData.atNormalTextureViews[uFace];
+            atAttachmentSets[uFace][i].atViewAttachments[4] = tProbeData.atAOMetalRoughnessTextureViews[uFace];
+        }
 
         tProbeData.tDirectionLightShadowData.atDLightShadowDataBuffer[i] = pl__refr_create_staging_buffer(&atLightShadowDataBufferDesc, "d shadow", i);
         tProbeData.tDirectionLightShadowData.atDShadowCameraBuffers[i] = pl__refr_create_staging_buffer(&atCameraBuffersDesc, "d shadow buffer", i);
 
+    }
+
+    // lighting bind group
+    const plBindGroupDesc tLightingBindGroupDesc = {
+        .ptPool = gptData->ptBindGroupPool,
+        .ptLayout = &tLightingBindGroupLayout,
+        .pcDebugName = "lighting bind group"
+    };
+    
+    for(uint32_t uFace = 0; uFace < 6; uFace++)
+    {
+        const plBindGroupUpdateTextureData atBGTextureData[] = {
+            {
+                .tTexture = tProbeData.atAlbedoTextureViews[uFace],
+                .uSlot    = 0,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = tProbeData.atNormalTextureViews[uFace],
+                .uSlot    = 1,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = tProbeData.atAOMetalRoughnessTextureViews[uFace],
+                .uSlot    = 2,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            },
+            {
+                .tTexture = tProbeData.atDepthTextureViews[uFace],
+                .uSlot    = 3,
+                .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+            }
+        };
+        const plBindGroupUpdateData tBGData = {
+            .uTextureCount = 4,
+            .atTextureBindings = atBGTextureData
+        };
+        tProbeData.atLightingBindGroup[uFace] = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
+        gptGfx->update_bind_group(gptData->ptDevice, tProbeData.atLightingBindGroup[uFace], &tBGData);
     }
 
     const plRenderPassDesc tRenderPassDesc = {
@@ -3234,22 +3281,22 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
             {
                 .tLoadOp       = PL_LOAD_OP_CLEAR,
                 .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
             },
             {
                 .tLoadOp       = PL_LOAD_OP_CLEAR,
                 .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
             },
             {
                 .tLoadOp       = PL_LOAD_OP_CLEAR,
                 .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
             },
             {
@@ -3260,9 +3307,13 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 0.0f}
             }
         },
-        .tDimensions = {.x = tProbeData.tTargetSize.x * 2.0f, .y = tProbeData.tTargetSize.y * 3.0f}
+        .tDimensions = {.x = tProbeData.tTargetSize.x, .y = tProbeData.tTargetSize.y}
     };
-    tProbeData.tRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tRenderPassDesc, atAttachmentSets);
+
+    for(uint32_t uFace = 0; uFace < 6; uFace++)
+    {
+        tProbeData.atRenderPasses[uFace] = gptGfx->create_render_pass(gptData->ptDevice, &tRenderPassDesc, atAttachmentSets[uFace]);
+    }
 
     const plTextureDesc tLutTextureDesc = {
         .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
@@ -3395,35 +3446,13 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~common data~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    // pitch/yaw by face index
-    // const plVec2 atPitchYaw[6] = {
-    //     {      0.0,    PL_PI },
-    //     {      0.0,      0.0 },
-    //     {      0.0,  PL_PI_2 },
-    //     {      0.0, -PL_PI_2 },
-    //     {  PL_PI_2,      0.0 },
-    //     { -PL_PI_2,      0.0 }
-    // };
-
-    const plVec2 atPitchYaw[6] = {
+    const plVec3 atPitchYawRoll[6] = {
         { 0.0f,    PL_PI_2 },
         { 0.0f,    -PL_PI_2 },
         { PL_PI_2,    PL_PI },
         { -PL_PI_2,    PL_PI },
-
-        { PL_PI,    0.0f },
+        { PL_PI,    0.0f, PL_PI },
         { 0.0f,    0.0f },
-        
-    };
-
-    // multiplication factors by face index (multiply by resolution)
-    const plVec2 atRenderOffset[6] = {
-        { 0.0f, 0.0f},
-        { 1.0f, 0.0f},
-        { 0.0f, 1.0f},
-        { 1.0f, 1.0f},
-        { 0.0f, 2.0f},
-        { 1.0f, 2.0f},
     };
 
     const plBindGroupLayout tSceneBGLayout = {
@@ -3556,52 +3585,30 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
         gptGfx->update_bind_group(gptData->ptDevice, tSkyboxBG1, &tSkyboxBG1Data);
         gptGfx->queue_bind_group_for_deletion(ptDevice, tSkyboxBG1);
 
-        plDrawArea atAreas[6] = {0};
+        plDrawArea tArea = {
+            .ptDrawStream = ptStream,
+            .atScissors = 
+            {
+                    {
+                        .uWidth  = (uint32_t)ptProbeComp->uResolution,
+                        .uHeight = (uint32_t)ptProbeComp->uResolution,
+                    }
+            },
+            .atViewports =
+            {
+                    {
+                        .fWidth  = (float)ptProbeComp->uResolution,
+                        .fHeight = (float)ptProbeComp->uResolution,
+                        .fMaxDepth = 1.0f
+                    }
+            }
+        };
         
 
         plCameraComponent atEnvironmentCamera[6] = {0};
 
         for(uint32_t uFace = 0; uFace < 6; uFace++)
         {
-
-            //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~culling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-            
-            // pl_sb_reset(ptProbe->sbtVisibleOpaqueDrawables[uFace]);
-            // pl_sb_reset(ptProbe->sbtVisibleTransparentDrawables[uFace]);
-
-            // if(pl_sb_size(ptProbe->sbtVisibleOpaqueDrawables[uFace]) != uOpaqueDrawableCount)
-            // {
-            //     pl_sb_resize(ptProbe->sbtVisibleOpaqueDrawables[uFace], uOpaqueDrawableCount);
-            //     memcpy(ptProbe->sbtVisibleOpaqueDrawables[uFace], ptScene->sbtDeferredDrawables, sizeof(plDrawable) * uOpaqueDrawableCount);
-            // }
-            // if(pl_sb_size(ptProbe->sbtVisibleTransparentDrawables[uFace]) != uTransparentDrawableCount)
-            // {
-            //     pl_sb_resize(ptProbe->sbtVisibleTransparentDrawables[uFace], uTransparentDrawableCount);
-            //     memcpy(ptProbe->sbtVisibleTransparentDrawables[uFace], ptScene->sbtForwardDrawables, sizeof(plDrawable) * uTransparentDrawableCount);
-            // }
-
-            atAreas[uFace] = (plDrawArea) {
-                .ptDrawStream = ptStream,
-                .atScissors = 
-                {
-                        {
-                            .uWidth  = (uint32_t)ptProbeComp->uResolution,
-                            .uHeight = (uint32_t)ptProbeComp->uResolution,
-                            .iOffsetX = (int)(atRenderOffset[uFace].x * (float)ptProbeComp->uResolution),
-                            .iOffsetY = (int)(atRenderOffset[uFace].y * (float)ptProbeComp->uResolution),
-                        }
-                },
-                .atViewports =
-                {
-                        {
-                            .fX = atRenderOffset[uFace].x * (float)ptProbeComp->uResolution,
-                            .fY = atRenderOffset[uFace].y * (float)ptProbeComp->uResolution,
-                            .fWidth  = (float)ptProbeComp->uResolution,
-                            .fHeight = (float)ptProbeComp->uResolution,
-                            .fMaxDepth = 1.0f
-                        }
-                }
-            };
 
             atEnvironmentCamera[uFace] = (plCameraComponent){
                 .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
@@ -3610,8 +3617,9 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                 .fFarZ        = ptProbeComp->fRange,
                 .fFieldOfView = PL_PI_2,
                 .fAspectRatio = 1.0f,
+                .fRoll        = atPitchYawRoll[uFace].z
             };
-            gptCamera->set_pitch_yaw(&atEnvironmentCamera[uFace], atPitchYaw[uFace].x, atPitchYaw[uFace].y);
+            gptCamera->set_pitch_yaw(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y);
             gptCamera->update(&atEnvironmentCamera[uFace]);
 
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~cascaded shadow maps~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3645,8 +3653,8 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~probe render prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
             const BindGroup_0 tProbeBindGroupBuffer = {
-                .tViewportSize         = {.x = ptProbe->tTargetSize.x, .y = ptProbe->tTargetSize.y, .z = 0.5f, .w = 1.0f / 3.0f},
-                .tViewportInfo         = {atRenderOffset[uFace].x * (float)ptProbeComp->uResolution, atRenderOffset[uFace].y * (float)ptProbeComp->uResolution},
+                .tViewportSize         = {.x = ptProbe->tTargetSize.x, .y = ptProbe->tTargetSize.y, .z = 1.0f, .w = 1.0f},
+                .tViewportInfo         = {0},
                 .tCameraPos            = atEnvironmentCamera[uFace].tPos,
                 .tCameraProjection     = atEnvironmentCamera[uFace].tProjMat,
                 .tCameraView           = atEnvironmentCamera[uFace].tViewMat,
@@ -3690,13 +3698,13 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
         plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
         gptGfx->begin_command_recording(ptCmdBuffer, &tProbeBeginInfo);
 
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        plRenderEncoder* ptProbeEncoder = gptGfx->begin_render_pass(ptCmdBuffer, ptProbe->tRenderPass, NULL);
-        gptGfx->set_depth_bias(ptProbeEncoder, 0.0f, 0.0f, 0.0f);
-
         for(uint32_t uFace = 0; uFace < 6; uFace++)
         {
+
+            //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+            plRenderEncoder* ptProbeEncoder = gptGfx->begin_render_pass(ptCmdBuffer, ptProbe->atRenderPasses[uFace], NULL);
+            gptGfx->set_depth_bias(ptProbeEncoder, 0.0f, 0.0f, 0.0f);
 
             plCullData tDeferredCullData = {
                 .ptScene      = ptScene,
@@ -3765,16 +3773,12 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                 });
             }
 
-            gptGfx->draw_stream(ptProbeEncoder, 1, &atAreas[uFace]); 
-        }
-        
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 1 - lighting~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-        gptGfx->next_subpass(ptProbeEncoder, NULL);
-
-        for(uint32_t uFace = 0; uFace < 6; uFace++)
-        {
+            gptGfx->draw_stream(ptProbeEncoder, 1, &tArea); 
             
+            //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 1 - lighting~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+            gptGfx->next_subpass(ptProbeEncoder, NULL);
+
             // create lighting dynamic bind group
 
             typedef struct _plLightingDynamicData
@@ -3809,7 +3813,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                 .uTriangleCount       = 2,
                 .atBindGroups = {
                     ptScene->tGlobalBindGroup,
-                    ptProbe->tLightingBindGroup,
+                    ptProbe->atLightingBindGroup[uFace],
                     tSceneBG
                 },
                 .auDynamicBufferOffsets = {
@@ -3818,15 +3822,11 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                 .uInstanceOffset = 0,
                 .uInstanceCount = 1
             });
-            gptGfx->draw_stream(ptProbeEncoder, 1, &atAreas[uFace]);
-        }
-        
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            gptGfx->draw_stream(ptProbeEncoder, 1, &tArea);
+            
+            //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        gptGfx->next_subpass(ptProbeEncoder, NULL);
-
-        for(uint32_t uFace = 0; uFace < 6; uFace++)
-        {
+            gptGfx->next_subpass(ptProbeEncoder, NULL);
 
             plCullData tForwardCullData = {
                 .ptScene      = ptScene,
@@ -3881,7 +3881,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                     .uInstanceOffset = 0,
                     .uInstanceCount = 1
                 });
-                gptGfx->draw_stream(ptProbeEncoder, 1, &atAreas[uFace]);
+                gptGfx->draw_stream(ptProbeEncoder, 1, &tArea);
             }
             
             // transparent & complex material objects
@@ -3928,12 +3928,14 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                     .uInstanceCount = 1
                 });
             }
-            gptGfx->draw_stream(ptProbeEncoder, 1, &atAreas[uFace]);
+            gptGfx->draw_stream(ptProbeEncoder, 1, &tArea);
+
+            gptGfx->end_render_pass(ptProbeEncoder);
         }
         
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submission~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        gptGfx->end_render_pass(ptProbeEncoder);
+        
         gptGfx->end_command_recording(ptCmdBuffer);
 
         const plSubmitInfo tProbeSubmitInfo = {
@@ -3960,9 +3962,8 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
     plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
     plTimelineSemaphore* tSemHandle = gptData->aptSemaphores[gptGfx->get_current_frame_index()];
 
-    plTexture* ptCubeTexture = gptGfx->get_texture(ptDevice, ptProbe->tRawOutputCubeTexture);
     plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptProbe->tRawOutputTexture);
-    const int iResolution = (int)(ptCubeTexture->tDesc.tDimensions.x);
+    const int iResolution = (int)(ptTexture->tDesc.tDimensions.x);
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
 
     // copy to cube
@@ -3977,43 +3978,7 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo1);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
         gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-
-        plImageCopy atImageCopy[6] = {0};
-
-        const plVec2 atRenderOffset[6] = {
-            { 0.0f, 0.0f}, // +x
-            { 1.0f, 0.0f}, // -x
-            { 0.0f, 1.0f}, // +y
-            { 1.0f, 1.0f}, // -y
-            { 0.0f, 2.0f}, // +z
-            { 1.0f, 2.0f}, // -z
-        };
-
-        for(uint32_t i = 0; i < 6; i++)
-        {
-            // source
-            atImageCopy[i].iSourceOffsetX = iResolution * (int)atRenderOffset[i].x;
-            atImageCopy[i].iSourceOffsetY = iResolution * (int)atRenderOffset[i].y;
-            atImageCopy[i].iSourceOffsetZ = 0;
-            atImageCopy[i].uSourceExtentX = (uint32_t)iResolution;
-            atImageCopy[i].uSourceExtentY = (uint32_t)iResolution;
-            atImageCopy[i].uSourceExtentZ = 1;
-            atImageCopy[i].uSourceMipLevel = 0;
-            atImageCopy[i].uSourceBaseArrayLayer = 0;
-            atImageCopy[i].uSourceLayerCount = 1;
-            atImageCopy[i].tSourceImageUsage = PL_TEXTURE_USAGE_SAMPLED;
-
-            // destination
-            atImageCopy[i].iDestinationOffsetX = 0;
-            atImageCopy[i].iDestinationOffsetY = 0;
-            atImageCopy[i].iDestinationOffsetZ = 0;
-            atImageCopy[i].uDestinationMipLevel = 0;
-            atImageCopy[i].uDestinationBaseArrayLayer = i;
-            atImageCopy[i].uDestinationLayerCount = 1;
-            atImageCopy[i].tDestinationImageUsage = PL_TEXTURE_USAGE_SAMPLED;
-        }
-        gptGfx->copy_texture(ptBlitEncoder, ptProbe->tRawOutputTexture, ptProbe->tRawOutputCubeTexture, 6, atImageCopy);
-        gptGfx->generate_mipmaps(ptBlitEncoder, ptProbe->tRawOutputCubeTexture);
+        gptGfx->generate_mipmaps(ptBlitEncoder, ptProbe->tRawOutputTexture);
         gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptBlitEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
@@ -4078,7 +4043,7 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
             .uSlot = 0
         };
         const plBindGroupUpdateTextureData tTextureData = {
-            .tTexture = ptProbe->tRawOutputCubeTexture,
+            .tTexture = ptProbe->tRawOutputTexture,
             .uSlot    = 1,
             .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
         };
@@ -4219,7 +4184,7 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
             .uSlot = 0
         };
         const plBindGroupUpdateTextureData tTextureData = {
-            .tTexture = ptProbe->tRawOutputCubeTexture,
+            .tTexture = ptProbe->tRawOutputTexture,
             .uSlot    = 1,
             .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
         };
@@ -4577,7 +4542,7 @@ pl__refr_process_drawables(uint32_t uSceneHandle, bool bReload)
             };
 
             (sbtNewDrawables[uDrawableBatchIndex])[i].tShader = pl__get_shader_variant(uSceneHandle, atTemplateShaders[uDrawableBatchIndex], &tVariant);
-            aiConstantData0[4] = gptData->bPunctualLighting ? PL_RENDERING_FLAG_USE_PUNCTUAL : 0;
+            aiConstantData0[4] = gptData->bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
             (sbtNewDrawables[uDrawableBatchIndex])[i].tEnvShader = pl__get_shader_variant(uSceneHandle, atTemplateShaders[uDrawableBatchIndex], &tVariant);
 
             if(uDrawableBatchIndex > 0)

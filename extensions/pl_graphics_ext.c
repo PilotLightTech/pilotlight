@@ -346,7 +346,6 @@ pl__cleanup_common_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtBufferFreeIndices);
     pl_sb_free(ptDevice->sbtTexturesCold);
     pl_sb_free(ptDevice->sbtSamplersCold);
-    pl_sb_free(ptDevice->sbtBindGroupsCold);
     pl_sb_free(ptDevice->sbtRenderPassesCold);
     pl_sb_free(ptDevice->sbtTextureFreeIndices);
     pl_sb_free(ptDevice->sbtRenderPassLayoutsCold);
@@ -356,6 +355,12 @@ pl__cleanup_common_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtComputeShaderFreeIndices);
     pl_sb_free(ptDevice->sbtRenderPassLayoutFreeIndices);
     pl_sb_free(ptDevice->sbtRenderPassFreeIndices);
+
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBindGroupsCold); i++)
+    {
+        pl_sb_free(ptDevice->sbtBindGroupsCold[i]._sbtTextures);
+    }
+    pl_sb_free(ptDevice->sbtBindGroupsCold);
 
     plTimelineSemaphore* ptCurrentSemaphore = ptDevice->ptSemaphoreFreeList;
     while(ptCurrentSemaphore)
