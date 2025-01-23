@@ -98,12 +98,19 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                 plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, *ptSelectedEntity);
                 plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, *ptSelectedEntity);
                 plEnvironmentProbeComponent*  ptProbeComp         = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, *ptSelectedEntity);
+                plHumanoidComponent*          ptHumanComp         = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, *ptSelectedEntity);
+
 
                 gptUi->text("Entity: %u, %u", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
 
                 if(ptTagComp && gptUi->begin_collapsing_header("Tag", 0))
                 {
                     gptUi->text("Name: %s", ptTagComp->acName);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptHumanComp && gptUi->begin_collapsing_header("Humanoid", 0))
+                {
                     gptUi->end_collapsing_header();
                 }
 
@@ -331,7 +338,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                         // int iResolution = (int)ptLight->uShadowResolution;
                         gptUi->input_float4("Cascade Splits", ptLightComp->afCascadeSplits, NULL, 0);
                     }
-
+                    gptUi->end_collapsing_header();
                 }
 
                 if(ptMaterialComp && gptUi->begin_collapsing_header("Material", 0))

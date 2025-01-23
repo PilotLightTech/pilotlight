@@ -300,8 +300,17 @@ pl__refr_create_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, u
     plBuffer* ptBuffer = NULL;
     const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc, &ptBuffer);
 
+    // PL_DEVICE_BUDDY_BLOCK_SIZE
+
+    plDeviceMemoryAllocatorI* ptAllocator = NULL;
+
+    if(ptBuffer->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+        ptAllocator = gptData->ptStagingUnCachedAllocator;
+    else
+        ptAllocator = gptData->ptStagingUnCachedBuddyAllocator;
+
     // allocate memory
-    const plDeviceMemoryAllocation tAllocation = gptData->ptStagingUnCachedAllocator->allocate(gptData->ptStagingUnCachedAllocator->ptInst, 
+    const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
         ptBuffer->tMemoryRequirements.uMemoryTypeBits,
         ptBuffer->tMemoryRequirements.ulSize,
         ptBuffer->tMemoryRequirements.ulAlignment,

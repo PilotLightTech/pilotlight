@@ -180,15 +180,16 @@ pl_refr_initialize(plWindow* ptWindow)
     }
 
     // load gpu allocators
-    gptData->ptLocalBuddyAllocator      = gptGpuAllocators->get_local_buddy_allocator(gptData->ptDevice);
-    gptData->ptLocalDedicatedAllocator  = gptGpuAllocators->get_local_dedicated_allocator(gptData->ptDevice);
-    gptData->ptStagingUnCachedAllocator = gptGpuAllocators->get_staging_uncached_allocator(gptData->ptDevice);
-    gptData->ptStagingCachedAllocator   = gptGpuAllocators->get_staging_cached_allocator(gptData->ptDevice);
+    gptData->ptLocalBuddyAllocator           = gptGpuAllocators->get_local_buddy_allocator(gptData->ptDevice);
+    gptData->ptLocalDedicatedAllocator       = gptGpuAllocators->get_local_dedicated_allocator(gptData->ptDevice);
+    gptData->ptStagingUnCachedAllocator      = gptGpuAllocators->get_staging_uncached_allocator(gptData->ptDevice);
+    gptData->ptStagingUnCachedBuddyAllocator = gptGpuAllocators->get_staging_uncached_buddy_allocator(gptData->ptDevice);
+    gptData->ptStagingCachedAllocator        = gptGpuAllocators->get_staging_cached_allocator(gptData->ptDevice);
 
     // create staging buffers
     const plBufferDesc tStagingBufferDesc = {
         .tUsage     = PL_BUFFER_USAGE_STAGING,
-        .szByteSize = 268435456 / 2
+        .szByteSize = 268435456
     };
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         gptData->tStagingBufferHandle[i] = pl__refr_create_staging_buffer(&tStagingBufferDesc, "staging", i);

@@ -41,7 +41,7 @@ typedef struct _plDevice plDevice;
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plGPUAllocatorsI_version (plVersion){1, 0, 0}
+#define plGPUAllocatorsI_version (plVersion){1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -50,10 +50,11 @@ typedef struct _plDevice plDevice;
 typedef struct _plGPUAllocatorsI
 {
     // allocators
-    plDeviceMemoryAllocatorI* (*get_local_dedicated_allocator) (plDevice*);
-    plDeviceMemoryAllocatorI* (*get_local_buddy_allocator)     (plDevice*);
-    plDeviceMemoryAllocatorI* (*get_staging_uncached_allocator)(plDevice*);
-    plDeviceMemoryAllocatorI* (*get_staging_cached_allocator)  (plDevice*);
+    plDeviceMemoryAllocatorI* (*get_local_dedicated_allocator)       (plDevice*);
+    plDeviceMemoryAllocatorI* (*get_local_buddy_allocator)           (plDevice*);
+    plDeviceMemoryAllocatorI* (*get_staging_uncached_allocator)      (plDevice*);
+    plDeviceMemoryAllocatorI* (*get_staging_uncached_buddy_allocator)(plDevice*);
+    plDeviceMemoryAllocatorI* (*get_staging_cached_allocator)        (plDevice*);
 
     void (*cleanup)(plDevice*);
 
