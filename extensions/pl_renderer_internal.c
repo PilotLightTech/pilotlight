@@ -746,7 +746,7 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
         int iSourceDataOffset;
         int iDestDataOffset;
         int iDestVertexOffset;
-        int iUnused;
+        uint32_t uMaxSize;
     } SkinDynamicData;
 
     if(uSkinCount)
@@ -772,12 +772,13 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
             ptDynamicData->iSourceDataOffset = ptScene->sbtSkinData[i].iSourceDataOffset;
             ptDynamicData->iDestDataOffset = ptScene->sbtSkinData[i].iDestDataOffset;
             ptDynamicData->iDestVertexOffset = ptScene->sbtSkinData[i].iDestVertexOffset;
+            ptDynamicData->uMaxSize = ptScene->sbtSkinData[i].uVertexCount;
 
             const plDispatch tDispach = {
-                .uGroupCountX     = ptScene->sbtSkinData[i].uVertexCount,
+                .uGroupCountX     = (uint32_t)ceilf((float)ptScene->sbtSkinData[i].uVertexCount / 64.0f),
                 .uGroupCountY     = 1,
                 .uGroupCountZ     = 1,
-                .uThreadPerGroupX = 1,
+                .uThreadPerGroupX = 64,
                 .uThreadPerGroupY = 1,
                 .uThreadPerGroupZ = 1
             };

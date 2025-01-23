@@ -47,7 +47,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     int iSourceDataOffset;
     int iDestDataOffset;
     int iDestVertexOffset;
-    int iUnused;
+    uint uMaxSize;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -108,13 +108,16 @@ get_skinning_matrix(vec4 inJoints0, vec4 inWeights0)
 // [SECTION] entry
 //-----------------------------------------------------------------------------
 
-layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout (local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 void
 main()
 {
 
-    const uint iVertexIndex = gl_WorkGroupID.x;
+    const uint iVertexIndex = gl_WorkGroupID.x * 64 + gl_LocalInvocationID.x;
+
+    if(iVertexIndex > tObjectInfo.uMaxSize)
+        return;
 
     vec4 inPosition  = vec4(0.0, 0.0, 0.0, 1.0);
     vec3 inNormal    = vec3(0.0, 0.0, 0.0);
