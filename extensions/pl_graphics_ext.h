@@ -48,7 +48,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version (plVersion){1, 2, 0}
+#define plGraphicsI_version (plVersion){1, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -95,6 +95,7 @@ typedef struct _plRenderEncoder       plRenderEncoder;       // opaque type for 
 typedef struct _plComputeEncoder      plComputeEncoder;      // opaque type for command buffer encoder for compute ops
 typedef struct _plBlitEncoder         plBlitEncoder;         // opaque type for command buffer encoder for blit ops
 typedef struct _plBufferImageCopy     plBufferImageCopy;     // used for copying between buffers & textures with blit encoder
+typedef struct _plImageCopy           plImageCopy;           // used for copying between textures with blit encoder
 typedef struct _plPassTextureResource plPassTextureResource;
 typedef struct _plPassBufferResource  plPassBufferResource;
 typedef struct _plPassResources       plPassResources;
@@ -299,6 +300,7 @@ typedef struct _plGraphicsI
     void           (*set_texture_usage)        (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
     void           (*copy_buffer_to_texture)   (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
     void           (*copy_texture_to_buffer)   (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
+    void           (*copy_texture)             (plBlitEncoder*, plTextureHandle, plTextureHandle, uint32_t regionCount, const plImageCopy*);
     void           (*generate_mipmaps)         (plBlitEncoder*, plTextureHandle);
     void           (*copy_buffer)              (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint32_t sourceOffset, uint32_t destinationOffset, size_t);
 
@@ -633,6 +635,7 @@ typedef struct _plBindGroup
 
     // [INTERNAL]
     uint16_t _uGeneration;
+    plTextureHandle* _sbtTextures;
 } plBindGroup;
 
 //-------------------------------shaders---------------------------------------
@@ -887,6 +890,30 @@ typedef struct _plBufferImageCopy
     uint32_t       uBufferImageHeight;
     plTextureUsage tCurrentImageUsage;
 } plBufferImageCopy;
+
+typedef struct _plImageCopy
+{
+    // source info
+    int            iSourceOffsetX;
+    int            iSourceOffsetY;
+    int            iSourceOffsetZ;
+    uint32_t       uSourceExtentX;
+    uint32_t       uSourceExtentY;
+    uint32_t       uSourceExtentZ;
+    uint32_t       uSourceMipLevel;
+    uint32_t       uSourceBaseArrayLayer;
+    uint32_t       uSourceLayerCount;
+    plTextureUsage tSourceImageUsage;
+
+    // destination offset
+    int            iDestinationOffsetX;
+    int            iDestinationOffsetY;
+    int            iDestinationOffsetZ;
+    uint32_t       uDestinationMipLevel;
+    uint32_t       uDestinationBaseArrayLayer;
+    uint32_t       uDestinationLayerCount;
+    plTextureUsage tDestinationImageUsage;
+} plImageCopy; 
 
 typedef struct _plDrawArea
 {

@@ -627,6 +627,115 @@ pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHand
 }
 
 void
+pl_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
+{
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+
+    // allocate temporary memory
+    VkImageCopy* atCopyRegions = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkImageCopy) * uRegionCount);
+    memset(atCopyRegions, 0, sizeof(VkImageCopy) * uRegionCount);
+
+    VkImageSubresourceRange* atSubResourceRanges = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkImageSubresourceRange) * uRegionCount);
+    memset(atSubResourceRanges, 0, sizeof(VkImageSubresourceRange) * uRegionCount * 2);
+
+    // setup copy regions
+    plTexture* ptColdSrcTexture = pl__get_texture(ptDevice, tSrcHandle);
+    plTexture* ptColdDstTexture = pl__get_texture(ptDevice, tDstHandle);
+
+    uint32_t uCurrentSrcBaseArrayLevel = UINT32_MAX;
+    uint32_t uCurrentSrcMipLevel = UINT32_MAX;
+
+    uint32_t uCurrentDestBaseArrayLevel = UINT32_MAX;
+    uint32_t uCurrentDestMipLevel = UINT32_MAX;
+
+    for (uint32_t i = 0; i < uRegionCount; i++)
+    {
+
+        atSubResourceRanges[i].aspectMask = ptColdSrcTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atSubResourceRanges[i].baseMipLevel = ptRegions[i].uSourceMipLevel;
+        atSubResourceRanges[i].levelCount = ptRegions[i].uSourceLayerCount;
+        atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uSourceBaseArrayLayer;
+        atSubResourceRanges[i].layerCount = ptRegions[i].uSourceLayerCount;
+
+        atSubResourceRanges[i + uRegionCount].aspectMask = ptColdDstTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atSubResourceRanges[i + uRegionCount].baseMipLevel = ptRegions[i].uDestinationMipLevel;
+        atSubResourceRanges[i + uRegionCount].levelCount = ptRegions[i].uDestinationLayerCount;
+        atSubResourceRanges[i + uRegionCount].baseArrayLayer = ptRegions[i].uDestinationBaseArrayLayer;
+        atSubResourceRanges[i + uRegionCount].layerCount = ptRegions[i].uDestinationLayerCount;
+
+
+        if(uCurrentSrcBaseArrayLevel != atSubResourceRanges[i].baseArrayLayer || uCurrentSrcMipLevel != atSubResourceRanges[i].baseMipLevel)
+        {
+            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tSrcHandle.uIndex].tImage, pl__vulkan_layout(ptRegions[i].tSourceImageUsage), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            uCurrentSrcBaseArrayLevel = atSubResourceRanges[i].baseArrayLayer;
+            uCurrentSrcMipLevel = atSubResourceRanges[i].baseMipLevel;
+        }
+
+        if(uCurrentDestBaseArrayLevel != atSubResourceRanges[i + uRegionCount].baseArrayLayer || uCurrentDestMipLevel != atSubResourceRanges[i + uRegionCount].baseMipLevel)
+        {
+            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tDstHandle.uIndex].tImage, pl__vulkan_layout(ptRegions[i].tDestinationImageUsage), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, atSubResourceRanges[i + uRegionCount], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            uCurrentDestBaseArrayLevel = atSubResourceRanges[i + uRegionCount].baseArrayLayer;
+            uCurrentDestMipLevel = atSubResourceRanges[i + uRegionCount].baseMipLevel;
+        }
+
+
+        atCopyRegions[i].srcOffset.x = ptRegions[i].iSourceOffsetX;
+        atCopyRegions[i].srcOffset.y = ptRegions[i].iSourceOffsetY;
+        atCopyRegions[i].srcOffset.z = ptRegions[i].iSourceOffsetZ;
+
+        atCopyRegions[i].extent.width = ptRegions[i].uSourceExtentX;
+        atCopyRegions[i].extent.height = ptRegions[i].uSourceExtentY;
+        atCopyRegions[i].extent.depth = ptRegions[i].uSourceExtentZ;
+
+        atCopyRegions[i].srcSubresource.baseArrayLayer = ptRegions[i].uSourceBaseArrayLayer;
+        atCopyRegions[i].srcSubresource.layerCount = ptRegions[i].uSourceLayerCount;
+        atCopyRegions[i].srcSubresource.mipLevel = ptRegions[i].uSourceMipLevel;
+        atCopyRegions[i].srcSubresource.aspectMask = ptColdSrcTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+        atCopyRegions[i].dstOffset.x = ptRegions[i].iDestinationOffsetX;
+        atCopyRegions[i].dstOffset.y = ptRegions[i].iDestinationOffsetY;
+        atCopyRegions[i].dstOffset.z = ptRegions[i].iDestinationOffsetZ;
+
+        atCopyRegions[i].dstSubresource.baseArrayLayer = ptRegions[i].uDestinationBaseArrayLayer;
+        atCopyRegions[i].dstSubresource.layerCount = ptRegions[i].uDestinationLayerCount;
+        atCopyRegions[i].dstSubresource.mipLevel = ptRegions[i].uDestinationMipLevel;
+        atCopyRegions[i].dstSubresource.aspectMask = ptColdDstTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
+    vkCmdCopyImage(ptCmdBuffer->tCmdBuffer,
+        ptDevice->sbtTexturesHot[tSrcHandle.uIndex].tImage,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        ptDevice->sbtTexturesHot[tDstHandle.uIndex].tImage,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        uRegionCount,
+        atCopyRegions);
+
+    uCurrentSrcBaseArrayLevel = UINT32_MAX;
+    uCurrentSrcMipLevel = UINT32_MAX;
+    uCurrentDestBaseArrayLevel = UINT32_MAX;
+    uCurrentDestMipLevel = UINT32_MAX;
+
+    for (uint32_t i = 0; i < uRegionCount; i++)
+    {
+        if(uCurrentSrcBaseArrayLevel != atSubResourceRanges[i].baseArrayLayer || uCurrentSrcMipLevel != atSubResourceRanges[i].baseMipLevel)
+        {
+            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tSrcHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, pl__vulkan_layout(ptRegions[i].tSourceImageUsage), atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+            uCurrentSrcBaseArrayLevel = atSubResourceRanges[i].baseArrayLayer;
+            uCurrentSrcMipLevel = atSubResourceRanges[i].baseMipLevel;
+        }
+        if(uCurrentDestBaseArrayLevel != atSubResourceRanges[i + uRegionCount].baseArrayLayer || uCurrentDestMipLevel != atSubResourceRanges[i + uRegionCount].baseMipLevel)
+        {
+            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tDstHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, pl__vulkan_layout(ptRegions[i].tDestinationImageUsage), atSubResourceRanges[i + uRegionCount], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+            uCurrentDestBaseArrayLevel = atSubResourceRanges[i + uRegionCount].baseArrayLayer;
+            uCurrentDestMipLevel = atSubResourceRanges[i + uRegionCount].baseMipLevel;
+        }
+    }
+
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
+}
+
+void
 pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;

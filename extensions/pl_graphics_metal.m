@@ -148,7 +148,6 @@ typedef struct _plMetalBindGroup
     plSamplerHandle   atSamplerBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
     uint64_t          uHeapUsageMask;
     uint32_t          uOffset;
-    plTextureHandle*  sbtTextures;
 } plMetalBindGroup;
 
 typedef struct _plMetalShader
@@ -549,6 +548,44 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
     }
 }
 
+void
+pl_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
+{
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    const plMetalTexture* ptMetalSrcTexture = &ptDevice->sbtTexturesHot[tSrcHandle.uIndex];
+    const plMetalTexture* ptMetalDstTexture = &ptDevice->sbtTexturesHot[tDstHandle.uIndex];
+
+    for(uint32_t i = 0; i < uRegionCount; i++)
+    {
+
+        MTLOrigin tSrcOrigin;
+        tSrcOrigin.x = ptRegions[i].iSourceOffsetX;
+        tSrcOrigin.y = ptRegions[i].iSourceOffsetY;
+        tSrcOrigin.z = ptRegions[i].iSourceOffsetZ;
+
+        MTLOrigin tDestOrigin;
+        tDestOrigin.x = ptRegions[i].iDestinationOffsetX;
+        tDestOrigin.y = ptRegions[i].iDestinationOffsetY;
+        tDestOrigin.z = ptRegions[i].iDestinationOffsetZ;
+
+        MTLSize tSourceSize;
+        tSourceSize.width  = ptRegions[i].uSourceExtentX;
+        tSourceSize.height = ptRegions[i].uSourceExtentY;
+        tSourceSize.depth  = ptRegions[i].uSourceExtentZ;
+
+        [ptEncoder->tEncoder copyFromTexture:ptMetalSrcTexture->tTexture
+            sourceSlice:ptRegions[i].uSourceBaseArrayLayer
+            sourceLevel:ptRegions[i].uSourceMipLevel
+            sourceOrigin:tSrcOrigin
+            sourceSize:tSourceSize
+            toTexture:ptMetalDstTexture->tTexture
+            destinationSlice:ptRegions[i].uDestinationBaseArrayLayer
+            destinationLevel:ptRegions[i].uDestinationMipLevel
+            destinationOrigin:tDestOrigin];
+    }
+}
+
 static void
 pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
@@ -900,6 +937,8 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     plBindGroup* ptBindGroup = pl__get_bind_group(ptDevice, tHandle);
     const char* pcDescriptorStart = ptMetalBindGroup->tShaderArgumentBuffer.contents;
 
+    pl_sb_reset(ptBindGroup->_sbtTextures);
+
     uint64_t* pulDescriptorStart = (uint64_t*)&pcDescriptorStart[ptMetalBindGroup->uOffset];
 
     for(uint32_t i = 0; i < ptData->uBufferCount; i++)
@@ -908,7 +947,6 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         plMetalBuffer* ptMetalBuffer = &ptDevice->sbtBuffersHot[ptUpdate->tBuffer.uIndex];
         uint64_t* ppfDestination = &pulDescriptorStart[ptUpdate->uSlot];
         *ppfDestination = ptMetalBuffer->tBuffer.gpuAddress;
-
         ptMetalBindGroup->uHeapUsageMask |= (1ULL << ptMetalBuffer->uHeap);
     }
 
@@ -923,7 +961,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         int iCommonBits = ptTexture->tDesc.tUsage & (PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_COLOR_ATTACHMENT |PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE);
         if(iCommonBits)
         {
-            pl_sb_push(ptMetalBindGroup->sbtTextures, ptUpdate->tTexture);
+            pl_sb_push(ptBindGroup->_sbtTextures, ptUpdate->tTexture);
         }
 
         ptMetalBindGroup->uHeapUsageMask |= (1ULL << ptMetalTexture->uHeap);
@@ -2171,9 +2209,10 @@ pl_bind_compute_bind_groups(
 
     for(uint32_t i = 0; i < uCount; i++)
     {
-        plMetalBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsHot[atBindGroups[i].uIndex];
+        plBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsCold[atBindGroups[i].uIndex];
+        plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[atBindGroups[i].uIndex];
 
-        ptEncoder->uHeapUsageMask |= ptBindGroup->uHeapUsageMask;
+        ptEncoder->uHeapUsageMask |= ptMetalBindGroup->uHeapUsageMask;
 
         for(uint64_t k = 0; k < 64; k++)
         {
@@ -2183,10 +2222,10 @@ pl_bind_compute_bind_groups(
             }
         }
         
-        const uint32_t uTextureCount = pl_sb_size(ptBindGroup->sbtTextures);
+        const uint32_t uTextureCount = pl_sb_size(ptBindGroup->_sbtTextures);
         for(uint32_t k = 0; k < uTextureCount; k++)
         {
-            const plTextureHandle tTextureHandle = ptBindGroup->sbtTextures[k];
+            const plTextureHandle tTextureHandle = ptBindGroup->_sbtTextures[k];
             plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
             if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_STORAGE)
             {
@@ -2198,8 +2237,8 @@ pl_bind_compute_bind_groups(
             }
         }
 
-        [ptEncoder->tEncoder setBuffer:ptBindGroup->tShaderArgumentBuffer
-            offset:ptBindGroup->uOffset
+        [ptEncoder->tEncoder setBuffer:ptMetalBindGroup->tShaderArgumentBuffer
+            offset:ptMetalBindGroup->uOffset
             atIndex:uFirst + i];
     }
 }
@@ -2219,9 +2258,10 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
 
     for(uint32_t i = 0; i < uCount; i++)
     {
-        plMetalBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsHot[atBindGroups[i].uIndex];
+        plBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsCold[atBindGroups[i].uIndex];
+        plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[atBindGroups[i].uIndex];
 
-        ptEncoder->uHeapUsageMask |= ptBindGroup->uHeapUsageMask;
+        ptEncoder->uHeapUsageMask |= ptMetalBindGroup->uHeapUsageMask;
 
         for(uint64_t k = 0; k < 64; k++)
         {
@@ -2231,16 +2271,16 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
             }
         }
 
-        const uint32_t uTextureCount = pl_sb_size(ptBindGroup->sbtTextures);
+        const uint32_t uTextureCount = pl_sb_size(ptBindGroup->_sbtTextures);
         for(uint32_t k = 0; k < uTextureCount; k++)
         {
-            const plTextureHandle tTextureHandle = ptBindGroup->sbtTextures[k];
+            const plTextureHandle tTextureHandle = ptBindGroup->_sbtTextures[k];
             plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
             [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
         }
 
-        [ptEncoder->tEncoder setVertexBuffer:ptBindGroup->tShaderArgumentBuffer offset:ptBindGroup->uOffset atIndex:uFirst + i];
-        [ptEncoder->tEncoder setFragmentBuffer:ptBindGroup->tShaderArgumentBuffer offset:ptBindGroup->uOffset atIndex:uFirst + i];
+        [ptEncoder->tEncoder setVertexBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:uFirst + i];
+        [ptEncoder->tEncoder setFragmentBuffer:ptMetalBindGroup->tShaderArgumentBuffer offset:ptMetalBindGroup->uOffset atIndex:uFirst + i];
     }
 }
 
@@ -2442,6 +2482,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             if(uDirtyMask & PL_DRAW_STREAM_BIT_BINDGROUP_0)
             {
                 const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                plBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsCold[tBindGroupHandle.uIndex];
                 plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
 
                 ptEncoder->uHeapUsageMask |= ptMetalBindGroup->uHeapUsageMask;
@@ -2455,10 +2496,10 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                     }
                 }
 
-                const uint32_t uTextureCount = pl_sb_size(ptMetalBindGroup->sbtTextures);
+                const uint32_t uTextureCount = pl_sb_size(ptBindGroup->_sbtTextures);
                 for(uint32_t k = 0; k < uTextureCount; k++)
                 {
-                    const plTextureHandle tTextureHandle = ptMetalBindGroup->sbtTextures[k];
+                    const plTextureHandle tTextureHandle = ptBindGroup->_sbtTextures[k];
                     plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
@@ -2472,6 +2513,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             {
                 const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
                 plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
+                plBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsCold[tBindGroupHandle.uIndex];
 
                 ptEncoder->uHeapUsageMask |= ptMetalBindGroup->uHeapUsageMask;
 
@@ -2484,10 +2526,10 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                     }
                 }
 
-                const uint32_t uTextureCount = pl_sb_size(ptMetalBindGroup->sbtTextures);
+                const uint32_t uTextureCount = pl_sb_size(ptBindGroup->_sbtTextures);
                 for(uint32_t k = 0; k < uTextureCount; k++)
                 {
-                    const plTextureHandle tTextureHandle = ptMetalBindGroup->sbtTextures[k];
+                    const plTextureHandle tTextureHandle = ptBindGroup->_sbtTextures[k];
                     plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
@@ -2501,6 +2543,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             {
                 const plBindGroupHandle tBindGroupHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
                 plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tBindGroupHandle.uIndex];
+                plBindGroup* ptBindGroup = &ptDevice->sbtBindGroupsCold[tBindGroupHandle.uIndex];
 
                 ptEncoder->uHeapUsageMask |= ptMetalBindGroup->uHeapUsageMask;
 
@@ -2513,10 +2556,10 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                     }
                 }
                 
-                const uint32_t uTextureCount = pl_sb_size(ptMetalBindGroup->sbtTextures);
+                const uint32_t uTextureCount = pl_sb_size(ptBindGroup->_sbtTextures);
                 for(uint32_t k = 0; k < uTextureCount; k++)
                 {
-                    const plTextureHandle tTextureHandle = ptMetalBindGroup->sbtTextures[k];
+                    const plTextureHandle tTextureHandle = ptBindGroup->_sbtTextures[k];
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment]; 
                 }
 
@@ -2649,6 +2692,7 @@ pl_cleanup_device(plDevice* ptDevice)
             pl_sb_free(ptDevice->sbtRenderPassesHot[i].atRenderPassDescriptors[j].sbptRenderPassDescriptor);
         }
     }
+    pl_sb_free(ptDevice->sbuFreeHeaps);
     pl_sb_free(ptDevice->sbtTexturesHot);
     pl_sb_free(ptDevice->sbtSamplersHot);
     pl_sb_free(ptDevice->sbtBindGroupsHot);
@@ -3147,8 +3191,9 @@ pl__garbage_collect(plDevice* ptDevice)
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBindGroups); i++)
     {
         const uint16_t iBindGroupIndex = ptGarbage->sbtBindGroups[i].uIndex;
+        plBindGroup* ptResource = &ptDevice->sbtBindGroupsCold[iBindGroupIndex];
         plMetalBindGroup* ptMetalResource = &ptDevice->sbtBindGroupsHot[iBindGroupIndex];
-        pl_sb_reset(ptMetalResource->sbtTextures);
+        pl_sb_reset(ptResource->_sbtTextures);
         [ptMetalResource->tShaderArgumentBuffer release];
         ptMetalResource->tShaderArgumentBuffer = nil;
         pl_sb_push(ptDevice->sbtBindGroupFreeIndices, iBindGroupIndex);
@@ -3323,6 +3368,8 @@ pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
     pl_sb_push(ptDevice->sbtBindGroupFreeIndices, tHandle.uIndex);
 
     plMetalBindGroup* ptMetalResource = &ptDevice->sbtBindGroupsHot[tHandle.uIndex];
+    plBindGroup* ptResource = &ptDevice->sbtBindGroupsCold[tHandle.uIndex];
+    pl_sb_free(ptResource->_sbtTextures);
     [ptMetalResource->tShaderArgumentBuffer release];
     ptMetalResource->tShaderArgumentBuffer = nil;
 }
