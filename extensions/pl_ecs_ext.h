@@ -509,6 +509,7 @@ typedef struct _plObjectComponent
 {
     plEntity tMesh;
     plEntity tTransform;
+    plAABB   tAABB;
 } plObjectComponent;
 
 typedef struct _plHierarchyComponent
@@ -567,7 +568,6 @@ typedef struct _plMeshComponent
     plVec2*      sbtVertexTextureCoordinates[8];
     uint32_t*    sbuIndices;
     plAABB       tAABB;
-    plAABB       tAABBFinal;
 } plMeshComponent;
 
 typedef struct _plSkinComponent

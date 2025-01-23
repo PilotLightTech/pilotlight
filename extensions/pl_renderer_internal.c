@@ -65,9 +65,9 @@ pl__refr_cull_job(plInvocationData tInvoData, void* pData)
     plCullData* ptCullData = pData;
     plRefScene* ptScene = ptCullData->ptScene;
     plDrawable tDrawable = ptCullData->atDrawables[tInvoData.uGlobalIndex];
-    plMeshComponent* ptMesh = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, tDrawable.tEntity);
+    plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
     ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = true;
-    if(pl__sat_visibility_test(ptCullData->ptCullCamera, &ptMesh->tAABBFinal))
+    if(pl__sat_visibility_test(ptCullData->ptCullCamera, &ptObject->tAABB))
     {
         ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
     }

@@ -1137,17 +1137,17 @@ pl__object_update_job(plInvocationData tInvoData, void* pData)
     };
 
     // calculate AABB
-    ptMesh->tAABBFinal.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
-    ptMesh->tAABBFinal.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
+    ptObject->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
+    ptObject->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
     
     for(uint32_t i = 0; i < 8; i++)
     {
-        if(tVerticies[i].x > ptMesh->tAABBFinal.tMax.x) ptMesh->tAABBFinal.tMax.x = tVerticies[i].x;
-        if(tVerticies[i].y > ptMesh->tAABBFinal.tMax.y) ptMesh->tAABBFinal.tMax.y = tVerticies[i].y;
-        if(tVerticies[i].z > ptMesh->tAABBFinal.tMax.z) ptMesh->tAABBFinal.tMax.z = tVerticies[i].z;
-        if(tVerticies[i].x < ptMesh->tAABBFinal.tMin.x) ptMesh->tAABBFinal.tMin.x = tVerticies[i].x;
-        if(tVerticies[i].y < ptMesh->tAABBFinal.tMin.y) ptMesh->tAABBFinal.tMin.y = tVerticies[i].y;
-        if(tVerticies[i].z < ptMesh->tAABBFinal.tMin.z) ptMesh->tAABBFinal.tMin.z = tVerticies[i].z;
+        if(tVerticies[i].x > ptObject->tAABB.tMax.x) ptObject->tAABB.tMax.x = tVerticies[i].x;
+        if(tVerticies[i].y > ptObject->tAABB.tMax.y) ptObject->tAABB.tMax.y = tVerticies[i].y;
+        if(tVerticies[i].z > ptObject->tAABB.tMax.z) ptObject->tAABB.tMax.z = tVerticies[i].z;
+        if(tVerticies[i].x < ptObject->tAABB.tMin.x) ptObject->tAABB.tMin.x = tVerticies[i].x;
+        if(tVerticies[i].y < ptObject->tAABB.tMin.y) ptObject->tAABB.tMin.y = tVerticies[i].y;
+        if(tVerticies[i].z < ptObject->tAABB.tMin.z) ptObject->tAABB.tMin.z = tVerticies[i].z;
     }
 }
 
