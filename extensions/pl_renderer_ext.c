@@ -3497,8 +3497,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             uJumpSteps = 1;
 
         const plDispatch tDispach = {
-            .uGroupCountX     = (uint32_t)tDimensions.x / 8,
-            .uGroupCountY     = (uint32_t)tDimensions.y / 8,
+            .uGroupCountX     = (uint32_t)ceilf(tDimensions.x / 8.0f),
+            .uGroupCountY     = (uint32_t)ceilf(tDimensions.y / 8.0f),
             .uGroupCountZ     = 1,
             .uThreadPerGroupX = 8,
             .uThreadPerGroupY = 8,
@@ -3522,7 +3522,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                 .tTexture = ptView->atUVMaskTexture1,
                 .uSlot    = 1,
                 .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
-                    .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
+                .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
             }
         };
 
@@ -3577,7 +3577,9 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
             plVec4* ptJumpDistance = (plVec4*)tDynamicBinding.pcData;
-            ptJumpDistance->x = fJumpDistance;
+            ptJumpDistance->x = tDimensions.x;
+            ptJumpDistance->y = tDimensions.y;
+            ptJumpDistance->z = fJumpDistance;
 
             gptGfx->bind_compute_bind_groups(ptJumpEncoder, gptData->tJFAShader, 0, 1, &atJFABindGroups[i % 2], 1, &tDynamicBinding);
             gptGfx->dispatch(ptJumpEncoder, 1, &tDispach);

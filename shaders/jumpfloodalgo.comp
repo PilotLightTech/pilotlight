@@ -58,9 +58,12 @@ void main()
     const int iXCoord = int(gl_WorkGroupID.x * 8 + gl_LocalInvocationID.x);
     const int iYCoord = int(gl_WorkGroupID.y * 8 + gl_LocalInvocationID.y);
 
+    if(iXCoord >= tDynamicData.tJumpDistance.x || iYCoord >= tDynamicData.tJumpDistance.y)
+        return;
+
     vec2 outColor = vec2(0.0, 0.0);
 
-    ivec2 jumpDist = ivec2(tDynamicData.tJumpDistance.x);
+    ivec2 jumpDist = ivec2(tDynamicData.tJumpDistance.z);
     
     vec3 curr = vec3(1,1,9999999);
     const ivec2 tMin = ivec2(iXCoord, iYCoord);
