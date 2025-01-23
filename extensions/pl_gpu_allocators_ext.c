@@ -553,6 +553,75 @@ pl_free_buddy(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation*
 }
 
 static plDeviceMemoryAllocation
+pl_allocate_staging_uncached(
+    struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
+    uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+{
+    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
+
+    plDeviceMemoryAllocation tBlock = gptGfx->allocate_memory(ptData->ptDevice, ulSize,
+        PL_MEMORY_GPU_CPU, uTypeFilter, pcName);
+
+    plDeviceMemoryAllocation tAllocation = {
+        .pHostMapped = tBlock.pHostMapped,
+        .uHandle     = tBlock.uHandle,
+        .ulOffset    = 0,
+        .ulSize      = ulSize,
+        .ptAllocator = ptData->ptAllocator,
+        .tMemoryMode = PL_MEMORY_GPU_CPU
+    };
+
+    uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
+    if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
+        uBlockIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
+    else
+        pl_sb_add(ptData->sbtBlocks);
+
+    plDeviceAllocationRange tRange = {
+        .ulOffset     = 0,
+        .ulTotalSize  = ulSize,
+        .ulUsedSize   = ulSize,
+        .ulBlockIndex = uBlockIndex
+    };
+    pl_sprintf(tRange.acName, "%s", pcName);
+
+    pl_sb_push(ptData->sbtNodes, tRange);
+    ptData->sbtBlocks[uBlockIndex] = tBlock;
+    return tAllocation;
+}
+
+static void
+pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation)
+{
+    plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
+
+    uint32_t uBlockIndex = 0;
+    uint32_t uNodeIndex = 0;
+    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
+    {
+        plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
+        plDeviceMemoryAllocation* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
+
+        if(ptBlock->uHandle == ptAllocation->uHandle)
+        {
+            uNodeIndex = i;
+            uBlockIndex = (uint32_t)ptNode->ulBlockIndex;
+            ptBlock->ulSize = 0;
+            break;
+        }
+    }
+    pl_sb_del_swap(ptData->sbtNodes, uNodeIndex);
+    pl_sb_push(ptData->sbtFreeBlockIndices, uBlockIndex);
+
+    gptGfx->free_memory(ptData->ptDevice, &ptData->sbtBlocks[uBlockIndex]);
+
+    ptAllocation->pHostMapped  = NULL;
+    ptAllocation->uHandle      = 0;
+    ptAllocation->ulOffset     = 0;
+    ptAllocation->ulSize       = 0;
+}
+
+static plDeviceMemoryAllocation
 pl_allocate_staging_uncached_buddy(
     struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
     uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
@@ -763,6 +832,39 @@ pl_get_staging_uncached_allocator(plDevice* ptDevice)
 
             ptAllocatorData = &gtAllocatorData;
             ptAllocator = &gtAllocator;
+        }
+    }
+    ptAllocator->allocate = pl_allocate_staging_uncached;
+    ptAllocator->free = pl_free_staging_uncached;
+    return ptAllocator;
+}
+
+static plDeviceMemoryAllocatorI*
+pl_get_staging_uncached_allocator_buddy(plDevice* ptDevice)
+{
+    static plDeviceAllocatorData* ptAllocatorData = NULL;
+    static plDeviceMemoryAllocatorI* ptAllocator = NULL;
+
+    if(ptAllocator == NULL)
+    {
+        ptAllocator = gptDataRegistry->get_data("StagingUncachedAllocatorBuddy");
+
+        if(ptAllocator)
+            ptAllocatorData = gptDataRegistry->get_data("StagingUncachedAllocatorBuddyData");
+        
+        else
+        {
+
+            static plDeviceMemoryAllocatorI gtAllocator = {0};
+            static plDeviceAllocatorData gtAllocatorData = {0};
+            gptDataRegistry->set_data("StagingUncachedAllocatorBuddy", &gtAllocator);
+            gptDataRegistry->set_data("StagingUncachedAllocatorBuddyData", &gtAllocatorData);
+            gtAllocatorData.ptDevice = ptDevice;
+            gtAllocatorData.ptAllocator = &gtAllocator;
+            gtAllocator.ptInst = (struct plDeviceMemoryAllocatorO*)&gtAllocatorData;
+
+            ptAllocatorData = &gtAllocatorData;
+            ptAllocator = &gtAllocator;
 
             if(ptAllocatorData->auFreeList[0] == 0)
             {
@@ -856,6 +958,17 @@ pl_cleanup_allocators(plDevice* ptDevice)
     pl_sb_free(ptAllocatorData->sbtBlocks);
     pl_sb_free(ptAllocatorData->sbtNodes);
     pl_sb_free(ptAllocatorData->sbtFreeBlockIndices);
+
+    ptAllocator = pl_get_staging_uncached_allocator_buddy(ptDevice);
+    ptAllocatorData = (plDeviceAllocatorData*)ptAllocator->ptInst;
+    for(uint32_t i = 0; i < pl_sb_size(ptAllocatorData->sbtBlocks); i++)
+    {
+        if(ptAllocatorData->sbtBlocks[i].uHandle)
+            gptGfx->free_memory(ptDevice, &ptAllocatorData->sbtBlocks[i]);
+    }
+    pl_sb_free(ptAllocatorData->sbtBlocks);
+    pl_sb_free(ptAllocatorData->sbtNodes);
+    pl_sb_free(ptAllocatorData->sbtFreeBlockIndices);
 }
 
 //-----------------------------------------------------------------------------
@@ -866,13 +979,14 @@ PL_EXPORT void
 pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plGPUAllocatorsI tApi = {
-        .get_local_dedicated_allocator  = pl_get_local_dedicated_allocator,
-        .get_local_buddy_allocator      = pl_get_local_buddy_allocator,
-        .get_staging_uncached_allocator = pl_get_staging_uncached_allocator,
-        .get_staging_cached_allocator   = pl_get_staging_cached_allocator,
-        .get_blocks                     = pl_get_allocator_blocks,
-        .get_ranges                     = pl_get_allocator_ranges,
-        .cleanup                        = pl_cleanup_allocators
+        .get_local_dedicated_allocator        = pl_get_local_dedicated_allocator,
+        .get_local_buddy_allocator            = pl_get_local_buddy_allocator,
+        .get_staging_uncached_allocator       = pl_get_staging_uncached_allocator,
+        .get_staging_cached_allocator         = pl_get_staging_cached_allocator,
+        .get_staging_uncached_buddy_allocator = pl_get_staging_uncached_allocator_buddy,
+        .get_blocks                           = pl_get_allocator_blocks,
+        .get_ranges                           = pl_get_allocator_ranges,
+        .cleanup                              = pl_cleanup_allocators
     };
     pl_set_api(ptApiRegistry, plGPUAllocatorsI, &tApi);
 

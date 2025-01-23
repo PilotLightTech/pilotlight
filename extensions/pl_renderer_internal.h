@@ -515,6 +515,7 @@ typedef struct _plRefRendererData
     plDeviceMemoryAllocatorI* ptLocalDedicatedAllocator;
     plDeviceMemoryAllocatorI* ptLocalBuddyAllocator;
     plDeviceMemoryAllocatorI* ptStagingUnCachedAllocator;
+    plDeviceMemoryAllocatorI* ptStagingUnCachedBuddyAllocator;
     plDeviceMemoryAllocatorI* ptStagingCachedAllocator;
 
     // default textures & samplers & bindgroups

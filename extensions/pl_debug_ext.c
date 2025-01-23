@@ -231,12 +231,13 @@ pl__show_memory_allocations(bool* bValue)
 
         size_t szOriginalAllocationCount = 0;
         plAllocationEntry* atAllocations = gptMemory->get_allocations(&szOriginalAllocationCount);
-        
         plUiClipper tClipper = {(uint32_t)szOriginalAllocationCount};
         while(gptUI->step_clipper(&tClipper))
         {
             for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
             {
+                size_t szUnused = 0;
+                atAllocations = gptMemory->get_allocations(&szUnused);
                 plAllocationEntry tEntry = atAllocations[i];
                 strncpy(pcFile, tEntry.pcFile, 1024);
                 gptUI->text("%i", i);
@@ -878,6 +879,7 @@ pl__show_device_memory(bool* bValue)
         const plDeviceMemoryAllocatorI atAllocators[] = {
             *gptGpuAllocators->get_local_buddy_allocator(gptDebugCtx->ptDevice),
             *gptGpuAllocators->get_local_dedicated_allocator(gptDebugCtx->ptDevice),
+            *gptGpuAllocators->get_staging_uncached_buddy_allocator(gptDebugCtx->ptDevice),
             *gptGpuAllocators->get_staging_uncached_allocator(gptDebugCtx->ptDevice),
             *gptGpuAllocators->get_staging_cached_allocator(gptDebugCtx->ptDevice)
         };
@@ -886,13 +888,14 @@ pl__show_device_memory(bool* bValue)
             "Device Memory: Local Buddy",
             "Device Memory: Local Dedicated",
             "Device Memory: Staging Uncached Buddy",
+            "Device Memory: Staging Uncached",
             "Device Memory: Staging Cached"
         };
 
         gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tButtonColor);
         gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tButtonColor);
         gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tButtonColor);
-        for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 4; uAllocatorIndex++)
+        for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 5; uAllocatorIndex++)
         {
             uint32_t uBlockCount = 0;
             uint32_t uRangeCount = 0;
