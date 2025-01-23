@@ -556,8 +556,10 @@ typedef struct _plBindGroupUpdateBufferData
 {
     plBufferHandle tBuffer;
     uint32_t       uSlot;
-    size_t         szOffset;
     size_t         szBufferRange;
+
+    // [INTERNAL]
+    size_t _szOffset; // vulkan only :(
 } plBindGroupUpdateBufferData;
 
 typedef struct _plBindGroupUpdateData
