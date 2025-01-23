@@ -1016,6 +1016,7 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
     ptNewTexture->tView = *ptViewDesc;
     ptNewTexture->tDesc.uMips = ptViewDesc->uMips;
     ptNewTexture->tDesc.uLayers = ptViewDesc->uLayerCount;
+    ptNewTexture->tDesc.tType = ptViewDesc->tType;
     ptNewTexture->tView.uBaseMip = 0;
     ptNewTexture->tView.uBaseLayer = 0;
 
@@ -1067,7 +1068,9 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
             levels:tLevelRange
             slices:tSliceRange];
 
-    ptNewMetalTexture->tTexture.label = [NSString stringWithUTF8String:ptViewDesc->pcDebugName];
+    if(ptNewTexture->tView.pcDebugName == NULL)
+        ptNewTexture->tView.pcDebugName = "unnamed texture";
+    ptNewMetalTexture->tTexture.label = [NSString stringWithUTF8String:ptNewTexture->tView.pcDebugName];
     ptNewMetalTexture->uHeap = ptOldMetalTexture->uHeap;
     return tHandle;
 }

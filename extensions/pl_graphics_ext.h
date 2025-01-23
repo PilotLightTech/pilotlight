@@ -462,6 +462,7 @@ typedef struct _plTextureViewDesc
     uint32_t        uBaseLayer;
     uint32_t        uLayerCount;
     plTextureHandle tTexture;
+    plTextureType   tType;
     const char*     pcDebugName; // default: "unnamed texture view"
 } plTextureViewDesc;
 

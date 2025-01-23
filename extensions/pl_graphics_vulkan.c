@@ -685,18 +685,18 @@ pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
                             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
                             .mipLevel       = i - 1,
                             .baseArrayLayer = 0,
-                            .layerCount     = 1
+                            .layerCount     = ptTexture->tDesc.uLayers
                         },
                         .dstOffsets[1] = {
-                            .x = 1,
-                            .y = 1,
+                            .x = 0,
+                            .y = 0,
                             .z = 1
                         },
                         .dstSubresource = {
                             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
                             .mipLevel       = i,
                             .baseArrayLayer = 0,
-                            .layerCount     = 1
+                            .layerCount     = ptTexture->tDesc.uLayers
                         }
                     };
 
@@ -1156,6 +1156,7 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
     plTexture* ptOriginalTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
     plTexture* ptNewTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
     ptNewTexture->tDesc = ptOriginalTexture->tDesc;
+    ptNewTexture->tDesc.tType = ptViewDesc->tType;
     ptNewTexture->tView = *ptViewDesc;
     plVulkanTexture* ptOldVulkanTexture = &ptDevice->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
     plVulkanTexture* ptNewVulkanTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
@@ -1163,11 +1164,11 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     VkImageViewType tImageViewType = 0;
-    if (ptOriginalTexture->tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+    if (ptNewTexture->tDesc.tType == PL_TEXTURE_TYPE_CUBE)
         tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
-    else if (ptOriginalTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
+    else if (ptNewTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
-    else if (ptOriginalTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+    else if (ptNewTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D; // VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     else
     {
@@ -1292,7 +1293,6 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     plShaderHandle tHandle = pl__get_new_shader_handle(ptDevice);
     plShader* ptShader = pl__get_shader(ptDevice, tHandle);
     ptShader->tDesc = *ptDescription;
-    
     uint32_t uStageCount = 1;
 
     plVulkanShader* ptVulkanShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
@@ -4221,14 +4221,14 @@ pl__fill_common_render_pass_data(plRenderPassLayoutDesc* ptDesc, plRenderPassLay
         .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
         .srcAccessMask   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
         .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-        .dependencyFlags = 0
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
     };
 
     ptDataOut->atSubpassDependencies[1] = (VkSubpassDependency){
         .srcSubpass      = ptDesc->_uSubpassCount - 1,
         .dstSubpass      = VK_SUBPASS_EXTERNAL,
         .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
         .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
         .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
