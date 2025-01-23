@@ -157,6 +157,9 @@ typedef struct _plEcsI
     void (*run_animation_update_system)         (plComponentLibrary*, float fDeltaTime);
     void (*run_inverse_kinematics_update_system)(plComponentLibrary*);
     void (*run_script_update_system)            (plComponentLibrary*);
+    void (*run_camera_update_system)            (plComponentLibrary*);
+    void (*run_light_update_system)             (plComponentLibrary*);
+    void (*run_environment_probe_update_system) (plComponentLibrary*);
 } plEcsI;
 
 typedef struct _plCameraI
