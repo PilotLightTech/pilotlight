@@ -221,9 +221,11 @@ enum _plShaderType
 
 enum _plMaterialFlags
 {
-    PL_MATERIAL_FLAG_NONE         = 0,
-    PL_MATERIAL_FLAG_DOUBLE_SIDED = 1 << 0,
-    PL_MATERIAL_FLAG_OUTLINE      = 1 << 1,
+    PL_MATERIAL_FLAG_NONE                = 0,
+    PL_MATERIAL_FLAG_DOUBLE_SIDED        = 1 << 0,
+    PL_MATERIAL_FLAG_OUTLINE             = 1 << 1,
+    PL_MATERIAL_FLAG_CAST_SHADOW         = 1 << 2,
+    PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW = 1 << 3
 };
 
 enum _plBlendMode

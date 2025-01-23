@@ -594,7 +594,7 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         ptManager->pComponents = sbComponents;
         sbComponents[uComponentIndex] = (plMaterialComponent){
             .tBlendMode            = PL_BLEND_MODE_OPAQUE,
-            .tFlags                = PL_MATERIAL_FLAG_NONE,
+            .tFlags                = PL_MATERIAL_FLAG_CAST_SHADOW | PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW,
             .tShaderType           = PL_SHADER_TYPE_PBR,
             .tBaseColor            = {1.0f, 1.0f, 1.0f, 1.0f},
             .tEmissiveColor        = {0.0f, 0.0f, 0.0f, 0.0f},
