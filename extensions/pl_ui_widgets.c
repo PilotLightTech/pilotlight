@@ -844,6 +844,7 @@ pl_radio_button(const char* pcText, int* piValue, int iButtonValue)
 
         plRect tBoundingBox = pl_rect_expand_vec2(&tTextBounding, (plVec2){0.5f * (gptCtx->tStyle.tFramePadding.x + gptCtx->tStyle.tInnerSpacing.x + tWidgetSize.y), 0.0f});
         tBoundingBox = pl_rect_move_start_x(&tBoundingBox, tStartPos.x + gptCtx->tStyle.tFramePadding.x);
+        tBoundingBox.tMax.y = tStartPos.y + tWidgetSize.y;
         const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
         tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
         bool bHovered = false;
