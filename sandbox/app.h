@@ -106,9 +106,6 @@ typedef struct _plEditorData
     bool         bFreezeCullCamera;
     plEntity     tCullCamera;
     plEntity     tMainCamera;
-    plEntity     tSunlight;
-    plEntity     tPointLight;
-    plEntity     tSpotLight;
 
     // views
     uint32_t uSceneHandle0;
@@ -128,7 +125,6 @@ typedef struct _plEditorData
 
     // experiment
     bool bSceneLoaded;
-    plEntity tTrackPoint;
 
 } plEditorData;
 
