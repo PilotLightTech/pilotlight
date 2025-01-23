@@ -38,18 +38,19 @@ layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-layout(set = 1, binding = 0) uniform _plGlobalInfo
+struct tGlobalData
 {
     vec4 tViewportSize;
+    vec4 tViewportInfo;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
+};
 
-    uint uLambertianEnvSampler;
-    uint uGGXEnvSampler;
-    uint uGGXLUT;
-    uint _uUnUsed;
+layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
+{
+    tGlobalData data[];
 } tGlobalInfo;
 
 //-----------------------------------------------------------------------------
@@ -62,6 +63,8 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     int  iVertexOffset;
     int  iMaterialIndex;
     mat4 tModel;
+    
+    uint uGlobalIndex;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -274,6 +277,6 @@ void main()
     // fill g-buffer
     outAlbedo = tBaseColor;
     outNormal = Encode(tNormalInfo.n);
-    outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, material.u_MipCount);
+    outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
 }
 

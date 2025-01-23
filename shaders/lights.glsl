@@ -28,6 +28,20 @@ struct plLightShadowData
     float fYOffset;
 };
 
+struct plEnvironmentProbeData
+{
+    vec3  tPosition;
+    float fRangeSqr;
+
+    uint  uLambertianEnvSampler;
+    uint  uGGXEnvSampler;
+    uint  uGGXLUT;
+    int   iParallaxCorrection;
+
+    vec4 tMin;
+    vec4 tMax;
+};
+
 float
 getRangeAttenuation(float range2, float dist2)
 {

@@ -16,14 +16,25 @@ const int cLambertian = 0;
 const int cGGX = 1;
 const int cCharlie = 2;
 
-layout(constant_id = 0) const int   giResolution = 0;
-layout(constant_id = 1) const float gfRoughness = 0;
-layout(constant_id = 2) const int   gISampleCount = 0;
-layout(constant_id = 3) const int   giWidth = 0;
-layout(constant_id = 4) const float gfLodBias = 0;
-layout(constant_id = 5) const int   giDistribution = 0; // enum
-layout(constant_id = 6) const int   giIsGeneratingLut = 0;
-layout(constant_id = 7) const int   giCurrentMipLevel = 0;
+//-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
+
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
+{
+    int   iResolution;
+    float fRoughness;
+    int   iSampleCount;
+    int   iWidth;
+    float fLodBias;
+    int   iDistribution;
+    int   iIsGeneratingLut;
+    int   iCurrentMipLevel;
+} tDynamicData;
+
+//-----------------------------------------------------------------------------
+// [SECTION] helpers
+//-----------------------------------------------------------------------------
 
 #define PL_PI 3.1415926535897932384626433832795
 const float PL_GAMMA = 2.2;
@@ -39,17 +50,22 @@ vec3
 pl_uv_to_xyz(int iFace, vec2 tUv)
 {
     if (iFace == 0) // right
-        return vec3(1.0, -tUv.y, -tUv.x);
+        return vec3(1.0, -tUv.y, tUv.x);
+
     else if (iFace == 1) // left
-        return vec3(-1.0, -tUv.y, tUv.x);
+        return vec3(-1.0, -tUv.y, -tUv.x);
+
     else if (iFace == 2) // top
-        return vec3(tUv.x, 1.0, tUv.y);
+        return vec3(tUv.x, 1.0, -tUv.y);
+
     else if (iFace == 3) // bottom
-        return vec3(tUv.x, -1.0, -tUv.y);
+        return vec3(tUv.x, -1.0, tUv.y);
+
     else if (iFace == 4) // front
-        return vec3(tUv.x, -tUv.y, 1.0);
+        return vec3(tUv.x, -tUv.y, -1.0);
+
     else //if(iFace == 5)
-        return vec3(-tUv.x, -tUv.y, -1.0);
+        return vec3(-tUv.x, -tUv.y, 1.0);
 }
 
 void
@@ -225,23 +241,23 @@ pl_get_importance_sample(int iSampleIndex, vec3 tN, float fRoughness)
     // pl_get_importance_sample returns an importance sample direction with pdf in the .w component
 
     // generate a quasi monte carlo point in the unit square [0.1)^2
-    vec2 tXi = pl_hammersley_2d(iSampleIndex, gISampleCount);
+    vec2 tXi = pl_hammersley_2d(iSampleIndex, tDynamicData.iSampleCount);
 
     MicrofacetDistributionSample tImportanceSample;
 
     // generate the points on the hemisphere with a fitting mapping for
     // the distribution (e.g. lambertian uses a cosine importance)
-    if(giDistribution == cLambertian)
+    if(tDynamicData.iDistribution == cLambertian)
     {
         tImportanceSample = pl_lambertian(tXi, fRoughness);
     }
-    else if(giDistribution == cGGX)
+    else if(tDynamicData.iDistribution == cGGX)
     {
         // Trowbridge-Reitz / GGX microfacet model (Walter et al)
         // https://www.cs.cornell.edu/~srm/publications/EGSR07-btdf.html
         tImportanceSample = pl_ggx(tXi, fRoughness);
     }
-    else if(giDistribution == cCharlie)
+    else if(tDynamicData.iDistribution == cCharlie)
     {
         tImportanceSample = pl_charlie(tXi, fRoughness);
     }
@@ -284,7 +300,7 @@ pl_compute_lod(float fPdf)
     // We achieved good results by using the original formulation from Krivanek & Colbert adapted to cubemaps
 
     // https://cgg.mff.cuni.cz/~jaroslav/papers/2007-sketch-fis/Final_sap_0073.pdf
-    const float fLod = 0.5 * log2( 6.0 * float(giWidth) * float(giWidth) / (float(gISampleCount) * fPdf));
+    const float fLod = 0.5 * log2( 6.0 * float(tDynamicData.iWidth) * float(tDynamicData.iWidth) / (float(tDynamicData.iSampleCount) * fPdf));
     return fLod;
 }
 
@@ -294,9 +310,9 @@ pl_filter_color(vec3 tN)
     vec3 tColor = vec3(0.0);
     float fWeight = 0.0;
 
-    for(int i = 0; i < gISampleCount; ++i)
+    for(int i = 0; i < tDynamicData.iSampleCount; ++i)
     {
-        const vec4 tImportanceSample = pl_get_importance_sample(i, tN, gfRoughness);
+        const vec4 tImportanceSample = pl_get_importance_sample(i, tN, tDynamicData.fRoughness);
 
         const vec3 tH = vec3(tImportanceSample.xyz);
         const float fPdf = tImportanceSample.w;
@@ -305,12 +321,13 @@ pl_filter_color(vec3 tN)
         float fLod = pl_compute_lod(fPdf);
 
         // apply the bias to the lod
-        fLod += gfLodBias;
+        fLod += tDynamicData.fLodBias;
 
-        if(giDistribution == cLambertian)
+        if(tDynamicData.iDistribution == cLambertian)
         {
             // sample lambertian at a lower giResolution to avoid fireflies
-            const vec3 tLambertian = pl_linear_to_srgb(textureLod(samplerCube(uCubeMap, tDefaultSampler), tH, fLod).rgb);
+            // const vec3 tLambertian = pl_linear_to_srgb(textureLod(samplerCube(uCubeMap, tDefaultSampler), tH, fLod).rgb);
+            const vec3 tLambertian = textureLod(samplerCube(uCubeMap, tDefaultSampler), tH, fLod).rgb;
 
             //// the below operations cancel each other out
             // lambertian *= NdotH; // lamberts law
@@ -319,7 +336,7 @@ pl_filter_color(vec3 tN)
 
             tColor += tLambertian;
         }
-        else if(giDistribution == cGGX || giDistribution == cCharlie)
+        else if(tDynamicData.iDistribution == cGGX || tDynamicData.iDistribution == cCharlie)
         {
             // Note: reflect takes incident vector.
             const vec3 tV = tN;
@@ -328,12 +345,13 @@ pl_filter_color(vec3 tN)
 
             if (fNdotL > 0.0)
             {
-                if(gfRoughness == 0.0)
+                if(tDynamicData.fRoughness == 0.0)
                 {
                     // without this the roughness=0 lod is too high
-                    fLod = gfLodBias;
+                    fLod = tDynamicData.fLodBias;
                 }
                 vec3 sampleColor = textureLod(samplerCube(uCubeMap, tDefaultSampler), tL, fLod).rgb;
+                // sampleColor = pl_linear_to_srgb(sampleColor);
                 tColor += sampleColor * fNdotL;
                 fWeight += fNdotL;
             }
@@ -346,7 +364,7 @@ pl_filter_color(vec3 tN)
     }
     else
     {
-        tColor /= float(gISampleCount);
+        tColor /= float(tDynamicData.iSampleCount);
     }
 
     return tColor.rgb;
@@ -391,7 +409,7 @@ pl_lut(float fNdotV, float fRoughness)
     float fB = 0.0;
     float fC = 0.0;
 
-    for(int i = 0; i < gISampleCount; ++i)
+    for(int i = 0; i < tDynamicData.iSampleCount; ++i)
     {
         // Importance sampling, depending on the distribution.
         vec4 tImportanceSample = pl_get_importance_sample(i, tN, fRoughness);
@@ -404,7 +422,7 @@ pl_lut(float fNdotV, float fRoughness)
         float fVdotH = pl_saturate(dot(tV, tH));
         if (fNdotL > 0.0)
         {
-            if (giDistribution == cGGX)
+            if (tDynamicData.iDistribution == cGGX)
             {
                 // LUT for GGX distribution.
 
@@ -418,7 +436,7 @@ pl_lut(float fNdotV, float fRoughness)
                 fC += 0.0;
             }
 
-            if (giDistribution == cCharlie)
+            if (tDynamicData.iDistribution == cCharlie)
             {
                 // LUT for Charlie distribution.
                 float fSheenDistribution = pl_d_charlie(fRoughness, fNdotH);
@@ -434,7 +452,7 @@ pl_lut(float fNdotV, float fRoughness)
     // The PDF is simply pdf(v, h) -> NDF * <nh>.
     // To parametrize the PDF over l, use the Jacobian transform, yielding to: pdf(v, l) -> NDF * <nh> / 4<vh>
     // Since the BRDF divide through the PDF to be normalized, the 4 can be pulled out of the integral.
-    return vec3(4.0 * fA, 4.0 * fB, 4.0 * 2.0 * PL_PI * fC) / float(gISampleCount);
+    return vec3(4.0 * fA, 4.0 * fB, 4.0 * 2.0 * PL_PI * fC) / float(tDynamicData.iSampleCount);
 }
 
 layout (local_size_x = 16, local_size_y = 16, local_size_z = 3) in;
@@ -446,32 +464,34 @@ main()
     const float fYCoord = gl_WorkGroupID.y * 16 + gl_LocalInvocationID.y;
     vec3 tColor = vec3(0.0, 1.0, 0.0);
 
-    if(giIsGeneratingLut == 0)
+    if(tDynamicData.iIsGeneratingLut == 0)
     {
 
         const int iFace = int(gl_WorkGroupID.z * 3 + gl_LocalInvocationID.z);
-        const float fXinc = 1.0 / giResolution;
-        const float fYinc = 1.0 / giResolution;
+        const float fXinc = 1.0 / tDynamicData.iResolution;
+        const float fYinc = 1.0 / tDynamicData.iResolution;
         const vec2 tInUV = vec2(fXCoord * fXinc, fYCoord * fYinc);
-        const int iCurrentPixel = int(fXCoord + fYCoord * giWidth); 
+        const int iCurrentPixel = int(fXCoord + fYCoord * tDynamicData.iWidth); 
 
-        vec2 tNewUV = tInUV * (1 << giCurrentMipLevel);
+        vec2 tNewUV = tInUV * (1 << tDynamicData.iCurrentMipLevel);
         tNewUV = tNewUV * 2.0 - 1.0;
+        // tNewUV = clamp(tNewUV, -0.999999, 0.999999);
 
         const vec3 tScan = pl_uv_to_xyz(iFace, tNewUV);
 
         vec3 tDirection = normalize(tScan);
-        tDirection.z = -tDirection.z;
-    
+        // tDirection.z = -tDirection.z;
+        // tDirection.x = -tDirection.x;
+
         tColor = pl_filter_color(tDirection);
         pl_write_face(iCurrentPixel, iFace, tColor);
     }
     else
     {
-        const float fLutxinc = 1.0 / float(giResolution);
-        const float fLutyinc = 1.0 / float(giResolution);
-        const vec2 tLutUV = vec2(fXCoord * fLutxinc, fYCoord * fLutyinc);
-        const int iCurrentLUTPixel = int(fXCoord + fYCoord * float(giResolution));
+        const float fLutxinc = 1.0 / float(tDynamicData.iResolution);
+        const float fLutyinc = 1.0 / float(tDynamicData.iResolution);
+        vec2 tLutUV = vec2(fXCoord * fLutxinc, fYCoord * fLutyinc);
+        const int iCurrentLUTPixel = int(fXCoord + fYCoord * float(tDynamicData.iResolution));
 
         tColor = pl_lut(tLutUV.x, tLutUV.y);
         tLUTOut.atPixelData[iCurrentLUTPixel] = vec4(tColor, 1.0);

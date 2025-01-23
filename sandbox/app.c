@@ -221,7 +221,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, 0.0f};
 
     plEnvironmentProbeComponent* ptProbe = NULL;
-    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 2.0f, 0.0f}, &ptProbe);
+    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 3.0f, 0.0f}, &ptProbe);
     ptProbe->fRange = 30.0f;
     ptProbe->uResolution = 128;
     ptProbe->tFlags = PL_ENVIRONMENT_PROBE_FLAGS_REALTIME | PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;

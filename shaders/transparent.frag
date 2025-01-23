@@ -19,6 +19,7 @@ layout(constant_id = 4) const int iRenderingFlags = 0;
 layout(constant_id = 5) const int iDirectionLightCount = 0;
 layout(constant_id = 6) const int iPointLightCount = 0;
 layout(constant_id = 7) const int iSpotLightCount = 0;
+layout(constant_id = 8) const int iProbeCount = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
@@ -43,17 +44,19 @@ layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-layout(set = 1, binding = 0) uniform _plGlobalInfo
+struct tGlobalData
 {
     vec4 tViewportSize;
+    vec4 tViewportInfo;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
-    uint uLambertianEnvSampler;
-    uint uGGXEnvSampler;
-    uint uGGXLUT;
-    uint _uUnUsed;
+};
+
+layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
+{
+    tGlobalData data[];
 } tGlobalInfo;
 
 layout(set = 1, binding = 1) uniform _plDLightInfo
@@ -86,7 +89,12 @@ layout(set = 1, binding = 6) readonly buffer plSShadowData
     plLightShadowData atData[];
 } tSShadowData;
 
-layout(set = 1, binding = 7)  uniform sampler tShadowSampler;
+layout(set = 1, binding = 7) readonly buffer plProbeData
+{
+    plEnvironmentProbeData atData[];
+} tProbeData;
+
+layout(set = 1, binding = 8)  uniform sampler tShadowSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -99,6 +107,8 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     int  iMaterialIndex;
     int  iPadding;
     mat4 tModel;
+
+    uint uGlobalIndex;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -330,29 +340,49 @@ vec3 BRDF_specularGGX(vec3 f0, vec3 f90, float alphaRoughness, float specularWei
     return specularWeight * F * Vis * D;
 }
 
-vec3 getDiffuseLight(vec3 n)
+vec3 getDiffuseLight(vec3 n, int iProbeIndex)
 {
-    // n.z = -n.z; uncomment if not reverse z
-    return texture(samplerCube(atCubeTextures[nonuniformEXT(tGlobalInfo.uLambertianEnvSampler)], tEnvSampler), n).rgb;
+
+
+    return texture(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uLambertianEnvSampler)], tEnvSampler), n).rgb;
 }
 
 
-vec4 getSpecularSample(vec3 reflection, float lod)
+vec4 getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
 {
-    // reflection.z = -reflection.z; uncomment if not reverse z
-    // return textureLod(u_GGXEnvSampler, u_EnvRotation * reflection, lod) * u_EnvIntensity;
-    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tGlobalInfo.uGGXEnvSampler)], tEnvSampler), reflection, lod);
+    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tEnvSampler), reflection, lod);
 }
 
-vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount)
+vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount, int iProbeIndex)
 {
     float NdotV = clampedDot(n, v);
     float lod = roughness * float(u_MipCount - 1);
     vec3 reflection = normalize(reflect(-v, n));
 
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tGlobalInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
-    vec4 specularSample = getSpecularSample(reflection, lod);
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
+
+    if(bool(tProbeData.atData[iProbeIndex].iParallaxCorrection))
+    {
+
+        // Find the ray intersection with box plane
+        vec3 FirstPlaneIntersect = (tProbeData.atData[iProbeIndex].tMax.xyz - tShaderIn.tPosition.xyz) / reflection;
+        vec3 SecondPlaneIntersect = (tProbeData.atData[iProbeIndex].tMin.xyz - tShaderIn.tPosition.xyz) / reflection;
+
+        // Get the furthest of these intersections along the ray
+        // (Ok because x/0 give +inf and -x/0 give –inf )
+        vec3 FurthestPlane = max(FirstPlaneIntersect, SecondPlaneIntersect);
+
+        // Find the closest far intersection
+        float Distance = min(min(FurthestPlane.x, FurthestPlane.y), FurthestPlane.z);
+
+        // Get the intersection position
+        vec3 IntersectPositionWS = tShaderIn.tPosition.xyz + reflection * Distance;
+        // Get corrected reflection
+        reflection = IntersectPositionWS - tProbeData.atData[iProbeIndex].tPosition;
+    }
+
+    vec4 specularSample = getSpecularSample(reflection, lod, iProbeIndex);
 
     vec3 specularLight = specularSample.rgb;
 
@@ -367,13 +397,34 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularW
 
 
 // specularWeight is introduced with KHR_materials_specular
-vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight)
+vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight, int iProbeIndex)
 {
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tGlobalInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
 
-    vec3 irradiance = getDiffuseLight(n);
+    if(bool(tProbeData.atData[iProbeIndex].iParallaxCorrection))
+    {
+
+        // Find the ray intersection with box plane
+        vec3 FirstPlaneIntersect = (tProbeData.atData[iProbeIndex].tMax.xyz - tShaderIn.tPosition.xyz) / n;
+        vec3 SecondPlaneIntersect = (tProbeData.atData[iProbeIndex].tMin.xyz - tShaderIn.tPosition.xyz) / n;
+
+        // Get the furthest of these intersections along the ray
+        // (Ok because x/0 give +inf and -x/0 give –inf )
+        vec3 FurthestPlane = max(FirstPlaneIntersect, SecondPlaneIntersect);
+
+        // Find the closest far intersection
+        float Distance = min(min(FurthestPlane.x, FurthestPlane.y), FurthestPlane.z);
+
+        // Get the intersection position
+        vec3 IntersectPositionWS = tShaderIn.tPosition.xyz + n * Distance;
+        // Get corrected reflection
+        n = IntersectPositionWS - tProbeData.atData[iProbeIndex].tPosition;
+
+    }
+
+    vec3 irradiance = getDiffuseLight(n, iProbeIndex);
 
     // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results
     // Roughness dependent fresnel, from Fdez-Aguera
@@ -563,17 +614,35 @@ void main()
     // outPosition = vec4(tShaderIn.tPosition, materialInfo.specularWeight);
     // outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
 
-    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tShaderIn.tPosition.xyz);
+    vec3 v = normalize(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraPos.xyz - tShaderIn.tPosition.xyz);
 
     // LIGHTING
     vec3 f_specular = vec3(0.0);
     vec3 f_diffuse = vec3(0.0);
 
     // Calculate lighting contribution from image based lighting source (IBL)
-    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL))
+    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
     {
-        f_specular +=  getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, materialInfo.f0, specularWeight, material.u_MipCount);
-        f_diffuse += getIBLRadianceLambertian(n, v, materialInfo.perceptualRoughness, materialInfo.c_diff, materialInfo.f0, specularWeight);
+        int iProbeIndex = 0;
+        float fCurrentDistance = 10000.0;
+        for(int i = iProbeCount - 1; i > -1; i--)
+        {
+            vec3 tDist = tProbeData.atData[i].tPosition - tShaderIn.tPosition.xyz;
+            tDist = tDist * tDist;
+            float fDistSqr = tDist.x + tDist.y + tDist.z;
+            if(fDistSqr <= tProbeData.atData[i].fRangeSqr && fDistSqr < fCurrentDistance)
+            {
+                iProbeIndex = i;
+                fCurrentDistance = fDistSqr;
+            }
+        }
+
+        if(iProbeIndex > -1)
+        {
+            int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tEnvSampler));
+            f_specular +=  getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, materialInfo.f0, specularWeight, iMips, iProbeIndex);
+            f_diffuse += getIBLRadianceLambertian(n, v, materialInfo.perceptualRoughness, materialInfo.c_diff, materialInfo.f0, specularWeight, iProbeIndex);
+        }
     }
 
     // punctual stuff
@@ -583,6 +652,7 @@ void main()
     f_specular = vec3(0.0);
 
     uint cascadeIndex = 0;
+    const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
         for(int i = 0; i < iDirectionLightCount; i++)
@@ -592,13 +662,13 @@ void main()
             vec3 pointToLight = -tLightData.tDirection;
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
 
                 // Get cascade index for the current fragment's view position
                 
-                vec4 inViewPos = tGlobalInfo.tCameraView * vec4(tShaderIn.tPosition.xyz, 1.0);
+                vec4 inViewPos = tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraView * vec4(tShaderIn.tPosition.xyz, 1.0);
                 for(uint j = 0; j < tLightData.iCascadeCount - 1; ++j)
                 {
                     if(inViewPos.z > tShadowData.cascadeSplits[j])
@@ -646,7 +716,7 @@ void main()
 
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tSShadowData.atData[tLightData.iShadowIndex];
 
@@ -693,7 +763,7 @@ void main()
             vec3 pointToLight = tLightData.tPosition - tShaderIn.tPosition.xyz;
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tPShadowData.atData[tLightData.iShadowIndex];
 

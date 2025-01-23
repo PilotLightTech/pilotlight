@@ -35,20 +35,22 @@ layout(set = 0, binding = 4)  uniform texture2D at2DTextures[4096];
 layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
 
 //-----------------------------------------------------------------------------
-// [SECTION] bind group 2
+// [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-layout(set = 1, binding = 0) uniform _plGlobalInfo
+struct tGlobalData
 {
     vec4 tViewportSize;
+    vec4 tViewportInfo;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
-    uint uLambertianEnvSampler;
-    uint uGGXEnvSampler;
-    uint uGGXLUT;
-    uint _uUnUsed;
+};
+
+layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
+{
+    tGlobalData data[];
 } tGlobalInfo;
 
 //-----------------------------------------------------------------------------
@@ -61,6 +63,8 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     int  iVertexOffset;
     int  iMaterialIndex;
     mat4 tModel;
+
+    uint uGlobalIndex;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -147,7 +151,7 @@ void main()
 
     vec4 pos = tObjectInfo.tModel * inPosition;
     tShaderIn.tWorldPosition = pos.xyz / pos.w;
-    gl_Position = tGlobalInfo.tCameraViewProjection * pos;
+    gl_Position = tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraViewProjection * pos;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tUV[2] = inTexCoord2;

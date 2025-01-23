@@ -15,6 +15,7 @@ layout(constant_id = 0) const int iRenderingFlags = 0;
 layout(constant_id = 1) const int iDirectionLightCount = 0;
 layout(constant_id = 2) const int iPointLightCount = 0;
 layout(constant_id = 3) const int iSpotLightCount = 0;
+layout(constant_id = 4) const int iProbeCount = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
@@ -47,17 +48,19 @@ layout(input_attachment_index = 0, set = 1, binding = 3)  uniform subpassInput t
 // [SECTION] bind group 2
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) uniform _plGlobalInfo
+struct tGlobalData
 {
     vec4 tViewportSize;
+    vec4 tViewportInfo;
     vec4 tCameraPos;
     mat4 tCameraView;
     mat4 tCameraProjection;
     mat4 tCameraViewProjection;
-    uint uLambertianEnvSampler;
-    uint uGGXEnvSampler;
-    uint uGGXLUT;
-    uint _uUnUsed;
+};
+
+layout(set = 2, binding = 0) readonly buffer _plGlobalInfo
+{
+    tGlobalData data[];
 } tGlobalInfo;
 
 layout(set = 2, binding = 1) uniform _plDLightInfo
@@ -90,7 +93,12 @@ layout(set = 2, binding = 6) readonly buffer plSShadowData
     plLightShadowData atData[];
 } tSShadowData;
 
-layout(set = 2, binding = 7) uniform sampler tShadowSampler;
+layout(set = 2, binding = 7) readonly buffer plProbeData
+{
+    plEnvironmentProbeData atData[];
+} tProbeData;
+
+layout(set = 2, binding = 8)  uniform sampler tShadowSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -98,8 +106,7 @@ layout(set = 2, binding = 7) uniform sampler tShadowSampler;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    int iDataOffset;
-    int iVertexOffset;
+    uint uGlobalIndex;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -181,32 +188,57 @@ vec3 BRDF_specularGGX(vec3 f0, vec3 f90, float alphaRoughness, float specularWei
     return specularWeight * F * Vis * D;
 }
 
-vec3 getDiffuseLight(vec3 n)
+vec3 getDiffuseLight(vec3 n, int iProbeIndex)
 {
-    // n.z = -n.z; uncomment if not reverse z
+    // n.z = -n.z; // uncomment if not reverse z
     // return texture(samplerCube(u_LambertianEnvSampler, tEnvSampler), n).rgb;
-    return texture(samplerCube(atCubeTextures[nonuniformEXT(tGlobalInfo.uLambertianEnvSampler)], tEnvSampler), n).rgb;
+    return texture(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uLambertianEnvSampler)], tEnvSampler), n).rgb;
 }
 
 
-vec4 getSpecularSample(vec3 reflection, float lod)
+vec4 getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
 {
     // reflection.z = -reflection.z; // uncomment if not reverse z
+    // reflection.x = -reflection.x; // uncomment if not reverse z
     // return textureLod(samplerCube(u_GGXEnvSampler, tEnvSampler), reflection, lod);
-    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tGlobalInfo.uGGXEnvSampler)], tEnvSampler), reflection, lod);
+    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tEnvSampler), reflection, lod);
 }
 
-vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount)
+vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount, int iProbeIndex, vec3 tWorldPos)
 {
     
     float lod = roughness * float(u_MipCount - 1);
     vec3 reflection = normalize(reflect(-v, n));
-    vec4 specularSample = getSpecularSample(reflection, lod);
+
+    if(bool(tProbeData.atData[iProbeIndex].iParallaxCorrection))
+    {
+
+        // Find the ray intersection with box plane
+        vec3 FirstPlaneIntersect = (tProbeData.atData[iProbeIndex].tMax.xyz - tWorldPos) / reflection;
+        vec3 SecondPlaneIntersect = (tProbeData.atData[iProbeIndex].tMin.xyz - tWorldPos) / reflection;
+        
+        // Get the furthest of these intersections along the ray
+        // (Ok because x/0 give +inf and -x/0 give –inf )
+        vec3 FurthestPlane = max(FirstPlaneIntersect, SecondPlaneIntersect);
+
+        // Find the closest far intersection
+        float Distance = min(min(FurthestPlane.x, FurthestPlane.y), FurthestPlane.z);
+
+        // Get the intersection position
+        vec3 IntersectPositionWS = tWorldPos + reflection * Distance;
+        
+        // Get corrected reflection
+        reflection = IntersectPositionWS - tProbeData.atData[iProbeIndex].tPosition;
+    }
+    
+    // End parallax-correction code
+
+    vec4 specularSample = getSpecularSample(reflection, lod, iProbeIndex);
 
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
     // vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tGlobalInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
 
     vec3 specularLight = specularSample.rgb;
 
@@ -218,14 +250,38 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularW
 }
 
 // specularWeight is introduced with KHR_materials_specular
-vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight)
+vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight, int iProbeIndex, vec3 tWorldPos)
 {
-    vec3 irradiance = getDiffuseLight(n);
+
+    if(bool(tProbeData.atData[iProbeIndex].iParallaxCorrection))
+    {
+
+        // Find the ray intersection with box plane
+        vec3 FirstPlaneIntersect = (tProbeData.atData[iProbeIndex].tMax.xyz - tWorldPos) / n;
+        vec3 SecondPlaneIntersect = (tProbeData.atData[iProbeIndex].tMin.xyz - tWorldPos) / n;
+        
+        // Get the furthest of these intersections along the ray
+        // (Ok because x/0 give +inf and -x/0 give –inf )
+        vec3 FurthestPlane = max(FirstPlaneIntersect, SecondPlaneIntersect);
+
+        // Find the closest far intersection
+        float Distance = min(min(FurthestPlane.x, FurthestPlane.y), FurthestPlane.z);
+
+        // Get the intersection position
+        vec3 IntersectPositionWS = tWorldPos + n * Distance;
+
+        // Get corrected reflection
+        n = IntersectPositionWS - tProbeData.atData[iProbeIndex].tPosition;
+    }
+
+    // End parallax-correction code
+
+    vec3 irradiance = getDiffuseLight(n, iProbeIndex);
 
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
     // vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tGlobalInfo.uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
 
     // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results
     // Roughness dependent fresnel, from Fdez-Aguera
@@ -394,11 +450,16 @@ void main()
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
     
     float depth = subpassLoad(tDepthSampler).r;
-    vec3 ndcSpace = vec3(gl_FragCoord.x / tGlobalInfo.tViewportSize.x, gl_FragCoord.y / tGlobalInfo.tViewportSize.y, depth);
+    vec3 ndcSpace = vec3((gl_FragCoord.x - tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportInfo.x) / tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportSize.x, (gl_FragCoord.y - tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportInfo.y) / tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportSize.y, depth);
+
+
     vec3 clipSpace = ndcSpace;
     clipSpace.xy = clipSpace.xy * 2.0 - 1.0;
-    vec4 homoLocation = inverse(tGlobalInfo.tCameraProjection) * vec4(clipSpace, 1.0);
-
+    // clipSpace.x *= tGlobalInfo.tViewportSize.z;
+    // clipSpace.y *= tGlobalInfo.tViewportSize.w;
+    // clipSpace.x += tGlobalInfo.tViewportInfo.x;
+    // clipSpace.y += tGlobalInfo.tViewportInfo.y;
+    vec4 homoLocation = inverse(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraProjection) * vec4(clipSpace, 1.0);
 
     // vec4 tWorldPosition0 = subpassLoad(tPositionSampler);
     vec4 tViewPosition = homoLocation;
@@ -407,12 +468,11 @@ void main()
     tViewPosition.y = tViewPosition.y;
     tViewPosition.z = tViewPosition.z;
     tViewPosition.w = 1.0;
-    vec4 tWorldPosition = inverse(tGlobalInfo.tCameraView) * tViewPosition;
+    vec4 tWorldPosition = inverse(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraView) * tViewPosition;
     vec3 n = Decode(subpassLoad(tNormalTexture).xy);
 
     const vec3 f90 = vec3(1.0);
     
-
     // LIGHTING
     vec3 f_specular = vec3(0.0);
     vec3 f_diffuse = vec3(0.0);
@@ -423,14 +483,31 @@ void main()
 
     const float fPerceptualRoughness = AORoughnessMetalnessData.b;
     float specularWeight = 1.0;
-    vec3 v = normalize(tGlobalInfo.tCameraPos.xyz - tWorldPosition.xyz);
-    int iMips = int(AORoughnessMetalnessData.a);
+    vec3 v = normalize(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
 
     // Calculate lighting contribution from image based lighting source (IBL)
-    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL))
+    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
     {
-        f_specular +=  getIBLRadianceGGX(n, v, fPerceptualRoughness, f0, specularWeight, iMips);
-        f_diffuse += getIBLRadianceLambertian(n, v, fPerceptualRoughness, c_diff, f0, specularWeight);
+        int iProbeIndex = 0;
+        float fCurrentDistance = 10000.0;
+        for(int i = iProbeCount - 1; i > -1; i--)
+        {
+            vec3 tDist = tProbeData.atData[i].tPosition - tWorldPosition.xyz;
+            tDist = tDist * tDist;
+            float fDistSqr = tDist.x + tDist.y + tDist.z;
+            if(fDistSqr <= tProbeData.atData[i].fRangeSqr && fDistSqr < fCurrentDistance)
+            {
+                iProbeIndex = i;
+                fCurrentDistance = fDistSqr;
+            }
+        }
+
+        if(iProbeIndex > -1)
+        {
+            int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tEnvSampler));
+            f_specular +=  getIBLRadianceGGX(n, v, fPerceptualRoughness, f0, specularWeight, iMips, iProbeIndex, tWorldPosition.xyz);
+            f_diffuse += getIBLRadianceLambertian(n, v, fPerceptualRoughness, c_diff, f0, specularWeight, iProbeIndex, tWorldPosition.xyz);
+        }
     }
 
     // punctual stuff
@@ -440,6 +517,7 @@ void main()
     f_specular = vec3(0.0);
 
     uint cascadeIndex = 0;
+    const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
         const float fAlphaRoughness = fPerceptualRoughness * fPerceptualRoughness;
@@ -451,7 +529,7 @@ void main()
             vec3 pointToLight = -tLightData.tDirection;
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
 
@@ -513,7 +591,7 @@ void main()
 
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tSShadowData.atData[tLightData.iShadowIndex];
 
@@ -563,7 +641,7 @@ void main()
 
             float shadow = 1.0;
 
-            if(tLightData.iCastShadow > 0)
+            if(bShadows && tLightData.iCastShadow > 0)
             {
                 plLightShadowData tShadowData = tPShadowData.atData[tLightData.iShadowIndex];
 
