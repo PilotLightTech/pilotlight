@@ -75,14 +75,84 @@ Reference Renderer:
     * Edge outline (Jump flood with compute shaders)
     * Pixel perfect picking
     * Directional lights + cascaded shadow maps
-    * Point lights
+    * Point lights + cubemap shadows
+    * Spot lights + shadows
     * Soft shadows (PCF)
-    * Gamma correct, HDR rendering
     * Deferred + forward rendering
     * Reversed Z-buffer
     * Vertex skinning (compute shaders)
     * Panorama to cubemap calculations (compute shaders)
     * Environment filtering (compute shaders)
+    * Parallax-corrected environment maps
+    * Dynamic environment mapping
+    * Cube map reflections (static and real time)
     * Tonemapping
     * gltf model loading
     * stl model loading
+
+Wishlist (from Wicked Engine):
+    * Morph target animation (with sparse accessor)
+    * Animated texturing
+    * Displacement mapping
+    * Parallax occlusion mapping
+    * Real time planar reflections
+    * Refractions (screen space, blurred)
+    * Interactive Water
+    * Bloom
+    * Motion Blur
+    * Lens Flare
+    * Light shafts
+    * Bokeh Depth of Field
+    * Chromatic aberration
+    * Multithreaded rendering
+    * Tessellation (silhouette smoothing, displacement mapping)
+    * GPU-based particles (emit from point, mesh, animated mesh)
+    * Soft particles
+    * Hair particle systems (grass/vegetation)
+    * Instanced rendering
+    * MSAA
+    * FXAA
+    * TAA (Temporal Antialiasing)
+    * Supersampling
+    * Physics: rigid body, soft body, ragdoll
+    * 3D Audio
+    * Input: keyboard, mouse, controller (rawinput, xinput), touch
+    * Controller feedback (vibration, LED)
+    * Backlog: log,input,scripting
+    * Gamma correct, HDR rendering
+    * Screen Space Ambient Occlusion (SSAO, HBAO, MSAO)
+    * Stochastic Screen Space Reflections
+    * Color Grading
+    * Sharpen filter
+    * Eye adaption
+    * Lua Scripting
+    * Impostor system
+    * Tiled forward (Forward+) rendering (+2.5D culling)
+    * Occlusion culling with gpu queries
+    * Tiled decals
+    * Frame Profiler
+    * Voxel Global Illumination
+    * Force Fields GPU simulation
+    * Particle - Depth Buffer collisions
+    * Ocean simulation (FFT)
+    * Translucent colored shadows
+    * Refraction caustics
+    * Volumetric light scattering
+    * Smooth Particle Hydrodynamics (SPH) Fluid Simulation
+    * Ray tracing, path tracing (on GPU)
+    * Lightmap baking (with GPU path tracing)
+    * Springs, Colliders
+    * Variable Rate Shading
+    * Real time ray tracing: ambient occlusion, shadows, reflections (DXR and Vulkan raytracing)
+    * Screen Space Contact Shadows
+    * Stochastic alphatest transparency
+    * Surfel GI
+    * HDR display output
+    * Dynamic Diffuse Global Illumination (DDGI)
+    * Procedural terrain generator
+    * Virtual textures
+    * Animation retargeting
+    * Video decoding: H264
+    * 3D path finding
+    * Screen Space Global Illumination (SSGI)
+    * Texture streaming
