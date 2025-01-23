@@ -97,12 +97,89 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                 plAnimationComponent*         ptAnimationComp     = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, *ptSelectedEntity);
                 plInverseKinematicsComponent* ptIKComp            = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, *ptSelectedEntity);
                 plLightComponent*             ptLightComp         = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, *ptSelectedEntity);
+                plEnvironmentProbeComponent*  ptProbeComp         = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, *ptSelectedEntity);
 
                 gptUi->text("Entity: %u, %u", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
 
                 if(ptTagComp && gptUi->begin_collapsing_header("Tag", 0))
                 {
                     gptUi->text("Name: %s", ptTagComp->acName);
+                    gptUi->end_collapsing_header();
+                }
+
+                if(ptProbeComp && gptUi->begin_collapsing_header("Environment Probe", 0))
+                {
+                    gptUi->input_float3("Position", ptProbeComp->tPosition.d, NULL, 0);
+
+                    bool bRealTime = ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
+                    if(gptUi->checkbox("Real Time", &bRealTime))
+                    {
+                        if(bRealTime)
+                            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
+                        else
+                            ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
+                    }
+
+                    bool bIncludeSky = ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+                    if(gptUi->checkbox("Include Sky", &bIncludeSky))
+                    {
+                        if(bIncludeSky)
+                            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+                        else
+                            ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+                    }
+
+                    bool bParallaxCorrection = ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX;
+                    if(gptUi->checkbox("Box Parallax Correction", &bParallaxCorrection))
+                    {
+                        if(bParallaxCorrection)
+                            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX;
+                        else
+                            ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX;
+                    }
+
+                    if(gptUi->button("Update"))
+                    {
+                        ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+                    }
+                    gptUi->input_float("Range:", &ptProbeComp->fRange, NULL, 0);
+
+                    uint32_t auSamples[] = {
+                        32,
+                        64,
+                        128,
+                        256,
+                        512,
+                        1024
+                    };
+                    int iSelection = 0;
+                    if(ptProbeComp->uSamples == 32)        iSelection = 0;
+                    else if(ptProbeComp->uSamples == 64)   iSelection = 1;
+                    else if(ptProbeComp->uSamples == 128)  iSelection = 2;
+                    else if(ptProbeComp->uSamples == 256)  iSelection = 3;
+                    else if(ptProbeComp->uSamples == 512)  iSelection = 4;
+                    else if(ptProbeComp->uSamples == 1024) iSelection = 5;
+                    gptUi->separator_text("Samples");
+                    gptUi->radio_button("32", &iSelection, 0);
+                    gptUi->radio_button("64", &iSelection, 1);
+                    gptUi->radio_button("128", &iSelection, 2);
+                    gptUi->radio_button("256", &iSelection, 3);
+                    gptUi->radio_button("512", &iSelection, 4);
+                    gptUi->radio_button("1024", &iSelection, 5);
+                    ptProbeComp->uSamples = auSamples[iSelection];
+
+                    gptUi->separator_text("Intervals");
+
+                    int iSelection0 = (int)ptProbeComp->uInterval;
+                    gptUi->radio_button("1", &iSelection0, 1);
+                    gptUi->radio_button("2", &iSelection0, 2);
+                    gptUi->radio_button("3", &iSelection0, 3);
+                    gptUi->radio_button("4", &iSelection0, 4);
+                    gptUi->radio_button("5", &iSelection0, 5);
+                    gptUi->radio_button("6", &iSelection0, 6);
+
+                    ptProbeComp->uInterval = (uint32_t)iSelection0;
+
                     gptUi->end_collapsing_header();
                 }
 
