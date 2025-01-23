@@ -20,7 +20,6 @@ Index of this file:
 #include <float.h>
 #include "pl.h"
 #include "pl_memory.h"
-#include "pl_ds.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
@@ -33,7 +32,25 @@ Index of this file:
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
+    static const plGraphicsI* gptGfx    = NULL;
+    static const plStatsI*    gptStats  = NULL;
+    static const plDrawI*     gptDraw   = NULL;
+    static const plShaderI*   gptShader = NULL;
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -84,18 +101,6 @@ typedef struct _plDrawBackendContext
 //-----------------------------------------------------------------------------
 
 static plDrawBackendContext* gptDrawBackendCtx = NULL;
-
-#ifndef PL_UNITY_BUILD
-    static const plMemoryI*  gptMemory = NULL;
-    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
-    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
-    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
-
-    static const plGraphicsI*      gptGfx           = NULL;
-    static const plStatsI*         gptStats         = NULL;
-    static const plDrawI*          gptDraw          = NULL;
-    static const plShaderI*        gptShader        = NULL;
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api

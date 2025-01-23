@@ -50,7 +50,6 @@ Index of this file:
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
-#include "pl_ds.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -71,6 +70,8 @@ Index of this file:
     static const plIOI*                gptIOI               = NULL;
     static plIO* gptIO = NULL;
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper macros

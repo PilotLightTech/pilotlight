@@ -19,7 +19,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl.h"
-#include "pl_ds.h"
 #include "pl_string.h"
 #include "pl_memory.h"
 #include "pl_graphics_internal.h"

@@ -20,7 +20,6 @@ Index of this file:
 #include "pl.h"
 #include "pl_model_loader_ext.h"
 #include "pl_stl.h"
-#include "pl_ds.h"
 #include "pl_string.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -48,6 +47,8 @@ Index of this file:
     static const plEcsI*  gptECS = NULL;
     static const plFileI* gptFile = NULL;
 #endif
+
+#include "pl_ds.h"
 
 // misc
 #include "cgltf.h"

@@ -28,7 +28,6 @@ Index of this file:
 #include <float.h> // FLT_MAX
 #include "pl.h"
 #include "pl_renderer_ext.h"
-#include "pl_ds.h"
 #include "pl_string.h"
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -98,9 +97,21 @@ Index of this file:
     static struct _plIO* gptIO = 0;
 #endif
 
+#include "pl_ds.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
+
+typedef int plDrawableFlags;
+
+enum _plDrawableFlags
+{
+    PL_DRAWABLE_FLAG_NONE     = 0,
+    PL_DRAWABLE_FLAG_FORWARD  = 1 << 0,
+    PL_DRAWABLE_FLAG_DEFERRED = 1 << 1,
+    PL_DRAWABLE_FLAG_PROBE    = 1 << 2
+};
 
 typedef struct _plShaderVariant
 {

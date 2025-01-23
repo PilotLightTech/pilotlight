@@ -20,10 +20,10 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <float.h>
+#include <stdlib.h>
 #include "pl.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_draw_ext.h"
-#include "pl_ds.h"
 #include "pl_memory.h"
 #include "pl_string.h"
 
@@ -139,6 +139,8 @@ static unsigned char*        ptrDOut_ = NULL;
 
     static const plFileI* gptFile = NULL;
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api

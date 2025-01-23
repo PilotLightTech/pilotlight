@@ -39,7 +39,6 @@ Index of this file:
 #include <string.h>
 #include "pl.h"
 #include "pl_stats_ext.h"
-#include "pl_ds.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -55,6 +54,8 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
