@@ -728,7 +728,10 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         ptManager->pComponents = sbComponents;
         sbComponents[uComponentIndex] = (plEnvironmentProbeComponent){
             .fRange      = 10.0f,
-            .uResolution = 128
+            .uResolution = 128,
+            .uSamples    = 128,
+            .uInterval   = 1,
+            .tFlags      = PL_ENVIRONMENT_PROBE_FLAGS_DIRTY
         };
         return &sbComponents[uComponentIndex];
     }

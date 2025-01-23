@@ -385,9 +385,11 @@ enum _plHumanoidBone
 
 enum _plEnvironmentProbeFlags
 {
-    PL_ENVIRONMENT_PROBE_FLAGS_NONE     = 0,
-    PL_ENVIRONMENT_PROBE_FLAGS_DIRTY    = 1 << 0,
-    PL_ENVIRONMENT_PROBE_FLAGS_REALTIME = 1 << 1
+    PL_ENVIRONMENT_PROBE_FLAGS_NONE                    = 0,
+    PL_ENVIRONMENT_PROBE_FLAGS_DIRTY                   = 1 << 0,
+    PL_ENVIRONMENT_PROBE_FLAGS_REALTIME                = 1 << 1,
+    PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY             = 1 << 2,
+    PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX = 1 << 3,
 };
 
 //-----------------------------------------------------------------------------
@@ -475,6 +477,8 @@ typedef struct _plEnvironmentProbeComponent
 {
     plEnvironmentProbeFlags tFlags;
     uint32_t                uResolution; // default: 128 (must be power of two)
+    uint32_t                uSamples;    // default: 128
+    uint32_t                uInterval;   // default: 1 (1 to 6 for realtime probe)
     plVec3                  tPosition;
     float                   fRange;
 } plEnvironmentProbeComponent;
