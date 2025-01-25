@@ -4019,3 +4019,9 @@ pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #endif
 
 #endif
+
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#define STBIR_MALLOC(x, user_data) PL_ALLOC(x)
+#define STBIR_FREE(x, user_data) PL_FREE(x)
+#include "stb_image_resize2.h"
+#undef STB_IMAGE_RESIZE_IMPLEMENTATION

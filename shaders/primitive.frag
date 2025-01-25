@@ -247,6 +247,11 @@ void main()
     tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
     NormalInfo tNormalInfo = pl_get_normal_info(material.NormalUVSet);
     vec4 tBaseColor = getBaseColor(material.u_BaseColorFactor, material.BaseColorUVSet);
+
+    if(tBaseColor.a <  material.u_AlphaCutoff)
+    {
+        discard;
+    }
     
     MaterialInfo materialInfo;
     materialInfo.f0 = vec3(0.04);

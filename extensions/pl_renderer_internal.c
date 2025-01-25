@@ -41,6 +41,34 @@ pl__refr_job(plInvocationData tInvoData, void* pData)
                 size_t szResourceSize = 0;
                 const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[i].tResource, &szResourceSize);
                 float* rawBytes = gptImage->load_hdr((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
+
+                int iMaxDim = pl_max(texWidth, texHeight);
+
+                if(iMaxDim > 1024)
+                {
+                    int iNewWidth = 0;
+                    int iNewHeight = 0;
+
+                    if(texWidth > texHeight)
+                    {
+                        iNewWidth = 1024;
+                        iNewHeight = (int)((1024.0f / (float)texWidth) * (float)texHeight);
+                    }
+                    else
+                    {
+                        iNewWidth = (int)((1024.0f / (float)texHeight) * (float)texWidth);
+                        iNewHeight = 1024;
+                    }
+
+                    float* oldrawBytes = rawBytes;
+                    rawBytes = stbir_resize_float_linear(rawBytes, texWidth, texHeight, 0, NULL, iNewWidth, iNewHeight, 0, STBIR_RGBA);
+                    PL_ASSERT(rawBytes);
+                    gptImage->free(oldrawBytes);
+
+                    texWidth = iNewWidth;
+                    texHeight = iNewHeight;
+                }
+
                 gptResource->set_buffer_data(ptMaterial->atTextureMaps[i].tResource, sizeof(float) * texWidth * texHeight * 4, rawBytes);
                 ptMaterial->atTextureMaps[i].uWidth = texWidth;
                 ptMaterial->atTextureMaps[i].uHeight = texHeight;
@@ -50,7 +78,35 @@ pl__refr_job(plInvocationData tInvoData, void* pData)
                 size_t szResourceSize = 0;
                 const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[i].tResource, &szResourceSize);
                 unsigned char* rawBytes = gptImage->load((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-                PL_ASSERT(rawBytes);
+
+                int iMaxDim = pl_max(texWidth, texHeight);
+
+                if(iMaxDim > 1024)
+                {
+                    int iNewWidth = 0;
+                    int iNewHeight = 0;
+
+                    if(texWidth > texHeight)
+                    {
+                        iNewWidth = 1024;
+                        iNewHeight = (int)((1024.0f / (float)texWidth) * (float)texHeight);
+                    }
+                    else
+                    {
+                        iNewWidth = (int)((1024.0f / (float)texHeight) * (float)texWidth);
+                        iNewHeight = 1024;
+                    }
+
+                    unsigned char* oldrawBytes = rawBytes;
+                    rawBytes = stbir_resize_uint8_linear(rawBytes, texWidth, texHeight, 0, NULL, iNewWidth, iNewHeight, 0, STBIR_RGBA);
+                    PL_ASSERT(rawBytes);
+                    gptImage->free(oldrawBytes);
+
+                    texWidth = iNewWidth;
+                    texHeight = iNewHeight;
+                }
+
+                
                 ptMaterial->atTextureMaps[i].uWidth = texWidth;
                 ptMaterial->atTextureMaps[i].uHeight = texHeight;
                 gptResource->set_buffer_data(ptMaterial->atTextureMaps[i].tResource, texWidth * texHeight * 4, rawBytes);

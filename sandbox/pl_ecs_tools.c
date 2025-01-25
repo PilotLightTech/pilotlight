@@ -208,7 +208,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
 
                     plTagComponent* ptMaterialTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tMaterial);
                     plTagComponent* ptSkinTagComp = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tSkinComponent);
-                    gptUi->text("Material: %s", ptMaterialTagComp->acName);
+                    gptUi->text("Material: %s, %u", ptMaterialTagComp->acName, ptMeshComp->tMaterial.uIndex);
                     gptUi->text("Skin:     %s", ptSkinTagComp ? ptSkinTagComp->acName : " ");
 
                     gptUi->vertical_spacing();

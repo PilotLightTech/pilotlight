@@ -50,6 +50,9 @@ Index of this file:
 #include "pl_file_ext.h"
 #include "pl_rect_pack_ext.h"
 
+// stb
+#include "stb_image_resize2.h"
+
 #define PL_MAX_VIEWS_PER_SCENE 4
 #define PL_MAX_LIGHTS 100
 
