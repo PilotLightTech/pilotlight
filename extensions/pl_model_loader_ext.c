@@ -431,10 +431,10 @@ pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial,
     // blend mode
     if(ptGltfMaterial->alpha_mode == cgltf_alpha_mode_opaque)
         ptMaterial->tBlendMode = PL_BLEND_MODE_OPAQUE;
-    else if(ptGltfMaterial->alpha_mode == cgltf_alpha_mode_mask)
+    else if(ptGltfMaterial->alpha_mode == cgltf_alpha_mode_blend)
         ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
     else
-        ptMaterial->tBlendMode = PL_BLEND_MODE_PREMULTIPLIED;
+        ptMaterial->tBlendMode = PL_BLEND_MODE_CLIP_MASK;
 
 	if(ptGltfMaterial->normal_texture.texture)
 		pl__load_gltf_texture(PL_TEXTURE_SLOT_NORMAL_MAP, &ptGltfMaterial->normal_texture, pcDirectory, ptGltfMaterial, ptMaterial);
@@ -981,7 +981,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                 if(ptPrimitive->material->has_transmission)
                     ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
 
-                if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
+                if(ptMaterial->tBlendMode == PL_BLEND_MODE_ALPHA)
                     bOpaque = false;
 
                 if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
