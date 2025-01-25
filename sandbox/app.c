@@ -224,7 +224,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 3.0f, 0.0f}, &ptProbe);
     ptProbe->fRange = 30.0f;
     ptProbe->uResolution = 128;
-    ptProbe->tFlags = PL_ENVIRONMENT_PROBE_FLAGS_REALTIME | PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+    ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
 
     // gptEcs->create_environment_probe(ptMainComponentLibrary, "Probe0", (plVec3){9.0f, 2.0f, 3.0f}, &ptProbe); ptProbe->fRange = 7.0f;
 

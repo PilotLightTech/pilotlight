@@ -1618,7 +1618,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
         const uint32_t uCascadeCount = iMode == 0 ? ptLight->uCascadeCount : 1; // probe only needs single cascade
 
         const float afCascadeSplits[4] = {
-            iMode == 0 ? ptLight->afCascadeSplits[0] : ptSceneCamera->fFarZ, // use whole frustum for environment probes
+            iMode == 0 ? ptLight->afCascadeSplits[0] : 1.0f, // use whole frustum for environment probes
             ptLight->afCascadeSplits[1],
             ptLight->afCascadeSplits[2],
             ptLight->afCascadeSplits[3]
@@ -1626,8 +1626,8 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
         for(uint32_t uCascade = 0; uCascade < uCascadeCount; uCascade++)
         {
-            float fSplitDist = afCascadeSplits[uCascade];
-            ptShadowData->tCascadeSplits.d[uCascade] = afCascadeSplits[uCascade];
+            float fSplitDist = afCascadeSplits[uCascade] * ptSceneCamera->fFarZ;
+            ptShadowData->tCascadeSplits.d[uCascade] = fSplitDist;
 
             // camera space
             plVec3 atCameraCorners2[] = {
