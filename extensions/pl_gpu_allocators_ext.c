@@ -479,7 +479,7 @@ pl_allocate_buddy(
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
-    if(ulAlignment > 0)
+    if(ulAlignment > 0 && ulSize < PL_DEVICE_BUDDY_BLOCK_SIZE)
         ulSize = ulSize + (ulAlignment - 1);
 
     const uint32_t uLevel = pl__get_buddy_level(ulSize);
@@ -628,7 +628,7 @@ pl_allocate_staging_uncached_buddy(
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
-    if(ulAlignment > 0)
+    if(ulAlignment > 0 && ulSize < PL_DEVICE_BUDDY_BLOCK_SIZE)
         ulSize = ulSize + (ulAlignment - 1);
 
     const uint32_t uLevel = pl__get_buddy_level(ulSize);
