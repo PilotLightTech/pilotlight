@@ -439,11 +439,13 @@ pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial,
 	if(ptGltfMaterial->normal_texture.texture)
 		pl__load_gltf_texture(PL_TEXTURE_SLOT_NORMAL_MAP, &ptGltfMaterial->normal_texture, pcDirectory, ptGltfMaterial, ptMaterial);
 
+    ptMaterial->tEmissiveColor.r = ptGltfMaterial->emissive_factor[0];
+    ptMaterial->tEmissiveColor.g = ptGltfMaterial->emissive_factor[1];
+    ptMaterial->tEmissiveColor.b = ptGltfMaterial->emissive_factor[2];
+    if(ptMaterial->tEmissiveColor.r != 0.0f || ptMaterial->tEmissiveColor.g != 0.0f || ptMaterial->tEmissiveColor.b != 0.0f)
+        ptMaterial->tEmissiveColor.a = 1.0f;
 	if(ptGltfMaterial->emissive_texture.texture)
     {
-        ptMaterial->tEmissiveColor.r = ptGltfMaterial->emissive_factor[0];
-        ptMaterial->tEmissiveColor.g = ptGltfMaterial->emissive_factor[1];
-        ptMaterial->tEmissiveColor.b = ptGltfMaterial->emissive_factor[2];
 		pl__load_gltf_texture(PL_TEXTURE_SLOT_EMISSIVE_MAP, &ptGltfMaterial->emissive_texture, pcDirectory, ptGltfMaterial, ptMaterial);
     }
 
@@ -984,7 +986,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                 if(ptMaterial->tBlendMode == PL_BLEND_MODE_ALPHA)
                     bOpaque = false;
 
-                if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
+                if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource) || ptMaterial->tEmissiveColor.a > 0.0f)
                     bOpaque = false;
 
                 if(bOpaque)
