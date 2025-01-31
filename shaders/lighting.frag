@@ -253,26 +253,26 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularW
 vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight, int iProbeIndex, vec3 tWorldPos)
 {
 
-    if(bool(tProbeData.atData[iProbeIndex].iParallaxCorrection))
-    {
+    // if(bool(tProbeData.atData[iProbeIndex].iParallaxCorrection))
+    // {
 
-        // Find the ray intersection with box plane
-        vec3 FirstPlaneIntersect = (tProbeData.atData[iProbeIndex].tMax.xyz - tWorldPos) / n;
-        vec3 SecondPlaneIntersect = (tProbeData.atData[iProbeIndex].tMin.xyz - tWorldPos) / n;
+    //     // Find the ray intersection with box plane
+    //     vec3 FirstPlaneIntersect = (tProbeData.atData[iProbeIndex].tMax.xyz - tWorldPos) / n;
+    //     vec3 SecondPlaneIntersect = (tProbeData.atData[iProbeIndex].tMin.xyz - tWorldPos) / n;
         
-        // Get the furthest of these intersections along the ray
-        // (Ok because x/0 give +inf and -x/0 give –inf )
-        vec3 FurthestPlane = max(FirstPlaneIntersect, SecondPlaneIntersect);
+    //     // Get the furthest of these intersections along the ray
+    //     // (Ok because x/0 give +inf and -x/0 give –inf )
+    //     vec3 FurthestPlane = max(FirstPlaneIntersect, SecondPlaneIntersect);
 
-        // Find the closest far intersection
-        float Distance = min(min(FurthestPlane.x, FurthestPlane.y), FurthestPlane.z);
+    //     // Find the closest far intersection
+    //     float Distance = min(min(FurthestPlane.x, FurthestPlane.y), FurthestPlane.z);
 
-        // Get the intersection position
-        vec3 IntersectPositionWS = tWorldPos + n * Distance;
+    //     // Get the intersection position
+    //     vec3 IntersectPositionWS = tWorldPos + n * Distance;
 
-        // Get corrected reflection
-        n = IntersectPositionWS - tProbeData.atData[iProbeIndex].tPosition;
-    }
+    //     // Get corrected reflection
+    //     n = IntersectPositionWS - tProbeData.atData[iProbeIndex].tPosition;
+    // }
 
     // End parallax-correction code
 
