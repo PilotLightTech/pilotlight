@@ -41,8 +41,13 @@ Pilot Light is licensed under the [MIT License](https://github.com/PilotLightTec
 ## Gallery
 
 <p align="center">
-  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/lowpoly3.PNG" alt="Low Poly Scene" width="1500"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/sponza1.PNG" alt="Low Poly Scene" width="1500"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/bistro1.PNG" alt="Low Poly Scene" width="1500"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/sponza0.PNG" alt="Low Poly Scene" width="1500"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/courtyard2.PNG" alt="Low Poly Scene" width="1500"></a>
   <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/spacesuit.png" alt="Space Suit" width="2553"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/bistro2.PNG" alt="Low Poly Scene" width="1500"></a>
+  <a href="https://github.com/PilotLightTech/pilotlight"><img src="https://github.com/PilotLightTech/pilotlight-assets/blob/master/images/courtyard1.PNG" alt="Low Poly Scene" width="1500"></a>
 </p>
 
 ## Inspiration
