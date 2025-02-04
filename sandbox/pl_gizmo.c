@@ -5,18 +5,11 @@
 
 /*
 Index of this file:
-// [SECTION] includes
 // [SECTION] internal structs & enums
 // [SECTION] internal api declarations
 // [SECTION] public api implementation
 // [SECTION] internal api implementation
 */
-
-//-----------------------------------------------------------------------------
-// [SECTION] includes
-//-----------------------------------------------------------------------------
-
-#include "app.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs & enums
