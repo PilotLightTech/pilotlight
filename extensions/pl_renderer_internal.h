@@ -630,7 +630,6 @@ static plRefRendererData* gptData = NULL;
 //-----------------------------------------------------------------------------
 
 // job system tasks
-static void pl__refr_job     (plInvocationData, void*);
 static void pl__refr_cull_job(plInvocationData, void*);
 
 // resource creation helpers

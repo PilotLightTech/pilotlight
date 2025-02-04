@@ -352,7 +352,8 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
                         "PL_MATERIAL_BLEND_MODE_ALPHA",
                         "PL_MATERIAL_BLEND_MODE_PREMULTIPLIED",
                         "PL_MATERIAL_BLEND_MODE_ADDITIVE",
-                        "PL_MATERIAL_BLEND_MODE_MULTIPLY"
+                        "PL_MATERIAL_BLEND_MODE_MULTIPLY",
+                        "PL_MATERIAL_BLEND_MODE_CLIP_MASK"
                     };
                     gptUi->text("Blend Mode:                      %s", apcBlendModeNames[ptMaterialComp->tBlendMode]);
 
