@@ -1550,7 +1550,7 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
                 // simple shortest rotation without constraint
                 const plVec3 tAxis = pl_norm_vec3(pl_cross_vec3(tDirParentToIk, tDirParentToTarget));
                 const float fAngle = acosf(pl_clampf(-1.0f, pl_dot_vec3(tDirParentToIk, tDirParentToTarget), 1.0f));
-                tQ = pl_norm_vec4(pl_quat_rotation_normal_vec3(fAngle, tAxis));
+                tQ = pl_norm_vec4(pl_quat_rotation_vec3(fAngle, tAxis));
 
                 // parent to world space
                 pl_decompose_matrix(&ptParentTransform->tWorld, &ptParentTransform->tScale, &ptParentTransform->tRotation, &ptParentTransform->tTranslation);

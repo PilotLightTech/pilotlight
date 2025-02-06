@@ -737,7 +737,7 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
         {
             if(ptParentTransform)
             {
-                tCurrentRot = pl_mul_quat(pl_quat_rotation_normal(fAngleBetweenVecs, 1.0f, 0.0f, 0.0f), ptGizmoData->tOriginalRot);
+                tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 1.0f, 0.0f, 0.0f), ptGizmoData->tOriginalRot);
 
                 plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
 
@@ -747,7 +747,7 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
             }
             else
             {
-                ptSelectedTransform->tRotation = pl_mul_quat(pl_quat_rotation_normal(fAngleBetweenVecs, 1.0f, 0.0f, 0.0f), ptGizmoData->tOriginalRot);
+                ptSelectedTransform->tRotation = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 1.0f, 0.0f, 0.0f), ptGizmoData->tOriginalRot);
             }
         }
     }
@@ -785,7 +785,7 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
         {
             if(ptParentTransform)
             {
-                tCurrentRot = pl_mul_quat(pl_quat_rotation_normal(fAngleBetweenVecs, 0.0f, 1.0f, 0.0f), ptGizmoData->tOriginalRot);
+                tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 1.0f, 0.0f), ptGizmoData->tOriginalRot);
 
                 plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
 
@@ -795,7 +795,7 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
             }
             else
             {
-                ptSelectedTransform->tRotation = pl_mul_quat(pl_quat_rotation_normal(fAngleBetweenVecs, 0.0f, 1.0f, 0.0f), ptGizmoData->tOriginalRot);
+                ptSelectedTransform->tRotation = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 1.0f, 0.0f), ptGizmoData->tOriginalRot);
             }
         }
     }
@@ -833,7 +833,7 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
         {
             if(ptParentTransform)
             {
-                tCurrentRot = pl_mul_quat(pl_quat_rotation_normal(fAngleBetweenVecs, 0.0f, 0.0f, -1.0f), ptGizmoData->tOriginalRot);
+                tCurrentRot = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 0.0f, -1.0f), ptGizmoData->tOriginalRot);
 
                 plMat4 tDesired = pl_rotation_translation_scale(tCurrentRot, tCurrentTrans, tCurrentScale);
 
@@ -843,7 +843,7 @@ pl__gizmo_rotation(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plCa
             }
             else
             {
-                ptSelectedTransform->tRotation = pl_mul_quat(pl_quat_rotation_normal(fAngleBetweenVecs, 0.0f, 0.0f, -1.0f), ptGizmoData->tOriginalRot);
+                ptSelectedTransform->tRotation = pl_mul_quat(pl_quat_rotation(fAngleBetweenVecs, 0.0f, 0.0f, -1.0f), ptGizmoData->tOriginalRot);
             }
         }
     }
