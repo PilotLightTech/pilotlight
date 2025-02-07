@@ -116,12 +116,15 @@ pl_gizmo(plGizmoData* ptGizmoData, plDrawList3D* ptGizmoDrawlist, plComponentLib
         {
             case PL_SELECTION_MODE_TRANSLATION:
                 pl__gizmo_translation(ptGizmoData, ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+                ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
                 break;
             case PL_SELECTION_MODE_ROTATION:
                 pl__gizmo_rotation(ptGizmoData, ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+                ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
                 break;
             case PL_SELECTION_MODE_SCALE:
                 pl__gizmo_scale(ptGizmoData, ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+                ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
                 break;
             case PL_SELECTION_MODE_NONE:
             default:

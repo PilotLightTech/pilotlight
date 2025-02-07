@@ -562,7 +562,12 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         if(bAddSlot)
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        sbComponents[uComponentIndex] = (plTransformComponent){.tWorld = pl_identity_mat4(), .tScale = {1.0f, 1.0f, 1.0f}, .tRotation = {0.0f, 0.0f, 0.0f, 1.0f}};
+        sbComponents[uComponentIndex] = (plTransformComponent){
+            .tWorld    = pl_identity_mat4(),
+            .tScale    = {1.0f, 1.0f, 1.0f},
+            .tRotation = {0.0f, 0.0f, 0.0f, 1.0f},
+            .tFlags    = PL_TRANSFORM_FLAGS_DIRTY
+        };
         return &sbComponents[uComponentIndex];
     }
 
@@ -917,9 +922,6 @@ pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName, plTra
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
 
     plTransformComponent* ptTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
-    ptTransform->tScale = (plVec3){1.0f, 1.0f, 1.0f};
-    ptTransform->tRotation = (plVec4){0.0f, 0.0f, 0.0f, 1.0f};
-    ptTransform->tWorld = pl_identity_mat4();
 
     if(pptCompOut)
         *pptCompOut = ptTransform;
@@ -1180,7 +1182,14 @@ pl_run_transform_update_system(plComponentLibrary* ptLibrary)
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
         plTransformComponent* ptTransform = &sbtComponents[i];
-        ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+        if(ptTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
+        {
+            ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
+
+            plHierarchyComponent* ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, ptLibrary->tTransformComponentManager.sbtEntities[i]);
+            if(ptHierarchyComponent == NULL) // let object update system have a chance to handle flag
+                ptTransform->tFlags &= ~PL_TRANSFORM_FLAGS_DIRTY;
+        }
     }
 
     pl_end_cpu_sample(gptProfile, 0);
@@ -1198,8 +1207,11 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
         plHierarchyComponent* ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tChildEntity);
         plTransformComponent* ptParentTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptHierarchyComponent->tParent);
         plTransformComponent* ptChildTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tChildEntity);
-        if(ptParentTransform && ptChildTransform)
+        if(ptParentTransform && ptChildTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
+        {
             ptChildTransform->tWorld = pl_mul_mat4(&ptParentTransform->tWorld, &ptChildTransform->tWorld);
+            ptChildTransform->tFlags &= ~PL_TRANSFORM_FLAGS_DIRTY;
+        }
     }
 
     pl_end_cpu_sample(gptProfile, 0);
@@ -1332,6 +1344,7 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
             const plAnimationSampler* ptSampler = &ptAnimationComponent->sbtSamplers[ptChannel->uSamplerIndex];
             const plAnimationDataComponent* ptData = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION_DATA, ptSampler->tData);
             plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptChannel->tTarget);
+            ptTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
 
             // wrap t around, so the animation loops.
             // make sure that t is never earlier than the first keyframe and never later then the last keyframe.

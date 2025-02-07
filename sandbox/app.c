@@ -199,10 +199,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptLight->uCascadeCount = 4;
     ptLight->fIntensity = 1.0f;
     ptLight->uShadowResolution = 1024;
-    ptLight->afCascadeSplits[0] = 5.0f;
-    ptLight->afCascadeSplits[1] = 10.0f;
-    ptLight->afCascadeSplits[2] = 20.0f;
-    ptLight->afCascadeSplits[3] = 48.0f;
+    ptLight->afCascadeSplits[0] = 0.10f;
+    ptLight->afCascadeSplits[1] = 0.25f;
+    ptLight->afCascadeSplits[2] = 0.50f;
+    ptLight->afCascadeSplits[3] = 1.00f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
     plEntity tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);

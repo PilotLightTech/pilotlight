@@ -87,6 +87,7 @@ typedef int plLightFlags;
 typedef int plLightType;
 typedef int plHumanoidBone;
 typedef int plEnvironmentProbeFlags;
+typedef int plTransformFlags;
 
 typedef union _plEntity
 {
@@ -392,6 +393,12 @@ enum _plEnvironmentProbeFlags
     PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX = 1 << 3,
 };
 
+enum _plTransformFlags
+{
+    PL_TRANSFORM_FLAGS_NONE  = 0,
+    PL_TRANSFORM_FLAGS_DIRTY = 1 << 0,
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -532,10 +539,11 @@ typedef struct _plLayerComponent
 
 typedef struct _plTransformComponent
 {
-    plVec3 tScale;
-    plVec4 tRotation;
-    plVec3 tTranslation;
-    plMat4 tWorld;
+    plVec3           tScale;
+    plVec4           tRotation;
+    plVec3           tTranslation;
+    plMat4           tWorld;
+    plTransformFlags tFlags;
 } plTransformComponent;
 
 typedef struct _plMaterialComponent
