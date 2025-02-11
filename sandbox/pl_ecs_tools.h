@@ -37,6 +37,6 @@ typedef union  _plEntity           plEntity;
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-bool pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary*, bool*);
+bool pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool*);
 
 #endif // PL_ECS_TOOLS_H

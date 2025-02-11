@@ -10,14 +10,19 @@ Index of this file:
 // [SECTION] internal api implementation
 */
 
+#include "pl.h"
+#include "pl_ecs_ext.h"
+#include "pl_renderer_ext.h"
+#include "pl_ui_ext.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 bool
-pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bool* pbShowWindow)
+pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbShowWindow)
 {
-
+    plComponentLibrary* ptLibrary = gptRenderer->get_component_library(uSceneHandle);
     bool bResult = false;
 
     if(gptUi->begin_window("Entities", pbShowWindow, false))
@@ -336,8 +341,17 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, plComponentLibrary* ptLibrary, bo
 
                 if(ptMaterialComp && gptUi->begin_collapsing_header("Material", 0))
                 {
-                    gptUi->text("Base Color:            (%0.3f, %0.3f, %0.3f, %0.3f)", ptMaterialComp->tBaseColor.r, ptMaterialComp->tBaseColor.g, ptMaterialComp->tBaseColor.b, ptMaterialComp->tBaseColor.a);
-                    gptUi->text("Alpha Cutoff:                    %0.3f", ptMaterialComp->fAlphaCutoff);
+                    bool bMaterialModified = false;
+                    if(gptUi->input_float("Roughness", &ptMaterialComp->fRoughness, NULL, 0)) bMaterialModified = true;
+                    if(gptUi->input_float("Metalness", &ptMaterialComp->fMetalness, NULL, 0)) bMaterialModified = true;
+                    if(gptUi->input_float("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff, NULL, 0)) bMaterialModified = true;
+                    if(gptUi->input_float("Normal Map Strength", &ptMaterialComp->fNormalMapStrength, NULL, 0)) bMaterialModified = true;
+                    if(gptUi->input_float("Occulusion Map Strength", &ptMaterialComp->fOcclusionMapStrength, NULL, 0)) bMaterialModified = true;
+                    if(gptUi->input_float4("Base Factor", ptMaterialComp->tBaseColor.d, NULL, 0)) bMaterialModified = true;
+                    if(gptUi->input_float4("Emmissive Factor", ptMaterialComp->tEmissiveColor.d, NULL, 0)) bMaterialModified = true;
+
+                    if(bMaterialModified)
+                        gptRenderer->update_scene_materials(uSceneHandle, 1, ptSelectedEntity);
 
                     static const char* apcBlendModeNames[] = 
                     {

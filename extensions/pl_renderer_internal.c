@@ -1070,7 +1070,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                         .uTriangleCount       = tDrawable.uTriangleCount,
                         .uVertexOffset        = tDrawable.uStaticVertexOffset,
                         .atBindGroups = {
-                            ptScene->tGlobalBindGroup,
+                            ptScene->atGlobalBindGroup[uFrameIdx],
                             tGlobalBG0
                         },
                         .auDynamicBufferOffsets = {
@@ -1111,7 +1111,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                         .uTriangleCount       = tDrawable.uTriangleCount,
                         .uVertexOffset        = tDrawable.uStaticVertexOffset,
                         .atBindGroups = {
-                            ptScene->tGlobalBindGroup,
+                            ptScene->atGlobalBindGroup[uFrameIdx],
                             tGlobalBG0
                         },
                         .auDynamicBufferOffsets = {
@@ -1249,7 +1249,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                             .uTriangleCount       = tDrawable.uTriangleCount,
                             .uVertexOffset        = tDrawable.uStaticVertexOffset,
                             .atBindGroups = {
-                                ptScene->tGlobalBindGroup,
+                                ptScene->atGlobalBindGroup[uFrameIdx],
                                 tGlobalBG0
                             },
                             .auDynamicBufferOffsets = {
@@ -1290,7 +1290,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                             .uTriangleCount       = tDrawable.uTriangleCount,
                             .uVertexOffset        = tDrawable.uStaticVertexOffset,
                             .atBindGroups = {
-                                ptScene->tGlobalBindGroup,
+                                ptScene->atGlobalBindGroup[uFrameIdx],
                                 tGlobalBG0
                             },
                             .auDynamicBufferOffsets = {
@@ -1373,7 +1373,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                     .uTriangleCount       = tDrawable.uTriangleCount,
                     .uVertexOffset        = tDrawable.uStaticVertexOffset,
                     .atBindGroups = {
-                        ptScene->tGlobalBindGroup,
+                        ptScene->atGlobalBindGroup[uFrameIdx],
                         tGlobalBG1
                     },
                     .auDynamicBufferOffsets = {
@@ -1414,7 +1414,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                     .uTriangleCount       = tDrawable.uTriangleCount,
                     .uVertexOffset        = tDrawable.uStaticVertexOffset,
                     .atBindGroups = {
-                        ptScene->tGlobalBindGroup,
+                        ptScene->atGlobalBindGroup[uFrameIdx],
                         tGlobalBG1
                     },
                     .auDynamicBufferOffsets = {
@@ -1723,7 +1723,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                     .uTriangleCount       = tDrawable.uTriangleCount,
                     .uVertexOffset        = tDrawable.uStaticVertexOffset,
                     .atBindGroups = {
-                        ptScene->tGlobalBindGroup,
+                        ptScene->atGlobalBindGroup[uFrameIdx],
                         tShadowBG1
                     },
                     .auDynamicBufferOffsets = {
@@ -1764,7 +1764,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                     .uTriangleCount       = tDrawable.uTriangleCount,
                     .uVertexOffset        = tDrawable.uStaticVertexOffset,
                     .atBindGroups = {
-                        ptScene->tGlobalBindGroup,
+                        ptScene->atGlobalBindGroup[uFrameIdx],
                         tShadowBG1
                     },
                     .auDynamicBufferOffsets = {
@@ -1876,7 +1876,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                         .uTriangleCount       = tDrawable.uTriangleCount,
                         .uVertexOffset        = tDrawable.uStaticVertexOffset,
                         .atBindGroups = {
-                            ptScene->tGlobalBindGroup,
+                            ptScene->atGlobalBindGroup[uFrameIdx],
                             tShadowBG1
                         },
                         .auDynamicBufferOffsets = {
@@ -1917,7 +1917,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                         .uTriangleCount       = tDrawable.uTriangleCount,
                         .uVertexOffset        = tDrawable.uStaticVertexOffset,
                         .atBindGroups = {
-                            ptScene->tGlobalBindGroup,
+                            ptScene->atGlobalBindGroup[uFrameIdx],
                             tShadowBG1
                         },
                         .auDynamicBufferOffsets = {
@@ -2967,7 +2967,8 @@ pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle tTexture)
         .atTextureBindings = tGlobalTextureData
     };
 
-    gptGfx->update_bind_group(gptData->ptDevice, ptScene->tGlobalBindGroup, &tGlobalBindGroupData);
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
 
     return (uint32_t)ulValue;
 }
@@ -3004,7 +3005,8 @@ pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle tText
         .atTextureBindings = tGlobalTextureData
     };
 
-    gptGfx->update_bind_group(gptData->ptDevice, ptScene->tGlobalBindGroup, &tGlobalBindGroupData);
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
 
     return (uint32_t)ulValue;
 }
@@ -3334,10 +3336,10 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
     ptProbe = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, tProbeHandle);
     ptProbeTransform->tTranslation = ptProbe->tPosition;
 
-    const uint32_t uTransparentStart = pl_sb_size(ptScene->sbtNewDrawables);
-    pl_sb_add(ptScene->sbtNewDrawables);
-    ptScene->sbtNewDrawables[uTransparentStart].tEntity = tProbeHandle;
-    ptScene->sbtNewDrawables[uTransparentStart].tFlags = PL_DRAWABLE_FLAG_PROBE | PL_DRAWABLE_FLAG_FORWARD;
+    const uint32_t uTransparentStart = pl_sb_size(ptScene->sbtStagedDrawables);
+    pl_sb_add(ptScene->sbtStagedDrawables);
+    ptScene->sbtStagedDrawables[uTransparentStart].tEntity = tProbeHandle;
+    ptScene->sbtStagedDrawables[uTransparentStart].tFlags = PL_DRAWABLE_FLAG_PROBE | PL_DRAWABLE_FLAG_FORWARD;
 };
 
 static uint64_t
@@ -3679,7 +3681,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                     .uTriangleCount       = tDrawable.uTriangleCount,
                     .uVertexOffset        = tDrawable.uStaticVertexOffset,
                     .atBindGroups = {
-                        ptScene->tGlobalBindGroup,
+                        ptScene->atGlobalBindGroup[uFrameIdx],
                         tGBufferFillBG1
                     },
                     .auDynamicBufferOffsets = {
@@ -3724,7 +3726,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                 .uIndexOffset         = 0,
                 .uTriangleCount       = 2,
                 .atBindGroups = {
-                    ptScene->tGlobalBindGroup,
+                    ptScene->atGlobalBindGroup[uFrameIdx],
                     ptProbe->atLightingBindGroup[uFace],
                     tSceneBG
                 },
@@ -3809,7 +3811,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                     .uTriangleCount       = tDrawable.uTriangleCount,
                     .uVertexOffset        = tDrawable.uStaticVertexOffset,
                     .atBindGroups = {
-                        ptScene->tGlobalBindGroup,
+                        ptScene->atGlobalBindGroup[uFrameIdx],
                         tSceneBG
                     },
                     .auDynamicBufferOffsets = {
@@ -4227,12 +4229,10 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
 }
 
 static void
-pl__refr_process_drawables(uint32_t uSceneHandle, bool bReload)
+pl__refr_set_drawable_shaders(uint32_t uSceneHandle)
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plDevice*   ptDevice = gptData->ptDevice;
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~CPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     int iSceneWideRenderingFlags = 0;
     if(gptData->bPunctualLighting)
@@ -4240,28 +4240,11 @@ pl__refr_process_drawables(uint32_t uSceneHandle, bool bReload)
     if(gptData->bImageBasedLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
-    // fill CPU buffers & drawable list
-
-    pl_sb_reset(ptScene->sbtDrawables);
-    pl_sb_reset(ptScene->sbuShadowDeferredDrawables);
-    pl_sb_reset(ptScene->sbuShadowForwardDrawables);
-
-    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtNewDrawables);
-    pl_sb_reserve(ptScene->sbtDrawables, uDrawableCount);
-    if(!bReload)
-    {
-        pl_hm_resize(ptScene->ptDrawableHashmap, uDrawableCount);
-    }
+    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
     for(uint32_t i = 0; i < uDrawableCount; i++)
     {
 
-        ptScene->sbtNewDrawables[i].uSkinIndex = UINT32_MAX;
-        plEntity tEntity = ptScene->sbtNewDrawables[i].tEntity;
-        
-        if(!bReload)
-        {
-            pl_hm_insert(ptScene->ptDrawableHashmap, tEntity.ulData, i);
-        }
+        plEntity tEntity = ptScene->sbtDrawables[i].tEntity;
 
         // get actual components
         plObjectComponent*   ptObject   = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
@@ -4276,59 +4259,10 @@ pl__refr_process_drawables(uint32_t uSceneHandle, bool bReload)
         }
         else
         {
-
-            uint64_t ulValue = pl_hm_get_free_index(ptScene->ptMaterialHashmap);
-            if(ulValue == UINT64_MAX)
-            {
-                ulValue = pl_sb_size(ptScene->sbtMaterialBuffer);
-                pl_sb_add(ptScene->sbtMaterialBuffer);
-            }
-
-            uMaterialIndex = (uint32_t)ulValue;
-
-            plTextureHandle tBaseColorTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0);
-            plTextureHandle tNormalTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_NORMAL_MAP, false, 0);
-            plTextureHandle tEmissiveTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_EMISSIVE_MAP, true, 0);
-            plTextureHandle tMetallicRoughnessTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP, false, 0);
-            plTextureHandle tOcclusionTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_OCCLUSION_MAP, false, 1);
-
-            int iBaseColorTexIdx = (int)pl__get_bindless_texture_index(uSceneHandle, tBaseColorTex);
-            int iNormalTexIdx = (int)pl__get_bindless_texture_index(uSceneHandle, tNormalTex);
-            int iEmissiveTexIdx = (int)pl__get_bindless_texture_index(uSceneHandle, tEmissiveTex);
-            int iMetallicRoughnessTexIdx = (int)pl__get_bindless_texture_index(uSceneHandle, tMetallicRoughnessTex);
-            int iOcclusionTexIdx = (int)pl__get_bindless_texture_index(uSceneHandle, tOcclusionTex);
-
-            plGPUMaterial tMaterial = {
-                .fMetallicFactor = ptMaterial->fMetalness,
-                .fRoughnessFactor = ptMaterial->fRoughness,
-                .tBaseColorFactor = ptMaterial->tBaseColor,
-                .tEmissiveFactor = ptMaterial->tEmissiveColor.rgb,
-                .fAlphaCutoff = ptMaterial->fAlphaCutoff,
-                .fOcclusionStrength = 1.0f,
-                .fEmissiveStrength = 1.0f,
-                .iBaseColorUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].uUVSet,
-                .iNormalUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].uUVSet,
-                .iEmissiveUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].uUVSet,
-                .iOcclusionUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].uUVSet,
-                .iMetallicRoughnessUVSet = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].uUVSet,
-                .iBaseColorTexIdx = iBaseColorTexIdx,
-                .iNormalTexIdx = iNormalTexIdx,
-                .iEmissiveTexIdx = iEmissiveTexIdx,
-                .iMetallicRoughnessTexIdx = iMetallicRoughnessTexIdx,
-                .iOcclusionTexIdx = iOcclusionTexIdx
-            };
-            ptScene->sbtMaterialBuffer[uMaterialIndex] = tMaterial;
-            pl_hm_insert(ptScene->ptMaterialHashmap, ptMesh->tMaterial.ulData, ulValue);
+            PL_ASSERT(false && "material not added to scene");
         }
 
-        ptScene->sbtNewDrawables[i].uMaterialIndex = uMaterialIndex;
-
-        // add data to global buffers
-        if(!bReload)
-        {
-            pl__add_drawable_data_to_global_buffer(ptScene, i, ptScene->sbtNewDrawables);
-            pl__add_drawable_skin_data_to_global_buffer(ptScene, i, ptScene->sbtNewDrawables);
-        }
+        ptScene->sbtDrawables[i].uMaterialIndex = uMaterialIndex;
 
         int iDataStride = 0;
         int iFlagCopy0 = (int)ptMesh->ulVertexStreamMask;
@@ -4353,9 +4287,9 @@ pl__refr_process_drawables(uint32_t uSceneHandle, bool bReload)
         }
         if(ptMaterial->tFlags & PL_MATERIAL_FLAG_CAST_SHADOW)
         {
-            if(ptScene->sbtNewDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
+            if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
                 pl_sb_push(ptScene->sbuShadowForwardDrawables, i);
-            else if(ptScene->sbtNewDrawables[i].tFlags & PL_DRAWABLE_FLAG_DEFERRED)
+            else if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_DEFERRED)
                 pl_sb_push(ptScene->sbuShadowDeferredDrawables, i);
         }
 
@@ -4372,7 +4306,7 @@ pl__refr_process_drawables(uint32_t uSceneHandle, bool bReload)
             pl_sb_size(ptScene->sbtProbeData),
         };
 
-        if(ptScene->sbtNewDrawables[i].tFlags & PL_DRAWABLE_FLAG_DEFERRED)
+        if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_DEFERRED)
         {
 
             plGraphicsState tVariantTemp = {
@@ -4396,12 +4330,12 @@ pl__refr_process_drawables(uint32_t uSceneHandle, bool bReload)
                 .tGraphicsState    = tVariantTemp
             };
 
-            ptScene->sbtNewDrawables[i].tShader = pl__get_shader_variant(uSceneHandle, gptData->tDeferredShader, &tVariant);
+            ptScene->sbtDrawables[i].tShader = pl__get_shader_variant(uSceneHandle, gptData->tDeferredShader, &tVariant);
             aiConstantData0[4] = gptData->bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-            ptScene->sbtNewDrawables[i].tEnvShader = pl__get_shader_variant(uSceneHandle, gptData->tDeferredShader, &tVariant);
+            ptScene->sbtDrawables[i].tEnvShader = pl__get_shader_variant(uSceneHandle, gptData->tDeferredShader, &tVariant);
         }
 
-        else if(ptScene->sbtNewDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
+        else if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
         {
 
             plGraphicsState tVariantTemp = {
@@ -4425,9 +4359,9 @@ pl__refr_process_drawables(uint32_t uSceneHandle, bool bReload)
                 .tGraphicsState    = tVariantTemp
             };
 
-            ptScene->sbtNewDrawables[i].tShader = pl__get_shader_variant(uSceneHandle, gptData->tForwardShader, &tVariant);
+            ptScene->sbtDrawables[i].tShader = pl__get_shader_variant(uSceneHandle, gptData->tForwardShader, &tVariant);
             aiConstantData0[4] = gptData->bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-            ptScene->sbtNewDrawables[i].tEnvShader = pl__get_shader_variant(uSceneHandle, gptData->tForwardShader, &tVariant);
+            ptScene->sbtDrawables[i].tEnvShader = pl__get_shader_variant(uSceneHandle, gptData->tForwardShader, &tVariant);
 
             const plShaderVariant tShadowVariant = {
                 .pTempConstantData =  aiConstantData0,
@@ -4444,12 +4378,50 @@ pl__refr_process_drawables(uint32_t uSceneHandle, bool bReload)
                     .ulStencilOpPass      = PL_STENCIL_OP_KEEP
                 }
             };
-            ptScene->sbtNewDrawables[i].tShadowShader = pl__get_shader_variant(uSceneHandle, gptData->tAlphaShadowShader, &tShadowVariant);
+            ptScene->sbtDrawables[i].tShadowShader = pl__get_shader_variant(uSceneHandle, gptData->tAlphaShadowShader, &tShadowVariant);
+        }
+    }
+}
+
+static void
+pl__refr_process_drawables(uint32_t uSceneHandle)
+{
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    plDevice*   ptDevice = gptData->ptDevice;
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~CPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // fill CPU buffers & drawable list
+
+    pl_sb_reset(ptScene->sbtDrawables);
+    pl_sb_reset(ptScene->sbuShadowDeferredDrawables);
+    pl_sb_reset(ptScene->sbuShadowForwardDrawables);
+
+    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtStagedDrawables);
+    pl_sb_reserve(ptScene->sbtDrawables, uDrawableCount);
+    pl_hm_resize(ptScene->ptDrawableHashmap, uDrawableCount);
+    for(uint32_t i = 0; i < uDrawableCount; i++)
+    {
+
+        ptScene->sbtStagedDrawables[i].uSkinIndex = UINT32_MAX;
+        plEntity tEntity = ptScene->sbtStagedDrawables[i].tEntity;
+
+        // add entity to hashmap if first time
+        if(!pl_hm_has_key(ptScene->ptDrawableHashmap, tEntity.ulData))
+        {
+            pl_hm_insert(ptScene->ptDrawableHashmap, tEntity.ulData, i);
+        }
+        
+        // add data to global buffers
+        if(ptScene->sbtStagedDrawables[i].uVertexCount == 0) // first time
+        {
+            pl__add_drawable_data_to_global_buffer(ptScene, i, ptScene->sbtStagedDrawables);
+            pl__add_drawable_skin_data_to_global_buffer(ptScene, i, ptScene->sbtStagedDrawables);
         }
 
-        ptScene->sbtNewDrawables[i].uTriangleCount = ptScene->sbtNewDrawables[i].uIndexCount == 0 ? ptScene->sbtNewDrawables[i].uVertexCount / 3 : ptScene->sbtNewDrawables[i].uIndexCount / 3;
-        ptScene->sbtNewDrawables[i].uStaticVertexOffset = ptScene->sbtNewDrawables[i].uIndexCount == 0 ? ptScene->sbtNewDrawables[i].uVertexOffset : 0;
-        ptScene->sbtNewDrawables[i].uDynamicVertexOffset = ptScene->sbtNewDrawables[i].uIndexCount == 0 ? 0 : ptScene->sbtNewDrawables[i].uVertexOffset;
-        pl_sb_push(ptScene->sbtDrawables, ptScene->sbtNewDrawables[i]);
+        ptScene->sbtStagedDrawables[i].uTriangleCount = ptScene->sbtStagedDrawables[i].uIndexCount == 0 ? ptScene->sbtStagedDrawables[i].uVertexCount / 3 : ptScene->sbtStagedDrawables[i].uIndexCount / 3;
+        ptScene->sbtStagedDrawables[i].uStaticVertexOffset = ptScene->sbtStagedDrawables[i].uIndexCount == 0 ? ptScene->sbtStagedDrawables[i].uVertexOffset : 0;
+        ptScene->sbtStagedDrawables[i].uDynamicVertexOffset = ptScene->sbtStagedDrawables[i].uIndexCount == 0 ? 0 : ptScene->sbtStagedDrawables[i].uVertexOffset;
+        pl_sb_push(ptScene->sbtDrawables, ptScene->sbtStagedDrawables[i]);
     }
 }

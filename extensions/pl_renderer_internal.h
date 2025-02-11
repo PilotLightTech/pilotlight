@@ -394,11 +394,15 @@ typedef struct _plRefScene
     plBufferHandle tVertexBuffer;
     plBufferHandle tIndexBuffer;
     plBufferHandle tStorageBuffer;
-    plBufferHandle tMaterialDataBuffer;
     plBufferHandle tSkinStorageBuffer;
     plBufferHandle atDLightBuffer[PL_MAX_VIEWS_PER_SCENE];
     plBufferHandle atPLightBuffer[PL_MAX_VIEWS_PER_SCENE];
     plBufferHandle atSLightBuffer[PL_MAX_VIEWS_PER_SCENE];
+
+    // GPU materials
+    uint32_t       uGPUMaterialDirty;
+    uint32_t       uGPUMaterialBufferCapacity;
+    plBufferHandle atMaterialDataBuffer[PL_MAX_VIEWS_PER_SCENE];
 
     // views
     uint32_t    uViewCount;
@@ -418,7 +422,7 @@ typedef struct _plRefScene
 
     // drawables (per scene, will be culled by views)
 
-    plDrawable* sbtNewDrawables; // unprocessed
+    plDrawable* sbtStagedDrawables; // unprocessed
 
     plDrawable* sbtDrawables; // regular rendering
 
@@ -439,7 +443,7 @@ typedef struct _plRefScene
     uint32_t          uCubeTextureIndexCount;
     plHashMap*        ptTextureIndexHashmap; // texture handle <-> index
     plHashMap*        ptCubeTextureIndexHashmap; // texture handle <-> index
-    plBindGroupHandle tGlobalBindGroup;
+    plBindGroupHandle atGlobalBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
 
     // material hashmaps (material component <-> GPU material)
     plMaterialComponent* sbtMaterials;
@@ -522,12 +526,12 @@ typedef struct _plRefRendererData
     plDeviceMemoryAllocatorI* ptStagingCachedAllocator;
 
     // default textures & samplers & bindgroups
-    plSamplerHandle   tDefaultSampler;
-    plSamplerHandle   tSkyboxSampler;
-    plSamplerHandle   tShadowSampler;
-    plSamplerHandle   tEnvSampler;
-    plTextureHandle   tDummyTexture;
-    plTextureHandle   tDummyTextureCube;
+    plSamplerHandle tDefaultSampler;
+    plSamplerHandle tSkyboxSampler;
+    plSamplerHandle tShadowSampler;
+    plSamplerHandle tEnvSampler;
+    plTextureHandle tDummyTexture;
+    plTextureHandle tDummyTextureCube;
 
     // scenes
     plRefScene* sbtScenes;
@@ -664,7 +668,8 @@ static size_t                  pl__get_data_type_size2(plDataType tType);
 static plBlendState            pl__get_blend_state(plBlendMode tBlendMode);
 static uint32_t                pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle);
 static uint32_t                pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle);
-static void                    pl__refr_process_drawables(uint32_t uSceneHandle, bool bReload);
+static void                    pl__refr_process_drawables(uint32_t uSceneHandle);
+static void                    pl__refr_set_drawable_shaders(uint32_t uSceneHandle);
 
 // environment probes
 static void pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle);

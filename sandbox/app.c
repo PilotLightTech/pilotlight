@@ -344,7 +344,7 @@ pl_app_update(plEditorData* ptEditorData)
 
         if(ptEditorData->bShowEntityWindow)
         {
-            if(pl_show_ecs_window(&ptEditorData->tSelectedEntity, ptMainComponentLibrary, &ptEditorData->bShowEntityWindow))
+            if(pl_show_ecs_window(&ptEditorData->tSelectedEntity, ptEditorData->uSceneHandle0, &ptEditorData->bShowEntityWindow))
             {
                 if(ptEditorData->tSelectedEntity.ulData == UINT64_MAX)
                     gptRenderer->select_entities(ptEditorData->uSceneHandle0, 0, NULL);

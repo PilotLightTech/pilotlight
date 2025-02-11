@@ -65,6 +65,9 @@ typedef struct _plRendererI
     uint32_t (*create_scene)(void);
     void     (*add_drawable_objects_to_scene)(uint32_t uSceneHandle, uint32_t uOpaqueCount, const plEntity* atOpaqueObjects, uint32_t uTransparentCount, const plEntity* atTransparentObjects);
 
+    void (*add_materials_to_scene)(uint32_t sceneHandle, uint32_t materialCount, const plEntity* materials);
+    void (*update_scene_materials)(uint32_t sceneHandle, uint32_t materialCount, const plEntity* materials);
+
     // views
     uint32_t          (*create_view)(uint32_t uSceneHandle, plVec2 tDimensions);
     plBindGroupHandle (*get_view_color_texture)(uint32_t uSceneHandle, uint32_t uViewHandle);
