@@ -39,6 +39,8 @@ Index of this file:
 #include "pl_debug_ext.c"
 #include "pl_profile_ext.c"
 #include "pl_log_ext.c"
+#include "pl_ecs_tools_ext.c"
+#include "pl_gizmo_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -70,6 +72,9 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptResource          = pl_get_api_latest(ptApiRegistry, plResourceI);
     gptProfile           = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog               = pl_get_api_latest(ptApiRegistry, plLogI);
+    gptRenderer          = pl_get_api_latest(ptApiRegistry, plRendererI);
+    gptEcsTools          = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+    gptGizmo             = pl_get_api_latest(ptApiRegistry, plGizmoI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -93,6 +98,8 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_resource_ext(ptApiRegistry, bReload);
     pl_load_model_loader_ext(ptApiRegistry, bReload);
     pl_load_renderer_ext(ptApiRegistry, bReload);
+    pl_load_ecs_tools_ext(ptApiRegistry, bReload);
+    pl_load_gizmo_ext(ptApiRegistry, bReload);
     pl_load_debug_ext(ptApiRegistry, bReload);
     pl_load_profile_ext(ptApiRegistry, bReload);
 }
@@ -117,6 +124,8 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_resource_ext(ptApiRegistry, bReload);
     pl_unload_model_loader_ext(ptApiRegistry, bReload);
     pl_unload_renderer_ext(ptApiRegistry, bReload);
+    pl_unload_ecs_tools_ext(ptApiRegistry, bReload);
+    pl_unload_gizmo_ext(ptApiRegistry, bReload);
     pl_unload_debug_ext(ptApiRegistry, bReload);
     pl_unload_profile_ext(ptApiRegistry, bReload);
     pl_unload_log_ext(ptApiRegistry, bReload);

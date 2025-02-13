@@ -114,7 +114,9 @@ with pl.project("pilotlight deploy"):
         "pl_draw_backend_ext",
         "pl_resource_ext",
         "pl_model_loader_ext",
-        "pl_ui_ext"
+        "pl_ui_ext",
+        "pl_ecs_tools_ext",
+        "pl_gizmo_ext",
     ]
 
     for extension in extensions:

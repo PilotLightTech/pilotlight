@@ -55,6 +55,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
         gptString      = pl_get_api_latest(ptApiRegistry, plStringInternI);
         gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
         gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
+        gptEcsTools    = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+        gptGizmo       = pl_get_api_latest(ptApiRegistry, plGizmoI);
 
         return ptEditorData;
     }
@@ -83,6 +85,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     gptString      = pl_get_api_latest(ptApiRegistry, plStringInternI);
     gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptEcsTools    = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+    gptGizmo       = pl_get_api_latest(ptApiRegistry, plGizmoI);
 
     gptProfile->begin_frame();
     
@@ -106,9 +110,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG;
     #endif
     gptShader->initialize(&tDefaultShaderOptions);
-
-    // initialize gizmo stuff
-    ptEditorData->ptGizmoData = pl_initialize_gizmo_data();
 
     // initialize job system
     gptJobs->initialize(0);
@@ -345,11 +346,11 @@ pl_app_update(plEditorData* ptEditorData)
         }
 
         if(gptIO->is_key_pressed(PL_KEY_M, true))
-            pl_change_gizmo_mode(ptEditorData->ptGizmoData);
+            gptGizmo->next_mode();
 
         if(ptEditorData->bShowEntityWindow)
         {
-            if(pl_show_ecs_window(&ptEditorData->tSelectedEntity, ptEditorData->uSceneHandle0, &ptEditorData->bShowEntityWindow))
+            if(gptEcsTools->show_ecs_window(&ptEditorData->tSelectedEntity, ptEditorData->uSceneHandle0, &ptEditorData->bShowEntityWindow))
             {
                 if(ptEditorData->tSelectedEntity.ulData == UINT64_MAX)
                     gptRenderer->select_entities(ptEditorData->uSceneHandle0, 0, NULL);
@@ -361,7 +362,20 @@ pl_app_update(plEditorData* ptEditorData)
         if(ptEditorData->tSelectedEntity.uIndex != UINT32_MAX)
         {
             plDrawList3D* ptGizmoDrawlist =  gptRenderer->get_gizmo_drawlist(ptEditorData->uSceneHandle0, ptEditorData->uViewHandle0);
-            pl_gizmo(ptEditorData->ptGizmoData, ptGizmoDrawlist, ptMainComponentLibrary, ptCamera, ptEditorData->tSelectedEntity);
+            plObjectComponent* ptSelectedObject = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_OBJECT, ptEditorData->tSelectedEntity);
+            plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptEditorData->tSelectedEntity);
+            plTransformComponent* ptParentTransform = NULL;
+            plHierarchyComponent* ptHierarchyComp = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_HIERARCHY, ptEditorData->tSelectedEntity);
+            if(ptHierarchyComp)
+            {
+                ptParentTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptHierarchyComp->tParent);
+            }
+            if(ptSelectedObject)
+            {
+                ptSelectedTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSelectedObject->tTransform);
+                gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+                ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+            }
         }
     
         const plViewOptions tViewOptions = {
@@ -574,9 +588,6 @@ pl_app_update(plEditorData* ptEditorData)
 //-----------------------------------------------------------------------------
 // [SECTION] unity build
 //-----------------------------------------------------------------------------
-
-#include "pl_gizmo.c"
-#include "pl_ecs_tools.c"
 
 #ifdef PL_USE_STB_SPRINTF
     #define STB_SPRINTF_IMPLEMENTATION

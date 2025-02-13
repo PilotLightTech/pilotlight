@@ -41,10 +41,10 @@
 #include "pl_window_ext.h"
 #include "pl_library_ext.h"
 #include "pl_file_ext.h"
+#include "pl_ecs_tools_ext.h"
+#include "pl_gizmo_ext.h"
 
 // editor
-#include "pl_gizmo.h"
-#include "pl_ecs_tools.h"
 #include "pl_icons.h"
 
 //-----------------------------------------------------------------------------
@@ -70,6 +70,8 @@ static const plNetworkI*      gptNetwork     = NULL;
 static const plStringInternI* gptString      = NULL;
 static const plProfileI*      gptProfile     = NULL;
 static const plFileI*         gptFile        = NULL;
+static const plEcsToolsI*     gptEcsTools    = NULL;
+static const plGizmoI*        gptGizmo       = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -117,9 +119,6 @@ typedef struct _plEditorData
     // selection stuff
     plEntity tSelectedEntity;
     
-    // gizmo data
-    plGizmoData* ptGizmoData;
-
     // fonts
     plFont* tDefaultFont;
 
