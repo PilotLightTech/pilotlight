@@ -185,6 +185,7 @@ pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
     pl_sb_push(ptGarbage->sbtBuffers, tHandle);
     pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation);
     ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "Queue buffer %u for deletion", tHandle.uIndex);
 }
 
 static void
@@ -406,6 +407,7 @@ pl__get_new_buffer_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtBuffersCold[uBufferIndex]._uGeneration,
         .uIndex = uBufferIndex
     };
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "create buffer %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -427,6 +429,7 @@ pl__get_new_texture_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtTexturesCold[uTextureIndex]._uGeneration,
         .uIndex = uTextureIndex
     };
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "create texture %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -448,6 +451,7 @@ pl__get_new_sampler_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtSamplersCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "create sampler %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -490,6 +494,7 @@ pl__get_new_shader_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtShadersCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "create shader %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -511,6 +516,7 @@ pl__get_new_compute_shader_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtComputeShadersCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "create compute shader %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -532,6 +538,7 @@ pl__get_new_render_pass_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtRenderPassesCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "create render pass %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -553,6 +560,7 @@ pl__get_new_render_pass_layout_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtRenderPassLayoutsCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "create render pass layout %u", tHandle.uIndex);
     return tHandle;
 }
 

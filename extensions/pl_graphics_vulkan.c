@@ -2376,10 +2376,10 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     // setup logging
     plLogExtChannelInit tLogInit = {
         .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER,
-        .uEntryCount = 256
+        .uEntryCount = 1024
     };
     uLogChannelGraphics = gptLog->add_channel("Graphics", tLogInit);
-    uint32_t uLogLevel = PL_LOG_LEVEL_INFO;
+    uint32_t uLogLevel = PL_LOG_LEVEL_ALL;
     gptLog->set_level(uLogChannelGraphics, uLogLevel);
 
     // save context for hot-reloads
@@ -3971,6 +3971,7 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
 void
 pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy buffer %u immediately", tHandle.uIndex);
     vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->sbtBuffersHot[tHandle.uIndex].tBuffer, NULL);
     ptDevice->sbtBuffersHot[tHandle.uIndex].tBuffer = VK_NULL_HANDLE;
     ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
@@ -3986,6 +3987,7 @@ pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 void
 pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy texture %u immediately", tHandle.uIndex);
     plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[tHandle.uIndex];
     vkDestroyImage(ptDevice->tLogicalDevice, ptVulkanResource->tImage, NULL);
     ptVulkanResource->tImage = VK_NULL_HANDLE;
@@ -4002,6 +4004,7 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 void
 pl_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 {
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy sampler %u immediately", tHandle.uIndex);
     vkDestroySampler(ptDevice->tLogicalDevice, ptDevice->sbtSamplersHot[tHandle.uIndex], NULL);
     ptDevice->sbtSamplersHot[tHandle.uIndex] = VK_NULL_HANDLE;
     ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration++;
@@ -4023,6 +4026,7 @@ pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 void
 pl_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy render pass %u immediately", tHandle.uIndex);
     ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration++;
 
     plVulkanRenderPass* ptVulkanResource = &ptDevice->sbtRenderPassesHot[tHandle.uIndex];
@@ -4041,6 +4045,7 @@ pl_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
 void
 pl_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 {
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy render pass layout %u immediately", tHandle.uIndex);
     ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration++;
 
     plVulkanRenderPassLayout* ptVulkanResource = &ptDevice->sbtRenderPassLayoutsHot[tHandle.uIndex];
@@ -4051,6 +4056,7 @@ pl_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHand
 void
 pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy shader %u immediately", tHandle.uIndex);
     ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration++;
 
     plShader* ptResource = &ptDevice->sbtShadersCold[tHandle.uIndex];
@@ -4073,6 +4079,7 @@ pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 void
 pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy compute shader %u immediately", tHandle.uIndex);
     ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration++;
 
     plComputeShader* ptResource = &ptDevice->sbtComputeShadersCold[tHandle.uIndex];
@@ -5338,6 +5345,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtTextures[i].uIndex;
+        pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy texture %u", iResourceIndex);
         plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[iResourceIndex];
         vkDestroyImageView(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[iResourceIndex].tImageView, NULL);
         ptDevice->sbtTexturesHot[iResourceIndex].tImageView = VK_NULL_HANDLE;
@@ -5361,6 +5369,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtRenderPasses); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtRenderPasses[i].uIndex;
+        pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy render pass %u", iResourceIndex);
         plVulkanRenderPass* ptVulkanResource = &ptDevice->sbtRenderPassesHot[iResourceIndex];
         for (uint32_t j = 0; j < 3; j++)
         {
@@ -5386,6 +5395,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtShaders); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtShaders[i].uIndex;
+        pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy shader %u", iResourceIndex);
         plShader* ptResource = &ptDevice->sbtShadersCold[iResourceIndex];
         plVulkanShader* ptVulkanResource = &ptDevice->sbtShadersHot[iResourceIndex];
         if (ptVulkanResource->tVertexShaderModule)
@@ -5414,6 +5424,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtComputeShaders); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtComputeShaders[i].uIndex;
+        pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy compute shader %u", iResourceIndex);
         plComputeShader* ptResource = &ptDevice->sbtComputeShadersCold[iResourceIndex];
         plVulkanComputeShader* ptVulkanResource = &ptDevice->sbtComputeShadersHot[iResourceIndex];
         if (ptVulkanResource->tShaderModule)
@@ -5439,15 +5450,15 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBindGroups); i++)
     {
-        const uint16_t iBindGroupIndex = ptGarbage->sbtBindGroups[i].uIndex;
-        plVulkanBindGroup* ptVulkanResource = &ptDevice->sbtBindGroupsHot[iBindGroupIndex];
+        const uint16_t iResourceIndex = ptGarbage->sbtBindGroups[i].uIndex;
+        plVulkanBindGroup* ptVulkanResource = &ptDevice->sbtBindGroupsHot[iResourceIndex];
         if (ptVulkanResource->bResetable)
             vkFreeDescriptorSets(ptDevice->tLogicalDevice, ptVulkanResource->tPool, 1, &ptVulkanResource->tDescriptorSet);
         ptVulkanResource->tPool = VK_NULL_HANDLE;
         ptVulkanResource->tDescriptorSet = VK_NULL_HANDLE;
         vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, NULL);
         ptVulkanResource->tDescriptorSetLayout = VK_NULL_HANDLE;
-        pl_sb_push(ptDevice->sbtBindGroupFreeIndices, iBindGroupIndex);
+        pl_sb_push(ptDevice->sbtBindGroupFreeIndices, iResourceIndex);
     }
 
     for (uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->sbtRawFrameBuffers); i++)
@@ -5459,6 +5470,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtBuffers[i].uIndex;
+        pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy buffer %u", iResourceIndex);
         vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->sbtBuffersHot[iResourceIndex].tBuffer, NULL);
         ptDevice->sbtBuffersHot[iResourceIndex].tBuffer = VK_NULL_HANDLE;
         pl_sb_push(ptDevice->sbtBufferFreeIndices, iResourceIndex);

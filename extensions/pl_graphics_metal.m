@@ -1468,7 +1468,7 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     // setup logging
     plLogExtChannelInit tLogInit = {
         .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER,
-        .uEntryCount = 256
+        .uEntryCount = 1024
     };
     uLogChannelGraphics = gptLog->add_channel("Graphics", tLogInit);
     uint32_t uLogLevel = PL_LOG_LEVEL_INFO;
