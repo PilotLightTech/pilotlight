@@ -110,6 +110,7 @@ with pl.project("pilotlight"):
 
         pl.add_source_files("../extensions/pl_unity_ext.c")
         pl.set_output_binary("pl_unity_ext")
+        pl.add_definitions("PL_INCLUDE_SPIRV_CROSS")
 
         # default config
         with pl.configuration("debug"):

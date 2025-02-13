@@ -89,7 +89,7 @@
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
+@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
@@ -276,7 +276,7 @@ goto ExitLabel
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
+@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
 @set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
