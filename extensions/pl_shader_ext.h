@@ -26,6 +26,10 @@ Index of this file:
     #define PL_MAX_SHADER_INCLUDE_DIRECTORIES 16
 #endif
 
+#ifndef PL_MAX_SHADER_DIRECTORIES
+    #define PL_MAX_SHADER_DIRECTORIES 16
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -37,7 +41,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plShaderI_version (plVersion){1, 0, 2}
+#define plShaderI_version (plVersion){1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -93,8 +97,10 @@ typedef struct _plShaderOptions
     const plShaderMacroDefinition* ptMacroDefinitions;
     uint32_t                       uMacroDefinitionCount;
     const char*                    apcIncludeDirectories[PL_MAX_SHADER_INCLUDE_DIRECTORIES + 1];
+    const char*                    apcDirectories[PL_MAX_SHADER_DIRECTORIES];
 
     // [INTERNAL]
+    uint32_t _uDirectoriesCount;
     uint32_t _uIncludeDirectoriesCount;
 } plShaderOptions;
 
@@ -108,6 +114,9 @@ enum _plShaderFlags
     PL_SHADER_FLAGS_INCLUDE_DEBUG  = 1 << 0, // include debug information
     PL_SHADER_FLAGS_ALWAYS_COMPILE = 1 << 1, // ignore cached shader modules
     PL_SHADER_FLAGS_NEVER_CACHE    = 1 << 2, // never cache shaders to disk
+    PL_SHADER_FLAGS_METAL_OUTPUT   = 1 << 3, // output metal shader
+    PL_SHADER_FLAGS_SPIRV_OUTPUT   = 1 << 4, // output SPIRV shader
+    PL_SHADER_FLAGS_AUTO_OUTPUT    = 1 << 5, // output SPIRV or metal shader code depending on backend
 };
 
 enum _plShaderOptimizationLevel

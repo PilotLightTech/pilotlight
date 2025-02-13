@@ -2105,7 +2105,7 @@ pl_refr_create_global_shaders(void)
 {
 
     plComputeShaderDesc tFilterComputeShaderDesc = {
-        .tShader = gptShader->load_glsl("../shaders/filter_environment.comp", "main", NULL, NULL),
+        .tShader = gptShader->load_glsl("filter_environment.comp", "main", NULL, NULL),
         .atBindGroupLayouts = {
             {
                 .atTextureBindings = {
@@ -2129,8 +2129,8 @@ pl_refr_create_global_shaders(void)
     int aiConstantData[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
     plShaderDesc tDeferredShaderDescription = {
-        .tPixelShader  = gptShader->load_glsl("../shaders/primitive.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("../shaders/primitive.vert", "main", NULL, NULL),
+        .tPixelShader  = gptShader->load_glsl("primitive.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("primitive.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
             .ulDepthMode          = PL_COMPARE_MODE_GREATER,
@@ -2201,8 +2201,8 @@ pl_refr_create_global_shaders(void)
     gptData->tDeferredShader = gptGfx->create_shader(gptData->ptDevice, &tDeferredShaderDescription);
 
     plShaderDesc tForwardShaderDescription = {
-        .tPixelShader = gptShader->load_glsl("../shaders/transparent.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("../shaders/transparent.vert", "main", NULL, NULL),
+        .tPixelShader = gptShader->load_glsl("transparent.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("transparent.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
@@ -2286,13 +2286,17 @@ pl_refr_create_global_shaders(void)
         .apcIncludeDirectories = {
             "../shaders/"
         },
-        #ifndef PL_OFFLINE_SHADERS_ONLY
-        .tFlags = PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG
-        #endif
+        .apcDirectories = {
+            "../shaders/"
+        },
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
     };
+    #ifndef PL_OFFLINE_SHADERS_ONLY
+    tShadowShaderOptions.tFlags |= PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG;
+    #endif
 
-    plShaderModule tShadowPixelShader = gptShader->load_glsl("../shaders/shadow.frag", "main", NULL, NULL);
-    plShaderModule tVertexShader = gptShader->load_glsl("../shaders/shadow.vert", "main", NULL, gptData->bMultiViewportShadows ? &tShadowShaderOptions : NULL);
+    plShaderModule tShadowPixelShader = gptShader->load_glsl("shadow.frag", "main", NULL, NULL);
+    plShaderModule tVertexShader = gptShader->load_glsl("shadow.vert", "main", NULL, gptData->bMultiViewportShadows ? &tShadowShaderOptions : NULL);
 
     plShaderDesc tShadowShaderDescription = {
         .tPixelShader = tShadowPixelShader,
@@ -2366,8 +2370,8 @@ pl_refr_create_global_shaders(void)
     gptData->tShadowShader = gptGfx->create_shader(gptData->ptDevice, &tShadowShaderDescription);
         
     const plShaderDesc tPickShaderDescription = {
-        .tPixelShader = gptShader->load_glsl("../shaders/picking.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("../shaders/picking.vert", "main", NULL, NULL),
+        .tPixelShader = gptShader->load_glsl("picking.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("picking.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
             .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
@@ -2402,8 +2406,8 @@ pl_refr_create_global_shaders(void)
     gptData->tPickShader = gptGfx->create_shader(gptData->ptDevice, &tPickShaderDescription);
 
     const plShaderDesc tUVShaderDesc = {
-        .tPixelShader = gptShader->load_glsl("../shaders/uvmap.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("../shaders/uvmap.vert", "main", NULL, NULL),
+        .tPixelShader = gptShader->load_glsl("uvmap.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("uvmap.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -2437,8 +2441,8 @@ pl_refr_create_global_shaders(void)
 
     // create skybox shader
     plShaderDesc tSkyboxShaderDesc = {
-        .tPixelShader = gptShader->load_glsl("../shaders/skybox.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("../shaders/skybox.vert", "main", NULL, NULL),
+        .tPixelShader = gptShader->load_glsl("skybox.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("skybox.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_EQUAL,
@@ -2625,7 +2629,7 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
 
     int aiSpecializationData[] = {(int)ulVertexStreamMask, (int)uStride, (int)ptMesh->ulVertexStreamMask, (int)uDestStride};
     const plComputeShaderDesc tComputeShaderDesc = {
-        .tShader = gptShader->load_glsl("../shaders/skinning.comp", "main", NULL, NULL),
+        .tShader = gptShader->load_glsl("skinning.comp", "main", NULL, NULL),
         .pTempConstantData = aiSpecializationData,
         .atConstants = {
             { .uID = 0, .uOffset = 0,               .tType = PL_DATA_TYPE_INT},

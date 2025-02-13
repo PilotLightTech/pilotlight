@@ -48,7 +48,7 @@ Index of this file:
 #ifndef PL_OFFLINE_SHADERS_ONLY
 #include "shaderc/shaderc.h"
 
-#ifdef PL_METAL_BACKEND
+#ifdef PL_INCLUDE_SPIRV_CROSS
 #include "spirv_cross/spirv_cross_c.h"
 #endif
 
@@ -59,7 +59,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #ifndef PL_OFFLINE_SHADERS_ONLY
-#ifdef PL_METAL_BACKEND
+#ifdef PL_INCLUDE_SPIRV_CROSS
 static spvc_context tSpirvCtx;
 #endif
 #endif
@@ -139,11 +139,20 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
         return true;
     gptShaderCtx->bInitialized = true;
 
-
-
     gptShaderCtx->tDefaultShaderOptions.tFlags = ptShaderOptions->tFlags;
+    if(ptShaderOptions->tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
+    {
+        #ifdef PL_METAL_BACKEND
+            gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
+        #endif
+        #ifdef PL_VULKAN_BACKEND
+            gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
+        #endif
+    }
     gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = "./";
     gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount = 1;
+
+    gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount = 0;
 
     if(ptShaderOptions)
     {
@@ -155,10 +164,19 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
                 break;
             gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount++;
         }
+
+        for(uint32_t i = 0; i < PL_MAX_SHADER_DIRECTORIES; i++)
+        {
+            if(ptShaderOptions->apcDirectories[i])
+                gptShaderCtx->tDefaultShaderOptions.apcDirectories[i] = ptShaderOptions->apcDirectories[i];
+            else
+                break;
+            gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount++;
+        }
     }
     
     #ifndef PL_OFFLINE_SHADERS_ONLY
-    #ifdef PL_METAL_BACKEND
+    #ifdef PL_INCLUDE_SPIRV_CROSS
     spvc_context_create(&tSpirvCtx);
     spvc_context_set_error_callback(tSpirvCtx, pl_spvc_error_callback, NULL);
     #endif
@@ -196,11 +214,12 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
 
     #ifndef PL_OFFLINE_SHADERS_ONLY
     shaderc_compiler_t tCompiler = shaderc_compiler_initialize();
-    shaderc_compile_options_t tOptions = shaderc_compile_options_initialize();
+    shaderc_compile_options_t tShaderRcOptions = shaderc_compile_options_initialize();
 
     if(ptOptions)
     {
         ptOptions->_uIncludeDirectoriesCount = 0;
+        ptOptions->_uDirectoriesCount = 0;
         for(uint32_t i = 0; i < PL_MAX_SHADER_INCLUDE_DIRECTORIES; i++)
         {
             if(ptOptions->apcIncludeDirectories[i])
@@ -208,35 +227,63 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
             else
                 break;
         }
+        for(uint32_t i = 0; i < PL_MAX_SHADER_DIRECTORIES; i++)
+        {
+            if(ptOptions->apcDirectories[i])
+                ptOptions->_uDirectoriesCount++;
+            else
+                break;
+        }
     }
 
-    shaderc_compile_options_set_include_callbacks(tOptions, pl_shaderc_include_resolve_fn, pl_shaderc_include_result_release_fn, ptOptions);
+    shaderc_compile_options_set_include_callbacks(tShaderRcOptions, pl_shaderc_include_resolve_fn, pl_shaderc_include_result_release_fn, ptOptions);
 
     if(ptOptions == NULL)
         ptOptions = &gptShaderCtx->tDefaultShaderOptions;
+
+    const char* pcLocatedShader = NULL;
+
+    for(uint32_t i = 0; i < ptOptions->_uDirectoriesCount; i++)
+    {
+        pcLocatedShader = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s", ptOptions->apcDirectories[i], pcShader);
+        if(gptFile->exists(pcLocatedShader))
+        {
+            break;
+        }
+        pcLocatedShader = NULL;
+    }
+
+    if(pcLocatedShader == NULL)
+        pcLocatedShader = pcShader;
+
+    if(!gptFile->exists(pcLocatedShader))
+    {
+        pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator2);
+        return tModule;
+    }
         
     switch(ptOptions->tOptimizationLevel)
     {
 
         case PL_SHADER_OPTIMIZATION_SIZE:
-            shaderc_compile_options_set_optimization_level(tOptions, shaderc_optimization_level_size);
+            shaderc_compile_options_set_optimization_level(tShaderRcOptions, shaderc_optimization_level_size);
             break;
         case PL_SHADER_OPTIMIZATION_PERFORMANCE:
-            shaderc_compile_options_set_optimization_level(tOptions, shaderc_optimization_level_performance);
+            shaderc_compile_options_set_optimization_level(tShaderRcOptions, shaderc_optimization_level_performance);
             break;
         
         case PL_SHADER_OPTIMIZATION_NONE:
         default:
-            shaderc_compile_options_set_optimization_level(tOptions, shaderc_optimization_level_zero);
+            shaderc_compile_options_set_optimization_level(tShaderRcOptions, shaderc_optimization_level_zero);
             break;
     }
 
     if(ptOptions->tFlags & PL_SHADER_FLAGS_INCLUDE_DEBUG)
-        shaderc_compile_options_set_generate_debug_info(tOptions);
+        shaderc_compile_options_set_generate_debug_info(tShaderRcOptions);
 
     for(uint32_t i = 0; i < ptOptions->uMacroDefinitionCount; i++)
     {
-        shaderc_compile_options_add_macro_definition(tOptions,
+        shaderc_compile_options_add_macro_definition(tShaderRcOptions,
             ptOptions->ptMacroDefinitions[i].pcName,
             ptOptions->ptMacroDefinitions[i].szNameLength,
             ptOptions->ptMacroDefinitions[i].pcValue,
@@ -246,10 +293,10 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     // shaderc_compile_options_set_forced_version_profile(tOptions, 450, shaderc_profile_core);
 
     size_t szShaderSize = 0;
-    gptFile->binary_read(pcShader, &szShaderSize, NULL);
+    gptFile->binary_read(pcLocatedShader, &szShaderSize, NULL);
     uint8_t* puShaderCode = PL_ALLOC(szShaderSize);
     memset(puShaderCode, 0, szShaderSize);
-    gptFile->binary_read(pcShader, &szShaderSize, puShaderCode);
+    gptFile->binary_read(pcLocatedShader, &szShaderSize, puShaderCode);
     pl_sb_push(gptShaderCtx->sbptShaderBytecodeCache, puShaderCode);
 
     char acExtension[64] = {0};
@@ -272,9 +319,9 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
         (const char*)puShaderCode,
         szShaderSize,
         tShaderKind,
-        pcShader,
+        pcLocatedShader,
         pcEntryFunc,
-        tOptions);
+        tShaderRcOptions);
 
     size_t uNumErrors = shaderc_result_get_num_errors(tresult);
     if(uNumErrors)
@@ -292,119 +339,123 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
         tModule.pcEntryFunc = pcEntryFunc;
     }
 
-    #ifdef PL_METAL_BACKEND
-    if(tShaderKind == shaderc_glsl_vertex_shader)
+    #ifdef PL_INCLUDE_SPIRV_CROSS
+    if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
     {
-        spvc_parsed_ir ir = NULL;
-        spvc_context_parse_spirv(tSpirvCtx, (const SpvId*)tModule.puCode, tModule.szCodeSize / sizeof(SpvId) , &ir);
-
-        spvc_compiler tMslCompiler;
-        spvc_context_create_compiler(tSpirvCtx, SPVC_BACKEND_MSL, ir, SPVC_CAPTURE_MODE_TAKE_OWNERSHIP, &tMslCompiler);
-
-        spvc_compiler_options tOptions;
-        spvc_compiler_create_compiler_options(tMslCompiler, &tOptions);
-
-        spvc_compiler_options_set_uint(tOptions, SPVC_COMPILER_OPTION_MSL_VERSION, 30000);
-        spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ARGUMENT_BUFFERS, true);
-        spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ENABLE_DECORATION_BINDING, true);
-        spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_FLIP_VERTEX_Y, true);
-        spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_FORCE_ACTIVE_ARGUMENT_BUFFER_RESOURCES, true);
-
-        spvc_compiler_rename_entry_point(tMslCompiler, tModule.pcEntryFunc, "vertex_main", SpvExecutionModelVertex);
-
-        const spvc_reflected_resource *list = NULL;
-        spvc_resources resources = NULL;
-        size_t count = 0;
-        spvc_compiler_create_shader_resources(tMslCompiler, &resources);
-        spvc_resources_get_resource_list_for_type(resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, &list, &count);
-
-        for (size_t i = 0; i < count; i++)
+        if(tShaderKind == shaderc_glsl_vertex_shader)
         {
-            if(spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet) == 3)
+            spvc_parsed_ir ir = NULL;
+            spvc_context_parse_spirv(tSpirvCtx, (const SpvId*)tModule.puCode, tModule.szCodeSize / sizeof(SpvId) , &ir);
+
+            spvc_compiler tMslCompiler;
+            spvc_context_create_compiler(tSpirvCtx, SPVC_BACKEND_MSL, ir, SPVC_CAPTURE_MODE_TAKE_OWNERSHIP, &tMslCompiler);
+
+            spvc_compiler_options tOptions;
+            spvc_compiler_create_compiler_options(tMslCompiler, &tOptions);
+
+            spvc_compiler_options_set_uint(tOptions, SPVC_COMPILER_OPTION_MSL_VERSION, 30000);
+            spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ARGUMENT_BUFFERS, true);
+            spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ENABLE_DECORATION_BINDING, true);
+            spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_FLIP_VERTEX_Y, true);
+            spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_FORCE_ACTIVE_ARGUMENT_BUFFER_RESOURCES, true);
+
+            spvc_compiler_rename_entry_point(tMslCompiler, tModule.pcEntryFunc, "vertex_main", SpvExecutionModelVertex);
+
+            const spvc_reflected_resource *list = NULL;
+            spvc_resources resources = NULL;
+            size_t count = 0;
+            spvc_compiler_create_shader_resources(tMslCompiler, &resources);
+            spvc_resources_get_resource_list_for_type(resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, &list, &count);
+
+            for (size_t i = 0; i < count; i++)
             {
-                spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, 3, 0);
-                break;
+                if(spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet) == 3)
+                {
+                    spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, 3, 0);
+                    break;
+                }
             }
+
+            spvc_compiler_install_compiler_options(tMslCompiler, tOptions);
+            spvc_compiler_compile(tMslCompiler, (const char**)&tModule.puCode);
         }
-
-        spvc_compiler_install_compiler_options(tMslCompiler, tOptions);
-        spvc_compiler_compile(tMslCompiler, (const char**)&tModule.puCode);
-    }
-    else if(tShaderKind == shaderc_glsl_fragment_shader)
-    {
-        spvc_parsed_ir ir = NULL;
-        spvc_context_parse_spirv(tSpirvCtx, (const SpvId*)tModule.puCode, tModule.szCodeSize / sizeof(SpvId) , &ir);
-
-        spvc_compiler tMslCompiler;
-        spvc_context_create_compiler(tSpirvCtx, SPVC_BACKEND_MSL, ir, SPVC_CAPTURE_MODE_TAKE_OWNERSHIP, &tMslCompiler);
-
-        spvc_compiler_options tOptions;
-        spvc_compiler_create_compiler_options(tMslCompiler, &tOptions);
-
-        spvc_compiler_options_set_uint(tOptions, SPVC_COMPILER_OPTION_MSL_VERSION, 30000);
-        spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ARGUMENT_BUFFERS, true);
-        spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ENABLE_DECORATION_BINDING, true);
-        spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_FORCE_ACTIVE_ARGUMENT_BUFFER_RESOURCES, true);
-
-        spvc_compiler_rename_entry_point(tMslCompiler, tModule.pcEntryFunc, "fragment_main", SpvExecutionModelFragment);
-
-        const spvc_reflected_resource *list = NULL;
-        spvc_resources resources = NULL;
-        size_t count = 0;
-        spvc_compiler_create_shader_resources(tMslCompiler, &resources);
-        spvc_resources_get_resource_list_for_type(resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, &list, &count);
-
-        for (size_t i = 0; i < count; i++)
+        else if(tShaderKind == shaderc_glsl_fragment_shader)
         {
-            if(spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet) == 3)
+            spvc_parsed_ir ir = NULL;
+            spvc_context_parse_spirv(tSpirvCtx, (const SpvId*)tModule.puCode, tModule.szCodeSize / sizeof(SpvId) , &ir);
+
+            spvc_compiler tMslCompiler;
+            spvc_context_create_compiler(tSpirvCtx, SPVC_BACKEND_MSL, ir, SPVC_CAPTURE_MODE_TAKE_OWNERSHIP, &tMslCompiler);
+
+            spvc_compiler_options tOptions;
+            spvc_compiler_create_compiler_options(tMslCompiler, &tOptions);
+
+            spvc_compiler_options_set_uint(tOptions, SPVC_COMPILER_OPTION_MSL_VERSION, 30000);
+            spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ARGUMENT_BUFFERS, true);
+            spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ENABLE_DECORATION_BINDING, true);
+            spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_FORCE_ACTIVE_ARGUMENT_BUFFER_RESOURCES, true);
+
+            spvc_compiler_rename_entry_point(tMslCompiler, tModule.pcEntryFunc, "fragment_main", SpvExecutionModelFragment);
+
+            const spvc_reflected_resource *list = NULL;
+            spvc_resources resources = NULL;
+            size_t count = 0;
+            spvc_compiler_create_shader_resources(tMslCompiler, &resources);
+            spvc_resources_get_resource_list_for_type(resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, &list, &count);
+
+            for (size_t i = 0; i < count; i++)
             {
-                spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, 3, 0);
-                break;
+                if(spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet) == 3)
+                {
+                    spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, 3, 0);
+                    break;
+                }
             }
+
+            spvc_compiler_install_compiler_options(tMslCompiler, tOptions);
+            spvc_compiler_compile(tMslCompiler, (const char**)&tModule.puCode);
         }
-
-        spvc_compiler_install_compiler_options(tMslCompiler, tOptions);
-        spvc_compiler_compile(tMslCompiler, (const char**)&tModule.puCode);
-    }
-    else if(tShaderKind == shaderc_glsl_compute_shader)
-    {
-        spvc_parsed_ir ir = NULL;
-        spvc_context_parse_spirv(tSpirvCtx, (const SpvId*)tModule.puCode, tModule.szCodeSize / sizeof(SpvId) , &ir);
-
-        spvc_compiler tMslCompiler;
-        spvc_context_create_compiler(tSpirvCtx, SPVC_BACKEND_MSL, ir, SPVC_CAPTURE_MODE_TAKE_OWNERSHIP, &tMslCompiler);
-
-        spvc_compiler_options tOptions;
-        spvc_compiler_create_compiler_options(tMslCompiler, &tOptions);
-
-        spvc_compiler_options_set_uint(tOptions, SPVC_COMPILER_OPTION_MSL_VERSION, 30000);
-        spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ARGUMENT_BUFFERS, true);
-        spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ENABLE_DECORATION_BINDING, true);
-        spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_FORCE_ACTIVE_ARGUMENT_BUFFER_RESOURCES, true);
-
-        spvc_compiler_rename_entry_point(tMslCompiler, tModule.pcEntryFunc, "kernel_main", SpvExecutionModelGLCompute);
-
-        const spvc_reflected_resource *list = NULL;
-        spvc_resources resources = NULL;
-        size_t count = 0;
-        spvc_compiler_create_shader_resources(tMslCompiler, &resources);
-        spvc_resources_get_resource_list_for_type(resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, &list, &count);
-
-        for (size_t i = 0; i < count; i++)
+        else if(tShaderKind == shaderc_glsl_compute_shader)
         {
-            if(spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet) == 3)
-            {
-                spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, 3, 0);
-                break;
-            }
-        }
+            spvc_parsed_ir ir = NULL;
+            spvc_context_parse_spirv(tSpirvCtx, (const SpvId*)tModule.puCode, tModule.szCodeSize / sizeof(SpvId) , &ir);
 
-        spvc_compiler_install_compiler_options(tMslCompiler, tOptions);
-        spvc_compiler_compile(tMslCompiler, (const char**)&tModule.puCode);
+            spvc_compiler tMslCompiler;
+            spvc_context_create_compiler(tSpirvCtx, SPVC_BACKEND_MSL, ir, SPVC_CAPTURE_MODE_TAKE_OWNERSHIP, &tMslCompiler);
+
+            spvc_compiler_options tOptions;
+            spvc_compiler_create_compiler_options(tMslCompiler, &tOptions);
+
+            spvc_compiler_options_set_uint(tOptions, SPVC_COMPILER_OPTION_MSL_VERSION, 30000);
+            spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ARGUMENT_BUFFERS, true);
+            spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_ENABLE_DECORATION_BINDING, true);
+            spvc_compiler_options_set_bool(tOptions, SPVC_COMPILER_OPTION_MSL_FORCE_ACTIVE_ARGUMENT_BUFFER_RESOURCES, true);
+
+            spvc_compiler_rename_entry_point(tMslCompiler, tModule.pcEntryFunc, "kernel_main", SpvExecutionModelGLCompute);
+
+            const spvc_reflected_resource *list = NULL;
+            spvc_resources resources = NULL;
+            size_t count = 0;
+            spvc_compiler_create_shader_resources(tMslCompiler, &resources);
+            spvc_resources_get_resource_list_for_type(resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, &list, &count);
+
+            for (size_t i = 0; i < count; i++)
+            {
+                if(spvc_compiler_get_decoration(tMslCompiler, list[i].id, SpvDecorationDescriptorSet) == 3)
+                {
+                    spvc_compiler_msl_add_inline_uniform_block(tMslCompiler, 3, 0);
+                    break;
+                }
+            }
+
+            spvc_compiler_install_compiler_options(tMslCompiler, tOptions);
+            spvc_compiler_compile(tMslCompiler, (const char**)&tModule.puCode);
+        }
+        if(tModule.puCode)
+            tModule.szCodeSize = strlen((const char*)tModule.puCode);
     }
-    if(tModule.puCode)
-        tModule.szCodeSize = strlen((const char*)tModule.puCode);
-    #endif // PL_METAL_BACKEND
+    #endif // PL_INCLUDE_SPIRV_CROSS
+    pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator2);
     #endif // PL_OFFLINE_SHADERS_ONLY
     return tModule;
 }
@@ -412,6 +463,36 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
 static plShaderModule
 pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, plShaderOptions* ptOptions)
 {
+    if(ptOptions)
+    {
+        ptOptions->_uIncludeDirectoriesCount = 0;
+        ptOptions->_uDirectoriesCount = 0;
+        for(uint32_t i = 0; i < PL_MAX_SHADER_INCLUDE_DIRECTORIES; i++)
+        {
+            if(ptOptions->apcIncludeDirectories[i])
+                ptOptions->_uIncludeDirectoriesCount++;
+            else
+                break;
+        }
+        for(uint32_t i = 0; i < PL_MAX_SHADER_DIRECTORIES; i++)
+        {
+            if(ptOptions->apcDirectories[i])
+                ptOptions->_uDirectoriesCount++;
+            else
+                break;
+        }
+
+        if(ptOptions->tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
+        {
+            #ifdef PL_METAL_BACKEND
+                ptOptions->tFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
+            #endif
+            #ifdef PL_VULKAN_BACKEND
+                ptOptions->tFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
+            #endif
+        }
+    }
+
     if(ptOptions == NULL)
         ptOptions = &gptShaderCtx->tDefaultShaderOptions;
 
@@ -420,11 +501,34 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
     {
         // char acTempBuffer[1024] = {0};
         const char* pcFileNameOnly = pl_str_get_file_name(pcShader, NULL, 0);
-        #ifdef PL_METAL_BACKEND
-        pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.metal", pcFileNameOnly);
-        #else
-        pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.spv", pcFileNameOnly);
-        #endif
+
+        for(uint32_t i = 0; i < ptOptions->_uDirectoriesCount; i++)
+        {
+            if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.metal", ptOptions->apcDirectories[i], pcFileNameOnly);
+            else
+                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->apcDirectories[i], pcFileNameOnly);
+            if(gptFile->exists(pcCacheFile))
+            {
+                break;
+            }
+            else
+                pcCacheFile = NULL;
+
+        }
+
+        if(pcCacheFile == NULL)
+        {
+            if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.metal", pcFileNameOnly);
+            else
+                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.spv", pcFileNameOnly);
+        }
+
+        // if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+        //     pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.metal", pcFileNameOnly);
+        // else
+        //     pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.spv", pcFileNameOnly);
     }
 
     plShaderModule tModule = {0};
@@ -436,6 +540,12 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
     // no precompiled shader available, compile it ourselves
     if(tModule.szCodeSize == 0)
     {
+        const char* pcFileNameOnly = pl_str_get_file_name(pcShader, NULL, 0);
+        if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+            pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.metal", pcFileNameOnly);
+        else
+            pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.spv", pcFileNameOnly);
+
         tModule = pl_compile_glsl(pcShader, pcEntryFunc, ptOptions);
         if(!(ptOptions->tFlags & PL_SHADER_FLAGS_NEVER_CACHE) && tModule.szCodeSize > 0)
             pl_write_to_disk(pcCacheFile, &tModule);
@@ -454,11 +564,7 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plShaderI tApi = {
         .initialize     = pl_initialize_shader_ext,
         .load_glsl      = pl_load_glsl,
-        #ifdef PL_OFFLINE_SHADERS_ONLY
-        .compile_glsl   = NULL,
-        #else
         .compile_glsl   = pl_compile_glsl,
-        #endif
         .write_to_disk  = pl_write_to_disk,
         .read_from_disk = pl_read_from_disk,
     };
@@ -491,7 +597,7 @@ pl_unload_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     ptApiRegistry->remove_api(ptApi);
         
     #ifndef PL_OFFLINE_SHADERS_ONLY
-    #ifdef PL_METAL_BACKEND
+    #ifdef PL_INCLUDE_SPIRV_CROSS
     spvc_context_destroy(tSpirvCtx);
     #endif
     #endif

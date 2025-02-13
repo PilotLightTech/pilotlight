@@ -16,7 +16,8 @@ defines = [
     "PL_VULKAN_BACKEND",
     "PL_METAL_BACKEND",
     "PL_TEST_IMPLEMENTATION",
-    "PL_CONFIG_DEBUG"
+    "PL_CONFIG_DEBUG",
+    "PL_INCLUDE_SPIRV_CROSS",
 ]
 
 includes = [

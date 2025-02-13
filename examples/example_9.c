@@ -280,7 +280,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     static const plShaderOptions tDefaultShaderOptions = {
         .apcIncludeDirectories = {
             "../examples/shaders/"
-        }
+        },
+        .apcDirectories = {
+            "../shaders/"
+        },
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
     };
     gptShader->initialize(&tDefaultShaderOptions);
 

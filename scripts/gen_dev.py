@@ -118,7 +118,7 @@ with pl.project("pilotlight"):
             with pl.platform("Windows"):
 
                 with pl.compiler("msvc"):
-                    pl.add_static_link_libraries("shaderc_combined")
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c-shared")
                     pl.add_include_directories("%VULKAN_SDK%\\Include")
                     pl.add_link_directories('%VULKAN_SDK%\\Lib')
                     pl.add_static_link_libraries("vulkan-1")
@@ -127,7 +127,7 @@ with pl.project("pilotlight"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("shaderc_shared", "xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
+                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_dynamic_link_libraries("vulkan")
@@ -145,7 +145,7 @@ with pl.project("pilotlight"):
             with pl.platform("Windows"):
 
                 with pl.compiler("msvc"):
-                    pl.add_static_link_libraries("shaderc_combined")
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c-shared")
                     pl.add_include_directories("%VULKAN_SDK%\\Include")
                     pl.add_link_directories('%VULKAN_SDK%\\Lib')
                     pl.add_static_link_libraries("vulkan-1")
@@ -154,7 +154,7 @@ with pl.project("pilotlight"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("shaderc_shared", "xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
+                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "xcb", "X11", "X11-xcb", "xkbcommon", "xcb-cursor", "xcb-xfixes", "xcb-keysyms", "pthread")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_dynamic_link_libraries("vulkan")
@@ -172,7 +172,7 @@ with pl.project("pilotlight"):
             with pl.platform("Darwin"):
 
                 with pl.compiler("clang"):
-                    pl.add_dynamic_link_libraries("shaderc_shared", "pthread")
+                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "pthread")
                     pl.add_dynamic_link_libraries("vulkan")
                     
     #-----------------------------------------------------------------------------

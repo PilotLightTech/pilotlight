@@ -94,7 +94,7 @@
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no -nodefaultlib:MSVCRT 
-@set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib vulkan-1.lib 
+@set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib spirv-cross-c-shared.lib vulkan-1.lib 
 @set PL_SOURCES="../extensions/pl_unity_ext.c" 
 
 :: run compiler (and linker)
@@ -281,7 +281,7 @@ goto ExitLabel
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib vulkan-1.lib 
+@set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib spirv-cross-c-shared.lib vulkan-1.lib 
 @set PL_SOURCES="../extensions/pl_unity_ext.c" 
 
 :: run compiler (and linker)

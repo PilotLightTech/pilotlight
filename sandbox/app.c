@@ -92,14 +92,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plEditorData* ptEditorData)
     ptEditorData->tSelectedEntity.ulData = UINT64_MAX;
 
     // initialize shader extension
-    static const plShaderOptions tDefaultShaderOptions = {
+    static plShaderOptions tDefaultShaderOptions = {
         .apcIncludeDirectories = {
             "../shaders/"
         },
-        #ifndef PL_OFFLINE_SHADERS_ONLY
-        .tFlags = PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG
-        #endif
+        .apcDirectories = {
+            "../shaders/"
+        },
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
+
     };
+    #ifndef PL_OFFLINE_SHADERS_ONLY
+    tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG;
+    #endif
     gptShader->initialize(&tDefaultShaderOptions);
 
     // initialize gizmo stuff

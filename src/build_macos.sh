@@ -485,7 +485,7 @@ PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
 PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lshaderc_shared -lpthread -lvulkan "
+PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lpthread -lvulkan "
 PL_SOURCES="../extensions/pl_unity_ext.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 

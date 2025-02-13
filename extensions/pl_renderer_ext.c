@@ -1370,8 +1370,8 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     {
         // create skybox shader
         plShaderDesc tSkyboxShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("../shaders/skybox.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("../shaders/skybox.vert", "main", NULL, NULL),
+            .tPixelShader = gptShader->load_glsl("skybox.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("skybox.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_EQUAL,
@@ -1438,7 +1438,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     {
         int aiSkyboxSpecializationData[] = {iResolution, iPanoramaWidth, iPanoramaHeight};
         const plComputeShaderDesc tSkyboxComputeShaderDesc = {
-            .tShader = gptShader->load_glsl("../shaders/panorama_to_cubemap.comp", "main", NULL, NULL),
+            .tShader = gptShader->load_glsl("panorama_to_cubemap.comp", "main", NULL, NULL),
             .pTempConstantData = aiSkyboxSpecializationData,
             .atConstants = {
                 { .uID = 0, .uOffset = 0,               .tType = PL_DATA_TYPE_INT},
@@ -1942,8 +1942,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
 
         int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtDLightData), pl_sb_capacity(ptScene->sbtPLightData), pl_sb_capacity(ptScene->sbtSLightData), pl_sb_size(ptScene->sbtProbeData)};
         plShaderDesc tLightingShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("../shaders/lighting.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("../shaders/lighting.vert", "main", NULL, NULL),
+            .tPixelShader = gptShader->load_glsl("lighting.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("lighting.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -2030,8 +2030,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
     }
 
     const plShaderDesc tTonemapShaderDesc = {
-        .tPixelShader = gptShader->load_glsl("../shaders/tonemap.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("../shaders/full_quad.vert", "main", NULL, NULL),
+        .tPixelShader = gptShader->load_glsl("tonemap.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("full_quad.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -2238,8 +2238,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     {
         int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtDLightData), pl_sb_capacity(ptScene->sbtPLightData), pl_sb_capacity(ptScene->sbtSLightData), pl_sb_size(ptScene->sbtProbeData)};
         plShaderDesc tLightingShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("../shaders/lighting.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("../shaders/lighting.vert", "main", NULL, NULL),
+            .tPixelShader = gptShader->load_glsl("lighting.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("lighting.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,

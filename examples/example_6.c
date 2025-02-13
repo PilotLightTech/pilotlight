@@ -249,7 +249,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     static const plShaderOptions tDefaultShaderOptions = {
         .apcIncludeDirectories = {
             "../examples/shaders/"
-        }
+        },
+        .apcDirectories = {
+            "../shaders/",
+            "../examples/shaders/"
+        },
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
     };
     gptShader->initialize(&tDefaultShaderOptions);
 
@@ -486,8 +491,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plShaderDesc tShaderDesc = {
-        .tVertexShader = gptShader->load_glsl("../examples/shaders/example_6.vert", "main", NULL, NULL),
-        .tPixelShader = gptShader->load_glsl("../examples/shaders/example_6.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("example_6.vert", "main", NULL, NULL),
+        .tPixelShader = gptShader->load_glsl("example_6.frag", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,

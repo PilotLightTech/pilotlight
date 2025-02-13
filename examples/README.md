@@ -95,7 +95,15 @@ Demonstrates:
 Demonstrates:
 * WIP
 
-## Example 8 - Drawing Extension 3D (example_8.c)
+## Example 8 - Drawing Extension 3D MSAA (example_8.c)
+Demonstrates:
+* loading APIs
+* hot reloading
+* loading extensions
+* minimal use of graphics extension
+* drawing extension (3D)
+
+## Example 9 - Drawing Extension 3D (example_9.c)
 Demonstrates:
 * loading APIs
 * hot reloading
