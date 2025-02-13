@@ -4,8 +4,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_DS_VERSION    "1.0.0"
-#define PL_DS_VERSION_NUM 10000
+#define PL_DS_VERSION    "1.1.0"
+#define PL_DS_VERSION_NUM 10100
 
 /*
 Index of this file:
@@ -533,26 +533,38 @@ pl__hm_insert(plHashMap** pptHashMap, uint64_t ulKey, uint64_t ulValue, const ch
     else if(((float)ptHashMap->_uItemCount / (float)ptHashMap->_uBucketCount) > 0.60f)
         pl__hm_resize(pptHashMap, ptHashMap->_uBucketCount * 2, pcFile, iLine);
 
-	uint64_t mask = ptHashMap->_uBucketCount - 1;
+    uint64_t mask = ptHashMap->_uBucketCount - 1;
     uint64_t ulModKey = ulKey & mask;
 
-    while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
+    uint64_t ulExistingKey = pl__hm_lookup(pptHashMap, ulKey);
+    if(ulExistingKey == UINT64_MAX)
     {
-        ulModKey = (ulModKey + 1) & mask;
-        if(ptHashMap->_aulKeys[ulModKey] == UINT64_MAX - 1)
-            break;
-    }
+        while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
+        {
+            ulModKey = (ulModKey + 1) & mask;
+            if(ptHashMap->_aulKeys[ulModKey] == UINT64_MAX - 1)
+                break;
+        }
 
-    ptHashMap->_aulKeys[ulModKey] = ulKey;
-    ptHashMap->_aulValueIndices[ulModKey] = ulValue;
-    ptHashMap->_uItemCount++;
+        ptHashMap->_aulKeys[ulModKey] = ulKey;
+        ptHashMap->_aulValueIndices[ulModKey] = ulValue;
+        ptHashMap->_uItemCount++;
+    }
+    else
+    {
+        while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
+            ulModKey = (ulModKey + 1) & mask;
+        
+        ptHashMap->_aulValueIndices[ulModKey] = ulValue;
+    }
 }
 
 static inline void
 pl__hm_remove(plHashMap** pptHashMap, uint64_t ulKey)
 {
     plHashMap* ptHashMap = *pptHashMap;
-    PL_DS_ASSERT(ptHashMap->_uBucketCount > 0 && "hashmap has no items");
+    if(ptHashMap == NULL)
+        return;
 
 	uint64_t mask = ptHashMap->_uBucketCount - 1;
     uint64_t ulModKey = ulKey & mask;
