@@ -88,6 +88,7 @@ typedef int plLightType;
 typedef int plHumanoidBone;
 typedef int plEnvironmentProbeFlags;
 typedef int plTransformFlags;
+typedef int plObjectFlags;
 
 typedef union _plEntity
 {
@@ -399,6 +400,15 @@ enum _plTransformFlags
     PL_TRANSFORM_FLAGS_DIRTY = 1 << 0,
 };
 
+enum _plObjectFlags
+{
+    PL_OBJECT_FLAGS_NONE        = 0,
+    PL_OBJECT_FLAGS_RENDERABLE  = 1 << 0,
+    PL_OBJECT_FLAGS_CAST_SHADOW = 1 << 1,
+    PL_OBJECT_FLAGS_DYNAMIC     = 1 << 2,
+    PL_OBJECT_FLAGS_FOREGROUND  = 1 << 3,
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -514,9 +524,10 @@ typedef struct _plLightComponent
 
 typedef struct _plObjectComponent
 {
-    plEntity tMesh;
-    plEntity tTransform;
-    plAABB   tAABB;
+    plObjectFlags tFlags;
+    plEntity      tMesh;
+    plEntity      tTransform;
+    plAABB        tAABB;
 } plObjectComponent;
 
 typedef struct _plHierarchyComponent

@@ -30,9 +30,12 @@ pl__refr_cull_job(plInvocationData tInvoData, void* pData)
     plDrawable tDrawable = ptCullData->atDrawables[tInvoData.uGlobalIndex];
     plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
     ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = true;
-    if(pl__sat_visibility_test(ptCullData->ptCullCamera, &ptObject->tAABB))
+    if(ptObject->tFlags & PL_OBJECT_FLAGS_RENDERABLE)
     {
-        ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
+        if(pl__sat_visibility_test(ptCullData->ptCullCamera, &ptObject->tAABB))
+        {
+            ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
+        }
     }
 }
 

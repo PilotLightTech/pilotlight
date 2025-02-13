@@ -577,7 +577,11 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         if(bAddSlot)
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        sbComponents[uComponentIndex] = (plObjectComponent){.tMesh= {UINT32_MAX, UINT32_MAX}, .tTransform ={UINT32_MAX, UINT32_MAX}};
+        sbComponents[uComponentIndex] = (plObjectComponent){
+            .tFlags     = PL_OBJECT_FLAGS_RENDERABLE | PL_OBJECT_FLAGS_CAST_SHADOW | PL_OBJECT_FLAGS_DYNAMIC,
+            .tMesh      = {UINT32_MAX, UINT32_MAX},
+            .tTransform = {UINT32_MAX, UINT32_MAX}
+        };
         return &sbComponents[uComponentIndex];
     }
 
@@ -1962,6 +1966,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     gptApiRegistry = ptApiRegistry;
     gptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
+    gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptJob = pl_get_api_latest(ptApiRegistry, plJobI);
     gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog = pl_get_api_latest(ptApiRegistry, plLogI);
