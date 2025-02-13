@@ -63,21 +63,24 @@ typedef struct _plRendererI
 
     // scenes
     uint32_t (*create_scene)(void);
-    void     (*add_drawable_objects_to_scene)(uint32_t uSceneHandle, uint32_t uOpaqueCount, const plEntity* atOpaqueObjects, uint32_t uTransparentCount, const plEntity* atTransparentObjects);
+    void (*load_skybox_from_panorama)(uint32_t uSceneHandle, const char* pcPath, int iResolution);
+    void (*add_drawable_objects_to_scene)(uint32_t uSceneHandle, uint32_t uOpaqueCount, const plEntity* atOpaqueObjects, uint32_t uTransparentCount, const plEntity* atTransparentObjects);
+    void (*finalize_scene)(uint32_t uSceneHandle);
 
-    void (*add_materials_to_scene)(uint32_t sceneHandle, uint32_t materialCount, const plEntity* materials);
+    // scenes - runtime
+    void (*reload_scene_shaders)(uint32_t uSceneHandle);
+    void (*remove_objects_from_scene)(uint32_t sceneHandle, uint32_t objectCount, const plEntity* objects);
     void (*update_scene_materials)(uint32_t sceneHandle, uint32_t materialCount, const plEntity* materials);
+    void (*update_scene_objects)(uint32_t sceneHandle, uint32_t objectCount, const plEntity* objects); // call if you change flags for objects
+
+    // scenes - not ready
+    void (*add_materials_to_scene)(uint32_t sceneHandle, uint32_t materialCount, const plEntity* materials);
 
     // views
     uint32_t          (*create_view)(uint32_t uSceneHandle, plVec2 tDimensions);
     plBindGroupHandle (*get_view_color_texture)(uint32_t uSceneHandle, uint32_t uViewHandle);
     void              (*resize_view)(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensions);
     void              (*resize)(void);
-    
-    // loading
-    void (*load_skybox_from_panorama)(uint32_t uSceneHandle, const char* pcPath, int iResolution);
-    void (*finalize_scene)(uint32_t uSceneHandle);
-    void (*reload_scene_shaders)(uint32_t uSceneHandle);
 
     // ui
     void (*show_graphics_options)(const char* pcTitle);

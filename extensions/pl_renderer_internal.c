@@ -4292,13 +4292,6 @@ pl__refr_set_drawable_shaders(uint32_t uSceneHandle)
         {
             iObjectRenderingFlags |= PL_RENDERING_FLAG_SHADOWS;
         }
-        if(ptMaterial->tFlags & PL_MATERIAL_FLAG_CAST_SHADOW)
-        {
-            if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
-                pl_sb_push(ptScene->sbuShadowForwardDrawables, i);
-            else if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_DEFERRED)
-                pl_sb_push(ptScene->sbuShadowDeferredDrawables, i);
-        }
 
         // choose shader variant
         int aiConstantData0[] = {
@@ -4391,7 +4384,111 @@ pl__refr_set_drawable_shaders(uint32_t uSceneHandle)
 }
 
 static void
-pl__refr_process_drawables(uint32_t uSceneHandle)
+pl__refr_sort_drawables(uint32_t uSceneHandle)
+{
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    plDevice*   ptDevice = gptData->ptDevice;
+
+    pl_sb_reset(ptScene->sbuShadowDeferredDrawables);
+    pl_sb_reset(ptScene->sbuShadowForwardDrawables);
+
+    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
+    for(uint32_t i = 0; i < uDrawableCount; i++)
+    {
+
+        plEntity tEntity = ptScene->sbtDrawables[i].tEntity;
+
+        // get actual components
+        plObjectComponent*   ptObject   = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
+        plMeshComponent*     ptMesh     = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+        plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
+
+        if(ptMaterial->tFlags & PL_MATERIAL_FLAG_CAST_SHADOW && ptObject->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW)
+        {
+            if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
+                pl_sb_push(ptScene->sbuShadowForwardDrawables, i);
+            else if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_DEFERRED)
+                pl_sb_push(ptScene->sbuShadowDeferredDrawables, i);
+        }
+
+        ptScene->sbtDrawables[i].tIndexBuffer = ptScene->sbtDrawables[i].uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer;
+    }
+}
+
+static void
+pl__refr_add_skybox_drawable(uint32_t uSceneHandle)
+{
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    const uint32_t uStartIndex     = pl_sb_size(ptScene->sbtVertexPosBuffer);
+    const uint32_t uIndexStart     = pl_sb_size(ptScene->sbuIndexBuffer);
+    const uint32_t uDataStartIndex = pl_sb_size(ptScene->sbtVertexDataBuffer);
+
+    const plDrawable tDrawable = {
+        .uIndexCount   = 36,
+        .uVertexCount  = 8,
+        .uIndexOffset  = uIndexStart,
+        .uVertexOffset = uStartIndex,
+        .uDataOffset   = uDataStartIndex
+    };
+    ptScene->tSkyboxDrawable = tDrawable;
+
+    // indices
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 0);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 2);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 1);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 2);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 3);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 1);
+    
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 1);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 3);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 5);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 3);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 7);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 5);
+
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 2);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 6);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 3);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 3);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 6);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 7);
+    
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 4);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 5);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 7);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 4);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 7);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 6);
+    
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 0);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 4);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 2);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 2);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 4);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 6);
+    
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 0);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 1);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 4);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 1);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 5);
+    pl_sb_push(ptScene->sbuIndexBuffer, uStartIndex + 4);
+
+    // vertices (position)
+    const float fCubeSide = 1.0f;
+    pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){-fCubeSide, -fCubeSide, -fCubeSide}));
+    pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){ fCubeSide, -fCubeSide, -fCubeSide}));
+    pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){-fCubeSide,  fCubeSide, -fCubeSide}));
+    pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){ fCubeSide,  fCubeSide, -fCubeSide}));
+    pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){-fCubeSide, -fCubeSide,  fCubeSide}));
+    pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){ fCubeSide, -fCubeSide,  fCubeSide}));
+    pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){-fCubeSide,  fCubeSide,  fCubeSide}));
+    pl_sb_push(ptScene->sbtVertexPosBuffer, ((plVec3){ fCubeSide,  fCubeSide,  fCubeSide})); 
+}
+
+static void
+pl__refr_unstage_drawables(uint32_t uSceneHandle)
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plDevice*   ptDevice = gptData->ptDevice;
@@ -4401,8 +4498,7 @@ pl__refr_process_drawables(uint32_t uSceneHandle)
     // fill CPU buffers & drawable list
 
     pl_sb_reset(ptScene->sbtDrawables);
-    pl_sb_reset(ptScene->sbuShadowDeferredDrawables);
-    pl_sb_reset(ptScene->sbuShadowForwardDrawables);
+    pl_sb_reset(ptScene->sbtSkinData);
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtStagedDrawables);
     pl_sb_reserve(ptScene->sbtDrawables, uDrawableCount);
@@ -4413,14 +4509,14 @@ pl__refr_process_drawables(uint32_t uSceneHandle)
         ptScene->sbtStagedDrawables[i].uSkinIndex = UINT32_MAX;
         plEntity tEntity = ptScene->sbtStagedDrawables[i].tEntity;
 
-        // add entity to hashmap if first time
-        if(!pl_hm_has_key(ptScene->ptDrawableHashmap, tEntity.ulData))
-        {
-            pl_hm_insert(ptScene->ptDrawableHashmap, tEntity.ulData, i);
-        }
+        // if(pl_hm_has_key(ptScene->ptDrawableHashmap, tEntity.ulData))
+        // {
+        //     pl_hm_remove(ptScene->ptDrawableHashmap, tEntity.ulData);
+        // }
+        pl_hm_insert(ptScene->ptDrawableHashmap, tEntity.ulData, i);
         
         // add data to global buffers
-        if(ptScene->sbtStagedDrawables[i].uVertexCount == 0) // first time
+        // if(ptScene->sbtStagedDrawables[i].uVertexCount == 0) // first time
         {
             pl__add_drawable_data_to_global_buffer(ptScene, i, ptScene->sbtStagedDrawables);
             pl__add_drawable_skin_data_to_global_buffer(ptScene, i, ptScene->sbtStagedDrawables);
@@ -4431,4 +4527,117 @@ pl__refr_process_drawables(uint32_t uSceneHandle)
         ptScene->sbtStagedDrawables[i].uDynamicVertexOffset = ptScene->sbtStagedDrawables[i].uIndexCount == 0 ? 0 : ptScene->sbtStagedDrawables[i].uVertexOffset;
         pl_sb_push(ptScene->sbtDrawables, ptScene->sbtStagedDrawables[i]);
     }
+
+    if(ptScene->tSkyboxTexture.uIndex != 0)
+    {
+        pl__refr_add_skybox_drawable(uSceneHandle);
+    }
+
+    const plBufferDesc tIndexBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_INDEX,
+        .szByteSize = pl_max(sizeof(uint32_t) * pl_sb_size(ptScene->sbuIndexBuffer), 1024),
+        .pcDebugName = "index buffer"
+    };
+    
+    const plBufferDesc tVertexBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STORAGE,
+        .szByteSize = sizeof(plVec3) * pl_sb_size(ptScene->sbtVertexPosBuffer),
+        .pcDebugName = "vertex buffer"
+    };
+     
+    const plBufferDesc tStorageBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_STORAGE,
+        .szByteSize = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer),
+        .pcDebugName = "storage buffer"
+    };
+
+    const plBufferDesc tSkinStorageBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_STORAGE,
+        .szByteSize = sizeof(plVec4) * pl_sb_size(ptScene->sbtSkinVertexDataBuffer),
+        .pcDebugName = "skin buffer"
+    };
+
+    if(ptScene->tIndexBuffer.uData != UINT32_MAX) gptGfx->queue_buffer_for_deletion(ptDevice, ptScene->tIndexBuffer);
+    if(ptScene->tVertexBuffer.uData != UINT32_MAX) gptGfx->queue_buffer_for_deletion(ptDevice, ptScene->tVertexBuffer);
+    if(ptScene->tStorageBuffer.uData != UINT32_MAX)
+    {
+        gptGfx->queue_buffer_for_deletion(ptDevice, ptScene->tStorageBuffer);
+    }
+    if(ptScene->tSkinStorageBuffer.uData != UINT32_MAX)
+    {
+        gptGfx->queue_buffer_for_deletion(ptDevice, ptScene->tSkinStorageBuffer);
+        gptGfx->queue_bind_group_for_deletion(ptDevice, ptScene->tSkinBindGroup0);
+        ptScene->tSkinStorageBuffer.uData = UINT32_MAX;
+    }
+
+    ptScene->tIndexBuffer   = pl__refr_create_local_buffer(&tIndexBufferDesc,   "index", uSceneHandle, ptScene->sbuIndexBuffer);
+    ptScene->tVertexBuffer  = pl__refr_create_local_buffer(&tVertexBufferDesc,  "vertex", uSceneHandle, ptScene->sbtVertexPosBuffer);
+    ptScene->tStorageBuffer = pl__refr_create_local_buffer(&tStorageBufferDesc, "storage", uSceneHandle, ptScene->sbtVertexDataBuffer);
+
+    if(tSkinStorageBufferDesc.szByteSize > 0)
+    {
+        ptScene->tSkinStorageBuffer  = pl__refr_create_local_buffer(&tSkinStorageBufferDesc, "skin storage", uSceneHandle, ptScene->sbtSkinVertexDataBuffer);
+
+        const plBindGroupLayout tSkinBindGroupLayout0 = {
+            .atSamplerBindings = {
+                {.uSlot =  3, .tStages = PL_STAGE_COMPUTE}
+            },
+            .atBufferBindings = {
+                { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_COMPUTE},
+                { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_COMPUTE},
+                { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_COMPUTE},
+            }
+        };
+        const plBindGroupDesc tSkinBindGroupDesc = {
+            .ptPool = gptData->ptBindGroupPool,
+            .ptLayout = &tSkinBindGroupLayout0,
+            .pcDebugName = "skin bind group"
+        };
+        ptScene->tSkinBindGroup0 = gptGfx->create_bind_group(ptDevice, &tSkinBindGroupDesc);
+
+        const plBindGroupUpdateSamplerData atSamplerData[] = {
+            { .uSlot = 3, .tSampler = gptData->tDefaultSampler}
+        };
+        const plBindGroupUpdateBufferData atBufferData[] = 
+        {
+            { .uSlot = 0, .tBuffer = ptScene->tSkinStorageBuffer, .szBufferRange = tSkinStorageBufferDesc.szByteSize},
+            { .uSlot = 1, .tBuffer = ptScene->tVertexBuffer,      .szBufferRange = tVertexBufferDesc.szByteSize},
+            { .uSlot = 2, .tBuffer = ptScene->tStorageBuffer,     .szBufferRange = tStorageBufferDesc.szByteSize}
+
+        };
+        plBindGroupUpdateData tBGData0 = {
+            .uBufferCount = 3,
+            .atBufferBindings = atBufferData,
+            .uSamplerCount = 1,
+            .atSamplerBindings = atSamplerData,
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->tSkinBindGroup0, &tBGData0);
+    }
+
+    plBuffer* ptStorageBuffer = gptGfx->get_buffer(ptDevice, ptScene->tStorageBuffer);
+
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        const plBindGroupUpdateBufferData atGlobalBufferData[] = 
+        {
+            {
+                .tBuffer       = ptScene->tStorageBuffer,
+                .uSlot         = 0,
+                .szBufferRange = ptStorageBuffer->tDesc.szByteSize
+            }
+        };
+
+        plBindGroupUpdateData tGlobalBindGroupData = {
+            .uBufferCount = 1,
+            .atBufferBindings = atGlobalBufferData,
+        };
+
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
+    }
+
+    pl_sb_free(ptScene->sbtVertexPosBuffer);
+    pl_sb_free(ptScene->sbtVertexDataBuffer);
+    pl_sb_free(ptScene->sbuIndexBuffer);
+    pl_sb_free(ptScene->sbtSkinVertexDataBuffer);
 }

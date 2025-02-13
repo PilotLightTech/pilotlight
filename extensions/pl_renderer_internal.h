@@ -376,6 +376,7 @@ typedef struct _plRefScene
     plDrawable        tSkyboxDrawable;
     plTextureHandle   tSkyboxTexture;
     plBindGroupHandle tSkyboxBindGroup;
+    bool              bShowSkybox;
         
     // shared bind groups
     plBindGroupHandle tSkinBindGroup0;
@@ -668,8 +669,12 @@ static size_t                  pl__get_data_type_size2(plDataType tType);
 static plBlendState            pl__get_blend_state(plBlendMode tBlendMode);
 static uint32_t                pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle);
 static uint32_t                pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle);
-static void                    pl__refr_process_drawables(uint32_t uSceneHandle);
-static void                    pl__refr_set_drawable_shaders(uint32_t uSceneHandle);
+
+// drawable ops
+static void pl__refr_add_skybox_drawable (uint32_t uSceneHandle);
+static void pl__refr_unstage_drawables   (uint32_t uSceneHandle);
+static void pl__refr_set_drawable_shaders(uint32_t uSceneHandle);
+static void pl__refr_sort_drawables      (uint32_t uSceneHandle);
 
 // environment probes
 static void pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle);
