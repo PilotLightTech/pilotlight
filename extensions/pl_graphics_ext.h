@@ -199,6 +199,7 @@ typedef int plDeviceType;             // -> enum _plDeviceType             // En
 typedef int plDeviceCapability;       // -> enum _plDeviceCapability       // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
 typedef int plCommandPoolResetFlags;  // -> enum _plCommandPoolResetFlags  // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
 typedef int plPassResourceUsageFlags; // -> enum _plPassResourceUsageFlags // Flags: resource usage (PL_PASS_RESOURCE_USAGE_XXXX)
+typedef int plGraphicsBackend;        // -> enum _plGraphicsBackend        // Enum: graphics backend (PL_GRAPHICS_BACKEND_XXXX)
 
 // external
 typedef struct _plWindow plWindow; // pl_os.h
@@ -210,8 +211,10 @@ typedef struct _plWindow plWindow; // pl_os.h
 typedef struct _plGraphicsI
 {
     // context
-    bool (*initialize)(const plGraphicsInit*);
-    void (*cleanup)   (void);
+    bool              (*initialize)(const plGraphicsInit*);
+    void              (*cleanup)   (void);
+    plGraphicsBackend (*get_backend)(void);
+    const char*       (*get_backend_string)(void);
 
     // devices
     void      (*enumerate_devices)(plDeviceInfo*, uint32_t* deviceCountOut);
@@ -1027,6 +1030,13 @@ typedef struct _plDeviceInit
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plGraphicsBackend
+{
+    PL_GRAPHICS_BACKEND_NONE = 0,
+    PL_GRAPHICS_BACKEND_VULKAN,
+    PL_GRAPHICS_BACKEND_METAL
+};
 
 enum _plPassResourceUsageFlags
 {

@@ -1456,6 +1456,18 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
     ptAllocation->ulOffset = 0;
 }
 
+plGraphicsBackend
+pl_get_backend(void)
+{
+    return PL_GRAPHICS_BACKEND_METAL;
+}
+
+const char*
+pl_get_backend_string(void)
+{
+    return "Metal";
+}
+
 static bool
 pl_initialize_graphics(const plGraphicsInit* ptDesc)
 {

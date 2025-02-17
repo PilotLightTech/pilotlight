@@ -2367,6 +2367,18 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
     ptBlock->ulMemoryType = 0;
 }
 
+plGraphicsBackend
+pl_get_backend(void)
+{
+    return PL_GRAPHICS_BACKEND_VULKAN;
+}
+
+const char*
+pl_get_backend_string(void)
+{
+    return "Vulkan";
+}
+
 bool
 pl_initialize_graphics(const plGraphicsInit* ptDesc)
 {

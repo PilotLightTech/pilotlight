@@ -680,6 +680,8 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plGraphicsI tApi = {
         .initialize                             = pl_initialize_graphics,
+        .get_backend                            = pl_get_backend,
+        .get_backend_string                     = pl_get_backend_string,
         .set_depth_bias                         = pl_set_depth_bias,
         .recreate_swapchain                     = pl_recreate_swapchain,
         .get_swapchain_info                     = pl_get_swapchain_info,
