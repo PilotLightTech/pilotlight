@@ -27,13 +27,15 @@
 </p>
 
 ## Information
-Under construction but some information can be found in the [wiki](https://github.com/PilotLightTech/pilotlight/wiki#what-is-pilot-light).
+This is currently a project I use as a starting point for various other projects. It may not be the friendliest to newcomers (yet!) but that will improve with time as higher level extensions are created and documentation improves. More information can be found in the [wiki](https://github.com/PilotLightTech/pilotlight/wiki#what-is-pilot-light). 
 
 ## Developer Notes
 Information for developers can be found in the [wiki](https://github.com/PilotLightTech/pilotlight/wiki). This includes:
 * [building](https://github.com/PilotLightTech/pilotlight/wiki/Building)
 * [contributing](https://github.com/PilotLightTech/pilotlight/wiki/Contributing)
 * [style guide](https://github.com/PilotLightTech/pilotlight/wiki/Style-Guide)
+
+A template application can be found [here](https://git.pilotlight.tech/pilotlight/pl-template).
 
 ## License
 Pilot Light is licensed under the [MIT License](https://github.com/PilotLightTech/pilotlight/blob/master/LICENSE).
