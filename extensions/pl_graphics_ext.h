@@ -48,7 +48,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version (plVersion){1, 3, 0}
+#define plGraphicsI_version (plVersion){1, 4, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -135,6 +135,7 @@ typedef struct _plRenderTarget          plRenderTarget;
 typedef struct _plColorTarget           plColorTarget;
 typedef struct _plDepthTarget           plDepthTarget;
 typedef struct _plSubpass               plSubpass;
+typedef struct _plSubpassDependency     plSubpassDependency;
 typedef struct _plRenderPassLayout      plRenderPassLayout;
 typedef struct _plRenderPassLayoutDesc  plRenderPassLayoutDesc;
 typedef struct _plRenderPassDesc        plRenderPassDesc;
@@ -179,7 +180,8 @@ typedef int plCompareMode;            // -> enum _plCompareMode            // En
 typedef int plFormat;                 // -> enum _plFormat                 // Enum: formats (PL_FORMAT_XXXX)
 typedef int plVertexFormat;           // -> enum _plVertexFormat           // Enum: formats (PL_FORMAT_VERTEX_XXXX)
 typedef int plBufferUsage;            // -> enum _plBufferUsage            // Flag: buffer usage flags (PL_BUFFER_USAGE_XXXX)
-typedef int plStageFlags;             // -> enum _plStageFlags             // Flag: GPU pipeline stage (PL_STAGE_XXXX)
+typedef int plShaderStageFlags;       // -> enum _plShaderStageFlags       // Flag: GPU pipeline stage (PL_SHADER_STAGE_XXXX)
+typedef int plPipelineStageFlags;     // -> enum _plPipelineStageFlags     // Flag: GPU pipeline stage (PL_PIPELINE_STAGE_XXXX)
 typedef int plAccessFlags;            // -> enum _plAccessFlags            // Flag: GPU pipeline stage (PL_ACCESS_XXXX)
 typedef int plCullMode;               // -> enum _plCullMode               // Flag: face culling mode (PL_CULL_MODE_XXXX)
 typedef int plBufferBindingType;      // -> enum _plBufferBindingType      // Enum: buffer binding type for bind groups (PL_BUFFER_BINDING_TYPE_XXXX)
@@ -308,9 +310,9 @@ typedef struct _plGraphicsI
     void           (*copy_buffer)              (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint32_t sourceOffset, uint32_t destinationOffset, size_t);
 
     // global barriers
-    void (*pipeline_barrier_blit)   (plBlitEncoder*,    plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses);
-    void (*pipeline_barrier_compute)(plComputeEncoder*, plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses);
-    void (*pipeline_barrier_render) (plRenderEncoder*,  plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses);
+    void (*pipeline_barrier_blit)   (plBlitEncoder*,    plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses);
+    void (*pipeline_barrier_compute)(plComputeEncoder*, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses);
+    void (*pipeline_barrier_render) (plRenderEncoder*,  plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses);
 
     // resource barriers (not ready)
     void (*_unused0)(void);
@@ -503,8 +505,8 @@ typedef struct _plBuffer
 
 typedef struct _plSamplerBinding
 {
-    uint32_t     uSlot;
-    plStageFlags tStages;
+    uint32_t           uSlot;
+    plShaderStageFlags tStages;
 } plSamplerBinding;
 
 typedef struct _plTextureBinding
@@ -512,7 +514,7 @@ typedef struct _plTextureBinding
     plTextureBindingType tType;
     uint32_t             uSlot;
     uint32_t             uDescriptorCount; // 0 - will become 1
-    plStageFlags         tStages;
+    plShaderStageFlags   tStages;
     bool                 bNonUniformIndexing; // only available if device capability has PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING
 } plTextureBinding;
 
@@ -522,7 +524,7 @@ typedef struct _plBufferBinding
     uint32_t            uSlot;
     size_t              szSize;
     size_t              szOffset;
-    plStageFlags        tStages;
+    plShaderStageFlags  tStages;
 } plBufferBinding;
 
 typedef struct _plDynamicBinding
@@ -581,14 +583,14 @@ typedef struct _plBindGroupUpdateData
 typedef struct _plPassTextureResource
 {
     plTextureHandle          tHandle;
-    plStageFlags             tStages;
+    plShaderStageFlags       tStages;
     plPassResourceUsageFlags tUsage;
 } plPassTextureResource;
 
 typedef struct _plPassBufferResource
 {
     plBufferHandle           tHandle;
-    plStageFlags             tStages;
+    plShaderStageFlags       tStages;
     plPassResourceUsageFlags tUsage;
 } plPassBufferResource;
 
@@ -760,10 +762,20 @@ typedef struct _plSubpass
     uint32_t uSubpassInputCount;
     uint32_t auRenderTargets[PL_MAX_RENDER_TARGETS];
     uint32_t auSubpassInputs[PL_MAX_RENDER_TARGETS];
-    
+
     // [INTERNAL]
     uint32_t _uColorAttachmentCount;
 } plSubpass;
+
+typedef struct _plSubpassDependency
+{
+    uint32_t             uSourceSubpass;      // set to UINT32_MAX for external
+    uint32_t             uDestinationSubpass; // set to UINT32_MAX for external
+    plPipelineStageFlags tSourceStageMask;
+    plPipelineStageFlags tDestinationStageMask;
+    plAccessFlags        tSourceAccessMask;
+    plAccessFlags        tDestinationAccessMask;
+} plSubpassDependency;
 
 typedef struct _plRenderTarget
 {
@@ -775,8 +787,9 @@ typedef struct _plRenderTarget
 
 typedef struct _plRenderPassLayoutDesc
 {
-    plRenderTarget atRenderTargets[PL_MAX_RENDER_TARGETS];
-    plSubpass      atSubpasses[PL_MAX_SUBPASSES];
+    plRenderTarget      atRenderTargets[PL_MAX_RENDER_TARGETS];
+    plSubpass           atSubpasses[PL_MAX_SUBPASSES];
+    plSubpassDependency atSubpassDependencies[PL_MAX_SUBPASSES];
 
     // [INTERNAL]
     uint32_t _uSubpassCount;
@@ -1172,23 +1185,41 @@ enum _plGraphicsInitFlags
     PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED   = 1 << 1
 };
 
-enum _plStageFlags
+enum _plShaderStageFlags
 {
-    PL_STAGE_NONE     = 0,
-    PL_STAGE_VERTEX   = 1 << 0,
-    PL_STAGE_PIXEL    = 1 << 1,
-    PL_STAGE_COMPUTE  = 1 << 2,
-    PL_STAGE_TRANSFER = 1 << 3,
-    PL_STAGE_ALL     = PL_STAGE_VERTEX | PL_STAGE_PIXEL | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER
+    PL_SHADER_STAGE_NONE     = 0,
+    PL_SHADER_STAGE_VERTEX   = 1 << 0,
+    PL_SHADER_STAGE_FRAGMENT = 1 << 1,
+    PL_SHADER_STAGE_COMPUTE  = 1 << 2,
+    PL_SHADER_STAGE_TRANSFER = 1 << 3,
+    PL_SHADER_STAGE_ALL      = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER
+};
+
+enum _plPipelineStageFlags
+{
+    PL_PIPELINE_STAGE_NONE                    = 0,
+    PL_PIPELINE_STAGE_VERTEX_INPUT            = 1 << 0,
+    PL_PIPELINE_STAGE_VERTEX_SHADER           = 1 << 1,
+    PL_PIPELINE_STAGE_FRAGMENT_SHADER         = 1 << 2,
+    PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS    = 1 << 3,
+    PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS     = 1 << 4,
+    PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT = 1 << 5,
+    PL_PIPELINE_STAGE_COMPUTE_SHADER          = 1 << 6,
+    PL_PIPELINE_STAGE_TRANSFER                = 1 << 7,
 };
 
 enum _plAccessFlags
 {
-    PL_ACCESS_NONE           = 0,
-    PL_ACCESS_SHADER_READ    = 1 << 0,
-    PL_ACCESS_SHADER_WRITE   = 1 << 1,
-    PL_ACCESS_TRANSFER_WRITE = 1 << 2,
-    PL_ACCESS_TRANSFER_READ  = 1 << 3
+    PL_ACCESS_NONE                           = 0,
+    PL_ACCESS_SHADER_READ                    = 1 << 0,
+    PL_ACCESS_SHADER_WRITE                   = 1 << 1,
+    PL_ACCESS_TRANSFER_WRITE                 = 1 << 2,
+    PL_ACCESS_TRANSFER_READ                  = 1 << 3,
+    PL_ACCESS_INPUT_ATTACHMENT_READ          = 1 << 4,
+    PL_ACCESS_COLOR_ATTACHMENT_READ          = 1 << 5,
+    PL_ACCESS_COLOR_ATTACHMENT_WRITE         = 1 << 6,
+    PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ  = 1 << 7,
+    PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE = 1 << 8,
 };
 
 enum _plCullMode

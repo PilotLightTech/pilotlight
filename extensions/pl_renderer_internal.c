@@ -133,9 +133,9 @@ pl__refr_create_local_texture(const plTextureDesc* ptDesc, const char* pcName, u
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     gptGfx->set_texture_usage(ptBlitEncoder, tHandle, tInitialUsage, 0);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptBlitEncoder);
     gptGfx->end_command_recording(ptCommandBuffer);
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
@@ -176,9 +176,9 @@ pl__refr_create_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     gptGfx->set_texture_usage(ptBlitEncoder, tHandle, tInitialUsage, 0);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptBlitEncoder);
     gptGfx->end_command_recording(ptCommandBuffer);
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
@@ -219,7 +219,7 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     gptGfx->set_texture_usage(ptBlitEncoder, tHandle, PL_TEXTURE_USAGE_SAMPLED, 0);
 
 
@@ -245,7 +245,7 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
         gptGfx->generate_mipmaps(ptBlitEncoder, tHandle);
     }
 
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptBlitEncoder);
     gptGfx->end_command_recording(ptCommandBuffer);
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
@@ -355,10 +355,10 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
         
         // begin blit pass, copy buffer, end pass
         plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-        gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+        gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
         gptGfx->copy_buffer(ptEncoder, gptData->tStagingBufferHandle[0], tHandle, 0, 0, ptDesc->szByteSize);
-        gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+        gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptEncoder);
 
         // finish recording
@@ -641,7 +641,7 @@ pl_refr_update_skin_textures(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHa
     plDevice* ptDevice = gptData->ptDevice;
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
     uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
@@ -656,7 +656,7 @@ pl_refr_update_skin_textures(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHa
     {
         plBindGroupLayout tBindGroupLayout1 = {
             .atTextureBindings = {
-                {.uSlot =  0, .tStages = PL_STAGE_ALL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                {.uSlot =  0, .tStages = PL_SHADER_STAGE_ALL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
             }
         };
         const plBindGroupDesc tBindGroup1Desc = {
@@ -691,7 +691,7 @@ pl_refr_update_skin_textures(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHa
         gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptData->tStagingBufferHandle[uFrameIdx], ptScene->sbtSkinData[i].atDynamicTexture[uFrameIdx], 1, &tBufferImageCopy);
     }
 
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptBlitEncoder);
 
     pl_end_cpu_sample(gptProfile, 0);
@@ -719,9 +719,9 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
     {
 
         const plPassBufferResource atPassBuffers[] = {
-            { .tHandle = ptScene->tSkinStorageBuffer, .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_READ },
-            { .tHandle = ptScene->tVertexBuffer,      .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->tStorageBuffer,     .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->tSkinStorageBuffer, .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_READ },
+            { .tHandle = ptScene->tVertexBuffer,      .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->tStorageBuffer,     .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
         };
 
         const plPassResources tPassResources = {
@@ -730,7 +730,7 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
         };
 
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
-        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE, PL_ACCESS_SHADER_READ, PL_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE);
+        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_READ, PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE);
         for(uint32_t i = 0; i < uSkinCount; i++)
         {
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
@@ -756,7 +756,7 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
             gptGfx->bind_compute_shader(ptComputeEncoder, ptScene->sbtSkinData[i].tShader);
             gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
         }
-        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE, PL_ACCESS_SHADER_READ);
+        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_READ);
         gptGfx->end_compute_pass(ptComputeEncoder);
     }
     pl_end_cpu_sample(gptProfile, 0);
@@ -964,7 +964,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
             {
                 .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                 .uSlot = 0,
-                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
             }
         }
     };
@@ -1630,7 +1630,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
             {
                 .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                 .uSlot = 0,
-                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
             }
         }
     };
@@ -1987,11 +1987,11 @@ pl_refr_post_process_scene(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHand
 
     const plBindGroupLayout tOutlineBindGroupLayout = {
         .atSamplerBindings = {
-            { .uSlot = 0, .tStages = PL_STAGE_PIXEL}
+            { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT}
         },
         .atTextureBindings = {
-            {.uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.uSlot = 2, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+            {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
+            {.uSlot = 2, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         }
     };
 
@@ -2109,18 +2109,18 @@ pl_refr_create_global_shaders(void)
         .atBindGroupLayouts = {
             {
                 .atTextureBindings = {
-                    {.uSlot = 1, .tStages = PL_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    {.uSlot = 1, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 },
                 .atBufferBindings = {
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 7, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 8, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_SHADER_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_SHADER_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_SHADER_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_SHADER_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_SHADER_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 7, .tStages = PL_SHADER_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 8, .tStages = PL_SHADER_STAGE_COMPUTE},
                 },
-                .atSamplerBindings = { {.uSlot = 0, .tStages = PL_STAGE_COMPUTE}}
+                .atSamplerBindings = { {.uSlot = 0, .tStages = PL_SHADER_STAGE_COMPUTE}}
             }
         }
     };
@@ -2164,21 +2164,21 @@ pl_refr_create_global_shaders(void)
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 0,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                        .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                     },
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 1,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                        .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                     }
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    {.uSlot = 2, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                    {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
+                    {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                    {.uSlot = 4100, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
                 }
             },
             {
@@ -2186,7 +2186,7 @@ pl_refr_create_global_shaders(void)
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 0,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                        .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                     }
                 },
             },
@@ -2233,36 +2233,36 @@ pl_refr_create_global_shaders(void)
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 0,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                        .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                     },
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 1,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                        .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                     }
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    {.uSlot = 2, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                    {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
+                    {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                    {.uSlot = 4100, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
                 }
             },
             {
                 .atBufferBindings = {
-                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    { .uSlot = 4, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    { .uSlot = 5, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    { .uSlot = 6, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    { .uSlot = 7, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    { .uSlot = 4, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    { .uSlot = 5, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    { .uSlot = 6, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    { .uSlot = 7, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 8, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    {.uSlot = 8, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
             }
         }
@@ -2332,26 +2332,26 @@ pl_refr_create_global_shaders(void)
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 0,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                        .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                     },
                     {
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 1,
-                        .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                        .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                     }
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 2, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
-                    {.uSlot = 3, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    {.uSlot = 2, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 4, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                    {.uSlot = 4100, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
+                    {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                    {.uSlot = 4100, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
                 }
             },
             {
                 .atBufferBindings = {
-                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
             }
         }
@@ -2398,7 +2398,7 @@ pl_refr_create_global_shaders(void)
         .atBindGroupLayouts = {
             {
                 .atBufferBindings = {
-                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
             }
         }
@@ -2468,15 +2468,15 @@ pl_refr_create_global_shaders(void)
         .atBindGroupLayouts = {
             {
                 .atBufferBindings = {
-                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL},
+                    {.uSlot = 1, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
                 }
             },
             {
                 .atTextureBindings = {
-                    { .uSlot = 0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+                    { .uSlot = 0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
             }
         }
@@ -2640,17 +2640,17 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
         .atBindGroupLayouts = {
             {
                 .atBufferBindings = {
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_SHADER_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_SHADER_STAGE_COMPUTE},
+                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_SHADER_STAGE_COMPUTE},
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 3, .tStages = PL_STAGE_COMPUTE}
+                    {.uSlot = 3, .tStages = PL_SHADER_STAGE_COMPUTE}
                 }
             },
             {
                 .atTextureBindings = {
-                    {.uSlot =  0, .tStages = PL_STAGE_ALL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    {.uSlot =  0, .tStages = PL_SHADER_STAGE_ALL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
         }
@@ -3102,10 +3102,10 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
 
     const plBindGroupLayout tLightingBindGroupLayout = {
         .atTextureBindings = { 
-            {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-            {.uSlot = 1, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-            {.uSlot = 2, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-            {.uSlot = 3, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
+            {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
+            {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
+            {.uSlot = 2, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
+            {.uSlot = 3, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
         }
     };
 
@@ -3375,17 +3375,17 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
 
     const plBindGroupLayout tSceneBGLayout = {
         .atBufferBindings = {
-            { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
-            { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
-            { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
-            { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
-            { .uSlot = 4, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
-            { .uSlot = 5, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
-            { .uSlot = 6, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
-            { .uSlot = 7, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_PIXEL | PL_STAGE_VERTEX},
+            { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+            { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+            { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+            { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+            { .uSlot = 4, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+            { .uSlot = 5, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+            { .uSlot = 6, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
+            { .uSlot = 7, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
         },
         .atSamplerBindings = {
-            {.uSlot = 8, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+            {.uSlot = 8, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
         },
     };
     const plBindGroupDesc tSceneBGDesc = {
@@ -3399,11 +3399,11 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
             {
                 .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                 .uSlot = 0,
-                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL
+                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
             }
         },
         .atSamplerBindings = {
-            {.uSlot = 1, .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL}
+            {.uSlot = 1, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
         }
     };
 
@@ -3428,7 +3428,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
             {
                 .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                 .uSlot = 0,
-                .tStages = PL_STAGE_VERTEX | PL_STAGE_PIXEL,
+                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT,
             }
         }
     };
@@ -3881,9 +3881,9 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
         };
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo1);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
         gptGfx->generate_mipmaps(ptBlitEncoder, ptProbe->tRawOutputTexture);
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptBlitEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
         const plSubmitInfo tSubmitInfo = {
@@ -3897,18 +3897,18 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
 
     plBindGroupLayout tBindgroupLayout = {
         .atTextureBindings = {
-            {.uSlot = 1, .tStages = PL_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+            {.uSlot = 1, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         },
         .atBufferBindings = {
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 7, .tStages = PL_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 8, .tStages = PL_STAGE_COMPUTE},
+            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_SHADER_STAGE_COMPUTE},
+            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_SHADER_STAGE_COMPUTE},
+            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_SHADER_STAGE_COMPUTE},
+            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_SHADER_STAGE_COMPUTE},
+            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_SHADER_STAGE_COMPUTE},
+            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 7, .tStages = PL_SHADER_STAGE_COMPUTE},
+            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 8, .tStages = PL_SHADER_STAGE_COMPUTE},
         },
-        .atSamplerBindings = { {.uSlot = 0, .tStages = PL_STAGE_COMPUTE}}
+        .atSamplerBindings = { {.uSlot = 0, .tStages = PL_SHADER_STAGE_COMPUTE}}
     };
 
     typedef struct _FilterShaderSpecData{
@@ -3980,13 +3980,13 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo0);
 
         const plPassBufferResource atPassBuffers[] = {
-            { .tHandle = ptScene->atFilterWorkingBuffers[0], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[1], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[2], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[3], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[4], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[5], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[6], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[0], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[1], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[2], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[3], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[4], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[5], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[6], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
         };
 
         const plPassResources tPassResources = {
@@ -4017,7 +4017,7 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
         ptIrrDynamicData->iCurrentMipLevel = 0;
 
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
-        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE, PL_ACCESS_SHADER_READ, PL_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE);
+        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_READ, PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE);
         gptGfx->bind_compute_bind_groups(ptComputeEncoder, gptData->tEnvFilterShader, 0, 1, &tLutBindGroup, 1, &tDynamicBinding);
         gptGfx->bind_compute_shader(ptComputeEncoder, gptData->tEnvFilterShader);
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
@@ -4025,7 +4025,7 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
         gptGfx->bind_compute_bind_groups(ptComputeEncoder, gptData->tEnvFilterShader, 0, 1, &tLutBindGroup, 1, &tIrradianceDynamicBinding);
         gptGfx->bind_compute_shader(ptComputeEncoder, gptData->tEnvFilterShader);
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
-        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE, PL_ACCESS_SHADER_READ);
+        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_READ);
         gptGfx->end_compute_pass(ptComputeEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
 
@@ -4045,7 +4045,7 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
         };
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo1);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
         const plBufferImageCopy tBufferImageCopy0 = {
             .uImageWidth = iResolution,
@@ -4069,7 +4069,7 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
             };
             gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[i], ptProbe->tLambertianEnvTexture, 1, &tBufferImageCopy);
         }
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptBlitEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
         const plSubmitInfo tSubmitInfo = {
@@ -4125,13 +4125,13 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
         gptGfx->queue_bind_group_for_deletion(ptDevice, tLutBindGroup);
 
         const plPassBufferResource atInnerPassBuffers[] = {
-            { .tHandle = ptScene->atFilterWorkingBuffers[0], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[1], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[2], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[3], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[4], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[5], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
-            { .tHandle = ptScene->atFilterWorkingBuffers[6], .tStages = PL_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[0], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[1], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[2], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[3], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[4], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[5], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[6], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
         };
 
         const plPassResources tInnerPassResources = {
@@ -4178,11 +4178,11 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
             ptDynamicData->iCurrentMipLevel = i;
 
             plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tInnerPassResources);
-            gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE, PL_ACCESS_SHADER_READ, PL_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE);
+            gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_READ, PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE);
             gptGfx->bind_compute_bind_groups(ptComputeEncoder, gptData->tEnvFilterShader, 0, 1, &tLutBindGroup, 1, &tDynamicBinding);
             gptGfx->bind_compute_shader(ptComputeEncoder, gptData->tEnvFilterShader);
             gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
-            gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE, PL_ACCESS_SHADER_READ);
+            gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_READ);
             gptGfx->end_compute_pass(ptComputeEncoder);
             gptGfx->end_command_recording(ptCommandBuffer);
             const plSubmitInfo tSubmitInfo = {
@@ -4201,7 +4201,7 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
             };
             gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo2);
             plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
             for(uint32_t j = 0; j < 6; j++)
             {
@@ -4216,7 +4216,7 @@ pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbe
                 };
                 gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[j], ptProbe->tGGXEnvTexture, 1, &tBufferImageCopy);
             }
-            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
             gptGfx->end_blit_pass(ptBlitEncoder);
             gptGfx->end_command_recording(ptCommandBuffer);
             const plSubmitInfo tSubmitInfo0 = {
@@ -4580,12 +4580,12 @@ pl__refr_unstage_drawables(uint32_t uSceneHandle)
 
         const plBindGroupLayout tSkinBindGroupLayout0 = {
             .atSamplerBindings = {
-                {.uSlot =  3, .tStages = PL_STAGE_COMPUTE}
+                {.uSlot =  3, .tStages = PL_SHADER_STAGE_COMPUTE}
             },
             .atBufferBindings = {
-                { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_COMPUTE},
-                { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_COMPUTE},
-                { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_STAGE_COMPUTE},
+                { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_COMPUTE},
+                { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_COMPUTE},
+                { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_COMPUTE},
             }
         };
         const plBindGroupDesc tSkinBindGroupDesc = {

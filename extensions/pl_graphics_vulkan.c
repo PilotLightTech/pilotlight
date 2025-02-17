@@ -64,7 +64,7 @@ typedef struct _plRenderPassCommonData
     uint32_t                uDependencyCount;
     uint32_t                uColorAttachmentCount;
     VkAttachmentDescription atAttachments[PL_MAX_RENDER_TARGETS];
-    VkSubpassDependency     atSubpassDependencies[PL_MAX_RENDER_TARGETS * PL_MAX_RENDER_TARGETS + 2];
+    VkSubpassDependency     atSubpassDependencies[PL_MAX_SUBPASSES];
     VkSubpassDescription    atSubpasses[PL_MAX_SUBPASSES];
     VkAttachmentReference   atSubpassColorAttachmentReferences[PL_MAX_RENDER_TARGETS][PL_MAX_SUBPASSES];
     VkAttachmentReference   atSubpassInputAttachmentReferences[PL_MAX_RENDER_TARGETS][PL_MAX_SUBPASSES];
@@ -336,21 +336,22 @@ typedef struct _plSwapchain
 //-----------------------------------------------------------------------------
 
 // conversion between pilotlight & vulkan types
-static VkFilter              pl__vulkan_filter       (plFilter);
-static VkSamplerAddressMode  pl__vulkan_wrap         (plAddressMode);
-static VkCompareOp           pl__vulkan_compare      (plCompareMode);
-static VkFormat              pl__vulkan_format       (plFormat);
-static VkFormat              pl__vulkan_vertex_format(plVertexFormat);
-static VkImageLayout         pl__vulkan_layout       (plTextureUsage);
-static VkAttachmentLoadOp    pl__vulkan_load_op      (plLoadOp);
-static VkAttachmentStoreOp   pl__vulkan_store_op     (plStoreOp);
-static VkCullModeFlags       pl__vulkan_cull         (plCullMode);
-static VkShaderStageFlagBits pl__vulkan_stage_flags  (plStageFlags);
-static plFormat              pl__pilotlight_format   (VkFormat);
-static VkStencilOp           pl__vulkan_stencil_op   (plStencilOp);
-static VkBlendFactor         pl__vulkan_blend_factor (plBlendFactor);
-static VkBlendOp             pl__vulkan_blend_op     (plBlendOp);
-static VkAccessFlags         pl__vulkan_access_flags (plAccessFlags);
+static VkFilter                pl__vulkan_filter             (plFilter);
+static VkSamplerAddressMode    pl__vulkan_wrap               (plAddressMode);
+static VkCompareOp             pl__vulkan_compare            (plCompareMode);
+static VkFormat                pl__vulkan_format             (plFormat);
+static VkFormat                pl__vulkan_vertex_format      (plVertexFormat);
+static VkImageLayout           pl__vulkan_layout             (plTextureUsage);
+static VkAttachmentLoadOp      pl__vulkan_load_op            (plLoadOp);
+static VkAttachmentStoreOp     pl__vulkan_store_op           (plStoreOp);
+static VkCullModeFlags         pl__vulkan_cull               (plCullMode);
+static VkShaderStageFlagBits   pl_vulkan_shader_stage_flags  (plShaderStageFlags);
+static VkPipelineStageFlagBits pl_vulkan_pipeline_stage_flags(plPipelineStageFlags);
+static plFormat                pl__pilotlight_format         (VkFormat);
+static VkStencilOp             pl__vulkan_stencil_op         (plStencilOp);
+static VkBlendFactor           pl__vulkan_blend_factor       (plBlendFactor);
+static VkBlendOp               pl__vulkan_blend_op           (plBlendOp);
+static VkAccessFlags           pl__vulkan_access_flags       (plAccessFlags);
 
 // misc
 static plDeviceMemoryAllocation pl__allocate_staging_dynamic(struct plDeviceMemoryAllocatorO*, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
@@ -893,21 +894,21 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     ptLayout->_uSamplerBindingCount = 0;
     for(uint32_t i = 0; i < PL_MAX_TEXTURES_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atTextureBindings[i].tStages == PL_STAGE_NONE)
+        if(ptLayout->atTextureBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uTextureBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_BUFFERS_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atBufferBindings[i].tStages == PL_STAGE_NONE)
+        if(ptLayout->atBufferBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uBufferBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_SAMPLERS_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atSamplerBindings[i].tStages == PL_STAGE_NONE)
+        if(ptLayout->atSamplerBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uSamplerBindingCount++;
     }
@@ -927,7 +928,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
             .binding            = ptLayout->atBufferBindings[i].uSlot,
             .descriptorType     = ptLayout->atBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount    = 1,
-            .stageFlags         = pl__vulkan_stage_flags(ptLayout->atBufferBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atBufferBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
@@ -940,7 +941,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
         VkDescriptorSetLayoutBinding tBinding = {
             .binding            = ptLayout->atTextureBindings[i].uSlot,
             .descriptorCount    = ptLayout->atTextureBindings[i].uDescriptorCount,
-            .stageFlags         = pl__vulkan_stage_flags(ptLayout->atTextureBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atTextureBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
 
@@ -972,7 +973,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
             .binding            = ptLayout->atSamplerBindings[i].uSlot,
             .descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLER,
             .descriptorCount    = 1,
-            .stageFlags         = pl__vulkan_stage_flags(ptLayout->atSamplerBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atSamplerBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
 
@@ -1337,9 +1338,9 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
     ptShader->tDesc._uBindGroupLayoutCount = 0;
     for (uint32_t i = 0; i < 3; i++)
     {
-        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].tStages == PL_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].tStages == PL_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].tStages == PL_STAGE_NONE)
+        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].tStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].tStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].tStages == PL_SHADER_STAGE_NONE)
         {
             ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->tNullDescriptorSetLayout;
         }
@@ -1418,9 +1419,9 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     ptShader->tDesc._uBindGroupLayoutCount = 0;
     for (uint32_t i = 0; i < 3; i++)
     {
-        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].tStages == PL_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].tStages == PL_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].tStages == PL_STAGE_NONE)
+        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].tStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].tStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].tStages == PL_SHADER_STAGE_NONE)
         {
             ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->tNullDescriptorSetLayout;
         }
@@ -3483,7 +3484,7 @@ pl_cleanup_device(plDevice* ptDevice)
 }
 
 void
-pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
 {
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -3491,11 +3492,11 @@ pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plStageFlags beforeStages, pl
         .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
     };
 
-    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl__vulkan_stage_flags(beforeStages), pl__vulkan_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_shader_stage_flags(beforeStages), pl_vulkan_shader_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
 }
 
 void
-pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
 {
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -3503,11 +3504,11 @@ pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plStageFlags beforeStag
         .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
     };
 
-    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl__vulkan_stage_flags(beforeStages), pl__vulkan_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_shader_stage_flags(beforeStages), pl_vulkan_shader_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
 }
 
 void
-pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
 {
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -3515,7 +3516,7 @@ pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plStageFlags beforeStage
         .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
     };
 
-    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl__vulkan_stage_flags(beforeStages), pl__vulkan_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_shader_stage_flags(beforeStages), pl_vulkan_shader_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
 }
 
 plComputeEncoder*
@@ -4137,21 +4138,21 @@ pl__create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, co
     // count bindings
     for(uint32_t i = 0; i < PL_MAX_TEXTURES_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atTextureBindings[i].tStages == PL_STAGE_NONE)
+        if(ptLayout->atTextureBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uTextureBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_BUFFERS_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atBufferBindings[i].tStages == PL_STAGE_NONE)
+        if(ptLayout->atBufferBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uBufferBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_SAMPLERS_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atSamplerBindings[i].tStages == PL_STAGE_NONE)
+        if(ptLayout->atSamplerBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uSamplerBindingCount++;
     }
@@ -4167,7 +4168,7 @@ pl__create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, co
             .binding            = ptLayout->atBufferBindings[i].uSlot,
             .descriptorType     = ptLayout->atBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount    = 1,
-            .stageFlags         = pl__vulkan_stage_flags(ptLayout->atBufferBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atBufferBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
@@ -4179,7 +4180,7 @@ pl__create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, co
         VkDescriptorSetLayoutBinding tBinding = {
             .binding            = ptLayout->atTextureBindings[i].uSlot,
             .descriptorCount    = ptLayout->atTextureBindings[i].uDescriptorCount,
-            .stageFlags         = pl__vulkan_stage_flags(ptLayout->atTextureBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atTextureBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
 
@@ -4204,7 +4205,7 @@ pl__create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, co
             .binding            = ptLayout->atSamplerBindings[i].uSlot,
             .descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLER,
             .descriptorCount    = 1,
-            .stageFlags         = pl__vulkan_stage_flags(ptLayout->atSamplerBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atSamplerBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
@@ -4239,7 +4240,7 @@ static void
 pl__fill_common_render_pass_data(plRenderPassLayoutDesc* ptDesc, plRenderPassLayout* ptLayout, plRenderPassCommonData* ptDataOut)
 {
     ptDesc->_uSubpassCount = 0;
-    ptDataOut->uDependencyCount = 2;
+    ptDataOut->uDependencyCount = 0;
     ptLayout->_uAttachmentCount = 0;
     ptDataOut->uColorAttachmentCount = 0;
 
@@ -4325,42 +4326,26 @@ pl__fill_common_render_pass_data(plRenderPassLayoutDesc* ptDesc, plRenderPassLay
         }
         ptDataOut->atSubpasses[i].inputAttachmentCount = ptSubpass->uSubpassInputCount;
         ptDataOut->atSubpasses[i].pInputAttachments = ptDataOut->atSubpassInputAttachmentReferences[i];
-
-        // dependencies
-        if (i > 0)
-        {
-            ptDataOut->atSubpassDependencies[ptDataOut->uDependencyCount] = (VkSubpassDependency){
-                .srcSubpass      = i - 1,
-                .dstSubpass      = i,
-                .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                .dstAccessMask   = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
-            };
-            ptDataOut->uDependencyCount++;
-        }
     }
-    // ensure everything outside render pass is finished
-    ptDataOut->atSubpassDependencies[0] = (VkSubpassDependency){
-        .srcSubpass      = VK_SUBPASS_EXTERNAL,
-        .dstSubpass      = 0,
-        .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        .srcAccessMask   = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-        .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
-    };
 
-    ptDataOut->atSubpassDependencies[1] = (VkSubpassDependency){
-        .srcSubpass      = ptDesc->_uSubpassCount - 1,
-        .dstSubpass      = VK_SUBPASS_EXTERNAL,
-        .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-        .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
-    };
+    for(uint32_t i = 0; i < PL_MAX_SUBPASSES; i++)
+    {
+        if(ptDesc->atSubpassDependencies[i].uSourceSubpass == 0 && ptDesc->atSubpassDependencies[i].uDestinationSubpass == 0)
+        {
+            break;
+        }
+
+        ptDataOut->atSubpassDependencies[i] = (VkSubpassDependency){
+            .srcSubpass      = ptDesc->atSubpassDependencies[i].uSourceSubpass,
+            .dstSubpass      = ptDesc->atSubpassDependencies[i].uDestinationSubpass,
+            .srcStageMask    = pl_vulkan_pipeline_stage_flags(ptDesc->atSubpassDependencies[i].tSourceStageMask),
+            .dstStageMask    = pl_vulkan_pipeline_stage_flags(ptDesc->atSubpassDependencies[i].tDestinationStageMask),
+            .srcAccessMask   = pl__vulkan_access_flags(ptDesc->atSubpassDependencies[i].tSourceAccessMask),
+            .dstAccessMask   = pl__vulkan_access_flags(ptDesc->atSubpassDependencies[i].tDestinationAccessMask),
+            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+        };
+        ptDataOut->uDependencyCount++;
+    }
 }
 
 static plDeviceMemoryAllocation
@@ -5195,18 +5180,35 @@ pl__vulkan_cull(plCullMode tFlag)
 }
 
 static VkShaderStageFlagBits
-pl__vulkan_stage_flags(plStageFlags tFlags)
+pl_vulkan_shader_stage_flags(plShaderStageFlags tFlags)
 {
     VkShaderStageFlagBits tResult = 0;
 
-    if (tFlags & PL_STAGE_VERTEX)
+    if (tFlags & PL_SHADER_STAGE_VERTEX)
         tResult |= VK_SHADER_STAGE_VERTEX_BIT;
-    if (tFlags & PL_STAGE_PIXEL)
+    if (tFlags & PL_SHADER_STAGE_FRAGMENT)
         tResult |= VK_SHADER_STAGE_FRAGMENT_BIT;
-    if (tFlags & PL_STAGE_COMPUTE)
+    if (tFlags & PL_SHADER_STAGE_COMPUTE)
         tResult |= VK_SHADER_STAGE_COMPUTE_BIT;
-    if(tFlags & PL_STAGE_TRANSFER)
+    if(tFlags & PL_SHADER_STAGE_TRANSFER)
         tResult |= VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+    return tResult;
+}
+
+static VkPipelineStageFlagBits
+pl_vulkan_pipeline_stage_flags(plPipelineStageFlags tFlags)
+{
+    VkPipelineStageFlagBits tResult = 0;
+
+    if (tFlags & PL_PIPELINE_STAGE_VERTEX_INPUT)            tResult |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+    if (tFlags & PL_PIPELINE_STAGE_VERTEX_SHADER)           tResult |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+    if (tFlags & PL_PIPELINE_STAGE_FRAGMENT_SHADER)         tResult |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    if (tFlags & PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS)    tResult |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    if (tFlags & PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS)     tResult |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    if (tFlags & PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT) tResult |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    if (tFlags & PL_PIPELINE_STAGE_COMPUTE_SHADER)          tResult |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    if (tFlags & PL_PIPELINE_STAGE_TRANSFER)                tResult |= VK_PIPELINE_STAGE_TRANSFER_BIT;
 
     return tResult;
 }
@@ -5224,7 +5226,16 @@ pl__vulkan_access_flags(plAccessFlags tFlags)
         tResult |= VK_ACCESS_TRANSFER_WRITE_BIT;
     if(tFlags & PL_ACCESS_TRANSFER_READ)
         tResult |= VK_ACCESS_TRANSFER_READ_BIT;
-
+    if(tFlags & PL_ACCESS_INPUT_ATTACHMENT_READ)
+        tResult |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+    if(tFlags & PL_ACCESS_COLOR_ATTACHMENT_READ)
+        tResult |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+    if(tFlags & PL_ACCESS_COLOR_ATTACHMENT_WRITE)
+        tResult |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    if(tFlags & PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ)
+        tResult |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+    if(tFlags & PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE)
+        tResult |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     return tResult;
 }
 

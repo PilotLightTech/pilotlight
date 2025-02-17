@@ -171,7 +171,7 @@ pl_initialize_draw_backend(plDevice* ptDevice)
 
     const plBindGroupLayout tSamplerBindGroupLayout = {
         .atSamplerBindings = {
-            {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
+            {.uSlot =  0, .tStages = PL_SHADER_STAGE_FRAGMENT}
         }
     };
     const plBindGroupDesc tSamplerBindGroupDesc = {
@@ -288,7 +288,7 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     // begin blit pass, copy texture, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
 
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
     gptGfx->set_texture_usage(ptEncoder, tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
 
@@ -300,7 +300,7 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     };
 
     gptGfx->copy_buffer_to_texture(ptEncoder, tStagingBuffer, tTexture, 1, &tBufferImageCopy);
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_STAGE_VERTEX | PL_STAGE_COMPUTE | PL_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
@@ -539,12 +539,12 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
         .atBindGroupLayouts = {
             {
                 .atSamplerBindings = {
-                    {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
+                    {.uSlot =  0, .tStages = PL_SHADER_STAGE_FRAGMENT}
                 }
             },
             {
                 .atTextureBindings = { 
-                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
         },
@@ -594,12 +594,12 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
         .atBindGroupLayouts = {
             {
                 .atSamplerBindings = {
-                    {.uSlot =  0, .tStages = PL_STAGE_PIXEL}
+                    {.uSlot =  0, .tStages = PL_SHADER_STAGE_FRAGMENT}
                 }
             },
             {
                 .atTextureBindings = { 
-                    {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
         },
@@ -615,7 +615,7 @@ pl_create_bind_group_for_texture(plTextureHandle tTexture)
 {
     const plBindGroupLayout tDrawingBindGroup = {
         .atTextureBindings = { 
-            {.uSlot = 0, .tStages = PL_STAGE_PIXEL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+            {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         }
     };
     const plBindGroupDesc tSamplerBindGroupDesc = {
