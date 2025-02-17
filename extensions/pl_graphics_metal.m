@@ -287,7 +287,7 @@ static MTLCullMode            pl__metal_cull(plCullMode tCullMode);
 static MTLLoadAction          pl__metal_load_op   (plLoadOp tOp);
 static MTLStoreAction         pl__metal_store_op  (plStoreOp tOp);
 static MTLDataType            pl__metal_data_type  (plDataType tType);
-static MTLRenderStages        pl__metal_stage_flags(plStageFlags tFlags);
+static MTLRenderStages        pl__metal_stage_flags(plShaderStageFlags tFlags);
 static bool                   pl__is_depth_format  (plFormat tFormat);
 static bool                   pl__is_stencil_format  (plFormat tFormat);
 static MTLBlendFactor         pl__metal_blend_factor(plBlendFactor tFactor);
@@ -880,21 +880,21 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     // count bindings
     for(uint32_t i = 0; i < PL_MAX_TEXTURES_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atTextureBindings[i].tStages == PL_STAGE_NONE)
+        if(ptLayout->atTextureBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uTextureBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_BUFFERS_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atBufferBindings[i].tStages == PL_STAGE_NONE)
+        if(ptLayout->atBufferBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uBufferBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_SAMPLERS_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atSamplerBindings[i].tStages == PL_STAGE_NONE)
+        if(ptLayout->atSamplerBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uSamplerBindingCount++;
     }
@@ -1192,9 +1192,9 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
 
     for (uint32_t i = 0; i < 3; i++)
     {
-        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].tStages == PL_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].tStages == PL_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].tStages == PL_STAGE_NONE)
+        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].tStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].tStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].tStages == PL_SHADER_STAGE_NONE)
         {
             break;
         }
@@ -1305,9 +1305,9 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 
     for (uint32_t i = 0; i < 3; i++)
     {
-        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].tStages == PL_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].tStages == PL_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].tStages == PL_STAGE_NONE)
+        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].tStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].tStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].tStages == PL_SHADER_STAGE_NONE)
         {
             break;
         }
@@ -2110,19 +2110,19 @@ pl_end_blit_pass(plBlitEncoder* ptEncoder)
 }
 
 void
-pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
 {
 
 }
 
 void
-pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
 {
     [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeBuffers | MTLBarrierScopeTextures];
 }
 
 void
-pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plStageFlags beforeStages, plAccessFlags beforeAccesses, plStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
 {
     [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeRenderTargets | MTLBarrierScopeBuffers | MTLBarrierScopeTextures afterStages:pl__metal_stage_flags(beforeStages) beforeStages:pl__metal_stage_flags(afterStages)];
 }
@@ -3119,13 +3119,13 @@ pl__metal_cull(plCullMode tCullMode)
 };
 
 static MTLRenderStages
-pl__metal_stage_flags(plStageFlags tFlags)
+pl__metal_stage_flags(plShaderStageFlags tFlags)
 {
     MTLRenderStages tResult = 0;
 
-    if(tFlags & PL_STAGE_VERTEX)   tResult |= MTLRenderStageVertex;
-    if(tFlags & PL_STAGE_PIXEL)    tResult |= MTLRenderStageFragment;
-    // if(tFlags & PL_STAGE_COMPUTE)  tResult |= VK_SHADER_STAGE_COMPUTE_BIT; // not needed
+    if(tFlags & PL_SHADER_STAGE_VERTEX)   tResult |= MTLRenderStageVertex;
+    if(tFlags & PL_SHADER_STAGE_FRAGMENT)    tResult |= MTLRenderStageFragment;
+    // if(tFlags & PL_SHADER_STAGE_COMPUTE)  tResult |= VK_SHADER_STAGE_COMPUTE_BIT; // not needed
 
     return tResult;
 }
