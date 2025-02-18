@@ -635,69 +635,6 @@ pl__sat_visibility_test(plCameraComponent* ptCamera, const plAABB* ptAABB)
 //-----------------------------------------------------------------------------
 
 static void
-pl_refr_update_skin_textures(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle)
-{
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
-    plDevice* ptDevice = gptData->ptDevice;
-    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
-    plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-
-    uint32_t uFrameIdx = gptGfx->get_current_frame_index();
-
-    // update skin textures
-    if(gptData->uCurrentStagingFrameIndex != uFrameIdx)
-    {
-        gptData->uStagingOffset = 0;
-        gptData->uCurrentStagingFrameIndex = uFrameIdx;
-    }
-    const uint32_t uSkinCount = pl_sb_size(ptScene->sbtSkinData);
-    for(uint32_t i = 0; i < uSkinCount; i++)
-    {
-        plBindGroupLayout tBindGroupLayout1 = {
-            .atTextureBindings = {
-                {.uSlot =  0, .tStages = PL_SHADER_STAGE_ALL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-            }
-        };
-        const plBindGroupDesc tBindGroup1Desc = {
-            .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-            .ptLayout    = &tBindGroupLayout1,
-            .pcDebugName = "skin temporary bind group"
-        };
-        ptScene->sbtSkinData[i].tTempBindGroup = gptGfx->create_bind_group(ptDevice, &tBindGroup1Desc);
-        const plBindGroupUpdateTextureData tTextureData = {.tTexture = ptScene->sbtSkinData[i].atDynamicTexture[uFrameIdx], .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED};
-        plBindGroupUpdateData tBGData0 = {
-            .uTextureCount = 1,
-            .atTextureBindings = &tTextureData
-        };
-        gptGfx->update_bind_group(gptData->ptDevice, ptScene->sbtSkinData[i].tTempBindGroup, &tBGData0);
-        gptGfx->queue_bind_group_for_deletion(ptDevice, ptScene->sbtSkinData[i].tTempBindGroup);
-
-        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptData->tStagingBufferHandle[uFrameIdx]);
-
-        plTexture* ptSkinTexture = gptGfx->get_texture(ptDevice, ptScene->sbtSkinData[i].atDynamicTexture[uFrameIdx]);
-        plBufferImageCopy tBufferImageCopy = {
-            .uImageWidth = (uint32_t)ptSkinTexture->tDesc.tDimensions.x,
-            .uImageHeight = (uint32_t)ptSkinTexture->tDesc.tDimensions.y,
-            .uImageDepth = 1,
-            .uLayerCount = 1,
-            .szBufferOffset = gptData->uStagingOffset
-        };
-        gptData->uStagingOffset += sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y;
-        
-        plSkinComponent* ptSkinComponent = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_SKIN, ptScene->sbtSkinData[i].tEntity);
-        memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[tBufferImageCopy.szBufferOffset], ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
-        // memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * (size_t)ptSkinTexture->tDesc.tDimensions.x * (size_t)ptSkinTexture->tDesc.tDimensions.y);
-        gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptData->tStagingBufferHandle[uFrameIdx], ptScene->sbtSkinData[i].atDynamicTexture[uFrameIdx], 1, &tBufferImageCopy);
-    }
-
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-    gptGfx->end_blit_pass(ptBlitEncoder);
-
-    pl_end_cpu_sample(gptProfile, 0);
-}
-
-static void
 pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
@@ -750,7 +687,7 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
             };
             const plBindGroupHandle atBindGroups[] = {
                 ptScene->tSkinBindGroup0,
-                ptScene->sbtSkinData[i].tTempBindGroup
+                ptScene->sbtSkinData[i].atBindGroup[gptGfx->get_current_frame_index()]
             };
             gptGfx->bind_compute_bind_groups(ptComputeEncoder, ptScene->sbtSkinData[i].tShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
             gptGfx->bind_compute_shader(ptComputeEncoder, ptScene->sbtSkinData[i].tShader);
@@ -2613,19 +2550,42 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
     };
 
     plSkinComponent* ptSkinComponent = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_SKIN, ptMesh->tSkinComponent);
-    unsigned int textureWidth = (unsigned int)ceilf(sqrtf((float)(pl_sb_size(ptSkinComponent->sbtJoints) * 8)));
-    pl_sb_resize(ptSkinComponent->sbtTextureData, textureWidth * textureWidth);
-    const plTextureDesc tSkinTextureDesc = {
-        .tDimensions = {(float)textureWidth, (float)textureWidth, 1},
-        .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers     = 1,
-        .uMips       = 1,
-        .tType       = PL_TEXTURE_TYPE_2D,
-        .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+    pl_sb_resize(ptSkinComponent->sbtTextureData, pl_sb_size(ptSkinComponent->sbtJoints) * 8);
+
+    const plBufferDesc tSkinBufferDesc = {
+        .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .szByteSize = pl_sb_size(ptSkinComponent->sbtJoints) * 8 * sizeof(plMat4),
+        .pcDebugName = "skin buffer"
     };
 
+    plBindGroupLayout tSkinBindGroupLayout = {
+        .atBufferBindings = {
+            {.uSlot =  0, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_BUFFER_BINDING_TYPE_STORAGE}
+        }
+    };
+
+    const plBindGroupDesc tSkinBindGroupDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .ptLayout    = &tSkinBindGroupLayout,
+        .pcDebugName = "skin bind group"
+    };
+    
     for(uint32_t uFrameIndex = 0; uFrameIndex < gptGfx->get_frames_in_flight(); uFrameIndex++)
-        tSkinData.atDynamicTexture[uFrameIndex] = pl__refr_create_texture_with_data(&tSkinTextureDesc, "joint texture", uFrameIndex, ptSkinComponent->sbtTextureData, sizeof(float) * 4 * textureWidth * textureWidth);
+    {
+        tSkinData.atDynamicSkinBuffer[uFrameIndex] = pl__refr_create_staging_buffer(&tSkinBufferDesc, "joint buffer", uFrameIndex);
+
+        const plBindGroupUpdateBufferData tSkinBGBufferData[] = 
+        {
+            { .uSlot = 0, .tBuffer = tSkinData.atDynamicSkinBuffer[uFrameIndex], .szBufferRange = tSkinBufferDesc.szByteSize }
+        };
+
+        const plBindGroupUpdateData tSkinBGData = {
+            .uBufferCount      = 1,
+            .atBufferBindings  = tSkinBGBufferData
+        };
+        tSkinData.atBindGroup[uFrameIndex] = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroupDesc);
+        gptGfx->update_bind_group(gptData->ptDevice, tSkinData.atBindGroup[uFrameIndex], &tSkinBGData);
+    }
 
     int aiSpecializationData[] = {(int)ulVertexStreamMask, (int)uStride, (int)ptMesh->ulVertexStreamMask, (int)uDestStride};
     const plComputeShaderDesc tComputeShaderDesc = {
@@ -2649,8 +2609,8 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
                 }
             },
             {
-                .atTextureBindings = {
-                    {.uSlot =  0, .tStages = PL_SHADER_STAGE_ALL, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                .atBufferBindings = {
+                    {.uSlot =  0, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_BUFFER_BINDING_TYPE_STORAGE}
                 }
             }
         }

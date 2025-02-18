@@ -2466,28 +2466,6 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
     uint64_t ulValue = gptData->aulNextTimelineValue[uFrameIdx];
     plTimelineSemaphore* tSemHandle = gptData->aptSemaphores[uFrameIdx];
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update skin textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    const plBeginCommandInfo tSkinUpdateBeginInfo = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {tSemHandle},
-        .auWaitSemaphoreValues = {ulValue},
-    };
-
-    plCommandBuffer* ptSkinUpdateCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
-    gptGfx->begin_command_recording(ptSkinUpdateCmdBuffer, &tSkinUpdateBeginInfo);
-
-    pl_refr_update_skin_textures(ptSkinUpdateCmdBuffer, uSceneHandle);
-    gptGfx->end_command_recording(ptSkinUpdateCmdBuffer);
-
-    const plSubmitInfo tSkinUpdateSubmitInfo = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {tSemHandle},
-        .auSignalSemaphoreValues = {++ulValue}
-    };
-    gptGfx->submit_command_buffer(ptSkinUpdateCmdBuffer, &tSkinUpdateSubmitInfo);
-    gptGfx->return_command_buffer(ptSkinUpdateCmdBuffer);
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plBeginCommandInfo tSkinningBeginInfo = {
@@ -2498,6 +2476,14 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
     plCommandBuffer* ptSkinningCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
     gptGfx->begin_command_recording(ptSkinningCmdBuffer, &tSkinningBeginInfo);
+
+    const uint32_t uSkinCount = pl_sb_size(ptScene->sbtSkinData);
+    for(uint32_t i = 0; i < uSkinCount; i++)
+    {
+        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptScene->sbtSkinData[i].atDynamicSkinBuffer[uFrameIdx]);
+        plSkinComponent* ptSkinComponent = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_SKIN, ptScene->sbtSkinData[i].tEntity);
+        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptSkinComponent->sbtTextureData, sizeof(plMat4) * pl_sb_size(ptSkinComponent->sbtTextureData));
+    }
 
     pl_refr_perform_skinning(ptSkinningCmdBuffer, uSceneHandle);
     gptGfx->end_command_recording(ptSkinningCmdBuffer);

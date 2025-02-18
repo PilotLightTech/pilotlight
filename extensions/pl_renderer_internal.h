@@ -130,8 +130,8 @@ typedef struct _plComputeShaderVariant
 typedef struct _plSkinData
 {
     plEntity              tEntity;
-    plTextureHandle       atDynamicTexture[PL_MAX_FRAMES_IN_FLIGHT];
-    plBindGroupHandle     tTempBindGroup;
+    plBufferHandle        atDynamicSkinBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle     atBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
     plComputeShaderHandle tShader;
     uint32_t              uVertexCount;
     int                   iSourceDataOffset;
@@ -544,7 +544,6 @@ typedef struct _plRefRendererData
     plBufferHandle tCachedStagingBuffer;
     plBufferHandle tStagingBufferHandle[PL_MAX_FRAMES_IN_FLIGHT];
     uint32_t uStagingOffset;
-    uint32_t uCurrentStagingFrameIndex;
 
     // sync
     plTimelineSemaphore* aptSemaphores[PL_MAX_FRAMES_IN_FLIGHT];
@@ -650,7 +649,6 @@ static plBufferHandle  pl__refr_create_local_buffer         (const plBufferDesc*
 static bool pl__sat_visibility_test(plCameraComponent*, const plAABB*);
 
 // scene render helpers
-static void pl_refr_update_skin_textures(plCommandBuffer*, uint32_t);
 static void pl_refr_perform_skinning(plCommandBuffer*, uint32_t);
 static bool pl_refr_pack_shadow_atlas(uint32_t uSceneHandle, const uint32_t* auViewHandles, uint32_t uViewCount);
 static void pl_refr_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, uint32_t, uint32_t, uint32_t, int, plDirectionLightShadowData*, plCameraComponent*);

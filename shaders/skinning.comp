@@ -36,7 +36,10 @@ layout(set = 0, binding = 3) uniform sampler tSampler;
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-layout(set = 1, binding = 0)  uniform texture2D tSkinningTexture;
+layout(std140, set = 1, binding = 0) buffer _tSkinningData
+{
+	mat4 atData[];
+} tSkinningData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -73,18 +76,7 @@ const int PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 12;
 mat4
 get_matrix_from_texture(int index)
 {
-    mat4 result = mat4(1);
-    int texSize = textureSize(sampler2D(tSkinningTexture, tSampler), 0)[0];
-    int pixelIndex = index * 4;
-    for (int i = 0; i < 4; ++i)
-    {
-        int x = (pixelIndex + i) % texSize;
-        //Rounding mode of integers is undefined:
-        //https://www.khronos.org/registry/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf (section 12.33)
-        int y = (pixelIndex + i - x) / texSize; 
-        result[i] = texelFetch(sampler2D(tSkinningTexture, tSampler), ivec2(x,y), 0);
-    }
-    return result;
+    return tSkinningData.atData[index];;
 }
 
 mat4
