@@ -16,10 +16,7 @@ Index of this file:
 
 #include "pl.h"
 
-#ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
-    #include "pl_shader_ext.c"
-#endif
-
+#include "pl_shader_ext.c"
 #include "pl_image_ext.c"
 #include "pl_rect_pack_ext.c"
 #include "pl_stats_ext.c"
@@ -88,11 +85,8 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_draw_ext(ptApiRegistry, bReload);
     pl_load_draw_backend_ext(ptApiRegistry, bReload);
     pl_load_ui_ext(ptApiRegistry, bReload);
-
-    #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
-        pl_load_shader_ext(ptApiRegistry, bReload);
-        gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
-    #endif
+    pl_load_shader_ext(ptApiRegistry, bReload);
+    gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
 
     pl_load_ecs_ext(ptApiRegistry, bReload);
     pl_load_resource_ext(ptApiRegistry, bReload);
@@ -107,9 +101,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 PL_EXPORT void
 pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
-        pl_unload_shader_ext(ptApiRegistry, bReload);
-    #endif
+    pl_unload_shader_ext(ptApiRegistry, bReload);
     pl_unload_job_ext(ptApiRegistry, bReload);
     pl_unload_image_ext(ptApiRegistry, bReload);
     pl_unload_rect_pack_ext(ptApiRegistry, bReload);

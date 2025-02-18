@@ -241,11 +241,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .apcDirectories = {
             "../shaders/"
         },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG
 
     };
     #ifndef PL_OFFLINE_SHADERS_ONLY
-    tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG;
+    tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_ALWAYS_COMPILE;
     #endif
     gptShader->initialize(&tDefaultShaderOptions);
 

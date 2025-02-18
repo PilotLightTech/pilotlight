@@ -2233,6 +2233,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
 
     pl__refr_set_drawable_shaders(uSceneHandle);
     pl__refr_sort_drawables(uSceneHandle);
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
@@ -4160,8 +4161,24 @@ pl_show_graphics_options(const char* pcTitle)
 
         if(bReloadShaders)
         {
+            plShaderOptions tOriginalOptions = *gptShader->get_options();
+
+            plShaderOptions tNewDefaultShaderOptions = {
+                .apcIncludeDirectories = {
+                    "../shaders/"
+                },
+                .apcDirectories = {
+                    "../shaders/"
+                },
+                .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+        
+            };
+            gptShader->set_options(&tNewDefaultShaderOptions);
+
             for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
                 pl_refr_reload_scene_shaders(i);
+
+            gptShader->set_options(&tOriginalOptions);
         }
         gptUI->checkbox("Frustum Culling", &gptData->bFrustumCulling);
         gptUI->checkbox("Draw All Bounding Boxes", &gptData->bDrawAllBoundingBoxes);
@@ -4173,8 +4190,6 @@ pl_show_graphics_options(const char* pcTitle)
 
         for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
         {
-            if(bReloadShaders)
-                pl_refr_reload_scene_shaders(i);
 
             if(gptUI->tree_node("Scene", 0))
             {
@@ -4255,9 +4270,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptUI          = pl_get_api_latest(ptApiRegistry, plUiI);
     gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
-    #ifdef PL_CORE_EXTENSION_INCLUDE_SHADER
-        gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
-    #endif
+    gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
 
     if(bReload)
     {

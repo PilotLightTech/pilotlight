@@ -152,7 +152,8 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
     gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = "./";
     gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount = 1;
 
-    gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount = 0;
+    gptShaderCtx->tDefaultShaderOptions.apcDirectories[0] = "./";
+    gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount = 1;
 
     if(ptShaderOptions)
     {
@@ -168,7 +169,7 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
         for(uint32_t i = 0; i < PL_MAX_SHADER_DIRECTORIES; i++)
         {
             if(ptShaderOptions->apcDirectories[i])
-                gptShaderCtx->tDefaultShaderOptions.apcDirectories[i] = ptShaderOptions->apcDirectories[i];
+                gptShaderCtx->tDefaultShaderOptions.apcDirectories[i + 1] = ptShaderOptions->apcDirectories[i];
             else
                 break;
             gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount++;
@@ -182,6 +183,59 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
     #endif
     #endif
     return true;
+}
+
+const plShaderOptions*
+pl_shader_get_options(void)
+{
+    if(!gptShaderCtx->bInitialized)
+        return NULL;
+    return &gptShaderCtx->tDefaultShaderOptions;
+}
+
+static void
+pl_shader_set_options(const plShaderOptions* ptShaderOptions)
+{
+
+    if(!gptShaderCtx->bInitialized)
+        return;
+
+    gptShaderCtx->tDefaultShaderOptions.tFlags = ptShaderOptions->tFlags;
+    if(ptShaderOptions->tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
+    {
+        #ifdef PL_METAL_BACKEND
+            gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
+        #endif
+        #ifdef PL_VULKAN_BACKEND
+            gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
+        #endif
+    }
+    gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[0] = "./";
+    gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount = 1;
+
+    gptShaderCtx->tDefaultShaderOptions.apcDirectories[0] = "./";
+    gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount = 1;
+
+    if(ptShaderOptions)
+    {
+        for(uint32_t i = 0; i < PL_MAX_SHADER_INCLUDE_DIRECTORIES; i++)
+        {
+            if(ptShaderOptions->apcIncludeDirectories[i])
+                gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[i + 1] = ptShaderOptions->apcIncludeDirectories[i];
+            else
+                break;
+            gptShaderCtx->tDefaultShaderOptions._uIncludeDirectoriesCount++;
+        }
+
+        for(uint32_t i = 0; i < PL_MAX_SHADER_DIRECTORIES; i++)
+        {
+            if(ptShaderOptions->apcDirectories[i])
+                gptShaderCtx->tDefaultShaderOptions.apcDirectories[i + 1] = ptShaderOptions->apcDirectories[i];
+            else
+                break;
+            gptShaderCtx->tDefaultShaderOptions._uDirectoriesCount++;
+        }
+    }
 }
 
 static void
@@ -563,6 +617,8 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plShaderI tApi = {
         .initialize     = pl_initialize_shader_ext,
+        .set_options    = pl_shader_set_options,
+        .get_options    = pl_shader_get_options,
         .load_glsl      = pl_load_glsl,
         .compile_glsl   = pl_compile_glsl,
         .write_to_disk  = pl_write_to_disk,

@@ -115,12 +115,12 @@ void main()
     }
 
     vec4 pos = tObjectInfo.tModel * inPosition;
-    #ifdef PL_MULTIPLE_VIEWPORTS
+    // #ifdef PL_MULTIPLE_VIEWPORTS
         gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.iIndex + gl_InstanceIndex] * pos;
         gl_ViewportIndex = gl_InstanceIndex;
-    #else
-        gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.iIndex] * pos;
-    #endif
+    // #else
+        // gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.iIndex] * pos;
+    // #endif
 
     if(tCameraInfo.atCameraProjs[tObjectInfo.iIndex][3][3] == 1.0) // orthographic
         gl_Position.z = 1.0 - gl_Position.z;

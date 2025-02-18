@@ -31,9 +31,6 @@
 // #define PL_OFFLINE_SHADERS_ONLY
 // #define PL_INCLUDE_SPIRV_CROSS
 
-// core extension options
-#define PL_CORE_EXTENSION_INCLUDE_SHADER
-
 // experimental (don't use yet)
 // #define PL_EXPERIMENTAL_RENDER_WHILE_RESIZE
 

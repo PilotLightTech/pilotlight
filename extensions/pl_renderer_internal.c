@@ -1823,7 +1823,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                             tDynamicBinding.uByteOffset
                         },
                         .uInstanceOffset = 0,
-                        .uInstanceCount = uCascadeCount
+                        .uInstanceCount = 1
                     });
                 }
 
@@ -2213,27 +2213,28 @@ pl_refr_create_global_shaders(void)
     gptData->tForwardShader = gptGfx->create_shader(gptData->ptDevice, &tForwardShaderDescription);
 
 
-    static const plShaderMacroDefinition tDefinition = {
-        .pcName = "PL_MULTIPLE_VIEWPORTS",
-        .szNameLength = 21
-    };
-    static plShaderOptions tShadowShaderOptions = {
-        .uMacroDefinitionCount = 1,
-        .ptMacroDefinitions = &tDefinition,
-        .apcIncludeDirectories = {
-            "../shaders/"
-        },
-        .apcDirectories = {
-            "../shaders/"
-        },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
-    };
-    #ifndef PL_OFFLINE_SHADERS_ONLY
-    tShadowShaderOptions.tFlags |= PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG;
-    #endif
+    // static const plShaderMacroDefinition tDefinition = {
+    //     .pcName = "PL_MULTIPLE_VIEWPORTS",
+    //     .szNameLength = 21
+    // };
+    // static plShaderOptions tShadowShaderOptions = {
+    //     .uMacroDefinitionCount = 1,
+    //     .ptMacroDefinitions = &tDefinition,
+    //     .apcIncludeDirectories = {
+    //         "../shaders/"
+    //     },
+    //     .apcDirectories = {
+    //         "./",
+    //         "../shaders/"
+    //     },
+    //     .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
+    // };
+    // #ifndef PL_OFFLINE_SHADERS_ONLY
+    // tShadowShaderOptions.tFlags |= PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG;
+    // #endif
 
     plShaderModule tShadowPixelShader = gptShader->load_glsl("shadow.frag", "main", NULL, NULL);
-    plShaderModule tVertexShader = gptShader->load_glsl("shadow.vert", "main", NULL, gptData->bMultiViewportShadows ? &tShadowShaderOptions : NULL);
+    plShaderModule tVertexShader = gptShader->load_glsl("shadow.vert", "main", NULL, NULL);
 
     plShaderDesc tShadowShaderDescription = {
         .tPixelShader = tShadowPixelShader,

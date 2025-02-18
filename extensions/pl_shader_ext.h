@@ -65,7 +65,11 @@ typedef struct _plShaderModule plShaderModule; // pl_graphics_ext.h
 typedef struct _plShaderI
 {
     // setup
-    bool (*initialize)(const plShaderOptions*);
+    bool (*initialize) (const plShaderOptions*);
+
+    // settings
+    void                   (*set_options)(const plShaderOptions*);
+    const plShaderOptions* (*get_options)(void);
 
     // load shader (compile if not already compiled)
     plShaderModule (*load_glsl)(const char* shader, const char* entryFunc, const char* file, plShaderOptions*);
