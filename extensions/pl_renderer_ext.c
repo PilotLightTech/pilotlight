@@ -4169,12 +4169,7 @@ pl_show_graphics_options(const char* pcTitle)
         gptUI->checkbox("Show Selected Bounding Box", &gptData->bShowSelectedBoundingBox);
         gptUI->input_float("Shadow Constant Depth Bias", &gptData->fShadowConstantDepthBias, NULL, 0);
         gptUI->input_float("Shadow Slope Depth Bias", &gptData->fShadowSlopeDepthBias, NULL, 0);
-
-        int iOutlineWidth  = (int)gptData->uOutlineWidth;
-        if(gptUI->slider_int("Outline Width", &iOutlineWidth, 2, 50, 0))
-        {
-            gptData->uOutlineWidth = (uint32_t)iOutlineWidth;
-        }
+        gptUI->slider_uint("Outline Width", &gptData->uOutlineWidth, 2, 50, 0);
 
         for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
         {

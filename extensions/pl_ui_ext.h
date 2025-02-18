@@ -35,7 +35,7 @@ Index of this file:
 // [SECTION] api
 //-----------------------------------------------------------------------------
 
-#define plUiI_version (plVersion){1, 0, 4}
+#define plUiI_version (plVersion){1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -192,12 +192,18 @@ typedef struct _plUiI
     bool (*input_int2)     (const char* label, int value[2], plUiInputTextFlags);
     bool (*input_int3)     (const char* label, int value[3], plUiInputTextFlags);
     bool (*input_int4)     (const char* label, int value[4], plUiInputTextFlags);
+    bool (*input_uint)     (const char* label, uint32_t* value, plUiInputTextFlags);
+    bool (*input_uint2)    (const char* label, uint32_t value[2], plUiInputTextFlags);
+    bool (*input_uint3)    (const char* label, uint32_t value[3], plUiInputTextFlags);
+    bool (*input_uint4)    (const char* label, uint32_t value[4], plUiInputTextFlags);
 
     // sliders
     bool (*slider_float)  (const char* label, float* value, float minValue, float maxValue, plUiSliderFlags);
     bool (*slider_float_f)(const char* label, float* value, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
     bool (*slider_int)    (const char* label, int* value, int minValue, int maxValue, plUiSliderFlags);
     bool (*slider_int_f)  (const char* label, int* value, int minValue, int maxValue, const char* fmt, plUiSliderFlags);
+    bool (*slider_uint)   (const char* label, uint32_t* value, uint32_t minValue, uint32_t maxValue, plUiSliderFlags);
+    bool (*slider_uint_f) (const char* label, uint32_t* value, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
 
     // drag sliders
     bool (*drag_float)  (const char* label, float* value, float speed, float minValue, float maxValue, plUiSliderFlags);

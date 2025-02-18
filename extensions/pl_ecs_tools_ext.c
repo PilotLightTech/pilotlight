@@ -411,13 +411,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
 
                     if(ptLightComp->tType == PL_LIGHT_TYPE_DIRECTIONAL)
                     {
-                        int iCascadeCount  = (int)ptLightComp->uCascadeCount;
-                        if(gptUI->slider_int("Cascades", &iCascadeCount, 1, 4, 0))
-                        {
-                            ptLightComp->uCascadeCount = (uint32_t)iCascadeCount;
-                        }
-
-                        // int iResolution = (int)ptLight->uShadowResolution;
+                        gptUI->slider_uint("Cascades", &ptLightComp->uCascadeCount, 1, 4, 0);
                         gptUI->input_float4("Cascade Splits", ptLightComp->afCascadeSplits, NULL, 0);
                     }
                     gptUI->end_collapsing_header();
@@ -560,13 +554,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                 { 
                     plTagComponent* ptTargetComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptIKComp->tTarget);
                     gptUI->text("Target Entity: %s , %u", ptTargetComp->acName, ptIKComp->tTarget.uIndex);
-
-                    int iChainLength = (int)ptIKComp->uChainLength;
-                    gptUI->slider_int("Chain Length", &iChainLength, 1, 5, 0);
-
-                    ptIKComp->uChainLength = (uint32_t)iChainLength;
-
-                    // gptUI->text("Chain Length: %u", ptIKComp->uChainLength);
+                    gptUI->slider_uint("Chain Length", &ptIKComp->uChainLength, 1, 5, 0);
                     gptUI->text("Iterations: %u", ptIKComp->uIterationCount);
 
                     gptUI->checkbox("Enabled", &ptIKComp->bEnabled);
