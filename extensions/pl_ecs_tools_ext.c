@@ -41,6 +41,8 @@ static const plRendererI* gptRenderer = NULL;
 #include "pl_ds.h"
 #endif
 
+#define PL_ICON_FA_MAGNIFYING_GLASS "\xef\x80\x82"	// U+f002
+#define PL_ICON_FA_FILTER "\xef\x82\xb0"	// U+f0b0
 #define PL_ICON_FA_SITEMAP "\xef\x83\xa8"	// U+f0e8
 #define PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT "\xef\x81\x87"	// U+f047
 #define PL_ICON_FA_CUBE "\xef\x86\xb2"	// U+f1b2
@@ -90,11 +92,60 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
         gptUI->layout_dynamic(0.0f, 1);
         gptUI->separator();
         gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios);
-        if(gptUI->input_text_hint("Filter", "Filter (inc,-exc)", gptEcsToolsCtx->tFilter.acInputBuffer, 256, 0))
+        if(gptUI->input_text_hint(PL_ICON_FA_MAGNIFYING_GLASS, "Filter (inc,-exc)", gptEcsToolsCtx->tFilter.acInputBuffer, 256, 0))
         {
             gptUI->text_filter_build(&gptEcsToolsCtx->tFilter);
         }
-        gptUI->dummy((plVec2){1.0f, 1.0f});
+
+        static uint32_t uComponentFilter = 0;
+        static const char* apcComponentNames[] = {
+            "None",
+            PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT " Transform",
+            PL_ICON_FA_CUBE " Mesh",
+            PL_ICON_FA_GHOST " Object",
+            PL_ICON_FA_SITEMAP " Hierarchy",
+            PL_ICON_FA_PALETTE " Material",
+            PL_ICON_FA_MAP " Skin",
+            PL_ICON_FA_CAMERA " Camera",
+            PL_ICON_FA_PLAY " Animation",
+            PL_ICON_FA_DRAW_POLYGON " Inverse Kinematics",
+            PL_ICON_FA_LIGHTBULB " Light",
+            PL_ICON_FA_MAP_PIN " Environment Probe",
+            PL_ICON_FA_PERSON " Humanoid",
+            PL_ICON_FA_CODE " Script",
+        };
+
+        static plComponentType atComponentTypes[] = {
+            PL_COMPONENT_TYPE_COUNT,
+            PL_COMPONENT_TYPE_TRANSFORM,
+            PL_COMPONENT_TYPE_MESH,
+            PL_COMPONENT_TYPE_OBJECT,
+            PL_COMPONENT_TYPE_HIERARCHY,
+            PL_COMPONENT_TYPE_MATERIAL,
+            PL_COMPONENT_TYPE_SKIN,
+            PL_COMPONENT_TYPE_CAMERA,
+            PL_COMPONENT_TYPE_ANIMATION,
+            PL_COMPONENT_TYPE_INVERSE_KINEMATICS,
+            PL_COMPONENT_TYPE_LIGHT,
+            PL_COMPONENT_TYPE_ENVIRONMENT_PROBE,
+            PL_COMPONENT_TYPE_HUMANOID,
+            PL_COMPONENT_TYPE_SCRIPT
+        };
+
+        bool abCombo[14] = {0};
+        abCombo[uComponentFilter] = true;
+        if(gptUI->begin_combo(PL_ICON_FA_FILTER, apcComponentNames[uComponentFilter], PL_UI_COMBO_FLAGS_NONE))
+        {
+            for(uint32_t i = 0; i < 14; i++)
+            {
+                if(gptUI->selectable(apcComponentNames[i], &abCombo[i], 0))
+                {
+                    uComponentFilter = i;
+                    gptUI->close_current_popup();
+                }
+            }
+            gptUI->end_combo();
+        }
 
         gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 75.0f, 2, pfRatios);
 
@@ -106,7 +157,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
             const uint32_t uEntityCount = pl_sb_size(ptLibrary->tTagComponentManager.sbtEntities);
             plTagComponent* sbtTags = ptLibrary->tTagComponentManager.pComponents;
 
-            if(gptUI->text_filter_active(&gptEcsToolsCtx->tFilter))
+            if(uComponentFilter != 0 || gptUI->text_filter_active(&gptEcsToolsCtx->tFilter))
             {
                 for(uint32_t i = 0; i < uEntityCount; i++)
                 {
@@ -128,6 +179,13 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         plEnvironmentProbeComponent*  ptProbeComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, ptLibrary->tTagComponentManager.sbtEntities[i]);
                         plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, ptLibrary->tTagComponentManager.sbtEntities[i]);
                         plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, ptLibrary->tTagComponentManager.sbtEntities[i]);
+
+                        if(uComponentFilter != 0)
+                        {
+                            void* pComponent = gptECS->get_component(ptLibrary, atComponentTypes[uComponentFilter], ptLibrary->tTagComponentManager.sbtEntities[i]);
+                            if(pComponent == NULL)
+                                continue;
+                        }
 
                         char atBuffer[1024] = {0};
                         pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
@@ -187,9 +245,6 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         plEnvironmentProbeComponent*  ptProbeComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, ptLibrary->tTagComponentManager.sbtEntities[i]);
                         plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, ptLibrary->tTagComponentManager.sbtEntities[i]);
                         plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        // plLayerComponent
-                        // plAnimationDataComponent
-
 
                         char atBuffer[1024] = {0};
                         pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
@@ -350,7 +405,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     {
                         ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
                     }
-                    gptUI->input_float("Range:", &ptProbeComp->fRange, NULL, 0);
+                    gptUI->input_float("Range", &ptProbeComp->fRange, NULL, 0);
 
                     uint32_t auSamples[] = {
                         32,
@@ -501,7 +556,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     gptUI->text("Type: %s", apcLightTypes[ptLightComp->tType]);
 
                     bool bShowVisualizer = ptLightComp->tFlags & PL_LIGHT_FLAG_VISUALIZER;
-                    if(gptUI->checkbox("Visualizer:", &bShowVisualizer))
+                    if(gptUI->checkbox("Visualizer", &bShowVisualizer))
                     {
                         if(bShowVisualizer)
                             ptLightComp->tFlags |= PL_LIGHT_FLAG_VISUALIZER;
@@ -509,7 +564,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                             ptLightComp->tFlags &= ~PL_LIGHT_FLAG_VISUALIZER;
                     }
 
-                    gptUI->input_float3("Position:", ptLightComp->tPosition.d, NULL, 0);
+                    gptUI->input_float3("Position", ptLightComp->tPosition.d, NULL, 0);
 
                     gptUI->separator_text("Color");
                     gptUI->slider_float("r", &ptLightComp->tColor.x, 0.0f, 1.0f, 0);
@@ -520,13 +575,13 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
 
                     if(ptLightComp->tType != PL_LIGHT_TYPE_DIRECTIONAL)
                     {
-                        gptUI->input_float("Radius:", &ptLightComp->fRadius, NULL, 0);
+                        gptUI->input_float("Radius", &ptLightComp->fRadius, NULL, 0);
                         gptUI->input_float("Range", &ptLightComp->fRange, NULL, 0);
                     }
 
                     if(ptLightComp->tType == PL_LIGHT_TYPE_SPOT)
                     {
-                        gptUI->slider_float("Inner Cone Angle:", &ptLightComp->fInnerConeAngle, 0.0f, PL_PI_2, 0);
+                        gptUI->slider_float("Inner Cone Angle", &ptLightComp->fInnerConeAngle, 0.0f, PL_PI_2, 0);
                         gptUI->slider_float("Outer Cone Angle", &ptLightComp->fOuterConeAngle, 0.0f, PL_PI_2, 0);
                     }
 
@@ -542,7 +597,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     gptUI->separator_text("Shadows");
 
                     bool bCastShadow = ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW;
-                    if(gptUI->checkbox("Cast Shadow:", &bCastShadow))
+                    if(gptUI->checkbox("Cast Shadow", &bCastShadow))
                     {
                         if(bCastShadow)
                             ptLightComp->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;

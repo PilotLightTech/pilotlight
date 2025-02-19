@@ -955,7 +955,7 @@ pl_begin_combo(const char* pcLabel, const char* pcPreview, plUiComboFlags tFlags
             gptDraw->add_triangle_filled(ptWindow->ptFgLayer, pointPos, rightPos, leftPos, (plDrawSolidOptions){.uColor = PL_COLOR_32_WHITE});
         }
 
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tTextStartPos, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcPreview, -1.0f);
 
         pl__add_widget(uHash);
@@ -3101,7 +3101,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     {
         // RenderText(ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, frame_bb.Min.y + style.FramePadding.y), label);
         uint32_t uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol);
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){ptStartPos->x + (2.0f * ptWidgetSize->x / 3.0f), ptStartPos->y + ptStartPos->y + ptWidgetSize->y / 2.0f - tLabelTextActualCenter.y}, uColor, pcLabel, -1.0f);
+        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){ptStartPos->x + (2.0f * ptWidgetSize->x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, ptStartPos->y + ptStartPos->y + ptWidgetSize->y / 2.0f - tLabelTextActualCenter.y}, uColor, pcLabel, -1.0f);
     }
 
     // if (value_changed && !(flags & ImGuiInputTextFlags_NoMarkEdited))
