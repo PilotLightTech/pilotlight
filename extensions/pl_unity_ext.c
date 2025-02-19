@@ -111,12 +111,12 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_gpu_allocators_ext(ptApiRegistry, bReload);
     pl_unload_draw_ext(ptApiRegistry, bReload);
     pl_unload_draw_backend_ext(ptApiRegistry, bReload);
+    pl_unload_ecs_tools_ext(ptApiRegistry, bReload);
     pl_unload_ui_ext(ptApiRegistry, bReload);
     pl_unload_ecs_ext(ptApiRegistry, bReload);
     pl_unload_resource_ext(ptApiRegistry, bReload);
     pl_unload_model_loader_ext(ptApiRegistry, bReload);
     pl_unload_renderer_ext(ptApiRegistry, bReload);
-    pl_unload_ecs_tools_ext(ptApiRegistry, bReload);
     pl_unload_gizmo_ext(ptApiRegistry, bReload);
     pl_unload_debug_ext(ptApiRegistry, bReload);
     pl_unload_profile_ext(ptApiRegistry, bReload);

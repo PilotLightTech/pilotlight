@@ -1211,7 +1211,7 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
         plHierarchyComponent* ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tChildEntity);
         plTransformComponent* ptParentTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptHierarchyComponent->tParent);
         plTransformComponent* ptChildTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tChildEntity);
-        if(ptParentTransform && ptChildTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
+        if(ptParentTransform && ptChildTransform && ptChildTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
         {
             ptChildTransform->tWorld = pl_mul_mat4(&ptParentTransform->tWorld, &ptChildTransform->tWorld);
             ptChildTransform->tFlags &= ~PL_TRANSFORM_FLAGS_DIRTY;
