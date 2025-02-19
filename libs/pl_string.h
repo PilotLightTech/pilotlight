@@ -15,8 +15,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_STRING_VERSION    "1.0.0"
-#define PL_STRING_VERSION_NUM 10000
+#define PL_STRING_VERSION    "1.1.0"
+#define PL_STRING_VERSION_NUM 10100
 
 /*
 Index of this file:
@@ -56,10 +56,11 @@ bool        pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut, s
 bool        pl_str_get_directory     (const char* pcFilePath, char* pcDirectoryOut, size_t szOutSize);
 
 // misc. opts
-bool        pl_str_concatenate    (const char* pcStr0, const char* pcStr1, char* pcStringOut, size_t szDataSize);
-bool        pl_str_equal          (const char* pcStr0, const char* pcStr1);
-bool        pl_str_contains       (const char* pcStr, const char* pcSub);
-int         pl_text_char_from_utf8(uint32_t* puOutChars, const char* pcInText, const char* pcTextEnd);
+bool               pl_str_concatenate    (const char* pcStr0, const char* pcStr1, char* pcStringOut, size_t szDataSize);
+bool               pl_str_equal          (const char* pcStr0, const char* pcStr1);
+bool               pl_str_contains       (const char* pcStr, const char* pcSub);
+int                pl_text_char_from_utf8(uint32_t* puOutChars, const char* pcInText, const char* pcTextEnd);
+static inline char pl_str_to_upper       (char c) { return (c >= 'a' && c <= 'z') ? c &= ~32 : c; }
 
 #endif // PL_STRING_H
 
