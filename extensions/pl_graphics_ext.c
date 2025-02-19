@@ -193,7 +193,10 @@ pl_queue_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
 {
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
     pl_sb_push(ptGarbage->sbtTextures, tHandle);
-    pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtTexturesCold[tHandle.uIndex].tMemoryAllocation);
+    if(ptDevice->sbtTexturesHot[tHandle.uIndex].bOriginalView)
+    {
+        pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtTexturesCold[tHandle.uIndex].tMemoryAllocation);
+    }
     ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
 }
 
