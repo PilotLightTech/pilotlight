@@ -2286,6 +2286,126 @@ pl_ui_cleanup(void)
     pl_sb_free(gptCtx->tWindows.sbtData);
 }
 
+static void
+pl__ui_text_filter_split(plUiTextFilterRange* ptFilter, char separator, plUiTextFilterRange** psbtFilters)
+{
+    plUiTextFilterRange* sbtFilters = *psbtFilters;
+
+    pl_sb_reset(sbtFilters);
+    const char* wb = ptFilter->b;
+    const char* we = wb;
+
+    while (we < ptFilter->e)
+    {
+        if (*we == separator)
+        {
+            pl_sb_push(sbtFilters, ((plUiTextFilterRange){wb, we}));
+            wb = we + 1;
+        }
+        we++;
+    }
+    if (wb != we)
+    {
+        pl_sb_push(sbtFilters, ((plUiTextFilterRange){wb, we}));
+    }
+
+    *psbtFilters = sbtFilters;
+}
+
+static const char*
+pl__str_is_tr(const char* haystack, const char* haystack_end, const char* needle, const char* needle_end)
+{
+    if (!needle_end)
+        needle_end = needle + strlen(needle);
+
+    const char un0 = (char)pl_str_to_upper(*needle);
+    while ((!haystack_end && *haystack) || (haystack_end && haystack < haystack_end))
+    {
+        if (pl_str_to_upper(*haystack) == un0)
+        {
+            const char* b = needle + 1;
+            for (const char* a = haystack + 1; b < needle_end; a++, b++)
+                if (pl_str_to_upper(*a) != pl_str_to_upper(*b))
+                    break;
+            if (b == needle_end)
+                return haystack;
+        }
+        haystack++;
+    }
+    return NULL;
+}
+
+void
+pl_ui_text_filter_cleanup(plUiTextFilter* ptFilter)
+{
+    pl_sb_free(ptFilter->sbtFilters);
+}
+
+bool
+pl_ui_text_filter_active(plUiTextFilter* ptFilter)
+{
+    return pl_sb_size(ptFilter->sbtFilters) > 0;
+}
+
+void
+pl_ui_text_filter_build(plUiTextFilter* ptFilter)
+{
+    pl_sb_reset(ptFilter->sbtFilters);
+    plUiTextFilterRange tInputRange = {
+        .b = ptFilter->acInputBuffer,
+        .e = ptFilter->acInputBuffer + strlen(ptFilter->acInputBuffer)
+    };
+    pl__ui_text_filter_split(&tInputRange, ',', &ptFilter->sbtFilters);
+
+    ptFilter->uCountGrep = 0;
+    for(uint32_t i = 0; i < pl_sb_size(ptFilter->sbtFilters); i++)
+    {
+        while (ptFilter->sbtFilters[i].b < ptFilter->sbtFilters[i].e && (ptFilter->sbtFilters[i].b[0] == ' ' || ptFilter->sbtFilters[i].b[0] == '\t'))
+            ptFilter->sbtFilters[i].b++;
+        while (ptFilter->sbtFilters[i].e > ptFilter->sbtFilters[i].b && (ptFilter->sbtFilters[i].e[-1] == ' ' || ptFilter->sbtFilters[i].e[-1] == '\t'))
+            ptFilter->sbtFilters[i].e--;
+        if(ptFilter->sbtFilters[i].b == ptFilter->sbtFilters[i].e) // empty
+            continue;
+        if(ptFilter->sbtFilters[i].b[0] != '-')
+            ptFilter->uCountGrep += 1;
+    }
+
+}
+
+bool
+pl_ui_text_filter_pass(plUiTextFilter* ptFilter, const char* text, const char* text_end)
+{
+    if (pl_sb_size(ptFilter->sbtFilters) == 0)
+        return true;
+
+    if (text == NULL)
+        text = text_end = "";
+
+    for(uint32_t i = 0; i < pl_sb_size(ptFilter->sbtFilters); i++)
+    {
+        if (ptFilter->sbtFilters[i].b == ptFilter->sbtFilters[i].e)
+            continue;
+        if (ptFilter->sbtFilters[i].b[0] == '-')
+        {
+            // Subtract
+            if (pl__str_is_tr(text, text_end, ptFilter->sbtFilters[i].b + 1, ptFilter->sbtFilters[i].e) != NULL)
+                return false;
+        }
+        else
+        {
+            // Grep
+            if (pl__str_is_tr(text, text_end, ptFilter->sbtFilters[i].b, ptFilter->sbtFilters[i].e) != NULL)
+                return true;
+        }
+    }
+
+    // Implicit * grep
+    if (ptFilter->uCountGrep == 0)
+        return true;
+
+    return false;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] helper windows
 //-----------------------------------------------------------------------------
@@ -2586,6 +2706,10 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .push_id_pointer               = pl_push_id_pointer,
         .push_id_uint                  = pl_push_id_uint,
         .pop_id                        = pl_pop_id,
+        .text_filter_build             = pl_ui_text_filter_build,
+        .text_filter_pass              = pl_ui_text_filter_pass,
+        .text_filter_cleanup           = pl_ui_text_filter_cleanup,
+        .text_filter_active            = pl_ui_text_filter_active
     };
     pl_set_api(ptApiRegistry, plUiI, &tApi);
 

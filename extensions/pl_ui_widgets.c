@@ -3018,9 +3018,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         // We test for 'buf_display_max_length' as a way to avoid some pathological cases (e.g. single-line 1 MB string) which would make ImDrawList crash.
         if (bIsMultiLine || (pcBufferDisplayEnd - pcBufferDisplay) < iBufferDisplayMaxLength)
         {
-            // ImU32 col = GetColorU32(bIsDisplayingHint ? ImGuiCol_TextDisabled : ImGuiCol_Text);
-            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), tFrameStartPos, tBoundingBox.tMax, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), 
-                pcBufferDisplay, 0.0f);
+            uint32_t uColor = bIsDisplayingHint ? PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextDisabledCol) : PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol);
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), tFrameStartPos, tBoundingBox.tMax, uColor, pcBufferDisplay, 0.0f);
             // gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_sub_vec2(draw_pos, draw_scroll), gptCtx->tColorScheme.tTextCol, 
             //     pcBufferDisplay, pcBufferDisplayEnd, 0.0f);
             // draw_window->DrawList->AddText(g.Font, gptCtx->tStyle.fFontSize, draw_pos - draw_scroll, col, pcBufferDisplay, pcBufferDisplayEnd, 0.0f, bIsMultiLine ? NULL : &clip_rect);
@@ -3066,7 +3065,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
 
         if (bIsMultiLine || (pcBufferDisplayEnd - pcBufferDisplay) < iBufferDisplayMaxLength)
         {
-            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, draw_pos, tFrameStartPos, tBoundingBox.tMax, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), 
+            uint32_t uColor = bIsDisplayingHint ? PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextDisabledCol) : PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol);
+            pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, draw_pos, tFrameStartPos, tBoundingBox.tMax, uColor, 
                 pcBufferDisplay, 0.0f);
             // gptDraw->add_text_ex(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, draw_pos, gptCtx->tColorScheme.tTextCol, 
             //     pcBufferDisplay, pcBufferDisplayEnd, 0.0f);
@@ -3100,7 +3100,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     // if (pcLabel.x > 0)
     {
         // RenderText(ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, frame_bb.Min.y + style.FramePadding.y), label);
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){ptStartPos->x + (2.0f * ptWidgetSize->x / 3.0f), ptStartPos->y + ptStartPos->y + ptWidgetSize->y / 2.0f - tLabelTextActualCenter.y}, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        uint32_t uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol);
+        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, (plVec2){ptStartPos->x + (2.0f * ptWidgetSize->x / 3.0f), ptStartPos->y + ptStartPos->y + ptWidgetSize->y / 2.0f - tLabelTextActualCenter.y}, uColor, pcLabel, -1.0f);
     }
 
     // if (value_changed && !(flags & ImGuiInputTextFlags_NoMarkEdited))

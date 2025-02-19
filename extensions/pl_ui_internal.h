@@ -101,18 +101,19 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plUiStyle          plUiStyle;
-typedef union  _plUiColorScheme    plUiColorScheme;
-typedef struct _plUiColorStackItem plUiColorStackItem;
-typedef struct _plUiWindow         plUiWindow;
-typedef struct _plUiTabBar         plUiTabBar;
-typedef struct _plUiPrevItemData   plUiPrevItemData;
-typedef struct _plUiNextWindowData plUiNextWindowData;
-typedef struct _plUiTempWindowData plUiTempWindowData;
-typedef struct _plUiStorage        plUiStorage;
-typedef struct _plUiStorageEntry   plUiStorageEntry;
-typedef struct _plUiInputTextState plUiInputTextState;
-typedef struct _plUiPopupData      plUiPopupData;
+typedef struct _plUiStyle           plUiStyle;
+typedef union  _plUiColorScheme     plUiColorScheme;
+typedef struct _plUiColorStackItem  plUiColorStackItem;
+typedef struct _plUiWindow          plUiWindow;
+typedef struct _plUiTabBar          plUiTabBar;
+typedef struct _plUiPrevItemData    plUiPrevItemData;
+typedef struct _plUiNextWindowData  plUiNextWindowData;
+typedef struct _plUiTempWindowData  plUiTempWindowData;
+typedef struct _plUiStorage         plUiStorage;
+typedef struct _plUiStorageEntry    plUiStorageEntry;
+typedef struct _plUiInputTextState  plUiInputTextState;
+typedef struct _plUiPopupData       plUiPopupData;
+typedef struct _plUiTextFilterRange plUiTextFilterRange;
 
 // enums
 typedef int plUiNextWindowFlags;
@@ -170,6 +171,12 @@ enum plUiLayoutSystemType_
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plUiTextFilterRange
+{
+    const char* b;
+    const char* e;
+} plUiTextFilterRange;
 
 typedef struct  _plUiColorStackItem
 {
@@ -528,6 +535,10 @@ pl__get_cursor_pos(void)
         gptCtx->ptCurrentWindow->tTempData.tRowCursorPos.y + gptCtx->ptCurrentWindow->tTempData.tLayoutRow.fWidgetYOffset
     };
 }
+
+// text filter
+static void        pl__ui_text_filter_split(plUiTextFilterRange* ptFilter, char separator, plUiTextFilterRange** psbtFilters);
+static const char* pl__str_is_tr(const char* haystack, const char* haystack_end, const char* needle, const char* needle_end);
 
 // misc
 static bool        pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags);

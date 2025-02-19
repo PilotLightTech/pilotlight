@@ -42,8 +42,9 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plUiContext plUiContext; // (opaque structure)
-typedef struct _plUiClipper plUiClipper; // data used with "step_clipper(...)" function (see function)
+typedef struct _plUiContext    plUiContext;    // (opaque structure)
+typedef struct _plUiClipper    plUiClipper;    // data used with "step_clipper(...)" function (see function)
+typedef struct _plUiTextFilter plUiTextFilter; // data used with "step_clipper(...)" function (see function)
 
 // enums
 typedef int plUiConditionFlags;  // -> enum plUiConditionFlags_   // Enum:  A conditional for some functions (PL_UI_COND_XXX value)
@@ -243,6 +244,12 @@ typedef struct _plUiI
     void (*vertical_spacing)(void);
     void (*indent)          (float);
     void (*unindent)        (float);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~text filter~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    void (*text_filter_cleanup)(plUiTextFilter*);
+    void (*text_filter_build)  (plUiTextFilter*);
+    bool (*text_filter_pass)   (plUiTextFilter*, const char* text, const char* text_end);
+    bool (*text_filter_active) (plUiTextFilter*);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~clipper~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -453,5 +460,12 @@ typedef struct _plUiClipper
     float _fItemHeight;
     float _fStartPosY;
 } plUiClipper;
+
+typedef struct _plUiTextFilter
+{
+    char                         acInputBuffer[256];
+    uint32_t                     uCountGrep;
+    struct _plUiTextFilterRange* sbtFilters;
+} plUiTextFilter;
 
 #endif // PL_UI_EXT_H
