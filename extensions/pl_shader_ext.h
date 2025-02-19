@@ -101,7 +101,7 @@ typedef struct _plShaderOptions
     const plShaderMacroDefinition* ptMacroDefinitions;
     uint32_t                       uMacroDefinitionCount;
     const char*                    apcIncludeDirectories[PL_MAX_SHADER_INCLUDE_DIRECTORIES + 1];
-    const char*                    apcDirectories[PL_MAX_SHADER_DIRECTORIES];
+    const char*                    apcDirectories[PL_MAX_SHADER_DIRECTORIES + 1];
 
     // [INTERNAL]
     uint32_t _uDirectoriesCount;
