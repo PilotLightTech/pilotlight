@@ -368,6 +368,7 @@ typedef struct _plRefView
 
 typedef struct _plRefScene
 {
+    bool           bActive;
     plShaderHandle tLightingShader;
     plShaderHandle tEnvLightingShader;
     plShaderHandle tTonemapShader;
@@ -396,14 +397,14 @@ typedef struct _plRefScene
     plBufferHandle tIndexBuffer;
     plBufferHandle tStorageBuffer;
     plBufferHandle tSkinStorageBuffer;
-    plBufferHandle atDLightBuffer[PL_MAX_VIEWS_PER_SCENE];
-    plBufferHandle atPLightBuffer[PL_MAX_VIEWS_PER_SCENE];
-    plBufferHandle atSLightBuffer[PL_MAX_VIEWS_PER_SCENE];
+    plBufferHandle atDLightBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atPLightBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atSLightBuffer[PL_MAX_FRAMES_IN_FLIGHT];
 
     // GPU materials
     uint32_t       uGPUMaterialDirty;
     uint32_t       uGPUMaterialBufferCapacity;
-    plBufferHandle atMaterialDataBuffer[PL_MAX_VIEWS_PER_SCENE];
+    plBufferHandle atMaterialDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
 
     // views
     uint32_t    uViewCount;
@@ -536,6 +537,7 @@ typedef struct _plRefRendererData
 
     // scenes
     plRefScene* sbtScenes;
+    uint32_t*   sbuSceneFreeIndices;
 
     // draw stream data
     plDrawStream tDrawStream;

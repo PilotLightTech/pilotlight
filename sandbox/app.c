@@ -143,14 +143,66 @@ typedef struct _plAppData
     
     // fonts
     plFont* tDefaultFont;
-
-    // experiment
-    bool bSceneLoaded;
 } plAppData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
 //-----------------------------------------------------------------------------
+
+void
+pl__create_scene(plAppData* ptAppData)
+{
+    plIO* ptIO = gptIO->get_io();
+    ptAppData->uSceneHandle0 = gptRenderer->create_scene();
+
+    plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
+
+    // create main camera
+    plCameraComponent* ptMainCamera = NULL;
+    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-4.7f, 4.2f, -3.256f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
+    gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
+    gptCamera->update(ptMainCamera);
+    gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING, ptAppData->tMainCamera, NULL);
+
+    // create cull camera
+    plCameraComponent* ptCullCamera = NULL;
+    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
+    gptCamera->set_pitch_yaw(ptCullCamera, 0.0f, PL_PI);
+    gptCamera->update(ptCullCamera);
+
+    // create lights
+    plLightComponent* ptLight = NULL;
+    gptEcs->create_directional_light(ptMainComponentLibrary, "direction light", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
+    ptLight->uCascadeCount = 4;
+    ptLight->fIntensity = 1.0f;
+    ptLight->uShadowResolution = 1024;
+    ptLight->afCascadeSplits[0] = 0.10f;
+    ptLight->afCascadeSplits[1] = 0.25f;
+    ptLight->afCascadeSplits[2] = 0.50f;
+    ptLight->afCascadeSplits[3] = 1.00f;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+
+    plEntity tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
+    ptLight->uShadowResolution = 1024;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tPointLight);
+    ptPLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 2.0f};
+
+    plEntity tSpotLight = gptEcs->create_spot_light(ptMainComponentLibrary, "spot light", (plVec3){0.0f, 4.0f, -1.18f}, (plVec3){0.0, -1.0f, 0.376f}, &ptLight);
+    ptLight->uShadowResolution = 1024;
+    ptLight->fRange = 5.0f;
+    ptLight->fRadius = 0.025f;
+    ptLight->fIntensity = 20.0f;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSpotLight);
+    ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, -1.18f};
+
+    plEnvironmentProbeComponent* ptProbe = NULL;
+    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 3.0f, 0.0f}, &ptProbe);
+    ptProbe->fRange = 30.0f;
+    ptProbe->uResolution = 128;
+    ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+}
 
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
@@ -232,6 +284,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // defaults
     ptAppData->tSelectedEntity.ulData = UINT64_MAX;
+    ptAppData->uSceneHandle0 = UINT32_MAX;
 
     // initialize shader extension
     static plShaderOptions tDefaultShaderOptions = {
@@ -320,60 +373,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~app stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    plIO* ptIO = gptIO->get_io();
-
-    ptAppData->uSceneHandle0 = gptRenderer->create_scene();
-
     // temporary draw layer for submitting fullscreen quad of offscreen render
     ptAppData->ptDrawLayer = gptDraw->request_2d_layer(gptUi->get_draw_list());
-
-    plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
-
-    // create main camera
-    plCameraComponent* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-4.7f, 4.2f, -3.256f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
-    gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
-    gptCamera->update(ptMainCamera);
-    gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING, ptAppData->tMainCamera, NULL);
-
-    // create cull camera
-    plCameraComponent* ptCullCamera = NULL;
-    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
-    gptCamera->set_pitch_yaw(ptCullCamera, 0.0f, PL_PI);
-    gptCamera->update(ptCullCamera);
-
-    // create lights
-    plLightComponent* ptLight = NULL;
-    gptEcs->create_directional_light(ptMainComponentLibrary, "direction light", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
-    ptLight->uCascadeCount = 4;
-    ptLight->fIntensity = 1.0f;
-    ptLight->uShadowResolution = 1024;
-    ptLight->afCascadeSplits[0] = 0.10f;
-    ptLight->afCascadeSplits[1] = 0.25f;
-    ptLight->afCascadeSplits[2] = 0.50f;
-    ptLight->afCascadeSplits[3] = 1.00f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-
-    plEntity tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
-    ptLight->uShadowResolution = 1024;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tPointLight);
-    ptPLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 2.0f};
-
-    plEntity tSpotLight = gptEcs->create_spot_light(ptMainComponentLibrary, "spot light", (plVec3){0.0f, 4.0f, -1.18f}, (plVec3){0.0, -1.0f, 0.376f}, &ptLight);
-    ptLight->uShadowResolution = 1024;
-    ptLight->fRange = 5.0f;
-    ptLight->fRadius = 0.025f;
-    ptLight->fIntensity = 20.0f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSpotLight);
-    ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, -1.18f};
-
-    plEnvironmentProbeComponent* ptProbe = NULL;
-    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 3.0f, 0.0f}, &ptProbe);
-    ptProbe->fRange = 30.0f;
-    ptProbe->uResolution = 128;
-    ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
 
     return ptAppData;
 }
@@ -412,7 +413,8 @@ pl_app_resize(plAppData* ptAppData)
         .tSampleCount = gptGfx->get_swapchain_info(ptAppData->ptSwap).tSampleCount,
     };
     gptGfx->recreate_swapchain(ptAppData->ptSwap, &tDesc);
-    gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
+    if(ptAppData->uSceneHandle0 != UINT32_MAX)
+        gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
     ptAppData->bResize = true;
     gptRenderer->resize();
 }
@@ -432,11 +434,6 @@ pl_app_update(plAppData* ptAppData)
     // for convience
     plIO* ptIO = gptIO->get_io();
 
-    plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
-    plCameraComponent*  ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
-    plCameraComponent*  ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
-    gptCamera->update(ptCullCamera);
-
     if(!gptRenderer->begin_frame())
     {
         pl_end_cpu_sample(gptProfile, 0);
@@ -447,7 +444,7 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bResize)
     {
         // gptOS->sleep(32);
-        if(ptAppData->bSceneLoaded)
+        if(ptAppData->uSceneHandle0 != UINT32_MAX)
             gptRenderer->resize_view(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, ptIO->tMainViewportSize);
         ptAppData->bResize = false;
     }
@@ -466,8 +463,13 @@ pl_app_update(plAppData* ptAppData)
     *pdFrameTimeCounter = (double)ptIO->fDeltaTime * 1000.0;
     *pdMemoryCounter = (double)gptMemory->get_memory_usage();
 
-    if(ptAppData->bSceneLoaded)
+    if(ptAppData->uSceneHandle0 != UINT32_MAX)
     {
+        plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
+        plCameraComponent*  ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
+        plCameraComponent*  ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
+        gptCamera->update(ptCullCamera);
+
         // run ecs system
         gptRenderer->run_ecs(ptAppData->uSceneHandle0);
 
@@ -548,9 +550,15 @@ pl_app_update(plAppData* ptAppData)
         }
         if(gptUi->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
         {
-            if(gptUi->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
+            if(ptAppData->uSceneHandle0 != UINT32_MAX)
             {
-                *ptCullCamera = *ptCamera;
+                if(gptUi->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
+                {
+                    plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
+                    plCameraComponent*  ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
+                    plCameraComponent*  ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
+                    *ptCullCamera = *ptCamera;
+                }
             }
 
             gptUi->end_collapsing_header();
@@ -581,14 +589,35 @@ pl_app_update(plAppData* ptAppData)
         if(gptUi->begin_collapsing_header(ICON_FA_PHOTO_FILM " Renderer", 0))
         {
 
-            const float pfWidths[] = {200.0f};
-            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfWidths);
+            gptUi->vertical_spacing();
+
+            const float pfWidths[] = {150.0f, 150.0f};
+            gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfWidths);
+
+            bool bLoadScene = false;
+
+            if(ptAppData->uSceneHandle0 != UINT32_MAX)
+            {
+                if(gptUi->button("Unload Scene"))
+                {
+                    gptRenderer->cleanup_scene(ptAppData->uSceneHandle0);
+                    ptAppData->uSceneHandle0 = UINT32_MAX;
+                }
+            }
+            else
+            {
+                if(gptUi->button("Load Scene"))
+                {
+                    bLoadScene = true;
+                }
+            }
+
             if(gptUi->button("Reload Shaders"))
             {
                 gptRenderer->reload_scene_shaders(ptAppData->uSceneHandle0);
             }
 
-            if(!ptAppData->bSceneLoaded)
+            if(ptAppData->uSceneHandle0 == UINT32_MAX)
             {
 
                 static uint32_t uComboSelect = 1;
@@ -660,8 +689,11 @@ pl_app_update(plAppData* ptAppData)
 
 
                 gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfWidths);
-                if(gptUi->button("Load Scene"))
+
+                if(bLoadScene)
                 {
+
+                    pl__create_scene(ptAppData);
                     
                     if(uComboSelect > 0)
                     {
@@ -679,6 +711,7 @@ pl_app_update(plAppData* ptAppData)
                     {
                         if(abModels[i])
                         {
+                            plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
                             gptModelLoader->load_gltf(ptMainComponentLibrary, apcModelPaths[i], NULL, &tLoaderData0);
                         }
                     }
@@ -687,8 +720,6 @@ pl_app_update(plAppData* ptAppData)
                     gptModelLoader->free_data(&tLoaderData0);
 
                     gptRenderer->finalize_scene(ptAppData->uSceneHandle0);
-
-                    ptAppData->bSceneLoaded = true;
                 }
 
             }
@@ -706,7 +737,7 @@ pl_app_update(plAppData* ptAppData)
         gptUi->show_debug_window(&ptAppData->bShowUiDebug);
 
     // add full screen quad for offscreen render
-    if(ptAppData->bSceneLoaded)
+    if(ptAppData->uSceneHandle0 != UINT32_MAX)
         gptDraw->add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0).uData, (plVec2){0}, ptIO->tMainViewportSize);
 
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);

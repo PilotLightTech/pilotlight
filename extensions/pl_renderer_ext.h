@@ -63,6 +63,7 @@ typedef struct _plRendererI
 
     // scenes
     uint32_t (*create_scene)(void);
+    void (*cleanup_scene)(uint32_t);
     void (*load_skybox_from_panorama)(uint32_t uSceneHandle, const char* pcPath, int iResolution);
     void (*add_drawable_objects_to_scene)(uint32_t uSceneHandle, uint32_t uOpaqueCount, const plEntity* atOpaqueObjects, uint32_t uTransparentCount, const plEntity* atTransparentObjects);
     void (*finalize_scene)(uint32_t uSceneHandle);
@@ -78,6 +79,7 @@ typedef struct _plRendererI
 
     // views
     uint32_t          (*create_view)(uint32_t uSceneHandle, plVec2 tDimensions);
+    void              (*cleanup_view)(uint32_t uSceneHandle, uint32_t uViewHandle);
     plBindGroupHandle (*get_view_color_texture)(uint32_t uSceneHandle, uint32_t uViewHandle);
     void              (*resize_view)(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensions);
     void              (*resize)(void);

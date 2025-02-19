@@ -27,6 +27,7 @@ static void     pl_refr_cleanup(void);
 
 // scenes
 static uint32_t pl_refr_create_scene(void);
+static void     pl_refr_cleanup_scene(uint32_t);
 static void     pl_add_drawable_objects_to_scene(uint32_t,  uint32_t, const plEntity*, uint32_t, const plEntity*);
 static void     pl_refr_add_materials_to_scene(uint32_t, uint32_t, const plEntity* atMaterials);
 static void     pl_refr_remove_objects_from_scene(uint32_t sceneHandle, uint32_t objectCount, const plEntity* objects);
@@ -34,6 +35,7 @@ static void     pl_refr_update_scene_objects(uint32_t sceneHandle, uint32_t obje
 
 // views
 static uint32_t          pl_refr_create_view(uint32_t, plVec2);
+static void              pl_refr_cleanup_view(uint32_t, uint32_t);
 static plBindGroupHandle pl_refr_get_view_color_texture(uint32_t, uint32_t);
 static void              pl_refr_resize_view(uint32_t, uint32_t, plVec2);
 static void              pl_refr_resize(void);
@@ -664,15 +666,25 @@ pl_refr_initialize(plWindow* ptWindow)
 static uint32_t
 pl_refr_create_scene(void)
 {
-    const uint32_t uSceneHandle = pl_sb_size(gptData->sbtScenes);
+    uint32_t uSceneHandle = UINT32_MAX;
+    if(pl_sb_size(gptData->sbuSceneFreeIndices) > 0)
+    {
+        uSceneHandle = pl_sb_pop(gptData->sbuSceneFreeIndices);
+    }
+    else
+    {
+        uSceneHandle = pl_sb_size(gptData->sbtScenes);
+        pl_sb_add(gptData->sbtScenes);
+    }
     plRefScene tScene = {
+        .bActive                    = true,
         .tIndexBuffer               = {.uData = UINT32_MAX},
         .tVertexBuffer              = {.uData = UINT32_MAX},
         .tStorageBuffer             = {.uData = UINT32_MAX},
         .tSkinStorageBuffer         = {.uData = UINT32_MAX},
         .uGPUMaterialBufferCapacity = 512
     };
-    pl_sb_push(gptData->sbtScenes, tScene);
+    gptData->sbtScenes[uSceneHandle] = tScene;
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
 
     // initialize ecs library
@@ -936,6 +948,203 @@ pl_refr_create_scene(void)
     return uSceneHandle;
 }
 
+static void
+pl_refr_cleanup_view(uint32_t uSceneHandle, uint32_t uViewHandle)
+{
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    plRefView* ptView = &ptScene->atViews[uViewHandle];
+
+    pl_sb_free(ptView->sbtVisibleDrawables);
+    pl_sb_free(ptView->sbtVisibleOpaqueDrawables);
+    pl_sb_free(ptView->sbtVisibleTransparentDrawables);
+    pl_sb_free(ptView->tDirectionLightShadowData.sbtDLightShadowData);
+
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAlbedoTexture);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tNormalTexture);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAOMetalRoughnessTexture);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tRawOutputTexture);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tDepthTexture);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tPickTexture);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tPickDepthTexture);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture0);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture1);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFinalTexture);
+    gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tRenderPass);
+    gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tPostProcessRenderPass);
+    gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tPickRenderPass);
+    gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tUVRenderPass);
+    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tFinalTextureHandle);
+    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tLightingBindGroup);
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atGlobalBuffers[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->tDirectionLightShadowData.atDShadowCameraBuffers[i]);
+    }
+
+    gptDraw->return_3d_drawlist(ptView->pt3DDrawList);
+    gptDraw->return_3d_drawlist(ptView->pt3DGizmoDrawList);
+    gptDraw->return_3d_drawlist(ptView->pt3DSelectionDrawList);
+
+    *ptView = (plRefView){0};
+}
+
+static void
+pl_refr_cleanup_scene(uint32_t uSceneHandle)
+{
+    plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+    if(!ptScene->bActive)
+        return;
+
+    for(uint32_t j = 0; j < ptScene->uViewCount; j++)
+        pl_refr_cleanup_view(uSceneHandle, j);
+
+    for(uint32_t j = 0; j < pl_sb_size(ptScene->sbtProbeData); j++)
+    {
+        plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];
+        
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXLUTTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tAlbedoTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tNormalTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tAOMetalRoughnessTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawOutputTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tDepthTexture);
+
+        for(uint32_t i = 0; i < 6; i++)
+        {
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atAlbedoTextureViews[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atNormalTextureViews[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atAOMetalRoughnessTextureViews[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atRawOutputTextureViews[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atDepthTextureViews[i]);
+            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->atLightingBindGroup[i]);
+            gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptProbe->atRenderPasses[i]);
+        }
+
+        for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+        {
+            gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->atGlobalBuffers[i]);
+            gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDirectionLightShadowData.atDLightShadowDataBuffer[i]);
+            gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDirectionLightShadowData.atDShadowCameraBuffers[i]);
+        }
+
+        for(uint32_t k = 0; k < 6; k++)
+        {
+            pl_sb_free(ptProbe->sbtVisibleOpaqueDrawables[k]);
+            pl_sb_free(ptProbe->sbtVisibleTransparentDrawables[k]);
+        }
+        pl_sb_free(ptProbe->tDirectionLightShadowData.sbtDLightShadowData);
+    }
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atDLightBuffer[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atPLightBuffer[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atSLightBuffer[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atPShadowCameraBuffers[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atPLightShadowDataBuffer[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atSShadowCameraBuffers[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atSLightShadowDataBuffer[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atGPUProbeDataBuffers[i]);
+        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptScene->atGlobalBindGroup[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atMaterialDataBuffer[i]);
+    }
+
+    for(uint32_t i = 0; i < 7; i++)
+    {
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atFilterWorkingBuffers[i]);
+    }
+
+    gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tVertexBuffer);
+    gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tIndexBuffer);
+    gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tStorageBuffer);
+    if(ptScene->tSkinStorageBuffer.uData != UINT32_MAX)
+    {
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tSkinStorageBuffer);
+        for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtSkinData); i++)
+        {
+            for(uint32_t j = 0; j < gptGfx->get_frames_in_flight(); j++)
+                gptGfx->queue_buffer_for_deletion(gptData->ptDevice,ptScene->sbtSkinData[i].atDynamicSkinBuffer[j]);
+                
+        }
+
+    }
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tShadowTexture);
+    gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tShadowRenderPass);
+    gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tFirstShadowRenderPass);
+    gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tTonemapShader);
+    gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tLightingShader);
+    gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tEnvLightingShader);
+
+    if(ptScene->tSkyboxTexture.uIndex != 0)
+    {
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tSkyboxTexture);
+        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptScene->tSkyboxBindGroup);
+    }
+
+    plMaterialComponent* sbtMaterials = (plMaterialComponent*)ptScene->tComponentLibrary.tMaterialComponentManager.pComponents;
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->tComponentLibrary.tMaterialComponentManager.sbtEntities); i++)
+    {
+        plMaterialComponent* ptMaterial = &sbtMaterials[i];
+        for(uint32_t j = 0; j < PL_TEXTURE_SLOT_COUNT; j++)
+        {
+            if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[j].tResource) == false)
+                continue;
+
+            if(pl_hm_has_key(gptData->ptTextureHashmap, ptMaterial->atTextureMaps[j].tResource.ulData))
+            {
+                uint64_t ulValue = pl_hm_lookup(gptData->ptTextureHashmap, ptMaterial->atTextureMaps[j].tResource.ulData);
+                gptGfx->queue_texture_for_deletion(gptData->ptDevice, gptData->sbtTextureHandles[ulValue]);
+                pl_hm_remove(gptData->ptTextureHashmap, ptMaterial->atTextureMaps[j].tResource.ulData);
+            }
+        }
+    }
+
+
+
+    pl_sb_free(ptScene->sbtGPUProbeData);
+    pl_sb_free(ptScene->sbtProbeData);
+    pl_sb_free(ptScene->sbtShadowRects);
+    pl_sb_free(ptScene->sbuShadowDeferredDrawables);
+    pl_sb_free(ptScene->sbuShadowForwardDrawables);
+    pl_sb_free(ptScene->sbtPLightShadowData);
+    pl_sb_free(ptScene->sbtSLightShadowData);
+    pl_sb_free(ptScene->sbtPLightData);
+    pl_sb_free(ptScene->sbtDLightData);
+    pl_sb_free(ptScene->sbtSLightData);
+    pl_sb_free(ptScene->sbtVertexPosBuffer);
+    pl_sb_free(ptScene->sbtVertexDataBuffer);
+    pl_sb_free(ptScene->sbuIndexBuffer);
+    pl_sb_free(ptScene->sbtMaterialBuffer);
+    pl_sb_free(ptScene->sbtDrawables);
+    pl_sb_free(ptScene->sbtStagedDrawables);
+    pl_sb_free(ptScene->sbtSkinData);
+    pl_sb_free(ptScene->sbtSkinVertexDataBuffer);
+    pl_sb_free(ptScene->sbtOutlineDrawables);
+    pl_sb_free(ptScene->sbtOutlineDrawablesOldShaders);
+    pl_sb_free(ptScene->sbtOutlineDrawablesOldEnvShaders);
+    pl_hm_free(ptScene->ptDrawableHashmap);
+    pl_hm_free(ptScene->ptMaterialHashmap);
+    pl_hm_free(ptScene->ptTextureIndexHashmap);
+    pl_hm_free(ptScene->ptCubeTextureIndexHashmap);
+    gptECS->cleanup_component_library(&ptScene->tComponentLibrary);
+
+    pl_sb_push(gptData->sbuSceneFreeIndices, uSceneHandle);
+    plRefScene tScene = {
+        .bActive                    = false,
+        .tIndexBuffer               = {.uData = UINT32_MAX},
+        .tVertexBuffer              = {.uData = UINT32_MAX},
+        .tStorageBuffer             = {.uData = UINT32_MAX},
+        .tSkinStorageBuffer         = {.uData = UINT32_MAX},
+        .uGPUMaterialBufferCapacity = 512,
+        .uViewCount                 = 0
+    };
+    *ptScene = tScene;
+}
+
 static uint32_t
 pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 {
@@ -949,7 +1158,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     plRefView* ptView = &ptScene->atViews[uViewHandle];
 
     ptView->tTargetSize = tDimensions;
-
 
     // create offscreen per-frame resources
     const plTextureDesc tRawOutputTextureDesc = {
@@ -1118,9 +1326,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        // textures
-
-
 
         // buffers
         ptView->atGlobalBuffers[i] = pl__refr_create_staging_buffer(&atGlobalBuffersDesc, "global", i);
@@ -1254,8 +1459,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     ptView->pt3DGizmoDrawList = gptDraw->request_3d_drawlist();
     ptView->pt3DSelectionDrawList = gptDraw->request_3d_drawlist();
 
-
-
     // create offscreen renderpass
     const plRenderPassDesc tUVRenderPass0Desc = {
         .tLayout = gptData->tUVRenderPassLayout,
@@ -1280,7 +1483,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y}
     };
     ptView->tUVRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tUVRenderPass0Desc, atUVAttachmentSets);
-
 
     return uViewHandle;
 }
@@ -1478,61 +1680,14 @@ pl_refr_cleanup(void)
     gptGfx->cleanup_draw_stream(&gptData->tDrawStream);
 
     for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
-    {
-        plRefScene* ptScene = &gptData->sbtScenes[i];
-        for(uint32_t j = 0; j < ptScene->uViewCount; j++)
-        {
-            plRefView* ptView = &ptScene->atViews[j];
-            pl_sb_free(ptView->sbtVisibleDrawables);
-            pl_sb_free(ptView->sbtVisibleOpaqueDrawables);
-            pl_sb_free(ptView->sbtVisibleTransparentDrawables);
-            pl_sb_free(ptView->tDirectionLightShadowData.sbtDLightShadowData);
-        }
+        pl_refr_cleanup_scene(i);
 
-        for(uint32_t j = 0; j < pl_sb_size(ptScene->sbtProbeData); j++)
-        {
-            plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];
-            
-            for(uint32_t k = 0; k < 6; k++)
-            {
-                pl_sb_free(ptProbe->sbtVisibleOpaqueDrawables[k]);
-                pl_sb_free(ptProbe->sbtVisibleTransparentDrawables[k]);
-            }
-            pl_sb_free(ptProbe->tDirectionLightShadowData.sbtDLightShadowData);
-        }
-
-        pl_sb_free(ptScene->sbtGPUProbeData);
-        pl_sb_free(ptScene->sbtProbeData);
-        pl_sb_free(ptScene->sbtShadowRects);
-        pl_sb_free(ptScene->sbuShadowDeferredDrawables);
-        pl_sb_free(ptScene->sbuShadowForwardDrawables);
-        pl_sb_free(ptScene->sbtPLightShadowData);
-        pl_sb_free(ptScene->sbtSLightShadowData);
-        pl_sb_free(ptScene->sbtPLightData);
-        pl_sb_free(ptScene->sbtDLightData);
-        pl_sb_free(ptScene->sbtSLightData);
-        pl_sb_free(ptScene->sbtVertexPosBuffer);
-        pl_sb_free(ptScene->sbtVertexDataBuffer);
-        pl_sb_free(ptScene->sbuIndexBuffer);
-        pl_sb_free(ptScene->sbtMaterialBuffer);
-        pl_sb_free(ptScene->sbtDrawables);
-        pl_sb_free(ptScene->sbtStagedDrawables);
-        pl_sb_free(ptScene->sbtSkinData);
-        pl_sb_free(ptScene->sbtSkinVertexDataBuffer);
-        pl_sb_free(ptScene->sbtOutlineDrawables);
-        pl_sb_free(ptScene->sbtOutlineDrawablesOldShaders);
-        pl_sb_free(ptScene->sbtOutlineDrawablesOldEnvShaders);
-        pl_hm_free(ptScene->ptDrawableHashmap);
-        pl_hm_free(ptScene->ptMaterialHashmap);
-        pl_hm_free(ptScene->ptTextureIndexHashmap);
-        pl_hm_free(ptScene->ptCubeTextureIndexHashmap);
-        gptECS->cleanup_component_library(&ptScene->tComponentLibrary);
-    }
     for(uint32_t i = 0; i < pl_sb_size(gptData->_sbtVariantHandles); i++)
     {
         plShader* ptShader = gptGfx->get_shader(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
         gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
     }
+    pl_sb_free(gptData->sbuSceneFreeIndices);
     pl_sb_free(gptData->_sbtVariantHandles);
     pl_sb_free(gptData->sbtTextureHandles);
     pl_hm_free(gptData->ptVariantHashmap);
@@ -2059,6 +2214,10 @@ static void
 pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
+
+    if(!ptScene->bActive)
+        return;
+
     plDevice*   ptDevice = gptData->ptDevice;
 
     // fill CPU buffers & drawable list
@@ -3733,11 +3892,12 @@ pl_refr_begin_frame(void)
     uint64_t ulValue = gptData->aulNextTimelineValue[uFrameIdx];
     plTimelineSemaphore* tSemHandle = gptData->aptSemaphores[uFrameIdx];
 
-
-
     for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbtScenes); uSceneIndex++)
     {
         plRefScene* ptScene = &gptData->sbtScenes[uSceneIndex];
+        if(!ptScene->bActive)
+            continue;
+
         if(ptScene->uGPUMaterialDirty)
         {
             const plBeginCommandInfo tSkinUpdateBeginInfo = {
@@ -4190,6 +4350,8 @@ pl_show_graphics_options(const char* pcTitle)
 
         for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
         {
+            if(!gptData->sbtScenes[i].bActive)
+                continue;
 
             if(gptUI->tree_node("Scene", 0))
             {
@@ -4220,12 +4382,14 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .initialize                         = pl_refr_initialize,
         .cleanup                            = pl_refr_cleanup,
         .create_scene                       = pl_refr_create_scene,
+        .cleanup_scene                      = pl_refr_cleanup_scene,
         .add_drawable_objects_to_scene      = pl_add_drawable_objects_to_scene,
         .add_materials_to_scene             = pl_refr_add_materials_to_scene,
         .remove_objects_from_scene          = pl_refr_remove_objects_from_scene,
         .update_scene_objects               = pl_refr_update_scene_objects,
         .update_scene_materials             = pl_refr_update_scene_materials,
         .create_view                        = pl_refr_create_view,
+        .cleanup_view                       = pl_refr_cleanup_view,
         .run_ecs                            = pl_refr_run_ecs,
         .begin_frame                        = pl_refr_begin_frame,
         .end_frame                          = pl_refr_end_frame,
