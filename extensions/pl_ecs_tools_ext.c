@@ -134,7 +134,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
 
         bool abCombo[14] = {0};
         abCombo[uComponentFilter] = true;
-        if(gptUI->begin_combo(PL_ICON_FA_FILTER, apcComponentNames[uComponentFilter], PL_UI_COMBO_FLAGS_NONE))
+        if(gptUI->begin_combo(PL_ICON_FA_FILTER, apcComponentNames[uComponentFilter], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
         {
             for(uint32_t i = 0; i < 14; i++)
             {
@@ -147,7 +147,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
             gptUI->end_combo();
         }
 
-        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 75.0f, 2, pfRatios);
+        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, tWindowSize.y - 105.0f, 2, pfRatios);
 
         if(gptUI->begin_child("Entities", 0, 0))
         {
@@ -553,7 +553,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         "PL_LIGHT_TYPE_POINT",
                         "PL_LIGHT_TYPE_SPOT",
                     };
-                    gptUI->text("Type: %s", apcLightTypes[ptLightComp->tType]);
+                    gptUI->labeled_text("Type", "%s", apcLightTypes[ptLightComp->tType]);
 
                     bool bShowVisualizer = ptLightComp->tFlags & PL_LIGHT_FLAG_VISUALIZER;
                     if(gptUI->checkbox("Visualizer", &bShowVisualizer))
@@ -612,7 +612,8 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                             256,
                             512,
                             1024,
-                            2048
+                            2048,
+                            4096,
                         };
                         int iSelection = 0;
                         if(ptLightComp->uShadowResolution == 128)       iSelection = 0;
@@ -620,11 +621,13 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         else if(ptLightComp->uShadowResolution == 512)  iSelection = 2;
                         else if(ptLightComp->uShadowResolution == 1024) iSelection = 3;
                         else if(ptLightComp->uShadowResolution == 2048) iSelection = 4;
+                        else if(ptLightComp->uShadowResolution == 4096) iSelection = 5;
                         gptUI->radio_button("Resolution: 128", &iSelection, 0);
                         gptUI->radio_button("Resolution: 256", &iSelection, 1);
                         gptUI->radio_button("Resolution: 512", &iSelection, 2);
                         gptUI->radio_button("Resolution: 1024", &iSelection, 3);
                         gptUI->radio_button("Resolution: 2048", &iSelection, 4);
+                        gptUI->radio_button("Resolution: 4096", &iSelection, 5);
                         ptLightComp->uShadowResolution = auResolutions[iSelection];
                     }
 
@@ -659,7 +662,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         "PL_MATERIAL_BLEND_MODE_MULTIPLY",
                         "PL_MATERIAL_BLEND_MODE_CLIP_MASK"
                     };
-                    gptUI->text("Blend Mode:                      %s", apcBlendModeNames[ptMaterialComp->tBlendMode]);
+                    gptUI->labeled_text("Blend Mode", "%s", apcBlendModeNames[ptMaterialComp->tBlendMode]);
 
                     static const char* apcShaderNames[] = 
                     {
@@ -667,8 +670,8 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         "PL_SHADER_TYPE_UNLIT",
                         "PL_SHADER_TYPE_CUSTOM"
                     };
-                    gptUI->text("Shader Type:                     %s", apcShaderNames[ptMaterialComp->tShaderType]);
-                    gptUI->text("Double Sided:                    %s", ptMaterialComp->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED ? "true" : "false");
+                    gptUI->labeled_text("Shader Type", "%s", apcShaderNames[ptMaterialComp->tShaderType]);
+                    gptUI->labeled_text("Double Sided", "%s", ptMaterialComp->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED ? "true" : "false");
   
                     gptUI->vertical_spacing();
                     gptUI->text("Texture Maps");
@@ -719,17 +722,17 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
 
                 if(ptCameraComp && gptUI->begin_collapsing_header("Camera", 0))
                 { 
-                    gptUI->text("Near Z:                  %+0.3f", ptCameraComp->fNearZ);
-                    gptUI->text("Far Z:                   %+0.3f", ptCameraComp->fFarZ);
-                    gptUI->text("Vertical Field of View:  %+0.3f", ptCameraComp->fFieldOfView);
-                    gptUI->text("Aspect Ratio:            %+0.3f", ptCameraComp->fAspectRatio);
-                    gptUI->text("Pitch:                   %+0.3f", ptCameraComp->fPitch);
-                    gptUI->text("Yaw:                     %+0.3f", ptCameraComp->fYaw);
-                    gptUI->text("Roll:                    %+0.3f", ptCameraComp->fRoll);
-                    gptUI->text("Position: (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tPos.x, ptCameraComp->tPos.y, ptCameraComp->tPos.z);
-                    gptUI->text("Up:       (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tUpVec.x, ptCameraComp->_tUpVec.y, ptCameraComp->_tUpVec.z);
-                    gptUI->text("Forward:  (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tForwardVec.x, ptCameraComp->_tForwardVec.y, ptCameraComp->_tForwardVec.z);
-                    gptUI->text("Right:    (%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tRightVec.x, ptCameraComp->_tRightVec.y, ptCameraComp->_tRightVec.z);
+                    gptUI->labeled_text("Near Z", "%+0.3f", ptCameraComp->fNearZ);
+                    gptUI->labeled_text("Far Z", "%+0.3f", ptCameraComp->fFarZ);
+                    gptUI->labeled_text("Vertical Field of View", "%+0.3f", ptCameraComp->fFieldOfView);
+                    gptUI->labeled_text("Aspect Ratio", "%+0.3f", ptCameraComp->fAspectRatio);
+                    gptUI->labeled_text("Pitch", "%+0.3f", ptCameraComp->fPitch);
+                    gptUI->labeled_text("Yaw", "%+0.3f", ptCameraComp->fYaw);
+                    gptUI->labeled_text("Roll", "%+0.3f", ptCameraComp->fRoll);
+                    gptUI->labeled_text("Position", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tPos.x, ptCameraComp->tPos.y, ptCameraComp->tPos.z);
+                    gptUI->labeled_text("Up", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tUpVec.x, ptCameraComp->_tUpVec.y, ptCameraComp->_tUpVec.z);
+                    gptUI->labeled_text("Forward", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tForwardVec.x, ptCameraComp->_tForwardVec.y, ptCameraComp->_tForwardVec.z);
+                    gptUI->labeled_text("Right", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tRightVec.x, ptCameraComp->_tRightVec.y, ptCameraComp->_tRightVec.z);
                     gptUI->input_float3("Position", ptCameraComp->tPos.d, NULL, 0);
                     gptUI->input_float("Near Z Plane", &ptCameraComp->fNearZ, NULL, 0);
                     gptUI->input_float("Far Z Plane", &ptCameraComp->fFarZ, NULL, 0);
@@ -740,14 +743,6 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                 { 
                     bool bPlaying = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_PLAYING;
                     bool bLooped = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_LOOPED;
-                    if(bLooped && bPlaying)
-                        gptUI->text("Status: playing & looped");
-                    else if(bPlaying)
-                        gptUI->text("Status: playing");
-                    else if(bLooped)
-                        gptUI->text("Status: looped");
-                    else
-                        gptUI->text("Status: not playing");
                     if(gptUI->checkbox("Playing", &bPlaying))
                     {
                         if(bPlaying)
@@ -762,10 +757,10 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         else
                             ptAnimationComp->tFlags &= ~PL_ANIMATION_FLAG_LOOPED;
                     }
-                    gptUI->text("Start: %0.3f s", ptAnimationComp->fStart);
-                    gptUI->text("End:   %0.3f s", ptAnimationComp->fEnd);
+                    gptUI->labeled_text("Start", "%0.3f s", ptAnimationComp->fStart);
+                    gptUI->labeled_text("End", "%0.3f s", ptAnimationComp->fEnd);
+                    gptUI->labeled_text("Speed", "%0.3f s", ptAnimationComp->fSpeed);
                     gptUI->progress_bar(ptAnimationComp->fTimer / (ptAnimationComp->fEnd - ptAnimationComp->fStart), (plVec2){-1.0f, 0.0f}, NULL);
-                    gptUI->text("Speed:   %0.3f s", ptAnimationComp->fSpeed);
                     gptUI->end_collapsing_header();
                 }
 
@@ -792,6 +787,18 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
     return bResult;
 }
 
+void
+pl_ecs_tools_initialize(void)
+{
+
+}
+
+void
+pl_ecs_tools_cleanup(void)
+{
+    gptUI->text_filter_cleanup(&gptEcsToolsCtx->tFilter);
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -800,7 +807,9 @@ PL_EXPORT void
 pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plEcsToolsI tApi = {
-        .show_ecs_window = pl_show_ecs_window
+        .show_ecs_window = pl_show_ecs_window,
+        .initialize      = pl_ecs_tools_initialize,
+        .cleanup         = pl_ecs_tools_cleanup
     };
     pl_set_api(ptApiRegistry, plEcsToolsI, &tApi);
 
@@ -829,8 +838,6 @@ pl_unload_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    gptUI->text_filter_cleanup(&gptEcsToolsCtx->tFilter);
-
     const plEcsToolsI* ptApi = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
     ptApiRegistry->remove_api(ptApi);
 }

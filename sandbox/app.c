@@ -286,6 +286,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tSelectedEntity.ulData = UINT64_MAX;
     ptAppData->uSceneHandle0 = UINT32_MAX;
 
+    // initialize APIs that require it
+    gptEcsTools->initialize();
+
     // initialize shader extension
     static plShaderOptions tDefaultShaderOptions = {
         .apcIncludeDirectories = {
@@ -392,6 +395,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->flush_device(gptRenderer->get_device());
     gptDrawBackend->cleanup_font_atlas(gptDraw->get_current_font_atlas());
     gptUi->cleanup();
+    gptEcsTools->cleanup();
     gptDrawBackend->cleanup();
     gptRenderer->cleanup();
     gptWindows->destroy_window(ptAppData->ptWindow);

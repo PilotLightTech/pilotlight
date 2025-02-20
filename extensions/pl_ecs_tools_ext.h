@@ -44,6 +44,8 @@ typedef union _plEntity plEntity; // pl_ecs_ext.h
 
 typedef struct _plEcsToolsI
 {
+    void (*initialize)     (void);
+    void (*cleanup)        (void);
     bool (*show_ecs_window)(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool*);
 } plEcsToolsI;
 
