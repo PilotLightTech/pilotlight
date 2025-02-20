@@ -243,7 +243,6 @@ plIO gtIO = {
 
 // memory tracking
 size_t             gszActiveAllocations = 0;
-size_t             gszAllocationCount   = 0;
 size_t             gszAllocationFrees   = 0;
 size_t             gszMemoryUsage       = 0;
 plAllocationEntry* gsbtAllocations      = NULL;
@@ -1323,6 +1322,32 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 
     #ifdef PL_MEMORY_TRACKING_ON
 
+    size_t szOldSize = 0;
+
+    if(pBuffer) // free
+    {
+
+            const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 1);
+            const bool bDataExists = pl_hm_has_key(gptMemoryHashMap, ulHash);
+
+            if(bDataExists)
+            {
+                
+                const uint64_t ulIndex = pl_hm_lookup(gptMemoryHashMap, ulHash);
+                gsbtAllocations[ulIndex].pAddress = NULL;
+                szOldSize = gsbtAllocations[ulIndex].szSize;
+                gszMemoryUsage -= gsbtAllocations[ulIndex].szSize;
+                gsbtAllocations[ulIndex].szSize = 0;
+                pl_hm_remove(gptMemoryHashMap, ulHash);
+                gszAllocationFrees++;
+                gszActiveAllocations--;
+            }
+            else
+            {
+                PL_ASSERT(false);
+            }
+    }
+
     if(szSize > 0)
     {
         
@@ -1330,6 +1355,12 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
         gszMemoryUsage += szSize;
         pNewBuffer = malloc(szSize);
         memset(pNewBuffer, 0, szSize);
+
+        if(pBuffer)
+        {
+            memcpy(pNewBuffer, pBuffer, szOldSize);
+            free(pBuffer);
+        }
 
         const uint64_t ulHash = pl_hm_hash(&pNewBuffer, sizeof(void*), 1);
 
@@ -1344,40 +1375,10 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
         gsbtAllocations[ulFreeIndex].iLine = iLine;
         gsbtAllocations[ulFreeIndex].pcFile = pcFile;
         gsbtAllocations[ulFreeIndex].pAddress = pNewBuffer;
-        gsbtAllocations[ulFreeIndex].szSize = szSize;
-
-        gszAllocationCount++;
-        
+        gsbtAllocations[ulFreeIndex].szSize = szSize;        
     }
 
-    if(pBuffer) // free
-    {
 
-            const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 1);
-            const bool bDataExists = pl_hm_has_key(gptMemoryHashMap, ulHash);
-
-            if(bDataExists)
-            {
-                
-                const uint64_t ulIndex = pl_hm_lookup(gptMemoryHashMap, ulHash);
-
-                if(pNewBuffer)
-                {
-                    memcpy(pNewBuffer, pBuffer, gsbtAllocations[ulIndex].szSize);
-                }
-                gsbtAllocations[ulIndex].pAddress = NULL;
-                gszMemoryUsage -= gsbtAllocations[ulIndex].szSize;
-                gsbtAllocations[ulIndex].szSize = 0;
-                pl_hm_remove(gptMemoryHashMap, ulHash);
-                gszAllocationFrees++;
-                gszActiveAllocations--;
-            }
-            else
-            {
-                PL_ASSERT(false);
-            }
-            free(pBuffer);
-    }
     #else
 
         if(szSize > 0)
