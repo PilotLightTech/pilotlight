@@ -299,9 +299,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG
 
     };
-    #ifndef PL_OFFLINE_SHADERS_ONLY
-    tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_ALWAYS_COMPILE;
-    #endif
     gptShader->initialize(&tDefaultShaderOptions);
 
     // initialize job system

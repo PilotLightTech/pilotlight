@@ -2250,10 +2250,24 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
     if(!ptScene->bActive)
         return;
 
-    plDevice*   ptDevice = gptData->ptDevice;
+    plDevice* ptDevice = gptData->ptDevice;
 
     // fill CPU buffers & drawable list
     pl_begin_cpu_sample(gptProfile, 0, "recreate shaders");
+
+    plShaderOptions tOriginalOptions = *gptShader->get_options();
+
+    plShaderOptions tNewDefaultShaderOptions = {
+        .apcIncludeDirectories = {
+            "../shaders/"
+        },
+        .apcDirectories = {
+            "../shaders/"
+        },
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+
+    };
+    gptShader->set_options(&tNewDefaultShaderOptions);
 
     pl_sb_reset(ptScene->sbtOutlineDrawables);
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldShaders);
@@ -2424,6 +2438,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
 
     pl__refr_set_drawable_shaders(uSceneHandle);
     pl__refr_sort_drawables(uSceneHandle);
+
+    gptShader->set_options(&tOriginalOptions);
     pl_end_cpu_sample(gptProfile, 0);
 }
 
@@ -4380,24 +4396,8 @@ pl_show_graphics_options(const char* pcTitle)
 
         if(bReloadShaders)
         {
-            plShaderOptions tOriginalOptions = *gptShader->get_options();
-
-            plShaderOptions tNewDefaultShaderOptions = {
-                .apcIncludeDirectories = {
-                    "../shaders/"
-                },
-                .apcDirectories = {
-                    "../shaders/"
-                },
-                .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
-        
-            };
-            gptShader->set_options(&tNewDefaultShaderOptions);
-
             for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
                 pl_refr_reload_scene_shaders(i);
-
-            gptShader->set_options(&tOriginalOptions);
         }
         gptUI->checkbox("Frustum Culling", &gptData->bFrustumCulling);
         gptUI->checkbox("Draw All Bounding Boxes", &gptData->bDrawAllBoundingBoxes);
