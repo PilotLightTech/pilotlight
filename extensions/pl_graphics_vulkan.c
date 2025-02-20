@@ -2337,10 +2337,12 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
 
     if (tMemoryMode == PL_MEMORY_GPU)
     {
+        pl_log_info_f(gptLog, uLogChannelGraphics, "allocated GPU local memory: %s", pcName);
         gptGraphics->szLocalMemoryInUse += tBlock.ulSize;
     }
     else
     {
+        pl_log_info_f(gptLog, uLogChannelGraphics, "allocated memory: %s", pcName);
         PL_VULKAN(vkMapMemory(ptDevice->tLogicalDevice, (VkDeviceMemory)tBlock.uHandle, 0, tBlock.ulSize, 0, (void **)&tBlock.pHostMapped));
         gptGraphics->szHostMemoryInUse += tBlock.ulSize;
     }
@@ -2353,10 +2355,12 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
     if (ptBlock->tMemoryMode == PL_MEMORY_GPU)
     {
+        pl_log_info(gptLog, uLogChannelGraphics, "free GPU local memory");
         gptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
     }
     else
     {
+        pl_log_info(gptLog, uLogChannelGraphics, "free memory");
         gptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
     }
 

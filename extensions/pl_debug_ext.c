@@ -1054,6 +1054,12 @@ pl__show_logging(bool* bValue)
                 {
                     if(gptUI->begin_tab(tInfo.pcName, 0))
                     {
+                        gptUI->layout_static(0.0f, 50.0f, 1);
+                        if(gptUI->button("reset"))
+                        {
+                            gptLog->reset_channel(i);
+                            uEntryCount = 0;
+                        }
                         const plVec2 tCursorPos = gptUI->get_cursor_pos();
                         gptUI->layout_dynamic(tWindowEnd.y - tCursorPos.y - 20.0f, 1);
                         if(gptUI->begin_child(tInfo.pcName, 0, 0))
@@ -1061,7 +1067,6 @@ pl__show_logging(bool* bValue)
                             gptUI->layout_dynamic(0.0f, 1);
                             const uint32_t uIndexStart = (uint32_t)uEntryCount;
                             const uint32_t uLogCount = (uint32_t)pl_min(tInfo.uEntryCapacity, uEntryCount);
-
                             
                             if(bUseClipper)
                             {
@@ -1097,6 +1102,17 @@ pl__show_logging(bool* bValue)
                 {
                     if(gptUI->begin_tab(tInfo.pcName, 0))
                     {
+                        gptUI->layout_static(0.0f, 50.0f, 2);
+                        if(gptUI->button("reset"))
+                        {
+                            gptLog->reset_channel(i);
+                            uEntryCount = 0;
+                        }
+                        if(gptUI->button("clear"))
+                        {
+                            gptLog->clear_channel(i);
+                            uEntryCount = 0;
+                        }
                         const plVec2 tCursorPos = gptUI->get_cursor_pos();
                         gptUI->layout_dynamic(tWindowEnd.y - tCursorPos.y - 20.0f, 1);
                         if(gptUI->begin_child(tInfo.pcName, 0, 0))

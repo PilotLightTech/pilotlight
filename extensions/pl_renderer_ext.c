@@ -81,7 +81,7 @@ pl_refr_initialize(plWindow* ptWindow)
 
     // add specific log channel for renderer
     plLogExtChannelInit tLogInit = {
-        .tType       = PL_LOG_CHANNEL_TYPE_BUFFER,
+        .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER,
         .uEntryCount = 1024
     };
     gptData->uLogChannel = gptLog->add_channel("Renderer", tLogInit);
@@ -2045,7 +2045,10 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
     plDevice*   ptDevice = gptData->ptDevice;
 
     if(uCount == 0)
+    {
         gptData->tPickedEntity = (plEntity){.ulData = UINT64_MAX};
+        pl_log_info(gptLog, gptData->uLogChannel, "unselect entity");
+    }
 
     int iSceneWideRenderingFlags = 0;
     if(gptData->bPunctualLighting)
@@ -2142,6 +2145,8 @@ pl_refr_select_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnti
     for(uint32_t i = 0; i < uCount; i++)
     {
         plEntity tEntity = atEntities[i];
+
+        pl_log_info_f(gptLog, gptData->uLogChannel, "selecting entity %u", tEntity.uIndex);
 
         gptData->tPickedEntity = tEntity;
 
@@ -2254,6 +2259,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
 
     // fill CPU buffers & drawable list
     pl_begin_cpu_sample(gptProfile, 0, "recreate shaders");
+
+    pl_log_info_f(gptLog, gptData->uLogChannel, "reload shaders for scene %u", uSceneHandle);
 
     plShaderOptions tOriginalOptions = *gptShader->get_options();
 
@@ -3470,6 +3477,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             unsigned char* pucMapping = &pucMapping2[uPos];
             gptData->tPickedEntity.uIndex = pucMapping[0] + 256 * pucMapping[1] + 65536 * pucMapping[2];
             gptData->tPickedEntity.uGeneration = ptScene->tComponentLibrary.sbtEntityGenerations[gptData->tPickedEntity.uIndex];
+
+            pl_log_info(gptLog, gptData->uLogChannel, "getting clicked entity");
         }
 
         bool bOwnMouse = gptUI->wants_mouse_capture();
@@ -3818,6 +3827,8 @@ static void
 pl_refr_resize(void)
 {
     gptData->bReloadMSAA = true;
+
+    pl_log_info(gptLog, gptData->uLogChannel, "resizing");
 
     plSwapchainInit tDesc = {
         .bVSync  = gptData->bVSync,
