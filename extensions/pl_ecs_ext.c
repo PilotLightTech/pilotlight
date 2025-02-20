@@ -1649,6 +1649,7 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
                     tParentID.uIndex = UINT32_MAX;
             }
 
+            sbtTransforms[uChildIndex].tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
             sbtTransforms[uChildIndex].tWorld = tWorldMatrix;
         }
 
