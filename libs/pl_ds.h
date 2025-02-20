@@ -4,8 +4,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_DS_VERSION    "1.1.0"
-#define PL_DS_VERSION_NUM 10100
+#define PL_DS_VERSION    "1.1.1"
+#define PL_DS_VERSION_NUM 10101
 
 /*
 Index of this file:
@@ -655,9 +655,14 @@ pl__hm_lookup(plHashMap** pptHashMap, uint64_t ulKey)
 
 	uint64_t mask = ptHashMap->_uBucketCount - 1;
     uint64_t ulModKey = ulKey & mask;
+    const uint64_t ulOriginalModKey = ulModKey;
 
     while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
+    {
         ulModKey = (ulModKey + 1) & mask;
+        if(ulModKey == ulOriginalModKey)
+            return UINT64_MAX;     
+    }
 
     if(ptHashMap->_aulKeys[ulModKey] == UINT64_MAX)
         return UINT64_MAX;
@@ -693,9 +698,14 @@ pl__hm_has_key(plHashMap** pptHashMap, uint64_t ulKey)
 
 	uint64_t mask = ptHashMap->_uBucketCount - 1;
     uint64_t ulModKey = ulKey & mask;
+    const uint64_t ulOriginalModKey = ulModKey;
 
     while(ptHashMap->_aulKeys[ulModKey] != ulKey && ptHashMap->_aulKeys[ulModKey] != UINT64_MAX)
+    {
         ulModKey = (ulModKey + 1) & mask;
+        if(ulModKey == ulOriginalModKey)
+            return false;
+    }
 
     return ptHashMap->_aulKeys[ulModKey] != UINT64_MAX;
 }
