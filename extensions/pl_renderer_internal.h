@@ -477,8 +477,11 @@ typedef struct _plRefRendererData
     plTempAllocator tTempAllocator;
 
     // main render pass stuff
+    plRenderPassHandle       tCurrentMainRenderPass;
     plRenderPassHandle       tMainRenderPass;
     plRenderPassLayoutHandle tMainRenderPassLayout;
+    plRenderPassHandle       tMainMSAARenderPass;
+    plRenderPassLayoutHandle tMainMSAARenderPassLayout;
     plTextureHandle          tMSAATexture;
 
     // bind groups
@@ -564,6 +567,7 @@ typedef struct _plRefRendererData
     plHashMap*        ptTextureHashmap;
 
     // graphics options
+    bool     bMSAA;
     bool     bShowProbes;
     bool     bWireframe;
     bool     bReloadSwapchain;

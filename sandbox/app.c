@@ -406,13 +406,6 @@ PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
     plIO* ptIO = gptIO->get_io();
-    plSwapchainInit tDesc = {
-        .bVSync       = gptGfx->get_swapchain_info(ptAppData->ptSwap).bVSync,
-        .uWidth       = (uint32_t)ptIO->tMainViewportSize.x,
-        .uHeight      = (uint32_t)ptIO->tMainViewportSize.y,
-        .tSampleCount = gptGfx->get_swapchain_info(ptAppData->ptSwap).tSampleCount,
-    };
-    gptGfx->recreate_swapchain(ptAppData->ptSwap, &tDesc);
     if(ptAppData->uSceneHandle0 != UINT32_MAX)
         gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
     ptAppData->bResize = true;
