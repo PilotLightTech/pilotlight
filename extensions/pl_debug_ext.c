@@ -69,6 +69,11 @@ typedef struct _plDebugContext
     plProfileCpuSample* sbtSamples;
     float fDeltaTime;
     bool bProfileFirstRun;
+
+    // memory data
+    size_t             szLastFreedAmount;
+    plAllocationEntry* sbtActiveAllocations;
+    plUiTextFilter     tMemoryFilter;
 } plDebugContext;
 
 //-----------------------------------------------------------------------------
@@ -181,29 +186,39 @@ pl__show_memory_allocations(bool* bValue)
     const size_t szActiveAllocations = gptMemory->get_allocation_count();
     const size_t szAllocationFrees = gptMemory->get_free_count();
 
+    if(szAllocationFrees != gptDebugCtx->szLastFreedAmount)
+    {
+
+    }
+
     if(gptUI->begin_window("Memory Allocations", bValue, false))
     {
         gptUI->layout_dynamic(0.0f, 1);
         if(szMemoryUsage > 1000000000)
-            gptUI->text("General Memory Usage:       %0.3f gb", (double)szMemoryUsage / 1000000000);
+            gptUI->labeled_text("General Memory Usage", "%0.3f gb", (double)szMemoryUsage / 1000000000);
         else if(szMemoryUsage > 1000000)
-            gptUI->text("General Memory Usage:       %0.3f mb", (double)szMemoryUsage / 1000000);
+            gptUI->labeled_text("General Memory Usage", "%0.3f mb", (double)szMemoryUsage / 1000000);
         else if(szMemoryUsage > 1000)
-            gptUI->text("General Memory Usage:       %0.3f kb", (double)szMemoryUsage / 1000);
+            gptUI->labeled_text("General Memory Usage", "%0.3f kb", (double)szMemoryUsage / 1000);
         else
-            gptUI->text("General Memory Usage:       %llu bytes", (double)szMemoryUsage);
+            gptUI->labeled_text("General Memory Usage", "%llu bytes", (double)szMemoryUsage);
     
         if(szHostMemoryInUse > 1000000000)
-            gptUI->text("Host Graphics Memory Usage: %0.3f gb", (double)szHostMemoryInUse / 1000000000);
+            gptUI->labeled_text("Host Graphics Memory Usage", "%0.3f gb", (double)szHostMemoryInUse / 1000000000);
         else if(szHostMemoryInUse > 1000000)
-            gptUI->text("Host Graphics Memory Usage: %0.3f mb", (double)szHostMemoryInUse / 1000000);
+            gptUI->labeled_text("Host Graphics Memory Usage", "%0.3f mb", (double)szHostMemoryInUse / 1000000);
         else if(szHostMemoryInUse > 1000)
-            gptUI->text("Host Graphics Memory Usage: %0.3f kb", (double)szHostMemoryInUse / 1000);
+            gptUI->labeled_text("Host Graphics Memory Usage", "%0.3f kb", (double)szHostMemoryInUse / 1000);
         else
-            gptUI->text("Host Graphics Memory Usage: %llu bytes", (double)szHostMemoryInUse);
+            gptUI->labeled_text("Host Graphics Memory Usage", "%llu bytes", (double)szHostMemoryInUse);
 
-        gptUI->text("Active Allocations:         %u", szActiveAllocations);
-        gptUI->text("Freed Allocations:          %u", szAllocationFrees);
+        gptUI->labeled_text("Active Allocations", "%u", szActiveAllocations);
+        gptUI->labeled_text("Freed Allocations", "%u", szAllocationFrees);
+
+        if(gptUI->input_text_hint("File Filter", "Filter (inc,-exc)", gptDebugCtx->tMemoryFilter.acInputBuffer, 256, 0))
+        {
+            gptUI->text_filter_build(&gptDebugCtx->tMemoryFilter);
+        }
 
         static char pcFile[1024] = {0};
 
@@ -222,29 +237,69 @@ pl__show_memory_allocations(bool* bValue)
         gptUI->layout_dynamic(0.0f, 1);
         gptUI->separator();
 
-        gptUI->layout_template_begin(30.0f);
-        gptUI->layout_template_push_static(50.0f);
-        gptUI->layout_template_push_variable(300.0f);
-        gptUI->layout_template_push_variable(50.0f);
-        gptUI->layout_template_push_variable(50.0f);
-        gptUI->layout_template_end();
-
-        size_t szOriginalAllocationCount = 0;
-        plAllocationEntry* atAllocations = gptMemory->get_allocations(&szOriginalAllocationCount);
-        plUiClipper tClipper = {(uint32_t)szOriginalAllocationCount};
-        while(gptUI->step_clipper(&tClipper))
+        if(szAllocationFrees != gptDebugCtx->szLastFreedAmount)
         {
-            for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
+            pl_sb_reset(gptDebugCtx->sbtActiveAllocations);
+            pl_sb_reserve(gptDebugCtx->sbtActiveAllocations, gptMemory->get_allocation_count() + 1);
+            size_t szOriginalAllocationCount = 0;
+            plAllocationEntry* atAllocations = gptMemory->get_allocations(&szOriginalAllocationCount);
+
+            for(uint32_t i = 0; i < szOriginalAllocationCount; i++)
             {
-                size_t szUnused = 0;
-                atAllocations = gptMemory->get_allocations(&szUnused);
-                plAllocationEntry tEntry = atAllocations[i];
-                strncpy(pcFile, tEntry.pcFile, 1024);
-                gptUI->text("%i", i);
-                gptUI->text("%s", pcFile);
-                gptUI->text("%i", tEntry.iLine);
-                gptUI->text("%u", tEntry.szSize);
-            } 
+                if(atAllocations[i].szSize > 0)
+                {
+                    pl_sb_push(gptDebugCtx->sbtActiveAllocations, atAllocations[i]);
+                }
+            }
+            gptDebugCtx->szLastFreedAmount = szAllocationFrees;
+        }
+
+        gptUI->layout_dynamic(gptUI->get_window_size().y - (gptUI->get_cursor_pos().y - gptUI->get_window_pos().y) - 15.0f, 1);
+        if(gptUI->begin_child("allocation child", 0, 0))
+        {
+            gptUI->layout_template_begin(30.0f);
+            gptUI->layout_template_push_static(50.0f);
+            gptUI->layout_template_push_variable(300.0f);
+            gptUI->layout_template_push_variable(50.0f);
+            gptUI->layout_template_push_variable(50.0f);
+            gptUI->layout_template_end();
+
+            const uint32_t uEntryCount = pl_sb_size(gptDebugCtx->sbtActiveAllocations);
+
+            if(gptUI->text_filter_active(&gptDebugCtx->tMemoryFilter))
+            {
+                for(uint32_t i = 0; i < uEntryCount; i++)
+                {
+                    size_t szUnused = 0;
+                    plAllocationEntry tEntry = gptDebugCtx->sbtActiveAllocations[i];
+                    if(gptUI->text_filter_pass(&gptDebugCtx->tMemoryFilter, tEntry.pcFile, NULL))
+                    {
+                        strncpy(pcFile, tEntry.pcFile, 1024);
+                        gptUI->text("%i", i);
+                        gptUI->text("%s", pcFile);
+                        gptUI->text("%i", tEntry.iLine);
+                        gptUI->text("%u", tEntry.szSize);
+                    }
+                } 
+            }
+            else
+            {
+                plUiClipper tClipper = {uEntryCount};
+                while(gptUI->step_clipper(&tClipper))
+                {
+                    for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
+                    {
+                        size_t szUnused = 0;
+                        plAllocationEntry tEntry = gptDebugCtx->sbtActiveAllocations[i];
+                        strncpy(pcFile, tEntry.pcFile, 1024);
+                        gptUI->text("%i", i);
+                        gptUI->text("%s", pcFile);
+                        gptUI->text("%i", tEntry.iLine);
+                        gptUI->text("%u", tEntry.szSize);
+                    } 
+                }
+            }
+            gptUI->end_child();
         }
         gptUI->end_window();
     }
@@ -1204,6 +1259,7 @@ pl_unload_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plDebugApiI* ptApi = pl_get_api_latest(ptApiRegistry, plDebugApiI);
     ptApiRegistry->remove_api(ptApi);
 
+    gptUI->text_filter_cleanup(&gptDebugCtx->tMemoryFilter);
     pl_sb_free(gptDebugCtx->sbppdValues);
     pl_sb_free(gptDebugCtx->sbppdFrameValues);
     pl_sb_free(gptDebugCtx->sbdRawValues);
