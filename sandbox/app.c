@@ -117,8 +117,7 @@ typedef struct _plAppData
     plWindow* ptWindow;
 
     // swapchains
-    plSwapchain* ptSwap;
-    bool         bResize;
+    bool bResize;
 
     // ui options
     plDebugApiInfo tDebugInfo;
@@ -320,7 +319,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // setup reference renderer
     gptRenderer->initialize(ptAppData->ptWindow);
-    ptAppData->ptSwap = gptRenderer->get_swapchain();
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~setup draw extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
