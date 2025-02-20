@@ -1800,7 +1800,7 @@ pl_input_float2(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
     pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
         tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
         PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
@@ -1847,7 +1847,7 @@ pl_input_float3(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
     pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
         tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
         PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
@@ -1894,7 +1894,7 @@ pl_input_float4(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
     pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
         tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
         PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
@@ -2518,10 +2518,10 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         // FIXME: Should use more Shortcut() and reduce gptIOI->is_key_pressed()+SetKeyOwner(), but requires modifiers combination to be taken account of.
         if (gptIOI->is_key_pressed(PL_KEY_LEFT_ARROW, true))                        { pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_LINESTART : bIsWordmoveKeyDown ? STB_TEXTEDIT_K_WORDLEFT : STB_TEXTEDIT_K_LEFT) | iKMask); }
         else if (gptIOI->is_key_pressed(PL_KEY_RIGHT_ARROW, true))                  { pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_LINEEND : bIsWordmoveKeyDown ? STB_TEXTEDIT_K_WORDRIGHT : STB_TEXTEDIT_K_RIGHT) | iKMask); }
-        // else if (gptIOI->is_key_pressed(PL_KEY_UP_ARROW, true) && bIsMultiLine)     { if (gptIO->bKeyCtrl) SetScrollY(ptDrawWindow, pl_max(ptDrawWindow->tScroll.y - gptCtx->tStyle.fFontSize, 0.0f)); else pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTSTART : STB_TEXTEDIT_K_UP) | iKMask); }
+        // else if (gptIOI->is_key_pressed(PL_KEY_UP_ARROW, true) && bIsMultiLine)     { if (gptIO->bKeyCtrl) pl_set_window_scroll(ptDrawWindow, pl_max(ptDrawWindow->tScroll.y - gptCtx->tStyle.fFontSize, 0.0f)); else pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTSTART : STB_TEXTEDIT_K_UP) | iKMask); }
         // else if (gptIOI->is_key_pressed(PL_KEY_DOWN_ARROW, true) && bIsMultiLine)   { if (gptIO->bKeyCtrl) SetScrollY(ptDrawWindow, pl_min(ptDrawWindow->tScroll.y + gptCtx->tStyle.fFontSize, GetScrollMaxY())); else pl__text_state_on_key_press(ptState, (bIsStartendKeyDown ? STB_TEXTEDIT_K_TEXTEND : STB_TEXTEDIT_K_DOWN) | iKMask); }
-        // else if (gptIOI->is_key_pressed(PL_KEY_PAGE_UP, true) && bIsMultiLine)      { pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_PGUP | iKMask); fScrollY -= iRowCountPerPage * gptCtx->tStyle.fFontSize; }
-        // else if (gptIOI->is_key_pressed(PL_KEY_PAGE_DOWN, true) && bIsMultiLine)    { pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_PGDOWN | iKMask); fScrollY += iRowCountPerPage * gptCtx->tStyle.fFontSize; }
+        else if (gptIOI->is_key_pressed(PL_KEY_PAGE_UP, true) && bIsMultiLine)      { pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_PGUP | iKMask); fScrollY -= iRowCountPerPage * gptCtx->tStyle.fFontSize; }
+        else if (gptIOI->is_key_pressed(PL_KEY_PAGE_DOWN, true) && bIsMultiLine)    { pl__text_state_on_key_press(ptState, STB_TEXTEDIT_K_PGDOWN | iKMask); fScrollY += iRowCountPerPage * gptCtx->tStyle.fFontSize; }
         else if (gptIOI->is_key_pressed(PL_KEY_HOME, true))                        { pl__text_state_on_key_press(ptState,gptIO->bKeyCtrl ? STB_TEXTEDIT_K_TEXTSTART | iKMask : STB_TEXTEDIT_K_LINESTART | iKMask); }
         else if (gptIOI->is_key_pressed(PL_KEY_END, true))                         { pl__text_state_on_key_press(ptState,gptIO->bKeyCtrl ? STB_TEXTEDIT_K_TEXTEND | iKMask : STB_TEXTEDIT_K_LINEEND | iKMask); }
         else if (gptIOI->is_key_pressed(PL_KEY_DELETE, true) && !bIsReadOnly && !bIsCut)
@@ -2841,7 +2841,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     }
 
     // Render frame
-    if (!bIsMultiLine)
+    // if (!bIsMultiLine)
     {
         // RenderNavHighlight(frame_bb, id);
         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
@@ -3009,8 +3009,8 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
                     rect = pl_rect_clip(&rect, &clip_rect);
                     if (pl_rect_overlaps_rect(&rect, &clip_rect))
                         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, rect.tMin, rect.tMax, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.0f, 0.0f)});
+                    rect_pos.x = draw_pos.x - draw_scroll.x;
                 }
-                rect_pos.x = draw_pos.x - draw_scroll.x;
                 rect_pos.y += gptCtx->tStyle.fFontSize;
             }
         }
@@ -3178,7 +3178,7 @@ pl_slider_float_f(const char* pcLabel, float* pfValue, float fMin, float fMax, c
 
         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tStyle.fGrabRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSliderCol)});
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
             tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
             PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
@@ -3278,7 +3278,7 @@ pl_slider_int_f(const char* pcLabel, int* piValue, int iMin, int iMax, const cha
 
         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tStyle.fGrabRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSliderCol)});
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
             tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
             PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
@@ -3378,7 +3378,7 @@ pl_slider_uint_f(const char* pcLabel, uint32_t* puValue, uint32_t uMin, uint32_t
 
         gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tGrabStartPos, tGrabBox.tMax, gptCtx->tStyle.fGrabRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tSliderCol)});
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
             tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
             PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,

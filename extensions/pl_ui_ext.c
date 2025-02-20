@@ -2513,6 +2513,40 @@ pl_show_debug_window(bool* pbOpen)
             pl_unindent(0.0f);
             pl_tree_pop();
         }
+        if(pl_tree_node("Input", 0))
+        {
+            pl_separator_text("Keyboard");
+            pl_indent(0.0f);
+            pl_text("Keys mods: %s%s%s%s", gptIO->bKeyCtrl ? "CTRL " : "", gptIO->bKeyShift ? "SHIFT " : "", gptIO->bKeyAlt ? "ALT " : "", gptIO->bKeySuper ? "SUPER " : "");
+            pl_unindent(0.0f);
+            
+            pl_separator_text("Mouse State");
+            pl_indent(0.0f);
+            if (gptIOI->is_mouse_pos_valid(gptIO->_tMousePos))
+                pl_text("Mouse pos: (%g, %g)", gptIO->_tMousePos.x, gptIO->_tMousePos.y);
+            else
+                pl_text("Mouse pos: <INVALID>");
+            pl_text("Mouse delta: (%g, %g)", gptIO->_tMouseDelta.x, gptIO->_tMouseDelta.y);
+            // int count = IM_ARRAYSIZE(io.MouseDown);
+            // pl_text("Mouse down:");     for (int i = 0; i < count; i++) if (IsMouseDown(i)) { SameLine(); Text("b%d (%.02f secs)", i, io.MouseDownDuration[i]); }
+            // pl_text("Mouse clicked:");  for (int i = 0; i < count; i++) if (IsMouseClicked(i)) { SameLine(); Text("b%d (%d)", i, io.MouseClickedCount[i]); }
+            // pl_text("Mouse released:"); for (int i = 0; i < count; i++) if (IsMouseReleased(i)) { SameLine(); Text("b%d", i); }
+            pl_text("Mouse wheel: %.1f", gptIO->_fMouseWheel);
+            // Text("MouseStationaryTimer: %.2f", g.MouseStationaryTimer);
+            // pl_text("Mouse source: %s", GetMouseSourceName(io.MouseSource));
+            pl_unindent(0.0f);
+
+            pl_separator_text("Mouse Wheeling");
+            pl_text("Wheeling Window: '%s'", gptCtx->ptWheelingWindow ? gptCtx->ptWheelingWindow->pcName : "NULL");
+            // Text("WheelingWindowReleaseTimer: %.2f", gptCtx->WheelingWindowReleaseTimer);
+            // Text("WheelingAxisAvg[] = { %.3f, %.3f }, Main Axis: %s", g.WheelingAxisAvg.x, g.WheelingAxisAvg.y, (g.WheelingAxisAvg.x > g.WheelingAxisAvg.y) ? "X" : (g.WheelingAxisAvg.x < g.WheelingAxisAvg.y) ? "Y" : "<none>");
+            pl_indent(0.0f);
+
+            pl_unindent(0.0f);
+
+            pl_tree_pop();
+        }
+
         pl_end_window();
     } 
 }
