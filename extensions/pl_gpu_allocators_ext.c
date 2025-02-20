@@ -1006,6 +1006,10 @@ pl_unload_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     ptApiRegistry->remove_api(ptApi);
 }
 
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
+
 #ifndef PL_UNITY_BUILD
     #ifdef PL_USE_STB_SPRINTF
         #define STB_SPRINTF_IMPLEMENTATION

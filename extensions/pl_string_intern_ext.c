@@ -299,5 +299,4 @@ pl_unload_string_intern_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     const plStringInternI* ptApi = pl_get_api_latest(ptApiRegistry, plStringInternI);
     ptApiRegistry->remove_api(ptApi);
-
 }

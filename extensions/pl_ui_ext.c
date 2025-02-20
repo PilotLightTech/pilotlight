@@ -5,15 +5,15 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] context
-// [SECTION] enums
-// [SECTION] internal api
-// [SECTION] stb_text mess
 // [SECTION] public api implementations
-// [SECTION] internal api implementations
 // [SECTION] helper windows
 // [SECTION] extension loading
+// [SECTION] unity build
 */
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
 
 #include "pl_ui_ext.h"
 #include "pl_ui_internal.h"
@@ -2741,9 +2741,12 @@ pl_unload_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     const plUiI* ptApi = pl_get_api_latest(ptApiRegistry, plUiI);
     ptApiRegistry->remove_api(ptApi);
-
     gptCtx = NULL;
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] unity build
+//-----------------------------------------------------------------------------
 
 #ifndef PL_UNITY_BUILD
 
