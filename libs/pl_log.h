@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_LOG_VERSION    "1.0.0"
-#define PL_LOG_VERSION_NUM 10000
+#define PL_LOG_VERSION    "1.0.1"
+#define PL_LOG_VERSION_NUM 10001
 
 /*
 Index of this file:
@@ -662,13 +662,18 @@ pl__get_new_log_entry(uint64_t uID)
         // check if overflow reallocation is needed
         if(tPChannel->uEntryCount == tPChannel->uEntryCapacity)
         {
+            uint64_t uNewCapacity = tPChannel->uEntryCapacity * 2;
+            if(uNewCapacity == 0)
+                uNewCapacity = 512;
             plLogEntry* sbtOldEntries = tPChannel->ptEntries;
-            tPChannel->ptEntries = (plLogEntry*)PL_LOG_ALLOC(sizeof(plLogEntry) * tPChannel->uEntryCapacity * 2);
-            memset(tPChannel->ptEntries, 0, sizeof(plLogEntry) * tPChannel->uEntryCapacity * 2);
+            tPChannel->ptEntries = (plLogEntry*)PL_LOG_ALLOC(sizeof(plLogEntry) * uNewCapacity);
+            memset(tPChannel->ptEntries, 0, sizeof(plLogEntry) * uNewCapacity);
             
             // copy old values
-            memcpy(tPChannel->ptEntries, sbtOldEntries, sizeof(plLogEntry) * tPChannel->uEntryCapacity);
-            tPChannel->uEntryCapacity *= 2;
+            if(tPChannel->uEntryCapacity > 0)
+                memcpy(tPChannel->ptEntries, sbtOldEntries, sizeof(plLogEntry) * tPChannel->uEntryCapacity);
+            
+            tPChannel->uEntryCapacity  = uNewCapacity;
 
             PL_LOG_FREE(sbtOldEntries);
         }
