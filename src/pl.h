@@ -200,7 +200,8 @@ enum plMouseButton_
 enum plKey_
 {
     PL_KEY_NONE = 0,
-    PL_KEY_TAB,
+    PL_KEY_NAMED_KEY_BEGIN = 512,
+    PL_KEY_TAB = 512,
     PL_KEY_LEFT_ARROW,
     PL_KEY_RIGHT_ARROW,
     PL_KEY_UP_ARROW,
@@ -259,7 +260,8 @@ enum plKey_
     PL_KEY_KEYPAD_EQUAL,
     
     PL_KEY_RESERVED_MOD_CTRL, PL_KEY_RESERVED_MOD_SHIFT, PL_KEY_RESERVED_MOD_ALT, PL_RESERVED_KEY_MOD_SUPER,
-    PL_KEY_COUNT, // no valid plKey_ is ever greater than this value
+    PL_KEY_NAMED_KEY_END,
+    PL_KEY_COUNT = PL_KEY_NAMED_KEY_END - PL_KEY_NAMED_KEY_BEGIN, // no valid plKey_ is ever greater than this value
 
     PL_KEY_MOD_NONE     = 0,
     PL_KEY_MOD_CTRL     = 1 << 12, // ctrl

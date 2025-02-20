@@ -727,8 +727,8 @@ pl__get_key_data(plKey tKey)
         else if(tKey == PL_KEY_MOD_SUPER) tKey = PL_RESERVED_KEY_MOD_SUPER;
         else if(tKey == PL_KEY_MOD_SHORTCUT) tKey = (gtIO.bConfigMacOSXBehaviors ? PL_RESERVED_KEY_MOD_SUPER : PL_KEY_RESERVED_MOD_CTRL);
     }
-    assert(tKey > PL_KEY_NONE && tKey < PL_KEY_COUNT && "Key not valid");
-    return &gtIO._tKeyData[tKey];
+    assert(tKey >= PL_KEY_NAMED_KEY_BEGIN && tKey < PL_KEY_NAMED_KEY_END && "Key not valid");
+    return &gtIO._tKeyData[tKey - PL_KEY_NAMED_KEY_BEGIN];
 }
 
 plVersion
