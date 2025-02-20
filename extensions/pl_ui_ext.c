@@ -2284,6 +2284,9 @@ pl_ui_cleanup(void)
     pl_sb_free(gptCtx->sbtBeginPopupStack);
     pl_sb_free(gptCtx->sbtOpenPopupStack);
     pl_sb_free(gptCtx->tWindows.sbtData);
+    pl_sb_free(gptCtx->tInputTextState.sbInitialTextA);
+    pl_sb_free(gptCtx->tInputTextState.sbTextA);
+    pl_sb_free(gptCtx->tInputTextState.sbTextW);
 }
 
 static void
