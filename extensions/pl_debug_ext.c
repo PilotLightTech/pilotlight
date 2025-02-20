@@ -56,14 +56,14 @@ typedef struct _plDebugContext
     plTempAllocator tTempAllocator;
 
     // stat data
-    double**     sbppdValues;
-    const char** ppcNames;
-    double***    sbppdFrameValues; // values to write to
-    double*      sbdRawValues; // raw values
-    bool*        sbbValues;
-    uint32_t     uSelectedCount;
-    uint32_t     uMaxSelectedCount;
-    float        fLegendWidth;
+    double**       sbppdValues;
+    const char**   ppcNames;
+    double***      sbppdFrameValues; // values to write to
+    double*        sbdRawValues; // raw values
+    bool*          sbbValues;
+    uint32_t       uSelectedCount;
+    uint32_t       uMaxSelectedCount;
+    float          fLegendWidth;
 
     // profile data
     plProfileCpuSample* sbtSamples;
@@ -604,7 +604,7 @@ pl__show_statistics(bool* bValue)
             gptDebugCtx->sbppdFrameValues[i] = gptStats->get_counter_data(gptDebugCtx->ppcNames[i]);
             float fCurrentWidth = gptDraw->calculate_text_size(gptDebugCtx->ppcNames[i], (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x;
             if(fCurrentWidth > gptDebugCtx->fLegendWidth)
-                gptDebugCtx->fLegendWidth = fCurrentWidth;
+                gptDebugCtx->fLegendWidth = fCurrentWidth * 2.0f;
         }
     }
     
