@@ -1991,7 +1991,8 @@ pl_wake_condition_variable(plConditionVariable* ptConditionVariable)
 void               
 pl_wake_all_condition_variable(plConditionVariable* ptConditionVariable)
 {
-    pthread_cond_broadcast(&ptConditionVariable->tHandle);
+    if(ptConditionVariable)
+        pthread_cond_broadcast(&ptConditionVariable->tHandle);
 }
 
 void               

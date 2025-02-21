@@ -207,13 +207,11 @@ typedef struct _plDevice
     plTimelineSemaphore* ptSemaphoreFreeList;
 
     // render pass layouts
-    plRenderPassLayoutHandle tMainRenderPassLayout;
     plMetalRenderPassLayout* sbtRenderPassLayoutsHot;
     plRenderPassLayout*      sbtRenderPassLayoutsCold;
     uint16_t*                sbtRenderPassLayoutFreeIndices;
 
     // render passes
-    plRenderPassHandle tMainRenderPass;
     plMetalRenderPass* sbtRenderPassesHot;
     plRenderPass*      sbtRenderPassesCold;
     uint16_t*          sbtRenderPassFreeIndices;
@@ -1607,7 +1605,7 @@ pl_create_device(const plDeviceInit* ptInit)
     for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
     {
         plFrameContext tFrame = {
-            .tFrameBoundarySemaphore = dispatch_semaphore_create(1),
+            .tFrameBoundarySemaphore = dispatch_semaphore_create(gptGraphics->uFramesInFlight),
         };
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
@@ -1689,6 +1687,13 @@ pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
     ptSwap->tInfo.tSampleCount = pl_min(ptInit->tSampleCount, ptSwap->ptDevice->tInfo.tMaxSampleCount);
     if(ptSwap->tInfo.tSampleCount == 0)
         ptSwap->tInfo.tSampleCount = 1;
+
+    uint32_t uNextFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
+    plFrameContext* ptFrame1 = &ptSwap->ptDevice->sbtFrames[uNextFrameIndex];
+    plFrameContext* ptFrame0 = pl__get_frame_resources(ptSwap->ptDevice);
+    // dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
+    dispatch_semaphore_signal(ptFrame0->tFrameBoundarySemaphore);
+    dispatch_semaphore_signal(ptFrame1->tFrameBoundarySemaphore);
 }
 
 static plCommandPool*

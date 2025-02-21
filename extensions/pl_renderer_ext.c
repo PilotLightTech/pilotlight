@@ -3944,7 +3944,7 @@ pl_refr_begin_frame(void)
                     .tLayout = gptData->tMainRenderPassLayout,
                     .atColorTargets = { // msaa
                         {
-                            .tLoadOp       = PL_LOAD_OP_DONT_CARE,
+                            .tLoadOp       = PL_LOAD_OP_CLEAR,
                             .tStoreOp      = PL_STORE_OP_STORE,
                             .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
                             .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
