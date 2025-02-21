@@ -28,6 +28,7 @@ scripts = [
 # extension headers
 extension_headers = [
     "pl_atomics_ext.h",
+    "pl_console_ext.h",
     "pl_debug_ext.h",
     "pl_draw_backend_ext.h",
     "pl_draw_ext.h",
@@ -58,6 +59,7 @@ extension_headers = [
 
 # extension binaries
 extensions = [
+    "pl_console_ext",
     "pl_debug_ext",
     "pl_draw_backend_ext",
     "pl_draw_ext",

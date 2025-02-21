@@ -34,12 +34,13 @@ static const struct _plProfileI*           gptProfile           = 0;
 static const struct _plLogI*               gptLog               = 0;
 
 // experimental
+static const struct _plConsoleI*  gptConsole  = 0;
 static const struct _plCameraI*   gptCamera   = 0;
 static const struct _plResourceI* gptResource = 0;
 static const struct _plEcsI*      gptECS      = 0;
 static const struct _plRendererI* gptRenderer = 0;
 static const struct _plEcsToolsI* gptEcsTools = 0;
-static const struct _plGizmoI*    gptGizmo = 0;
+static const struct _plGizmoI*    gptGizmo    = 0;
 
 // context
 static struct _plIO* gptIO = 0;

@@ -101,6 +101,7 @@ jobs:
         set VULKAN_SDK=D:/a/VulkanSDK
         cd src
         call build_distribute.bat -c release
+        if not exist ../out/pl_console_ext.dll exit 1
         if not exist ../out/pl_debug_ext.dll exit 1
         if not exist ../out/pl_draw_backend_ext.dll exit 1
         if not exist ../out/pl_draw_ext.dll exit 1
@@ -235,6 +236,7 @@ jobs:
         chmod +x pilot_light
         cd ..
         test -f ./out/pilot_light || exit 1
+        test -f ./out/pl_console_ext.dylib || exit 1
         test -f ./out/pl_debug_ext.dylib || exit 1
         test -f ./out/pl_draw_backend_ext.dylib || exit 1
         test -f ./out/pl_draw_ext.dylib || exit 1
@@ -374,6 +376,7 @@ jobs:
         chmod +x pilot_light
         cd ..
         test -f ./out/pilot_light || exit 1
+        test -f ./out/pl_console_ext.so || exit 1
         test -f ./out/pl_debug_ext.so || exit 1
         test -f ./out/pl_draw_backend_ext.so || exit 1
         test -f ./out/pl_draw_ext.so || exit 1
