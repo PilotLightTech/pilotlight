@@ -268,8 +268,9 @@ typedef struct _plUiTabBar
 
 typedef struct _plUiPrevItemData
 {
-    bool bHovered;
-    bool bActive;
+    bool     bHovered;
+    bool     bActive;
+    uint32_t uHash;
 } plUiPrevItemData;
 
 typedef struct _plUiLayoutSortLevel
@@ -458,6 +459,7 @@ typedef struct _plUiContext
     uint32_t           uActiveIdIsAlive;       // id of active item if seen this frame
     uint32_t           uNextHoveredId;         // set during current frame (by end of frame, should be last item hovered)
     bool               bActiveIdJustActivated; // window was just activated, so bring it to the front
+    bool               bActiveIdAllowsOverlap; // window was just activated, so bring it to the front
     uint32_t           uMenuDepth;
     uint32_t           uComboDepth;
 

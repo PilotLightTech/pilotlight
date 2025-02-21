@@ -446,7 +446,7 @@ pl__button_behavior(const plRect* ptBox, uint32_t uHash, bool* pbOutHovered, boo
         gptCtx->uNextHoveredId = uHash;
         if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
         {
-            bPressed = ptWindow->tFlags & PL_UI_WINDOW_FLAGS_POPUP_WINDOW;
+            bPressed = uHash == gptCtx->uActiveId;
             pl__set_active_id(uHash, ptWindow);
             pl__set_nav_id(uHash, ptWindow);
             pl__focus_window(ptWindow);
@@ -1727,6 +1727,8 @@ pl_input_text(const char* pcLabel, char* pcBuffer, size_t szBufferSize, plUiInpu
     const plVec2 tStartPos   = pl__get_cursor_pos();
     bool bResult = pl__input_text_ex(pcLabel, NULL, pcBuffer, szBufferSize, tFlags, &tWidgetSize, &tStartPos);
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+    pl__add_widget(uHash);
     return bResult;
 }
 
@@ -1737,6 +1739,8 @@ pl_input_text_hint(const char* pcLabel, const char* pcHint, char* pcBuffer, size
     const plVec2 tStartPos   = pl__get_cursor_pos();
     bool bResult = pl__input_text_ex(pcLabel, pcHint, pcBuffer, szBufferSize, tFlags, &tWidgetSize, &tStartPos);
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+    const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+    pl__add_widget(uHash);
     return bResult;
 }
 
@@ -1757,7 +1761,8 @@ pl_input_float(const char* pcLabel, float* pfValue, const char* pcFormat, plUiIn
         *pfValue = (float)atof(acBuffer);
 
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
-
+    const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+    pl__add_widget(uHash);
     return bChanged;
 }
 
@@ -1917,6 +1922,8 @@ pl_input_int(const char* pcLabel, int* piValue, plUiInputTextFlags tFlags)
 
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 
+    const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+    pl__add_widget(uHash);
     return bChanged;
 }
 
@@ -2069,6 +2076,9 @@ pl_input_uint(const char* pcLabel, uint32_t* puValue, plUiInputTextFlags tFlags)
         *puValue = (uint32_t)atoi(acBuffer);
 
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
+
+    const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
+    pl__add_widget(uHash);
 
     return bChanged;
 }
@@ -2225,15 +2235,17 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     const plVec2 tFrameStartPos = *ptStartPos;
     const uint32_t uHash = pl_str_hash(pcLabel, 0, pl_sb_top(gptCtx->sbuIdStack));
 
+    const char* pcLabelEnd = pl__find_renderered_text_end(pcLabel, NULL);
+
     const plRect tLabelTextBounding = gptDraw->calculate_text_bb(tFrameStartPos, pcLabel,
         (plDrawTextOptions){
             .ptFont = gptCtx->tFont,
             .fSize = gptCtx->tStyle.fFontSize,
-            .pcTextEnd = pl__find_renderered_text_end(pcLabel, NULL),
+            .pcTextEnd = pcLabelEnd,
             .fWrap = -1.0f});
     const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
-    const plVec2 tFrameSize = { 2.0f * (ptWidgetSize->x / 3.0f), ptWidgetSize->y};
+    const plVec2 tFrameSize = pcLabelEnd == pcLabel ? *ptWidgetSize : (plVec2){ 2.0f * (ptWidgetSize->x / 3.0f), ptWidgetSize->y};
     plRect tBoundingBox = pl_calculate_rect(tFrameStartPos, tFrameSize);
     const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
     tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
@@ -2387,6 +2399,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         // Although we are active we don't prevent mouse from hovering other elements unless we are interacting right now with the widget.
         // Down the line we should have a cleaner library-wide concept of Selected vs Active.
         // g.ActiveIdAllowOverlap = !io.MouseDown[0];
+        gptCtx->bActiveIdAllowsOverlap = !gptIOI->is_mouse_down(PL_MOUSE_BUTTON_LEFT);
 
         // Edit in progress
         const float fMouseX = (tMousePos.x - tBoundingBox.tMin.x - gptCtx->tStyle.tFramePadding.x) + ptState->fScrollX;
@@ -2836,6 +2849,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
     else if (gptCtx->uActiveId == uHash)
     {
         pl__set_active_id(uHash, ptWindow);
+        gptCtx->bActiveIdAllowsOverlap = true;
         pl__focus_window(ptWindow);
         gptCtx->bWantTextInput = true;
     }

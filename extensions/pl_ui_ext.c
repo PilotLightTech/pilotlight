@@ -352,6 +352,17 @@ pl_get_default_font(void)
 }
 
 void
+pl_set_keyboard_focus_last_item(void)
+{
+    gptCtx->tInputTextState.uId = gptCtx->tPrevItemData.uHash;
+    gptCtx->uNavId = gptCtx->tPrevItemData.uHash;
+    gptCtx->uActiveId = gptCtx->tPrevItemData.uHash;
+    gptCtx->uActiveIdIsAlive = gptCtx->tPrevItemData.uHash;
+    gptCtx->bActiveIdJustActivated = true;
+    gptCtx->uHoveredId = gptCtx->tPrevItemData.uHash;
+}
+
+void
 pl_layout_row(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount, const float* pfSizesOrRatios)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
@@ -472,7 +483,7 @@ pl_begin_child(const char* pcName, plUiChildFlags tChildFlags, plUiWindowFlags t
         PL_UI_WINDOW_FLAGS_NO_RESIZE | 
         PL_UI_WINDOW_FLAGS_NO_COLLAPSE | 
         PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR | 
-        PL_UI_WINDOW_FLAGS_NO_MOVE;
+        PL_UI_WINDOW_FLAGS_NO_MOVE | tWindowFlags;
 
     pl_set_next_window_pos(tStartPos, PL_UI_COND_ALWAYS);
     pl_set_next_window_size(tWidgetSize, PL_UI_COND_ALWAYS);
@@ -495,7 +506,8 @@ pl_begin_child(const char* pcName, plUiChildFlags tChildFlags, plUiWindowFlags t
 void
 pl_open_popup(const char* pcName, plUiPopupFlags tFlags)
 {
-    const uint32_t uHash = pl_str_hash(pcName, 0, pl_sb_top(gptCtx->sbuIdStack));
+    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
     plUiPopupData tPopupData = {
         .uId = uHash,
         .ulOpenFrameCount = gptIO->ulFrameCount
@@ -531,8 +543,8 @@ pl_end_popup(void)
 bool
 pl_is_popup_open(const char* pcName)
 {
-    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    const uint32_t uHash = pl_str_hash(pcName, 0, pl_sb_top(gptCtx->sbuIdStack));
+    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
 
     for(uint32_t i = 0; i < pl_sb_size(gptCtx->sbtOpenPopupStack); i++)
     {
@@ -547,8 +559,8 @@ pl_is_popup_open(const char* pcName)
 bool
 pl_begin_popup(const char* pcName, plUiWindowFlags tFlags)
 {
-    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    const uint32_t uHash = pl_str_hash(pcName, 0, pl_sb_top(gptCtx->sbuIdStack));
+    uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
+    const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
 
     bool bIsOpen = false;
     bool bNewOpen = false;
@@ -570,7 +582,8 @@ pl_begin_popup(const char* pcName, plUiWindowFlags tFlags)
 
     if(bIsOpen)
     {
-        gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
+        if(gptCtx->ptCurrentWindow)
+            gptDraw->pop_clip_rect(gptCtx->ptDrawlist);
         bool bResult = pl__begin_window_ex(pcName, NULL, tFlags | PL_UI_WINDOW_FLAGS_POPUP_WINDOW);
 
         static const float pfRatios[] = {300.0f};
@@ -1261,7 +1274,12 @@ pl__is_item_hoverable(const plRect* ptBox, uint32_t uHash)
 
     // check if another item is already active
     if(gptCtx->uActiveId != 0 && gptCtx->uActiveId != uHash)
-        return false;
+    {
+        if(!gptCtx->bActiveIdAllowsOverlap)
+        {
+            return false;
+        }
+    }
 
     return true;
 }
@@ -1407,8 +1425,8 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         {
             pl_sb_push(gptCtx->sbptFocusedWindows, ptWindow);
             ptWindow->ptRootWindow = ptWindow;
-            ptWindow->ptRootWindowPopupTree = ptParentWindow;
-            ptWindow->ptRootWindowTitleBarHighlight = ptParentWindow->ptRootWindow;
+            ptWindow->ptRootWindowPopupTree = ptParentWindow ? ptParentWindow : ptWindow;
+            ptWindow->ptRootWindowTitleBarHighlight = ptParentWindow ? ptParentWindow->ptRootWindow : ptWindow;
         }
         else // normal window
         {
@@ -1548,7 +1566,8 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         ptWindow->tInnerRect.tMax.y -= gptCtx->tStyle.fScrollbarSize + 2.0f;
 
     // decorations
-    if(!(tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR)) // has title bar
+    bool bHasTitleBar = !(tFlags & PL_UI_WINDOW_FLAGS_NO_TITLE_BAR);
+    if(bHasTitleBar) // has title bar
     {
 
         ptWindow->tInnerRect.tMin.y += fTitleBarHeight;
@@ -1672,7 +1691,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         // draw background
         gptDraw->add_rect_rounded_filled(
             ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax,
-            gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM,
+            gptCtx->tStyle.fWindowRounding, 0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM | (bHasTitleBar ? 0 : PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP),
             (plDrawSolidOptions){.uColor = uBackgroundColor});
 
         ptWindow->tFullSize = ptWindow->tSize;
@@ -1714,7 +1733,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
             }
             gptDraw->add_rect_rounded_filled(
                 ptWindow->ptBgLayer, tBgRect.tMin, tBgRect.tMax, gptCtx->tStyle.fWindowRounding,
-                0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM,
+                0, PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM | (bHasTitleBar ? 0 : PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP),
                 (plDrawSolidOptions){.uColor = uBackgroundColor});
         }
 
@@ -2189,6 +2208,7 @@ pl__set_active_id(uint32_t uHash, plUiWindow* ptWindow)
     gptCtx->bActiveIdJustActivated = gptCtx->uActiveId != uHash;
     gptCtx->uActiveId = uHash;
     gptCtx->ptActiveWindow = ptWindow;
+    gptCtx->bActiveIdAllowsOverlap = false;
     if(uHash)
         gptCtx->uActiveIdIsAlive = uHash;
 }
@@ -2201,10 +2221,10 @@ pl__set_nav_id(uint32_t uHash, plUiWindow* ptWindow)
     if(uHash)
         gptCtx->bNavIdIsAlive = true;
 
-    if(gptCtx->ptNavWindow != ptWindow)
-    {
-        pl_sb_reset(gptCtx->sbtOpenPopupStack);
-    }
+    // if(gptCtx->ptNavWindow != ptWindow)
+    // {
+    //     pl_sb_reset(gptCtx->sbtOpenPopupStack);
+    // }
 
     gptCtx->ptNavWindow = ptWindow;
 }
@@ -2222,6 +2242,8 @@ pl__add_widget(uint32_t uHash)
             }
         }
     }
+
+    gptCtx->tPrevItemData.uHash = uHash;
 }
 
 void
@@ -2746,7 +2768,8 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .text_filter_build             = pl_ui_text_filter_build,
         .text_filter_pass              = pl_ui_text_filter_pass,
         .text_filter_cleanup           = pl_ui_text_filter_cleanup,
-        .text_filter_active            = pl_ui_text_filter_active
+        .text_filter_active            = pl_ui_text_filter_active,
+        .set_keyboard_focus_last_item  = pl_set_keyboard_focus_last_item
     };
     pl_set_api(ptApiRegistry, plUiI, &tApi);
 

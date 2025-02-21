@@ -328,6 +328,10 @@ typedef struct _plUiI
     bool (*was_last_item_hovered)(void);
     bool (*was_last_item_active) (void);
 
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~focus~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    void (*set_keyboard_focus_last_item)(void); // don't use yet
+
 } plUiI;
 
 //-----------------------------------------------------------------------------
