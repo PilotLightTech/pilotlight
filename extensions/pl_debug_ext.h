@@ -5,11 +5,8 @@
 /*
 Index of this file:
 // [SECTION] header mess
-// [SECTION] includes
 // [SECTION] apis
-// [SECTION] forward declarations
 // [SECTION] public api structs
-// [SECTION] structs
 */
 
 //-----------------------------------------------------------------------------
@@ -20,22 +17,10 @@ Index of this file:
 #define PL_DEBUG_EXT_H
 
 //-----------------------------------------------------------------------------
-// [SECTION] includes
-//-----------------------------------------------------------------------------
-
-#include <stdbool.h>
-
-//-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
 #define plDebugApiI_version (plVersion){0, 1, 0}
-
-//-----------------------------------------------------------------------------
-// [SECTION] forward declarations
-//-----------------------------------------------------------------------------
-
-typedef struct _plDebugApiInfo plDebugApiInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -43,20 +28,8 @@ typedef struct _plDebugApiInfo plDebugApiInfo;
 
 typedef struct _plDebugApiI
 {
-    void (*show_debug_windows)(plDebugApiInfo*);
+    void (*initialize)(void);
+    void (*update)    (void);
 } plDebugApiI;
-
-//-----------------------------------------------------------------------------
-// [SECTION] structs
-//-----------------------------------------------------------------------------
-
-typedef struct _plDebugApiInfo
-{
-    bool bShowDeviceMemoryAnalyzer;
-    bool bShowMemoryAllocations;
-    bool bShowProfiling;
-    bool bShowStats;
-    bool bShowLogging;
-} plDebugApiInfo;
 
 #endif // PL_DEBUG_EXT_H

@@ -123,11 +123,15 @@ typedef struct _plAppData
     bool bResize;
 
     // ui options
-    plDebugApiInfo tDebugInfo;
-    bool           bShowUiDebug;
-    bool           bShowUiStyle;
-    bool           bShowEntityWindow;
-    bool           bShowPilotLightTool;
+    bool  bShowUiDebug;
+    bool  bShowUiStyle;
+    bool  bShowEntityWindow;
+    bool  bShowPilotLightTool;
+    bool* pbShowDeviceMemoryAnalyzer;
+    bool* pbShowMemoryAllocations;
+    bool* pbShowProfiling;
+    bool* pbShowStats;
+    bool* pbShowLogging;
 
     // scene
     bool     bFreezeCullCamera;
@@ -292,20 +296,23 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->uSceneHandle0 = UINT32_MAX;
     ptAppData->bShowPilotLightTool = true;
 
+    // add console variables
+    gptConsole->initialize((plConsoleSettings){.tFlags = PL_CONSOLE_FLAGS_POPUP});
+    gptConsole->add_toggle_variable("a.PilotLight", &ptAppData->bShowPilotLightTool, "shows main pilot light window", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    gptConsole->add_toggle_variable("a.Entities", &ptAppData->bShowEntityWindow, "shows ecs tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    gptConsole->add_toggle_variable("a.FreezeCullCamera", &ptAppData->bFreezeCullCamera, "freezes culling camera", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+
     // initialize APIs that require it
     gptEcsTools->initialize();
+    gptDebug->initialize();
 
-    // add console variables
-    gptConsole->initialize((plConsoleSettings){0});
-    gptConsole->add_toggle_option("Pilot Light", &ptAppData->bShowPilotLightTool, "shows main pilot light window");
-    gptConsole->add_toggle_option("Entities", &ptAppData->bShowEntityWindow, "shows ecs tool");
-    gptConsole->add_toggle_option("Freeze Cull Camera", &ptAppData->bFreezeCullCamera, "freezes culling camera");
-    gptConsole->add_toggle_option("Log Tool", &ptAppData->tDebugInfo.bShowLogging, "shows log tool");
-    gptConsole->add_toggle_option("Stats Tool", &ptAppData->tDebugInfo.bShowStats, "shows stats tool");
-    gptConsole->add_toggle_option("Profiling Tool", &ptAppData->tDebugInfo.bShowProfiling, "shows profiling tool");
-    gptConsole->add_toggle_option("Memory Allocation Tool", &ptAppData->tDebugInfo.bShowMemoryAllocations, "shows memory tool");
-    gptConsole->add_toggle_option("Device Memory Analyzer Tool", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer, "shows gpu memory tool");
-    
+    // retrieve some console variables
+    ptAppData->pbShowLogging              = (bool*)gptConsole->get_variable("d.LogTool", NULL, NULL);
+    ptAppData->pbShowStats                = (bool*)gptConsole->get_variable("d.StatTool", NULL, NULL);
+    ptAppData->pbShowProfiling            = (bool*)gptConsole->get_variable("d.ProfileTool", NULL, NULL);
+    ptAppData->pbShowMemoryAllocations    = (bool*)gptConsole->get_variable("d.MemoryAllocationTool", NULL, NULL);
+    ptAppData->pbShowDeviceMemoryAnalyzer = (bool*)gptConsole->get_variable("d.DeviceMemoryAnalyzerTool", NULL, NULL);
+
     // initialize shader extension
     static plShaderOptions tDefaultShaderOptions = {
         .apcIncludeDirectories = {
@@ -562,6 +569,7 @@ pl_app_update(plAppData* ptAppData)
             const float pfRatios[] = {1.0f};
             const float pfRatios2[] = {0.5f, 0.5f};
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+
             if(gptUI->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
             {
                 gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
@@ -589,11 +597,11 @@ pl_app_update(plAppData* ptAppData)
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
             if(gptUI->begin_collapsing_header(ICON_FA_SCREWDRIVER_WRENCH " Tools", 0))
             {
-                gptUI->checkbox("Device Memory Analyzer", &ptAppData->tDebugInfo.bShowDeviceMemoryAnalyzer);
-                gptUI->checkbox("Memory Allocations", &ptAppData->tDebugInfo.bShowMemoryAllocations);
-                gptUI->checkbox("Profiling", &ptAppData->tDebugInfo.bShowProfiling);
-                gptUI->checkbox("Statistics", &ptAppData->tDebugInfo.bShowStats);
-                gptUI->checkbox("Logging", &ptAppData->tDebugInfo.bShowLogging);
+                gptUI->checkbox("Device Memory Analyzer", ptAppData->pbShowDeviceMemoryAnalyzer);
+                gptUI->checkbox("Memory Allocations", ptAppData->pbShowMemoryAllocations);
+                gptUI->checkbox("Profiling", ptAppData->pbShowProfiling);
+                gptUI->checkbox("Statistics", ptAppData->pbShowStats);
+                gptUI->checkbox("Logging", ptAppData->pbShowLogging);
                 gptUI->checkbox("Entities", &ptAppData->bShowEntityWindow);
                 gptUI->end_collapsing_header();
             }
@@ -749,7 +757,7 @@ pl_app_update(plAppData* ptAppData)
         }
     }
 
-    gptDebug->show_debug_windows(&ptAppData->tDebugInfo);
+    gptDebug->update();
         
     if(ptAppData->bShowUiStyle)
         gptUI->show_style_editor_window(&ptAppData->bShowUiStyle);

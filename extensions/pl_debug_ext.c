@@ -36,6 +36,7 @@ Index of this file:
 #include "pl_gpu_allocators_ext.h"
 #include "pl_profile_ext.h"
 #include "pl_log_ext.h"
+#include "pl_console_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -74,6 +75,13 @@ typedef struct _plDebugContext
     size_t             szLastFreedAmount;
     plAllocationEntry* sbtActiveAllocations;
     plUiTextFilter     tMemoryFilter;
+
+    // options
+    bool bShowDeviceMemoryAnalyzer;
+    bool bShowMemoryAllocations;
+    bool bShowProfiling;
+    bool bShowStats;
+    bool bShowLogging;
 } plDebugContext;
 
 //-----------------------------------------------------------------------------
@@ -103,6 +111,7 @@ static plDebugContext* gptDebugCtx = NULL;
     static const plIOI*            gptIOI           = NULL;
     static const plProfileI*       gptProfile       = NULL;
     static const plLogI*           gptLog           = NULL;
+    static const plConsoleI*       gptConsole       = NULL;
 
     static plIO* gptIO = NULL;
 
@@ -114,8 +123,6 @@ static plDebugContext* gptDebugCtx = NULL;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void pl_show_debug_windows(plDebugApiInfo* ptInfo);
-
 static void pl__show_memory_allocations(bool* bValue);
 static void pl__show_profiling         (bool* bValue);
 static void pl__show_statistics        (bool* bValue);
@@ -126,43 +133,53 @@ static void pl__show_logging           (bool* bValue);
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
-static void
-pl_show_debug_windows(plDebugApiInfo* ptInfo)
+void
+pl_debug_initialize(void)
+{
+    gptConsole->add_toggle_variable("d.LogTool", &gptDebugCtx->bShowLogging, "shows log tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    gptConsole->add_toggle_variable("d.StatTool", &gptDebugCtx->bShowStats, "shows stats tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    gptConsole->add_toggle_variable("d.ProfileTool", &gptDebugCtx->bShowProfiling, "shows profiling tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    gptConsole->add_toggle_variable("d.MemoryAllocationTool", &gptDebugCtx->bShowMemoryAllocations, "shows memory tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    gptConsole->add_toggle_variable("d.DeviceMemoryAnalyzerTool", &gptDebugCtx->bShowDeviceMemoryAnalyzer, "shows gpu memory tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+}
+
+void
+pl_debug_update(void)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
-    if(ptInfo->bShowMemoryAllocations)
+    if(gptDebugCtx->bShowMemoryAllocations)
     {
         pl_begin_cpu_sample(gptProfile, 0, "Memory Allocations");
-        pl__show_memory_allocations(&ptInfo->bShowMemoryAllocations);
+        pl__show_memory_allocations(&gptDebugCtx->bShowMemoryAllocations);
         pl_end_cpu_sample(gptProfile, 0);
     }
 
-    if(ptInfo->bShowProfiling)
+    if(gptDebugCtx->bShowProfiling)
     {
         pl_begin_cpu_sample(gptProfile, 0, "Profiling");
-        pl__show_profiling(&ptInfo->bShowProfiling);
+        pl__show_profiling(&gptDebugCtx->bShowProfiling);
         pl_end_cpu_sample(gptProfile, 0);
     }
 
-    if(ptInfo->bShowStats)
+    if(gptDebugCtx->bShowStats)
     {
         pl_begin_cpu_sample(gptProfile, 0, "Statistics");
-        pl__show_statistics(&ptInfo->bShowStats);
+        pl__show_statistics(&gptDebugCtx->bShowStats);
         pl_end_cpu_sample(gptProfile, 0);
     }
 
-    if(ptInfo->bShowDeviceMemoryAnalyzer)
+    if(gptDebugCtx->bShowDeviceMemoryAnalyzer)
     {
         pl_begin_cpu_sample(gptProfile, 0, "Device Memory Analyzer");
-        pl__show_device_memory(&ptInfo->bShowDeviceMemoryAnalyzer);
+        pl__show_device_memory(&gptDebugCtx->bShowDeviceMemoryAnalyzer);
         pl_end_cpu_sample(gptProfile, 0);
     }
 
-    if(ptInfo->bShowLogging)
+    if(gptDebugCtx->bShowLogging)
     {
         pl_begin_cpu_sample(gptProfile, 0, "Logging");
-        pl__show_logging(&ptInfo->bShowLogging);
+        pl__show_logging(&gptDebugCtx->bShowLogging);
         pl_end_cpu_sample(gptProfile, 0);
     }
 
@@ -1217,11 +1234,12 @@ pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
     const plDebugApiI tApi = {
-        .show_debug_windows = pl_show_debug_windows
+        .initialize = pl_debug_initialize,
+        .update     = pl_debug_update
     };
     pl_set_api(ptApiRegistry, plDebugApiI, &tApi);
 
-    // #ifndef PL_UNITY_BUILD
+    #ifndef PL_UNITY_BUILD
         gptDataRegistry  = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
         gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
         gptIOI           = pl_get_api_latest(ptApiRegistry, plIOI);
@@ -1232,8 +1250,9 @@ pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
         gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
         gptLog           = pl_get_api_latest(ptApiRegistry, plLogI);
+        gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
         gptIO = gptIOI->get_io();
-    // #endif
+    #endif
 
     if(bReload)
     {
