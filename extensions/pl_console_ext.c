@@ -342,7 +342,8 @@ pl_console_initialize(plConsoleSettings tSettings)
         gptConsoleCtx->bResizable = true;
 
     // pilot light
-    static plVersion tVersion = PILOT_LIGHT_VERSION;
+    static plVersion tVersion = {0};
+    tVersion = PILOT_LIGHT_VERSION;
     pl_console_add_uint_variable("VersionMajor", &tVersion.uMajor, "Pilot Light Major Version", PL_CONSOLE_VARIABLE_FLAGS_READ_ONLY);
     pl_console_add_uint_variable("VersionMinor", &tVersion.uMinor, "Pilot Light Minor Version", PL_CONSOLE_VARIABLE_FLAGS_READ_ONLY);
     pl_console_add_uint_variable("VersionPatch", &tVersion.uPatch, "Pilot Light Patch Version", PL_CONSOLE_VARIABLE_FLAGS_READ_ONLY);

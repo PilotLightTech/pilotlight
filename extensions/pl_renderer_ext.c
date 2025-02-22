@@ -98,7 +98,7 @@ pl_refr_initialize(plWindow* ptWindow)
     gptConsole->add_toggle_variable("r.DrawVisibleBoundBoxes", &gptData->bDrawVisibleBoundingBoxes, "draw visible bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
     gptConsole->add_toggle_variable("r.DrawSelectedBoundBoxes", &gptData->bShowSelectedBoundingBox, "draw selected bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
     gptConsole->add_toggle_variable("r.ShowProbes", &gptData->bShowProbes, "show environment probes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
-    gptConsole->add_toggle_variable("r.ShowOrigin", &gptData->bShowProbes, "show world origin", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.ShowOrigin", &gptData->bShowOrigin, "show world origin", PL_CONSOLE_VARIABLE_FLAGS_NONE);
     gptConsole->add_float_variable("r.ShadowConstantDepthBias", &gptData->fShadowConstantDepthBias, "shadow constant depth bias", PL_CONSOLE_VARIABLE_FLAGS_NONE);
     gptConsole->add_float_variable("r.ShadowSlopeDepthBias", &gptData->fShadowSlopeDepthBias, "shadow slope depth bias", PL_CONSOLE_VARIABLE_FLAGS_NONE | PL_CONSOLE_VARIABLE_FLAGS_READ_ONLY);
     gptConsole->add_uint_variable("r.OutlineWidth", &gptData->uOutlineWidth, "selection outline width", PL_CONSOLE_VARIABLE_FLAGS_NONE);
