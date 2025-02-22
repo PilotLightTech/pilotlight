@@ -1755,7 +1755,7 @@ pl_input_float(const char* pcLabel, float* pfValue, const char* pcFormat, plUiIn
     const plVec2 tWidgetSize = pl__calculate_item_size(pl__get_frame_height());
     const plVec2 tStartPos   = pl__get_cursor_pos();
 
-    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tWidgetSize, &tStartPos);
+    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tWidgetSize, &tStartPos);
 
     if(bChanged)
         *pfValue = (float)atof(acBuffer);
@@ -1787,7 +1787,7 @@ pl_input_float2(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
-        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
         if(bSubChanged)
         {
             afValue[i] = (float)atof(acBuffer);
@@ -1834,7 +1834,7 @@ pl_input_float3(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
-        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
         if(bSubChanged)
         {
             afValue[i] = (float)atof(acBuffer);
@@ -1881,7 +1881,7 @@ pl_input_float4(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
-        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_SCIENTIFIC, &tSubWidgetSize, &tSubStartPos);
         if(bSubChanged)
         {
             afValue[i] = (float)atof(acBuffer);
@@ -1915,7 +1915,7 @@ pl_input_int(const char* pcLabel, int* piValue, plUiInputTextFlags tFlags)
 
     char acBuffer[64] = {0};
     pl_sprintf(acBuffer, "%d", *piValue);
-    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tWidgetSize, &tStartPos);
+    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tWidgetSize, &tStartPos);
 
     if(bChanged)
         *piValue = atoi(acBuffer);
@@ -1946,7 +1946,7 @@ pl_input_int2(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
-        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
         if(bSubChanged)
         {
             aiValue[i] = atoi(acBuffer);
@@ -1991,7 +1991,7 @@ pl_input_int3(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
-        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
         if(bSubChanged)
         {
             aiValue[i] = atoi(acBuffer);
@@ -2036,7 +2036,7 @@ pl_input_int4(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
-        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
         if(bSubChanged)
         {
             aiValue[i] = atoi(acBuffer);
@@ -2070,7 +2070,7 @@ pl_input_uint(const char* pcLabel, uint32_t* puValue, plUiInputTextFlags tFlags)
 
     char acBuffer[64] = {0};
     pl_sprintf(acBuffer, "%u", *puValue);
-    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tWidgetSize, &tStartPos);
+    const bool bChanged = pl__input_text_ex(pcLabel, NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tWidgetSize, &tStartPos);
 
     if(bChanged)
         *puValue = (uint32_t)atoi(acBuffer);
@@ -2102,7 +2102,7 @@ pl_input_uint2(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFlags
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
-        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
         if(bSubChanged)
         {
             auValue[i] = (uint32_t)atoi(acBuffer);
@@ -2147,7 +2147,7 @@ pl_input_uint3(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFlags
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
-        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
         if(bSubChanged)
         {
             auValue[i] = (uint32_t)atoi(acBuffer);
@@ -2192,7 +2192,7 @@ pl_input_uint4(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFlags
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
-        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
+        const bool bSubChanged = bChanged || pl__input_text_ex("", NULL, acBuffer, 64, tFlags | PL_UI_INPUT_TEXT_FLAGS_CHARS_DECIMAL, &tSubWidgetSize, &tSubStartPos);
         if(bSubChanged)
         {
             auValue[i] = (uint32_t)atoi(acBuffer);
