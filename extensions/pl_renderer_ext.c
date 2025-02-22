@@ -69,6 +69,19 @@ static plCommandPool*      pl__refr_get_command_pool(void);
 //-----------------------------------------------------------------------------
 
 static void
+pl__refr_console_shader_reload(const char* pcName, void* pData)
+{
+    for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
+        pl_refr_reload_scene_shaders(i);
+}
+
+static void
+pl__refr_console_swapchain_reload(const char* pcName, void* pData)
+{
+    gptData->bReloadSwapchain = true;
+}
+
+static void
 pl_refr_initialize(plWindow* ptWindow)
 {
 
@@ -78,6 +91,23 @@ pl_refr_initialize(plWindow* ptWindow)
 
     // register data with registry (for reloads)
     gptDataRegistry->set_data("ref renderer data", gptData);
+
+    // register console variables
+    gptConsole->add_toggle_variable("r.FrustumCulling", &gptData->bFrustumCulling, "frustum culling", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.DrawAllBoundBoxes", &gptData->bDrawAllBoundingBoxes, "draw all bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.DrawVisibleBoundBoxes", &gptData->bDrawVisibleBoundingBoxes, "draw visible bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.DrawSelectedBoundBoxes", &gptData->bShowSelectedBoundingBox, "draw selected bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.ShowProbes", &gptData->bShowProbes, "show environment probes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.ShowOrigin", &gptData->bShowProbes, "show world origin", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_float_variable("r.ShadowConstantDepthBias", &gptData->fShadowConstantDepthBias, "shadow constant depth bias", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_float_variable("r.ShadowSlopeDepthBias", &gptData->fShadowSlopeDepthBias, "shadow slope depth bias", PL_CONSOLE_VARIABLE_FLAGS_NONE | PL_CONSOLE_VARIABLE_FLAGS_READ_ONLY);
+    gptConsole->add_uint_variable("r.OutlineWidth", &gptData->uOutlineWidth, "selection outline width", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable_ex("r.Wireframe", &gptData->bWireframe, "wireframe rendering", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
+    gptConsole->add_toggle_variable_ex("r.IBL", &gptData->bImageBasedLighting, "image based lighting", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
+    gptConsole->add_toggle_variable_ex("r.PunctualLighting", &gptData->bPunctualLighting, "punctual lighting", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
+    gptConsole->add_toggle_variable_ex("r.MultiViewportShadows", &gptData->bMultiViewportShadows, "utilize multiviewport features", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
+    gptConsole->add_toggle_variable_ex("r.VSync", &gptData->bVSync, "monitor vsync", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_swapchain_reload, NULL);
+    gptConsole->add_toggle_variable_ex("r.UIMSAA", &gptData->bMSAA, "UI MSAA", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_swapchain_reload, NULL);
 
     // add specific log channel for renderer
     plLogExtChannelInit tLogInit = {
@@ -4505,6 +4535,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptUI          = pl_get_api_latest(ptApiRegistry, plUiI);
     gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
     gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
 
     if(bReload)
     {

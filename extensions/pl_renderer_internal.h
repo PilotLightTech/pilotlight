@@ -49,6 +49,7 @@ Index of this file:
 #include "pl_shader_ext.h"
 #include "pl_file_ext.h"
 #include "pl_rect_pack_ext.h"
+#include "pl_console_ext.h"
 
 // stb
 #include "stb_image_resize2.h"
@@ -93,6 +94,7 @@ Index of this file:
     static const plRectPackI*      gptRect          = NULL;
     
     // experimental
+    static const plConsoleI*  gptConsole  = NULL;
     static const plCameraI*   gptCamera   = NULL;
     static const plResourceI* gptResource = NULL;
     static const plEcsI*      gptECS      = NULL;
