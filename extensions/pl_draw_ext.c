@@ -1777,6 +1777,20 @@ pl_get_font_atlas(void)
     return gptDrawCtx->ptAtlas;
 }
 
+static plFont*
+pl_get_first_font(plFontAtlas* ptAtlas)
+{
+    plFont* ptFont = ptAtlas->_ptFontListHead;
+    while(ptFont)
+    {
+        if(ptFont->_ptNextFont)
+            ptFont = ptFont->_ptNextFont;
+        else
+            break;
+    }
+    return ptFont;
+}
+
 static bool
 pl_prepare_font_atlas(plFontAtlas* ptAtlas)
 {
@@ -3586,6 +3600,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_font_atlas          = pl_create_font_atlas,
         .set_font_atlas             = pl_set_font_atlas,
         .get_current_font_atlas     = pl_get_font_atlas,
+        .get_first_font             = pl_get_first_font,
         .cleanup_font_atlas         = pl_cleanup_font_atlas,
         .add_default_font           = pl_add_default_font,
         .add_font_from_file_ttf     = pl_add_font_from_file_ttf,

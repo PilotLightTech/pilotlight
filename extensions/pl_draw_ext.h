@@ -33,7 +33,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawI_version (plVersion){1, 0, 0}
+#define plDrawI_version (plVersion){1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -111,6 +111,7 @@ typedef struct _plDrawI
     void         (*set_font_atlas)        (plFontAtlas*);
     plFontAtlas* (*get_current_font_atlas)(void);
 
+    plFont* (*get_first_font)          (plFontAtlas*);
     plFont* (*add_default_font)        (plFontAtlas*);
     plFont* (*add_font_from_file_ttf)  (plFontAtlas*, plFontConfig, const char* file);
     plFont* (*add_font_from_memory_ttf)(plFontAtlas*, plFontConfig, void* data);
