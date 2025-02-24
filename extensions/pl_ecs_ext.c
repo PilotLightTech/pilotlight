@@ -207,6 +207,9 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->tLayerComponentManager.tComponentType = PL_COMPONENT_TYPE_LAYER;
     ptLibrary->tLayerComponentManager.szStride = sizeof(plLayerComponent);
 
+    ptLibrary->tRigidBodyPhysicsComponentManager.tComponentType = PL_COMPONENT_TYPE_RIGIG_BODY_PHYSICS;
+    ptLibrary->tRigidBodyPhysicsComponentManager.szStride = sizeof(plRigidBodyPhysicsComponent);
+
     ptLibrary->_ptManagers[0]  = &ptLibrary->tTagComponentManager;
     ptLibrary->_ptManagers[1]  = &ptLibrary->tTransformComponentManager;
     ptLibrary->_ptManagers[2]  = &ptLibrary->tMeshComponentManager;
@@ -223,6 +226,7 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->_ptManagers[13] = &ptLibrary->tHumanoidComponentManager;
     ptLibrary->_ptManagers[14] = &ptLibrary->tEnvironmentProbeCompManager;
     ptLibrary->_ptManagers[15] = &ptLibrary->tLayerComponentManager;
+    ptLibrary->_ptManagers[16] = &ptLibrary->tRigidBodyPhysicsComponentManager;
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
         ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
@@ -456,6 +460,20 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                 case PL_COMPONENT_TYPE_ENVIRONMENT_PROBE:
                 {
                     plEnvironmentProbeComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_LAYER:
+                {
+                    plLayerComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_RIGIG_BODY_PHYSICS:
+                {
+                    plRigidBodyPhysicsComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
@@ -754,6 +772,21 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         sbComponents[uComponentIndex] = (plLayerComponent){
             .uLayerMask = ~0u,
             ._uPropagationMask = ~0u
+        };
+        return &sbComponents[uComponentIndex];
+    }
+
+    case PL_COMPONENT_TYPE_RIGIG_BODY_PHYSICS:
+    {
+        plRigidBodyPhysicsComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plRigidBodyPhysicsComponent){
+            .fMass = 1.0f,
+            .tFlags = PL_RIGID_BODY_PHYSICS_FLAG_NONE,
+            .fRadius = 1.0f,
+            .tShape = PL_COLLISION_SHAPE_SPHERE
         };
         return &sbComponents[uComponentIndex];
     }

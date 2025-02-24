@@ -70,8 +70,9 @@ typedef struct _plLightComponent             plLightComponent;
 typedef struct _plScriptComponent            plScriptComponent;
 typedef struct _plHumanoidComponent          plHumanoidComponent;
 typedef struct _plEnvironmentProbeComponent  plEnvironmentProbeComponent;
+typedef struct _plRigidBodyPhysicsComponent  plRigidBodyPhysicsComponent;
 
-// enums
+// enums & flags
 typedef int plShaderType;
 typedef int plComponentType;
 typedef int plTextureSlot;
@@ -89,6 +90,8 @@ typedef int plHumanoidBone;
 typedef int plEnvironmentProbeFlags;
 typedef int plTransformFlags;
 typedef int plObjectFlags;
+typedef int plCollisionShape;
+typedef int plRigidBodyPhysicsFlags;
 
 typedef union _plEntity
 {
@@ -200,8 +203,24 @@ enum _plComponentType
     PL_COMPONENT_TYPE_HUMANOID,
     PL_COMPONENT_TYPE_ENVIRONMENT_PROBE,
     PL_COMPONENT_TYPE_LAYER,
+    PL_COMPONENT_TYPE_RIGIG_BODY_PHYSICS,
     
     PL_COMPONENT_TYPE_COUNT
+};
+
+enum _plCollisionShape
+{
+    PL_COLLISION_SHAPE_NONE = 0,
+    PL_COLLISION_SHAPE_SPHERE,
+    // PL_COLLISION_SHAPE_CAPSULE,
+    // PL_COLLISION_SHAPE_CONVEX_HULL,
+    // PL_COLLISION_SHAPE_TRIANGULAR_MESH,
+    // PL_COLLISION_SHAPE_CYLINDER
+};
+
+enum _plRigidBodyPhysicsFlags
+{
+    PL_RIGID_BODY_PHYSICS_FLAG_NONE = 0
 };
 
 enum _plTextureSlot
@@ -482,6 +501,7 @@ typedef struct _plComponentLibrary
     plComponentManager tHumanoidComponentManager;
     plComponentManager tEnvironmentProbeCompManager;
     plComponentManager tLayerComponentManager;
+    plComponentManager tRigidBodyPhysicsComponentManager;
 
     plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
     void*               pInternal;
@@ -500,6 +520,18 @@ typedef struct _plEnvironmentProbeComponent
     plVec3                  tPosition;
     float                   fRange;
 } plEnvironmentProbeComponent;
+
+typedef struct _plRigidBodyPhysicsComponent
+{
+    plRigidBodyPhysicsFlags tFlags;
+    plCollisionShape        tShape;
+    float                   fMass;
+
+    // sphere
+    float fRadius;
+
+    void*                   pPhysicsObject;
+} plRigidBodyPhysicsComponent;
 
 typedef struct _plHumanoidComponent
 {
