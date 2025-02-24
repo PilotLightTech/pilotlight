@@ -37,6 +37,19 @@ Information for developers can be found in the [wiki](https://github.com/PilotLi
 
 A template application can be found [here](https://git.pilotlight.tech/pilotlight/pl-template).
 
+## Folder Structure
+* <ins>dependencies</ins> - Contains any third party libraries.
+* <ins>docs</ins> - Contains documentation for the project.
+* <ins>examples</ins> - Contains small complete examples that utilize stable APIs & extensions
+* <ins>extensions</ins> - Contains extensions (most functionality is provided through these extensions).
+* <ins>libs</ins> - Contains standalone "stb-style" libraries that can be used in other projects.
+* <ins>pl_build</ins> - Contains a lightweight python-based build system used for this project.
+* <ins>sandbox</ins> - Contains janky code used for development.
+* <ins>scripts</ins> - Contains helper scripts for various things.
+* <ins>shaders</ins> - Contains shader code.
+* <ins>src</ins> - Contains the small core of Pilot Light.
+* <ins>tests</ins> - Contains all unit & system tests.
+
 ## License
 Pilot Light is licensed under the [MIT License](https://github.com/PilotLightTech/pilotlight/blob/master/LICENSE).
 
