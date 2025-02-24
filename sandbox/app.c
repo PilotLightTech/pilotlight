@@ -20,10 +20,12 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] global apis
 // [SECTION] structs
+// [SECTION] helper forward declarations
 // [SECTION] pl_app_load
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
+// [SECTION] helper implementations
 // [SECTION] unity build
 */
 
@@ -63,9 +65,10 @@ Index of this file:
 #include "pl_window_ext.h"
 #include "pl_library_ext.h"
 #include "pl_file_ext.h"
+#include "pl_console_ext.h"
 
 // unstable extensions
-#include "pl_console_ext.h"
+#include "pl_screen_log_ext.h"
 #include "pl_ecs_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_model_loader_ext.h"
@@ -99,6 +102,7 @@ const plFileI*         gptFile        = NULL;
 const plEcsToolsI*     gptEcsTools    = NULL;
 const plGizmoI*        gptGizmo       = NULL;
 const plConsoleI*      gptConsole     = NULL;
+const plScreenLogI*    gptScreenLog   = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -153,63 +157,14 @@ typedef struct _plAppData
 } plAppData;
 
 //-----------------------------------------------------------------------------
-// [SECTION] pl_app_load
+// [SECTION] helper forward declarations
 //-----------------------------------------------------------------------------
 
-void
-pl__create_scene(plAppData* ptAppData)
-{
-    plIO* ptIO = gptIO->get_io();
-    ptAppData->uSceneHandle0 = gptRenderer->create_scene();
+void pl__create_scene(plAppData* ptAppData);
 
-    plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
-
-    // create main camera
-    plCameraComponent* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-4.7f, 4.2f, -3.256f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
-    gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
-    gptCamera->update(ptMainCamera);
-    gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING, ptAppData->tMainCamera, NULL);
-
-    // create cull camera
-    plCameraComponent* ptCullCamera = NULL;
-    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
-    gptCamera->set_pitch_yaw(ptCullCamera, 0.0f, PL_PI);
-    gptCamera->update(ptCullCamera);
-
-    // create lights
-    plLightComponent* ptLight = NULL;
-    gptEcs->create_directional_light(ptMainComponentLibrary, "direction light", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
-    ptLight->uCascadeCount = 4;
-    ptLight->fIntensity = 1.0f;
-    ptLight->uShadowResolution = 1024;
-    ptLight->afCascadeSplits[0] = 0.10f;
-    ptLight->afCascadeSplits[1] = 0.25f;
-    ptLight->afCascadeSplits[2] = 0.50f;
-    ptLight->afCascadeSplits[3] = 1.00f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-
-    plEntity tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
-    ptLight->uShadowResolution = 1024;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tPointLight);
-    ptPLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 2.0f};
-
-    plEntity tSpotLight = gptEcs->create_spot_light(ptMainComponentLibrary, "spot light", (plVec3){0.0f, 4.0f, -1.18f}, (plVec3){0.0, -1.0f, 0.376f}, &ptLight);
-    ptLight->uShadowResolution = 1024;
-    ptLight->fRange = 5.0f;
-    ptLight->fRadius = 0.025f;
-    ptLight->fIntensity = 20.0f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSpotLight);
-    ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, -1.18f};
-
-    plEnvironmentProbeComponent* ptProbe = NULL;
-    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 3.0f, 0.0f}, &ptProbe);
-    ptProbe->fRange = 30.0f;
-    ptProbe->uResolution = 128;
-    ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
-}
+//-----------------------------------------------------------------------------
+// [SECTION] pl_app_load
+//-----------------------------------------------------------------------------
 
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
@@ -250,6 +205,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptEcsTools    = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
         gptGizmo       = pl_get_api_latest(ptApiRegistry, plGizmoI);
         gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
+        gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
 
         return ptAppData;
     }
@@ -285,6 +241,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptEcsTools    = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
     gptGizmo       = pl_get_api_latest(ptApiRegistry, plGizmoI);
     gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
+    gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -389,6 +346,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptDrawBackend->build_font_atlas(ptCmdBuffer, ptAtlas);
     gptGfx->return_command_buffer(ptCmdBuffer);
     
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~message extension~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    gptScreenLog->initialize((plScreenLogSettings){.ptFont = ptAppData->tDefaultFont});
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ui extension~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     gptUI->initialize();
@@ -417,6 +378,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptUI->cleanup();
     gptEcsTools->cleanup();
     gptConsole->cleanup();
+    gptScreenLog->cleanup();
     gptDrawBackend->cleanup();
     gptRenderer->cleanup();
     gptWindows->destroy_window(ptAppData->ptWindow);
@@ -775,6 +737,65 @@ pl_app_update(plAppData* ptAppData)
 
     pl_end_cpu_sample(gptProfile, 0);
     gptProfile->end_frame();
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] helper implementations
+//-----------------------------------------------------------------------------
+
+void
+pl__create_scene(plAppData* ptAppData)
+{
+    plIO* ptIO = gptIO->get_io();
+    ptAppData->uSceneHandle0 = gptRenderer->create_scene();
+
+    plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
+
+    // create main camera
+    plCameraComponent* ptMainCamera = NULL;
+    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-4.7f, 4.2f, -3.256f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
+    gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
+    gptCamera->update(ptMainCamera);
+    gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING, ptAppData->tMainCamera, NULL);
+
+    // create cull camera
+    plCameraComponent* ptCullCamera = NULL;
+    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
+    gptCamera->set_pitch_yaw(ptCullCamera, 0.0f, PL_PI);
+    gptCamera->update(ptCullCamera);
+
+    // create lights
+    plLightComponent* ptLight = NULL;
+    gptEcs->create_directional_light(ptMainComponentLibrary, "direction light", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
+    ptLight->uCascadeCount = 4;
+    ptLight->fIntensity = 1.0f;
+    ptLight->uShadowResolution = 1024;
+    ptLight->afCascadeSplits[0] = 0.10f;
+    ptLight->afCascadeSplits[1] = 0.25f;
+    ptLight->afCascadeSplits[2] = 0.50f;
+    ptLight->afCascadeSplits[3] = 1.00f;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+
+    plEntity tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
+    ptLight->uShadowResolution = 1024;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tPointLight);
+    ptPLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 2.0f};
+
+    plEntity tSpotLight = gptEcs->create_spot_light(ptMainComponentLibrary, "spot light", (plVec3){0.0f, 4.0f, -1.18f}, (plVec3){0.0, -1.0f, 0.376f}, &ptLight);
+    ptLight->uShadowResolution = 1024;
+    ptLight->fRange = 5.0f;
+    ptLight->fRadius = 0.025f;
+    ptLight->fIntensity = 20.0f;
+    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+    plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSpotLight);
+    ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, -1.18f};
+
+    plEnvironmentProbeComponent* ptProbe = NULL;
+    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 3.0f, 0.0f}, &ptProbe);
+    ptProbe->fRange = 30.0f;
+    ptProbe->uResolution = 128;
+    ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
 }
 
 //-----------------------------------------------------------------------------

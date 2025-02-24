@@ -4035,6 +4035,9 @@ pl_refr_end_frame(void)
     gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
     pl_end_cpu_sample(gptProfile, 0);
 
+    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y);
+    gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
+
     gptGfx->end_render_pass(ptEncoder);
 
     gptGfx->end_command_recording(ptCommandBuffer);
@@ -4471,17 +4474,17 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptJob           = pl_get_api_latest(ptApiRegistry, plJobI);
     gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog           = pl_get_api_latest(ptApiRegistry, plLogI);
-
-    gptRect        = pl_get_api_latest(ptApiRegistry, plRectPackI);
-    gptECS         = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
-    gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
-    gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-    gptUI          = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
-    gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
-    gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
+    gptRect          = pl_get_api_latest(ptApiRegistry, plRectPackI);
+    gptECS           = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptDrawBackend   = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
+    gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
+    gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
+    gptScreenLog       = pl_get_api_latest(ptApiRegistry, plScreenLogI);
 
     if(bReload)
     {

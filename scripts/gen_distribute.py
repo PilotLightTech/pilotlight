@@ -118,6 +118,7 @@ with pl.project("pilotlight deploy"):
         "pl_ecs_tools_ext",
         "pl_gizmo_ext",
         "pl_console_ext",
+        "pl_screen_log_ext",
     ]
 
     for extension in extensions:

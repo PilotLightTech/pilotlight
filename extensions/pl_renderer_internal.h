@@ -50,6 +50,7 @@ Index of this file:
 #include "pl_file_ext.h"
 #include "pl_rect_pack_ext.h"
 #include "pl_console_ext.h"
+#include "pl_screen_log_ext.h"
 
 // stb
 #include "stb_image_resize2.h"
@@ -92,12 +93,13 @@ Index of this file:
     static const plProfileI*       gptProfile       = NULL;
     static const plLogI*           gptLog           = NULL;
     static const plRectPackI*      gptRect          = NULL;
+    static const plConsoleI*       gptConsole  = NULL;
     
     // experimental
-    static const plConsoleI*  gptConsole  = NULL;
-    static const plCameraI*   gptCamera   = NULL;
-    static const plResourceI* gptResource = NULL;
-    static const plEcsI*      gptECS      = NULL;
+    static const plScreenLogI*  gptScreenLog  = NULL;
+    static const plCameraI*     gptCamera   = NULL;
+    static const plResourceI*   gptResource = NULL;
+    static const plEcsI*        gptECS      = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
