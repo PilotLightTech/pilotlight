@@ -795,6 +795,76 @@ pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComp
 }
 
 static plEntity
+pl_ecs_create_sphere_mesh(plComponentLibrary* ptLibrary, const char* pcName, float fRadius, uint32_t uLatitudeBands, uint32_t uLongitudeBands, plMeshComponent** pptCompOut)
+{
+    pcName = pcName ? pcName : "unnamed sphere mesh";
+    pl_log_debug_f(gptLog, uLogChannelEcs, "created sphere mesh: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+    plMeshComponent* ptMesh = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
+
+    if(pptCompOut)
+        *pptCompOut = ptMesh;
+
+
+    if(uLatitudeBands == 0)
+        uLatitudeBands = 64;
+
+    if(uLongitudeBands == 0)
+    uLongitudeBands = 64;
+
+    pl_sb_resize(ptMesh->sbtVertexPositions, (uLatitudeBands + 1) * (uLongitudeBands + 1));
+    pl_sb_resize(ptMesh->sbtVertexNormals, (uLatitudeBands + 1) * (uLongitudeBands + 1));
+    pl_sb_resize(ptMesh->sbuIndices, uLatitudeBands * uLongitudeBands * 6);
+
+    uint32_t uCurrentPoint = 0;
+
+    for(uint32_t uLatNumber = 0; uLatNumber <= uLatitudeBands; uLatNumber++)
+    {
+        const float fTheta = (float)uLatNumber * PL_PI / (float)uLatitudeBands;
+        const float fSinTheta = sinf(fTheta);
+        const float fCosTheta = cosf(fTheta);
+        for(uint32_t uLongNumber = 0; uLongNumber <= uLongitudeBands; uLongNumber++)
+        {
+            const float fPhi = (float)uLongNumber * 2 * PL_PI / (float)uLongitudeBands;
+            const float fSinPhi = sinf(fPhi);
+            const float fCosPhi = cosf(fPhi);
+            ptMesh->sbtVertexPositions[uCurrentPoint] = (plVec3){
+                fCosPhi * fSinTheta * fRadius,
+                fCosTheta * fRadius,
+                fSinPhi * fSinTheta * fRadius
+            };
+            ptMesh->sbtVertexNormals[uCurrentPoint] = pl_norm_vec3(ptMesh->sbtVertexPositions[uCurrentPoint]);
+            uCurrentPoint++;
+        }
+    }
+
+    uCurrentPoint = 0;
+    for(uint32_t uLatNumber = 0; uLatNumber < uLatitudeBands; uLatNumber++)
+    {
+
+        for(uint32_t uLongNumber = 0; uLongNumber < uLongitudeBands; uLongNumber++)
+        {
+            const uint32_t uFirst = (uLatNumber * (uLongitudeBands + 1)) + uLongNumber;
+            const uint32_t uSecond = uFirst + uLongitudeBands + 1;
+
+            ptMesh->sbuIndices[uCurrentPoint + 0] = uFirst + 1;
+            ptMesh->sbuIndices[uCurrentPoint + 1] = uSecond;
+            ptMesh->sbuIndices[uCurrentPoint + 2] = uFirst;
+
+            ptMesh->sbuIndices[uCurrentPoint + 3] = uFirst + 1;
+            ptMesh->sbuIndices[uCurrentPoint + 4] = uSecond + 1;
+            ptMesh->sbuIndices[uCurrentPoint + 5] = uSecond;
+
+            uCurrentPoint += 6;
+        }
+    }
+    ptMesh->ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
+    ptMesh->tAABB.tMin = (plVec3){-fRadius, -fRadius, -fRadius};
+    ptMesh->tAABB.tMax = (plVec3){fRadius, fRadius, fRadius};
+    return tNewEntity;
+}
+
+static plEntity
 pl_ecs_create_directional_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tDirection, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed directional light";
@@ -1921,6 +1991,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_component                        = pl_ecs_add_component,
         .create_tag                           = pl_ecs_create_tag,
         .create_mesh                          = pl_ecs_create_mesh,
+        .create_sphere_mesh                   = pl_ecs_create_sphere_mesh,
         .create_perspective_camera            = pl_ecs_create_perspective_camera,
         .create_orthographic_camera           = pl_ecs_create_orthographic_camera,
         .create_object                        = pl_ecs_create_object,

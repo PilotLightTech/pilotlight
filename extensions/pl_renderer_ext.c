@@ -858,62 +858,8 @@ pl_refr_create_scene(void)
     ptMaterial->fMetalness = 1.0f;
 
     plMeshComponent* ptMesh = NULL;
-    ptScene->tProbeMesh = gptECS->create_mesh(&ptScene->tComponentLibrary, "environment probe mesh", &ptMesh);
+    ptScene->tProbeMesh = gptECS->create_sphere_mesh(&ptScene->tComponentLibrary, "environment probe mesh", 0.25f, 32, 32, &ptMesh);
     ptMesh->tMaterial = tMaterial;
-    ptMesh->ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
-    ptMesh->tAABB.tMin = (plVec3){-0.5f, -0.5f, -0.5f};
-    ptMesh->tAABB.tMax = (plVec3){0.5f, 0.5f, 0.5f};
-
-    uint32_t uLatBands = 32;
-    uint32_t uLongBands = 32;
-
-    pl_sb_resize(ptMesh->sbtVertexPositions, (uLatBands + 1) * (uLongBands + 1));
-    pl_sb_resize(ptMesh->sbtVertexNormals, (uLatBands + 1) * (uLongBands + 1));
-    pl_sb_resize(ptMesh->sbuIndices, uLatBands * uLongBands * 6);
-
-    uint32_t uCurrentPoint = 0;
-    float fRadius = 0.25f;
-
-    for(uint32_t uLatNumber = 0; uLatNumber <= uLatBands; uLatNumber++)
-    {
-        const float fTheta = (float)uLatNumber * PL_PI / (float)uLatBands;
-        const float fSinTheta = sinf(fTheta);
-        const float fCosTheta = cosf(fTheta);
-        for(uint32_t uLongNumber = 0; uLongNumber <= uLongBands; uLongNumber++)
-        {
-            const float fPhi = (float)uLongNumber * 2 * PL_PI / (float)uLongBands;
-            const float fSinPhi = sinf(fPhi);
-            const float fCosPhi = cosf(fPhi);
-            ptMesh->sbtVertexPositions[uCurrentPoint] = (plVec3){
-                fCosPhi * fSinTheta * fRadius,
-                fCosTheta * fRadius,
-                fSinPhi * fSinTheta * fRadius
-            };
-            ptMesh->sbtVertexNormals[uCurrentPoint] = pl_norm_vec3(ptMesh->sbtVertexPositions[uCurrentPoint]);
-            uCurrentPoint++;
-        }
-    }
-
-    uCurrentPoint = 0;
-    for(uint32_t uLatNumber = 0; uLatNumber < uLatBands; uLatNumber++)
-    {
-
-        for(uint32_t uLongNumber = 0; uLongNumber < uLongBands; uLongNumber++)
-        {
-			const uint32_t uFirst = (uLatNumber * (uLongBands + 1)) + uLongNumber;
-			const uint32_t uSecond = uFirst + uLongBands + 1;
-
-            ptMesh->sbuIndices[uCurrentPoint + 0] = uFirst + 1;
-            ptMesh->sbuIndices[uCurrentPoint + 1] = uSecond;
-            ptMesh->sbuIndices[uCurrentPoint + 2] = uFirst;
-
-            ptMesh->sbuIndices[uCurrentPoint + 3] = uFirst + 1;
-            ptMesh->sbuIndices[uCurrentPoint + 4] = uSecond + 1;
-            ptMesh->sbuIndices[uCurrentPoint + 5] = uSecond;
-
-            uCurrentPoint += 6;
-        }
-    }
 
     ptScene->uShadowAtlasResolution = 1024 * 8;
 

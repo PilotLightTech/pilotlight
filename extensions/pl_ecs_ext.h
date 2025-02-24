@@ -125,7 +125,6 @@ typedef struct _plEcsI
     // entity helpers (creates entity and necessary components)
     //   - do NOT store out parameter; use it immediately
     plEntity (*create_tag)                (plComponentLibrary*, const char* pcName);
-    plEntity (*create_mesh)               (plComponentLibrary*, const char* pcName, plMeshComponent**);
     plEntity (*create_object)             (plComponentLibrary*, const char* pcName, plObjectComponent**);
     plEntity (*create_transform)          (plComponentLibrary*, const char* pcName, plTransformComponent**);
     plEntity (*create_material)           (plComponentLibrary*, const char* pcName, plMaterialComponent**);
@@ -139,6 +138,12 @@ typedef struct _plEcsI
     plEntity (*create_spot_light)         (plComponentLibrary*, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent**);
     plEntity (*create_environment_probe)  (plComponentLibrary*, const char* pcName, plVec3 tPosition, plEnvironmentProbeComponent**);
 
+    // mesh entity helpers
+    plEntity (*create_mesh)       (plComponentLibrary*, const char* pcName, plMeshComponent**);
+    plEntity (*create_sphere_mesh)(plComponentLibrary*, const char* pcName, float fRadius, uint32_t uLatitudeBands, uint32_t uLongitudeBands, plMeshComponent**);
+    void     (*calculate_normals) (plMeshComponent*, uint32_t uMeshCount);
+    void     (*calculate_tangents)(plMeshComponent*, uint32_t uMeshCount);
+
     // scripts
     plEntity (*create_script)(plComponentLibrary*, const char* pcFile, plScriptFlags, plScriptComponent**);
     void     (*attach_script)(plComponentLibrary*, const char* pcFile, plScriptFlags, plEntity tEntity, plScriptComponent**);
@@ -146,10 +151,6 @@ typedef struct _plEcsI
     // hierarchy
     void (*attach_component)   (plComponentLibrary*, plEntity tEntity, plEntity tParent);
     void (*deattach_component) (plComponentLibrary*, plEntity);
-
-    // meshes
-    void (*calculate_normals) (plMeshComponent*, uint32_t uMeshCount);
-    void (*calculate_tangents)(plMeshComponent*, uint32_t uMeshCount);
 
     // systems
     void (*run_object_update_system)            (plComponentLibrary*);
