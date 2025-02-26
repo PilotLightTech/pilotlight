@@ -897,8 +897,6 @@ pl__add_osx_tracking_area(NSView* _Nonnull view)
 plFileResult
 pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
-    PL_ASSERT(pszSizeIn);
-
     if(pszSizeIn == NULL)
         return PL_FILE_RESULT_FAIL;
 
@@ -929,10 +927,8 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
     {
         if (feof(ptDataFile))
             printf("Error reading test.bin: unexpected end of file\n");
-        else if (ferror(ptDataFile)) {
+        else if (ferror(ptDataFile))
             perror("Error reading test.bin");
-        }
-        PL_ASSERT(false && "File not read.");
         return PL_FILE_RESULT_FAIL;
     }
 

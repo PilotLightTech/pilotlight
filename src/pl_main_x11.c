@@ -698,8 +698,6 @@ pl_file_delete(const char* pcFile)
 plFileResult
 pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
-    PL_ASSERT(pszSizeIn);
-
     if(pszSizeIn == NULL)
         return PL_FILE_RESULT_FAIL;
 
@@ -733,7 +731,6 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
         else if (ferror(ptDataFile)) {
             perror("Error reading test.bin");
         }
-        PL_ASSERT(false && "File not read.");
         return PL_FILE_RESULT_FAIL;
     }
 
