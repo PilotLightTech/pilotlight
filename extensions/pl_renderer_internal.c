@@ -141,6 +141,9 @@ pl__refr_create_local_texture(const plTextureDesc* ptDesc, const char* pcName, u
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
     gptGfx->return_command_buffer(ptCommandBuffer);
+
+    gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created local texture %s %u", pcName, uIdentifier);
+    pl_log_info_f(gptLog, gptData->uLogChannel, "created local texture %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -184,6 +187,9 @@ pl__refr_create_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
     gptGfx->return_command_buffer(ptCommandBuffer);
+
+    gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created texture %s %u", pcName, uIdentifier);
+    pl_log_info_f(gptLog, gptData->uLogChannel, "created texture %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -252,6 +258,8 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
     gptGfx->return_command_buffer(ptCommandBuffer);
 
+    gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created texture %s %u", pcName, uIdentifier);
+    pl_log_info_f(gptLog, gptData->uLogChannel, "created texture %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -285,6 +293,9 @@ pl__refr_create_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, u
     // bind memory
     gptGfx->bind_buffer_to_memory(ptDevice, tHandle, &tAllocation);
     pl_temp_allocator_free(&tTempAllocator);
+
+    gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created staging buffer %s %u", pcName, uIdentifier);
+    pl_log_info_f(gptLog, gptData->uLogChannel, "created staging buffer %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -310,6 +321,9 @@ pl__refr_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char* pc
     // bind memory
     gptGfx->bind_buffer_to_memory(ptDevice, tHandle, &tAllocation);
     pl_temp_allocator_free(&tTempAllocator);
+
+    gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created cached staging buffer %s %u", pcName, uIdentifier);
+    pl_log_info_f(gptLog, gptData->uLogChannel, "created cached staging buffer %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -369,6 +383,9 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
         gptGfx->wait_on_command_buffer(ptCommandBuffer);
         gptGfx->return_command_buffer(ptCommandBuffer);
     }
+
+    gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created local buffer %s %u", pcName, uIdentifier);
+    pl_log_info_f(gptLog, gptData->uLogChannel, "created local buffer %s %u", pcName, uIdentifier);
     return tHandle;
 }
 

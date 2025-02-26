@@ -2355,12 +2355,12 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
     if (ptBlock->tMemoryMode == PL_MEMORY_GPU)
     {
-        pl_log_info(gptLog, uLogChannelGraphics, "free GPU local memory");
+        pl_log_info_f(gptLog, uLogChannelGraphics, "%llu byte local memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
         gptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
     }
     else
     {
-        pl_log_info(gptLog, uLogChannelGraphics, "free memory");
+        pl_log_info_f(gptLog, uLogChannelGraphics, "%llu byte memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
         gptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
     }
 
@@ -2392,11 +2392,14 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
 
     // setup logging
     plLogExtChannelInit tLogInit = {
-        .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER,
+        .tType       = PL_LOG_CHANNEL_TYPE_BUFFER | PL_LOG_CHANNEL_TYPE_CONSOLE,
         .uEntryCount = 1024
     };
     uLogChannelGraphics = gptLog->add_channel("Graphics", tLogInit);
-    uint32_t uLogLevel = PL_LOG_LEVEL_ALL;
+    uint32_t uLogLevel = PL_LOG_LEVEL_INFO;
+    #ifdef PL_CONFIG_DEBUG
+        uLogLevel = PL_LOG_LEVEL_DEBUG;
+    #endif
     gptLog->set_level(uLogChannelGraphics, uLogLevel);
 
     // save context for hot-reloads
@@ -5372,7 +5375,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtTextures[i].uIndex;
-        pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy texture %u", iResourceIndex);
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "destroy texture %u", iResourceIndex);
         plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[iResourceIndex];
         vkDestroyImageView(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[iResourceIndex].tImageView, NULL);
         ptDevice->sbtTexturesHot[iResourceIndex].tImageView = VK_NULL_HANDLE;
@@ -5497,7 +5500,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtBuffers[i].uIndex;
-        pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy buffer %u", iResourceIndex);
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "destroy buffer %u", iResourceIndex);
         vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->sbtBuffersHot[iResourceIndex].tBuffer, NULL);
         ptDevice->sbtBuffersHot[iResourceIndex].tBuffer = VK_NULL_HANDLE;
         pl_sb_push(ptDevice->sbtBufferFreeIndices, iResourceIndex);

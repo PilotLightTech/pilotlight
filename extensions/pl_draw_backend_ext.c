@@ -29,6 +29,7 @@ Index of this file:
 #include "pl_draw_backend_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_stats_ext.h"
+#include "pl_log_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -48,6 +49,9 @@ Index of this file:
     static const plStatsI*    gptStats  = NULL;
     static const plDrawI*     gptDraw   = NULL;
     static const plShaderI*   gptShader = NULL;
+    static const plLogI*      gptLog    = NULL;
+    static const plIOI*       gptIOI    = NULL;
+    static plIO*              gptIO     = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -101,6 +105,7 @@ typedef struct _plDrawBackendContext
 //-----------------------------------------------------------------------------
 
 static plDrawBackendContext* gptDrawBackendCtx = NULL;
+static uint64_t uLogChannelDrawBackend = UINT64_MAX;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -673,8 +678,10 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 
         const plBufferDesc tBufferDesc = {
             .tUsage     = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
-            .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace)
+            .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
+            .pcDebugName = "2D Draw Vertex Buffer"
         };
+        pl_log_debug_f(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
         ptBufferInfo->uVertexBufferSize = (uint32_t)tBufferDesc.szByteSize;
         ptBufferInfo->uVertexBufferOffset = 0;
 
@@ -701,8 +708,10 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 
         const plBufferDesc tBufferDesc = {
             .tUsage     = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
-            .szByteSize = pl_max(gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace)
+            .szByteSize = pl_max(gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
+            .pcDebugName = "Draw Index Buffer"
         };
+        pl_log_debug_f(gptLog, uLogChannelDrawBackend, "(2D) Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, gptDrawBackendCtx->auIndexBufferSize[uFrameIdx], (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
         gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] = (uint32_t)tBufferDesc.szByteSize;
 
         gptDrawBackendCtx->atIndexBuffer[uFrameIdx] = pl__create_staging_buffer(&tBufferDesc, "draw idx buffer", uFrameIdx);
@@ -859,8 +868,10 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 
             const plBufferDesc tBufferDesc = {
                 .tUsage     = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
-                .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace)
+                .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
+                .pcDebugName = "3D Draw Vertex Buffer"
             };
+            pl_log_debug_f(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
             ptBufferInfo->uVertexBufferSize = (uint32_t)tBufferDesc.szByteSize;
 
             ptBufferInfo->tVertexBuffer = pl__create_staging_buffer(&tBufferDesc, "3d draw vtx buffer", uFrameIdx);
@@ -885,8 +896,10 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 
             const plBufferDesc tBufferDesc = {
                 .tUsage     = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
-                .szByteSize = pl_max(gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace)
+                .szByteSize = pl_max(gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
+                .pcDebugName = "Draw Index Buffer"
             };
+            pl_log_debug_f(gptLog, uLogChannelDrawBackend, "(3D) Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, gptDrawBackendCtx->auIndexBufferSize[uFrameIdx], (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
             gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] = (uint32_t)tBufferDesc.szByteSize;
 
             gptDrawBackendCtx->atIndexBuffer[uFrameIdx] = pl__create_staging_buffer(&tBufferDesc, "3d draw idx buffer", uFrameIdx);
@@ -945,8 +958,10 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 
             const plBufferDesc tBufferDesc = {
                 .tUsage     = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
-                .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace)
+                .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
+                .pcDebugName = "3D Lines Vertex Buffer"
             };
+            pl_log_debug_f(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
             ptBufferInfo->uVertexBufferSize = (uint32_t)tBufferDesc.szByteSize;
 
             ptBufferInfo->tVertexBuffer = pl__create_staging_buffer(&tBufferDesc, "draw vtx buffer", uFrameIdx);
@@ -972,8 +987,10 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 
             const plBufferDesc tBufferDesc = {
                 .tUsage     = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
-                .szByteSize = pl_max(gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace)
+                .szByteSize = pl_max(gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
+                .pcDebugName = "Draw Index Buffer"
             };
+            pl_log_debug_f(gptLog, uLogChannelDrawBackend, "(3D) Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, gptDrawBackendCtx->auIndexBufferSize[uFrameIdx], (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
             gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] = (uint32_t)tBufferDesc.szByteSize;
 
             gptDrawBackendCtx->atIndexBuffer[uFrameIdx] = pl__create_staging_buffer(&tBufferDesc, "draw idx buffer", uFrameIdx);
@@ -1070,15 +1087,27 @@ pl_load_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptGfx               = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptDraw              = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptShader            = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptLog               = pl_get_api_latest(ptApiRegistry, plLogI);
+    gptIOI               = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptIO = gptIOI->get_io();
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     if(bReload)
+    {
         gptDrawBackendCtx = ptDataRegistry->get_data("plDrawBackendContext");
+        uLogChannelDrawBackend = gptLog->get_channel_id("Draw Backend");
+    }
     else  // first load
     {
         static plDrawBackendContext tCtx = {0};
         gptDrawBackendCtx = &tCtx;
         ptDataRegistry->set_data("plDrawBackendContext", gptDrawBackendCtx);
+
+        plLogExtChannelInit tLogInit = {
+            .tType       = PL_LOG_CHANNEL_TYPE_BUFFER | PL_LOG_CHANNEL_TYPE_CONSOLE,
+            .uEntryCount = 256
+        };
+        uLogChannelDrawBackend = gptLog->add_channel("Draw Backend", tLogInit);
     }
 }
 

@@ -25,6 +25,7 @@ Index of this file:
 
 // extensions
 #include "pl_draw_ext.h"
+#include "pl_console_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -55,6 +56,9 @@ typedef struct _plScreenLogContext
     plMessageData* sbtMessages;
     plMessageData* sbtTimedMessages;
     plMessageData* sbtSortMessages;
+
+    double dLastActiveTime;
+    bool bScreenLogging;
 } plScreenLogContext;
 
 //-----------------------------------------------------------------------------
@@ -75,8 +79,9 @@ static plScreenLogContext* gptScreenLogCtx = NULL;
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static const plDrawI*          gptDraw          = NULL;
-    static const plIOI*            gptIOI           = NULL;
+    static const plDrawI*    gptDraw    = NULL;
+    static const plIOI*      gptIOI     = NULL;
+    static const plConsoleI* gptConsole = NULL;
 
     static plIO* gptIO = NULL;
 
@@ -94,6 +99,9 @@ pl_screen_log_initialize(plScreenLogSettings tSettings)
     gptScreenLogCtx->ptFont = tSettings.ptFont;
     gptScreenLogCtx->ptDrawlist = gptDraw->request_2d_drawlist();
     gptScreenLogCtx->ptDrawLayer = gptDraw->request_2d_layer(gptScreenLogCtx->ptDrawlist);
+    gptScreenLogCtx->dLastActiveTime = gptIO->dTime;
+    gptScreenLogCtx->bScreenLogging = false;
+    gptConsole->add_toggle_variable("sl.ShowScreenLogging", &gptScreenLogCtx->bScreenLogging, "~", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
 }
 
 void
@@ -109,6 +117,8 @@ pl_screen_log_cleanup(void)
 void
 pl_screen_log_add_message_va(uint64_t uKey, double dTimeToDisplay, uint32_t uColor, float fTextScale, const char* pcFormat, va_list args)
 {
+
+    gptScreenLogCtx->dLastActiveTime = gptIO->dTime;
 
     if(uColor == 0)
         uColor = PL_COLOR_32_WHITE;
@@ -245,6 +255,11 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
 
     const double dCurrentTime = gptIO->dTime;
 
+    if(dCurrentTime - gptScreenLogCtx->dLastActiveTime > 30.0)
+    {
+        pl_sb_reset(gptScreenLogCtx->sbtMessages);
+    }
+
     plDrawTextOptions tDrawTextOptions = {
         .fSize = gptScreenLogCtx->ptFont->fSize,
         .ptFont = gptScreenLogCtx->ptFont,
@@ -303,6 +318,8 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
     fStartY = fHeight * 0.25f;
     uint32_t uMessageCount = pl_sb_size(gptScreenLogCtx->sbtMessages);
     uint32_t uLastVisibleIndex = 0;
+    if(!gptScreenLogCtx->bScreenLogging)
+        uMessageCount = 0;
     for(uint32_t i = 0; i < uMessageCount; i++)
     {
 
@@ -359,9 +376,10 @@ pl_load_screen_log_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plDataRegistryI* ptDataRegistry  = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     #ifndef PL_UNITY_BUILD
-        gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptIOI    = pl_get_api_latest(ptApiRegistry, plIOI);
-        gptDraw   = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptIOI     = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptDraw    = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptConsole = pl_get_api_latest(ptApiRegistry, plConsoleI);
         gptIO = gptIOI->get_io();
     #endif
 

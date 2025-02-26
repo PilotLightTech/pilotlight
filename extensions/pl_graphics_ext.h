@@ -387,8 +387,9 @@ typedef struct _plGraphicsI
     // INLINED -> plDynamicBinding pl_allocate_dynamic_data(const plGraphicsI*,  plDevice*, plDynamicDataBlock*)
 
     // memory
-    plDeviceMemoryAllocation (*allocate_memory)(plDevice*, size_t, plMemoryMode, uint32_t typeFilter, const char* debugName);
-    void                     (*free_memory)    (plDevice*, plDeviceMemoryAllocation*);
+    plDeviceMemoryAllocation        (*allocate_memory)(plDevice*, size_t, plMemoryMode, uint32_t typeFilter, const char* debugName);
+    void                            (*free_memory)    (plDevice*, plDeviceMemoryAllocation*);
+    const plDeviceMemoryAllocation* (*get_allocations)(plDevice*, uint32_t* sizeOut);
 
 } plGraphicsI;
 

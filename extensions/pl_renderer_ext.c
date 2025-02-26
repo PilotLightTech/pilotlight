@@ -225,7 +225,8 @@ pl_refr_initialize(plWindow* ptWindow)
     // create staging buffers
     const plBufferDesc tStagingBufferDesc = {
         .tUsage     = PL_BUFFER_USAGE_STAGING,
-        .szByteSize = 268435456
+        .szByteSize = 268435456,
+        .pcDebugName = "Renderer Staging Buffer"
     };
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         gptData->tStagingBufferHandle[i] = pl__refr_create_staging_buffer(&tStagingBufferDesc, "staging", i);
@@ -233,7 +234,8 @@ pl_refr_initialize(plWindow* ptWindow)
     // create caching staging buffer
     const plBufferDesc tStagingCachedBufferDesc = {
         .tUsage     = PL_BUFFER_USAGE_STAGING,
-        .szByteSize = 268435456
+        .szByteSize = 268435456,
+        .pcDebugName = "Renderer Cached Staging Buffer"
     };
     gptData->tCachedStagingBuffer = pl__refr_create_cached_staging_buffer(&tStagingBufferDesc, "cached staging", 0);
 
@@ -536,7 +538,8 @@ pl_refr_initialize(plWindow* ptWindow)
     const uint32_t auFullQuadIndexBuffer[] = {0, 1, 2, 0, 2, 3};
     const plBufferDesc tFullQuadIndexBufferDesc = {
         .tUsage     = PL_BUFFER_USAGE_INDEX,
-        .szByteSize = sizeof(uint32_t) * 6
+        .szByteSize = sizeof(uint32_t) * 6,
+        .pcDebugName = "Renderer Quad Index Buffer"
     };
     gptData->tFullQuadIndexBuffer = pl__refr_create_local_buffer(&tFullQuadIndexBufferDesc, "full quad index buffer", 0, auFullQuadIndexBuffer);
 
@@ -548,7 +551,8 @@ pl_refr_initialize(plWindow* ptWindow)
     };
     const plBufferDesc tFullQuadVertexBufferDesc = {
         .tUsage     = PL_BUFFER_USAGE_VERTEX,
-        .szByteSize = sizeof(float) * 16
+        .szByteSize = sizeof(float) * 16,
+        .pcDebugName = "Renderer Quad Vertex Buffer"
     };
     gptData->tFullQuadVertexBuffer = pl__refr_create_local_buffer(&tFullQuadVertexBufferDesc, "full quad vertex buffer", 0, afFullQuadVertexBuffer);
 
@@ -2423,6 +2427,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
     pl__refr_sort_drawables(uSceneHandle);
 
     gptShader->set_options(&tOriginalOptions);
+
+    gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_CYAN, 1.0f, "%s", "reloaded shaders");
     pl_end_cpu_sample(gptProfile, 0);
 }
 
@@ -3455,6 +3461,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             gptData->tPickedEntity.uGeneration = ptScene->tComponentLibrary.sbtEntityGenerations[gptData->tPickedEntity.uIndex];
 
             pl_log_info(gptLog, gptData->uLogChannel, "getting clicked entity");
+            gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_GREEN, 1.0f, "Picked entity {%u, %u}", gptData->tPickedEntity.uIndex, gptData->tPickedEntity.uGeneration);
         }
 
         bool bOwnMouse = gptUI->wants_mouse_capture();

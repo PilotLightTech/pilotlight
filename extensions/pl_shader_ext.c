@@ -19,12 +19,15 @@ Index of this file:
 // libs
 #include "pl_string.h"
 #include "pl_memory.h"
+#define PL_MATH_INCLUDE_FUNCTIONS
+#include "pl_math.h"
 
 // extensions
 #include "pl_shader_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_file_ext.h"
 #include "pl_log_ext.h"
+#include "pl_screen_log_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -40,8 +43,9 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static const plFileI* gptFile = NULL;
-    static const plLogI*  gptLog = NULL;
+    static const plFileI*    gptFile = NULL;
+    static const plLogI*     gptLog = NULL;
+    static const plScreenLogI* gptScreenLog = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -226,6 +230,7 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
     spvc_context_create(&tSpirvCtx);
     spvc_context_set_error_callback(tSpirvCtx, pl_spvc_error_callback, NULL);
     pl_log_info(gptLog, gptShaderCtx->uLogChannel, "initialized SPIRV cross");
+    gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_CYAN, 1.0f, "%s", "initialized SPIR-V Cross");
     #endif
     #endif
     return true;
@@ -470,6 +475,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     size_t uNumErrors = shaderc_result_get_num_errors(tresult);
     if(uNumErrors)
     {
+        gptScreenLog->add_message_ex(0, 30.0, PL_COLOR_32_RED, 1.0f,"\"%s\" compilation errors: \"%s\"", pcShader, shaderc_result_get_error_message(tresult));
         pl_log_error_f(gptLog, gptShaderCtx->uLogChannel, "\"%s\" compilation errors: \"%s\"", pcShader, shaderc_result_get_error_message(tresult));
         tModule.szCodeSize = 0;
         tModule.puCode = NULL;
@@ -477,6 +483,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     }
     else
     {
+        gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_CYAN, 1.0f, "compiled: \"%s\"", pcShader);
         pl_log_info_f(gptLog, gptShaderCtx->uLogChannel, "compiled: \"%s\"", pcShader);
         tModule.szCodeSize = shaderc_result_get_length(tresult);
         tModule.puCode = (uint8_t*)shaderc_result_get_bytes(tresult);
@@ -658,6 +665,7 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
             if(gptFile->exists(pcCacheFile))
             {
                 pl_log_debug_f(gptLog, gptShaderCtx->uLogChannel, "cached shader found: \"%s\"", pcCacheFile);
+                gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_CYAN, 1.0f, "cached shader found: \"%s\"", pcCacheFile);
                 break;
             }
             else
@@ -724,6 +732,7 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptLog = pl_get_api_latest(ptApiRegistry, plLogI);
     gptFile = pl_get_api_latest(ptApiRegistry, plFileI);
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptScreenLog = pl_get_api_latest(ptApiRegistry, plScreenLogI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     if(bReload)

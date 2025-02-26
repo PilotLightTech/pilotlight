@@ -185,7 +185,7 @@ pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
     pl_sb_push(ptGarbage->sbtBuffers, tHandle);
     pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation);
     ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
-    pl_log_trace_f(gptLog, uLogChannelGraphics, "Queue buffer %u for deletion", tHandle.uIndex);
+    pl_log_debug_f(gptLog, uLogChannelGraphics, "Queue buffer %u for deletion frame %llu", tHandle.uIndex, gptIO->ulFrameCount);
 }
 
 static void
@@ -344,6 +344,7 @@ pl__cleanup_common_swapchain(plSwapchain* ptSwapchain)
 static void
 pl__cleanup_common_device(plDevice* ptDevice)
 {
+    pl_sb_free(ptDevice->sbtMemoryBlocks);
     pl_sb_free(ptDevice->sbtShadersCold);
     pl_sb_free(ptDevice->sbtBuffersCold);
     pl_sb_free(ptDevice->sbtShaderFreeIndices);
@@ -678,6 +679,16 @@ pl_get_swapchain_info(plSwapchain* ptSwap)
     return ptSwap->tInfo;
 }
 
+static const plDeviceMemoryAllocation*
+pl_get_gfx_allocations(plDevice* ptDevice, uint32_t* puSizeOut)
+{
+    if(puSizeOut)
+    {
+        *puSizeOut = pl_sb_size(ptDevice->sbtMemoryBlocks);
+    }
+    return ptDevice->sbtMemoryBlocks;
+}
+
 PL_EXPORT void
 pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
@@ -775,6 +786,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_shader                             = pl__get_shader,
         .allocate_memory                        = pl_allocate_memory,
         .free_memory                            = pl_free_memory,
+        .get_allocations                        = pl_get_gfx_allocations,
         .flush_device                           = pl_flush_device,
         .bind_buffer_to_memory                  = pl_bind_buffer_to_memory,
         .bind_texture_to_memory                 = pl_bind_texture_to_memory,
@@ -795,12 +807,12 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
 
     gptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-    gptThreads = pl_get_api_latest(ptApiRegistry, plThreadsI);
-    gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
-    gptLog     = pl_get_api_latest(ptApiRegistry, plLogI);
-    gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptIOI     = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptIO      = gptIOI->get_io();
+    gptThreads      = pl_get_api_latest(ptApiRegistry, plThreadsI);
+    gptProfile      = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptLog          = pl_get_api_latest(ptApiRegistry, plLogI);
+    gptMemory       = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptIOI          = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptIO           = gptIOI->get_io();
 
     if(bReload)
     {
