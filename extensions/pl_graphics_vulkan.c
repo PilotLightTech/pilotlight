@@ -286,6 +286,9 @@ typedef struct _plDevice
     PFN_vkCmdDebugMarkerBeginEXT      vkCmdDebugMarkerBegin;
     PFN_vkCmdDebugMarkerEndEXT        vkCmdDebugMarkerEnd;
     PFN_vkCmdDebugMarkerInsertEXT     vkCmdDebugMarkerInsert;
+
+    // memory blocks
+    plDeviceMemoryAllocation* sbtMemoryBlocks;
 } plDevice;
 
 typedef struct _plGraphics
@@ -2310,6 +2313,9 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
     }
     PL_ASSERT(bFound);
 
+    if(!bFound)
+        return (plDeviceMemoryAllocation){0};
+
     if (pcName == NULL)
     {
         pcName = "unnamed memory block";
@@ -2347,12 +2353,25 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
         gptGraphics->szHostMemoryInUse += tBlock.ulSize;
     }
 
+    pl_sb_push(ptDevice->sbtMemoryBlocks, tBlock);
+
     return tBlock;
 }
 
 void
 pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
+    const uint32_t uMemoryBlockCount = pl_sb_size(ptDevice->sbtMemoryBlocks);
+    for(uint32_t i = 0; i < uMemoryBlockCount; i++)
+    {
+        if(ptDevice->sbtMemoryBlocks[i].uHandle == ptBlock->uHandle)
+        {
+            pl_sb_del_swap(ptDevice->sbtMemoryBlocks, i);
+            break;
+        }
+    }
+
+
     if (ptBlock->tMemoryMode == PL_MEMORY_GPU)
     {
         pl_log_info_f(gptLog, uLogChannelGraphics, "%llu byte local memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);

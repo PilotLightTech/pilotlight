@@ -252,6 +252,8 @@ typedef struct _plDevice
     id<MTLHeap> atHeaps[64];
     uint64_t*   sbuFreeHeaps;
     
+    // memory blocks
+    plDeviceMemoryAllocation* sbtMemoryBlocks;
 } plDevice;
 
 typedef struct _plSwapchain
@@ -1434,7 +1436,6 @@ pl_allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uT
         .tMemoryMode = PL_MEMORY_GPU_CPU
     };
 
-
     plDeviceMemoryAllocation tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "Uncached Heap");
     tAllocation.uHandle = tBlock.uHandle;
     tAllocation.pHostMapped = tBlock.pHostMapped;
@@ -1477,11 +1478,14 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
 
     // setup logging
     plLogExtChannelInit tLogInit = {
-        .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER,
+        .tType       = PL_LOG_CHANNEL_TYPE_BUFFER | PL_LOG_CHANNEL_TYPE_CONSOLE,
         .uEntryCount = 1024
     };
     uLogChannelGraphics = gptLog->add_channel("Graphics", tLogInit);
     uint32_t uLogLevel = PL_LOG_LEVEL_INFO;
+    #ifdef PL_CONFIG_DEBUG
+        uLogLevel = PL_LOG_LEVEL_DEBUG;
+    #endif
     gptLog->set_level(uLogChannelGraphics, uLogLevel);
 
     return true;
@@ -1605,7 +1609,7 @@ pl_create_device(const plDeviceInit* ptInit)
     for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
     {
         plFrameContext tFrame = {
-            .tFrameBoundarySemaphore = dispatch_semaphore_create(gptGraphics->uFramesInFlight),
+            .tFrameBoundarySemaphore = dispatch_semaphore_create(1),
         };
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
@@ -1680,6 +1684,9 @@ pl_get_swapchain_images(plSwapchain* ptSwap, uint32_t* puSizeOut)
 static void
 pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
 {
+
+    bool bMSAAChange = ptSwap->tInfo.tSampleCount != ptInit->tSampleCount;
+
     gptGraphics->uCurrentFrameIndex = 0;
     ptSwap->tInfo.bVSync = ptInit->bVSync;
     ptSwap->tInfo.uWidth = ptInit->uWidth;
@@ -1688,12 +1695,16 @@ pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
     if(ptSwap->tInfo.tSampleCount == 0)
         ptSwap->tInfo.tSampleCount = 1;
 
-    uint32_t uNextFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
-    plFrameContext* ptFrame1 = &ptSwap->ptDevice->sbtFrames[uNextFrameIndex];
-    plFrameContext* ptFrame0 = pl__get_frame_resources(ptSwap->ptDevice);
-    // dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
-    dispatch_semaphore_signal(ptFrame0->tFrameBoundarySemaphore);
-    dispatch_semaphore_signal(ptFrame1->tFrameBoundarySemaphore);
+    if(bMSAAChange)
+    {
+        uint32_t uNextFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
+        plFrameContext* ptFrame1 = &ptSwap->ptDevice->sbtFrames[uNextFrameIndex];
+        plFrameContext* ptFrame0 = pl__get_frame_resources(ptSwap->ptDevice);
+        // dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
+
+        dispatch_semaphore_signal(ptFrame0->tFrameBoundarySemaphore);
+        dispatch_semaphore_signal(ptFrame1->tFrameBoundarySemaphore);
+    }
 }
 
 static plCommandPool*
@@ -1754,9 +1765,9 @@ pl_request_command_buffer(plCommandPool* ptPool)
     ptCommandBuffer->tCmdBuffer = [ptPool->tCmdQueue commandBufferWithDescriptor:ptCmdBufferDescriptor];
     
     // [ptCmdBufferDescriptor release];
-    // char blah[32] = {0};
-    // pl_sprintf(blah, "%u", gptGraphics->uCurrentFrameIndex);
-    // tCmdBuffer.label = [NSString stringWithUTF8String:blah];
+    char blah[32] = {0};
+    pl_sprintf(blah, "%llu", gptIO->ulFrameCount);
+    ptCommandBuffer->tCmdBuffer .label = [NSString stringWithUTF8String:blah];
 
     // [ptCmdBufferDescriptor release];
     ptCommandBuffer->ptDevice = ptPool->ptDevice;
@@ -3240,6 +3251,7 @@ pl__garbage_collect(plDevice* ptDevice)
         [ptDevice->sbtBuffersHot[iBufferIndex].tBuffer release];
         ptDevice->sbtBuffersHot[iBufferIndex].tBuffer = nil;
         pl_sb_push(ptDevice->sbtBufferFreeIndices, iBufferIndex);
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "Delete buffer %u for deletion frame %llu", iBufferIndex, gptIO->ulFrameCount);
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtMemory); i++)
@@ -3313,14 +3325,25 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
     {
         PL_ASSERT(false && "only 64 allocations allowed");
     }
-    
+
     [ptHeapDescriptor release];
+    pl_sb_push(ptDevice->sbtMemoryBlocks, tBlock);
     return tBlock;
 }
 
 static void
 pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
+    const uint32_t uMemoryBlockCount = pl_sb_size(ptDevice->sbtMemoryBlocks);
+    for(uint32_t i = 0; i < uMemoryBlockCount; i++)
+    {
+        if(ptDevice->sbtMemoryBlocks[i].uHandle == ptBlock->uHandle)
+        {
+            pl_sb_del_swap(ptDevice->sbtMemoryBlocks, i);
+            break;
+        }
+    }
+
     id<MTLHeap> tHeap = ptDevice->atHeaps[ptBlock->uHandle];
     pl_sb_push(ptDevice->sbuFreeHeaps, ptBlock->uHandle);
 

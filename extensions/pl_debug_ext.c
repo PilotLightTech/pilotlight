@@ -1065,7 +1065,76 @@ pl__show_device_memory(bool* bValue)
                 }
             }
         }
+
         gptUI->pop_theme_color(3);
+
+        gptUI->layout_dynamic(0.0f, 1);
+        gptUI->separator_text("Blocks");
+
+        uint32_t uAllocationCount = 0;
+        const plDeviceMemoryAllocation* sbtAllocations = gptGfx->get_allocations(gptDebugCtx->ptDevice, &uAllocationCount);
+        const plVec2 tCursorPos = gptUI->get_cursor_pos();
+
+        const double dReferenceWidth = (double)gptUI->get_window_size().x - 50.0;
+        gptUI->layout_dynamic(tWindowEnd.y - tCursorPos.y - 20.0f, 1);
+
+        static const plVec4 tGPUColor    = {0.0f, 0.5f, 0.0f, 1.0f};
+        static const plVec4 tCPUColor    = {0.0f, 0.5f, 0.5f, 1.0f};
+        static const plVec4 tGPUCPUColor = {0.5f, 0.0f, 0.5f, 1.0f};
+
+        if(gptUI->begin_child("Memory Blocks", 0, 0))
+        {
+            
+
+            for(uint32_t i = 0; i < uAllocationCount; i++)
+            {
+                float fWidth = (float)(dReferenceWidth * ((double)sbtAllocations[i].ulSize) / (268435456.0 * 2.0));
+                fWidth = pl_maxf(fWidth, 150.0f);
+                gptUI->layout_row_begin(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2);
+                gptUI->layout_row_push(fWidth);
+
+
+                if(sbtAllocations[i].tMemoryMode == PL_MEMORY_GPU)
+                {
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tGPUColor);
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tGPUColor);
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tGPUColor);
+                }
+                else if(sbtAllocations[i].tMemoryMode == PL_MEMORY_GPU_CPU)
+                {
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tGPUCPUColor);
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tGPUCPUColor);
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tGPUCPUColor);
+                }
+                else if(sbtAllocations[i].tMemoryMode == PL_MEMORY_CPU)
+                {
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tCPUColor);
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tCPUColor);
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tCPUColor);
+                }
+
+                char* pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fMB ##%u", ((double)sbtAllocations[i].ulSize)/1000000.0, i);
+    
+                gptUI->button(pcTempBuffer0);
+                gptUI->layout_row_push(200.0f);
+                
+                if(sbtAllocations[i].tMemoryMode == PL_MEMORY_GPU)
+                    gptUI->text("Device Local");
+                else if(sbtAllocations[i].tMemoryMode == PL_MEMORY_GPU_CPU)
+                    gptUI->text("Host Visible");
+                else
+                    gptUI->text("Host Cached");
+
+                gptUI->layout_row_end();
+        
+                pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
+
+                gptUI->pop_theme_color(3);
+            }
+
+            gptUI->end_child();
+        }
+
         gptUI->end_window();
     }
 }
@@ -1284,6 +1353,7 @@ pl_unload_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_sb_free(gptDebugCtx->sbdRawValues);
     pl_sb_free(gptDebugCtx->sbbValues);
     pl_sb_free(gptDebugCtx->sbtSamples);
+    pl_sb_free(gptDebugCtx->sbtActiveAllocations);
     pl_temp_allocator_free(&gptDebugCtx->tTempAllocator);
     gptDebugCtx = NULL;
 }
