@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_LOG_VERSION    "1.0.1"
-#define PL_LOG_VERSION_NUM 10001
+#define PL_LOG_VERSION    "1.0.2"
+#define PL_LOG_VERSION_NUM 10002
 
 /*
 Index of this file:
@@ -928,13 +928,13 @@ pl__log_debug(uint64_t uID, const char* pcMessage)
 void
 pl__log_info(uint64_t uID, const char* pcMessage)
 {
-    PL__LOG_LEVEL_MACRO(PL_LOG_LEVEL_INFO, "[INFO ]", 7)
+    PL__LOG_LEVEL_MACRO(PL_LOG_LEVEL_INFO, "[INFO] ", 7)
 }
 
 void
 pl__log_warn(uint64_t uID, const char* pcMessage)
 {
-    PL__LOG_LEVEL_MACRO(PL_LOG_LEVEL_WARN, "[WARN ]", 7)
+    PL__LOG_LEVEL_MACRO(PL_LOG_LEVEL_WARN, "[WARN] ", 7)
 }
 
 void
@@ -1171,7 +1171,7 @@ pl__log_info_va(uint64_t uID, const char* cPFormat, va_list args)
             printf(PL_LOG_INFO_BG_COLOR);
             #endif
 
-            printf("[INFO ] (%s) ", tPChannel->pcName);
+            printf("[INFO]  (%s) ", tPChannel->pcName);
             char dest[PL_LOG_MAX_LINE_SIZE];
             va_list parm_copy;
             va_copy(parm_copy, args);
@@ -1179,7 +1179,7 @@ pl__log_info_va(uint64_t uID, const char* cPFormat, va_list args)
             printf("%s%s\n", dest, PL_LOG_POP_CODE);
             va_end(parm_copy);
         }
-        PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_INFO, "[INFO ]", 7)
+        PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_INFO, "[INFO] ", 7)
     }
 }
 
@@ -1209,7 +1209,7 @@ pl__log_warn_va(uint64_t uID, const char* cPFormat, va_list args)
             printf(PL_LOG_WARN_BG_COLOR);
             #endif
 
-            printf("[WARN ] (%s) ", tPChannel->pcName);
+            printf("[WARN]  (%s) ", tPChannel->pcName);
             char dest[PL_LOG_MAX_LINE_SIZE];
             va_list parm_copy;
             va_copy(parm_copy, args);
@@ -1217,7 +1217,7 @@ pl__log_warn_va(uint64_t uID, const char* cPFormat, va_list args)
             printf("%s%s\n", dest, PL_LOG_POP_CODE);
             va_end(parm_copy); 
         }
-        PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_WARN, "[WARN ]", 7)
+        PL__LOG_LEVEL_VA_BUFFER_MACRO(PL_LOG_LEVEL_WARN, "[WARN] ", 7)
     }
 }
 
