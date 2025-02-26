@@ -392,18 +392,14 @@ typedef struct _plRefScene
     uint32_t*      sbuIndexBuffer;
     plGPUMaterial* sbtMaterialBuffer;
     plVec4*        sbtSkinVertexDataBuffer;
-    plGPULight*    sbtDLightData;
-    plGPULight*    sbtPLightData;
-    plGPULight*    sbtSLightData;
+    plGPULight*    sbtLightData;
 
     // GPU buffers
     plBufferHandle tVertexBuffer;
     plBufferHandle tIndexBuffer;
     plBufferHandle tStorageBuffer;
     plBufferHandle tSkinStorageBuffer;
-    plBufferHandle atDLightBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferHandle atPLightBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferHandle atSLightBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atLightBuffer[PL_MAX_FRAMES_IN_FLIGHT];
 
     // GPU materials
     uint32_t       uGPUMaterialDirty;
@@ -456,13 +452,13 @@ typedef struct _plRefScene
     plHashMap* ptMaterialHashmap;
 
     // shadows
-    plBufferHandle atPShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferHandle atPLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    plGPULightShadowData* sbtPLightShadowData;
-
-    plBufferHandle atSShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferHandle atSLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    plGPULightShadowData* sbtSLightShadowData;
+    plBufferHandle atShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plGPULightShadowData* sbtLightShadowData;
+    uint32_t              uShadowOffset;
+    uint32_t              uShadowIndex;
+    uint32_t              uDShadowOffset;
+    uint32_t              uDShadowIndex;
 
     // environment probes
     plEntity tProbeMesh;

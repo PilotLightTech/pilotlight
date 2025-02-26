@@ -278,7 +278,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .apcDirectories = {
             "../shaders/"
         },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
 
     };
     gptShader->initialize(&tDefaultShaderOptions);
@@ -524,7 +524,7 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowPilotLightTool)
     {
         gptUI->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
-        gptUI->set_next_window_size((plVec2){500.0f, 900.0f}, PL_UI_COND_ONCE);
+        gptUI->set_next_window_size((plVec2){500.0f, 700.0f}, PL_UI_COND_ONCE);
         if(gptUI->begin_window("Pilot Light", NULL, PL_UI_WINDOW_FLAGS_NONE))
         {
 

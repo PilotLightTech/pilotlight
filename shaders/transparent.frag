@@ -16,10 +16,8 @@ layout(constant_id = 1) const int iDataStride = 0;
 layout(constant_id = 2) const int iTextureMappingFlags = 0;
 layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iRenderingFlags = 0;
-layout(constant_id = 5) const int iDirectionLightCount = 0;
-layout(constant_id = 6) const int iPointLightCount = 0;
-layout(constant_id = 7) const int iSpotLightCount = 0;
-layout(constant_id = 8) const int iProbeCount = 0;
+layout(constant_id = 5) const int iLightCount = 0;
+layout(constant_id = 6) const int iProbeCount = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
@@ -59,42 +57,27 @@ layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
     tGlobalData data[];
 } tGlobalInfo;
 
-layout(set = 1, binding = 1) uniform _plDLightInfo
+layout(set = 1, binding = 1) uniform _plLightInfo
 {
     plLightData atData[1];
-} tDirectionLightInfo;
+} tLightInfo;
 
-layout(set = 1, binding = 2) uniform _plPLightInfo
-{
-    plLightData atData[1];
-} tPointLightInfo;
-
-layout(set = 1, binding = 3) uniform _plSLightInfo
-{
-    plLightData atData[1];
-} tSpotLightInfo;
-
-layout(set = 1, binding = 4) readonly buffer plDShadowData
+layout(set = 1, binding = 2) readonly buffer plDShadowData
 {
     plLightShadowData atData[];
 } tDShadowData;
 
-layout(set = 1, binding = 5) readonly buffer plPShadowData
+layout(set = 1, binding = 3) readonly buffer plShadowData
 {
     plLightShadowData atData[];
-} tPShadowData;
+} tShadowData;
 
-layout(set = 1, binding = 6) readonly buffer plSShadowData
-{
-    plLightShadowData atData[];
-} tSShadowData;
-
-layout(set = 1, binding = 7) readonly buffer plProbeData
+layout(set = 1, binding = 4) readonly buffer plProbeData
 {
     plEnvironmentProbeData atData[];
 } tProbeData;
 
-layout(set = 1, binding = 8)  uniform sampler tShadowSampler;
+layout(set = 1, binding = 5)  uniform sampler tShadowSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -681,166 +664,165 @@ void main()
     const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
-        for(int i = 0; i < iDirectionLightCount; i++)
-        {
-            plLightData tLightData = tDirectionLightInfo.atData[i];
 
-            vec3 pointToLight = -tLightData.tDirection;
-            float shadow = 1.0;
-
-            if(bShadows && tLightData.iCastShadow > 0)
-            {
-                plLightShadowData tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
-
-                // Get cascade index for the current fragment's view position
-                
-                vec4 inViewPos = tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraView * vec4(tShaderIn.tPosition.xyz, 1.0);
-                for(uint j = 0; j < tLightData.iCascadeCount - 1; ++j)
-                {
-                    if(inViewPos.z > tShadowData.cascadeSplits[j])
-                    {	
-                        cascadeIndex = j + 1;
-                    }
-                }  
-                
-                // Depth compare for shadowing
-                mat4 abiasMat = biasMat;
-                abiasMat[0][0] *= tShadowData.fFactor;
-                abiasMat[1][1] *= tShadowData.fFactor;
-                abiasMat[3][0] *= tShadowData.fFactor;
-                abiasMat[3][1] *= tShadowData.fFactor;
-	            vec4 shadowCoord = (abiasMat * tShadowData.viewProjMat[cascadeIndex]) * vec4(tShaderIn.tPosition.xyz, 1.0);	
-                shadow = 0;
-                // shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-                shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-
-                // for(int j = 0; j < 4; j++)
-                // {
-                //     // int index = int(16.0*random(gl_FragCoord.xyy, j))%16;
-                //     int index = int(16.0*random(tShaderIn.tPosition.xxx, j))%16;
-                //     shadow += 0.25 * textureProj(vec4(( poissonDisk[index] / 4000.0 + shadowCoord.xy), shadowCoord.z, shadowCoord.w), vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-                // }
-                // shadow = clamp(shadow, 0.02, 1);
-            }
-
-            // BSTF
-            vec3 l = normalize(pointToLight);   // Direction from surface point to light
-            vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-            float NdotL = clampedDot(n, l);
-            float NdotV = clampedDot(n, v);
-            float NdotH = clampedDot(n, h);
-            float LdotH = clampedDot(l, h);
-            float VdotH = clampedDot(v, h);
-            if (NdotL > 0.0 || NdotV > 0.0)
-            {
-                vec3 intensity = getLightIntensity(tLightData, pointToLight);
-                f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, specularWeight, VdotH);
-                f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
-            }
-
-        }
-
-        // spot light
-        for(int i = 0; i < iSpotLightCount; i++)
+        // point & spot lights
+        for(int i = 0; i < iLightCount; i++)
         {
 
-            plLightData tLightData = tSpotLightInfo.atData[i];
-
-            vec3 pointToLight = tLightData.tPosition - tShaderIn.tPosition.xyz;
+            plLightData tLightData = tLightInfo.atData[i];
 
             float shadow = 1.0;
 
-            if(bShadows && tLightData.iCastShadow > 0)
+            if(tLightData.iType == 0) // directional lights
             {
-                plLightShadowData tShadowData = tSShadowData.atData[tLightData.iShadowIndex];
 
-                vec4 shadowCoord = tShadowData.viewProjMat[0] * vec4(tShaderIn.tPosition.xyz, 1.0);
-                if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
+                vec3 pointToLight = -tLightData.tDirection;
+
+                if(bShadows && tLightData.iCastShadow > 0)
                 {
-                    shadowCoord.xyz /= shadowCoord.w;
-                    shadow = 1.0;
-                    shadowCoord.x = shadowCoord.x/2 + 0.5;
-                    shadowCoord.y = shadowCoord.y/2 + 0.5;
-                    shadowCoord.xy *= tShadowData.fFactor;
-                    // shadow = textureProj2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
-                    shadow = filterPCF2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    plLightShadowData tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
+
+                    // Get cascade index for the current fragment's view position
+                    
+                    vec4 inViewPos = tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraView * vec4(tShaderIn.tPosition.xyz, 1.0);
+                    for(uint j = 0; j < tLightData.iCascadeCount - 1; ++j)
+                    {
+                        if(inViewPos.z > tShadowData.cascadeSplits[j])
+                        {	
+                            cascadeIndex = j + 1;
+                        }
+                    }  
+                    
+                    // Depth compare for shadowing
+                    mat4 abiasMat = biasMat;
+                    abiasMat[0][0] *= tShadowData.fFactor;
+                    abiasMat[1][1] *= tShadowData.fFactor;
+                    abiasMat[3][0] *= tShadowData.fFactor;
+                    abiasMat[3][1] *= tShadowData.fFactor;
+                    vec4 shadowCoord = (abiasMat * tShadowData.viewProjMat[cascadeIndex]) * vec4(tShaderIn.tPosition.xyz, 1.0);	
+                    shadow = 0;
+                    // shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                    shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
 
                     // for(int j = 0; j < 4; j++)
                     // {
-                    //     int index = int(16.0*random(gl_FragCoord.xyy, j))%16;
-                    //     shadow += 0.2 * textureProj2(vec4(( poissonDisk[index] / 2000.0 + shadowCoord.xy), shadowCoord.z, shadowCoord.w), vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    //     // int index = int(16.0*random(gl_FragCoord.xyy, j))%16;
+                    //     int index = int(16.0*random(tShaderIn.tPosition.xxx, j))%16;
+                    //     shadow += 0.25 * textureProj(vec4(( poissonDisk[index] / 4000.0 + shadowCoord.xy), shadowCoord.z, shadowCoord.w), vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
                     // }
                     // shadow = clamp(shadow, 0.02, 1);
                 }
-            }
 
-            // BSTF
-            vec3 l = normalize(pointToLight);   // Direction from surface point to light
-            vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-            float NdotL = clampedDot(n, l);
-            float NdotV = clampedDot(n, v);
-            float NdotH = clampedDot(n, h);
-            float LdotH = clampedDot(l, h);
-            float VdotH = clampedDot(v, h);
-            if (NdotL > 0.0 || NdotV > 0.0)
-            {
-                vec3 intensity = getLightIntensity(tLightData, pointToLight);
-                f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, specularWeight, VdotH);
-                f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
-            }
-        }
-
-        for(int i = 0; i < iPointLightCount; i++)
-        {
-            plLightData tLightData = tPointLightInfo.atData[i];
-
-            vec3 pointToLight = tLightData.tPosition - tShaderIn.tPosition.xyz;
-            float shadow = 1.0;
-
-            if(bShadows && tLightData.iCastShadow > 0)
-            {
-                plLightShadowData tShadowData = tPShadowData.atData[tLightData.iShadowIndex];
-
-                vec3 result = sampleCube(-normalize(pointToLight));
-	            vec4 shadowCoord = tShadowData.viewProjMat[int(result.z)] * vec4(tShaderIn.tPosition.xyz, 1.0);
-                if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
+                // BSTF
+                vec3 l = normalize(pointToLight);   // Direction from surface point to light
+                vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
+                float NdotL = clampedDot(n, l);
+                float NdotV = clampedDot(n, v);
+                float NdotH = clampedDot(n, h);
+                float LdotH = clampedDot(l, h);
+                float VdotH = clampedDot(v, h);
+                if (NdotL > 0.0 || NdotV > 0.0)
                 {
-                    shadow = 1.0;
-                    const vec2 faceoffsets[6] = {
-                        vec2(0, 0),
-                        vec2(1, 0),
-                        vec2(0, 1),
-                        vec2(1, 1),
-                        vec2(0, 2),
-                        vec2(1, 2),
-                    };
-                    vec2 sampleLocation = vec2(tShadowData.fXOffset, tShadowData.fYOffset) + (result.xy * tShadowData.fFactor) + (faceoffsets[int(result.z)] * tShadowData.fFactor);
-                    float dist = texture(sampler2D(at2DTextures[nonuniformEXT(tShadowData.iShadowMapTexIdx)], tShadowSampler), sampleLocation).r;
-                    float fDist = shadowCoord.z;
-                    dist = dist * shadowCoord.w;
-                    // dist = 1 - dist * shadowCoord.w;
-
-                    if(shadowCoord.w > 0 && dist > fDist)
-                    {
-                        shadow = 0.0;
-                    }
+                    vec3 intensity = getLightIntensity(tLightData, pointToLight);
+                    f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, specularWeight, VdotH);
+                    f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
                 }
             }
 
-            // BSTF
-            vec3 l = normalize(pointToLight);   // Direction from surface point to light
-            vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-            float NdotL = clampedDot(n, l);
-            float NdotV = clampedDot(n, v);
-            float NdotH = clampedDot(n, h);
-            float LdotH = clampedDot(l, h);
-            float VdotH = clampedDot(v, h);
-            if (NdotL > 0.0 || NdotV > 0.0)
+            else if(tLightData.iType == 1) // point lights
             {
-                vec3 intensity = getLightIntensity(tLightData, pointToLight);
-                f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, specularWeight, VdotH);
-                f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+                vec3 pointToLight = tLightData.tPosition - tShaderIn.tPosition.xyz;
+
+                if(bShadows && tLightData.iCastShadow > 0)
+                {
+                    plLightShadowData tShadowData = tShadowData.atData[tLightData.iShadowIndex];
+
+                    vec3 result = sampleCube(-normalize(pointToLight));
+                    vec4 shadowCoord = tShadowData.viewProjMat[int(result.z)] * vec4(tShaderIn.tPosition.xyz, 1.0);
+                    if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
+                    {
+                        shadow = 1.0;
+                        const vec2 faceoffsets[6] = {
+                            vec2(0, 0),
+                            vec2(1, 0),
+                            vec2(0, 1),
+                            vec2(1, 1),
+                            vec2(0, 2),
+                            vec2(1, 2),
+                        };
+                        vec2 sampleLocation = vec2(tShadowData.fXOffset, tShadowData.fYOffset) + (result.xy * tShadowData.fFactor) + (faceoffsets[int(result.z)] * tShadowData.fFactor);
+                        float dist = texture(sampler2D(at2DTextures[nonuniformEXT(tShadowData.iShadowMapTexIdx)], tShadowSampler), sampleLocation).r;
+                        float fDist = shadowCoord.z;
+                        dist = dist * shadowCoord.w;
+                        // dist = 1 - dist * shadowCoord.w;
+
+                        if(shadowCoord.w > 0 && dist > fDist)
+                        {
+                            shadow = 0.0;
+                        }
+                    }
+                }
+
+                // BSTF
+                vec3 l = normalize(pointToLight);   // Direction from surface point to light
+                vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
+                float NdotL = clampedDot(n, l);
+                float NdotV = clampedDot(n, v);
+                float NdotH = clampedDot(n, h);
+                float LdotH = clampedDot(l, h);
+                float VdotH = clampedDot(v, h);
+                if (NdotL > 0.0 || NdotV > 0.0)
+                {
+                    vec3 intensity = getLightIntensity(tLightData, pointToLight);
+                    f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, specularWeight, VdotH);
+                    f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+                }
             }
+
+            else if(tLightData.iType == 2) // spot lights
+            {
+                vec3 pointToLight = tLightData.tPosition - tShaderIn.tPosition.xyz;
+
+                if(bShadows && tLightData.iCastShadow > 0)
+                {
+                    plLightShadowData tShadowData = tShadowData.atData[tLightData.iShadowIndex];
+
+                    vec4 shadowCoord = tShadowData.viewProjMat[0] * vec4(tShaderIn.tPosition.xyz, 1.0);
+                    if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
+                    {
+                        shadowCoord.xyz /= shadowCoord.w;
+                        shadow = 1.0;
+                        shadowCoord.x = shadowCoord.x/2 + 0.5;
+                        shadowCoord.y = shadowCoord.y/2 + 0.5;
+                        shadowCoord.xy *= tShadowData.fFactor;
+                        // shadow = textureProj2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                        shadow = filterPCF2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+
+                        // for(int j = 0; j < 4; j++)
+                        // {
+                        //     int index = int(16.0*random(gl_FragCoord.xyy, j))%16;
+                        //     shadow += 0.2 * textureProj2(vec4(( poissonDisk[index] / 2000.0 + shadowCoord.xy), shadowCoord.z, shadowCoord.w), vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                        // }
+                        // shadow = clamp(shadow, 0.02, 1);
+                    }
+                }
+
+                // BSTF
+                vec3 l = normalize(pointToLight);   // Direction from surface point to light
+                vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
+                float NdotL = clampedDot(n, l);
+                float NdotV = clampedDot(n, v);
+                float NdotH = clampedDot(n, h);
+                float LdotH = clampedDot(l, h);
+                float VdotH = clampedDot(v, h);
+                if (NdotL > 0.0 || NdotV > 0.0)
+                {
+                    vec3 intensity = getLightIntensity(tLightData, pointToLight);
+                    f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, specularWeight, VdotH);
+                    f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+                }
+            }
+
 
         }
 
