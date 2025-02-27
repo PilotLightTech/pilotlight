@@ -129,7 +129,7 @@ pl__get_linux_absolute_time(void)
     struct timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) 
     {
-        assert(false && "clock_gettime() failed");
+        PL_ASSERT(false && "clock_gettime() failed");
     }
     uint64_t nsec_count = ts.tv_nsec + ts.tv_sec * 1e9;
     return (double)nsec_count / gdFrequency;    
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
     gptConnection = xcb_connect(NULL, &screen_p);
     if(xcb_connection_has_error(gptConnection))
     {
-        assert(false && "Failed to connect to X server via XCB.");
+        PL_ASSERT(false && "Failed to connect to X server via XCB.");
     }
 
     // get data from x server
@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
     static struct timespec ts;
     if (clock_getres(CLOCK_MONOTONIC, &ts) != 0) 
     {
-        assert(false && "clock_getres() failed");
+        PL_ASSERT(false && "clock_getres() failed");
     }
     gdFrequency = 1e9/((double)ts.tv_nsec + (double)ts.tv_sec * (double)1e9);
     gdTime = pl__get_linux_absolute_time();

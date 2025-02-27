@@ -726,7 +726,7 @@ pl__get_key_data(plKey tKey)
         else if(tKey == PL_KEY_MOD_SUPER) tKey = PL_RESERVED_KEY_MOD_SUPER;
         else if(tKey == PL_KEY_MOD_SHORTCUT) tKey = (gtIO.bConfigMacOSXBehaviors ? PL_RESERVED_KEY_MOD_SUPER : PL_KEY_RESERVED_MOD_CTRL);
     }
-    assert(tKey >= PL_KEY_NAMED_KEY_BEGIN && tKey < PL_KEY_NAMED_KEY_END && "Key not valid");
+    PL_ASSERT(tKey >= PL_KEY_NAMED_KEY_BEGIN && tKey < PL_KEY_NAMED_KEY_END && "Key not valid");
     return &gtIO._tKeyData[tKey - PL_KEY_NAMED_KEY_BEGIN];
 }
 
@@ -1051,7 +1051,7 @@ pl__update_events(void)
             case PL_INPUT_EVENT_TYPE_MOUSE_BUTTON:
             {
                 // PL_UI_DEBUG_LOG_IO(ptEvent->bMouseDown ? "[%Iu] IO Mouse Button %i down" : "[%Iu] IO Mouse Button %i up", gptCtx->frameCount, ptEvent->iButton);
-                assert(ptEvent->iButton >= 0 && ptEvent->iButton < PL_MOUSE_BUTTON_COUNT);
+                PL_ASSERT(ptEvent->iButton >= 0 && ptEvent->iButton < PL_MOUSE_BUTTON_COUNT);
                 gtIO._abMouseDown[ptEvent->iButton] = ptEvent->bMouseDown;
                 break;
             }
@@ -1061,9 +1061,11 @@ pl__update_events(void)
                 // if(ptEvent->tKey < PL_KEY_COUNT)
                 //     PL_UI_DEBUG_LOG_IO(ptEvent->bKeyDown ? "[%Iu] IO Key %i down" : "[%Iu] IO Key %i up", gptCtx->frameCount, ptEvent->tKey);
                 plKey tKey = ptEvent->tKey;
-                assert(tKey != PL_KEY_NONE);
-                plKeyData* ptKeyData = pl__get_key_data(tKey);
-                ptKeyData->bDown = ptEvent->bKeyDown;
+                if(tKey != PL_KEY_NONE)
+                {
+                    plKeyData* ptKeyData = pl__get_key_data(tKey);
+                    ptKeyData->bDown = ptEvent->bKeyDown;
+                }
                 break;
             }
 
@@ -1077,7 +1079,7 @@ pl__update_events(void)
 
             default:
             {
-                assert(false && "unknown input event type");
+                PL_ASSERT(false && "unknown input event type");
                 break;
             }
         }
