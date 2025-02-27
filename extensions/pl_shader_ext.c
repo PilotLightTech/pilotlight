@@ -146,7 +146,7 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
         return true;
 
     plLogExtChannelInit tLogInit = {
-        .tType       = PL_LOG_CHANNEL_TYPE_BUFFER
+        .tType = PL_LOG_CHANNEL_TYPE_BUFFER | PL_LOG_CHANNEL_TYPE_CONSOLE
     };
     gptShaderCtx->uLogChannel = gptLog->add_channel("Shader", tLogInit);
     gptShaderCtx->bInitialized = true;
