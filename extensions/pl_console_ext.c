@@ -760,7 +760,7 @@ pl_console_update(void)
                 gptUI->end_child();
             }
 
-            if(gptIOI->is_key_pressed(PL_KEY_ENTER, false))
+            if(gptIOI->is_key_pressed(PL_KEY_ENTER, false) || gptIOI->is_key_pressed(PL_KEY_KEYPAD_ENTER, false))
             {
                 ptActiveCommand = ptFirstCommand;
                 gptConsoleCtx->bJustOpened = true;
