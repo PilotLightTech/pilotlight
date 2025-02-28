@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] header mess
+// [SECTION] includes
 // [SECTION] APIs
 // [SECTION] forward declarations
 // [SECTION] public api structs
@@ -19,10 +20,16 @@ Index of this file:
 #define PL_GIZMO_EXT_H
 
 //-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
+#include <stdbool.h>
+
+//-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plGizmoI_version (plVersion){0, 1, 0}
+#define plGizmoI_version (plVersion){0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -44,6 +51,7 @@ typedef struct _plGizmoI
 {
     void (*set_mode)(plGizmoMode);
     void (*next_mode)(void);
+    bool (*active)(void);
     void (*gizmo)(plDrawList3D*, plCameraComponent*, plTransformComponent* selectedTransform, plTransformComponent* parentTransform);
 } plGizmoI;
 

@@ -73,6 +73,7 @@ typedef struct _plGizmoContext
     float        fOriginalScaleY;
     float        fOriginalScaleZ;
     plVec4       tOriginalRot;
+    bool         bActive;
 } plGizmoContext;
 
 //-----------------------------------------------------------------------------
@@ -99,6 +100,12 @@ static void
 pl_gizmo_set_mode(plGizmoMode tMode)
 {
     gptGizmoCtx->tSelectionMode = tMode;
+}
+
+static bool
+pl_gizmo_active(void)
+{
+    return gptGizmoCtx->bActive;
 }
 
 static void
@@ -478,6 +485,7 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
 
     if(bXSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->fOriginalDistX = fXDistanceAlong;
         gptGizmoCtx->tOriginalPos = *ptCenter;
         gptGizmoCtx->tBeginPos = *ptCenter;
@@ -485,6 +493,7 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
     }
     else if(bYSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->fOriginalDistY = fYDistanceAlong;
         gptGizmoCtx->tOriginalPos = *ptCenter;
         gptGizmoCtx->tBeginPos = *ptCenter;
@@ -492,6 +501,7 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
     }
     else if(bZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->fOriginalDistZ = fZDistanceAlong;
         gptGizmoCtx->tOriginalPos = *ptCenter;
         gptGizmoCtx->tBeginPos = *ptCenter;
@@ -499,6 +509,7 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
     }
     else if(bYZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->tBeginPos = *ptCenter;
         gptGizmoCtx->tOriginalPos = tYZIntersectionPoint;
         gptGizmoCtx->tOriginalPos.y -= ptCenter->y;
@@ -507,6 +518,7 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
     }
     else if(bXZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->tBeginPos = *ptCenter;
         gptGizmoCtx->tOriginalPos = tXZIntersectionPoint;
         gptGizmoCtx->tOriginalPos.x -= ptCenter->x;
@@ -515,6 +527,7 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
     }
     else if(bXYSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->tBeginPos = *ptCenter;
         gptGizmoCtx->tOriginalPos = tXYIntersectionPoint;
         gptGizmoCtx->tOriginalPos.x -= ptCenter->x;
@@ -524,6 +537,7 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
 
     if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
     {
+        gptGizmoCtx->bActive = false;
         gptGizmoCtx->tBeginPos = *ptCenter;
         gptGizmoCtx->tOriginalPos = *ptCenter;
         gptGizmoCtx->tState = PL_GIZMO_STATE_DEFAULT;
@@ -845,6 +859,7 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, p
 
     if(bXSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->tOriginalPos = tXIntersectionPoint;
         if(ptParentTransform)
         {
@@ -856,6 +871,7 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, p
     }
     else if(bYSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->tOriginalPos = tYIntersectionPoint;
         if(ptParentTransform)
         {
@@ -867,6 +883,7 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, p
     }
     else if(bZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->tOriginalPos = tZIntersectionPoint;
         if(ptParentTransform)
         {
@@ -879,6 +896,7 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, p
 
     if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
     {
+        gptGizmoCtx->bActive = false;
         gptGizmoCtx->tOriginalPos = *ptCenter;
         gptGizmoCtx->tState = PL_GIZMO_STATE_DEFAULT;
     }
@@ -1132,6 +1150,7 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTr
 
     if(bXSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->fOriginalScaleX = tCurrentScale.x;
         gptGizmoCtx->fOriginalScaleY = tCurrentScale.y;
         gptGizmoCtx->fOriginalScaleZ = tCurrentScale.z;
@@ -1143,6 +1162,7 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTr
     }
     else if(bYSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->fOriginalScaleX = tCurrentScale.x;
         gptGizmoCtx->fOriginalScaleY = tCurrentScale.y;
         gptGizmoCtx->fOriginalScaleZ = tCurrentScale.z;
@@ -1154,6 +1174,7 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTr
     }
     else if(bZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->fOriginalScaleX = tCurrentScale.x;
         gptGizmoCtx->fOriginalScaleY = tCurrentScale.y;
         gptGizmoCtx->fOriginalScaleZ = tCurrentScale.z;
@@ -1165,6 +1186,7 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTr
     }
     else if(bXYZSelected && gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
     {
+        gptGizmoCtx->bActive = true;
         gptGizmoCtx->fOriginalScaleX = tCurrentScale.x;
         gptGizmoCtx->fOriginalScaleY = tCurrentScale.y;
         gptGizmoCtx->fOriginalScaleZ = tCurrentScale.z;
@@ -1174,6 +1196,7 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTr
 
     if(gptIOI->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
     {
+        gptGizmoCtx->bActive = false;
         gptGizmoCtx->tOriginalPos = *ptCenter;
         gptGizmoCtx->tState = PL_GIZMO_STATE_DEFAULT;
     }
@@ -1252,6 +1275,7 @@ pl_load_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plGizmoI tApi = {
         .set_mode  = pl_gizmo_set_mode,
         .next_mode = pl_gizmo_next_mode,
+        .active    = pl_gizmo_active,
         .gizmo     = pl_gizmo
     };
     pl_set_api(ptApiRegistry, plGizmoI, &tApi);
