@@ -305,10 +305,10 @@ pl_end_frame(void)
         {
             gptCtx->abMouseOwned[i] = gptCtx->ptHoveredWindow != NULL;
         }
-        else if(!gptIO->_abMouseDown[i])
-        {
-            gptCtx->abMouseOwned[i] = gptCtx->ptHoveredWindow != NULL;
-        }
+        // else if(!gptIO->_abMouseDown[i])
+        // {
+        //     gptCtx->abMouseOwned[i] = gptCtx->ptHoveredWindow != NULL;
+        // }
         else if(gptIO->_abMouseReleased[i])
         {
             gptCtx->abMouseOwned[i] = false;
