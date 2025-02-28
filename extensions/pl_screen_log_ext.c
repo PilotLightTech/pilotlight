@@ -134,7 +134,7 @@ pl_screen_log_add_message_va(uint64_t uKey, double dTimeToDisplay, uint32_t uCol
                 if(gptScreenLogCtx->sbtMessages[i].uKey == uKey)
                 {
 
-                    gptScreenLogCtx->sbtMessages[i].dStartTime = gptIO->dTime;
+                    gptScreenLogCtx->sbtMessages[i].dStartTime = -1.0;
                     gptScreenLogCtx->sbtMessages[i].dTimeToDisplay = dTimeToDisplay;
                     gptScreenLogCtx->sbtMessages[i].uColor = uColor;
                     gptScreenLogCtx->sbtMessages[i].fTextScale = fTextScale;
@@ -168,7 +168,7 @@ pl_screen_log_add_message_va(uint64_t uKey, double dTimeToDisplay, uint32_t uCol
                 if(gptScreenLogCtx->sbtTimedMessages[i].uKey == uKey)
                 {
 
-                    gptScreenLogCtx->sbtTimedMessages[i].dStartTime = gptIO->dTime;
+                    gptScreenLogCtx->sbtTimedMessages[i].dStartTime = -1.0;
                     gptScreenLogCtx->sbtTimedMessages[i].dTimeToDisplay = dTimeToDisplay;
                     gptScreenLogCtx->sbtTimedMessages[i].uColor = uColor;
                     gptScreenLogCtx->sbtTimedMessages[i].fTextScale = fTextScale;
@@ -201,7 +201,7 @@ pl_screen_log_add_message_va(uint64_t uKey, double dTimeToDisplay, uint32_t uCol
     {
         plMessageData tData = {
             .uKey           = uKey,
-            .dStartTime     = gptIO->dTime,
+            .dStartTime     = -1.0,
             .dTimeToDisplay = dTimeToDisplay,      
             .uColor         = uColor,
             .fTextScale     = fTextScale
@@ -273,7 +273,7 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
 
     for(uint32_t i = 0; i < uTimedMessageCount; i++)
     {
-        if(gptScreenLogCtx->sbtTimedMessages[i].dTimeToDisplay < 0.0 || dCurrentTime - gptScreenLogCtx->sbtTimedMessages[i].dStartTime < gptScreenLogCtx->sbtTimedMessages[i].dTimeToDisplay)
+        if(gptScreenLogCtx->sbtTimedMessages[i].dStartTime < 0.0 || gptScreenLogCtx->sbtTimedMessages[i].dTimeToDisplay < 0.0 || dCurrentTime - gptScreenLogCtx->sbtTimedMessages[i].dStartTime < gptScreenLogCtx->sbtTimedMessages[i].dTimeToDisplay)
         {
             pl_sb_push(gptScreenLogCtx->sbtSortMessages, gptScreenLogCtx->sbtTimedMessages[i]);
         }
@@ -288,26 +288,34 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
 
         plVec2 tStartPoint = {fWidth - fWidth * 0.25f, fStartY};
 
-        float fAlpha = pl_maxf(0.2f, 1.0f - (float)((dCurrentTime - gptScreenLogCtx->sbtSortMessages[i].dStartTime) / gptScreenLogCtx->sbtSortMessages[i].dTimeToDisplay));
-        if(gptScreenLogCtx->sbtSortMessages[i].dTimeToDisplay < 0.0)
-            fAlpha = 1.0f;
-
-        tDrawTextOptions.uColor = gptScreenLogCtx->sbtSortMessages[i].uColor & ~0xFF000000;
-        tDrawTextOptions.uColor |=  PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, fAlpha);
         tDrawTextOptions.fSize = gptScreenLogCtx->ptFont->fSize * gptScreenLogCtx->sbtSortMessages[i].fTextScale;
 
         plRect tTextBB = gptDraw->calculate_text_bb(tStartPoint, gptScreenLogCtx->sbtSortMessages[i].acBuffer, tDrawTextOptions);
-        tTextBB = pl_rect_expand_vec2(&tTextBB, (plVec2){5.0f, 10.0f});
 
-        if(gptScreenLogCtx->sbtSortMessages[i].bEven)        
-            gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.2f, 0.2f, 0.2f, fAlpha)});
-        else
-            gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.1f, 0.1f, 0.1f, fAlpha)});
+        if(tTextBB.tMax.y < fHeight)
+        {
+            if(gptScreenLogCtx->sbtSortMessages[i].dStartTime < 0.0)
+            {
+                gptScreenLogCtx->sbtSortMessages[i].dStartTime = gptIO->dTime;
+            }
+            tTextBB = pl_rect_expand_vec2(&tTextBB, (plVec2){5.0f, 10.0f});
 
-        gptDraw->add_text(gptScreenLogCtx->ptDrawLayer,
-            (plVec2){fWidth - fWidth * 0.25f, fStartY},
-            gptScreenLogCtx->sbtSortMessages[i].acBuffer,
-            tDrawTextOptions);
+            float fAlpha = pl_maxf(0.2f, 1.0f - (float)((dCurrentTime - gptScreenLogCtx->sbtSortMessages[i].dStartTime) / gptScreenLogCtx->sbtSortMessages[i].dTimeToDisplay));
+            if(gptScreenLogCtx->sbtSortMessages[i].dTimeToDisplay < 0.0)
+                fAlpha = 1.0f;
+
+            if(gptScreenLogCtx->sbtSortMessages[i].bEven)        
+                gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.2f, 0.2f, 0.2f, fAlpha)});
+            else
+                gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.1f, 0.1f, 0.1f, fAlpha)});
+
+            tDrawTextOptions.uColor = gptScreenLogCtx->sbtSortMessages[i].uColor & ~0xFF000000;
+            tDrawTextOptions.uColor |=  PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, fAlpha);
+            gptDraw->add_text(gptScreenLogCtx->ptDrawLayer,
+                (plVec2){fWidth - fWidth * 0.25f, fStartY},
+                gptScreenLogCtx->sbtSortMessages[i].acBuffer,
+                tDrawTextOptions);
+        }
 
         fStartY += pl_rect_height(&tTextBB);
         pl_sb_push(gptScreenLogCtx->sbtTimedMessages, gptScreenLogCtx->sbtSortMessages[i]);
