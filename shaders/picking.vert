@@ -21,7 +21,8 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
 
 layout(std140, set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    vec4 tColor;
+    uint uID;
+    vec4 tMousePos;
     mat4 tModel;
 } tObjectInfo;
 
@@ -33,9 +34,10 @@ layout(std140, set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 layout(location = 0) in vec3 inPos;
 
 // output
-layout(location = 0) out struct plShaderOut {
-    vec4 tColor;
-} tShaderIn;
+layout(location = 0) flat out struct plShaderOut {
+    vec2 tMousePos;
+    uint uID;
+} tShaderOut;
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry
@@ -46,5 +48,6 @@ void main()
     vec4 inPosition  = vec4(inPos, 1.0);
     vec4 pos = tObjectInfo.tModel * inPosition;
     gl_Position = tGlobalInfo.tCameraViewProjection * pos;
-    tShaderIn.tColor = tObjectInfo.tColor;
+    tShaderOut.uID = tObjectInfo.uID;
+    tShaderOut.tMousePos = tObjectInfo.tMousePos.xy;
 }

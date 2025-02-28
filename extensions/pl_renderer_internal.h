@@ -338,8 +338,12 @@ typedef struct _plRefView
     plTextureHandle tDepthTexture;
 
     // picking
-    plTextureHandle tPickTexture;
-    plTextureHandle tPickDepthTexture;
+    uint32_t          uRequestHoverCheckFrame;
+    bool              bRequestHoverCheck;
+    plEntity          tHoveredEntity;
+    plTextureHandle   tPickTexture;
+    plBufferHandle    tPickBuffer;
+    plBindGroupHandle tPickBindGroup;
 
     // outlining
     plTextureHandle atUVMaskTexture0;
@@ -488,10 +492,6 @@ typedef struct _plRefRendererData
     plBindGroupPool* ptBindGroupPool;
     plBindGroupPool* aptTempGroupPools[PL_MAX_FRAMES_IN_FLIGHT];
 
-    // picking
-    uint32_t uClickedFrame;
-    plEntity tPickedEntity;
-
     // full quad
     plBufferHandle tFullQuadVertexBuffer;
     plBufferHandle tFullQuadIndexBuffer;
@@ -546,7 +546,6 @@ typedef struct _plRefRendererData
     plDrawStream tDrawStream;
 
     // staging (more robust system should replace this)
-    plBufferHandle tCachedStagingBuffer;
     plBufferHandle tStagingBufferHandle[PL_MAX_FRAMES_IN_FLIGHT];
     uint32_t uStagingOffset;
 
@@ -649,7 +648,7 @@ static plTextureHandle pl__refr_create_local_texture        (const plTextureDesc
 static plTextureHandle pl__refr_create_texture_with_data    (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);
 static plBufferHandle  pl__refr_create_staging_buffer       (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
 static plBufferHandle  pl__refr_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
-static plBufferHandle  pl__refr_create_local_buffer         (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData);
+static plBufferHandle  pl__refr_create_local_buffer         (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);
 
 // culling
 static bool pl__sat_visibility_test(plCameraComponent*, const plAABB*);

@@ -207,6 +207,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
         gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
 
+        gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
+
         return ptAppData;
     }
 
@@ -450,21 +452,43 @@ pl_app_update(plAppData* ptAppData)
         plCameraComponent*  ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
         gptCamera->update(ptCullCamera);
 
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~selection stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        if(!gptUI->wants_mouse_capture() && !gptGizmo->active())
+        {
+            static plVec2 tClickPos = {0};
+            if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+            {
+                tClickPos = gptIO->get_mouse_pos();
+            }
+            else if(gptIO->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
+            {
+                plVec2 tReleasePos = gptIO->get_mouse_pos();
+
+                if(tReleasePos.x == tClickPos.x && tReleasePos.y == tClickPos.y)
+                    gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0);
+            }
+        }
+
         // run ecs system
         gptRenderer->run_ecs(ptAppData->uSceneHandle0);
 
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~selection stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        plEntity tNextEntity = {0};
+        if(gptRenderer->get_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, &tNextEntity))
+        {
+            
+            if(tNextEntity.ulData == 0)
+            {
+                ptAppData->tSelectedEntity.ulData = UINT64_MAX;
+                gptRenderer->outline_entities(ptAppData->uSceneHandle0, 0, NULL);
+            }
+            else if(ptAppData->tSelectedEntity.ulData != tNextEntity.ulData)
+            {
+                gptRenderer->outline_entities(ptAppData->uSceneHandle0, 1, &tNextEntity);
+                ptAppData->tSelectedEntity = tNextEntity;
+            }
 
-        plEntity tNextEntity = gptRenderer->get_picked_entity();
-        if(tNextEntity.ulData == 0)
-        {
-            ptAppData->tSelectedEntity.ulData = UINT64_MAX;
-            gptRenderer->select_entities(ptAppData->uSceneHandle0, 0, NULL);
-        }
-        else if(tNextEntity.ulData != UINT64_MAX && ptAppData->tSelectedEntity.ulData != tNextEntity.ulData)
-        {
-            ptAppData->tSelectedEntity = tNextEntity;
-            gptRenderer->select_entities(ptAppData->uSceneHandle0, 1, &ptAppData->tSelectedEntity);
+            
         }
 
         if(gptIO->is_key_pressed(PL_KEY_M, true))
@@ -475,9 +499,13 @@ pl_app_update(plAppData* ptAppData)
             if(gptEcsTools->show_ecs_window(&ptAppData->tSelectedEntity, ptAppData->uSceneHandle0, &ptAppData->bShowEntityWindow))
             {
                 if(ptAppData->tSelectedEntity.ulData == UINT64_MAX)
-                    gptRenderer->select_entities(ptAppData->uSceneHandle0, 0, NULL);
+                {
+                    gptRenderer->outline_entities(ptAppData->uSceneHandle0, 0, NULL);
+                }
                 else
-                    gptRenderer->select_entities(ptAppData->uSceneHandle0, 1, &ptAppData->tSelectedEntity);
+                {
+                    gptRenderer->outline_entities(ptAppData->uSceneHandle0, 1, &ptAppData->tSelectedEntity);
+                }
             }
         }
 
@@ -531,6 +559,16 @@ pl_app_update(plAppData* ptAppData)
             const float pfRatios[] = {1.0f};
             const float pfRatios2[] = {0.5f, 0.5f};
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+
+            // if(gptUI->button("Select Stuff"))
+            // {
+            //     plEntity atEnts[] = 
+            //     {
+            //         {.uIndex = 88},
+            //         {.uIndex = 125},
+            //     };
+            //     gptRenderer->select_entities(ptAppData->uSceneHandle0, 2, atEnts);
+            // }
 
             if(gptUI->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
             {
@@ -756,7 +794,7 @@ pl__create_scene(plAppData* ptAppData)
     ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-4.7f, 4.2f, -3.256f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
     gptCamera->update(ptMainCamera);
-    gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING, ptAppData->tMainCamera, NULL);
+    gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
 
     // create cull camera
     plCameraComponent* ptCullCamera = NULL;

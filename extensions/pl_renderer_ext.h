@@ -92,10 +92,13 @@ typedef struct _plRendererI
     void (*render_scene)(uint32_t uSceneHandle, const uint32_t* auViewHandles, const plViewOptions* atOptions, uint32_t uViewCount);
     bool (*begin_frame) (void);
     void (*end_frame)   (void);
-    plEntity (*get_picked_entity)(void);
+
+    // selection & highlighting
+    void (*update_hovered_entity)(uint32_t uSceneHandle, uint32_t uViewHandle);
+    bool (*get_hovered_entity)   (uint32_t uSceneHandle, uint32_t uViewHandle, plEntity*);
+    void (*outline_entities)     (uint32_t uSceneHandle, uint32_t uCount, plEntity*);
 
     // misc
-    void                (*select_entities)(uint32_t uSceneHandle, uint32_t uCount, plEntity*);
     plComponentLibrary* (*get_component_library)(uint32_t uSceneHandle);
     plDevice*           (*get_device)(void);
     plSwapchain*        (*get_swapchain)(void);

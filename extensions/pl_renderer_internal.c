@@ -328,7 +328,7 @@ pl__refr_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char* pc
 }
 
 static plBufferHandle
-pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData)
+pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize)
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
@@ -361,7 +361,7 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
     {
         // copy data to staging buffer
         plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptData->tStagingBufferHandle[gptGfx->get_current_frame_index()]);
-        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, ptDesc->szByteSize);
+        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, szSize);
 
         // begin recording
         plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
@@ -371,7 +371,7 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
         plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
         gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
-        gptGfx->copy_buffer(ptEncoder, gptData->tStagingBufferHandle[gptGfx->get_current_frame_index()], tHandle, 0, 0, ptDesc->szByteSize);
+        gptGfx->copy_buffer(ptEncoder, gptData->tStagingBufferHandle[gptGfx->get_current_frame_index()], tHandle, 0, 0, szSize);
         gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptEncoder);
 
@@ -2316,8 +2316,8 @@ pl_refr_create_global_shaders(void)
         .tPixelShader = gptShader->load_glsl("picking.frag", "main", NULL, NULL),
         .tVertexShader = gptShader->load_glsl("picking.vert", "main", NULL, NULL),
         .tGraphicsState = {
-            .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+            .ulDepthWriteEnabled  = 0,
+            .ulDepthMode          = PL_COMPARE_MODE_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulWireframe          = 0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -2342,6 +2342,11 @@ pl_refr_create_global_shaders(void)
             {
                 .atBufferBindings = {
                     { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
+                },
+            },
+            {
+                .atBufferBindings = {
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
             }
         }
@@ -4475,13 +4480,13 @@ pl__refr_unstage_drawables(uint32_t uSceneHandle)
         ptScene->tSkinStorageBuffer.uData = UINT32_MAX;
     }
 
-    ptScene->tIndexBuffer   = pl__refr_create_local_buffer(&tIndexBufferDesc,   "index", uSceneHandle, ptScene->sbuIndexBuffer);
-    ptScene->tVertexBuffer  = pl__refr_create_local_buffer(&tVertexBufferDesc,  "vertex", uSceneHandle, ptScene->sbtVertexPosBuffer);
-    ptScene->tStorageBuffer = pl__refr_create_local_buffer(&tStorageBufferDesc, "storage", uSceneHandle, ptScene->sbtVertexDataBuffer);
+    ptScene->tIndexBuffer   = pl__refr_create_local_buffer(&tIndexBufferDesc,   "index", uSceneHandle, ptScene->sbuIndexBuffer, pl_sb_size(ptScene->sbuIndexBuffer) * sizeof(uint32_t));
+    ptScene->tVertexBuffer  = pl__refr_create_local_buffer(&tVertexBufferDesc,  "vertex", uSceneHandle, ptScene->sbtVertexPosBuffer, pl_sb_size(ptScene->sbtVertexPosBuffer) * sizeof(plVec3));
+    ptScene->tStorageBuffer = pl__refr_create_local_buffer(&tStorageBufferDesc, "storage", uSceneHandle, ptScene->sbtVertexDataBuffer, pl_sb_size(ptScene->sbtVertexDataBuffer) * sizeof(plVec4));
 
     if(tSkinStorageBufferDesc.szByteSize > 0)
     {
-        ptScene->tSkinStorageBuffer  = pl__refr_create_local_buffer(&tSkinStorageBufferDesc, "skin storage", uSceneHandle, ptScene->sbtSkinVertexDataBuffer);
+        ptScene->tSkinStorageBuffer  = pl__refr_create_local_buffer(&tSkinStorageBufferDesc, "skin storage", uSceneHandle, ptScene->sbtSkinVertexDataBuffer, pl_sb_size(ptScene->sbtSkinVertexDataBuffer) * sizeof(plVec4));
 
         const plBindGroupLayout tSkinBindGroupLayout0 = {
             .atSamplerBindings = {

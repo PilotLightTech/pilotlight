@@ -26,7 +26,7 @@ Index of this file:
     #include "pl_unity_ext.inc"
 #else
 
-static const plMemoryI*  gptMemory = NULL;
+static const plMemoryI*   gptMemory = NULL;
 static const plEcsI*      gptECS      = NULL;
 static const plUiI*       gptUI       = NULL;
 static const plRendererI* gptRenderer = NULL;
@@ -314,7 +314,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     gptUI->text("Entity: %u, %u", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
                     if(gptUI->button("Delete"))
                     {
-                        gptRenderer->select_entities(uSceneHandle, 0, NULL);
+                        gptRenderer->outline_entities(uSceneHandle, 0, NULL);
                         gptRenderer->remove_objects_from_scene(uSceneHandle, 1, ptSelectedEntity);
                         ptSelectedEntity->ulData = UINT64_MAX;
                         
