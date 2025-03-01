@@ -5,14 +5,6 @@
      * absolute mess
      * mostly a sandbox for now & testing experimental stuff
      * probably better to look at the examples
-
-   Controls:
-     * WASD - translation
-     * F - fall
-     * R - rise
-     * center mouse - rotation
-     * right click - selection
-     * M - switch gizmo mode
 */
 
 /*
@@ -45,6 +37,7 @@ Index of this file:
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "pl_icons.h"
+#include "pl_json.h"
 
 // stable extensions
 #include "pl_image_ext.h"
@@ -113,9 +106,34 @@ const plScreenLogI*    gptScreenLog   = NULL;
 #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 #include "pl_ds.h"
 
+#define PL_JSON_ALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_JSON_FREE(x)  gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plTestModelVariant
+{
+    char acType[64];
+    char acName[128];
+    char acFilePath[1024];
+} plTestModelVariant;
+
+typedef struct _plTestModel
+{
+    char acLabel[256];
+    char acName[128];
+    
+    bool bCore;
+    bool bExtension;
+    bool bTesting;
+    bool bSelected;
+
+    uint32_t uVariantCount;
+    plTestModelVariant acVariants[8];
+
+} plTestModel;
 
 typedef struct _plAppData
 {
@@ -127,6 +145,7 @@ typedef struct _plAppData
     bool bResize;
 
     // ui options
+    bool  bEditorAttached;
     bool  bShowUiDebug;
     bool  bShowUiStyle;
     bool  bShowEntityWindow;
@@ -154,13 +173,19 @@ typedef struct _plAppData
     
     // fonts
     plFont* tDefaultFont;
+
+    // test models
+    plUiTextFilter tFilter;
+    plTestModel*   sbtTestModels;
 } plAppData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper forward declarations
 //-----------------------------------------------------------------------------
 
-void pl__create_scene(plAppData* ptAppData);
+void pl__find_models       (plAppData*);
+void pl__create_scene      (plAppData*);
+void pl__show_editor_window(plAppData*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -254,6 +279,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tSelectedEntity.ulData = UINT64_MAX;
     ptAppData->uSceneHandle0 = UINT32_MAX;
     ptAppData->bShowPilotLightTool = true;
+    ptAppData->bEditorAttached = true;
 
     // add console variables
     gptConsole->initialize((plConsoleSettings){.tFlags = PL_CONSOLE_FLAGS_POPUP});
@@ -362,6 +388,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // temporary draw layer for submitting fullscreen quad of offscreen render
     ptAppData->ptDrawLayer = gptDraw->request_2d_layer(gptUI->get_draw_list());
 
+    pl__find_models(ptAppData);
+
     return ptAppData;
 }
 
@@ -384,6 +412,8 @@ pl_app_shutdown(plAppData* ptAppData)
     gptDrawBackend->cleanup();
     gptRenderer->cleanup();
     gptWindows->destroy_window(ptAppData->ptWindow);
+    gptUI->text_filter_cleanup(&ptAppData->tFilter);
+    pl_sb_free(ptAppData->sbtTestModels);
     PL_FREE(ptAppData);
 }
 
@@ -484,6 +514,7 @@ pl_app_update(plAppData* ptAppData)
             }
             else if(ptAppData->tSelectedEntity.ulData != tNextEntity.ulData)
             {
+                gptScreenLog->add_message_ex(565168477883, 5.0, PL_COLOR_32_RED, 1.0f, "Selected Entity {%u, %u}", tNextEntity.uIndex, tNextEntity.uGeneration);
                 gptRenderer->outline_entities(ptAppData->uSceneHandle0, 1, &tNextEntity);
                 ptAppData->tSelectedEntity = tNextEntity;
             }
@@ -550,212 +581,7 @@ pl_app_update(plAppData* ptAppData)
 
     // main "editor" debug window
     if(ptAppData->bShowPilotLightTool)
-    {
-        gptUI->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ONCE);
-        gptUI->set_next_window_size((plVec2){500.0f, 700.0f}, PL_UI_COND_ONCE);
-        if(gptUI->begin_window("Pilot Light", NULL, PL_UI_WINDOW_FLAGS_NONE))
-        {
-
-            const float pfRatios[] = {1.0f};
-            const float pfRatios2[] = {0.5f, 0.5f};
-            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-
-            // if(gptUI->button("Select Stuff"))
-            // {
-            //     plEntity atEnts[] = 
-            //     {
-            //         {.uIndex = 88},
-            //         {.uIndex = 125},
-            //     };
-            //     gptRenderer->select_entities(ptAppData->uSceneHandle0, 2, atEnts);
-            // }
-
-            if(gptUI->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
-            {
-                gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
-                gptUI->end_collapsing_header();
-            }
-            if(gptUI->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
-            {
-                if(ptAppData->uSceneHandle0 != UINT32_MAX)
-                {
-                    if(gptUI->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
-                    {
-                        plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
-                        plCameraComponent*  ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
-                        plCameraComponent*  ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
-                        *ptCullCamera = *ptCamera;
-                    }
-                }
-
-                gptUI->end_collapsing_header();
-            }
-            
-            gptRenderer->show_graphics_options(ICON_FA_DICE_D6 " Graphics");
-
-            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
-            if(gptUI->begin_collapsing_header(ICON_FA_SCREWDRIVER_WRENCH " Tools", 0))
-            {
-                gptUI->checkbox("Device Memory Analyzer", ptAppData->pbShowDeviceMemoryAnalyzer);
-                gptUI->checkbox("Memory Allocations", ptAppData->pbShowMemoryAllocations);
-                gptUI->checkbox("Profiling", ptAppData->pbShowProfiling);
-                gptUI->checkbox("Statistics", ptAppData->pbShowStats);
-                gptUI->checkbox("Logging", ptAppData->pbShowLogging);
-                gptUI->checkbox("Entities", &ptAppData->bShowEntityWindow);
-                gptUI->end_collapsing_header();
-            }
-            if(gptUI->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface", 0))
-            {
-                gptUI->checkbox("UI Debug", &ptAppData->bShowUiDebug);
-                gptUI->checkbox("UI Style", &ptAppData->bShowUiStyle);
-                gptUI->end_collapsing_header();
-            }
-
-            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-
-            if(gptUI->begin_collapsing_header(ICON_FA_PHOTO_FILM " Renderer", 0))
-            {
-
-                gptUI->vertical_spacing();
-
-                const float pfWidths[] = {150.0f, 150.0f};
-                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfWidths);
-
-                bool bLoadScene = false;
-
-                if(ptAppData->uSceneHandle0 != UINT32_MAX)
-                {
-                    if(gptUI->button("Unload Scene"))
-                    {
-                        gptRenderer->cleanup_scene(ptAppData->uSceneHandle0);
-                        ptAppData->uSceneHandle0 = UINT32_MAX;
-                    }
-                }
-                else
-                {
-                    if(gptUI->button("Load Scene"))
-                    {
-                        bLoadScene = true;
-                    }
-                }
-
-                if(gptUI->button("Reload Shaders"))
-                {
-                    gptRenderer->reload_scene_shaders(ptAppData->uSceneHandle0);
-                }
-
-                if(ptAppData->uSceneHandle0 == UINT32_MAX)
-                {
-
-                    static uint32_t uComboSelect = 1;
-                    static const char* apcEnvMaps[] = {
-                        "none",
-                        "helipad",
-                        "chromatic",
-                        "directional",
-                        "doge2",
-                        "ennis",
-                        "field",
-                        "footprint_court",
-                        "neutral",
-                        "papermill",
-                        "pisa",
-                    };
-                    bool abCombo[11] = {0};
-                    abCombo[uComboSelect] = true;
-                    gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-                    if(gptUI->begin_combo("Environment", apcEnvMaps[uComboSelect], PL_UI_COMBO_FLAGS_NONE))
-                    {
-                        for(uint32_t i = 0; i < 10; i++)
-                        {
-                            if(gptUI->selectable(apcEnvMaps[i], &abCombo[i], 0))
-                            {
-                                uComboSelect = i;
-                                gptUI->close_current_popup();
-                            }
-                        }
-                        gptUI->end_combo();
-                    }
-
-                    static bool abModels[] = {
-                        false,
-                        false,
-                        false,
-                        false,
-                        true,
-                        true,
-                        false,
-                        false,
-                    };
-
-                    static const char* apcModels[] = {
-                        "Sponza",
-                        "DamagedHelmet",
-                        "NormalTangentTest",
-                        "NormalTangentMirrorTest",
-                        "Humanoid",
-                        "Floor",
-                        "Environment Test",
-                        "Test",
-                    };
-
-                    static const char* apcModelPaths[] = {
-                        "../data/glTF-Sample-Assets-main/Models/Sponza/glTF/Sponza.gltf",
-                        "../data/glTF-Sample-Assets-main/Models/DamagedHelmet/glTF/DamagedHelmet.gltf",
-                        "../data/glTF-Sample-Assets-main/Models/NormalTangentTest/glTF/NormalTangentTest.gltf",
-                        "../data/glTF-Sample-Assets-main/Models/NormalTangentMirrorTest/glTF/NormalTangentMirrorTest.gltf",
-                        "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf",
-                        "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf",
-                        "../data/glTF-Sample-Assets-main/Models/EnvironmentTest/glTF/EnvironmentTest.gltf",
-                        "../data/testing/testing.gltf",
-                    };
-
-                    gptUI->separator_text("Test Models");
-                    for(uint32_t i = 0; i < 7; i++)
-                        gptUI->selectable(apcModels[i], &abModels[i], 0);
-
-
-                    gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfWidths);
-
-                    if(bLoadScene)
-                    {
-
-                        pl__create_scene(ptAppData);
-                        
-                        if(uComboSelect > 0)
-                        {
-                            char* sbcData = NULL;
-                            pl_sb_sprintf(sbcData, "../data/pilotlight-assets-master/environments/%s.hdr", apcEnvMaps[uComboSelect]);
-                            gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, sbcData, 1024);
-                            pl_sb_free(sbcData);
-                        }
-
-                        ptAppData->uViewHandle0 = gptRenderer->create_view(ptAppData->uSceneHandle0, ptIO->tMainViewportSize);
-
-                        plModelLoaderData tLoaderData0 = {0};
-
-                        for(uint32_t i = 0; i < 7; i++)
-                        {
-                            if(abModels[i])
-                            {
-                                plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
-                                gptModelLoader->load_gltf(ptMainComponentLibrary, apcModelPaths[i], NULL, &tLoaderData0);
-                            }
-                        }
-
-                        gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uDeferredCount, tLoaderData0.atDeferredObjects, tLoaderData0.uForwardCount, tLoaderData0.atForwardObjects);
-                        gptModelLoader->free_data(&tLoaderData0);
-
-                        gptRenderer->finalize_scene(ptAppData->uSceneHandle0);
-                    }
-
-                }
-                gptUI->end_collapsing_header();
-            }
-            gptUI->end_window();
-        }
-    }
+        pl__show_editor_window(ptAppData);
 
     gptDebug->update();
         
@@ -780,6 +606,425 @@ pl_app_update(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 // [SECTION] helper implementations
 //-----------------------------------------------------------------------------
+
+void
+pl__find_models(plAppData* ptAppData)
+{
+    if(gptFile->exists("../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf"))
+    {
+        plTestModel tModel = {
+            .uVariantCount = 1,
+            .bSelected = true
+        };
+        strcpy(tModel.acName, "Fembot");
+        strcpy(tModel.acVariants[0].acType, "glTF");
+        strcpy(tModel.acVariants[0].acFilePath, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf");
+        pl_sb_push(ptAppData->sbtTestModels, tModel);
+    }
+
+    if(gptFile->exists("../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf"))
+    {
+        plTestModel tModel = {
+            .uVariantCount = 1,
+            .bSelected = true
+        };
+        strcpy(tModel.acName, "Floor");
+        strcpy(tModel.acVariants[0].acType, "glTF");
+        strcpy(tModel.acVariants[0].acFilePath, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf");
+        pl_sb_push(ptAppData->sbtTestModels, tModel);
+    }
+
+    if(gptFile->exists("../sandbox/model-index.json"))
+    {
+        size_t szJsonFileSize = 0;
+        gptFile->binary_read("../sandbox/model-index.json", &szJsonFileSize, NULL);
+        uint8_t* puFileBuffer = PL_ALLOC(szJsonFileSize + 1);
+        memset(puFileBuffer, 0, szJsonFileSize + 1);
+
+        gptFile->binary_read("../sandbox/model-index.json", &szJsonFileSize, puFileBuffer);
+
+        plJsonObject* ptRootJsonObject = NULL;
+        pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
+
+        plJsonObject* ptModelList = pl_json_member_by_index(ptRootJsonObject, 0);
+
+        uint32_t uTestModelCount = 0;
+        pl_json_member_list(ptModelList, NULL, &uTestModelCount, NULL);
+
+        pl_sb_reserve(ptAppData->sbtTestModels, pl_sb_size(ptAppData->sbtTestModels) + uTestModelCount);
+
+        for(uint32_t i = 0; i < uTestModelCount; i++)
+        {
+            plJsonObject* ptModelObject = pl_json_member_by_index(ptModelList, i);
+
+            plTestModel tTestModel = {0};
+
+            pl_json_string_member(ptModelObject, "label", tTestModel.acLabel, 256);
+            pl_json_string_member(ptModelObject, "name", tTestModel.acName, 128);
+
+            plJsonObject* ptVariantsObject = pl_json_member(ptModelObject, "variants");
+
+            char* acVariantNames[8] = {0};
+            for(uint32_t j = 0; j < 8; j++)
+            { 
+                acVariantNames[j] = tTestModel.acVariants[j].acType;
+            }
+            pl_json_member_list(ptVariantsObject, acVariantNames, &tTestModel.uVariantCount, NULL);
+
+            for(uint32_t j = 0; j < tTestModel.uVariantCount; j++)
+            {
+                pl_json_string_member(ptVariantsObject, tTestModel.acVariants[j].acType, tTestModel.acVariants[j].acName, 128);
+                pl_sprintf(tTestModel.acVariants[j].acFilePath, "%s", tTestModel.acVariants[j].acName);
+            }
+
+            char acTag0[64] = {0};
+            char acTag1[64] = {0};
+            char acTag2[64] = {0};
+            char acTag3[64] = {0};
+            char acTag4[64] = {0};
+
+            char* acTags[] = {
+                acTag0,
+                acTag1,
+                acTag2,
+                acTag3,
+                acTag4,
+            };
+            uint32_t uTagCount = 0;
+            uint32_t uTagLength = 64;
+            pl_json_string_array_member(ptVariantsObject, "tags", acTags, &uTagCount, &uTagLength);
+
+            for(uint32_t j = 0; j < uTagCount; j++)
+            {
+                if(pl_str_equal(acTags[j], "core"))
+                    tTestModel.bCore = true;
+                if(pl_str_equal(acTags[j], "extensions"))
+                    tTestModel.bExtension = true;
+                if(pl_str_equal(acTags[j], "testing"))
+                    tTestModel.bTesting = true;
+            }
+
+            pl_sb_push(ptAppData->sbtTestModels, tTestModel);
+        }
+
+        pl_unload_json(&ptRootJsonObject);
+
+        PL_FREE(puFileBuffer);
+    }
+
+    if(gptFile->exists("../data/glTF-Sample-Assets-main/Models/model-index.json"))
+    {
+        size_t szJsonFileSize = 0;
+        gptFile->binary_read("../data/glTF-Sample-Assets-main/Models/model-index.json", &szJsonFileSize, NULL);
+        uint8_t* puFileBuffer = PL_ALLOC(szJsonFileSize + 1);
+        memset(puFileBuffer, 0, szJsonFileSize + 1);
+
+        gptFile->binary_read("../data/glTF-Sample-Assets-main/Models/model-index.json", &szJsonFileSize, puFileBuffer);
+
+        plJsonObject* ptRootJsonObject = NULL;
+        pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
+
+        plJsonObject* ptModelList = pl_json_member_by_index(ptRootJsonObject, 0);
+
+        uint32_t uTestModelCount = 0;
+        pl_json_member_list(ptModelList, NULL, &uTestModelCount, NULL);
+
+        pl_sb_reserve(ptAppData->sbtTestModels, pl_sb_size(ptAppData->sbtTestModels) + uTestModelCount);
+
+        for(uint32_t i = 0; i < uTestModelCount; i++)
+        {
+            plJsonObject* ptModelObject = pl_json_member_by_index(ptModelList, i);
+
+            plTestModel tTestModel = {0};
+
+            pl_json_string_member(ptModelObject, "label", tTestModel.acLabel, 256);
+            pl_json_string_member(ptModelObject, "name", tTestModel.acName, 128);
+
+            plJsonObject* ptVariantsObject = pl_json_member(ptModelObject, "variants");
+
+            char* acVariantNames[8] = {0};
+            for(uint32_t j = 0; j < 8; j++)
+            { 
+                acVariantNames[j] = tTestModel.acVariants[j].acType;
+            }
+            pl_json_member_list(ptVariantsObject, acVariantNames, &tTestModel.uVariantCount, NULL);
+
+            for(uint32_t j = 0; j < tTestModel.uVariantCount; j++)
+            {
+                pl_json_string_member(ptVariantsObject, tTestModel.acVariants[j].acType, tTestModel.acVariants[j].acName, 128);
+                pl_sprintf(tTestModel.acVariants[j].acFilePath, "../data/glTF-Sample-Assets-main/Models/%s/%s/%s", tTestModel.acName, tTestModel.acVariants[j].acType, tTestModel.acVariants[j].acName);
+            }
+
+            char acTag0[64] = {0};
+            char acTag1[64] = {0};
+            char acTag2[64] = {0};
+            char acTag3[64] = {0};
+            char acTag4[64] = {0};
+
+            char* acTags[] = {
+                acTag0,
+                acTag1,
+                acTag2,
+                acTag3,
+                acTag4,
+            };
+            uint32_t uTagCount = 0;
+            uint32_t uTagLength = 64;
+            pl_json_string_array_member(ptVariantsObject, "tags", acTags, &uTagCount, &uTagLength);
+
+            for(uint32_t j = 0; j < uTagCount; j++)
+            {
+                if(pl_str_equal(acTags[j], "core"))
+                    tTestModel.bCore = true;
+                if(pl_str_equal(acTags[j], "extensions"))
+                    tTestModel.bExtension = true;
+                if(pl_str_equal(acTags[j], "testing"))
+                    tTestModel.bTesting = true;
+            }
+
+            pl_sb_push(ptAppData->sbtTestModels, tTestModel);
+        }
+
+        pl_unload_json(&ptRootJsonObject);
+
+        PL_FREE(puFileBuffer);
+    }
+}
+
+void
+pl__show_editor_window(plAppData* ptAppData)
+{
+    plIO* ptIO = gptIO->get_io();
+
+    plUiWindowFlags tWindowFlags = PL_UI_WINDOW_FLAGS_NONE;
+
+    if(ptAppData->bEditorAttached)
+    {
+        tWindowFlags = PL_UI_WINDOW_FLAGS_NO_TITLE_BAR | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR;
+        gptUI->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ALWAYS);
+        gptUI->set_next_window_size((plVec2){400.0f, ptIO->tMainViewportSize.y}, PL_UI_COND_ALWAYS);
+    }
+
+    if(gptUI->begin_window("Pilot Light", NULL, tWindowFlags))
+    {
+        gptUI->vertical_spacing();
+        // gptUI->vertical_spacing();
+        // gptUI->vertical_spacing();
+
+        const float pfRatios[] = {1.0f};
+        const float pfRatios2[] = {0.5f, 0.5f};
+        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+
+        if(gptUI->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
+        {
+            gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+            gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
+
+            gptUI->layout_static(0.0f, 200.0f, 1);
+            if(gptUI->button("Show Camera Controls"))
+            {
+                const char* acMouseInfo = "Camera Controls\n"
+                "_______________\n"
+                "LMB + Drag: Moves camera forward & backward and rotates left & right.\n\n"
+                "RMB + Drag: Rotates camera.\n\n"
+                "LMB + RMB + Drag: Pans Camera\n\n"
+                "Game style (when holding RMB)\n"
+                "_____________________________\n"
+                "W    Moves the camera forward.\n"
+                "S    Moves the camera backward.\n"
+                "A    Moves the camera left.\n"
+                "D    Moves the camera right.\n"
+                "E    Moves the camera up.\n"
+                "Q    Moves the camera down.\n"
+                "Z    Zooms the camera out (raises FOV).\n"
+                "C    Zooms the camera in (lowers FOV).\n";
+                gptScreenLog->add_message_ex(651984984, 45.0, PL_COLOR_32_GREEN, 1.5f, acMouseInfo);
+            }
+            gptUI->end_collapsing_header();
+        }
+        if(gptUI->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
+        {
+            gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
+            if(ptAppData->uSceneHandle0 != UINT32_MAX)
+            {
+                if(gptUI->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
+                {
+                    plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
+                    plCameraComponent*  ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
+                    plCameraComponent*  ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
+                    *ptCullCamera = *ptCamera;
+                }
+            }
+
+            gptUI->vertical_spacing();
+
+            const float pfWidths[] = {150.0f, 150.0f};
+            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfWidths);
+
+            bool bLoadScene = false;
+
+            if(ptAppData->uSceneHandle0 != UINT32_MAX)
+            {
+                if(gptUI->button("Unload Scene"))
+                {
+                    gptRenderer->cleanup_scene(ptAppData->uSceneHandle0);
+                    ptAppData->uSceneHandle0 = UINT32_MAX;
+                }
+            }
+            else
+            {
+                if(gptUI->button("Load Scene"))
+                {
+                    bLoadScene = true;
+                }
+            }
+
+            if(gptUI->button("Reset Selection"))
+            {
+                uint32_t uTestModelCount = pl_sb_size(ptAppData->sbtTestModels);
+                for(uint32_t i = 0; i < uTestModelCount; i++)
+                {
+                    ptAppData->sbtTestModels[i].bSelected = false;
+                }
+            }
+
+            if(ptAppData->uSceneHandle0 == UINT32_MAX)
+            {
+
+                static uint32_t uComboSelect = 1;
+                static const char* apcEnvMaps[] = {
+                    "none",
+                    "helipad",
+                    "chromatic",
+                    "directional",
+                    "doge2",
+                    "ennis",
+                    "field",
+                    "footprint_court",
+                    "neutral",
+                    "papermill",
+                    "pisa",
+                };
+                bool abCombo[11] = {0};
+                abCombo[uComboSelect] = true;
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+                if(gptUI->begin_combo("Environment", apcEnvMaps[uComboSelect], PL_UI_COMBO_FLAGS_NONE))
+                {
+                    for(uint32_t i = 0; i < 10; i++)
+                    {
+                        if(gptUI->selectable(apcEnvMaps[i], &abCombo[i], 0))
+                        {
+                            uComboSelect = i;
+                            gptUI->close_current_popup();
+                        }
+                    }
+                    gptUI->end_combo();
+                }
+
+                if(gptUI->input_text_hint(ICON_FA_MAGNIFYING_GLASS, "Filter (inc,-exc)", ptAppData->tFilter.acInputBuffer, 256, 0))
+                {
+                    gptUI->text_filter_build(&ptAppData->tFilter);
+                }
+
+                if(gptUI->begin_child("GLTF Models", 0, 0))
+                {
+                    uint32_t uTestModelCount = pl_sb_size(ptAppData->sbtTestModels);
+                    if(gptUI->text_filter_active(&ptAppData->tFilter))
+                    {
+                        for(uint32_t i = 0; i < uTestModelCount; i++)
+                        {
+                            if(gptUI->text_filter_pass(&ptAppData->tFilter, ptAppData->sbtTestModels[i].acName, NULL))
+                                gptUI->selectable(ptAppData->sbtTestModels[i].acName, &ptAppData->sbtTestModels[i].bSelected, 0);
+                        }
+                    }
+                    else
+                    {
+                        plUiClipper tClipper = {(uint32_t)uTestModelCount};
+                        while(gptUI->step_clipper(&tClipper))
+                        {
+                            for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
+                            {
+                                gptUI->selectable(ptAppData->sbtTestModels[i].acName, &ptAppData->sbtTestModels[i].bSelected, 0);
+                            }
+                        }
+                    }
+                    gptUI->end_child();
+                }
+
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfWidths);
+
+                if(bLoadScene)
+                {
+
+                    pl__create_scene(ptAppData);
+                    
+                    if(uComboSelect > 0)
+                    {
+                        char* sbcData = NULL;
+                        pl_sb_sprintf(sbcData, "../data/pilotlight-assets-master/environments/%s.hdr", apcEnvMaps[uComboSelect]);
+                        gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, sbcData, 1024);
+                        pl_sb_free(sbcData);
+                    }
+
+                    ptAppData->uViewHandle0 = gptRenderer->create_view(ptAppData->uSceneHandle0, ptIO->tMainViewportSize);
+
+                    plModelLoaderData tLoaderData0 = {0};
+
+                    uint32_t uTestModelCount = pl_sb_size(ptAppData->sbtTestModels);
+                    for(uint32_t i = 0; i < uTestModelCount; i++)
+                    {
+                        if(ptAppData->sbtTestModels[i].bSelected)
+                        {
+                            plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
+                            gptModelLoader->load_gltf(ptMainComponentLibrary, ptAppData->sbtTestModels[i].acVariants[0].acFilePath, NULL, &tLoaderData0);
+                        }
+                    }
+
+                    gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uDeferredCount, tLoaderData0.atDeferredObjects, tLoaderData0.uForwardCount, tLoaderData0.atForwardObjects);
+                    gptModelLoader->free_data(&tLoaderData0);
+
+                    gptRenderer->finalize_scene(ptAppData->uSceneHandle0);
+                }
+
+            }
+
+            gptUI->end_collapsing_header();
+        }
+        
+        gptRenderer->show_graphics_options(ICON_FA_DICE_D6 " Graphics");
+
+        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
+        if(gptUI->begin_collapsing_header(ICON_FA_SCREWDRIVER_WRENCH " Tools", 0))
+        {
+            gptUI->checkbox("Device Memory", ptAppData->pbShowDeviceMemoryAnalyzer);
+            gptUI->checkbox("Memory Allocations", ptAppData->pbShowMemoryAllocations);
+            gptUI->checkbox("Profiling", ptAppData->pbShowProfiling);
+            gptUI->checkbox("Statistics", ptAppData->pbShowStats);
+            gptUI->checkbox("Logging", ptAppData->pbShowLogging);
+            gptUI->checkbox("Entities", &ptAppData->bShowEntityWindow);
+            gptUI->end_collapsing_header();
+        }
+        if(gptUI->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface", 0))
+        {
+            gptUI->checkbox("UI Debug", &ptAppData->bShowUiDebug);
+            gptUI->checkbox("UI Style", &ptAppData->bShowUiStyle);
+            gptUI->end_collapsing_header();
+        }
+
+        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+
+        if(gptUI->begin_collapsing_header(ICON_FA_PHOTO_FILM " Renderer", 0))
+        {
+
+            if(gptUI->button("Reload Shaders"))
+            {
+                gptRenderer->reload_scene_shaders(ptAppData->uSceneHandle0);
+            }
+            gptUI->end_collapsing_header();
+        }
+        gptUI->end_window();
+    }
+}
 
 void
 pl__create_scene(plAppData* ptAppData)
@@ -848,3 +1093,6 @@ pl__create_scene(plAppData* ptAppData)
 
 #define PL_STRING_IMPLEMENTATION
 #include "pl_string.h"
+
+#define PL_JSON_IMPLEMENTATION
+#include "pl_json.h"

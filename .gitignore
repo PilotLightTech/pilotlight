@@ -9,6 +9,8 @@ user/
 game/
 app/
 
+sandbox/model-index.json
+
 # python
 pl_build/__pycache__/
 scripts/__pycache__/
