@@ -54,8 +54,7 @@ typedef struct _plScreenLogI
     void (*cleanup)   (void);
 
     // messages
-    //   Displays on screen debug messages. If "timeToDisplay" is 0, 
-    //   to message will remain until cleared or replaced by others.
+    //   Displays on screen debug messages.
     //   If "timeToDisplay" is < 0, it will remain until cleared.
     //   Messages can be updated using the "key" parameter.
     //   - timeToDisplay  : time to display message

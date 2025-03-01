@@ -54,11 +54,10 @@ typedef struct _plScreenLogContext
     plFont*        ptFont;
 
     plMessageData* sbtMessages;
-    plMessageData* sbtTimedMessages;
     plMessageData* sbtSortMessages;
 
     double dLastActiveTime;
-    bool bScreenLogging;
+    uint64_t uLastFrameRemoved;
 } plScreenLogContext;
 
 //-----------------------------------------------------------------------------
@@ -100,8 +99,6 @@ pl_screen_log_initialize(plScreenLogSettings tSettings)
     gptScreenLogCtx->ptDrawlist = gptDraw->request_2d_drawlist();
     gptScreenLogCtx->ptDrawLayer = gptDraw->request_2d_layer(gptScreenLogCtx->ptDrawlist);
     gptScreenLogCtx->dLastActiveTime = gptIO->dTime;
-    gptScreenLogCtx->bScreenLogging = false;
-    gptConsole->add_toggle_variable("sl.ShowScreenLogging", &gptScreenLogCtx->bScreenLogging, "~", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
 }
 
 void
@@ -110,13 +107,15 @@ pl_screen_log_cleanup(void)
     // gptDraw->return_2d_layer(gptScreenLogCtx->ptDrawLayer);
     // gptDraw->return_2d_drawlist(gptScreenLogCtx->ptDrawlist);
     pl_sb_free(gptScreenLogCtx->sbtMessages);
-    pl_sb_free(gptScreenLogCtx->sbtTimedMessages);
     pl_sb_free(gptScreenLogCtx->sbtSortMessages);
 }
 
 void
 pl_screen_log_add_message_va(uint64_t uKey, double dTimeToDisplay, uint32_t uColor, float fTextScale, const char* pcFormat, va_list args)
 {
+
+    if(dTimeToDisplay == 0.0)
+        dTimeToDisplay = 2.0;
 
     gptScreenLogCtx->dLastActiveTime = gptIO->dTime;
 
@@ -151,45 +150,6 @@ pl_screen_log_add_message_va(uint64_t uKey, double dTimeToDisplay, uint32_t uCol
                     {
                         pl_sb_del(gptScreenLogCtx->sbtMessages, i);
                     }
-                    else if(dTimeToDisplay != 0.0)
-                    {
-                        pl_sb_push(gptScreenLogCtx->sbtTimedMessages, gptScreenLogCtx->sbtMessages[i]);
-                        pl_sb_del(gptScreenLogCtx->sbtMessages, i);
-                    }
-
-                    bFound = true;
-                    break;
-                }
-            }
-
-            uMessageCount = pl_sb_size(gptScreenLogCtx->sbtTimedMessages);
-            for(uint32_t i = 0; i < uMessageCount; i++)
-            {
-                if(gptScreenLogCtx->sbtTimedMessages[i].uKey == uKey)
-                {
-
-                    gptScreenLogCtx->sbtTimedMessages[i].dStartTime = -1.0;
-                    gptScreenLogCtx->sbtTimedMessages[i].dTimeToDisplay = dTimeToDisplay;
-                    gptScreenLogCtx->sbtTimedMessages[i].uColor = uColor;
-                    gptScreenLogCtx->sbtTimedMessages[i].fTextScale = fTextScale;
-
-                    if(pcFormat)
-                    {
-                        va_list parm_copy;
-                        va_copy(parm_copy, args);
-                        pl_vnsprintf(gptScreenLogCtx->sbtTimedMessages[i].acBuffer, 1024, pcFormat, parm_copy); 
-                        va_end(parm_copy);
-                    }
-
-                    if(pcFormat == NULL)
-                    {
-                        pl_sb_del(gptScreenLogCtx->sbtMessages, i);
-                    }
-                    else if(dTimeToDisplay == 0.0)
-                    {
-                        pl_sb_push(gptScreenLogCtx->sbtMessages, gptScreenLogCtx->sbtTimedMessages[i]);
-                        pl_sb_del(gptScreenLogCtx->sbtMessages, i);
-                    }
 
                     bFound = true;
                     break;
@@ -214,16 +174,12 @@ pl_screen_log_add_message_va(uint64_t uKey, double dTimeToDisplay, uint32_t uCol
 
         tData.szBufferSize   = strlen(tData.acBuffer);
 
-        if(dTimeToDisplay != 0.0)
-        {
-            tData.bEven = pl_sb_size(gptScreenLogCtx->sbtTimedMessages) % 2 == 0;
-            pl_sb_push(gptScreenLogCtx->sbtTimedMessages, tData);
-        }
-        else
-        {
-            tData.bEven = pl_sb_size(gptScreenLogCtx->sbtMessages) % 2 == 0;
-            pl_sb_push(gptScreenLogCtx->sbtMessages, tData);
-        }
+        tData.bEven = pl_sb_size(gptScreenLogCtx->sbtMessages) % 2 == 0;
+
+        if(pl_sb_size(gptScreenLogCtx->sbtMessages) > 100)
+            pl_sb_pop(gptScreenLogCtx->sbtMessages);
+
+        pl_sb_push(gptScreenLogCtx->sbtMessages, tData);
     }
 }
 
@@ -240,7 +196,6 @@ void
 pl_screen_log_clear(void)
 {
     pl_sb_reset(gptScreenLogCtx->sbtMessages);
-    pl_sb_reset(gptScreenLogCtx->sbtTimedMessages);
 }
 
 void
@@ -255,11 +210,6 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
 
     const double dCurrentTime = gptIO->dTime;
 
-    if(dCurrentTime - gptScreenLogCtx->dLastActiveTime > 30.0)
-    {
-        pl_sb_reset(gptScreenLogCtx->sbtMessages);
-    }
-
     plDrawTextOptions tDrawTextOptions = {
         .fSize = gptScreenLogCtx->ptFont->fSize,
         .ptFont = gptScreenLogCtx->ptFont,
@@ -267,19 +217,32 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
         .fWrap = fWidth * 0.2f
     };
 
-    uint32_t uTimedMessageCount = pl_sb_size(gptScreenLogCtx->sbtTimedMessages);
+    uint32_t uTimedMessageCount = pl_sb_size(gptScreenLogCtx->sbtMessages);
     pl_sb_reset(gptScreenLogCtx->sbtSortMessages);
     pl_sb_reserve(gptScreenLogCtx->sbtSortMessages, uTimedMessageCount);
 
     for(uint32_t i = 0; i < uTimedMessageCount; i++)
     {
-        if(gptScreenLogCtx->sbtTimedMessages[i].dStartTime < 0.0 || gptScreenLogCtx->sbtTimedMessages[i].dTimeToDisplay < 0.0 || dCurrentTime - gptScreenLogCtx->sbtTimedMessages[i].dStartTime < gptScreenLogCtx->sbtTimedMessages[i].dTimeToDisplay)
+
+        bool bStillValid = gptScreenLogCtx->sbtMessages[i].dStartTime < 0.0 || gptScreenLogCtx->sbtMessages[i].dTimeToDisplay < 0.0 || dCurrentTime - gptScreenLogCtx->sbtMessages[i].dStartTime < gptScreenLogCtx->sbtMessages[i].dTimeToDisplay;
+
+        if(bStillValid)
         {
-            pl_sb_push(gptScreenLogCtx->sbtSortMessages, gptScreenLogCtx->sbtTimedMessages[i]);
+            pl_sb_push(gptScreenLogCtx->sbtSortMessages, gptScreenLogCtx->sbtMessages[i]);
+        }
+        else if(gptIO->ulFrameCount - gptScreenLogCtx->uLastFrameRemoved < 5)
+        {
+            pl_sb_push(gptScreenLogCtx->sbtSortMessages, gptScreenLogCtx->sbtMessages[i]);
+            
+        }
+        else
+        {
+            gptScreenLogCtx->uLastFrameRemoved = gptIO->ulFrameCount;
         }
     }
 
-    pl_sb_reset(gptScreenLogCtx->sbtTimedMessages);
+
+    pl_sb_reset(gptScreenLogCtx->sbtMessages);
     uTimedMessageCount = pl_sb_size(gptScreenLogCtx->sbtSortMessages);
 
     float fStartY = 25.0f;
@@ -300,17 +263,13 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
             }
             tTextBB = pl_rect_expand_vec2(&tTextBB, (plVec2){5.0f, 10.0f});
 
-            float fAlpha = pl_maxf(0.2f, 1.0f - (float)((dCurrentTime - gptScreenLogCtx->sbtSortMessages[i].dStartTime) / gptScreenLogCtx->sbtSortMessages[i].dTimeToDisplay));
-            if(gptScreenLogCtx->sbtSortMessages[i].dTimeToDisplay < 0.0)
-                fAlpha = 1.0f;
-
             if(gptScreenLogCtx->sbtSortMessages[i].bEven)        
-                gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.2f, 0.2f, 0.2f, fAlpha)});
+                gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.2f, 0.2f, 0.2f, 0.7f)});
             else
-                gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.1f, 0.1f, 0.1f, fAlpha)});
+                gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.1f, 0.1f, 0.1f, 0.7f)});
 
             tDrawTextOptions.uColor = gptScreenLogCtx->sbtSortMessages[i].uColor & ~0xFF000000;
-            tDrawTextOptions.uColor |=  PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, fAlpha);
+            tDrawTextOptions.uColor |=  PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 1.0f);
             gptDraw->add_text(gptScreenLogCtx->ptDrawLayer,
                 (plVec2){fWidth - fWidth * 0.25f, fStartY},
                 gptScreenLogCtx->sbtSortMessages[i].acBuffer,
@@ -318,45 +277,9 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
         }
 
         fStartY += pl_rect_height(&tTextBB);
-        pl_sb_push(gptScreenLogCtx->sbtTimedMessages, gptScreenLogCtx->sbtSortMessages[i]);
+        pl_sb_push(gptScreenLogCtx->sbtMessages, gptScreenLogCtx->sbtSortMessages[i]);
     }
     pl_sb_reset(gptScreenLogCtx->sbtSortMessages);
-
-
-    fStartY = fHeight * 0.25f;
-    uint32_t uMessageCount = pl_sb_size(gptScreenLogCtx->sbtMessages);
-    uint32_t uLastVisibleIndex = 0;
-    if(!gptScreenLogCtx->bScreenLogging)
-        uMessageCount = 0;
-    for(uint32_t i = 0; i < uMessageCount; i++)
-    {
-
-        uint32_t uIndex = uMessageCount - 1 - i;
-
-        tDrawTextOptions.uColor = gptScreenLogCtx->sbtMessages[uIndex].uColor;
-        tDrawTextOptions.fSize = gptScreenLogCtx->ptFont->fSize * gptScreenLogCtx->sbtMessages[uIndex].fTextScale;
-
-        plVec2 tTextSize = gptDraw->calculate_text_size(gptScreenLogCtx->sbtMessages[uIndex].acBuffer, tDrawTextOptions);
-
-        fStartY += tTextSize.y + 10.0f;
-        gptDraw->add_text(gptScreenLogCtx->ptDrawLayer,
-            (plVec2){10.0f, fHeight - fStartY},
-            gptScreenLogCtx->sbtMessages[uIndex].acBuffer,
-            tDrawTextOptions);
-
-        if(fHeight - fStartY + tTextSize.y < 0)
-        {
-            break;
-        }
-
-        uLastVisibleIndex = uIndex;
-        
-    }
-
-    if(uLastVisibleIndex > 1)
-    {
-        pl_sb_del_n(gptScreenLogCtx->sbtMessages, 0, uLastVisibleIndex - 1);
-    }
 
     gptDraw->submit_2d_layer(gptScreenLogCtx->ptDrawLayer);
     return gptScreenLogCtx->ptDrawlist;
