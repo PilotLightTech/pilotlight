@@ -2281,8 +2281,8 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
 
         int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
         plShaderDesc tLightingShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("lighting.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("lighting.vert", "main", NULL, NULL),
+            .tPixelShader = gptShader->load_glsl("deferred_lighting.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("deferred_lighting.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -2473,8 +2473,8 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     {
         int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
         plShaderDesc tLightingShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("lighting.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("lighting.vert", "main", NULL, NULL),
+            .tPixelShader = gptShader->load_glsl("deferred_lighting.frag", "main", NULL, NULL),
+            .tVertexShader = gptShader->load_glsl("deferred_lighting.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = 0,
                 .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,

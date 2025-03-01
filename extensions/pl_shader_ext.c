@@ -230,7 +230,7 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
     spvc_context_create(&tSpirvCtx);
     spvc_context_set_error_callback(tSpirvCtx, pl_spvc_error_callback, NULL);
     pl_log_info(gptLog, gptShaderCtx->uLogChannel, "initialized SPIRV cross");
-    gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_CYAN, 1.0f, "%s", "initialized SPIR-V Cross");
+    gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_CYAN, 1.0f, "%s", "initialized SPIR-V Cross");
     #endif
     #endif
     return true;
@@ -475,7 +475,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     size_t uNumErrors = shaderc_result_get_num_errors(tresult);
     if(uNumErrors)
     {
-        gptScreenLog->add_message_ex(0, 30.0, PL_COLOR_32_RED, 1.0f,"\"%s\" compilation errors: \"%s\"", pcShader, shaderc_result_get_error_message(tresult));
+        gptScreenLog->add_message_ex(0, 30.0, PL_COLOR_32_RED, 1.25f,"\"%s\" compilation errors: \"%s\"", pcShader, shaderc_result_get_error_message(tresult));
         pl_log_error_f(gptLog, gptShaderCtx->uLogChannel, "\"%s\" compilation errors: \"%s\"", pcShader, shaderc_result_get_error_message(tresult));
         tModule.szCodeSize = 0;
         tModule.puCode = NULL;
@@ -483,7 +483,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     }
     else
     {
-        gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_CYAN, 1.0f, "compiled: \"%s\"", pcShader);
+        gptScreenLog->add_message_ex(0, 3.0, PL_COLOR_32_CYAN, 1.0f, "compiled: \"%s\"", pcShader);
         pl_log_info_f(gptLog, gptShaderCtx->uLogChannel, "compiled: \"%s\"", pcShader);
         tModule.szCodeSize = shaderc_result_get_length(tresult);
         tModule.puCode = (uint8_t*)shaderc_result_get_bytes(tresult);
@@ -665,7 +665,7 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
             if(gptFile->exists(pcCacheFile))
             {
                 pl_log_debug_f(gptLog, gptShaderCtx->uLogChannel, "cached shader found: \"%s\"", pcCacheFile);
-                gptScreenLog->add_message_ex(0, 10.0, PL_COLOR_32_CYAN, 1.0f, "cached shader found: \"%s\"", pcCacheFile);
+                gptScreenLog->add_message_ex(0, 3.0, PL_COLOR_32_CYAN, 1.0f, "cached shader found: \"%s\"", pcCacheFile);
                 break;
             }
             else

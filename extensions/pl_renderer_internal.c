@@ -2074,8 +2074,8 @@ pl_refr_create_global_shaders(void)
     int aiConstantData[7] = {0, 0, 0, 0, 0, 0, 0};
 
     plShaderDesc tDeferredShaderDescription = {
-        .tPixelShader  = gptShader->load_glsl("primitive.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("primitive.vert", "main", NULL, NULL),
+        .tPixelShader  = gptShader->load_glsl("gbuffer_fill.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("gbuffer_fill.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
             .ulDepthMode          = PL_COMPARE_MODE_GREATER,
@@ -2146,8 +2146,8 @@ pl_refr_create_global_shaders(void)
     gptData->tDeferredShader = gptGfx->create_shader(gptData->ptDevice, &tDeferredShaderDescription);
 
     plShaderDesc tForwardShaderDescription = {
-        .tPixelShader = gptShader->load_glsl("transparent.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("transparent.vert", "main", NULL, NULL),
+        .tPixelShader = gptShader->load_glsl("forward.frag", "main", NULL, NULL),
+        .tVertexShader = gptShader->load_glsl("forward.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,

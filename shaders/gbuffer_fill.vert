@@ -2,6 +2,25 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
+/*
+   gbuffer_fill.vert
+*/
+
+/*
+Index of this file:
+// [SECTION] includes
+// [SECTION] specialization constants
+// [SECTION] bind group 0
+// [SECTION] bind group 1
+// [SECTION] dynamic bind group
+// [SECTION] input & output
+// [SECTION] entry
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
 #include "defines.glsl"
 #include "material.glsl"
 
