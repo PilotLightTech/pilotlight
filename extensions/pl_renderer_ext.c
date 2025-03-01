@@ -2216,15 +2216,48 @@ pl_refr_outline_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnt
 static void
 pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
 {
+    // fill CPU buffers & drawable list
+    pl_begin_cpu_sample(gptProfile, 0, "recreate shaders");
+
+    gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_CYAN, 1.0f, "%s", "reloaded shaders");
+
+    // old cleanup
+    for(uint32_t i = 0; i < pl_sb_size(gptData->_sbtVariantHandles); i++)
+    {
+        plShader* ptShader = gptGfx->get_shader(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
+        gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
+    }
+    pl_sb_free(gptData->_sbtVariantHandles);
+    pl_hm_free(gptData->ptVariantHashmap);
+
+    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tDeferredShader);
+    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tForwardShader);
+    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tAlphaShadowShader);
+    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tShadowShader);
+    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tPickShader);
+    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tUVShader);
+    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tSkyboxShader);
+    gptGfx->queue_compute_shader_for_deletion(gptData->ptDevice, gptData->tEnvFilterShader);
+
+    pl_refr_create_global_shaders();
+
+    if(uSceneHandle >= pl_sb_size(gptData->sbtScenes))
+    {
+        pl_end_cpu_sample(gptProfile, 0);
+        return;
+    }
+
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
 
     if(!ptScene->bActive)
+    {
+        pl_end_cpu_sample(gptProfile, 0);
         return;
+    }
 
     plDevice* ptDevice = gptData->ptDevice;
 
-    // fill CPU buffers & drawable list
-    pl_begin_cpu_sample(gptProfile, 0, "recreate shaders");
+
 
     pl_log_info_f(gptLog, gptData->uLogChannel, "reload shaders for scene %u", uSceneHandle);
 
@@ -2246,28 +2279,9 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldShaders);
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldEnvShaders);
 
-    // old cleanup
-    for(uint32_t i = 0; i < pl_sb_size(gptData->_sbtVariantHandles); i++)
-    {
-        plShader* ptShader = gptGfx->get_shader(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
-        gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
-    }
-    pl_sb_free(gptData->_sbtVariantHandles);
-    pl_hm_free(gptData->ptVariantHashmap);
-
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tDeferredShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tForwardShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tAlphaShadowShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tShadowShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tPickShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tUVShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tSkyboxShader);
     gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tLightingShader);
     gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tTonemapShader);
     gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tEnvLightingShader);
-    gptGfx->queue_compute_shader_for_deletion(gptData->ptDevice, gptData->tEnvFilterShader);
-
-    pl_refr_create_global_shaders();
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
     if(gptData->bPunctualLighting)
@@ -2410,8 +2424,6 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
     pl__refr_sort_drawables(uSceneHandle);
 
     gptShader->set_options(&tOriginalOptions);
-
-    gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_CYAN, 1.0f, "%s", "reloaded shaders");
     pl_end_cpu_sample(gptProfile, 0);
 }
 
@@ -3521,7 +3533,6 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                 .uGeneration = ptScene->tComponentLibrary.sbtEntityGenerations[uNewID]
             };
             ptView->tHoveredEntity = tNewEntity;
-            gptScreenLog->add_message_ex(565168477883, 5.0, PL_COLOR_32_RED, 1.0f, "Hovered entity {%u, %u}", tNewEntity.uIndex, tNewEntity.uGeneration);
             memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
 
             pl_end_cpu_sample(gptProfile, 0);
@@ -4451,11 +4462,11 @@ pl_show_graphics_options(const char* pcTitle)
                 pl_refr_reload_scene_shaders(i);
         }
         gptUI->checkbox("Frustum Culling", &gptData->bFrustumCulling);
-        gptUI->checkbox("Draw All Bounding Boxes", &gptData->bDrawAllBoundingBoxes);
-        gptUI->checkbox("Draw Visible Bounding Boxes", &gptData->bDrawVisibleBoundingBoxes);
-        gptUI->checkbox("Show Selected Bounding Box", &gptData->bShowSelectedBoundingBox);
-        gptUI->input_float("Shadow Constant Depth Bias", &gptData->fShadowConstantDepthBias, NULL, 0);
-        gptUI->input_float("Shadow Slope Depth Bias", &gptData->fShadowSlopeDepthBias, NULL, 0);
+        gptUI->checkbox("All Bounding Boxes", &gptData->bDrawAllBoundingBoxes);
+        gptUI->checkbox("Visible Bounding Boxes", &gptData->bDrawVisibleBoundingBoxes);
+        gptUI->checkbox("Selected Bounding Box", &gptData->bShowSelectedBoundingBox);
+        gptUI->input_float("Depth Bias", &gptData->fShadowConstantDepthBias, NULL, 0);
+        gptUI->input_float("Slope Depth Bias", &gptData->fShadowSlopeDepthBias, NULL, 0);
         gptUI->slider_uint("Outline Width", &gptData->uOutlineWidth, 2, 50, 0);
 
         for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
