@@ -759,14 +759,19 @@ pl_refr_create_scene(void)
                 .uSlot = 1,
                 .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
             },
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 2,
+                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
+            },
             },
             .atSamplerBindings = {
-                {.uSlot = 2, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
+                {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
             },
             .atTextureBindings = {
-                {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                {.uSlot = 4100, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
+                {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                {.uSlot = 4101, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
             }
     };
 
@@ -782,11 +787,11 @@ pl_refr_create_scene(void)
         plBindGroupUpdateSamplerData tGlobalSamplerData[] = {
             {
                 .tSampler = gptData->tDefaultSampler,
-                .uSlot    = 2
+                .uSlot    = 3
             },
             {
                 .tSampler = gptData->tEnvSampler,
-                .uSlot    = 3
+                .uSlot    = 4
             }
         };
 
@@ -2336,14 +2341,19 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
                             .uSlot = 1,
                             .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                         },
+                        {
+                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                            .uSlot = 2,
+                            .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
+                        }
                     },
                     .atSamplerBindings = {
-                        {.uSlot = 2, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
+                        {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                        {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                     },
                     .atTextureBindings = {
-                        {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                        {.uSlot = 4100, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
+                        {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                        {.uSlot = 4101, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
                     }
                 },
                 {
@@ -2469,9 +2479,16 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         .pcDebugName = "light buffer"
     };
 
+    const plBufferDesc tTransformBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_STORAGE,
+        .szByteSize = sizeof(plMat4) * 10000,
+        .pcDebugName = "transform buffer"
+    };
+
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
         ptScene->atLightBuffer[i] = pl__refr_create_staging_buffer(&tLightBufferDesc, "light", i);
+        ptScene->atTransformBuffer[i] = pl__refr_create_staging_buffer(&tTransformBufferDesc, "transform", i);
         ptScene->atMaterialDataBuffer[i] = pl__refr_create_local_buffer(&tMaterialDataBufferDesc,  "material buffer", uSceneHandle, ptScene->sbtMaterialBuffer, pl_sb_size(ptScene->sbtMaterialBuffer) * sizeof(plGPUMaterial));
     }
 
@@ -2526,14 +2543,19 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
                             .uSlot = 1,
                             .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                         },
+                        {
+                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                            .uSlot = 2,
+                            .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
+                        },
                     },
                     .atSamplerBindings = {
-                        {.uSlot = 2, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
+                        {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                        {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                     },
                     .atTextureBindings = {
-                        {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                        {.uSlot = 4100, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
+                        {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                        {.uSlot = 4101, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
                     }
                 },
                 {
@@ -2574,19 +2596,27 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         const plBindGroupUpdateBufferData atGlobalBufferData[] = 
         {
             {
-                .tBuffer       = ptScene->atMaterialDataBuffer[i],
+                .tBuffer       = ptScene->atTransformBuffer[i],
                 .uSlot         = 1,
+                .szBufferRange = sizeof(plMat4) * 10000
+            },
+            {
+                .tBuffer       = ptScene->atMaterialDataBuffer[i],
+                .uSlot         = 2,
                 .szBufferRange = sizeof(plGPUMaterial) * ptScene->uGPUMaterialBufferCapacity
             },
         };
 
         plBindGroupUpdateData tGlobalBindGroupData = {
-            .uBufferCount = 1,
+            .uBufferCount = 2,
             .atBufferBindings = atGlobalBufferData,
         };
 
         gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
+
+
     }
+    
 }
 
 static void
@@ -2643,6 +2673,17 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
     uint64_t ulValue = gptData->aulNextTimelineValue[uFrameIdx];
     plTimelineSemaphore* tSemHandle = gptData->aptSemaphores[uFrameIdx];
+
+
+    plBuffer* ptTransformBuffer = gptGfx->get_buffer(ptDevice, ptScene->atTransformBuffer[uFrameIdx]);
+
+    const uint32_t uObjectCount = pl_sb_size(ptScene->sbtDrawables);
+    for(uint32_t i = 0; i < uObjectCount; i++)
+    {
+        plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, ptScene->sbtDrawables[i].tEntity);
+        plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+        memcpy(&ptTransformBuffer->tMemoryAllocation.pHostMapped[ptScene->sbtDrawables[i].uTransformIndex * sizeof(plMat4)], &ptTransform->tWorld, sizeof(plMat4));
+    }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -3201,7 +3242,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
             ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-            ptDynamicData->tModel = ptTransform->tWorld;
+            ptDynamicData->uTransformIndex = tDrawable.uTransformIndex;
             ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
             ptDynamicData->uGlobalIndex = 0;
 
@@ -3358,7 +3399,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
             ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-            ptDynamicData->tModel = ptTransform->tWorld;
+            ptDynamicData->uTransformIndex = tDrawable.uTransformIndex;
             ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
             ptDynamicData->uGlobalIndex = 0;
 
@@ -4168,6 +4209,7 @@ pl_add_drawable_objects_to_scene(uint32_t uSceneHandle, uint32_t uDeferredCount,
     {
         ptScene->sbtStagedDrawables[uStart + i].tEntity = atDeferredObjects[i];
         ptScene->sbtStagedDrawables[uStart + i].tFlags = PL_DRAWABLE_FLAG_DEFERRED;
+        ptScene->sbtStagedDrawables[uStart + i].uTransformIndex = ptScene->uNextTransformIndex++;
     }
 
     uStart = pl_sb_size(ptScene->sbtStagedDrawables);
@@ -4177,6 +4219,7 @@ pl_add_drawable_objects_to_scene(uint32_t uSceneHandle, uint32_t uDeferredCount,
     {
         ptScene->sbtStagedDrawables[uStart + i].tEntity = atForwardObjects[i];
         ptScene->sbtStagedDrawables[uStart + i].tFlags = PL_DRAWABLE_FLAG_FORWARD;
+        ptScene->sbtStagedDrawables[uStart + i].uTransformIndex = ptScene->uNextTransformIndex++;
     }
 
     pl_end_cpu_sample(gptProfile, 0);

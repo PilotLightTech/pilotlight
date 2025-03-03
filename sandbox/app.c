@@ -554,13 +554,11 @@ pl_app_update(plAppData* ptAppData)
             if(ptSelectedTransform)
             {
                 gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
-                ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
             }
             else if(ptSelectedObject)
             {
                 ptSelectedTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSelectedObject->tTransform);
                 gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
-                ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
             }
         }
     

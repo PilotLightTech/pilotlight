@@ -24,15 +24,20 @@ layout(std140, set = 0, binding = 0) readonly buffer _tVertexBuffer
 	vec4 atVertexData[];
 } tVertexBuffer;
 
-layout(set = 0, binding = 1) readonly buffer plMaterialInfo
+layout(std140, set = 0, binding = 1) readonly buffer _tTransformBuffer
+{
+	mat4 atTransform[];
+} tTransformBuffer;
+
+layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 {
     tMaterial atMaterials[];
 } tMaterialInfo;
 
-layout(set = 0, binding = 2)  uniform sampler tDefaultSampler;
-layout(set = 0, binding = 3)  uniform sampler tEnvSampler;
-layout(set = 0, binding = 4)  uniform texture2D at2DTextures[4096];
-layout(set = 0, binding = 4100)  uniform textureCube atCubeTextures[4096];
+layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
+layout(set = 0, binding = 5)  uniform texture2D at2DTextures[4096];
+layout(set = 0, binding = 4101)  uniform textureCube atCubeTextures[4096];
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 1
@@ -53,7 +58,8 @@ layout(std140, set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     int  iDataOffset;
     int  iVertexOffset;
     int  iMaterialIndex;
-    mat4 tModel;
+    
+    uint uTransformIndex;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -84,6 +90,7 @@ void main()
     vec2 inTexCoord5 = vec2(0.0, 0.0);
     vec2 inTexCoord6 = vec2(0.0, 0.0);
     vec2 inTexCoord7 = vec2(0.0, 0.0);
+    const mat4 tTransform = tTransformBuffer.atTransform[tObjectInfo.uTransformIndex];
 
     int iCurrentAttribute = 0;
     
@@ -114,7 +121,7 @@ void main()
         iCurrentAttribute++;
     }
 
-    vec4 pos = tObjectInfo.tModel * inPosition;
+    vec4 pos = tTransform * inPosition;
     // #ifdef PL_MULTIPLE_VIEWPORTS
         gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.iIndex + gl_InstanceIndex] * pos;
         gl_ViewportIndex = gl_InstanceIndex;

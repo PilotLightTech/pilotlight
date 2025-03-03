@@ -2115,15 +2115,20 @@ pl_refr_create_global_shaders(void)
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 1,
                         .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
+                    },
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                        .uSlot = 2,
+                        .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                     }
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 2, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                    {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
+                    {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                    {.uSlot = 4100, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
+                    {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                    {.uSlot = 4101, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
                 }
             },
             {
@@ -2184,15 +2189,20 @@ pl_refr_create_global_shaders(void)
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 1,
                         .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
+                    },
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                        .uSlot = 2,
+                        .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                     }
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 2, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                    {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
+                    {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                    {.uSlot = 4100, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
+                    {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                    {.uSlot = 4101, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
                 }
             },
             {
@@ -2281,15 +2291,20 @@ pl_refr_create_global_shaders(void)
                         .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                         .uSlot = 1,
                         .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
+                    },
+                    {
+                        .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                        .uSlot = 2,
+                        .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
                     }
                 },
                 .atSamplerBindings = {
-                    {.uSlot = 2, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                    {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
+                    {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                    {.uSlot = 4100, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
+                    {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
+                    {.uSlot = 4101, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
                 }
             },
             {
@@ -2934,7 +2949,7 @@ pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle tTexture)
     const plBindGroupUpdateTextureData tGlobalTextureData[] = {
         {
             .tTexture = tTexture,
-            .uSlot    = 4,
+            .uSlot    = 5,
             .uIndex   = (uint32_t)ulValue,
             .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
         },
@@ -2972,7 +2987,7 @@ pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle tText
     const plBindGroupUpdateTextureData tGlobalTextureData[] = {
         {
             .tTexture = tTexture,
-            .uSlot    = 4100,
+            .uSlot    = 4101,
             .uIndex   = (uint32_t)ulValue,
             .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
         },
@@ -3318,6 +3333,7 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
     pl_sb_add(ptScene->sbtStagedDrawables);
     ptScene->sbtStagedDrawables[uTransparentStart].tEntity = tProbeHandle;
     ptScene->sbtStagedDrawables[uTransparentStart].tFlags = PL_DRAWABLE_FLAG_PROBE | PL_DRAWABLE_FLAG_FORWARD;
+    ptScene->sbtStagedDrawables[uTransparentStart].uTransformIndex = ptScene->uNextTransformIndex++;
 };
 
 static uint64_t
@@ -3583,7 +3599,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                 DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                 ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                ptDynamicData->tModel = ptTransform->tWorld;
+                ptDynamicData->uTransformIndex = tDrawable.uTransformIndex;
                 ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
                 ptDynamicData->uGlobalIndex = uFace;
 
@@ -3713,7 +3729,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                 DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                 ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                ptDynamicData->tModel = ptTransform->tWorld;
+                ptDynamicData->uTransformIndex = tDrawable.uTransformIndex;
                 ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
                 ptDynamicData->uGlobalIndex = uFace;
 
@@ -4334,11 +4350,12 @@ pl__refr_add_skybox_drawable(uint32_t uSceneHandle)
     const uint32_t uDataStartIndex = pl_sb_size(ptScene->sbtVertexDataBuffer);
 
     const plDrawable tDrawable = {
-        .uIndexCount   = 36,
-        .uVertexCount  = 8,
-        .uIndexOffset  = uIndexStart,
-        .uVertexOffset = uStartIndex,
-        .uDataOffset   = uDataStartIndex
+        .uIndexCount     = 36,
+        .uVertexCount    = 8,
+        .uIndexOffset    = uIndexStart,
+        .uVertexOffset   = uStartIndex,
+        .uDataOffset     = uDataStartIndex,
+        .uTransformIndex = ptScene->uNextTransformIndex++
     };
     ptScene->tSkyboxDrawable = tDrawable;
 
