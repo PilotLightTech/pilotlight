@@ -141,6 +141,9 @@ typedef struct _plEcsI
     plEntity (*create_spot_light)         (plComponentLibrary*, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent**);
     plEntity (*create_environment_probe)  (plComponentLibrary*, const char* pcName, plVec3 tPosition, plEnvironmentProbeComponent**);
 
+    // object helpers
+    plEntity (*copy_object) (plComponentLibrary*, const char* pcName, plEntity tOriginalObject, plObjectComponent**);
+
     // mesh entity helpers
     plEntity (*create_mesh)       (plComponentLibrary*, const char* pcName, plMeshComponent**);
     plEntity (*create_sphere_mesh)(plComponentLibrary*, const char* pcName, float fRadius, uint32_t uLatitudeBands, uint32_t uLongitudeBands, plMeshComponent**);

@@ -88,6 +88,7 @@ static void*    pl_ecs_add_component         (plComponentLibrary* ptLibrary, plC
 static plEntity pl_ecs_create_tag                (plComponentLibrary*, const char* pcName);
 static plEntity pl_ecs_create_mesh               (plComponentLibrary*, const char* pcName, plMeshComponent**);
 static plEntity pl_ecs_create_object             (plComponentLibrary*, const char* pcName, plObjectComponent**);
+static plEntity pl_ecs_copy_object               (plComponentLibrary*, const char* pcName, plEntity tOriginalObject, plObjectComponent**);
 static plEntity pl_ecs_create_transform          (plComponentLibrary*, const char* pcName, plTransformComponent**);
 static plEntity pl_ecs_create_material           (plComponentLibrary*, const char* pcName, plMaterialComponent**);
 static plEntity pl_ecs_create_skin               (plComponentLibrary*, const char* pcName, plSkinComponent**);
@@ -1019,6 +1020,30 @@ pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName, plObject
         *pptCompOut = ptObject;
 
     return tNewEntity;    
+}
+
+static plEntity
+pl_ecs_copy_object(plComponentLibrary* ptLibrary, const char* pcName, plEntity tOriginalObject, plObjectComponent** pptCompOut)
+{
+    pcName = pcName ? pcName : "unnamed object copy";
+    pl_log_debug_f(gptLog, uLogChannelEcs, "copied object: '%s'", pcName);
+
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+
+    plObjectComponent* ptOriginalObject = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tOriginalObject);
+    plEntity tExistingMesh = ptOriginalObject->tMesh;
+
+
+    plObjectComponent* ptObject = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tNewEntity);
+    (void)pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
+
+    ptObject->tTransform = tNewEntity;
+    ptObject->tMesh = tExistingMesh;
+
+    if(pptCompOut)
+        *pptCompOut = ptObject;
+
+    return tNewEntity; 
 }
 
 static plEntity
@@ -2028,6 +2053,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_perspective_camera            = pl_ecs_create_perspective_camera,
         .create_orthographic_camera           = pl_ecs_create_orthographic_camera,
         .create_object                        = pl_ecs_create_object,
+        .copy_object                          = pl_ecs_copy_object,
         .create_transform                     = pl_ecs_create_transform,
         .create_material                      = pl_ecs_create_material,
         .create_skin                          = pl_ecs_create_skin,
