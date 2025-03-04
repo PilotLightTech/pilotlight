@@ -3103,14 +3103,14 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         plAtomicCounter* ptCullCounter = NULL;
         
+        plCullData tCullData = {
+            .ptScene      = ptScene,
+            .ptCullCamera = ptCullCamera,
+            .atDrawables  = ptScene->sbtDrawables
+        };
+
         if(ptCullCamera)
         {
-            plCullData tCullData = {
-                .ptScene      = ptScene,
-                .ptCullCamera = ptCullCamera,
-                .atDrawables  = ptScene->sbtDrawables
-            };
-            
             plJobDesc tJobDesc = {
                 .task  = pl__refr_cull_job,
                 .pData = &tCullData
