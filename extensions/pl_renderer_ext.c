@@ -2855,8 +2855,6 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
         }
     }
 
-    ptScene->uDShadowIndex = 0;
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~generate shadow maps~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // prep
@@ -2894,6 +2892,9 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
     // render views
     for(uint32_t uViewIndex = 0; uViewIndex < uViewCount; uViewIndex++)
     {
+        ptScene->uDShadowIndex = 0;
+        ptScene->uDShadowOffset = 0;
+
         const uint32_t uViewHandle = auViewHandles[uViewIndex];
         plRefView* ptView = &ptScene->atViews[uViewHandle];
         plCameraComponent* ptCamera = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_CAMERA, *atOptions[uViewIndex].ptViewCamera);
