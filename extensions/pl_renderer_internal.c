@@ -4430,6 +4430,44 @@ pl__refr_unstage_drawables(uint32_t uSceneHandle)
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtStagedDrawables);
     pl_sb_reserve(ptScene->sbtDrawables, uDrawableCount);
     pl_hm_resize(ptScene->ptDrawableHashmap, uDrawableCount);
+
+    // reserve sizes
+    const uint32_t uInitialIndexCount  = pl_sb_size(ptScene->sbuIndexBuffer);
+    const uint32_t uInitialVertexCount = pl_sb_size(ptScene->sbtVertexPosBuffer);
+    const uint32_t uInitialVertexDataCount = pl_sb_size(ptScene->sbtVertexDataBuffer);
+
+    uint32_t uAdditonalIndexCount = 0;
+    uint32_t uAdditonalVertexCount = 0;
+    uint32_t uAdditonalVertexDataCount = 0;
+    for(uint32_t i = 0; i < uDrawableCount; i++)
+    {
+        plEntity tEntity = ptScene->sbtStagedDrawables[i].tEntity;
+
+        // get actual components
+        plObjectComponent*   ptObject   = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
+        plMeshComponent*     ptMesh     = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
+    
+        uAdditonalIndexCount += pl_sb_size(ptMesh->sbuIndices);
+        uAdditonalVertexCount += pl_sb_size(ptMesh->sbtVertexPositions);
+
+        uint32_t uStride = 0;
+
+        // calculate vertex stream mask based on provided data
+        if(pl_sb_size(ptMesh->sbtVertexNormals) > 0)               { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL; }
+        if(pl_sb_size(ptMesh->sbtVertexTangents) > 0)              { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT; }
+        if(pl_sb_size(ptMesh->sbtVertexColors[0]) > 0)             { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0; }
+        if(pl_sb_size(ptMesh->sbtVertexColors[1]) > 0)             { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1; }
+        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[0]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0; }
+        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[2]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1; }
+        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[4]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2; }
+        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[6]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3; }
+    
+        uAdditonalVertexDataCount += uStride * pl_sb_size(ptMesh->sbtVertexPositions);
+    }
+    pl_sb_reserve(ptScene->sbuIndexBuffer, uInitialIndexCount + uAdditonalIndexCount);
+    pl_sb_reserve(ptScene->sbtVertexPosBuffer, uInitialVertexCount + uAdditonalVertexCount);
+    pl_sb_reserve(ptScene->sbtVertexDataBuffer, uInitialVertexDataCount + uAdditonalVertexDataCount);
+
     for(uint32_t i = 0; i < uDrawableCount; i++)
     {
 
