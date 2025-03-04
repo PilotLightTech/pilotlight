@@ -484,6 +484,7 @@ typedef struct _plRefRendererData
     plSwapchain* ptSwap;
     plSurface* ptSurface;
     plTempAllocator tTempAllocator;
+    uint32_t uMaxTextureResolution;
 
     // main render pass stuff
     plRenderPassHandle       tCurrentMainRenderPass;

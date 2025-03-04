@@ -22,7 +22,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // setup/shutdown
-static void     pl_refr_initialize(plWindow*);
+static void     pl_refr_initialize(plRendererSettings);
 static void     pl_refr_cleanup(void);
 
 // scenes
@@ -82,7 +82,7 @@ pl__refr_console_swapchain_reload(const char* pcName, void* pData)
 }
 
 static void
-pl_refr_initialize(plWindow* ptWindow)
+pl_refr_initialize(plRendererSettings tSettings)
 {
 
     // allocate renderer data
@@ -120,7 +120,9 @@ pl_refr_initialize(plWindow* ptWindow)
     gptData->pdDrawCalls = gptStats->get_counter("draw calls");
     gptData->bMSAA = true;
     gptData->bVSync = true;
+    gptData->uMaxTextureResolution = tSettings.uMaxTextureResolution > 0 ? tSettings.uMaxTextureResolution : 1024;
     gptData->uOutlineWidth = 4;
+    gptData->bShowSelectedBoundingBox = true;
     gptData->bFrustumCulling = true;
     gptData->bImageBasedLighting = true;
     gptData->bPunctualLighting = true;
@@ -134,12 +136,11 @@ pl_refr_initialize(plWindow* ptWindow)
     plGraphicsInit tGraphicsDesc = {
         .tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED
     };
-    #ifndef NDEBUG
+    if(tSettings.bValidationOn)
         tGraphicsDesc.tFlags |= PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
-    #endif
     gptGfx->initialize(&tGraphicsDesc);
 
-    gptData->ptSurface = gptGfx->create_surface(ptWindow);
+    gptData->ptSurface = gptGfx->create_surface(tSettings.ptWindow);
 
     uint32_t uDeviceCount = 16;
     plDeviceInfo atDeviceInfos[16] = {0};
@@ -4350,22 +4351,22 @@ pl_refr_add_materials_to_scene(uint32_t uSceneHandle, uint32_t uMaterialCount, c
                     const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[uTextureSlot].tResource, &szResourceSize);
                     float* rawBytes = gptImage->load_hdr((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
 
-                    int iMaxDim = pl_max(texWidth, texHeight);
+                    uint32_t uMaxDim = (uint32_t)pl_max(texWidth, texHeight);
 
-                    if(iMaxDim > 1024)
+                    if(uMaxDim > gptData->uMaxTextureResolution)
                     {
                         int iNewWidth = 0;
                         int iNewHeight = 0;
 
                         if(texWidth > texHeight)
                         {
-                            iNewWidth = 1024;
-                            iNewHeight = (int)((1024.0f / (float)texWidth) * (float)texHeight);
+                            iNewWidth = (int)gptData->uMaxTextureResolution;
+                            iNewHeight = (int)(((float)gptData->uMaxTextureResolution / (float)texWidth) * (float)texHeight);
                         }
                         else
                         {
-                            iNewWidth = (int)((1024.0f / (float)texHeight) * (float)texWidth);
-                            iNewHeight = 1024;
+                            iNewWidth = (int)(((float)gptData->uMaxTextureResolution / (float)texHeight) * (float)texWidth);
+                            iNewHeight = (int)gptData->uMaxTextureResolution;
                         }
 
                         float* oldrawBytes = rawBytes;
@@ -4387,22 +4388,22 @@ pl_refr_add_materials_to_scene(uint32_t uSceneHandle, uint32_t uMaterialCount, c
                     const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[uTextureSlot].tResource, &szResourceSize);
                     unsigned char* rawBytes = gptImage->load((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
 
-                    int iMaxDim = pl_max(texWidth, texHeight);
+                    uint32_t uMaxDim = (uint32_t)pl_max(texWidth, texHeight);
 
-                    if(iMaxDim > 1024)
+                    if(uMaxDim > gptData->uMaxTextureResolution)
                     {
                         int iNewWidth = 0;
                         int iNewHeight = 0;
 
                         if(texWidth > texHeight)
                         {
-                            iNewWidth = 1024;
-                            iNewHeight = (int)((1024.0f / (float)texWidth) * (float)texHeight);
+                            iNewWidth = (int)gptData->uMaxTextureResolution;
+                            iNewHeight = (int)(((float)gptData->uMaxTextureResolution / (float)texWidth) * (float)texHeight);
                         }
                         else
                         {
-                            iNewWidth = (int)((1024.0f / (float)texHeight) * (float)texWidth);
-                            iNewHeight = 1024;
+                            iNewWidth = (int)(((float)gptData->uMaxTextureResolution / (float)texHeight) * (float)texWidth);
+                            iNewHeight = (int)gptData->uMaxTextureResolution;
                         }
 
                         unsigned char* oldrawBytes = rawBytes;

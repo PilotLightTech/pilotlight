@@ -325,7 +325,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
 
     // setup reference renderer
-    gptRenderer->initialize(ptAppData->ptWindow);
+    plRendererSettings tRenderSettings = {
+        .ptWindow              = ptAppData->ptWindow,
+        .uMaxTextureResolution = 1024
+    };
+    gptRenderer->initialize(tRenderSettings);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~setup draw extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
