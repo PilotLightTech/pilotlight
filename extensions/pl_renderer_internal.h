@@ -154,6 +154,7 @@ typedef struct _plDrawable
     uint32_t        uIndexCount;
     uint32_t        uMaterialIndex;
     uint32_t        uTransformIndex;
+    uint32_t        uInstanceIndex;
     plShaderHandle  tShader;
     plShaderHandle  tEnvShader;
     plShaderHandle  tShadowShader;
@@ -162,6 +163,7 @@ typedef struct _plDrawable
     plBufferHandle  tIndexBuffer;
     uint32_t        uStaticVertexOffset;
     uint32_t        uDynamicVertexOffset;
+    uint32_t        uInstanceCount;
     bool            bCulled;
 } plDrawable;
 
@@ -253,11 +255,22 @@ typedef struct _DynamicData
     int      iDataOffset;
     int      iVertexOffset;
     int      iMaterialOffset;
-    uint32_t uTransformIndex;
-    
     uint32_t uGlobalIndex;
-    uint32_t _auUnused[3];
 } DynamicData;
+
+typedef struct _plShadowInstanceBufferData
+{
+    uint32_t uTransformIndex;
+    int32_t  iViewportIndex;
+} plShadowInstanceBufferData;
+
+typedef struct _plShadowDynamicData
+{
+    int    iIndex;
+    int    iDataOffset;
+    int    iVertexOffset;
+    int    iMaterialIndex;
+} plShadowDynamicData;
 
 typedef struct _plSkyboxDynamicData
 {
@@ -405,6 +418,7 @@ typedef struct _plRefScene
     plBufferHandle tSkinStorageBuffer;
     plBufferHandle atLightBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atTransformBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atInstanceBuffer[PL_MAX_FRAMES_IN_FLIGHT];
 
     // GPU materials
     uint32_t       uGPUMaterialDirty;

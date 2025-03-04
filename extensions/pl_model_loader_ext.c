@@ -85,12 +85,9 @@ static void pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const c
 static void
 pl__free_data(plModelLoaderData* ptData)
 {
-    pl_sb_free(ptData->atDeferredObjects);
-    pl_sb_free(ptData->atForwardObjects);
-    ptData->uDeferredCount = 0;
-    ptData->uForwardCount = 0;
-    ptData->atDeferredObjects = NULL;
-    ptData->atForwardObjects = NULL;
+    pl_sb_free(ptData->atObjects);
+    ptData->uObjectCount = 0;
+    ptData->atObjects = NULL;
 }
 
 static bool
@@ -151,12 +148,8 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
         if(ptMesh->sbtVertexPositions[i].z < ptMesh->tAABB.tMin.z) ptMesh->tAABB.tMin.z = ptMesh->sbtVertexPositions[i].z;
     }
 
-    if(tColor.a == 1.0f)
-        pl_sb_push(ptDataOut->atDeferredObjects, tEntity);
-    else
-        pl_sb_push(ptDataOut->atForwardObjects, tEntity);
-    ptDataOut->uDeferredCount = pl_sb_size(ptDataOut->atDeferredObjects);
-    ptDataOut->uForwardCount = pl_sb_size(ptDataOut->atForwardObjects);
+    pl_sb_push(ptDataOut->atObjects, tEntity);
+    ptDataOut->uObjectCount = pl_sb_size(ptDataOut->atObjects);
     return true;
 }
 
@@ -294,7 +287,8 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
         pl_sb_resize(ptSkinComponent->sbtJoints, (uint32_t)ptSkin->joints_count);
         pl_sb_resize(ptSkinComponent->sbtInverseBindMatrices, (uint32_t)ptSkin->joints_count);
 
-        if(pl_str_contains(ptSkin->joints[0]->name, "mixamorig"))
+
+        if(ptSkin->joints[0]->name && pl_str_contains(ptSkin->joints[0]->name, "mixamorig"))
         {
             plHumanoidComponent* ptHumanoid = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, tSkinEntity);
             for(size_t szJointIndex = 0; szJointIndex < ptSkin->joints_count; szJointIndex++)
@@ -355,8 +349,7 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
     pl_hm_free(tLoadingData.ptSkinHashmap);
     pl_hm_free(tLoadingData.ptMaterialHashMap);
     pl_sb_free(tLoadingData.sbtMaterialEntities);
-    ptDataOut->uDeferredCount = pl_sb_size(ptDataOut->atDeferredObjects);
-    ptDataOut->uForwardCount = pl_sb_size(ptDataOut->atForwardObjects);
+    ptDataOut->uObjectCount = pl_sb_size(ptDataOut->atObjects);
     return true;
 }
 
@@ -974,8 +967,6 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
             // load material
             if(ptPrimitive->material)
             {
-                bool bOpaque = true;
-
                 plMaterialComponent* ptMaterial = NULL;
       
                 // check if the material already exists
@@ -998,16 +989,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                 if(ptPrimitive->material->has_transmission)
                     ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
 
-                if(ptMaterial->tBlendMode == PL_BLEND_MODE_ALPHA)
-                    bOpaque = false;
-
-                if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource) || ptMaterial->tEmissiveColor.a > 0.0f)
-                    bOpaque = false;
-
-                if(bOpaque)
-                    pl_sb_push(ptData->atDeferredObjects, tNewObject);
-                else
-                    pl_sb_push(ptData->atForwardObjects, tNewObject);
+                pl_sb_push(ptData->atObjects, tNewObject);
             }
         }
     }

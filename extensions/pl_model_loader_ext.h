@@ -62,10 +62,8 @@ typedef struct _plModelLoaderI
 
 typedef struct _plModelLoaderData
 {
-    uint32_t  uDeferredCount;
-    plEntity* atDeferredObjects;
-    uint32_t  uForwardCount;
-    plEntity* atForwardObjects;
+    uint32_t  uObjectCount;
+    plEntity* atObjects;
 } plModelLoaderData;
 
 #endif // PL_MODEL_LOADER_EXT_H

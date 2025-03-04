@@ -982,7 +982,7 @@ pl__show_editor_window(plAppData* ptAppData)
                         }
                     }
 
-                    gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uDeferredCount, tLoaderData0.atDeferredObjects, tLoaderData0.uForwardCount, tLoaderData0.atForwardObjects);
+                    gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
                     gptModelLoader->free_data(&tLoaderData0);
 
                     gptRenderer->finalize_scene(ptAppData->uSceneHandle0);

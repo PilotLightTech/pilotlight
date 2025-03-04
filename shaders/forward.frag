@@ -93,8 +93,6 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     int  iDataOffset;
     int  iVertexOffset;
     int  iMaterialIndex;
-    uint uTransformIndex;
-    
     uint uGlobalIndex;
 } tObjectInfo;
 

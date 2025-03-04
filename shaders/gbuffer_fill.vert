@@ -86,8 +86,6 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     int  iDataOffset;
     int  iVertexOffset;
     int  iMaterialIndex;
-    uint uTransformIndex;
-    
     uint uGlobalIndex;
 } tObjectInfo;
 
@@ -129,7 +127,7 @@ void main()
     vec4 inColor0    = vec4(1.0, 1.0, 1.0, 1.0);
     vec4 inColor1    = vec4(0.0, 0.0, 0.0, 0.0);
     int iCurrentAttribute = 0;
-    const mat4 tTransform = tTransformBuffer.atTransform[tObjectInfo.uTransformIndex];
+    const mat4 tTransform = tTransformBuffer.atTransform[gl_InstanceIndex];
     
     // offset = offset into current mesh + offset into global buffer
     const uint iVertexDataOffset = iDataStride * (gl_VertexIndex - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;

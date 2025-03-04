@@ -30,9 +30,17 @@ pl__refr_cull_job(plInvocationData tInvoData, void* pData)
     plDrawable tDrawable = ptCullData->atDrawables[tInvoData.uGlobalIndex];
     plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
     ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = true;
+
     if(ptObject->tFlags & PL_OBJECT_FLAGS_RENDERABLE)
     {
-        if(pl__sat_visibility_test(ptCullData->ptCullCamera, &ptObject->tAABB))
+        if(ptCullData->atDrawables[tInvoData.uGlobalIndex].uInstanceCount == 1) // ignore instanced
+        {
+            if(pl__sat_visibility_test(ptCullData->ptCullCamera, &ptObject->tAABB))
+            {
+                ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
+            }
+        }
+        else
         {
             ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
         }
@@ -917,6 +925,11 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                 .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                 .uSlot = 0,
                 .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
+            },
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 1,
+                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
             }
         }
     };
@@ -933,11 +946,16 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
             .tBuffer       = ptScene->atShadowCameraBuffers[uFrameIdx],
             .uSlot         = 0,
             .szBufferRange = ptScene->uShadowOffset
+        },
+        {
+            .tBuffer       = ptScene->atInstanceBuffer[uFrameIdx],
+            .uSlot         = 1,
+            .szBufferRange = sizeof(uint32_t) * 2 * 10000
         }
     };
 
     plBindGroupUpdateData tBGData0 = {
-        .uBufferCount = 1,
+        .uBufferCount = 2,
         .atBufferBindings = atBufferData0
     };
 
@@ -947,16 +965,6 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
     const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptScene->sbuShadowDeferredDrawables);
     const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptScene->sbuShadowForwardDrawables);
 
-    // const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tShadowData.tOpaqueRenderPass)->tDesc.tDimensions;
-
-    typedef struct _plShadowDynamicData
-    {
-        int    iIndex;
-        int    iDataOffset;
-        int    iVertexOffset;
-        int    iMaterialIndex;
-        plMat4 tModel;
-    } plShadowDynamicData;
 
     uint32_t uCameraBufferIndex = 0;
     for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
@@ -983,83 +991,90 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                 for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                 {
                     const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowDeferredDrawables[i]];
-                    plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-                    plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-                    
-                    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
-                    ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                    ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                    ptDynamicData->tModel = ptTransform->tWorld;
-                    ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                    ptDynamicData->iIndex = (int)uCameraBufferIndex;
-
-                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    if(tDrawable.uInstanceCount != 0)
                     {
-                        .tShader         = gptData->tShadowShader,
-                        .auDynamicBuffers = {
-                            tDynamicBinding.uBufferHandle
-                        },
-                        .atVertexBuffers = {
-                            ptScene->tVertexBuffer,
-                        },
-                        .tIndexBuffer         = tDrawable.tIndexBuffer,
-                        .uIndexOffset         = tDrawable.uIndexOffset,
-                        .uTriangleCount       = tDrawable.uTriangleCount,
-                        .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                        .atBindGroups = {
-                            ptScene->atGlobalBindGroup[uFrameIdx],
-                            tGlobalBG0
-                        },
-                        .auDynamicBufferOffsets = {
-                            tDynamicBinding.uByteOffset
-                        },
-                        .uInstanceOffset = 0,
-                        .uInstanceCount = 6
-                    });
+
+                        plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+                        plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+                        
+                        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                        plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                        ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                        ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                        ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                        ptDynamicData->iIndex = (int)uCameraBufferIndex;
+
+                        pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                        {
+                            .tShader         = gptData->tShadowShader,
+                            .auDynamicBuffers = {
+                                tDynamicBinding.uBufferHandle
+                            },
+                            .atVertexBuffers = {
+                                ptScene->tVertexBuffer,
+                            },
+                            .tIndexBuffer         = tDrawable.tIndexBuffer,
+                            .uIndexOffset         = tDrawable.uIndexOffset,
+                            .uTriangleCount       = tDrawable.uTriangleCount,
+                            .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                            .atBindGroups = {
+                                ptScene->atGlobalBindGroup[uFrameIdx],
+                                tGlobalBG0
+                            },
+                            .auDynamicBufferOffsets = {
+                                tDynamicBinding.uByteOffset
+                            },
+                            .uInstanceOffset = tDrawable.uInstanceIndex,
+                            .uInstanceCount = 6 * tDrawable.uInstanceCount
+                        });
+                    }
                 }
 
                 *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
                 for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                 {
                     const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowForwardDrawables[i]];
-                    plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-                    plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-                    
-                    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
-                    ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                    ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                    ptDynamicData->tModel = ptTransform->tWorld;
-                    ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                    ptDynamicData->iIndex = (int)uCameraBufferIndex;
-
-                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    if(tDrawable.uInstanceCount != 0)
                     {
-                        .tShader        = tDrawable.tShadowShader,
-                        .auDynamicBuffers = {
-                            tDynamicBinding.uBufferHandle
-                        },
-                        .atVertexBuffers = {
-                            ptScene->tVertexBuffer,
-                        },
-                        .tIndexBuffer         = tDrawable.tIndexBuffer,
-                        .uIndexOffset         = tDrawable.uIndexOffset,
-                        .uTriangleCount       = tDrawable.uTriangleCount,
-                        .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                        .atBindGroups = {
-                            ptScene->atGlobalBindGroup[uFrameIdx],
-                            tGlobalBG0
-                        },
-                        .auDynamicBufferOffsets = {
-                            tDynamicBinding.uByteOffset
-                        },
-                        .uInstanceOffset = 0,
-                        .uInstanceCount = 6
-                    });
 
+                        plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+                        plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+                        
+                        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                        plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                        ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                        ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                        ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                        ptDynamicData->iIndex = (int)uCameraBufferIndex;
+
+                        pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                        {
+                            .tShader        = tDrawable.tShadowShader,
+                            .auDynamicBuffers = {
+                                tDynamicBinding.uBufferHandle
+                            },
+                            .atVertexBuffers = {
+                                ptScene->tVertexBuffer,
+                            },
+                            .tIndexBuffer         = tDrawable.tIndexBuffer,
+                            .uIndexOffset         = tDrawable.uIndexOffset,
+                            .uTriangleCount       = tDrawable.uTriangleCount,
+                            .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                            .atBindGroups = {
+                                ptScene->atGlobalBindGroup[uFrameIdx],
+                                tGlobalBG0
+                            },
+                            .auDynamicBufferOffsets = {
+                                tDynamicBinding.uByteOffset
+                            },
+                            .uInstanceOffset = tDrawable.uInstanceIndex,
+                            .uInstanceCount = 6 * tDrawable.uInstanceCount
+                        });
+                    }
                 };
 
                 plDrawArea tArea = 
@@ -1162,82 +1177,87 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                     for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                     {
                         const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowDeferredDrawables[i]];
-                        plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-                        plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-                        
-                        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                        plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
-                        ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                        ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                        ptDynamicData->tModel = ptTransform->tWorld;
-                        ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                        ptDynamicData->iIndex = (int)uCameraBufferIndex + uFaceIndex;
-
-                        pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                        if(tDrawable.uInstanceCount != 0)
                         {
-                            .tShader         = gptData->tShadowShader,
-                            .auDynamicBuffers = {
-                                tDynamicBinding.uBufferHandle
-                            },
-                            .atVertexBuffers = {
-                                ptScene->tVertexBuffer,
-                            },
-                            .tIndexBuffer         = tDrawable.tIndexBuffer,
-                            .uIndexOffset         = tDrawable.uIndexOffset,
-                            .uTriangleCount       = tDrawable.uTriangleCount,
-                            .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                            .atBindGroups = {
-                                ptScene->atGlobalBindGroup[uFrameIdx],
-                                tGlobalBG0
-                            },
-                            .auDynamicBufferOffsets = {
-                                tDynamicBinding.uByteOffset
-                            },
-                            .uInstanceOffset = 0,
-                            .uInstanceCount = 1
-                        });
+                            plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+                            plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+                            
+                            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                            plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                            ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                            ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                            ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                            ptDynamicData->iIndex = (int)uCameraBufferIndex + uFaceIndex;
+
+                            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                            {
+                                .tShader         = gptData->tShadowShader,
+                                .auDynamicBuffers = {
+                                    tDynamicBinding.uBufferHandle
+                                },
+                                .atVertexBuffers = {
+                                    ptScene->tVertexBuffer,
+                                },
+                                .tIndexBuffer         = tDrawable.tIndexBuffer,
+                                .uIndexOffset         = tDrawable.uIndexOffset,
+                                .uTriangleCount       = tDrawable.uTriangleCount,
+                                .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                                .atBindGroups = {
+                                    ptScene->atGlobalBindGroup[uFrameIdx],
+                                    tGlobalBG0
+                                },
+                                .auDynamicBufferOffsets = {
+                                    tDynamicBinding.uByteOffset
+                                },
+                                .uInstanceOffset = tDrawable.uInstanceIndex,
+                                .uInstanceCount = tDrawable.uInstanceCount
+                            });
+                        }
                     }
 
                     *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
                     for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                     {
                         const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowForwardDrawables[i]];
-                        plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-                        plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-                        
-                        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-
-                        plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
-                        ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                        ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                        ptDynamicData->tModel = ptTransform->tWorld;
-                        ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                        ptDynamicData->iIndex = (int)uCameraBufferIndex + uFaceIndex;
-
-                        pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                        if(tDrawable.uInstanceCount != 0)
                         {
-                            .tShader        = tDrawable.tShadowShader,
-                            .auDynamicBuffers = {
-                                tDynamicBinding.uBufferHandle
-                            },
-                            .atVertexBuffers = {
-                                ptScene->tVertexBuffer,
-                            },
-                            .tIndexBuffer         = tDrawable.tIndexBuffer,
-                            .uIndexOffset         = tDrawable.uIndexOffset,
-                            .uTriangleCount       = tDrawable.uTriangleCount,
-                            .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                            .atBindGroups = {
-                                ptScene->atGlobalBindGroup[uFrameIdx],
-                                tGlobalBG0
-                            },
-                            .auDynamicBufferOffsets = {
-                                tDynamicBinding.uByteOffset
-                            },
-                            .uInstanceOffset = 0,
-                            .uInstanceCount = 1
-                        });
+                            plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+                            plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+                            
+                            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                            plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                            ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                            ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                            ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                            ptDynamicData->iIndex = (int)uCameraBufferIndex + uFaceIndex;
+
+                            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                            {
+                                .tShader        = tDrawable.tShadowShader,
+                                .auDynamicBuffers = {
+                                    tDynamicBinding.uBufferHandle
+                                },
+                                .atVertexBuffers = {
+                                    ptScene->tVertexBuffer,
+                                },
+                                .tIndexBuffer         = tDrawable.tIndexBuffer,
+                                .uIndexOffset         = tDrawable.uIndexOffset,
+                                .uTriangleCount       = tDrawable.uTriangleCount,
+                                .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                                .atBindGroups = {
+                                    ptScene->atGlobalBindGroup[uFrameIdx],
+                                    tGlobalBG0
+                                },
+                                .auDynamicBufferOffsets = {
+                                    tDynamicBinding.uByteOffset
+                                },
+                                .uInstanceOffset = tDrawable.uInstanceIndex,
+                                .uInstanceCount = tDrawable.uInstanceCount
+                            });
+                        }
 
                     };
 
@@ -1286,83 +1306,86 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
                 const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowDeferredDrawables[i]];
-                plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-                plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-                
-                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-
-                plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
-                ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                ptDynamicData->tModel = ptTransform->tWorld;
-                ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                ptDynamicData->iIndex = (int)uCameraBufferIndex;
-
-                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                if(tDrawable.uInstanceCount != 0)
                 {
-                    .tShader         = gptData->tShadowShader,
-                    .auDynamicBuffers = {
-                        tDynamicBinding.uBufferHandle
-                    },
-                    .atVertexBuffers = {
-                        ptScene->tVertexBuffer,
-                    },
-                    .tIndexBuffer         = tDrawable.tIndexBuffer,
-                    .uIndexOffset         = tDrawable.uIndexOffset,
-                    .uTriangleCount       = tDrawable.uTriangleCount,
-                    .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                    .atBindGroups = {
-                        ptScene->atGlobalBindGroup[uFrameIdx],
-                        tGlobalBG0
-                    },
-                    .auDynamicBufferOffsets = {
-                        tDynamicBinding.uByteOffset
-                    },
-                    .uInstanceOffset = 0,
-                    .uInstanceCount = 1
-                });
+                    plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+                    plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+                    
+                    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                    ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                    ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                    ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                    ptDynamicData->iIndex = (int)uCameraBufferIndex;
+
+                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    {
+                        .tShader         = gptData->tShadowShader,
+                        .auDynamicBuffers = {
+                            tDynamicBinding.uBufferHandle
+                        },
+                        .atVertexBuffers = {
+                            ptScene->tVertexBuffer,
+                        },
+                        .tIndexBuffer         = tDrawable.tIndexBuffer,
+                        .uIndexOffset         = tDrawable.uIndexOffset,
+                        .uTriangleCount       = tDrawable.uTriangleCount,
+                        .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                        .atBindGroups = {
+                            ptScene->atGlobalBindGroup[uFrameIdx],
+                            tGlobalBG0
+                        },
+                        .auDynamicBufferOffsets = {
+                            tDynamicBinding.uByteOffset
+                        },
+                        .uInstanceOffset = tDrawable.uInstanceIndex,
+                        .uInstanceCount = tDrawable.uInstanceCount
+                    });
+                }
             }
 
             *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
             for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
             {
                 const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowForwardDrawables[i]];
-                plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-                plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-                
-                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-
-                plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
-                ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                ptDynamicData->tModel = ptTransform->tWorld;
-                ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                ptDynamicData->iIndex = (int)uCameraBufferIndex;
-
-                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                if(tDrawable.uInstanceCount != 0)
                 {
-                    .tShader        = tDrawable.tShadowShader,
-                    .auDynamicBuffers = {
-                        tDynamicBinding.uBufferHandle
-                    },
-                    .atVertexBuffers = {
-                        ptScene->tVertexBuffer,
-                    },
-                    .tIndexBuffer         = tDrawable.tIndexBuffer,
-                    .uIndexOffset         = tDrawable.uIndexOffset,
-                    .uTriangleCount       = tDrawable.uTriangleCount,
-                    .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                    .atBindGroups = {
-                        ptScene->atGlobalBindGroup[uFrameIdx],
-                        tGlobalBG0
-                    },
-                    .auDynamicBufferOffsets = {
-                        tDynamicBinding.uByteOffset
-                    },
-                    .uInstanceOffset = 0,
-                    .uInstanceCount = 1
-                });
+                    plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+                    plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+                    
+                    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
+                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                    ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                    ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                    ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                    ptDynamicData->iIndex = (int)uCameraBufferIndex;
+
+                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    {
+                        .tShader        = tDrawable.tShadowShader,
+                        .auDynamicBuffers = {
+                            tDynamicBinding.uBufferHandle
+                        },
+                        .atVertexBuffers = {
+                            ptScene->tVertexBuffer,
+                        },
+                        .tIndexBuffer         = tDrawable.tIndexBuffer,
+                        .uIndexOffset         = tDrawable.uIndexOffset,
+                        .uTriangleCount       = tDrawable.uTriangleCount,
+                        .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                        .atBindGroups = {
+                            ptScene->atGlobalBindGroup[uFrameIdx],
+                            tGlobalBG0
+                        },
+                        .auDynamicBufferOffsets = {
+                            tDynamicBinding.uByteOffset
+                        },
+                        .uInstanceOffset = tDrawable.uInstanceIndex,
+                        .uInstanceCount = tDrawable.uInstanceCount
+                    });
+                }
             };
 
             plDrawArea tArea = 
@@ -1576,6 +1599,11 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                 .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
                 .uSlot = 0,
                 .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
+            },
+            {
+                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
+                .uSlot = 1,
+                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
             }
         }
     };
@@ -1592,13 +1620,18 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
             .tBuffer       = ptDShadowData->atDShadowCameraBuffers[uFrameIdx],
             .uSlot         = 0,
             .szBufferRange = *puOffset
+        },
+        {
+            .tBuffer       = ptScene->atInstanceBuffer[uFrameIdx],
+            .uSlot         = 1,
+            .szBufferRange = sizeof(uint32_t) * 2 * 10000
         }
     };
 
     const uint32_t uIndexingOffset = uInitialOffset / (sizeof(plMat4) * PL_MAX_SHADOW_CASCADES);
 
     plBindGroupUpdateData tBGData0 = {
-        .uBufferCount = 1,
+        .uBufferCount = 2,
         .atBufferBindings = atBufferData
     };
     plBindGroupHandle tShadowBG1 = gptGfx->create_bind_group(ptDevice, &tGlobalBGDesc);
@@ -1607,15 +1640,6 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
     const uint32_t uOpaqueDrawableCount = pl_sb_size(ptScene->sbuShadowDeferredDrawables);
     const uint32_t uTransparentDrawableCount = pl_sb_size(ptScene->sbuShadowForwardDrawables);
-
-    typedef struct _plShadowDynamicData
-    {
-        int    iIndex;
-        int    iDataOffset;
-        int    iVertexOffset;
-        int    iMaterialIndex;
-        plMat4 tModel;
-    } plShadowDynamicData;
 
     for(uint32_t uRectIndex = 0; uRectIndex < uAtlasRectCount; uRectIndex++)
     {
@@ -1645,82 +1669,87 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
             for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
             {
                 const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowDeferredDrawables[i]];
-                plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-                plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-                
-                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
-                ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                ptDynamicData->tModel = ptTransform->tWorld;
-                ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                ptDynamicData->iIndex = (int)*puOffsetIndex + (int)uIndexingOffset;
-
-                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                if(tDrawable.uInstanceCount != 0)
                 {
-                    .tShader         = gptData->tShadowShader,
-                    .auDynamicBuffers = {
-                        tDynamicBinding.uBufferHandle
-                    },
-                    .atVertexBuffers = {
-                        ptScene->tVertexBuffer,
-                    },
-                    .tIndexBuffer         = tDrawable.tIndexBuffer,
-                    .uIndexOffset         = tDrawable.uIndexOffset,
-                    .uTriangleCount       = tDrawable.uTriangleCount,
-                    .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                    .atBindGroups = {
-                        ptScene->atGlobalBindGroup[uFrameIdx],
-                        tShadowBG1
-                    },
-                    .auDynamicBufferOffsets = {
-                        tDynamicBinding.uByteOffset
-                    },
-                    .uInstanceOffset = 0,
-                    .uInstanceCount = uCascadeCount
-                });
+                    plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+                    plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+                    
+                    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                    ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                    ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                    ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                    ptDynamicData->iIndex = (int)*puOffsetIndex + (int)uIndexingOffset;
+
+                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    {
+                        .tShader         = gptData->tShadowShader,
+                        .auDynamicBuffers = {
+                            tDynamicBinding.uBufferHandle
+                        },
+                        .atVertexBuffers = {
+                            ptScene->tVertexBuffer,
+                        },
+                        .tIndexBuffer         = tDrawable.tIndexBuffer,
+                        .uIndexOffset         = tDrawable.uIndexOffset,
+                        .uTriangleCount       = tDrawable.uTriangleCount,
+                        .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                        .atBindGroups = {
+                            ptScene->atGlobalBindGroup[uFrameIdx],
+                            tShadowBG1
+                        },
+                        .auDynamicBufferOffsets = {
+                            tDynamicBinding.uByteOffset
+                        },
+                        .uInstanceOffset = tDrawable.uInstanceIndex,
+                        .uInstanceCount = uCascadeCount * tDrawable.uInstanceCount
+                    });
+                }
             }
 
             *gptData->pdDrawCalls += (double)uTransparentDrawableCount;
             for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
             {
                 const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowForwardDrawables[i]];
-                plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-                plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-                
-                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-
-                plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
-                ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                ptDynamicData->tModel = ptTransform->tWorld;
-                ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                ptDynamicData->iIndex = (int)*puOffsetIndex + (int)uIndexingOffset;
-
-                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                if(tDrawable.uInstanceCount != 0)
                 {
-                    .tShader        = tDrawable.tShadowShader,
-                    .auDynamicBuffers = {
-                        tDynamicBinding.uBufferHandle
-                    },
-                    .atVertexBuffers = {
-                        ptScene->tVertexBuffer,
-                    },
-                    .tIndexBuffer         = tDrawable.tIndexBuffer,
-                    .uIndexOffset         = tDrawable.uIndexOffset,
-                    .uTriangleCount       = tDrawable.uTriangleCount,
-                    .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                    .atBindGroups = {
-                        ptScene->atGlobalBindGroup[uFrameIdx],
-                        tShadowBG1
-                    },
-                    .auDynamicBufferOffsets = {
-                        tDynamicBinding.uByteOffset
-                    },
-                    .uInstanceOffset = 0,
-                    .uInstanceCount = uCascadeCount
-                });
+                    plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+                    plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+                    
+                    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                    ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                    ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                    ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                    ptDynamicData->iIndex = (int)*puOffsetIndex + (int)uIndexingOffset;
+
+                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    {
+                        .tShader        = tDrawable.tShadowShader,
+                        .auDynamicBuffers = {
+                            tDynamicBinding.uBufferHandle
+                        },
+                        .atVertexBuffers = {
+                            ptScene->tVertexBuffer,
+                        },
+                        .tIndexBuffer         = tDrawable.tIndexBuffer,
+                        .uIndexOffset         = tDrawable.uIndexOffset,
+                        .uTriangleCount       = tDrawable.uTriangleCount,
+                        .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                        .atBindGroups = {
+                            ptScene->atGlobalBindGroup[uFrameIdx],
+                            tShadowBG1
+                        },
+                        .auDynamicBufferOffsets = {
+                            tDynamicBinding.uByteOffset
+                        },
+                        .uInstanceOffset = tDrawable.uInstanceIndex,
+                        .uInstanceCount = uCascadeCount * tDrawable.uInstanceCount
+                    });
+                }
 
             };
   
@@ -1798,82 +1827,88 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
                 for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
                 {
                     const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowDeferredDrawables[i]];
-                    plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-                    plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-                    
-                    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
-                    ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                    ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                    ptDynamicData->tModel = ptTransform->tWorld;
-                    ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                    ptDynamicData->iIndex = (int)uCascade + (int)*puOffsetIndex;
-
-                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    if(tDrawable.uInstanceCount != 0)
                     {
-                        .tShader         = gptData->tShadowShader,
-                        .auDynamicBuffers = {
-                            tDynamicBinding.uBufferHandle
-                        },
-                        .atVertexBuffers = {
-                            ptScene->tVertexBuffer,
-                        },
-                        .tIndexBuffer         = tDrawable.tIndexBuffer,
-                        .uIndexOffset         = tDrawable.uIndexOffset,
-                        .uTriangleCount       = tDrawable.uTriangleCount,
-                        .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                        .atBindGroups = {
-                            ptScene->atGlobalBindGroup[uFrameIdx],
-                            tShadowBG1
-                        },
-                        .auDynamicBufferOffsets = {
-                            tDynamicBinding.uByteOffset
-                        },
-                        .uInstanceOffset = 0,
-                        .uInstanceCount = 1
-                    });
+                        plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+                        plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+                        
+                        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                        plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                        ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                        ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                        ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                        ptDynamicData->iIndex = (int)uCascade + (int)*puOffsetIndex;
+
+                        pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                        {
+                            .tShader         = gptData->tShadowShader,
+                            .auDynamicBuffers = {
+                                tDynamicBinding.uBufferHandle
+                            },
+                            .atVertexBuffers = {
+                                ptScene->tVertexBuffer,
+                            },
+                            .tIndexBuffer         = tDrawable.tIndexBuffer,
+                            .uIndexOffset         = tDrawable.uIndexOffset,
+                            .uTriangleCount       = tDrawable.uTriangleCount,
+                            .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                            .atBindGroups = {
+                                ptScene->atGlobalBindGroup[uFrameIdx],
+                                tShadowBG1
+                            },
+                            .auDynamicBufferOffsets = {
+                                tDynamicBinding.uByteOffset
+                            },
+                            .uInstanceOffset = tDrawable.uInstanceIndex,
+                            .uInstanceCount = tDrawable.uInstanceCount
+                        });
+                    }
                 }
 
                 *gptData->pdDrawCalls += (double)uTransparentDrawableCount;
                 for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
                 {
                     const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowForwardDrawables[i]];
-                    plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
-                    plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
-                    
-                    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
-                    ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                    ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                    ptDynamicData->tModel = ptTransform->tWorld;
-                    ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                    ptDynamicData->iIndex = (int)uCascade + (int)*puOffsetIndex;
-
-                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    if(tDrawable.uInstanceCount != 0)
                     {
-                        .tShader        = tDrawable.tShadowShader,
-                        .auDynamicBuffers = {
-                            tDynamicBinding.uBufferHandle
-                        },
-                        .atVertexBuffers = {
-                            ptScene->tVertexBuffer,
-                        },
-                        .tIndexBuffer         = tDrawable.tIndexBuffer,
-                        .uIndexOffset         = tDrawable.uIndexOffset,
-                        .uTriangleCount       = tDrawable.uTriangleCount,
-                        .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                        .atBindGroups = {
-                            ptScene->atGlobalBindGroup[uFrameIdx],
-                            tShadowBG1
-                        },
-                        .auDynamicBufferOffsets = {
-                            tDynamicBinding.uByteOffset
-                        },
-                        .uInstanceOffset = 0,
-                        .uInstanceCount = uCascadeCount
-                    });
+                        plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tDrawable.tEntity);
+                        plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+                        
+                        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                        plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                        ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                        ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                        ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                        ptDynamicData->iIndex = (int)uCascade + (int)*puOffsetIndex;
+
+                        pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                        {
+                            .tShader        = tDrawable.tShadowShader,
+                            .auDynamicBuffers = {
+                                tDynamicBinding.uBufferHandle
+                            },
+                            .atVertexBuffers = {
+                                ptScene->tVertexBuffer,
+                            },
+                            .tIndexBuffer         = tDrawable.tIndexBuffer,
+                            .uIndexOffset         = tDrawable.uIndexOffset,
+                            .uTriangleCount       = tDrawable.uTriangleCount,
+                            .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                            .atBindGroups = {
+                                ptScene->atGlobalBindGroup[uFrameIdx],
+                                tShadowBG1
+                            },
+                            .auDynamicBufferOffsets = {
+                                tDynamicBinding.uByteOffset
+                            },
+                            .uInstanceOffset = tDrawable.uInstanceIndex,
+                            .uInstanceCount = uCascadeCount * tDrawable.uInstanceCount
+                        });
+                    }
 
                 };
 
@@ -2309,7 +2344,8 @@ pl_refr_create_global_shaders(void)
             },
             {
                 .atBufferBindings = {
-                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
+                    { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
+                    { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
                 },
             }
         }
@@ -3334,6 +3370,7 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
     ptScene->sbtStagedDrawables[uTransparentStart].tEntity = tProbeHandle;
     ptScene->sbtStagedDrawables[uTransparentStart].tFlags = PL_DRAWABLE_FLAG_PROBE | PL_DRAWABLE_FLAG_FORWARD;
     ptScene->sbtStagedDrawables[uTransparentStart].uTransformIndex = ptScene->uNextTransformIndex++;
+    ptScene->sbtStagedDrawables[uTransparentStart].uInstanceCount = 1;
 };
 
 static uint64_t
@@ -3599,7 +3636,6 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                 DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                 ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                ptDynamicData->uTransformIndex = tDrawable.uTransformIndex;
                 ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
                 ptDynamicData->uGlobalIndex = uFace;
 
@@ -3623,7 +3659,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                     .auDynamicBufferOffsets = {
                         tDynamicBinding.uByteOffset
                     },
-                    .uInstanceOffset = 0,
+                    .uInstanceOffset = tDrawable.uTransformIndex,
                     .uInstanceCount  = 1
                 });
             }
@@ -3729,7 +3765,6 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                 DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                 ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                ptDynamicData->uTransformIndex = tDrawable.uTransformIndex;
                 ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
                 ptDynamicData->uGlobalIndex = uFace;
 
@@ -3753,8 +3788,8 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
                     .auDynamicBufferOffsets = {
                         tDynamicBinding.uByteOffset
                     },
-                    .uInstanceOffset = 0,
-                    .uInstanceCount = 1
+                    .uInstanceOffset = tDrawable.uTransformIndex,
+                    .uInstanceCount = tDrawable.uInstanceCount
                 });
             }
             gptGfx->draw_stream(ptProbeEncoder, 1, &tArea);
@@ -4288,7 +4323,10 @@ pl__refr_set_drawable_shaders(uint32_t uSceneHandle)
             ptScene->sbtDrawables[i].tShader = pl__get_shader_variant(uSceneHandle, gptData->tForwardShader, &tVariant);
             aiConstantData0[4] = gptData->bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
             ptScene->sbtDrawables[i].tEnvShader = pl__get_shader_variant(uSceneHandle, gptData->tForwardShader, &tVariant);
-
+  
+        }
+        if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
+        {
             const plShaderVariant tShadowVariant = {
                 .pTempConstantData =  aiConstantData0,
                 .tGraphicsState    = {
@@ -4331,10 +4369,14 @@ pl__refr_sort_drawables(uint32_t uSceneHandle)
 
         if(ptMaterial->tFlags & PL_MATERIAL_FLAG_CAST_SHADOW && ptObject->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW)
         {
-            if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
+            if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
+            {
                 pl_sb_push(ptScene->sbuShadowForwardDrawables, i);
-            else if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_DEFERRED)
+            }
+            else
+            {
                 pl_sb_push(ptScene->sbuShadowDeferredDrawables, i);
+            }
         }
 
         ptScene->sbtDrawables[i].tIndexBuffer = ptScene->sbtDrawables[i].uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer;

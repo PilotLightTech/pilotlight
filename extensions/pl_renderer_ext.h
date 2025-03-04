@@ -28,9 +28,10 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plViewOptions plViewOptions;
-typedef struct _plShaderVariant plShaderVariant;
+typedef struct _plViewOptions          plViewOptions;
+typedef struct _plShaderVariant        plShaderVariant;
 typedef struct _plComputeShaderVariant plComputeShaderVariant;
+typedef struct _plRendererSettings     plRendererSettings;
 
 // external 
 typedef struct _plWindow           plWindow;           // pl_os.h
@@ -58,14 +59,14 @@ typedef int plDrawFlags;                               // pl_draw_ext.h
 typedef struct _plRendererI
 {
     // setup/shutdown
-    void (*initialize)(plWindow* ptWindow);
+    void (*initialize)(plRendererSettings);
     void (*cleanup)   (void);
 
     // scenes
     uint32_t (*create_scene)(void);
     void (*cleanup_scene)(uint32_t);
     void (*load_skybox_from_panorama)(uint32_t uSceneHandle, const char* pcPath, int iResolution);
-    void (*add_drawable_objects_to_scene)(uint32_t uSceneHandle, uint32_t uOpaqueCount, const plEntity* atOpaqueObjects, uint32_t uTransparentCount, const plEntity* atTransparentObjects);
+    void (*add_drawable_objects_to_scene)(uint32_t uSceneHandle, uint32_t uCount, const plEntity* atObjects);
     void (*finalize_scene)(uint32_t uSceneHandle);
 
     // scenes - runtime
@@ -117,5 +118,12 @@ typedef struct _plViewOptions
     plEntity* ptViewCamera;
     plEntity* ptCullCamera;
 } plViewOptions;
+
+typedef struct _plRendererSettings
+{
+    plWindow* ptWindow;
+    uint32_t  uMaxTextureResolution; // default 1024 (should be factor of 2)
+    bool      bValidationOn;
+} plRendererSettings;
 
 #endif // PL_RENDERER_EXT_H

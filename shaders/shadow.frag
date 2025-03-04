@@ -47,6 +47,11 @@ layout(set = 1, binding = 0) readonly buffer _plCameraInfo
     mat4 atCameraProjs[];
 } tCameraInfo;
 
+layout(set = 1, binding = 1) readonly buffer _plInstanceInfo
+{
+    uint atIndices[];
+} plInstanceInfo;
+
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
