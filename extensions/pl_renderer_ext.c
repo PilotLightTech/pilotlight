@@ -1436,8 +1436,8 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
         .tDepthTarget = {
                 .tLoadOp         = PL_LOAD_OP_LOAD,
                 .tStoreOp        = PL_STORE_OP_STORE,
-                .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
-                .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
+                .tStencilLoadOp  = PL_LOAD_OP_LOAD,
+                .tStencilStoreOp = PL_STORE_OP_STORE,
                 .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
                 .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
                 .fClearZ         = 0.0f
@@ -2143,8 +2143,6 @@ pl_refr_outline_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnt
     for(uint32_t i = 0; i < uCount; i++)
     {
         plEntity tEntity = atEntities[i];
-
-        pl_log_info_f(gptLog, gptData->uLogChannel, "selecting entity %u", tEntity.uIndex);
 
         plObjectComponent* ptObject   = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
         if(ptObject == NULL)
