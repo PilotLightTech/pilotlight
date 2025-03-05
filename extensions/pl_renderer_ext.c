@@ -2699,6 +2699,7 @@ pl_refr_get_hovered_entity(uint32_t uSceneHandle, uint32_t uViewHandle, plEntity
     if(ptEntityOut)
         *ptEntityOut = ptView->tHoveredEntity;
     bool bNewValue = ptView->auHoverResultReady[gptGfx->get_current_frame_index()];
+    ptView->auHoverResultReady[gptGfx->get_current_frame_index()] = false;
     return bNewValue;
 }
 
