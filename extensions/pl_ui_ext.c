@@ -122,7 +122,7 @@ pl_new_frame(void)
     pl_sb_reset(gptCtx->sbtBeginPopupStack);
 
     gptCtx->bWantTextInput = false;
-    gptCtx->bWantCaptureMouse = gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL || gptCtx->ptActiveWindow != NULL;
+    gptCtx->bWantCaptureMouse = gptCtx->uActiveId != 0 || gptCtx->ptMovingWindow != NULL || gptCtx->ptActiveWindow != NULL || gptCtx->ptNavWindow != NULL;
     gptCtx->bWantCaptureKeyboard = gptCtx->uActiveId != 0;
 
     for(uint32_t i = 0; i < 5; i++)
