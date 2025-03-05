@@ -969,7 +969,6 @@ pl_refr_cleanup_view(uint32_t uSceneHandle, uint32_t uViewHandle)
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAOMetalRoughnessTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tRawOutputTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tDepthTexture);
-    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tPickTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture0);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture1);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFinalTexture);
@@ -979,6 +978,7 @@ pl_refr_cleanup_view(uint32_t uSceneHandle, uint32_t uViewHandle)
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tUVRenderPass);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tFinalTextureHandle);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tLightingBindGroup);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tPickTexture);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -1158,7 +1158,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     // picking defaults
     ptView->tHoveredEntity.ulData = 0;
-    ptView->uRequestHoverCheckFrame = UINT32_MAX;
     ptView->bRequestHoverCheck = false;
 
     // create offscreen per-frame resources
@@ -1267,15 +1266,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     plRenderPassAttachments atPostProcessAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
     plRenderPassAttachments atShadowAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
 
-    ptView->tPickTexture = pl__refr_create_texture(&tPickTextureDesc, "pick original", 0, PL_TEXTURE_USAGE_SAMPLED);
-
-    const plBufferDesc tPickBufferDesc = {
-        .tUsage     = PL_BUFFER_USAGE_STAGING | PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = sizeof(uint32_t) * 2,
-        .pcDebugName = "Picking buffer"
-    };
-    ptView->tPickBuffer = pl__refr_create_staging_buffer(&tPickBufferDesc, "picking buffer", 0);
-
     // pick bind group
 
     const plBindGroupLayout tPickBindGroupLayout = {
@@ -1283,25 +1273,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
             {.uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
         }
     };
-
-    const plBindGroupDesc tPickBindGroupDesc = {
-        .ptPool = gptData->ptBindGroupPool,
-        .ptLayout = &tPickBindGroupLayout,
-        .pcDebugName = "pick bind group"
-    };
-    
-        ptView->tPickBindGroup = gptGfx->create_bind_group(gptData->ptDevice, &tPickBindGroupDesc);
-
-    const plBindGroupUpdateBufferData atPickBGBufferData[] = {
-        { .uSlot = 0, .tBuffer = ptView->tPickBuffer, .szBufferRange = sizeof(uint32_t) * 2},
-    };
-
-    const plBindGroupUpdateData tPickBGData = {
-        .uBufferCount = 1,
-        .atBufferBindings = atPickBGBufferData
-    };
-    gptGfx->update_bind_group(gptData->ptDevice, ptView->tPickBindGroup, &tPickBGData);
-
 
     ptView->tRawOutputTexture        = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen raw", 0, PL_TEXTURE_USAGE_SAMPLED);
     ptView->tAlbedoTexture           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original", 0, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
@@ -1349,8 +1320,37 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     };
     gptGfx->update_bind_group(gptData->ptDevice, ptView->tLightingBindGroup, &tBGData);
 
+    ptView->tPickTexture = pl__refr_create_texture(&tPickTextureDesc, "pick original", 0, PL_TEXTURE_USAGE_SAMPLED);
+
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
+
+        
+
+        const plBufferDesc tPickBufferDesc = {
+            .tUsage     = PL_BUFFER_USAGE_STAGING | PL_BUFFER_USAGE_STORAGE,
+            .szByteSize = sizeof(uint32_t) * 2,
+            .pcDebugName = "Picking buffer"
+        };
+        ptView->atPickBuffer[i] = pl__refr_create_cached_staging_buffer(&tPickBufferDesc, "picking buffer", 0);
+
+        const plBindGroupDesc tPickBindGroupDesc = {
+            .ptPool = gptData->ptBindGroupPool,
+            .ptLayout = &tPickBindGroupLayout,
+            .pcDebugName = "pick bind group"
+        };
+        
+        ptView->atPickBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tPickBindGroupDesc);
+    
+        const plBindGroupUpdateBufferData atPickBGBufferData[] = {
+            { .uSlot = 0, .tBuffer = ptView->atPickBuffer[i], .szBufferRange = sizeof(uint32_t) * 2},
+        };
+    
+        const plBindGroupUpdateData tPickBGData = {
+            .uBufferCount = 1,
+            .atBufferBindings = atPickBGBufferData
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, ptView->atPickBindGroup[i], &tPickBGData);
 
         // buffers
         ptView->atGlobalBuffers[i] = pl__refr_create_staging_buffer(&atGlobalBuffersDesc, "global", i);
@@ -1603,8 +1603,6 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
     plRenderPassAttachments atPostProcessAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
     plRenderPassAttachments atPickAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
 
-    gptGfx->queue_texture_for_deletion(ptDevice, ptView->tPickTexture);
-    ptView->tPickTexture = pl__refr_create_texture(&tPickTextureDesc, "pick", 0, PL_TEXTURE_USAGE_SAMPLED);
 
     // queue old resources for deletion
     gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFinalTexture);
@@ -1616,6 +1614,9 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
     gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAOMetalRoughnessTexture);
     gptGfx->queue_texture_for_deletion(ptDevice, ptView->tDepthTexture);
     gptGfx->queue_bind_group_for_deletion(ptDevice, ptView->tLightingBindGroup);
+
+    gptGfx->queue_texture_for_deletion(ptDevice, ptView->tPickTexture);
+    ptView->tPickTexture = pl__refr_create_texture(&tPickTextureDesc, "pick", 0, PL_TEXTURE_USAGE_SAMPLED);
 
     // textures
     ptView->tRawOutputTexture        = pl__refr_create_texture(&tRawOutputTextureDesc, "offscreen raw", 0, PL_TEXTURE_USAGE_SAMPLED);
@@ -1665,6 +1666,10 @@ pl_refr_resize_view(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensi
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
+
+
+
+        
         // attachment sets
         atPickAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture;
         atPickAttachmentSets[i].atViewAttachments[1] = ptView->tPickTexture;
@@ -2693,10 +2698,7 @@ pl_refr_get_hovered_entity(uint32_t uSceneHandle, uint32_t uViewHandle, plEntity
     plRefView* ptView = &ptScene->atViews[uViewHandle];
     if(ptEntityOut)
         *ptEntityOut = ptView->tHoveredEntity;
-    
-    bool bNewValue = ptView->uRequestHoverCheckFrame == UINT32_MAX - 1;
-    if(bNewValue)
-        ptView->uRequestHoverCheckFrame = UINT32_MAX;
+    bool bNewValue = ptView->auHoverResultReady[gptGfx->get_current_frame_index()];
     return bNewValue;
 }
 
@@ -3627,39 +3629,21 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tTransformMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
         }
 
-        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
+        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
         gptDrawBackend->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
         gptGfx->end_render_pass(ptSceneEncoder);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity selection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        // TODO: decide on selection from multiple views
-
-        if(ptView->uRequestHoverCheckFrame == uFrameIdx)
-        {
-            pl_begin_cpu_sample(gptProfile, 0, "Picking Retrieval");
-            ptView->uRequestHoverCheckFrame = UINT32_MAX - 1;
-
-            plBuffer* ptPickBuffer = gptGfx->get_buffer(ptDevice, ptView->tPickBuffer);
-            const uint32_t uNewID = *(uint32_t*)ptPickBuffer->tMemoryAllocation.pHostMapped;
-            plEntity tNewEntity = {
-                .uIndex = uNewID,
-                .uGeneration = ptScene->tComponentLibrary.sbtEntityGenerations[uNewID]
-            };
-            ptView->tHoveredEntity = tNewEntity;
-            memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
-
-            pl_end_cpu_sample(gptProfile, 0);
-        }
-
-        if(ptView->bRequestHoverCheck && ptView->uRequestHoverCheckFrame == UINT32_MAX)
+        if(ptView->bRequestHoverCheck)
         {
             pl_begin_cpu_sample(gptProfile, 0, "Picking Submission");
 
-            plBuffer* ptPickBuffer = gptGfx->get_buffer(ptDevice, ptView->tPickBuffer);
-            memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
+            plBuffer* ptPickBuffer = gptGfx->get_buffer(ptDevice, ptView->atPickBuffer[uFrameIdx]);
+            // memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
 
-            ptView->uRequestHoverCheckFrame = uFrameIdx;
+            ptView->auHoverResultProcessing[uFrameIdx] = true;
+            ptView->auHoverResultReady[uFrameIdx] = false;
             ptView->bRequestHoverCheck = false;
 
             const plBindGroupUpdateBufferData tPickBG0BufferData = {
@@ -3691,7 +3675,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             gptGfx->bind_shader(ptPickEncoder, gptData->tPickShader);
             gptGfx->bind_vertex_buffer(ptPickEncoder, ptScene->tVertexBuffer);
 
-            plBindGroupHandle atBindGroups[2] = {tPickBG0, ptView->tPickBindGroup};
+            plBindGroupHandle atBindGroups[2] = {tPickBG0, ptView->atPickBindGroup[uFrameIdx]};
             gptGfx->bind_graphics_bind_groups(ptPickEncoder, gptData->tPickShader, 0, 2, atBindGroups, 0, NULL);
 
             const uint32_t uVisibleDrawCount = pl_sb_size(ptView->sbtVisibleDrawables);
@@ -4182,9 +4166,33 @@ pl_refr_begin_frame(void)
             gptGfx->return_command_buffer(ptCommandBuffer);
             ptScene->uGPUMaterialDirty--;
         }
-    }
-    gptData->aulNextTimelineValue[uFrameIdx] = ulValue;
 
+        for(uint32_t uViewIndex = 0; uViewIndex < ptScene->uViewCount; uViewIndex++)
+        {
+            plRefView* ptView = &ptScene->atViews[uViewIndex];
+
+            if(ptView->auHoverResultProcessing[uFrameIdx])
+            {
+                pl_begin_cpu_sample(gptProfile, 0, "Picking Retrieval");
+                
+                plBuffer* ptPickBuffer = gptGfx->get_buffer(ptDevice, ptView->atPickBuffer[uFrameIdx]);
+                const uint32_t uNewID = *(uint32_t*)ptPickBuffer->tMemoryAllocation.pHostMapped;
+                plEntity tNewEntity = {
+                    .uIndex = uNewID,
+                    .uGeneration = ptScene->tComponentLibrary.sbtEntityGenerations[uNewID]
+                };
+                ptView->tHoveredEntity = tNewEntity;
+
+                ptView->auHoverResultProcessing[uFrameIdx] = false;
+                ptView->auHoverResultReady[uFrameIdx] = true;
+                memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
+        
+                pl_end_cpu_sample(gptProfile, 0);
+            }
+        }
+    }
+
+    gptData->aulNextTimelineValue[uFrameIdx] = ulValue;
     pl_end_cpu_sample(gptProfile, 0);
     return true;
 }

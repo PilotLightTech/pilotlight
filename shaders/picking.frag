@@ -34,13 +34,13 @@ void main()
         if(floor(gl_FragCoord.y) == tShaderIn.tMousePos.y)
         {
             // tResultOut.tPixelColor = tShaderIn.tColor;
-            float CurrentDepth = gl_FragCoord.z;
-            float MaxDepth = tResultOut.fDepth;
+            // float CurrentDepth = gl_FragCoord.z;
+            // float MaxDepth = tResultOut.fDepth;
             
-            // if(CurrentDepth > MaxDepth)
+            // if(CurrentDepth >= MaxDepth)
             {
                 tResultOut.uID = tShaderIn.uID;
-                tResultOut.fDepth = CurrentDepth;
+                // tResultOut.fDepth = CurrentDepth;
             }
             
         }

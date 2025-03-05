@@ -351,12 +351,13 @@ typedef struct _plRefView
     plTextureHandle tDepthTexture;
 
     // picking
-    uint32_t          uRequestHoverCheckFrame;
+    bool              auHoverResultProcessing[PL_MAX_FRAMES_IN_FLIGHT];
+    bool              auHoverResultReady[PL_MAX_FRAMES_IN_FLIGHT];
     bool              bRequestHoverCheck;
     plEntity          tHoveredEntity;
     plTextureHandle   tPickTexture;
-    plBufferHandle    tPickBuffer;
-    plBindGroupHandle tPickBindGroup;
+    plBufferHandle    atPickBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle atPickBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
 
     // outlining
     plTextureHandle atUVMaskTexture0;

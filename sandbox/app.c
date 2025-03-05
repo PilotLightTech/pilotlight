@@ -327,7 +327,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // setup reference renderer
     plRendererSettings tRenderSettings = {
         .ptWindow              = ptAppData->ptWindow,
-        .uMaxTextureResolution = 1024
+        .uMaxTextureResolution = 1024,
+        .bValidationOn         = true
     };
     gptRenderer->initialize(tRenderSettings);
 
