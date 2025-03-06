@@ -1,5 +1,5 @@
 /*
-   pl_debug_ext.c
+   pl_tools_ext.c
 */
 
 /*
@@ -21,7 +21,7 @@ Index of this file:
 #include <float.h>
 #include "pl.h"
 
-#include "pl_debug_ext.h"
+#include "pl_tools_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
@@ -134,13 +134,17 @@ static void pl__show_logging           (bool* bValue);
 //-----------------------------------------------------------------------------
 
 void
-pl_debug_initialize(void)
+pl_debug_initialize(plToolsInit tInit)
 {
-    gptConsole->add_toggle_variable("d.LogTool", &gptDebugCtx->bShowLogging, "shows log tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
-    gptConsole->add_toggle_variable("d.StatTool", &gptDebugCtx->bShowStats, "shows stats tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
-    gptConsole->add_toggle_variable("d.ProfileTool", &gptDebugCtx->bShowProfiling, "shows profiling tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
-    gptConsole->add_toggle_variable("d.MemoryAllocationTool", &gptDebugCtx->bShowMemoryAllocations, "shows memory tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
-    gptConsole->add_toggle_variable("d.DeviceMemoryAnalyzerTool", &gptDebugCtx->bShowDeviceMemoryAnalyzer, "shows gpu memory tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    gptDebugCtx->ptDevice = tInit.ptDevice;
+    if(gptConsole->add_bool_variable)
+    {
+        gptConsole->add_toggle_variable("t.LogTool", &gptDebugCtx->bShowLogging, "shows log tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+        gptConsole->add_toggle_variable("t.StatTool", &gptDebugCtx->bShowStats, "shows stats tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+        gptConsole->add_toggle_variable("t.ProfileTool", &gptDebugCtx->bShowProfiling, "shows profiling tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+        gptConsole->add_toggle_variable("t.MemoryAllocationTool", &gptDebugCtx->bShowMemoryAllocations, "shows memory tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+        gptConsole->add_toggle_variable("t.DeviceMemoryAnalyzerTool", &gptDebugCtx->bShowDeviceMemoryAnalyzer, "shows gpu memory tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+    }
 }
 
 void
@@ -192,11 +196,7 @@ pl_debug_update(void)
 
 static void
 pl__show_memory_allocations(bool* bValue)
-{
-
-    if(!gptDebugCtx->ptDevice)
-        gptDebugCtx->ptDevice = gptDataRegistry->get_data("device");
-    
+{    
     const size_t szHostMemoryInUse = gptGfx->get_host_memory_in_use();
     const size_t szLocalMemoryInUse = gptGfx->get_local_memory_in_use();
     const size_t szMemoryUsage = gptMemory->get_memory_usage();
@@ -919,9 +919,6 @@ pl__show_device_memory(bool* bValue)
     const size_t szHostMemoryInUse = gptGfx->get_host_memory_in_use();
     const size_t szLocalMemoryInUse = gptGfx->get_local_memory_in_use();
 
-    if(!gptDebugCtx->ptDevice)
-        gptDebugCtx->ptDevice = gptDataRegistry->get_data("device");
-        
     if(gptUI->begin_window("Device Memory Analyzer", bValue, false))
     {
         plDrawLayer2D* ptFgLayer = gptUI->get_window_fg_drawlayer();
@@ -1299,14 +1296,14 @@ pl__show_logging(bool* bValue)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+pl_load_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
-    const plDebugApiI tApi = {
+    const plToolsI tApi = {
         .initialize = pl_debug_initialize,
         .update     = pl_debug_update
     };
-    pl_set_api(ptApiRegistry, plDebugApiI, &tApi);
+    pl_set_api(ptApiRegistry, plToolsI, &tApi);
 
     #ifndef PL_UNITY_BUILD
         gptDataRegistry  = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
@@ -1338,13 +1335,13 @@ pl_load_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_debug_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+pl_unload_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
     if(bReload)
         return;
 
-    const plDebugApiI* ptApi = pl_get_api_latest(ptApiRegistry, plDebugApiI);
+    const plToolsI* ptApi = pl_get_api_latest(ptApiRegistry, plToolsI);
     ptApiRegistry->remove_api(ptApi);
 
     gptUI->text_filter_cleanup(&gptDebugCtx->tMemoryFilter);

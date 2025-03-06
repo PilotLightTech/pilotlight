@@ -33,7 +33,7 @@ Index of this file:
 #include "pl_resource_ext.c"
 #include "pl_model_loader_ext.c"
 #include "pl_renderer_ext.c"
-#include "pl_debug_ext.c"
+#include "pl_tools_ext.c"
 #include "pl_profile_ext.c"
 #include "pl_log_ext.c"
 #include "pl_ecs_tools_ext.c"
@@ -75,7 +75,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptEcsTools          = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
     gptConsole           = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptGizmo             = pl_get_api_latest(ptApiRegistry, plGizmoI);
-    gptScreenLog           = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+    gptScreenLog         = pl_get_api_latest(ptApiRegistry, plScreenLogI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -100,7 +100,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_gizmo_ext(ptApiRegistry, bReload);
     pl_load_console_ext(ptApiRegistry, bReload);
     pl_load_screen_log_ext(ptApiRegistry, bReload);
-    pl_load_debug_ext(ptApiRegistry, bReload);
+    pl_load_tools_ext(ptApiRegistry, bReload);
     pl_load_profile_ext(ptApiRegistry, bReload);
 }
 
@@ -125,7 +125,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_renderer_ext(ptApiRegistry, bReload);
     pl_unload_gizmo_ext(ptApiRegistry, bReload);
     pl_unload_console_ext(ptApiRegistry, bReload);
-    pl_unload_debug_ext(ptApiRegistry, bReload);
+    pl_unload_tools_ext(ptApiRegistry, bReload);
     pl_unload_screen_log_ext(ptApiRegistry, bReload);
     pl_unload_profile_ext(ptApiRegistry, bReload);
     pl_unload_log_ext(ptApiRegistry, bReload);

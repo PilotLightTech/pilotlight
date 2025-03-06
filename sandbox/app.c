@@ -45,7 +45,7 @@ Index of this file:
 #include "pl_log_ext.h"
 #include "pl_stats_ext.h"
 #include "pl_graphics_ext.h"
-#include "pl_debug_ext.h"
+#include "pl_tools_ext.h"
 #include "pl_job_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_draw_backend_ext.h"
@@ -59,9 +59,9 @@ Index of this file:
 #include "pl_library_ext.h"
 #include "pl_file_ext.h"
 #include "pl_console_ext.h"
+#include "pl_screen_log_ext.h"
 
 // unstable extensions
-#include "pl_screen_log_ext.h"
 #include "pl_ecs_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_model_loader_ext.h"
@@ -76,7 +76,7 @@ Index of this file:
 const plWindowI*       gptWindows     = NULL;
 const plStatsI*        gptStats       = NULL;
 const plGraphicsI*     gptGfx         = NULL;
-const plDebugApiI*     gptDebug       = NULL;
+const plToolsI*        gptTools       = NULL;
 const plEcsI*          gptEcs         = NULL;
 const plCameraI*       gptCamera      = NULL;
 const plRendererI*     gptRenderer    = NULL;
@@ -211,7 +211,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
         gptStats       = pl_get_api_latest(ptApiRegistry, plStatsI);
         gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-        gptDebug       = pl_get_api_latest(ptApiRegistry, plDebugApiI);
+        gptTools       = pl_get_api_latest(ptApiRegistry, plToolsI);
         gptEcs         = pl_get_api_latest(ptApiRegistry, plEcsI);
         gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
         gptRenderer    = pl_get_api_latest(ptApiRegistry, plRendererI);
@@ -249,7 +249,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
     gptStats       = pl_get_api_latest(ptApiRegistry, plStatsI);
     gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-    gptDebug       = pl_get_api_latest(ptApiRegistry, plDebugApiI);
+    gptTools       = pl_get_api_latest(ptApiRegistry, plToolsI);
     gptEcs         = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
     gptRenderer    = pl_get_api_latest(ptApiRegistry, plRendererI);
@@ -289,14 +289,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // initialize APIs that require it
     gptEcsTools->initialize();
-    gptDebug->initialize();
-
-    // retrieve some console variables
-    ptAppData->pbShowLogging              = (bool*)gptConsole->get_variable("d.LogTool", NULL, NULL);
-    ptAppData->pbShowStats                = (bool*)gptConsole->get_variable("d.StatTool", NULL, NULL);
-    ptAppData->pbShowProfiling            = (bool*)gptConsole->get_variable("d.ProfileTool", NULL, NULL);
-    ptAppData->pbShowMemoryAllocations    = (bool*)gptConsole->get_variable("d.MemoryAllocationTool", NULL, NULL);
-    ptAppData->pbShowDeviceMemoryAnalyzer = (bool*)gptConsole->get_variable("d.DeviceMemoryAnalyzerTool", NULL, NULL);
 
     // initialize shader extension
     static plShaderOptions tDefaultShaderOptions = {
@@ -331,6 +323,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .bValidationOn         = true
     };
     gptRenderer->initialize(tRenderSettings);
+
+    gptTools->initialize((plToolsInit){.ptDevice = gptRenderer->get_device()});
+
+    // retrieve some console variables
+    ptAppData->pbShowLogging              = (bool*)gptConsole->get_variable("t.LogTool", NULL, NULL);
+    ptAppData->pbShowStats                = (bool*)gptConsole->get_variable("t.StatTool", NULL, NULL);
+    ptAppData->pbShowProfiling            = (bool*)gptConsole->get_variable("t.ProfileTool", NULL, NULL);
+    ptAppData->pbShowMemoryAllocations    = (bool*)gptConsole->get_variable("t.MemoryAllocationTool", NULL, NULL);
+    ptAppData->pbShowDeviceMemoryAnalyzer = (bool*)gptConsole->get_variable("t.DeviceMemoryAnalyzerTool", NULL, NULL);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~setup draw extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -586,7 +587,7 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowPilotLightTool)
         pl__show_editor_window(ptAppData);
 
-    gptDebug->update();
+    gptTools->update();
         
     if(ptAppData->bShowUiStyle)
         gptUI->show_style_editor_window(&ptAppData->bShowUiStyle);
