@@ -108,15 +108,9 @@ with pl.project("pilotlight deploy"):
         "pl_job_ext",
         "pl_log_ext",
         "pl_gpu_allocators_ext",
-        "pl_ecs_ext",
         "pl_tools_ext",
-        "pl_renderer_ext",
         "pl_draw_backend_ext",
-        "pl_resource_ext",
-        "pl_model_loader_ext",
         "pl_ui_ext",
-        "pl_ecs_tools_ext",
-        "pl_gizmo_ext",
         "pl_console_ext",
         "pl_screen_log_ext",
     ]
@@ -288,56 +282,6 @@ with pl.project("pilotlight deploy"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
-
-    #-----------------------------------------------------------------------------
-    # [SECTION] scripts
-    #-----------------------------------------------------------------------------
-
-    # vulkan backend
-    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, False):
-
-        pl.add_source_files("../extensions/pl_script_camera.c")
-        
-
-        # default config
-        with pl.configuration("debug"):
-
-            pl.set_output_binary("pl_script_camerad")
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pass
-                              
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pass
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
-
-        # release
-        with pl.configuration("release"):
-
-            pl.set_output_binary("pl_script_camera")
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pass
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pass
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
 
     #-----------------------------------------------------------------------------
     # [SECTION] pilot_light

@@ -20,11 +20,6 @@ if not os.path.isdir("../out/pilotlight"):
 
 target_directory = "../out/pilotlight"
 
-# scripts
-scripts = [
-    "pl_script_camera"
-]
-
 # extension headers
 extension_headers = [
     "pl_atomics_ext.h",
@@ -33,9 +28,6 @@ extension_headers = [
     "pl_tools_ext.h",
     "pl_draw_backend_ext.h",
     "pl_draw_ext.h",
-    "pl_ecs_ext.h",
-    "pl_ecs_tools_ext.h",
-    "pl_gizmo_ext.h",
     "pl_file_ext.h",
     "pl_gpu_allocators_ext.h",
     "pl_graphics_ext.h",
@@ -43,12 +35,9 @@ extension_headers = [
     "pl_job_ext.h",
     "pl_library_ext.h",
     "pl_log_ext.h",
-    "pl_model_loader_ext.h",
     "pl_network_ext.h",
     "pl_profile_ext.h",
     "pl_rect_pack_ext.h",
-    "pl_renderer_ext.h",
-    "pl_resource_ext.h",
     "pl_shader_ext.h",
     "pl_stats_ext.h",
     "pl_string_intern_ext.h",
@@ -65,19 +54,13 @@ extensions = [
     "pl_tools_ext",
     "pl_draw_backend_ext",
     "pl_draw_ext",
-    "pl_ecs_ext",
-    "pl_ecs_tools_ext",
-    "pl_gizmo_ext",
     "pl_gpu_allocators_ext",
     "pl_graphics_ext",
     "pl_image_ext",
     "pl_job_ext",
     "pl_log_ext",
-    "pl_model_loader_ext",
     "pl_profile_ext",
     "pl_rect_pack_ext",
-    "pl_renderer_ext",
-    "pl_resource_ext",
     "pl_shader_ext",
     "pl_stats_ext",
     "pl_string_intern_ext",
@@ -117,9 +100,6 @@ shutil.copy("../src/pl_config.h", target_directory + "/include/pl_config.h")
 for extension in extension_headers:
     shutil.copy("../extensions/" + extension, target_directory + "/include/" + extension)
 
-# special headers
-shutil.copy("../extensions/pl_script_ext.h", target_directory + "/include/pl_script_ext.h")
-
 # copy pilotlight-lib headers
 shutil.copy("../libs/pl_ds.h", target_directory + "/include/pl_ds.h")
 shutil.copy("../libs/pl_log.h", target_directory + "/include/pl_log.h")
@@ -148,20 +128,6 @@ for extension in extensions:
             shutil.copytree("../out/" + extension + ".dylib.dSYM", target_directory + "/bin/" + extension + ".dylib.dSYM")
     elif platform.system() == "Linux":
         shutil.move("../out/" + extension + ".so", target_directory + "/bin/")
-
-# copy scripts
-for script in scripts:
-    if platform.system() == "Windows":
-        shutil.move("../out/" + script + ".dll", target_directory + "/bin/")
-        for file in glob.glob("../out/" + script + "d_*.pdb"):
-            shutil.move(file, target_directory + "/bin/")
-    elif platform.system() == "Darwin":
-        shutil.move("../out/" + script + ".dylib", target_directory + "/bin/")
-        if debug_package:
-            shutil.copytree("../out/" + script + "d.dylib.dSYM", target_directory + "/bin/" + script + "d.dylib.dSYM")
-            
-    elif platform.system() == "Linux":
-        shutil.move("../out/" + script + ".so", target_directory + "/bin/")
 
 # copy libs & executable
 if platform.system() == "Windows":

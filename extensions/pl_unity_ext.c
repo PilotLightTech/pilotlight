@@ -27,17 +27,11 @@ Index of this file:
 #include "pl_gpu_allocators_ext.c"
 #include "pl_ui_ext.c"
 #include "pl_graphics_ext.c"
-#include "pl_ecs_ext.c"
 #include "pl_atomics_ext.h"
 #include "pl_network_ext.h"
-#include "pl_resource_ext.c"
-#include "pl_model_loader_ext.c"
-#include "pl_renderer_ext.c"
 #include "pl_tools_ext.c"
 #include "pl_profile_ext.c"
 #include "pl_log_ext.c"
-#include "pl_ecs_tools_ext.c"
-#include "pl_gizmo_ext.c"
 #include "pl_console_ext.c"
 #include "pl_screen_log_ext.c"
 
@@ -66,15 +60,9 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptDraw              = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptDrawBackend       = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptUI                = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptECS               = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptCamera            = pl_get_api_latest(ptApiRegistry, plCameraI);
-    gptResource          = pl_get_api_latest(ptApiRegistry, plResourceI);
     gptProfile           = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog               = pl_get_api_latest(ptApiRegistry, plLogI);
-    gptRenderer          = pl_get_api_latest(ptApiRegistry, plRendererI);
-    gptEcsTools          = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
     gptConsole           = pl_get_api_latest(ptApiRegistry, plConsoleI);
-    gptGizmo             = pl_get_api_latest(ptApiRegistry, plGizmoI);
     gptScreenLog         = pl_get_api_latest(ptApiRegistry, plScreenLogI);
     gptIO = gptIOI->get_io();
 
@@ -92,12 +80,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_shader_ext(ptApiRegistry, bReload);
     gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
 
-    pl_load_ecs_ext(ptApiRegistry, bReload);
-    pl_load_resource_ext(ptApiRegistry, bReload);
-    pl_load_model_loader_ext(ptApiRegistry, bReload);
-    pl_load_renderer_ext(ptApiRegistry, bReload);
-    pl_load_ecs_tools_ext(ptApiRegistry, bReload);
-    pl_load_gizmo_ext(ptApiRegistry, bReload);
     pl_load_console_ext(ptApiRegistry, bReload);
     pl_load_screen_log_ext(ptApiRegistry, bReload);
     pl_load_tools_ext(ptApiRegistry, bReload);
@@ -117,13 +99,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_gpu_allocators_ext(ptApiRegistry, bReload);
     pl_unload_draw_ext(ptApiRegistry, bReload);
     pl_unload_draw_backend_ext(ptApiRegistry, bReload);
-    pl_unload_ecs_tools_ext(ptApiRegistry, bReload);
     pl_unload_ui_ext(ptApiRegistry, bReload);
-    pl_unload_ecs_ext(ptApiRegistry, bReload);
-    pl_unload_resource_ext(ptApiRegistry, bReload);
-    pl_unload_model_loader_ext(ptApiRegistry, bReload);
-    pl_unload_renderer_ext(ptApiRegistry, bReload);
-    pl_unload_gizmo_ext(ptApiRegistry, bReload);
     pl_unload_console_ext(ptApiRegistry, bReload);
     pl_unload_tools_ext(ptApiRegistry, bReload);
     pl_unload_screen_log_ext(ptApiRegistry, bReload);

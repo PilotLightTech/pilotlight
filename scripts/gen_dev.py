@@ -177,61 +177,6 @@ with pl.project("pilotlight"):
                     pl.add_dynamic_link_libraries("vulkan")
                     
     #-----------------------------------------------------------------------------
-    # [SECTION] scripts
-    #-----------------------------------------------------------------------------
-
-    # vulkan backend
-    with pl.target("pl_script_camera", pl.TargetType.DYNAMIC_LIBRARY, True):
-
-        pl.add_source_files("../extensions/pl_script_camera.c")
-        pl.set_output_binary("pl_script_camera")
-        
-
-        # default config
-        with pl.configuration("debug"):
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pass
-                              
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pass
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
-
-        # release
-        with pl.configuration("release"):
-
-            # win32
-            with pl.platform("Windows"):
-                with pl.compiler("msvc"):
-                    pass
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pass
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pass
-
-        # vulkan on macos
-        with pl.configuration("vulkan"):
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_dynamic_link_libraries("shaderc_shared")
-
-    #-----------------------------------------------------------------------------
     # [SECTION] app
     #-----------------------------------------------------------------------------
 

@@ -76,9 +76,6 @@
     @if exist "../out/pl_unity_ext.dll" del "..\out\pl_unity_ext.dll"
     @if exist "../out/pl_unity_ext_*.dll" del "..\out\pl_unity_ext_*.dll"
     @if exist "../out/pl_unity_ext_*.pdb" del "..\out\pl_unity_ext_*.pdb"
-    @if exist "../out/pl_script_camera.dll" del "..\out\pl_script_camera.dll"
-    @if exist "../out/pl_script_camera_*.dll" del "..\out\pl_script_camera_*.dll"
-    @if exist "../out/pl_script_camera_*.pdb" del "..\out\pl_script_camera_*.pdb"
     @if exist "../out/app.dll" del "..\out\app.dll"
     @if exist "../out/app_*.dll" del "..\out\app_*.dll"
     @if exist "../out/app_*.pdb" del "..\out\app_*.pdb"
@@ -103,36 +100,6 @@
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
 cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_unity_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_unity_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanupdebug
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
-@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="../extensions/pl_script_camera.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pl_script_camera[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_script_camera.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_script_camera_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -263,9 +230,6 @@ goto ExitLabel
     @if exist "../out/pl_unity_ext.dll" del "..\out\pl_unity_ext.dll"
     @if exist "../out/pl_unity_ext_*.dll" del "..\out\pl_unity_ext_*.dll"
     @if exist "../out/pl_unity_ext_*.pdb" del "..\out\pl_unity_ext_*.pdb"
-    @if exist "../out/pl_script_camera.dll" del "..\out\pl_script_camera.dll"
-    @if exist "../out/pl_script_camera_*.dll" del "..\out\pl_script_camera_*.dll"
-    @if exist "../out/pl_script_camera_*.pdb" del "..\out\pl_script_camera_*.pdb"
     @if exist "../out/app.dll" del "..\out\app.dll"
     @if exist "../out/app_*.dll" del "..\out\app_*.dll"
     @if exist "../out/app_*.pdb" del "..\out\app_*.pdb"
@@ -290,36 +254,6 @@ goto ExitLabel
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
 cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_unity_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_unity_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
-
-:: check build status
-@set PL_BUILD_STATUS=%ERRORLEVEL%
-
-:: failed
-@if %PL_BUILD_STATUS% NEQ 0 (
-    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
-    @set PL_RESULT=[1m[91mFailed.[0m
-    goto Cleanuprelease
-)
-
-:: print results
-@echo [36mResult: [0m %PL_RESULT%
-@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
-
-::~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_script_camera | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
-@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
-@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
-@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
-@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="../extensions/pl_script_camera.c" 
-
-:: run compiler (and linker)
-@echo.
-@echo [1m[93mStep: pl_script_camera[0m
-@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
-@echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_script_camera.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_script_camera_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
