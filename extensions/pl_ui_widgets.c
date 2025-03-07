@@ -1706,7 +1706,7 @@ pl_labeled_text_v(const char* pcLabel, const char* pcFmt, va_list args)
 
         const plVec2 tStartLocation = {tStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y};
         pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, tStartLocation, PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), acTempBuffer, -1.0f);
-        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_add_vec2(tStartLocation, (plVec2){(2.0f * tWidgetSize.x / 3.0f), 0.0f}), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
+        pl__add_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize, pl_add_vec2(tStartLocation, (plVec2){(2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, 0.0f}), PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
     }
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
 }
@@ -1783,7 +1783,7 @@ pl_input_float2(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
@@ -1830,7 +1830,7 @@ pl_input_float3(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
@@ -1877,7 +1877,7 @@ pl_input_float4(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
@@ -1942,7 +1942,7 @@ pl_input_int2(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
@@ -1964,7 +1964,7 @@ pl_input_int2(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
     pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
         tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
         PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
@@ -1987,7 +1987,7 @@ pl_input_int3(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
@@ -2009,7 +2009,7 @@ pl_input_int3(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
     pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
         tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
         PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
@@ -2032,7 +2032,7 @@ pl_input_int4(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
@@ -2054,7 +2054,7 @@ pl_input_int4(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
             .fWrap = -1.0f});
     const plVec2 tTextActualCenter = pl_rect_center(&tTextBounding);
     pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-        (plVec2){tSubStartPos.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
+        (plVec2){tSubStartPos.x + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tTextActualCenter.y},
         tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
         PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
     pl__smart_advance_cursor(tWidgetSize.x, tWidgetSize.y);
@@ -2098,7 +2098,7 @@ pl_input_uint2(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFlags
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
@@ -2143,7 +2143,7 @@ pl_input_uint3(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFlags
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
@@ -2188,7 +2188,7 @@ pl_input_uint4(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFlags
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.5f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
@@ -2245,7 +2245,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
             .fWrap = -1.0f});
     const plVec2 tLabelTextActualCenter = pl_rect_center(&tLabelTextBounding);
 
-    const plVec2 tFrameSize = pcLabelEnd == pcLabel ? *ptWidgetSize : (plVec2){ 2.0f * (ptWidgetSize->x / 3.0f), ptWidgetSize->y};
+    const plVec2 tFrameSize = (pcLabelEnd == pcLabel) ? *ptWidgetSize : (plVec2){ 2.0f * (ptWidgetSize->x / 3.0f), ptWidgetSize->y};
     plRect tBoundingBox = pl_calculate_rect(tFrameStartPos, tFrameSize);
     const plRect* ptClipRect = gptDraw->get_clip_rect(gptCtx->ptDrawlist);
     tBoundingBox = pl_rect_clip_full(&tBoundingBox, ptClipRect);
@@ -3483,7 +3483,7 @@ pl_drag_float_f(const char* pcLabel, float* pfValue, float fSpeed, float fMin, f
         else                                 gptDraw->add_rect_rounded_filled(ptWindow->ptFgLayer, tFrameStartPos, tBoundingBox.tMax, gptCtx->tStyle.fFrameRounding, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(gptCtx->tColorScheme.tFrameBgCol)});
 
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
-            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f), tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
+            (plVec2){tStartPos.x + (2.0f * tWidgetSize.x / 3.0f) + gptCtx->tStyle.tInnerSpacing.x, tStartPos.y + tStartPos.y + tWidgetSize.y / 2.0f - tLabelTextActualCenter.y},
             tStartPos, pl_add_vec2(tStartPos, tWidgetSize),
             PL_COLOR_32_VEC4(gptCtx->tColorScheme.tTextCol), pcLabel, -1.0f);
         pl__add_clipped_text(ptWindow->ptFgLayer, gptCtx->tFont, gptCtx->tStyle.fFontSize,
