@@ -43,6 +43,7 @@ static const struct _plEcsI*      gptECS      = 0;
 static const struct _plRendererI* gptRenderer = 0;
 static const struct _plEcsToolsI* gptEcsTools = 0;
 static const struct _plGizmoI*    gptGizmo    = 0;
+static const struct _plPhysicsI*  gptPhysics  = 0;
 
 // context
 static struct _plIO* gptIO = 0;

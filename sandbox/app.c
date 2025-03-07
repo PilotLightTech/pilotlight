@@ -68,6 +68,7 @@ Index of this file:
 #include "pl_renderer_ext.h"
 #include "pl_ecs_tools_ext.h"
 #include "pl_gizmo_ext.h"
+#include "pl_physics_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
@@ -96,6 +97,7 @@ const plEcsToolsI*     gptEcsTools    = NULL;
 const plGizmoI*        gptGizmo       = NULL;
 const plConsoleI*      gptConsole     = NULL;
 const plScreenLogI*    gptScreenLog   = NULL;
+const plPhysicsI *     gptPhysics     = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -155,6 +157,7 @@ typedef struct _plAppData
     bool* pbShowProfiling;
     bool* pbShowStats;
     bool* pbShowLogging;
+    bool* pbPhysicsOn;
 
     // scene
     bool     bFreezeCullCamera;
@@ -231,6 +234,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptGizmo       = pl_get_api_latest(ptApiRegistry, plGizmoI);
         gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
         gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+        gptPhysics     = pl_get_api_latest(ptApiRegistry, plPhysicsI);
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
 
@@ -269,6 +273,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptGizmo       = pl_get_api_latest(ptApiRegistry, plGizmoI);
     gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+    gptPhysics     = pl_get_api_latest(ptApiRegistry, plPhysicsI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -289,7 +294,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // initialize APIs that require it
     gptEcsTools->initialize();
-
+    gptPhysics->initialize();
+    
     // initialize shader extension
     static plShaderOptions tDefaultShaderOptions = {
         .apcIncludeDirectories = {
@@ -319,8 +325,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // setup reference renderer
     plRendererSettings tRenderSettings = {
         .ptWindow              = ptAppData->ptWindow,
-        .uMaxTextureResolution = 1024,
-        .bValidationOn         = true
+        .uMaxTextureResolution = 1024
     };
     gptRenderer->initialize(tRenderSettings);
 
@@ -332,6 +337,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->pbShowProfiling            = (bool*)gptConsole->get_variable("t.ProfileTool", NULL, NULL);
     ptAppData->pbShowMemoryAllocations    = (bool*)gptConsole->get_variable("t.MemoryAllocationTool", NULL, NULL);
     ptAppData->pbShowDeviceMemoryAnalyzer = (bool*)gptConsole->get_variable("t.DeviceMemoryAnalyzerTool", NULL, NULL);
+    ptAppData->pbPhysicsOn                = (bool*)gptConsole->get_variable("p.PhysicsOn", NULL, NULL);
+
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~setup draw extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -413,6 +420,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptDrawBackend->cleanup_font_atlas(gptDraw->get_current_font_atlas());
     gptUI->cleanup();
     gptEcsTools->cleanup();
+    gptPhysics->cleanup();
     gptConsole->cleanup();
     gptScreenLog->cleanup();
     gptDrawBackend->cleanup();
@@ -505,6 +513,8 @@ pl_app_update(plAppData* ptAppData)
                     gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0);
             }
         }
+
+        gptPhysics->update(ptIO->fDeltaTime, ptMainComponentLibrary);
 
         // run ecs system
         gptRenderer->run_ecs(ptAppData->uSceneHandle0);
@@ -849,6 +859,7 @@ pl__show_editor_window(plAppData* ptAppData)
         if(gptUI->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
         {
             gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
+            gptUI->checkbox("Physics Active", ptAppData->pbPhysicsOn);
             if(ptAppData->uSceneHandle0 != UINT32_MAX)
             {
                 if(gptUI->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))

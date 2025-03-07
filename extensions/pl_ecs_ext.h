@@ -206,7 +206,7 @@ enum _plComponentType
     PL_COMPONENT_TYPE_HUMANOID,
     PL_COMPONENT_TYPE_ENVIRONMENT_PROBE,
     PL_COMPONENT_TYPE_LAYER,
-    PL_COMPONENT_TYPE_RIGIG_BODY_PHYSICS,
+    PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS,
     
     PL_COMPONENT_TYPE_COUNT
 };
@@ -529,11 +529,14 @@ typedef struct _plRigidBodyPhysicsComponent
     plRigidBodyPhysicsFlags tFlags;
     plCollisionShape        tShape;
     float                   fMass;
+    float                   fRestitution;
+    float                   fLinearDamping;
+    plVec3                  tGravity;
 
     // sphere
     float fRadius;
 
-    void*                   pPhysicsObject;
+    uint64_t uPhysicsObject;
 } plRigidBodyPhysicsComponent;
 
 typedef struct _plHumanoidComponent

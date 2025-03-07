@@ -123,6 +123,7 @@ jobs:
         if not exist ../out/pl_stats_ext.dll exit 1
         if not exist ../out/pl_string_intern_ext.dll exit 1
         if not exist ../out/pl_ui_ext.dll exit 1
+        if not exist ../out/pl_physics_ext.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/pl_script_camera.dll exit 1
         cd ..
@@ -259,6 +260,7 @@ jobs:
         test -f ./out/pl_stats_ext.dylib || exit 1
         test -f ./out/pl_string_intern_ext.dylib || exit 1
         test -f ./out/pl_ui_ext.dylib || exit 1
+        test -f ./out/pl_physics_ext.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
 
     - name: Package Pilot Light
@@ -400,6 +402,7 @@ jobs:
         test -f ./out/pl_stats_ext.so || exit 1
         test -f ./out/pl_string_intern_ext.so || exit 1
         test -f ./out/pl_ui_ext.so || exit 1
+        test -f ./out/pl_physics_ext.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
 
     - name: Package Pilot Light

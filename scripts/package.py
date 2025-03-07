@@ -54,6 +54,7 @@ extension_headers = [
     "pl_string_intern_ext.h",
     "pl_threads_ext.h",
     "pl_ui_ext.h",
+    "pl_physics_ext.h",
     "pl_virtual_memory_ext.h",
     "pl_window_ext.h"
 ]
@@ -81,6 +82,7 @@ extensions = [
     "pl_shader_ext",
     "pl_stats_ext",
     "pl_string_intern_ext",
+    "pl_physics_ext",
     "pl_ui_ext"
 ]
 

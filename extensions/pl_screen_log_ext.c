@@ -25,7 +25,6 @@ Index of this file:
 
 // extensions
 #include "pl_draw_ext.h"
-#include "pl_console_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -80,7 +79,6 @@ static plScreenLogContext* gptScreenLogCtx = NULL;
 
     static const plDrawI*    gptDraw    = NULL;
     static const plIOI*      gptIOI     = NULL;
-    static const plConsoleI* gptConsole = NULL;
 
     static plIO* gptIO = NULL;
 
@@ -310,7 +308,6 @@ pl_load_screen_log_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
         gptIOI     = pl_get_api_latest(ptApiRegistry, plIOI);
         gptDraw    = pl_get_api_latest(ptApiRegistry, plDrawI);
-        gptConsole = pl_get_api_latest(ptApiRegistry, plConsoleI);
         gptIO = gptIOI->get_io();
     #endif
 

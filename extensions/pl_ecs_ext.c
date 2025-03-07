@@ -208,7 +208,7 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->tLayerComponentManager.tComponentType = PL_COMPONENT_TYPE_LAYER;
     ptLibrary->tLayerComponentManager.szStride = sizeof(plLayerComponent);
 
-    ptLibrary->tRigidBodyPhysicsComponentManager.tComponentType = PL_COMPONENT_TYPE_RIGIG_BODY_PHYSICS;
+    ptLibrary->tRigidBodyPhysicsComponentManager.tComponentType = PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS;
     ptLibrary->tRigidBodyPhysicsComponentManager.szStride = sizeof(plRigidBodyPhysicsComponent);
 
     ptLibrary->_ptManagers[0]  = &ptLibrary->tTagComponentManager;
@@ -472,7 +472,7 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                     break;
                 }
 
-                case PL_COMPONENT_TYPE_RIGIG_BODY_PHYSICS:
+                case PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS:
                 {
                     plRigidBodyPhysicsComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
@@ -777,17 +777,21 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         return &sbComponents[uComponentIndex];
     }
 
-    case PL_COMPONENT_TYPE_RIGIG_BODY_PHYSICS:
+    case PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS:
     {
         plRigidBodyPhysicsComponent* sbComponents = ptManager->pComponents;
         if(bAddSlot)
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
         sbComponents[uComponentIndex] = (plRigidBodyPhysicsComponent){
-            .fMass = 1.0f,
-            .tFlags = PL_RIGID_BODY_PHYSICS_FLAG_NONE,
-            .fRadius = 1.0f,
-            .tShape = PL_COLLISION_SHAPE_SPHERE
+            .fMass          = 1.0f,
+            .tFlags         = PL_RIGID_BODY_PHYSICS_FLAG_NONE,
+            .fRadius        = 0.5f,
+            .tShape         = PL_COLLISION_SHAPE_SPHERE,
+            .fRestitution   = 0.2f,
+            .fLinearDamping = 0.05f,
+            .uPhysicsObject = UINT64_MAX,
+            .tGravity       = {0.0f, -9.82f, 0.0f}
         };
         return &sbComponents[uComponentIndex];
     }
