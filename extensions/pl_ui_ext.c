@@ -155,6 +155,12 @@ pl_new_frame(void)
         pl_sb_reset(gptCtx->sbtOpenPopupStack);
         gptCtx->ptNavWindow = NULL;
     }
+    else if(gptIOI->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false) && gptCtx->uHoveredId == 0)
+    {
+        // gptCtx->uActiveWindowId = 0;
+        pl_sb_reset(gptCtx->sbtOpenPopupStack);
+        gptCtx->ptNavWindow = NULL;
+    }
 
     // reset active id if no longer alive
     if(gptCtx->uActiveId != 0 && gptCtx->uActiveIdIsAlive != gptCtx->uActiveId)
