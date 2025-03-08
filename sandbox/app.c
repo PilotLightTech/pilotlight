@@ -147,6 +147,7 @@ typedef struct _plAppData
     bool bResize;
 
     // ui options
+    bool  bPhysicsDebugDraw;
     bool  bEditorAttached;
     bool  bShowUiDebug;
     bool  bShowUiStyle;
@@ -180,6 +181,9 @@ typedef struct _plAppData
     // test models
     plUiTextFilter tFilter;
     plTestModel*   sbtTestModels;
+
+    plEntity tAnchor0;
+    plEntity tAnchor1;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -285,6 +289,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->uSceneHandle0 = UINT32_MAX;
     ptAppData->bShowPilotLightTool = true;
     ptAppData->bEditorAttached = true;
+    ptAppData->bPhysicsDebugDraw = true;
 
     // add console variables
     gptConsole->initialize((plConsoleSettings){.tFlags = PL_CONSOLE_FLAGS_POPUP});
@@ -515,6 +520,8 @@ pl_app_update(plAppData* ptAppData)
         }
 
         gptPhysics->update(ptIO->fDeltaTime, ptMainComponentLibrary);
+        if(ptAppData->bPhysicsDebugDraw)
+            gptPhysics->draw(ptMainComponentLibrary, gptRenderer->get_debug_drawlist(ptAppData->uSceneHandle0, ptAppData->uViewHandle0));
 
         // run ecs system
         gptRenderer->run_ecs(ptAppData->uSceneHandle0);
@@ -628,7 +635,7 @@ pl__find_models(plAppData* ptAppData)
     {
         plTestModel tModel = {
             .uVariantCount = 1,
-            .bSelected = true
+            .bSelected = false
         };
         strcpy(tModel.acName, "Fembot");
         strcpy(tModel.acVariants[0].acType, "glTF");
@@ -858,8 +865,11 @@ pl__show_editor_window(plAppData* ptAppData)
         }
         if(gptUI->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
         {
+            if(gptUI->button("action"))
+                gptPhysics->action(gptRenderer->get_component_library(ptAppData->uSceneHandle0));
             gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
             gptUI->checkbox("Physics Active", ptAppData->pbPhysicsOn);
+            gptUI->checkbox("Physics Debug Draw", &ptAppData->bPhysicsDebugDraw);
             if(ptAppData->uSceneHandle0 != UINT32_MAX)
             {
                 if(gptUI->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
@@ -882,6 +892,7 @@ pl__show_editor_window(plAppData* ptAppData)
             {
                 if(gptUI->button("Unload Scene"))
                 {
+                    gptPhysics->reset();
                     gptRenderer->cleanup_scene(ptAppData->uSceneHandle0);
                     ptAppData->uSceneHandle0 = UINT32_MAX;
                 }
@@ -1074,26 +1085,62 @@ pl__create_scene(plAppData* ptAppData)
     ptLight->afCascadeSplits[3] = 1.00f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
-    plEntity tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
-    ptLight->uShadowResolution = 1024;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tPointLight);
-    ptPLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 2.0f};
-
-    plEntity tSpotLight = gptEcs->create_spot_light(ptMainComponentLibrary, "spot light", (plVec3){0.0f, 4.0f, -1.18f}, (plVec3){0.0, -1.0f, 0.376f}, &ptLight);
-    ptLight->uShadowResolution = 1024;
-    ptLight->fRange = 5.0f;
-    ptLight->fRadius = 0.025f;
-    ptLight->fIntensity = 20.0f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSpotLight);
-    ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, -1.18f};
-
     plEnvironmentProbeComponent* ptProbe = NULL;
     gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 3.0f, 0.0f}, &ptProbe);
     ptProbe->fRange = 30.0f;
     ptProbe->uResolution = 128;
     ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+
+    // plMaterialComponent* ptMaterial = NULL;
+    // plEntity tMaterial = gptEcs->create_material(ptMainComponentLibrary, "sphere material", &ptMaterial);
+    // ptMaterial->tBlendMode = PL_BLEND_MODE_OPAQUE;
+    // ptMaterial->tShaderType = PL_SHADER_TYPE_PBR;
+    // ptMaterial->tFlags = PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW | PL_MATERIAL_FLAG_CAST_SHADOW;
+    // ptMaterial->tBaseColor = (plVec4){0.0f, 1.0f, 0.0f, 1.0f};
+    // ptMaterial->fRoughness = 0.5f;
+    // ptMaterial->fMetalness = 0.5f;
+
+    plVec3 atPositions[] = {
+        // {0.0f, 0.5f, 0.0f},
+        {-1.0f, 0.51f, 0.0f},
+    };
+
+    // plEntity atEntities[2] = {0};
+
+    for(uint32_t i = 0; i < 1; i++)
+    {
+
+        // plMeshComponent* ptMesh = NULL;
+        // plEntity tSphere = gptEcs->create_sphere_mesh(ptMainComponentLibrary, "test sphere probe mesh", 1.0f, 32, 32, &ptMesh);
+        // ptMesh->tMaterial = tMaterial;
+
+        plEntity tBox = gptEcs->create_tag(ptMainComponentLibrary, "Box");
+
+        plRigidBodyPhysicsComponent* ptRigidComp = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tBox);
+        ptRigidComp->fMass = 0.2f;
+        ptRigidComp->fRadius = 0.5f;
+        ptRigidComp->tShape = PL_COLLISION_SHAPE_BOX;
+        ptRigidComp->tExtents = (plVec3){1.0f, 1.0f, 1.0f};
+        ptRigidComp->tGravity = (plVec3){0};
+
+        // plObjectComponent* ptProbeObj = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tSphere);
+        // ptProbeObj->tMesh = tSphere;
+        // ptProbeObj->tTransform = tSphere;
+
+        plTransformComponent* ptProbeTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tBox);
+        ptProbeTransform->tTranslation = atPositions[i];
+        ptProbeTransform->tScale = (plVec3){1.0f, 1.0f, 1.0f};
+
+        // atEntities[i] = tSphere;
+    }
+
+    // gptRenderer->add_drawable_objects_to_scene(ptAppData->uSceneHandle0, 2, atEntities);
+
+    // plForceFieldComponent* ptForceField = NULL;
+    // gptEcs->create_force_field(ptMainComponentLibrary, "force field", (plVec3){0}, &ptForceField);
+    // ptForceField->fGravity = 3.0f;
+    // ptForceField->fRange = 10.0f;
+    // ptForceField->tType = PL_FORCE_FIELD_TYPE_POINT;
 }
 
 //-----------------------------------------------------------------------------

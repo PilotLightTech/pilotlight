@@ -211,6 +211,9 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->tRigidBodyPhysicsComponentManager.tComponentType = PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS;
     ptLibrary->tRigidBodyPhysicsComponentManager.szStride = sizeof(plRigidBodyPhysicsComponent);
 
+    ptLibrary->tForceFieldComponentManager.tComponentType = PL_COMPONENT_TYPE_FORCE_FIELD;
+    ptLibrary->tForceFieldComponentManager.szStride = sizeof(plForceFieldComponent);
+
     ptLibrary->_ptManagers[0]  = &ptLibrary->tTagComponentManager;
     ptLibrary->_ptManagers[1]  = &ptLibrary->tTransformComponentManager;
     ptLibrary->_ptManagers[2]  = &ptLibrary->tMeshComponentManager;
@@ -228,6 +231,7 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->_ptManagers[14] = &ptLibrary->tEnvironmentProbeCompManager;
     ptLibrary->_ptManagers[15] = &ptLibrary->tLayerComponentManager;
     ptLibrary->_ptManagers[16] = &ptLibrary->tRigidBodyPhysicsComponentManager;
+    ptLibrary->_ptManagers[17] = &ptLibrary->tForceFieldComponentManager;
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
         ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
@@ -475,6 +479,13 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                 case PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS:
                 {
                     plRigidBodyPhysicsComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_FORCE_FIELD:
+                {
+                    plForceFieldComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
@@ -784,14 +795,29 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
         sbComponents[uComponentIndex] = (plRigidBodyPhysicsComponent){
-            .fMass          = 1.0f,
-            .tFlags         = PL_RIGID_BODY_PHYSICS_FLAG_NONE,
-            .fRadius        = 0.5f,
-            .tShape         = PL_COLLISION_SHAPE_SPHERE,
-            .fRestitution   = 0.2f,
-            .fLinearDamping = 0.05f,
-            .uPhysicsObject = UINT64_MAX,
-            .tGravity       = {0.0f, -9.82f, 0.0f}
+            .fMass           = 1.0f,
+            .tFlags          = PL_RIGID_BODY_PHYSICS_FLAG_NONE,
+            .fRadius         = 0.5f,
+            .tShape          = PL_COLLISION_SHAPE_SPHERE,
+            .fRestitution    = 0.2f,
+            .fLinearDamping  = 0.05f,
+            .fAngularDamping = 0.05f,
+            .uPhysicsObject  = UINT64_MAX,
+            .tGravity        = {0.0f, -9.82f, 0.0f}
+        };
+        return &sbComponents[uComponentIndex];
+    }
+
+    case PL_COMPONENT_TYPE_FORCE_FIELD:
+    {
+        plForceFieldComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plForceFieldComponent){
+            .fGravity = 0.0f,
+            .fRange   = 0.0f,
+            .tType    = PL_FORCE_FIELD_TYPE_POINT
         };
         return &sbComponents[uComponentIndex];
     }
@@ -938,11 +964,31 @@ pl_ecs_create_environment_probe(plComponentLibrary* ptLibrary, const char* pcNam
     pcName = pcName ? pcName : "unnamed environment probe";
     pl_log_debug_f(gptLog, uLogChannelEcs, "created environment probe: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+
+    plTransformComponent* ptProbeTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
+    ptProbeTransform->tTranslation = tPosition;
+
     plEnvironmentProbeComponent* ptProbe =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, tNewEntity);
-    ptProbe->tPosition = tPosition;
 
     if(pptCompOut)
         *pptCompOut = ptProbe;
+    return tNewEntity;
+}
+
+static plEntity
+pl_ecs_create_force_field(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plForceFieldComponent** pptCompOut)
+{
+    pcName = pcName ? pcName : "unnamed force field";
+    pl_log_debug_f(gptLog, uLogChannelEcs, "created force field: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+
+    plTransformComponent* ptForceFieldTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
+    ptForceFieldTransform->tTranslation = tPosition;
+
+    plForceFieldComponent* ptForceField = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, tNewEntity);
+    
+    if(pptCompOut)
+        *pptCompOut = ptForceField;
     return tNewEntity;
 }
 
@@ -1391,6 +1437,7 @@ pl_run_camera_update_system(plComponentLibrary* ptLibrary)
             plCameraComponent* ptCamera = &sbtComponents[i];
             plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
             ptCamera->tPos = ptTransform->tWorld.col[3].xyz;
+
             pl_camera_update(ptCamera);
         }
     }
@@ -1425,22 +1472,18 @@ pl_run_probe_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
-    plEnvironmentProbeComponent* sbtComponents = ptLibrary->tEnvironmentProbeCompManager.pComponents;
+    // plEnvironmentProbeComponent* sbtComponents = ptLibrary->tEnvironmentProbeCompManager.pComponents;
 
-    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
-    for(uint32_t i = 0; i < uComponentCount; i++)
-    {
-        plEntity tEntity = ptLibrary->tEnvironmentProbeCompManager.sbtEntities[i];
-        if(pl_ecs_has_entity(&ptLibrary->tTransformComponentManager, tEntity))
-        {
-            plEnvironmentProbeComponent* ptProbe = &sbtComponents[i];
-            plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
-            ptProbe->tPosition = ptTransform->tWorld.col[3].xyz;
-            ptTransform->tWorld = pl_mat4_translate_vec3(ptProbe->tPosition);
-
-            // TODO: direction
-        }
-    }
+    // const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    // for(uint32_t i = 0; i < uComponentCount; i++)
+    // {
+    //     plEntity tEntity = ptLibrary->tEnvironmentProbeCompManager.sbtEntities[i];
+    //     if(pl_ecs_has_entity(&ptLibrary->tTransformComponentManager, tEntity))
+    //     {
+    //         plEnvironmentProbeComponent* ptProbe = &sbtComponents[i];
+    //         plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+    //     }
+    // }
     pl_end_cpu_sample(gptProfile, 0); 
 }
 
@@ -2067,6 +2110,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_point_light                   = pl_ecs_create_point_light,
         .create_spot_light                    = pl_ecs_create_spot_light,
         .create_environment_probe             = pl_ecs_create_environment_probe,
+        .create_force_field                   = pl_ecs_create_force_field,
         .create_script                        = pl_ecs_create_script,
         .attach_script                        = pl_ecs_attach_script,
         .attach_component                     = pl_ecs_attach_component,
