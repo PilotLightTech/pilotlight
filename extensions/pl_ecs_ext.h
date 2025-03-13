@@ -151,6 +151,7 @@ typedef struct _plEcsI
     plEntity (*create_mesh)       (plComponentLibrary*, const char* pcName, plMeshComponent**);
     plEntity (*create_sphere_mesh)(plComponentLibrary*, const char* pcName, float fRadius, uint32_t uLatitudeBands, uint32_t uLongitudeBands, plMeshComponent**);
     plEntity (*create_cube_mesh)  (plComponentLibrary*, const char* pcName, plMeshComponent**);
+    plEntity (*create_plane_mesh) (plComponentLibrary*, const char* pcName, plMeshComponent**);
     void     (*calculate_normals) (plMeshComponent*, uint32_t uMeshCount);
     void     (*calculate_tangents)(plMeshComponent*, uint32_t uMeshCount);
 
