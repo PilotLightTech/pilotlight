@@ -108,6 +108,7 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     gptData->sbtTextureHandles[ulValue] = tTexture;
     pl_hm_insert(gptData->ptTextureHashmap, ptMaterial->atTextureMaps[tSlot].tResource.ulData, ulValue);
 
+    gptResource->set_texture_handle(ptMaterial->atTextureMaps[tSlot].tResource, tTexture);
     return tTexture;
 }
 

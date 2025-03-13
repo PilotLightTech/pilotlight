@@ -6,6 +6,7 @@
 #include "pl.h"
 #include "pl_resource_ext.h"
 #include "pl_log_ext.h"
+#include "pl_graphics_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -36,6 +37,7 @@ typedef struct _plResource
     size_t              szFileDataSize;
     void*               pBufferData;
     size_t              szBufferDataSize;
+    plTextureHandle     tTextureHandle;
 } plResource;
 
 typedef struct _plResourceManager
@@ -66,6 +68,24 @@ static plResourceManager* gptResourceManager = NULL;
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
 //-----------------------------------------------------------------------------
+
+plTextureHandle
+pl_resource_get_texture_handle(plResourceHandle tHandle)
+{
+    if(tHandle.uGeneration != gptResourceManager->sbtResourceGenerations[tHandle.uGeneration])
+        return (plTextureHandle){0};
+
+    return gptResourceManager->sbtResources[tHandle.uIndex].tTextureHandle;
+}
+
+void
+pl_resource_set_texture_handle(plResourceHandle tHandle, plTextureHandle tTexture)
+{
+    if(tHandle.uGeneration != gptResourceManager->sbtResourceGenerations[tHandle.uGeneration])
+        return;
+
+    gptResourceManager->sbtResources[tHandle.uIndex].tTextureHandle = tTexture;
+}
 
 static const void*
 pl_resource_get_file_data(plResourceHandle tResourceHandle, size_t* pszDataSize)
@@ -105,7 +125,7 @@ static void
 pl_set_buffer_data(plResourceHandle tResourceHandle, size_t szDataSize, void* pData)
 {
     plResource* ptResource = &gptResourceManager->sbtResources[tResourceHandle.uIndex];
-    if(ptResource->pBufferData)
+    if(ptResource->pBufferData && (ptResource->tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA))
         PL_FREE(ptResource->pBufferData);
     ptResource->pBufferData = pData;
     ptResource->szBufferDataSize = szDataSize;
@@ -208,7 +228,9 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .load_resource      = pl_load_resource,
         .is_resource_loaded = pl_is_resource_loaded,
         .is_resource_valid  = pl_is_resource_valid,
-        .unload_resource    = pl_unload_resource
+        .unload_resource    = pl_unload_resource,
+        .set_texture_handle = pl_resource_set_texture_handle,
+        .get_texture_handle = pl_resource_get_texture_handle,
     };
     pl_set_api(ptApiRegistry, plResourceI, &tApi);
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
@@ -240,7 +262,7 @@ pl_unload_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         {
             PL_FREE(gptResourceManager->sbtResources[i].puFileData);
         }
-        if(gptResourceManager->sbtResources[i].pBufferData)
+        if((gptResourceManager->sbtResources[i].tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_DATA) && gptResourceManager->sbtResources[i].pBufferData)
         {
             PL_FREE(gptResourceManager->sbtResources[i].pBufferData);
         }
