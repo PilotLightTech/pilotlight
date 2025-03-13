@@ -477,7 +477,15 @@ typedef struct _plVersion
 
 #ifndef PL_ASSERT
     #include <assert.h>
-    #define PL_ASSERT(x) assert((x))
+    #ifdef _MSC_VER
+        #define PL_ASSERT(x) \
+            __pragma(warning(push)) \
+            __pragma(warning(disable:4127)) \
+            if(!(x)) {__debugbreak();} assert((x)) \
+            __pragma(warning(pop))
+    #else
+        #define PL_ASSERT(x) assert((x))
+    #endif
 #endif
 
 #ifndef PL_MAX_API_FUNCTIONS
