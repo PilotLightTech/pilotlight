@@ -1059,6 +1059,50 @@ pl_ecs_create_cube_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMes
 }
 
 static plEntity
+pl_ecs_create_plane_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
+{
+    pcName = pcName ? pcName : "unnamed plane mesh";
+    pl_log_debug_f(gptLog, uLogChannelEcs, "created plane mesh: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+    plMeshComponent* ptMesh = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
+
+    if(pptCompOut)
+        *pptCompOut = ptMesh;
+
+    pl_sb_resize(ptMesh->sbtVertexPositions, 4);
+    pl_sb_resize(ptMesh->sbtVertexNormals, 4);
+    pl_sb_resize(ptMesh->sbtVertexTextureCoordinates[0], 4);
+    pl_sb_resize(ptMesh->sbuIndices, 6);
+
+    ptMesh->sbtVertexPositions[0] = (plVec3){-0.5f, 0.0f, -0.5f};
+    ptMesh->sbtVertexPositions[1] = (plVec3){-0.5f, 0.0f,  0.5f};
+    ptMesh->sbtVertexPositions[2] = (plVec3){ 0.5f, 0.0f,  0.5f};
+    ptMesh->sbtVertexPositions[3] = (plVec3){ 0.5f, 0.0f, -0.5f};
+    
+    ptMesh->sbtVertexNormals[0] = (plVec3){ 0.0f, 1.0f, 0.0f};
+    ptMesh->sbtVertexNormals[1] = (plVec3){ 0.0f, 1.0f, 0.0f};
+    ptMesh->sbtVertexNormals[2] = (plVec3){ 0.0f, 1.0f, 0.0f};
+    ptMesh->sbtVertexNormals[3] = (plVec3){ 0.0f, 1.0f, 0.0f};
+
+    ptMesh->sbtVertexTextureCoordinates[0][0] = (plVec2){ 0.0f, 0.0f};
+    ptMesh->sbtVertexTextureCoordinates[0][1] = (plVec2){ 0.0f, 1.0f};
+    ptMesh->sbtVertexTextureCoordinates[0][2] = (plVec2){ 1.0f, 1.0f};
+    ptMesh->sbtVertexTextureCoordinates[0][3] = (plVec2){ 1.0f, 0.0f};
+
+    ptMesh->sbuIndices[0] = 0;
+    ptMesh->sbuIndices[1] = 1;
+    ptMesh->sbuIndices[2] = 2;
+    ptMesh->sbuIndices[3] = 0;
+    ptMesh->sbuIndices[4] = 2;
+    ptMesh->sbuIndices[5] = 3;
+
+    ptMesh->ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0;
+    ptMesh->tAABB.tMin = (plVec3){-0.5f, -0.05f, -0.5f};
+    ptMesh->tAABB.tMax = (plVec3){0.5f, 0.05f, 0.5f};
+    return tNewEntity;
+}
+
+static plEntity
 pl_ecs_create_directional_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tDirection, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed directional light";
@@ -2228,6 +2272,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_mesh                          = pl_ecs_create_mesh,
         .create_sphere_mesh                   = pl_ecs_create_sphere_mesh,
         .create_cube_mesh                     = pl_ecs_create_cube_mesh,
+        .create_plane_mesh                     = pl_ecs_create_plane_mesh,
         .create_perspective_camera            = pl_ecs_create_perspective_camera,
         .create_orthographic_camera           = pl_ecs_create_orthographic_camera,
         .create_object                        = pl_ecs_create_object,
