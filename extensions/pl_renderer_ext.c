@@ -120,6 +120,9 @@ pl_refr_initialize(plRendererSettings tSettings)
     gptData->pdDrawCalls = gptStats->get_counter("draw calls");
     gptData->bMSAA = true;
     gptData->bVSync = true;
+    gptData->bPhysicsActive = false;
+    gptData->bPhysicsDebugDraw = true;
+    gptData->fPhysicSimulationMultiplier = 1.0f;
     gptData->uMaxTextureResolution = tSettings.uMaxTextureResolution > 0 ? tSettings.uMaxTextureResolution : 1024;
     gptData->uOutlineWidth = 4;
     gptData->bShowSelectedBoundingBox = true;
@@ -2670,6 +2673,8 @@ pl_refr_run_ecs(uint32_t uSceneHandle)
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     gptECS->run_script_update_system(&ptScene->tComponentLibrary);
     gptECS->run_animation_update_system(&ptScene->tComponentLibrary, gptIOI->get_io()->fDeltaTime);
+    if(gptData->bPhysicsActive)
+        gptPhysics->update(gptIOI->get_io()->fDeltaTime * gptData->fPhysicSimulationMultiplier, &ptScene->tComponentLibrary);
     gptECS->run_transform_update_system(&ptScene->tComponentLibrary);
     gptECS->run_hierarchy_update_system(&ptScene->tComponentLibrary);
     gptECS->run_light_update_system(&ptScene->tComponentLibrary);
@@ -2941,11 +2946,13 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
         plEnvironmentProbeComponent* ptProbeComp = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, ptProbe->tEntity);
-
+        
         if(!((ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME) || (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY)))
         {
             continue;
         }
+
+        plTransformComponent* ptProbeTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptProbe->tEntity);
 
         // reset probe data
         pl_sb_reset(ptProbe->tDirectionLightShadowData.sbtDLightShadowData);
@@ -2968,7 +2975,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
             atEnvironmentCamera[uFace] = (plCameraComponent){
                 .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-                .tPos         = ptProbeComp->tPosition,
+                .tPos         = ptProbeTransform->tTranslation,
                 .fNearZ       = 0.26f,
                 .fFarZ        = ptProbeComp->fRange,
                 .fFieldOfView = PL_PI_2,
@@ -3032,8 +3039,9 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
     {
         plEnvironmentProbeComponent* ptProbe = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, ptScene->sbtProbeData[i].tEntity);
         plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, ptScene->sbtProbeData[i].tEntity);
+        plTransformComponent* ptProbeTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptScene->sbtProbeData[i].tEntity);
         plGPUProbeData tProbeData = {
-            .tPosition              = ptProbe->tPosition,
+            .tPosition              = ptProbeTransform->tTranslation,
             .fRangeSqr              = ptProbe->fRange * ptProbe->fRange,
             .uGGXEnvSampler         = ptScene->sbtProbeData[i].uGGXEnvSampler,
             .uLambertianEnvSampler  = ptScene->sbtProbeData[i].uLambertianEnvSampler,
@@ -3605,6 +3613,9 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             const plMat4 tTransform = pl_identity_mat4();
             gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, (plDrawLineOptions){.fThickness = 0.02f});
         }
+
+        if(gptData->bPhysicsDebugDraw)
+            gptPhysics->draw(&ptScene->tComponentLibrary, ptView->pt3DDrawList);
 
         if(gptData->bShowProbes)
         {
@@ -4650,6 +4661,14 @@ pl_show_graphics_options(const char* pcTitle)
         gptUI->input_float("Depth Bias", &gptData->fShadowConstantDepthBias, NULL, 0);
         gptUI->input_float("Slope Depth Bias", &gptData->fShadowSlopeDepthBias, NULL, 0);
         gptUI->slider_uint("Outline Width", &gptData->uOutlineWidth, 2, 50, 0);
+        if(gptUI->checkbox("Physics Active", &gptData->bPhysicsActive))
+        {
+            plPhysicsEngineSettings tPhysicsSettings = gptPhysics->get_settings();
+            tPhysicsSettings.bEnabled = gptData->bPhysicsActive;
+            gptPhysics->set_settings(tPhysicsSettings);
+        }
+        gptUI->checkbox("Physics Debug Draw", &gptData->bPhysicsDebugDraw);
+        gptUI->slider_float("Simulation Speed", &gptData->fPhysicSimulationMultiplier, 0.01f, 3.0f, 0);
 
         for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
         {
@@ -4739,7 +4758,8 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
     gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
-    gptScreenLog       = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+    gptScreenLog     = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+    gptPhysics       = pl_get_api_latest(ptApiRegistry, plPhysicsI);
 
     if(bReload)
     {

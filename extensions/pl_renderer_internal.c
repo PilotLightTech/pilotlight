@@ -3361,9 +3361,7 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
     ptProbeObj->tTransform = tProbeHandle;
 
     plTransformComponent* ptProbeTransform = gptECS->add_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tProbeHandle);
-
-    ptProbe = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, tProbeHandle);
-    ptProbeTransform->tTranslation = ptProbe->tPosition;
+    ptProbeTransform->tTranslation = ptProbeTransform->tTranslation;
 
     const uint32_t uTransparentStart = pl_sb_size(ptScene->sbtStagedDrawables);
     pl_sb_add(ptScene->sbtStagedDrawables);
@@ -3471,6 +3469,8 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
             continue;
         }
 
+        plTransformComponent* ptProbeTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptProbe->tEntity);
+
         const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~probe face pre-calc~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3542,7 +3542,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
 
             atEnvironmentCamera[uFace] = (plCameraComponent){
                 .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-                .tPos         = ptProbeComp->tPosition,
+                .tPos         = ptProbeTransform->tTranslation,
                 .fNearZ       = 0.26f,
                 .fFarZ        = ptProbeComp->fRange,
                 .fFieldOfView = PL_PI_2,
@@ -3719,7 +3719,7 @@ pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue)
 
                 plDynamicBinding tSkyboxDynamicData = pl__allocate_dynamic_data(ptDevice);
                 plSkyboxDynamicData* ptSkyboxDynamicData = (plSkyboxDynamicData*)tSkyboxDynamicData.pcData;
-                ptSkyboxDynamicData->tModel = pl_mat4_translate_vec3(ptProbeComp->tPosition);
+                ptSkyboxDynamicData->tModel = pl_mat4_translate_vec3(ptProbeTransform->tTranslation);
                 ptSkyboxDynamicData->uGlobalIndex = uFace;
 
                 gptGfx->reset_draw_stream(ptStream, 1);

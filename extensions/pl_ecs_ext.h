@@ -71,6 +71,7 @@ typedef struct _plScriptComponent            plScriptComponent;
 typedef struct _plHumanoidComponent          plHumanoidComponent;
 typedef struct _plEnvironmentProbeComponent  plEnvironmentProbeComponent;
 typedef struct _plRigidBodyPhysicsComponent  plRigidBodyPhysicsComponent;
+typedef struct _plForceFieldComponent        plForceFieldComponent;
 
 // enums & flags
 typedef int plShaderType;
@@ -92,6 +93,7 @@ typedef int plTransformFlags;
 typedef int plObjectFlags;
 typedef int plCollisionShape;
 typedef int plRigidBodyPhysicsFlags;
+typedef int plForceFieldType;
 
 typedef union _plEntity
 {
@@ -140,6 +142,7 @@ typedef struct _plEcsI
     plEntity (*create_point_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
     plEntity (*create_spot_light)         (plComponentLibrary*, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent**);
     plEntity (*create_environment_probe)  (plComponentLibrary*, const char* pcName, plVec3 tPosition, plEnvironmentProbeComponent**);
+    plEntity (*create_force_field)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plForceFieldComponent**);
 
     // object helpers
     plEntity (*copy_object) (plComponentLibrary*, const char* pcName, plEntity tOriginalObject, plObjectComponent**);
@@ -147,6 +150,7 @@ typedef struct _plEcsI
     // mesh entity helpers
     plEntity (*create_mesh)       (plComponentLibrary*, const char* pcName, plMeshComponent**);
     plEntity (*create_sphere_mesh)(plComponentLibrary*, const char* pcName, float fRadius, uint32_t uLatitudeBands, uint32_t uLongitudeBands, plMeshComponent**);
+    plEntity (*create_cube_mesh)  (plComponentLibrary*, const char* pcName, plMeshComponent**);
     void     (*calculate_normals) (plMeshComponent*, uint32_t uMeshCount);
     void     (*calculate_tangents)(plMeshComponent*, uint32_t uMeshCount);
 
@@ -207,13 +211,14 @@ enum _plComponentType
     PL_COMPONENT_TYPE_ENVIRONMENT_PROBE,
     PL_COMPONENT_TYPE_LAYER,
     PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS,
+    PL_COMPONENT_TYPE_FORCE_FIELD,
     
     PL_COMPONENT_TYPE_COUNT
 };
 
 enum _plCollisionShape
 {
-    PL_COLLISION_SHAPE_NONE = 0,
+    PL_COLLISION_SHAPE_BOX,
     PL_COLLISION_SHAPE_SPHERE,
     // PL_COLLISION_SHAPE_CAPSULE,
     // PL_COLLISION_SHAPE_CONVEX_HULL,
@@ -223,7 +228,15 @@ enum _plCollisionShape
 
 enum _plRigidBodyPhysicsFlags
 {
-    PL_RIGID_BODY_PHYSICS_FLAG_NONE = 0
+    PL_RIGID_BODY_PHYSICS_FLAG_NONE           = 0,
+    PL_RIGID_BODY_PHYSICS_FLAG_START_SLEEPING = 1 << 0,
+    PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING    = 1 << 1
+};
+
+enum _plForceFieldType
+{
+    PL_FORCE_FIELD_TYPE_POINT,
+    PL_FORCE_FIELD_TYPE_PLANE
 };
 
 enum _plTextureSlot
@@ -505,6 +518,7 @@ typedef struct _plComponentLibrary
     plComponentManager tEnvironmentProbeCompManager;
     plComponentManager tLayerComponentManager;
     plComponentManager tRigidBodyPhysicsComponentManager;
+    plComponentManager tForceFieldComponentManager;
 
     plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
     void*               pInternal;
@@ -520,7 +534,6 @@ typedef struct _plEnvironmentProbeComponent
     uint32_t                uResolution; // default: 128 (must be power of two)
     uint32_t                uSamples;    // default: 128
     uint32_t                uInterval;   // default: 1 (1 to 6 for realtime probe)
-    plVec3                  tPosition;
     float                   fRange;
 } plEnvironmentProbeComponent;
 
@@ -531,13 +544,26 @@ typedef struct _plRigidBodyPhysicsComponent
     float                   fMass;
     float                   fRestitution;
     float                   fLinearDamping;
+    float                   fAngularDamping;
+    float                   fFriction;
     plVec3                  tGravity;
+    plVec3                  tLocalOffset;
 
     // sphere
     float fRadius;
 
+    // box
+    plVec3 tExtents;
+
     uint64_t uPhysicsObject;
 } plRigidBodyPhysicsComponent;
+
+typedef struct _plForceFieldComponent
+{
+    plForceFieldType tType;
+    float            fGravity;
+    float            fRange;
+} plForceFieldComponent;
 
 typedef struct _plHumanoidComponent
 {

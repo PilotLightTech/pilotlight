@@ -211,6 +211,9 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->tRigidBodyPhysicsComponentManager.tComponentType = PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS;
     ptLibrary->tRigidBodyPhysicsComponentManager.szStride = sizeof(plRigidBodyPhysicsComponent);
 
+    ptLibrary->tForceFieldComponentManager.tComponentType = PL_COMPONENT_TYPE_FORCE_FIELD;
+    ptLibrary->tForceFieldComponentManager.szStride = sizeof(plForceFieldComponent);
+
     ptLibrary->_ptManagers[0]  = &ptLibrary->tTagComponentManager;
     ptLibrary->_ptManagers[1]  = &ptLibrary->tTransformComponentManager;
     ptLibrary->_ptManagers[2]  = &ptLibrary->tMeshComponentManager;
@@ -228,6 +231,7 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->_ptManagers[14] = &ptLibrary->tEnvironmentProbeCompManager;
     ptLibrary->_ptManagers[15] = &ptLibrary->tLayerComponentManager;
     ptLibrary->_ptManagers[16] = &ptLibrary->tRigidBodyPhysicsComponentManager;
+    ptLibrary->_ptManagers[17] = &ptLibrary->tForceFieldComponentManager;
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
         ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
@@ -475,6 +479,13 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
                 case PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS:
                 {
                     plRigidBodyPhysicsComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    pl_sb_del_swap(sbComponents, uEntityValue);
+                    break;
+                }
+
+                case PL_COMPONENT_TYPE_FORCE_FIELD:
+                {
+                    plForceFieldComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
@@ -784,14 +795,30 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
         sbComponents[uComponentIndex] = (plRigidBodyPhysicsComponent){
-            .fMass          = 1.0f,
-            .tFlags         = PL_RIGID_BODY_PHYSICS_FLAG_NONE,
-            .fRadius        = 0.5f,
-            .tShape         = PL_COLLISION_SHAPE_SPHERE,
-            .fRestitution   = 0.2f,
-            .fLinearDamping = 0.05f,
-            .uPhysicsObject = UINT64_MAX,
-            .tGravity       = {0.0f, -9.82f, 0.0f}
+            .fMass           = 1.0f,
+            .tFlags          = PL_RIGID_BODY_PHYSICS_FLAG_NONE,
+            .fRadius         = 0.5f,
+            .tShape          = PL_COLLISION_SHAPE_SPHERE,
+            .fRestitution    = 0.2f,
+            .fLinearDamping  = 0.05f,
+            .fFriction       = 0.5f,
+            .fAngularDamping = 0.20f,
+            .uPhysicsObject  = UINT64_MAX,
+            .tGravity        = {0.0f, -10.0f, 0.0f}
+        };
+        return &sbComponents[uComponentIndex];
+    }
+
+    case PL_COMPONENT_TYPE_FORCE_FIELD:
+    {
+        plForceFieldComponent* sbComponents = ptManager->pComponents;
+        if(bAddSlot)
+            pl_sb_add(sbComponents);
+        ptManager->pComponents = sbComponents;
+        sbComponents[uComponentIndex] = (plForceFieldComponent){
+            .fGravity = 0.0f,
+            .fRange   = 0.0f,
+            .tType    = PL_FORCE_FIELD_TYPE_POINT
         };
         return &sbComponents[uComponentIndex];
     }
@@ -903,6 +930,135 @@ pl_ecs_create_sphere_mesh(plComponentLibrary* ptLibrary, const char* pcName, flo
 }
 
 static plEntity
+pl_ecs_create_cube_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
+{
+    pcName = pcName ? pcName : "unnamed cube mesh";
+    pl_log_debug_f(gptLog, uLogChannelEcs, "created cube mesh: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+    plMeshComponent* ptMesh = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tNewEntity);
+
+    if(pptCompOut)
+        *pptCompOut = ptMesh;
+
+    pl_sb_resize(ptMesh->sbtVertexPositions, 4 * 6);
+    pl_sb_resize(ptMesh->sbtVertexNormals, 4 * 6);
+    pl_sb_resize(ptMesh->sbuIndices, 6 * 6);
+
+    // front (+z)
+    ptMesh->sbtVertexPositions[0] = (plVec3){  0.5f, -0.5f, 0.5f };
+    ptMesh->sbtVertexPositions[1] = (plVec3){  0.5f,  0.5f, 0.5f };
+    ptMesh->sbtVertexPositions[2] = (plVec3){ -0.5f,  0.5f, 0.5f };
+    ptMesh->sbtVertexPositions[3] = (plVec3){ -0.5f, -0.5f, 0.5f };
+
+    ptMesh->sbtVertexNormals[0] = (plVec3){ 0.0f, 0.0f, 1.0f};
+    ptMesh->sbtVertexNormals[1] = (plVec3){ 0.0f, 0.0f, 1.0f};
+    ptMesh->sbtVertexNormals[2] = (plVec3){ 0.0f, 0.0f, 1.0f};
+    ptMesh->sbtVertexNormals[3] = (plVec3){ 0.0f, 0.0f, 1.0f};
+
+    ptMesh->sbuIndices[0] = 0;
+    ptMesh->sbuIndices[1] = 1;
+    ptMesh->sbuIndices[2] = 2;
+    ptMesh->sbuIndices[3] = 0;
+    ptMesh->sbuIndices[4] = 2;
+    ptMesh->sbuIndices[5] = 3;
+
+    // back (-z)
+    ptMesh->sbtVertexPositions[4] = (plVec3){  0.5f, -0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[5] = (plVec3){  0.5f,  0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[6] = (plVec3){ -0.5f,  0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[7] = (plVec3){ -0.5f, -0.5f, -0.5f };
+
+    ptMesh->sbtVertexNormals[4] = (plVec3){ 0.0f, 0.0f, -1.0f};
+    ptMesh->sbtVertexNormals[5] = (plVec3){ 0.0f, 0.0f, -1.0f};
+    ptMesh->sbtVertexNormals[6] = (plVec3){ 0.0f, 0.0f, -1.0f};
+    ptMesh->sbtVertexNormals[7] = (plVec3){ 0.0f, 0.0f, -1.0f};
+
+    ptMesh->sbuIndices[6] = 6;
+    ptMesh->sbuIndices[7] = 5;
+    ptMesh->sbuIndices[8] = 4;
+    ptMesh->sbuIndices[9] = 7;
+    ptMesh->sbuIndices[10] = 6;
+    ptMesh->sbuIndices[11] = 4;
+
+    // right (+x)
+    ptMesh->sbtVertexPositions[8]  = (plVec3){ 0.5f, -0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[9]  = (plVec3){ 0.5f,  0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[10] = (plVec3){ 0.5f,  0.5f,  0.5f };
+    ptMesh->sbtVertexPositions[11] = (plVec3){ 0.5f, -0.5f,  0.5f };
+
+    ptMesh->sbtVertexNormals[8]  = (plVec3){ 1.0f, 0.0f, 0.0f};
+    ptMesh->sbtVertexNormals[9]  = (plVec3){ 1.0f, 0.0f, 0.0f};
+    ptMesh->sbtVertexNormals[10] = (plVec3){ 1.0f, 0.0f, 0.0f};
+    ptMesh->sbtVertexNormals[11] = (plVec3){ 1.0f, 0.0f, 0.0f};
+
+    ptMesh->sbuIndices[12] = 8;
+    ptMesh->sbuIndices[13] = 9;
+    ptMesh->sbuIndices[14] = 10;
+    ptMesh->sbuIndices[15] = 8;
+    ptMesh->sbuIndices[16] = 10;
+    ptMesh->sbuIndices[17] = 11;
+
+    // left (-x)
+    ptMesh->sbtVertexPositions[12] = (plVec3){ -0.5f, -0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[13] = (plVec3){ -0.5f,  0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[14] = (plVec3){ -0.5f,  0.5f,  0.5f };
+    ptMesh->sbtVertexPositions[15] = (plVec3){ -0.5f, -0.5f,  0.5f };
+
+    ptMesh->sbtVertexNormals[12] = (plVec3){ -1.0f, 0.0f, 0.0f};
+    ptMesh->sbtVertexNormals[13] = (plVec3){ -1.0f, 0.0f, 0.0f};
+    ptMesh->sbtVertexNormals[14] = (plVec3){ -1.0f, 0.0f, 0.0f};
+    ptMesh->sbtVertexNormals[15] = (plVec3){ -1.0f, 0.0f, 0.0f};
+
+    ptMesh->sbuIndices[18] = 14;
+    ptMesh->sbuIndices[19] = 13;
+    ptMesh->sbuIndices[20] = 12;
+    ptMesh->sbuIndices[21] = 15;
+    ptMesh->sbuIndices[22] = 14;
+    ptMesh->sbuIndices[23] = 12;
+
+    // top (+y)
+    ptMesh->sbtVertexPositions[16] = (plVec3){  0.5f,  0.5f,  0.5f };
+    ptMesh->sbtVertexPositions[17] = (plVec3){  0.5f,  0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[18] = (plVec3){ -0.5f,  0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[19] = (plVec3){ -0.5f,  0.5f,  0.5f };
+
+    ptMesh->sbtVertexNormals[16] = (plVec3){ 0.0f, 1.0f, 0.0f};
+    ptMesh->sbtVertexNormals[17] = (plVec3){ 0.0f, 1.0f, 0.0f};
+    ptMesh->sbtVertexNormals[18] = (plVec3){ 0.0f, 1.0f, 0.0f};
+    ptMesh->sbtVertexNormals[19] = (plVec3){ 0.0f, 1.0f, 0.0f};
+
+    ptMesh->sbuIndices[24] = 16;
+    ptMesh->sbuIndices[25] = 17;
+    ptMesh->sbuIndices[26] = 18;
+    ptMesh->sbuIndices[27] = 16;
+    ptMesh->sbuIndices[28] = 18;
+    ptMesh->sbuIndices[29] = 19;
+
+    // bottom (-y)
+    ptMesh->sbtVertexPositions[20] = (plVec3){  0.5f, -0.5f,  0.5f };
+    ptMesh->sbtVertexPositions[21] = (plVec3){  0.5f, -0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[22] = (plVec3){ -0.5f, -0.5f, -0.5f };
+    ptMesh->sbtVertexPositions[23] = (plVec3){ -0.5f, -0.5f,  0.5f };
+
+    ptMesh->sbtVertexNormals[20] = (plVec3){ 0.0f, -1.0f, 0.0f};
+    ptMesh->sbtVertexNormals[21] = (plVec3){ 0.0f, -1.0f, 0.0f};
+    ptMesh->sbtVertexNormals[22] = (plVec3){ 0.0f, -1.0f, 0.0f};
+    ptMesh->sbtVertexNormals[23] = (plVec3){ 0.0f, -1.0f, 0.0f};
+
+    ptMesh->sbuIndices[30] = 22;
+    ptMesh->sbuIndices[31] = 21;
+    ptMesh->sbuIndices[32] = 20;
+    ptMesh->sbuIndices[33] = 23;
+    ptMesh->sbuIndices[34] = 22;
+    ptMesh->sbuIndices[35] = 20;
+
+    ptMesh->ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
+    ptMesh->tAABB.tMin = (plVec3){-0.5f, -0.5f, -0.5f};
+    ptMesh->tAABB.tMax = (plVec3){0.5f, 0.5f, 0.5f};
+    return tNewEntity;
+}
+
+static plEntity
 pl_ecs_create_directional_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tDirection, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed directional light";
@@ -938,11 +1094,31 @@ pl_ecs_create_environment_probe(plComponentLibrary* ptLibrary, const char* pcNam
     pcName = pcName ? pcName : "unnamed environment probe";
     pl_log_debug_f(gptLog, uLogChannelEcs, "created environment probe: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+
+    plTransformComponent* ptProbeTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
+    ptProbeTransform->tTranslation = tPosition;
+
     plEnvironmentProbeComponent* ptProbe =  pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, tNewEntity);
-    ptProbe->tPosition = tPosition;
 
     if(pptCompOut)
         *pptCompOut = ptProbe;
+    return tNewEntity;
+}
+
+static plEntity
+pl_ecs_create_force_field(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plForceFieldComponent** pptCompOut)
+{
+    pcName = pcName ? pcName : "unnamed force field";
+    pl_log_debug_f(gptLog, uLogChannelEcs, "created force field: '%s'", pcName);
+    plEntity tNewEntity = pl_ecs_create_tag(ptLibrary, pcName);
+
+    plTransformComponent* ptForceFieldTransform = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tNewEntity);
+    ptForceFieldTransform->tTranslation = tPosition;
+
+    plForceFieldComponent* ptForceField = pl_ecs_add_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, tNewEntity);
+    
+    if(pptCompOut)
+        *pptCompOut = ptForceField;
     return tNewEntity;
 }
 
@@ -1391,6 +1567,7 @@ pl_run_camera_update_system(plComponentLibrary* ptLibrary)
             plCameraComponent* ptCamera = &sbtComponents[i];
             plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
             ptCamera->tPos = ptTransform->tWorld.col[3].xyz;
+
             pl_camera_update(ptCamera);
         }
     }
@@ -1425,22 +1602,18 @@ pl_run_probe_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
-    plEnvironmentProbeComponent* sbtComponents = ptLibrary->tEnvironmentProbeCompManager.pComponents;
+    // plEnvironmentProbeComponent* sbtComponents = ptLibrary->tEnvironmentProbeCompManager.pComponents;
 
-    const uint32_t uComponentCount = pl_sb_size(sbtComponents);
-    for(uint32_t i = 0; i < uComponentCount; i++)
-    {
-        plEntity tEntity = ptLibrary->tEnvironmentProbeCompManager.sbtEntities[i];
-        if(pl_ecs_has_entity(&ptLibrary->tTransformComponentManager, tEntity))
-        {
-            plEnvironmentProbeComponent* ptProbe = &sbtComponents[i];
-            plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
-            ptProbe->tPosition = ptTransform->tWorld.col[3].xyz;
-            ptTransform->tWorld = pl_mat4_translate_vec3(ptProbe->tPosition);
-
-            // TODO: direction
-        }
-    }
+    // const uint32_t uComponentCount = pl_sb_size(sbtComponents);
+    // for(uint32_t i = 0; i < uComponentCount; i++)
+    // {
+    //     plEntity tEntity = ptLibrary->tEnvironmentProbeCompManager.sbtEntities[i];
+    //     if(pl_ecs_has_entity(&ptLibrary->tTransformComponentManager, tEntity))
+    //     {
+    //         plEnvironmentProbeComponent* ptProbe = &sbtComponents[i];
+    //         plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+    //     }
+    // }
     pl_end_cpu_sample(gptProfile, 0); 
 }
 
@@ -2054,6 +2227,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_tag                           = pl_ecs_create_tag,
         .create_mesh                          = pl_ecs_create_mesh,
         .create_sphere_mesh                   = pl_ecs_create_sphere_mesh,
+        .create_cube_mesh                     = pl_ecs_create_cube_mesh,
         .create_perspective_camera            = pl_ecs_create_perspective_camera,
         .create_orthographic_camera           = pl_ecs_create_orthographic_camera,
         .create_object                        = pl_ecs_create_object,
@@ -2067,6 +2241,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_point_light                   = pl_ecs_create_point_light,
         .create_spot_light                    = pl_ecs_create_spot_light,
         .create_environment_probe             = pl_ecs_create_environment_probe,
+        .create_force_field                   = pl_ecs_create_force_field,
         .create_script                        = pl_ecs_create_script,
         .attach_script                        = pl_ecs_attach_script,
         .attach_component                     = pl_ecs_attach_component,

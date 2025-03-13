@@ -21,6 +21,7 @@ Index of this file:
 #include "pl_ecs_ext.h"
 #include "pl_renderer_ext.h"
 #include "pl_ui_ext.h"
+#include "pl_physics_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -30,6 +31,7 @@ static const plMemoryI*   gptMemory = NULL;
 static const plEcsI*      gptECS      = NULL;
 static const plUiI*       gptUI       = NULL;
 static const plRendererI* gptRenderer = NULL;
+static const plPhysicsI*  gptPhysics = NULL;
 
 #ifndef PL_DS_ALLOC
     
@@ -57,6 +59,7 @@ static const plRendererI* gptRenderer = NULL;
 #define PL_ICON_FA_PERSON "\xef\x86\x83"	// U+f183
 #define PL_ICON_FA_CODE "\xef\x84\xa1"	// U+f121
 #define PL_ICON_FA_BOXES_STACKED "\xef\x91\xa8"	// U+f468
+#define PL_ICON_FA_WIND "\xef\x9c\xae"	// U+f72e
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -132,14 +135,15 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
             PL_COMPONENT_TYPE_ENVIRONMENT_PROBE,
             PL_COMPONENT_TYPE_HUMANOID,
             PL_COMPONENT_TYPE_SCRIPT,
-            PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS
+            PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS,
+            PL_COMPONENT_TYPE_FORCE_FIELD,
         };
 
-        bool abCombo[14] = {0};
+        bool abCombo[16] = {0};
         abCombo[uComponentFilter] = true;
         if(gptUI->begin_combo(PL_ICON_FA_FILTER, apcComponentNames[uComponentFilter], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
         {
-            for(uint32_t i = 0; i < 15; i++)
+            for(uint32_t i = 0; i < 16; i++)
             {
                 if(gptUI->selectable(apcComponentNames[i], &abCombo[i], 0))
                 {
@@ -183,6 +187,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, ptLibrary->tTagComponentManager.sbtEntities[i]);
                         plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, ptLibrary->tTagComponentManager.sbtEntities[i]);
                         plRigidBodyPhysicsComponent*  ptRigidComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, ptLibrary->tTagComponentManager.sbtEntities[i]);
+                        plForceFieldComponent*        ptForceField        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, ptLibrary->tTagComponentManager.sbtEntities[i]);
 
                         if(uComponentFilter != 0)
                         {
@@ -192,7 +197,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         }
 
                         char atBuffer[1024] = {0};
-                        pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
+                        pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
                             ptHierarchyComp ? PL_ICON_FA_SITEMAP : "",
                             ptTransformComp ? PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT : "",
                             ptMeshComp ? PL_ICON_FA_CUBE : "",
@@ -207,6 +212,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                             ptHumanComp ? PL_ICON_FA_PERSON : "",
                             ptScriptComp ? PL_ICON_FA_CODE : "",
                             ptRigidComp ? PL_ICON_FA_BOXES_STACKED : "",
+                            ptForceField ? PL_ICON_FA_WIND : "",
                             sbtTags[i].acName,
                             ptLibrary->tTagComponentManager.sbtEntities[i].uIndex);
                         if(gptUI->selectable(atBuffer, &bSelected, 0))
@@ -251,9 +257,10 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, ptLibrary->tTagComponentManager.sbtEntities[i]);
                         plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, ptLibrary->tTagComponentManager.sbtEntities[i]);
                         plRigidBodyPhysicsComponent*  ptRigidComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, ptLibrary->tTagComponentManager.sbtEntities[i]);
+                        plForceFieldComponent*        ptForceField        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, ptLibrary->tTagComponentManager.sbtEntities[i]);
 
                         char atBuffer[1024] = {0};
-                        pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
+                        pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
                             ptHierarchyComp ? PL_ICON_FA_SITEMAP : "",
                             ptTransformComp ? PL_ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT : "",
                             ptMeshComp ? PL_ICON_FA_CUBE : "",
@@ -268,6 +275,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                             ptHumanComp ? PL_ICON_FA_PERSON : "",
                             ptScriptComp ? PL_ICON_FA_CODE : "",
                             ptRigidComp ? PL_ICON_FA_BOXES_STACKED : "",
+                            ptForceField ? PL_ICON_FA_WIND : "",
                             sbtTags[i].acName,
                             ptLibrary->tTagComponentManager.sbtEntities[i].uIndex);
                         if(gptUI->selectable(atBuffer, &bSelected, 0))
@@ -315,6 +323,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                 plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, *ptSelectedEntity);
                 plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, *ptSelectedEntity);
                 plRigidBodyPhysicsComponent*  ptRigidComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, *ptSelectedEntity);
+                plForceFieldComponent*        ptForceField        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, *ptSelectedEntity);
 
                 if(ptObjectComp)
                 {
@@ -380,19 +389,54 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
 
                 if(ptRigidComp && gptUI->begin_collapsing_header("Rigid Body Physics", 0))
                 {
-                    gptUI->input_float("Radius", &ptRigidComp->fRadius, "%g", 0);
                     gptUI->input_float("Mass", &ptRigidComp->fMass, "%g", 0);
+                    gptUI->slider_float("Friction", &ptRigidComp->fFriction, 0.0f, 1.0f, 0);
                     gptUI->slider_float("Restitution", &ptRigidComp->fRestitution, 0.0f, 1.0f, 0);
                     gptUI->slider_float("Linear Damping", &ptRigidComp->fLinearDamping, 0.0f, 1.0f, 0);
+                    gptUI->slider_float("Angluar Damping", &ptRigidComp->fAngularDamping, 0.0f, 1.0f, 0);
                     gptUI->input_float3("Gravity", ptRigidComp->tGravity.d, NULL, 0);
+                    gptUI->input_float3("Local Offset", ptRigidComp->tLocalOffset.d, "%g", 0);
+
+                    gptUI->vertical_spacing();
+
+                    gptUI->separator_text("Collision Shape");
+                    gptUI->radio_button("Box", &ptRigidComp->tShape, PL_COLLISION_SHAPE_BOX);
+                    gptUI->radio_button("Sphere", &ptRigidComp->tShape, PL_COLLISION_SHAPE_SPHERE);
+
+                    gptUI->vertical_spacing();
+
+                    if(ptRigidComp->tShape == PL_COLLISION_SHAPE_BOX)
+                    {
+                        gptUI->input_float3("Extents", ptRigidComp->tExtents.d, "%g", 0);
+                    }
+                    else if(ptRigidComp->tShape == PL_COLLISION_SHAPE_SPHERE)
+                    {
+                        gptUI->input_float("Radius", &ptRigidComp->fRadius, "%g", 0);
+                    }
+
+                    static plVec3 tPoint = {0};
+                    static plVec3 tForce = {100.0f};
+                    static plVec3 tTorque = {0};
+                    gptUI->input_float3("Point", tPoint.d, NULL, 0);
+                    gptUI->input_float3("Force", tForce.d, NULL, 0);
+                    gptUI->input_float3("Torque", tTorque.d, NULL, 0);
+
+                    gptUI->layout_dynamic(0.0f, 3);
+                    if(gptUI->button("torque"))                gptPhysics->apply_torque(ptLibrary, *ptSelectedEntity, tTorque);
+                    if(gptUI->button("force"))                 gptPhysics->apply_force(ptLibrary, *ptSelectedEntity, tForce);
+                    if(gptUI->button("force at point"))        gptPhysics->apply_force_at_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
+                    if(gptUI->button("force at body point"))   gptPhysics->apply_force_at_body_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
+                    if(gptUI->button("impulse"))               gptPhysics->apply_impulse(ptLibrary, *ptSelectedEntity, tForce);
+                    if(gptUI->button("impulse at point"))      gptPhysics->apply_impulse_at_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
+                    if(gptUI->button("impulse at body point")) gptPhysics->apply_impulse_at_body_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
+                    if(gptUI->button("wake up"))                     gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
+                    if(gptUI->button("sleep"))                       gptPhysics->sleep_body(ptLibrary, *ptSelectedEntity);
 
                     gptUI->end_collapsing_header();
                 }
 
                 if(ptProbeComp && gptUI->begin_collapsing_header("Environment Probe", 0))
                 {
-                    gptUI->input_float3("Position", ptProbeComp->tPosition.d, NULL, 0);
-
                     bool bRealTime = ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
                     if(gptUI->checkbox("Real Time", &bRealTime))
                     {
@@ -475,6 +519,16 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].y, ptTransformComp->tWorld.col[1].y, ptTransformComp->tWorld.col[2].y, ptTransformComp->tWorld.col[3].y);
                     gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].z, ptTransformComp->tWorld.col[1].z, ptTransformComp->tWorld.col[2].z, ptTransformComp->tWorld.col[3].z);
                     gptUI->text("            |%+0.3f, %+0.3f, %+0.3f, %+0.3f|", ptTransformComp->tWorld.col[0].w, ptTransformComp->tWorld.col[1].w, ptTransformComp->tWorld.col[2].w, ptTransformComp->tWorld.col[3].w);
+                    gptUI->end_collapsing_header();
+                }
+
+
+                if(ptForceField && gptUI->begin_collapsing_header("Force Field", 0))
+                {
+                    gptUI->radio_button("Type: PL_FORCE_FIELD_TYPE_POINT", &ptForceField->tType, PL_FORCE_FIELD_TYPE_POINT);
+                    gptUI->radio_button("Type: PL_FORCE_FIELD_TYPE_PLANE", &ptForceField->tType, PL_FORCE_FIELD_TYPE_PLANE);
+                    gptUI->input_float("Gravity", &ptForceField->fGravity, NULL, 0);
+                    gptUI->input_float("Range", &ptForceField->fRange, NULL, 0);
                     gptUI->end_collapsing_header();
                 }
 
@@ -836,6 +890,7 @@ pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptRenderer = pl_get_api_latest(ptApiRegistry, plRendererI);
     gptUI       = pl_get_api_latest(ptApiRegistry, plUiI);
     gptECS      = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptPhysics  = pl_get_api_latest(ptApiRegistry, plPhysicsI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 

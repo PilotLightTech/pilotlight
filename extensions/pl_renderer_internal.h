@@ -51,6 +51,7 @@ Index of this file:
 #include "pl_rect_pack_ext.h"
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
+#include "pl_physics_ext.h"
 
 // stb
 #include "stb_image_resize2.h"
@@ -93,7 +94,8 @@ Index of this file:
     static const plProfileI*       gptProfile       = NULL;
     static const plLogI*           gptLog           = NULL;
     static const plRectPackI*      gptRect          = NULL;
-    static const plConsoleI*       gptConsole  = NULL;
+    static const plConsoleI*       gptConsole       = NULL;
+    static const plPhysicsI *      gptPhysics       = NULL;
     
     // experimental
     static const plScreenLogI*  gptScreenLog  = NULL;
@@ -601,6 +603,9 @@ typedef struct _plRefRendererData
     bool     bMultiViewportShadows;
     bool     bImageBasedLighting;
     bool     bPunctualLighting;
+    bool     bPhysicsActive;
+    bool     bPhysicsDebugDraw;
+    float    fPhysicSimulationMultiplier;
     float    fShadowConstantDepthBias;
     float    fShadowSlopeDepthBias;
     uint32_t uOutlineWidth;

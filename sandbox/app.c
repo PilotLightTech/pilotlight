@@ -157,7 +157,6 @@ typedef struct _plAppData
     bool* pbShowProfiling;
     bool* pbShowStats;
     bool* pbShowLogging;
-    bool* pbPhysicsOn;
 
     // scene
     bool     bFreezeCullCamera;
@@ -294,7 +293,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // initialize APIs that require it
     gptEcsTools->initialize();
-    gptPhysics->initialize();
+    gptPhysics->initialize((plPhysicsEngineSettings){0});
     
     // initialize shader extension
     static plShaderOptions tDefaultShaderOptions = {
@@ -337,8 +336,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->pbShowProfiling            = (bool*)gptConsole->get_variable("t.ProfileTool", NULL, NULL);
     ptAppData->pbShowMemoryAllocations    = (bool*)gptConsole->get_variable("t.MemoryAllocationTool", NULL, NULL);
     ptAppData->pbShowDeviceMemoryAnalyzer = (bool*)gptConsole->get_variable("t.DeviceMemoryAnalyzerTool", NULL, NULL);
-    ptAppData->pbPhysicsOn                = (bool*)gptConsole->get_variable("p.PhysicsOn", NULL, NULL);
-
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~setup draw extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -513,8 +510,6 @@ pl_app_update(plAppData* ptAppData)
                     gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0);
             }
         }
-
-        gptPhysics->update(ptIO->fDeltaTime, ptMainComponentLibrary);
 
         // run ecs system
         gptRenderer->run_ecs(ptAppData->uSceneHandle0);
@@ -859,7 +854,6 @@ pl__show_editor_window(plAppData* ptAppData)
         if(gptUI->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
         {
             gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
-            gptUI->checkbox("Physics Active", ptAppData->pbPhysicsOn);
             if(ptAppData->uSceneHandle0 != UINT32_MAX)
             {
                 if(gptUI->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
@@ -882,6 +876,7 @@ pl__show_editor_window(plAppData* ptAppData)
             {
                 if(gptUI->button("Unload Scene"))
                 {
+                    gptPhysics->reset();
                     gptRenderer->cleanup_scene(ptAppData->uSceneHandle0);
                     ptAppData->uSceneHandle0 = UINT32_MAX;
                 }
