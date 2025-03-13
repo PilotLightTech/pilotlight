@@ -40,6 +40,9 @@ typedef union _plResourceHandle plResourceHandle;
 // enums
 typedef int plResourceLoadFlags;
 
+// external
+typedef union plTextureHandle plTextureHandle;
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
@@ -57,6 +60,10 @@ typedef struct _plResourceI
     bool             (*is_resource_loaded)(const char* pcName);
     bool             (*is_resource_valid) (plResourceHandle tResourceHandle);
     void             (*unload_resource)   (plResourceHandle tResourceHandle);
+
+    // texture resource
+    plTextureHandle (*get_texture_handle)(plResourceHandle);
+    void            (*set_texture_handle)(plResourceHandle, plTextureHandle);
 } plResourceI;
 
 //-----------------------------------------------------------------------------

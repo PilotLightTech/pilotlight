@@ -4498,38 +4498,41 @@ pl_refr_add_materials_to_scene(uint32_t uSceneHandle, uint32_t uMaterialCount, c
                 {
                     size_t szResourceSize = 0;
                     const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[uTextureSlot].tResource, &szResourceSize);
-                    float* rawBytes = gptImage->load_hdr((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-
-                    uint32_t uMaxDim = (uint32_t)pl_max(texWidth, texHeight);
-
-                    if(uMaxDim > gptData->uMaxTextureResolution)
+                    if(pcFileData)
                     {
-                        int iNewWidth = 0;
-                        int iNewHeight = 0;
+                        float* rawBytes = gptImage->load_hdr((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
 
-                        if(texWidth > texHeight)
+                        uint32_t uMaxDim = (uint32_t)pl_max(texWidth, texHeight);
+
+                        if(uMaxDim > gptData->uMaxTextureResolution)
                         {
-                            iNewWidth = (int)gptData->uMaxTextureResolution;
-                            iNewHeight = (int)(((float)gptData->uMaxTextureResolution / (float)texWidth) * (float)texHeight);
-                        }
-                        else
-                        {
-                            iNewWidth = (int)(((float)gptData->uMaxTextureResolution / (float)texHeight) * (float)texWidth);
-                            iNewHeight = (int)gptData->uMaxTextureResolution;
+                            int iNewWidth = 0;
+                            int iNewHeight = 0;
+
+                            if(texWidth > texHeight)
+                            {
+                                iNewWidth = (int)gptData->uMaxTextureResolution;
+                                iNewHeight = (int)(((float)gptData->uMaxTextureResolution / (float)texWidth) * (float)texHeight);
+                            }
+                            else
+                            {
+                                iNewWidth = (int)(((float)gptData->uMaxTextureResolution / (float)texHeight) * (float)texWidth);
+                                iNewHeight = (int)gptData->uMaxTextureResolution;
+                            }
+
+                            float* oldrawBytes = rawBytes;
+                            rawBytes = stbir_resize_float_linear(rawBytes, texWidth, texHeight, 0, NULL, iNewWidth, iNewHeight, 0, STBIR_RGBA);
+                            PL_ASSERT(rawBytes);
+                            gptImage->free(oldrawBytes);
+
+                            texWidth = iNewWidth;
+                            texHeight = iNewHeight;
                         }
 
-                        float* oldrawBytes = rawBytes;
-                        rawBytes = stbir_resize_float_linear(rawBytes, texWidth, texHeight, 0, NULL, iNewWidth, iNewHeight, 0, STBIR_RGBA);
-                        PL_ASSERT(rawBytes);
-                        gptImage->free(oldrawBytes);
-
-                        texWidth = iNewWidth;
-                        texHeight = iNewHeight;
+                        gptResource->set_buffer_data(ptMaterial->atTextureMaps[uTextureSlot].tResource, sizeof(float) * texWidth * texHeight * 4, rawBytes);
+                        ptMaterial->atTextureMaps[uTextureSlot].uWidth = texWidth;
+                        ptMaterial->atTextureMaps[uTextureSlot].uHeight = texHeight;
                     }
-
-                    gptResource->set_buffer_data(ptMaterial->atTextureMaps[uTextureSlot].tResource, sizeof(float) * texWidth * texHeight * 4, rawBytes);
-                    ptMaterial->atTextureMaps[uTextureSlot].uWidth = texWidth;
-                    ptMaterial->atTextureMaps[uTextureSlot].uHeight = texHeight;
                 }
                 else
                 {
