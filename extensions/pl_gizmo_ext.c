@@ -130,15 +130,12 @@ pl_gizmo(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransform
         {
             case PL_GIZMO_MODE_TRANSLATION:
                 pl__gizmo_translation(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
-                ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
                 break;
             case PL_GIZMO_MODE_ROTATION:
                 pl__gizmo_rotation(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
-                ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
                 break;
             case PL_GIZMO_MODE_SCALE:
                 pl__gizmo_scale(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
-                ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
                 break;
             case PL_GIZMO_MODE_NONE:
             default:
@@ -233,6 +230,7 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
                 .ptFont = gptUI->get_default_font(),
                 .uColor = PL_COLOR_32_YELLOW
             });
+        ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
     };
 
     float fXDistanceAlong = 0.0f;
@@ -698,6 +696,10 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, p
             }
         }
     }
+    else
+    {
+        ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+    }
 
     if(gptGizmoCtx->tState == PL_GIZMO_STATE_X_ROTATION)
     {
@@ -963,6 +965,7 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTr
                 .ptFont = gptUI->get_default_font(),
                 .uColor = PL_COLOR_32_YELLOW
             });
+        ptSelectedTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
     }
 
     if(gptGizmoCtx->tState == PL_GIZMO_STATE_DEFAULT)
