@@ -505,6 +505,16 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                         ptMesh->sbtVertexNormals[i] = *ptRawData;
                     }
                 }
+                else if(ptAttribute->data->component_type == cgltf_component_type_r_8 && ptAttribute->data->type == cgltf_type_vec3)
+                {
+                    for(size_t i = 0; i < szVertexCount; i++)
+                    {
+                        int8_t* puRawData = (int8_t*)&pucBufferStart[i * szStride];
+                        ptMesh->sbtVertexNormals[i].x = (float)puRawData[0];
+                        ptMesh->sbtVertexNormals[i].y = (float)puRawData[1];
+                        ptMesh->sbtVertexNormals[i].z = (float)puRawData[2];
+                    }
+                }
                 else
                 {
                     PL_ASSERT(false);
@@ -521,6 +531,17 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                     {
                         plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
                         ptMesh->sbtVertexTangents[i] = *ptRawData;
+                    }
+                }
+                else if(ptAttribute->data->component_type == cgltf_component_type_r_8 && ptAttribute->data->type == cgltf_type_vec4)
+                {
+                    for(size_t i = 0; i < szVertexCount; i++)
+                    {
+                        int8_t* puRawData = (int8_t*)&pucBufferStart[i * szStride];
+                        ptMesh->sbtVertexTangents[i].x = (float)puRawData[0];
+                        ptMesh->sbtVertexTangents[i].y = (float)puRawData[1];
+                        ptMesh->sbtVertexTangents[i].z = (float)puRawData[2];
+                        ptMesh->sbtVertexTangents[i].w = (float)puRawData[3];
                     }
                 }
                 else
