@@ -3360,9 +3360,6 @@ pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle)
     ptProbeObj->tMesh = ptScene->tProbeMesh;
     ptProbeObj->tTransform = tProbeHandle;
 
-    plTransformComponent* ptProbeTransform = gptECS->add_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tProbeHandle);
-    ptProbeTransform->tTranslation = ptProbeTransform->tTranslation;
-
     const uint32_t uTransparentStart = pl_sb_size(ptScene->sbtStagedDrawables);
     pl_sb_add(ptScene->sbtStagedDrawables);
     ptScene->sbtStagedDrawables[uTransparentStart].tEntity = tProbeHandle;

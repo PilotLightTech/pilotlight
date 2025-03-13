@@ -118,6 +118,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
             PL_ICON_FA_PERSON " Humanoid",
             PL_ICON_FA_CODE " Script",
             PL_ICON_FA_BOXES_STACKED " Rigid Body Physics",
+            PL_ICON_FA_WIND " Force Field",
         };
 
         static plComponentType atComponentTypes[] = {
