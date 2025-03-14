@@ -676,7 +676,7 @@ pl__show_statistics(bool* bValue)
             gptDebugCtx->sbppdFrameValues[i] = gptStats->get_counter_data(gptDebugCtx->ppcNames[i]);
             float fCurrentWidth = gptDraw->calculate_text_size(gptDebugCtx->ppcNames[i], (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x;
             if(fCurrentWidth > gptDebugCtx->fLegendWidth)
-                gptDebugCtx->fLegendWidth = fCurrentWidth * 2.0f;
+                gptDebugCtx->fLegendWidth = fCurrentWidth * 1.1f;
         }
     }
     
@@ -693,10 +693,8 @@ pl__show_statistics(bool* bValue)
             gptDebugCtx->sbppdFrameValues[i] = gptStats->get_counter_data(gptDebugCtx->ppcNames[i]);
             float fCurrentWidth = gptDraw->calculate_text_size(gptDebugCtx->ppcNames[i], (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x;
             if(fCurrentWidth > gptDebugCtx->fLegendWidth)
-                gptDebugCtx->fLegendWidth = fCurrentWidth;
+                gptDebugCtx->fLegendWidth = fCurrentWidth * 1.1f;
         }
-
-        gptDebugCtx->fLegendWidth += 5.0f;
     }
 
     gptUI->set_next_window_size((plVec2){900.0f, 450.0f}, PL_UI_COND_ONCE);
