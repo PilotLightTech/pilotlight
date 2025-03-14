@@ -738,12 +738,24 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
     {
         gptShaderCtx = ptDataRegistry->get_data("plShaderContext");
+
+        #ifndef PL_OFFLINE_SHADERS_ONLY
+        #ifdef PL_INCLUDE_SPIRV_CROSS
+        tSpirvCtx = *(spvc_context*)ptDataRegistry->get_data("spvc_context");
+        #endif
+        #endif
     }
     else // first load
     {
         static plShaderContext gtShaderCtx = {0};
         gptShaderCtx = &gtShaderCtx;
         ptDataRegistry->set_data("plShaderContext", gptShaderCtx);
+
+        #ifndef PL_OFFLINE_SHADERS_ONLY
+        #ifdef PL_INCLUDE_SPIRV_CROSS
+        ptDataRegistry->set_data("spvc_context", &tSpirvCtx);
+        #endif
+        #endif
     }
 }
 
