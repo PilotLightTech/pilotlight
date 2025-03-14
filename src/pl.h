@@ -477,12 +477,14 @@ typedef struct _plVersion
 
 #ifndef PL_ASSERT
     #include <assert.h>
-    #ifdef _MSC_VER
+    #if defined(_MSC_VER)
         #define PL_ASSERT(x) \
             __pragma(warning(push)) \
             __pragma(warning(disable:4127)) \
             if(!(x)) {__debugbreak();} assert((x)) \
             __pragma(warning(pop))
+    #elif defined(__clang__)
+        #define PL_ASSERT(x) if(!(x)){__builtin_debugtrap();} assert((x))
     #else
         #define PL_ASSERT(x) assert((x))
     #endif
