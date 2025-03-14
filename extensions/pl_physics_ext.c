@@ -701,7 +701,7 @@ pl_physics_apply_force(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 t
 {
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
 
-    if(ptBody)
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
 
@@ -715,7 +715,7 @@ pl_physics_apply_force_at_point(plComponentLibrary* ptLibrary, plEntity tEntity,
 {
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
 
-    if(ptBody)
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
 
@@ -740,7 +740,7 @@ pl_physics_apply_force_at_body_point(plComponentLibrary* ptLibrary, plEntity tEn
 {
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
 
-    if(ptBody)
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
 
@@ -767,7 +767,7 @@ pl_physics_apply_impulse(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3
 {
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
 
-    if(ptBody)
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
 
@@ -782,7 +782,7 @@ pl_physics_apply_impulse_at_point(plComponentLibrary* ptLibrary, plEntity tEntit
 {
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
 
-    if(ptBody)
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
 
@@ -810,7 +810,7 @@ pl_physics_apply_impulse_at_body_point(plComponentLibrary* ptLibrary, plEntity t
 
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
 
-    if(ptBody)
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
 
@@ -836,7 +836,7 @@ pl_physics_apply_torque(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 
 {
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
 
-    if(ptBody)
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
 
@@ -850,7 +850,7 @@ pl_physics_wake_up_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
 
-    if(ptBody)
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
         pl__set_awake(ptRigidBody, true);
@@ -862,7 +862,7 @@ pl_physics_sleep_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
 
-    if(ptBody)
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
         pl__set_awake(ptRigidBody, false);
