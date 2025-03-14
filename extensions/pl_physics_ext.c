@@ -4,18 +4,58 @@
 
 /*
 Index of this file:
+// [SECTION] notes
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] enums
-// [SECTION] structs
+// [SECTION] internal structs
 // [SECTION] global context
-// [SECTION] internal api
+// [SECTION] high level forward declarations
+// [SECTION] collision detection forward declarations
+// [SECTION] collision resolution forward declarations
+// [SECTION] misc. helpers
 // [SECTION] public api implementation
 // [SECTION] internal api implementation
-// [SECTION] intersection tests
-// [SECTION] collision detection
-// [SECTION] contact
 // [SECTION] extension loading
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] notes
+//-----------------------------------------------------------------------------
+
+/*
+    * This physics engine is based on the "Game Physics Engine Development" by
+      Ian Millington. This is just as a starting point. Its been completely
+      refactored to remove the OOP nonsense and many other aspects I found as
+      noise.
+
+    * I'm still debating whether or not this should be made into an STB style
+      library. Because of this, I'd like to minimize reliance on too many
+      extensions.
+
+    * I'm also debating separating collision detection into a separate
+      extension all together. This would allow much of the work to be shared
+      with scene culling.
+
+    * Long term, I'd like to follow some of the resources from the "Jolt"
+      physics engine to improve this engine.
+
+    * Consider removing drawing extension reliance and instead provide API
+      to retrieve necessary information for visualization
+
+    * Consider removing ecs extension reliance & instead consider relying on
+      only the rigid body component
+
+    * Still deciding how to handle transform heirarchy situation & scaling
+
+    * Many of the function currently use the context implicitly. I'd like
+      to make the functions rely only on arguments.
+
+    * Currently we are not doing a broad pass but we need to immediately
+      start work on this with a BVH system.
+
+    * Currently assuming a plane is always present. This is until I come
+      up with a better API for how to define contraints.
 */
 
 //-----------------------------------------------------------------------------
@@ -26,12 +66,12 @@ Index of this file:
 #include <stdbool.h>
 #include "pl.h"
 #include "pl_physics_ext.h"
+
+// stable extensions
+#include "pl_draw_ext.h"
 #include "pl_profile_ext.h"
 #include "pl_log_ext.h"
 #include "pl_stats_ext.h"
-
-// extensions
-#include "pl_draw_ext.h"
 
 // unstable extensions
 #include "pl_ecs_ext.h"
@@ -53,6 +93,7 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
+    // required APIs
     static const plEcsI*     gptECS     = NULL;
     static const plDrawI*    gptDraw    = NULL;
     static const plProfileI* gptProfile = NULL;
@@ -80,6 +121,8 @@ typedef int plCollisionPrimitiveType;
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
+// TODO: these should be consolidated with enum from ECS extension (hoffstadt)
+
 enum _plCollisionPrimitiveType
 {
     PL_COLLISION_PRIMITIVE_TYPE_BOX,
@@ -88,7 +131,7 @@ enum _plCollisionPrimitiveType
 };
 
 //-----------------------------------------------------------------------------
-// [SECTION] structs
+// [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
 typedef struct _plRigidBody
@@ -130,9 +173,9 @@ typedef struct _plContact
 typedef struct _plCollisionPrimitive
 {
     plCollisionPrimitiveType tType;
-    uint32_t uBodyIndex;
-    plMat4  tTransform;
-    float    fFriction;
+    uint32_t                 uBodyIndex;
+    plMat4                   tTransform;
+    float                    fFriction;
   
     // box
     plVec3 tHalfSize;
@@ -168,7 +211,58 @@ typedef struct _plPhysicsContext
 static plPhysicsContext* gptPhysicsCtx = NULL;
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal api
+// [SECTION] high level forward declarations
+//-----------------------------------------------------------------------------
+
+static void pl__detect_collisions(float fDeltaTime, plComponentLibrary*);
+static void pl__resolve_contacts(float fDeltaTime);
+static void pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCount);
+
+static void pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary*);
+
+//-----------------------------------------------------------------------------
+// [SECTION] collision detection forward declarations
+//-----------------------------------------------------------------------------
+
+// intersection tests
+static bool pl__intersect_box_half_space   (const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptPlane);
+static bool pl__intersect_box_box          (const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1);
+static bool pl__intersect_sphere_half_space(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane);
+static bool pl__intersect_sphere_sphere    (const plCollisionPrimitive* ptSphere0, const plCollisionPrimitive* ptSphere1);
+
+// collision detection (actually adds contacts to context)
+static void pl__collision_sphere_half_space(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane);
+static void pl__collision_sphere_true_plane(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane);
+static void pl__collision_sphere_sphere    (const plCollisionPrimitive* ptSphere0, const plCollisionPrimitive* ptSphere1);
+static void pl__collision_box_half_space   (const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptPlane);
+static void pl__collision_box_box          (const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1);
+static void pl__collision_box_point        (const plCollisionPrimitive* ptBox, plVec3 tPoint);
+static void pl__collision_box_sphere       (const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptSphere);
+
+// helpers
+static bool  pl__overlap_on_axis  (const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1, plVec3 tAxis, plVec3 tToCenter);
+static float pl__transform_to_axis(const plCollisionPrimitive* ptBox, const plVec3* ptAxis);
+
+//-----------------------------------------------------------------------------
+// [SECTION] collision resolution forward declarations
+//-----------------------------------------------------------------------------
+
+// contact
+static void   pl__contact_calculate_internals             (plContact*, float fDeltaTime);
+static void   pl__contact_calculate_desired_delta_velocity(plContact*, float fDeltaTime);
+static plVec3 pl__contact_calculate_local_velocity        (plContact*, uint32_t uBodyIndex, float fDeltaTime);
+static void   pl__contact_calculate_contact_basis         (plContact*);
+static void   pl__contact_apply_velocity_change           (plContact*, plVec3 atVelocityChange[2], plVec3 atRotationChange[2]);
+static void   pl__contact_apply_position_change           (plContact*, plVec3 atLinearChange[2], plVec3 atAngularChange[2], float fPenetration);
+static plVec3 pl__contact_calculate_frictionless_impulse  (plContact*, plMat3* ptInverseInertiaTensor);
+static plVec3 pl__contact_calculate_friction_impulse      (plContact*, plMat3* ptInverseInertiaTensor);
+
+// contact resolver
+static void  pl__contact_adjust_positions (float fDeltaTime);
+static void  pl__contact_adjust_velocities(float fDeltaTime);
+
+//-----------------------------------------------------------------------------
+// [SECTION] misc. helpers
 //-----------------------------------------------------------------------------
 
 static inline void
@@ -212,42 +306,6 @@ pl__set_awake(plRigidBody* ptBody, bool bAwake)
     }
 }
 
-// intersection tests
-static bool pl__intersect_box_half_space   (const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptPlane);
-static bool pl__intersect_box_box          (const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1);
-static bool pl__intersect_sphere_half_space(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane);
-static bool pl__intersect_sphere_sphere    (const plCollisionPrimitive* ptSphere0, const plCollisionPrimitive* ptSphere1);
-
-// collision detection
-static void pl__collision_sphere_half_space(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane);
-static void pl__collision_sphere_true_plane(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane);
-static void pl__collision_sphere_sphere    (const plCollisionPrimitive* ptSphere0, const plCollisionPrimitive* ptSphere1);
-static void pl__collision_box_half_space   (const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptPlane);
-static void pl__collision_box_box          (const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1);
-static void pl__collision_box_point        (const plCollisionPrimitive* ptBox, plVec3 tPoint);
-static void pl__collision_box_sphere       (const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptSphere);
-
-// contact
-static void   pl__contact_calculate_internals             (plContact*, float fDeltaTime);
-static void   pl__contact_calculate_desired_delta_velocity(plContact*, float fDeltaTime);
-static plVec3 pl__contact_calculate_local_velocity        (plContact*, uint32_t uBodyIndex, float fDeltaTime);
-static void   pl__contact_calculate_contact_basis         (plContact*);
-static void   pl__contact_apply_velocity_change           (plContact*, plVec3 atVelocityChange[2], plVec3 atRotationChange[2]);
-static void   pl__contact_apply_position_change           (plContact*, plVec3 atLinearChange[2], plVec3 atAngularChange[2], float fPenetration);
-static plVec3 pl__contact_calculate_frictionless_impulse  (plContact*, plMat3* ptInverseInertiaTensor);
-static plVec3 pl__contact_calculate_friction_impulse      (plContact*, plMat3* ptInverseInertiaTensor);
-
-// contact resolver
-static void  pl__contact_adjust_positions(float fDeltaTime);
-static void  pl__contact_adjust_velocities(float fDeltaTime);
-static void  pl__resolve_contacts            (float fDeltaTime);
-
-// misc
-static bool  pl__overlap_on_axis(const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1, plVec3 tAxis, plVec3 tToCenter);
-static float pl__transform_to_axis(const plCollisionPrimitive* ptBox, const plVec3* ptAxis);
-static void  pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCount);
-static void  pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist);
-
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -255,21 +313,12 @@ static void  pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDraw
 void
 pl_physics_set_settings(plPhysicsEngineSettings tSettings)
 {
-
-    if(tSettings.fSleepEpsilon == 0.0f)
-        tSettings.fSleepEpsilon = 0.5f;
-
-    if(tSettings.fPositionEpsilon == 0.0f)
-        tSettings.fPositionEpsilon = 0.01f;
-
-    if(tSettings.fVelocityEpsilon == 0.0f)
-        tSettings.fVelocityEpsilon = 0.01f;
-
-    if(tSettings.uMaxPositionIterations == 0)
-        tSettings.uMaxPositionIterations = 256;
-
-    if(tSettings.uMaxVelocityIterations == 0)
-        tSettings.uMaxVelocityIterations = 256;
+    // defaults
+    if(tSettings.fSleepEpsilon == 0.0f)       tSettings.fSleepEpsilon = 0.5f;
+    if(tSettings.fPositionEpsilon == 0.0f)    tSettings.fPositionEpsilon = 0.01f;
+    if(tSettings.fVelocityEpsilon == 0.0f)    tSettings.fVelocityEpsilon = 0.01f;
+    if(tSettings.uMaxPositionIterations == 0) tSettings.uMaxPositionIterations = 256;
+    if(tSettings.uMaxVelocityIterations == 0) tSettings.uMaxVelocityIterations = 256;
 
     gptPhysicsCtx->tSettings = tSettings;
 }
@@ -294,7 +343,7 @@ pl_physics_initialize(plPhysicsEngineSettings tSettings)
     };
     gptPhysicsCtx->uLogChannel = gptLog->add_channel("Physics", tLogInit);
 
-    pl_log_info(gptLog, gptPhysicsCtx->uLogChannel, "Physics initialized");
+    pl_log_info(gptLog, gptPhysicsCtx->uLogChannel, "Physics ext initialized");
 }
 
 void
@@ -303,66 +352,6 @@ pl_physics_cleanup(void)
     pl_sb_free(gptPhysicsCtx->sbtRigidBodies);
     pl_sb_free(gptPhysicsCtx->sbtContactArray);
     pl_sb_free(gptPhysicsCtx->sbtPrimitives);
-}
-
-static void
-pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
-{
-    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
-    const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
-
-    plEntity* sbtForceFieldEntities = ptLibrary->tForceFieldComponentManager.sbtEntities;
-    const uint32_t uForceFieldCount = pl_sb_size(sbtForceFieldEntities);
-    for(uint32_t i = 0; i < uForceFieldCount; i++)
-    {
-        plEntity tEntity = sbtForceFieldEntities[i];
-        plForceFieldComponent* ptForceField = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, tEntity);
-        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
-
-        if(ptForceField->tType == PL_FORCE_FIELD_TYPE_POINT)
-        {
-            for(uint32_t j = 0; j < uRigidBodyCount; j++)
-            {
-                plRigidBody* ptParticle = &gptPhysicsCtx->sbtRigidBodies[j];
-
-                plVec3 tDirection = pl_sub_vec3(ptParticle->tPosition, ptTransform->tTranslation);
-
-                float fDistance2 = pl_length_sqr_vec3(tDirection);
-
-                if(fDistance2 < ptForceField->fRange * ptForceField->fRange)
-                {
-                    tDirection = pl_norm_vec3(tDirection);
-                    ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tDirection, -ptForceField->fGravity / ptParticle->fInverseMass));
-                    pl__set_awake(ptParticle, true);
-                }
-            }
-        }
-
-        else if(ptForceField->tType == PL_FORCE_FIELD_TYPE_PLANE)
-        {
-            plVec3 tForceDirection = {0.0f, 0.0f, 1.0f};
-            tForceDirection = pl_mul_quat_vec3(tForceDirection, ptTransform->tRotation);
-            tForceDirection = pl_norm_vec3(tForceDirection);
-
-            for(uint32_t j = 0; j < uRigidBodyCount; j++)
-            {
-                plRigidBody* ptParticle = &gptPhysicsCtx->sbtRigidBodies[j];
-
-                float fDistance = tForceDirection.x * (ptParticle->tPosition.x - ptTransform->tTranslation.x) +
-                tForceDirection.y * (ptParticle->tPosition.y - ptTransform->tTranslation.y) +
-                tForceDirection.z * (ptParticle->tPosition.z - ptTransform->tTranslation.z);
-
-                if(fabsf(fDistance) < ptForceField->fRange)
-                {
-                    if(fDistance < 0)
-                        ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tForceDirection, ptForceField->fGravity / ptParticle->fInverseMass));
-                    else
-                        ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tForceDirection, -ptForceField->fGravity / ptParticle->fInverseMass));
-                    pl__set_awake(ptParticle, true);
-                }
-            }
-        }
-    }
 }
 
 void
@@ -377,12 +366,17 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
     plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
     const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
     
+
+    // register rigid bodies or update them if they already exists
+
     pl_begin_cpu_sample(gptProfile, 0, "Update Objects");
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
         plEntity tEntity = sbtRigidBodyEntities[i];
         plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
         plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+
+        // first time seeing this body
         if(ptRigidBody->uPhysicsObject == UINT64_MAX)
         {
             ptRigidBody->uPhysicsObject = pl_sb_size(gptPhysicsCtx->sbtRigidBodies);
@@ -444,7 +438,8 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
 
             pl_sb_push(gptPhysicsCtx->sbtRigidBodies, tBody);
         }
-        else
+
+        else // body exists, so just update it
         {
             plVec3 tPosition = pl_add_vec3(ptTransform->tTranslation, ptRigidBody->tLocalOffset);
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform = pl_rotation_translation_scale(ptTransform->tRotation, tPosition, (plVec3){1.0f, 1.0f, 1.0f});
@@ -488,7 +483,6 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
             }
 
             pl__transform_inertia_tensor(&gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseInertiaTensorWorld, &ptTransform->tRotation, &gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseInertiaTensor, &gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform);
-
         }
     }
     pl_end_cpu_sample(gptProfile, 0);
@@ -499,83 +493,12 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
         pdPhysicsObjects = gptStats->get_counter("physics objects");
     *pdPhysicsObjects = (double)uRigidBodyCount;
 
-    pl_begin_cpu_sample(gptProfile, 0, "Update Force Fields");
     pl__physics_update_force_fields(fDeltaTime, ptLibrary);
-    pl_end_cpu_sample(gptProfile, 0);
-
-    plCollisionPrimitive tPrimFloor = {
-        .tType = PL_COLLISION_PRIMITIVE_TYPE_PLANE,
-        .uBodyIndex = UINT32_MAX,
-        .tTransform = pl_identity_mat4(),
-        .tDirection = {0.0f, 1.0f, 0.0f},
-        .fFriction = 0.9f
-    };
-
-    pl_sb_reset(gptPhysicsCtx->sbtContactArray);
-    pl_sb_reset(gptPhysicsCtx->sbtPrimitives);
-
-    pl_begin_cpu_sample(gptProfile, 0, "Collision Detection");
-    for(uint32_t i = 0; i < uRigidBodyCount; i++)
-    {
-        plEntity tEntity = sbtRigidBodyEntities[i];
-        plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
-        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
-
-        if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
-        {
-            plCollisionPrimitive tPrim = {
-                .tType      = PL_COLLISION_PRIMITIVE_TYPE_BOX,
-                .uBodyIndex = i,
-                .tTransform = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform,
-                .tHalfSize  = pl_mul_vec3_scalarf(ptRigidBody->tExtents, 0.5f),
-                .fFriction  = ptRigidBody->fFriction
-            };
-            pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
-            pl__collision_box_half_space(&tPrim, &tPrimFloor);
-        }
-        else if(ptRigidBody->tShape == PL_COLLISION_SHAPE_SPHERE)
-        {
-            plCollisionPrimitive tPrim = {
-                .tType      = PL_COLLISION_PRIMITIVE_TYPE_SPHERE,
-                .uBodyIndex = i,
-                .tTransform = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform,
-                .fRadius    = ptRigidBody->fRadius,
-                .fFriction  = ptRigidBody->fFriction
-            };
-            pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
-            pl__collision_sphere_half_space(&tPrim, &tPrimFloor);
-        }
-        
-    }
-
-    for(uint32_t i = 0; i < uRigidBodyCount - 1; i++)
-    {
-        
-        for(uint32_t j = i + 1; j < uRigidBodyCount; j++)
-        {
-            if(gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtPrimitives[i].uBodyIndex].bIsAwake || gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtPrimitives[j].uBodyIndex].bIsAwake)
-            {
-                if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX)
-                    pl__collision_box_box(&gptPhysicsCtx->sbtPrimitives[i], &gptPhysicsCtx->sbtPrimitives[j]);
-                else if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE)
-                    pl__collision_box_sphere(&gptPhysicsCtx->sbtPrimitives[i], &gptPhysicsCtx->sbtPrimitives[j]);
-                else if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX)
-                    pl__collision_box_sphere(&gptPhysicsCtx->sbtPrimitives[j], &gptPhysicsCtx->sbtPrimitives[i]);
-                else if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE)
-                    pl__collision_sphere_sphere(&gptPhysicsCtx->sbtPrimitives[i], &gptPhysicsCtx->sbtPrimitives[j]);
-            }
-        }
-    }
-    pl_end_cpu_sample(gptProfile, 0);
-
-    pl_begin_cpu_sample(gptProfile, 0, "Resolve Contact");
+    pl__detect_collisions(fDeltaTime, ptLibrary);
     pl__resolve_contacts(fDeltaTime);
-    pl_end_cpu_sample(gptProfile, 0);
-
-    pl_begin_cpu_sample(gptProfile, 0, "Integration");
     pl__physics_integrate(fDeltaTime, gptPhysicsCtx->sbtRigidBodies, uRigidBodyCount);
-    pl_end_cpu_sample(gptProfile, 0);
-
+    
+    // update transforms
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
         plTransformComponent* ptSphereTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, gptPhysicsCtx->sbtRigidBodies[i].tEntity);
@@ -598,6 +521,7 @@ void
 pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 {
     pl_begin_cpu_sample(gptProfile, 0, "Physics Draw");
+
     plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
     const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
@@ -620,6 +544,8 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
         }
         else if(ptBody->tShape == PL_COLLISION_SHAPE_BOX)
         {
+            // recreating the transform without scale since we currently assume the API user is including
+            // the correct scale in the rigid body formulation
             plVec3 tScale = {0};
             plVec4 tRotation = {0};
             plVec3 tTranslation = {0};
@@ -629,14 +555,14 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 
             plMat4 tTransform = pl_rotation_translation_scale(tRotation, tTranslation, (plVec3){1.0f, 1.0f, 1.0f});
 
-            plVec3 tP0 = { 0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
-            plVec3 tP1 = { 0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
-            plVec3 tP2 = {-0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
-            plVec3 tP3 = {-0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
-            plVec3 tP4 = {  0.5f * ptBody->tExtents.x, 0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
-            plVec3 tP5 = {  0.5f * ptBody->tExtents.x, 0.5f * ptBody->tExtents.y,  -0.5f * ptBody->tExtents.z};
-            plVec3 tP6 = { -0.5f * ptBody->tExtents.x, 0.5f * ptBody->tExtents.y,  -0.5f * ptBody->tExtents.z};
-            plVec3 tP7 = { -0.5f * ptBody->tExtents.x, 0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
+            plVec3 tP0 = {  0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
+            plVec3 tP1 = {  0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
+            plVec3 tP2 = { -0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
+            plVec3 tP3 = { -0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
+            plVec3 tP4 = {  0.5f * ptBody->tExtents.x,  0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
+            plVec3 tP5 = {  0.5f * ptBody->tExtents.x,  0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
+            plVec3 tP6 = { -0.5f * ptBody->tExtents.x,  0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
+            plVec3 tP7 = { -0.5f * ptBody->tExtents.x,  0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
 
             tP0 = pl_mul_mat4_vec3(&tTransform, tP0);
             tP1 = pl_mul_mat4_vec3(&tTransform, tP1);
@@ -646,7 +572,6 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
             tP5 = pl_mul_mat4_vec3(&tTransform, tP5);
             tP6 = pl_mul_mat4_vec3(&tTransform, tP6);
             tP7 = pl_mul_mat4_vec3(&tTransform, tP7);
-
 
             gptDraw->add_3d_line(ptDrawlist, tP0, tP1, (plDrawLineOptions){.uColor = uColor, .fThickness = 0.05f});
             gptDraw->add_3d_line(ptDrawlist, tP1, tP2, (plDrawLineOptions){.uColor = uColor, .fThickness = 0.05f});
@@ -665,6 +590,7 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
         }
     }
 
+    // draw force field
     plEntity* sbtForceFieldEntities = ptLibrary->tForceFieldComponentManager.sbtEntities;
     const uint32_t uForceFieldCount = pl_sb_size(sbtForceFieldEntities);
     for(uint32_t i = 0; i < uForceFieldCount; i++)
@@ -799,7 +725,6 @@ pl_physics_apply_impulse_at_point(plComponentLibrary* ptLibrary, plEntity tEntit
         plVec3 tAngularAcceleration = pl_mul_mat3_vec3(&ptRigidBody->tInverseInertiaTensorWorld, tTorque);
         ptRigidBody->tAnglularVelocity = pl_add_vec3(ptRigidBody->tAnglularVelocity, tAngularAcceleration);
 
-
         pl__set_awake(ptRigidBody, true);
     }
 }
@@ -892,6 +817,144 @@ pl_physics_sleep_all(void)
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
+
+static void
+pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
+{
+    pl_begin_cpu_sample(gptProfile, 0, "Update Force Fields");
+
+    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
+    const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
+
+    plEntity* sbtForceFieldEntities = ptLibrary->tForceFieldComponentManager.sbtEntities;
+    const uint32_t uForceFieldCount = pl_sb_size(sbtForceFieldEntities);
+    for(uint32_t i = 0; i < uForceFieldCount; i++)
+    {
+        plEntity tEntity = sbtForceFieldEntities[i];
+        plForceFieldComponent* ptForceField = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, tEntity);
+        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+
+        if(ptForceField->tType == PL_FORCE_FIELD_TYPE_POINT)
+        {
+            for(uint32_t j = 0; j < uRigidBodyCount; j++)
+            {
+                plRigidBody* ptParticle = &gptPhysicsCtx->sbtRigidBodies[j];
+
+                plVec3 tDirection = pl_sub_vec3(ptParticle->tPosition, ptTransform->tTranslation);
+
+                float fDistance2 = pl_length_sqr_vec3(tDirection);
+
+                if(fDistance2 < ptForceField->fRange * ptForceField->fRange)
+                {
+                    tDirection = pl_norm_vec3(tDirection);
+                    ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tDirection, -ptForceField->fGravity / ptParticle->fInverseMass));
+                    pl__set_awake(ptParticle, true);
+                }
+            }
+        }
+
+        else if(ptForceField->tType == PL_FORCE_FIELD_TYPE_PLANE)
+        {
+            plVec3 tForceDirection = {0.0f, 0.0f, 1.0f};
+            tForceDirection = pl_mul_quat_vec3(tForceDirection, ptTransform->tRotation);
+            tForceDirection = pl_norm_vec3(tForceDirection);
+
+            for(uint32_t j = 0; j < uRigidBodyCount; j++)
+            {
+                plRigidBody* ptParticle = &gptPhysicsCtx->sbtRigidBodies[j];
+
+                float fDistance = tForceDirection.x * (ptParticle->tPosition.x - ptTransform->tTranslation.x) +
+                tForceDirection.y * (ptParticle->tPosition.y - ptTransform->tTranslation.y) +
+                tForceDirection.z * (ptParticle->tPosition.z - ptTransform->tTranslation.z);
+
+                if(fabsf(fDistance) < ptForceField->fRange)
+                {
+                    if(fDistance < 0)
+                        ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tForceDirection, ptForceField->fGravity / ptParticle->fInverseMass));
+                    else
+                        ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tForceDirection, -ptForceField->fGravity / ptParticle->fInverseMass));
+                    pl__set_awake(ptParticle, true);
+                }
+            }
+        }
+    }
+    pl_end_cpu_sample(gptProfile, 0);
+}
+
+static void
+pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
+{
+    pl_begin_cpu_sample(gptProfile, 0, "Collision Detection");
+
+    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
+    const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
+
+    plCollisionPrimitive tPrimFloor = {
+        .tType = PL_COLLISION_PRIMITIVE_TYPE_PLANE,
+        .uBodyIndex = UINT32_MAX,
+        .tTransform = pl_identity_mat4(),
+        .tDirection = {0.0f, 1.0f, 0.0f},
+        .fFriction = 0.9f
+    };
+
+    pl_sb_reset(gptPhysicsCtx->sbtContactArray);
+    pl_sb_reset(gptPhysicsCtx->sbtPrimitives);
+
+    // adding primitives for detection & going ahead and checking collision with the floor
+    for(uint32_t i = 0; i < uRigidBodyCount; i++)
+    {
+        plEntity tEntity = sbtRigidBodyEntities[i];
+        plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+
+        if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
+        {
+            plCollisionPrimitive tPrim = {
+                .tType      = PL_COLLISION_PRIMITIVE_TYPE_BOX,
+                .uBodyIndex = i,
+                .tTransform = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform,
+                .tHalfSize  = pl_mul_vec3_scalarf(ptRigidBody->tExtents, 0.5f),
+                .fFriction  = ptRigidBody->fFriction
+            };
+            pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
+            pl__collision_box_half_space(&tPrim, &tPrimFloor);
+        }
+        else if(ptRigidBody->tShape == PL_COLLISION_SHAPE_SPHERE)
+        {
+            plCollisionPrimitive tPrim = {
+                .tType      = PL_COLLISION_PRIMITIVE_TYPE_SPHERE,
+                .uBodyIndex = i,
+                .tTransform = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform,
+                .fRadius    = ptRigidBody->fRadius,
+                .fFriction  = ptRigidBody->fFriction
+            };
+            pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
+            pl__collision_sphere_half_space(&tPrim, &tPrimFloor);
+        }
+    }
+
+    // very nasty hack but checking collision between all objects (we need to add
+    // a broad pass ASAP)
+    for(uint32_t i = 0; i < uRigidBodyCount - 1; i++)
+    {
+        for(uint32_t j = i + 1; j < uRigidBodyCount; j++)
+        {
+            if(gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtPrimitives[i].uBodyIndex].bIsAwake || gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtPrimitives[j].uBodyIndex].bIsAwake)
+            {
+                if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX)
+                    pl__collision_box_box(&gptPhysicsCtx->sbtPrimitives[i], &gptPhysicsCtx->sbtPrimitives[j]);
+                else if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE)
+                    pl__collision_box_sphere(&gptPhysicsCtx->sbtPrimitives[i], &gptPhysicsCtx->sbtPrimitives[j]);
+                else if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_BOX)
+                    pl__collision_box_sphere(&gptPhysicsCtx->sbtPrimitives[j], &gptPhysicsCtx->sbtPrimitives[i]);
+                else if(gptPhysicsCtx->sbtPrimitives[i].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE && gptPhysicsCtx->sbtPrimitives[j].tType == PL_COLLISION_PRIMITIVE_TYPE_SPHERE)
+                    pl__collision_sphere_sphere(&gptPhysicsCtx->sbtPrimitives[i], &gptPhysicsCtx->sbtPrimitives[j]);
+            }
+        }
+    }
+
+    pl_end_cpu_sample(gptProfile, 0);
+}
 
 static float
 pl__transform_to_axis(const plCollisionPrimitive* ptBox, const plVec3* ptAxis)
@@ -1211,7 +1274,7 @@ pl__contact_apply_position_change(plContact* ptContact, plVec3 atLinearChange[2]
         // And the change in orientation
         plVec4 tQ = ptBody->tOrientation;
         plVec4 tQ2 = {atAngularChange[i].x, atAngularChange[i].y, atAngularChange[i].z, 0.0f};
-        // tQ2 = pl_mul_quat(tQ, tQ);
+        tQ2 = pl_mul_quat(tQ2, tQ);
         tQ.x += tQ2.x * 0.5f;
         tQ.y += tQ2.y * 0.5f;
         tQ.z += tQ2.z * 0.5f;
@@ -1415,6 +1478,8 @@ pl__contact_adjust_velocities(float fDeltaTime)
 static void
 pl__resolve_contacts(float fDeltaTime)
 {
+    pl_begin_cpu_sample(gptProfile, 0, "Resolve Contacts");
+
     const uint32_t uContactCount = pl_sb_size(gptPhysicsCtx->sbtContactArray);
 
     static double* pdContactCount = NULL;
@@ -1434,11 +1499,15 @@ pl__resolve_contacts(float fDeltaTime)
 
     // resolve the velocity problems with the contacts.
     pl__contact_adjust_velocities(fDeltaTime);
+
+    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static void
 pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCount)
 {
+    pl_begin_cpu_sample(gptProfile, 0, "Integration");
+
     for(uint32_t i = 0; i < uBodyCount; i++)
     {
         plRigidBody* ptBody = &atBodies[i];
@@ -1508,11 +1577,9 @@ pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCou
 
         }
     }
-}
 
-//-----------------------------------------------------------------------------
-// [SECTION] intersection tests
-//-----------------------------------------------------------------------------
+    pl_end_cpu_sample(gptProfile, 0);
+}
 
 static bool
 pl__intersect_box_half_space(const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptPlane)
@@ -1577,10 +1644,6 @@ pl__intersect_sphere_sphere(const plCollisionPrimitive* ptSphere0, const plColli
     return pl_length_sqr_vec3(tMidLine) < (fRadius0 + fRadius1) * (fRadius0 + fRadius1);
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] collision detection
-//-----------------------------------------------------------------------------
-
 static void
 pl__collision_sphere_half_space(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane)
 {
@@ -1600,7 +1663,7 @@ pl__collision_sphere_half_space(const plCollisionPrimitive* ptSphere, const plCo
         .tContactNormal = ptPlane->tDirection,
         .fPenetration   = -fBallDistance,
         .tContactPoint  = pl_sub_vec3(tPosition, pl_mul_vec3_scalarf(ptPlane->tDirection, fBallDistance + fRadius)),
-        .fRestitution   = gptPhysicsCtx->fRestitution,
+        .fRestitution   = 0.0f,
         .fFriction      = ptSphere->fFriction,
         .atBodyIndices  = {
             ptSphere->uBodyIndex,
@@ -1640,7 +1703,7 @@ pl__collision_sphere_true_plane(const plCollisionPrimitive* ptSphere, const plCo
         .tContactNormal = tNormal,
         .fPenetration   = fPenetration,
         .tContactPoint  = pl_sub_vec3(tPosition, pl_mul_vec3_scalarf(ptPlane->tDirection, fCenterDistance)),
-        .fRestitution   = gptPhysicsCtx->fRestitution,
+        .fRestitution   = 0.0f,
         .fFriction      = ptSphere->fFriction,
         .atBodyIndices  = {
             ptSphere->uBodyIndex,
@@ -1732,7 +1795,7 @@ pl__collision_box_half_space(const plCollisionPrimitive* ptBox, const plCollisio
                 .tContactNormal = ptPlane->tDirection,
                 .fPenetration   = ptPlane->fOffset - fVertexDistance,
                 .tContactPoint  = pl_add_vec3(tVertexPos, pl_mul_vec3_scalarf(ptPlane->tDirection, fVertexDistance - ptPlane->fOffset)),
-                .fRestitution   = gptPhysicsCtx->fRestitution,
+                .fRestitution   = 0.0f,
                 .fFriction      = ptBox->fFriction,
                 .atBodyIndices  = {
                     ptBox->uBodyIndex,
@@ -2089,10 +2152,6 @@ pl__collision_box_sphere(const plCollisionPrimitive* ptBox, const plCollisionPri
     pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] contact
-//-----------------------------------------------------------------------------
-
 static plVec3
 pl__contact_calculate_local_velocity(plContact* ptContact, uint32_t uBodyIndex, float fDeltaTime)
 {
@@ -2228,8 +2287,8 @@ pl__contact_calculate_contact_basis(plContact* ptContact)
     }
 
     ptContact->tContactToWorld.col[0] = ptContact->tContactNormal;
-    ptContact->tContactToWorld.col[1] = atContactTangent[1];
-    ptContact->tContactToWorld.col[2] = atContactTangent[0];
+    ptContact->tContactToWorld.col[1] = atContactTangent[0];
+    ptContact->tContactToWorld.col[2] = atContactTangent[1];
 }
 
 //-----------------------------------------------------------------------------
