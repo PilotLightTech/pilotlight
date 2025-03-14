@@ -55,6 +55,7 @@ with open('../.vscode/launch.json', 'w') as file:
     elif platform.system() == "Darwin":
         lines.append('      "name": "(lldb) Launch",')
         lines.append('      "type": "cppdbg",')
+        lines.append('      "targetArchitecture": "arm64",')
         lines.append('      "program": "${workspaceFolder}/out/pilot_light",')
         lines.append('      "externalConsole": false,')
         lines.append('      "MIMode": "lldb",')
