@@ -1658,6 +1658,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     // update layout cursors
     ptWindow->tTempData.tCursorStartPos.x = gptCtx->tStyle.fWindowHorizontalPadding + tStartPos.x - ptWindow->tScroll.x;
     ptWindow->tTempData.tCursorStartPos.y = gptCtx->tStyle.fWindowVerticalPadding + tStartPos.y + fTitleBarHeight - ptWindow->tScroll.y;
+
     ptWindow->tTempData.tRowCursorPos = ptWindow->tTempData.tCursorStartPos;
     ptWindow->tTempData.tCursorStartPos = pl_floor_vec2(ptWindow->tTempData.tCursorStartPos);
     ptWindow->tTempData.fTitleBarHeight = fTitleBarHeight;
@@ -2143,13 +2144,6 @@ pl__calculate_item_size(float fDefaultHeight)
 }
 
 static void
-pl__advance_cursor(plVec2 tOffset)
-{
-    plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    ptWindow->tTempData.tRowCursorPos = pl_add_vec2(ptWindow->tTempData.tRowCursorPos, tOffset);
-}
-
-static void
 pl__set_cursor(plVec2 tPos)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
@@ -2177,7 +2171,7 @@ pl__smart_advance_cursor(float fWidth, float fHeight)
         ptWindow->tTempData.tRowCursorPos.y = ptWindow->tTempData.tRowCursorPos.y + ptCurrentRow->fMaxHeight + gptCtx->tStyle.tItemSpacing.y;
 
         gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x = pl_maxf(ptWindow->tTempData.tRowCursorPos.x + ptCurrentRow->fMaxWidth, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.x);
-        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowCursorPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);   
+        gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y = pl_maxf(ptWindow->tTempData.tRowCursorPos.y, gptCtx->ptCurrentWindow->tTempData.tCursorMaxPos.y);
 
         // reset
         ptCurrentRow->uCurrentColumn = 0;

@@ -526,7 +526,6 @@ static bool          pl__is_item_hoverable          (const plRect* ptBox, uint32
 // layouts
 static plVec2 pl__calculate_item_size(float fDefaultHeight);
 static void   pl__smart_advance_cursor(float fWidth, float fHeight);
-static void   pl__advance_cursor(plVec2 tOffset);
 static void   pl__set_cursor(plVec2 tPos);
 
 static inline plVec2
