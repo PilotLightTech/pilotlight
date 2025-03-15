@@ -1465,6 +1465,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
         pl_sub_vec2(ptWindow->tTempData.tCursorMaxPos, ptWindow->tTempData.tCursorStartPos));
 
     // reset per frame window temporary data
+    plVec2 tOldCursorStart = ptWindow->tTempData.tCursorStartPos;
     memset(&ptWindow->tTempData, 0, sizeof(plUiTempWindowData));
     pl_sb_reset(ptWindow->sbfAvailableSizeStack);
     pl_sb_reset(ptWindow->sbfMaxCursorYStack);
@@ -1472,6 +1473,7 @@ pl__begin_window_ex(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
     pl_sb_reset(ptWindow->sbtRowStack);
     pl_sb_reset(ptWindow->sbtCursorStack);
     pl_sb_reset(ptWindow->sbtRowTemplateEntries);
+    ptWindow->tTempData.tCursorMaxPos = tOldCursorStart;
 
     // clamp window size to min/max
     ptWindow->tSize = pl_clamp_vec2(ptWindow->tMinSize, ptWindow->tSize, ptWindow->tMaxSize);
