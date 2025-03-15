@@ -152,6 +152,8 @@ typedef struct _plRigidBody
     float    fMotion;
     bool     bIsAwake;
     bool     bCanSleep;
+    float    fFriction;
+    float    fRestitution;
     plVec3   tForceAccumulation;
     plVec3   tTorqueAccumulation;
 } plRigidBody;
@@ -176,6 +178,7 @@ typedef struct _plCollisionPrimitive
     uint32_t                 uBodyIndex;
     plMat4                   tTransform;
     float                    fFriction;
+    float                    fRestitution;
   
     // box
     plVec3 tHalfSize;
@@ -200,8 +203,6 @@ typedef struct _plPhysicsContext
     // collision data
     plCollisionPrimitive* sbtPrimitives;
     plContact*            sbtContactArray;
-    float                 fRestitution;
-    // float                 fTolerance; // close items should do contact
 } plPhysicsContext;
 
 //-----------------------------------------------------------------------------
@@ -296,7 +297,7 @@ pl__set_awake(plRigidBody* ptBody, bool bAwake)
     if(bAwake)
     {
         ptBody->bIsAwake = true;
-        ptBody->fMotion = gptPhysicsCtx->tSettings.fSleepEpsilon * 5.0f;
+        ptBody->fMotion = gptPhysicsCtx->tSettings.fSleepEpsilon * 2.0f;
     }
     else
     {
@@ -314,8 +315,8 @@ void
 pl_physics_set_settings(plPhysicsEngineSettings tSettings)
 {
     // defaults
-    if(tSettings.fSleepEpsilon == 0.0f)       tSettings.fSleepEpsilon = 0.5f;
-    if(tSettings.fPositionEpsilon == 0.0f)    tSettings.fPositionEpsilon = 0.01f;
+    if(tSettings.fSleepEpsilon == 0.0f)       tSettings.fSleepEpsilon = 0.3f;
+    if(tSettings.fPositionEpsilon == 0.0f)    tSettings.fPositionEpsilon = 0.02f;
     if(tSettings.fVelocityEpsilon == 0.0f)    tSettings.fVelocityEpsilon = 0.01f;
     if(tSettings.uMaxPositionIterations == 0) tSettings.uMaxPositionIterations = 256;
     if(tSettings.uMaxVelocityIterations == 0) tSettings.uMaxVelocityIterations = 256;
@@ -334,8 +335,6 @@ pl_physics_initialize(plPhysicsEngineSettings tSettings)
 {
 
     pl_physics_set_settings(tSettings);
-
-    gptPhysicsCtx->fRestitution = 0.2f;
 
     plLogExtChannelInit tLogInit = {
         .tType       = PL_LOG_CHANNEL_TYPE_CYCLIC_BUFFER,
@@ -392,6 +391,8 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
                 .tPosition         = tPosition,
                 .tOrientation      = ptTransform->tRotation,
                 .tAcceleration     = ptRigidBody->tGravity,
+                .fFriction         = ptRigidBody->fFriction,
+                .fRestitution      = ptRigidBody->fRestitution,
                 .tTransform        = tTransform,
                 .tLinearVelocity   = (plVec3){0},
                 .tAnglularVelocity = (plVec3){0},
@@ -452,6 +453,9 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tPosition = tPosition;
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tOrientation = ptTransform->tRotation;
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tAcceleration = ptRigidBody->tGravity;
+            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fFriction = ptRigidBody->fFriction;
+            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fRestitution = ptRigidBody->fRestitution;
+            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].bCanSleep = !(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING);
 
             if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
             {
@@ -623,6 +627,34 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 }
 
 void
+pl_physics_set_linear_velocity(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tVelocity)
+{
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
+    {
+        plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
+
+        ptRigidBody->tLinearVelocity = tVelocity;
+        pl__set_awake(ptRigidBody, true);
+    }
+}
+
+void
+pl_physics_set_angular_velocity(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tVelocity)
+{
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
+    {
+        plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
+
+        ptRigidBody->tAnglularVelocity = tVelocity;
+        pl__set_awake(ptRigidBody, true);
+    }
+}
+
+void
 pl_physics_apply_force(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tForce)
 {
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
@@ -771,6 +803,20 @@ pl_physics_apply_torque(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 
 }
 
 void
+pl_physics_apply_impulse_torque(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tTorque)
+{
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+
+    if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
+    {
+        plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
+        plVec3 tAngularAcceleration = pl_mul_mat3_vec3(&ptRigidBody->tInverseInertiaTensorWorld, tTorque);
+        ptRigidBody->tAnglularVelocity = pl_add_vec3(ptRigidBody->tAnglularVelocity, tAngularAcceleration);
+        pl__set_awake(ptRigidBody, true);
+    }
+}
+
+void
 pl_physics_wake_up_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
     plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
@@ -910,11 +956,12 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
         if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
         {
             plCollisionPrimitive tPrim = {
-                .tType      = PL_COLLISION_PRIMITIVE_TYPE_BOX,
-                .uBodyIndex = i,
-                .tTransform = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform,
-                .tHalfSize  = pl_mul_vec3_scalarf(ptRigidBody->tExtents, 0.5f),
-                .fFriction  = ptRigidBody->fFriction
+                .tType         = PL_COLLISION_PRIMITIVE_TYPE_BOX,
+                .uBodyIndex    = i,
+                .tTransform    = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform,
+                .tHalfSize     = pl_mul_vec3_scalarf(ptRigidBody->tExtents, 0.5f),
+                .fFriction     = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fFriction,
+                .fRestitution  = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fRestitution
             };
             pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
             pl__collision_box_half_space(&tPrim, &tPrimFloor);
@@ -922,11 +969,12 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
         else if(ptRigidBody->tShape == PL_COLLISION_SHAPE_SPHERE)
         {
             plCollisionPrimitive tPrim = {
-                .tType      = PL_COLLISION_PRIMITIVE_TYPE_SPHERE,
-                .uBodyIndex = i,
-                .tTransform = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform,
-                .fRadius    = ptRigidBody->fRadius,
-                .fFriction  = ptRigidBody->fFriction
+                .tType        = PL_COLLISION_PRIMITIVE_TYPE_SPHERE,
+                .uBodyIndex   = i,
+                .tTransform   = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform,
+                .fRadius      = ptRigidBody->fRadius,
+                .fFriction    = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fFriction,
+                .fRestitution = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fRestitution
             };
             pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
             pl__collision_sphere_half_space(&tPrim, &tPrimFloor);
@@ -1739,8 +1787,8 @@ pl__collision_sphere_sphere(const plCollisionPrimitive* ptSphere0, const plColli
         .tContactNormal = tNormal,
         .fPenetration   = fRadius0 + fRadius1 - fSize,
         .tContactPoint  = pl_add_vec3(tPosition0, pl_mul_vec3_scalarf(tMidLine, 0.5f)),
-        .fRestitution   = gptPhysicsCtx->fRestitution,
-        .fFriction      = ptSphere0->fFriction,
+        .fRestitution   = pl_max(ptSphere0->fRestitution, ptSphere1->fRestitution),
+        .fFriction      = sqrtf(ptSphere0->fFriction * ptSphere1->fFriction),
         .atBodyIndices  = {
             ptSphere0->uBodyIndex,
             ptSphere1->uBodyIndex
@@ -1857,17 +1905,17 @@ pl__fill_point_face_box_box(const plCollisionPrimitive* ptBox0, const plCollisio
 
     // work out which vertex of box 1 we're colliding with.
     plVec3 tVertex = ptBox1->tHalfSize;
-    if(pl_dot_vec3(ptBox1->tTransform.col[0].xyz, *ptToCenter) < 0.0f) tVertex.x = -tVertex.x;
-    if(pl_dot_vec3(ptBox1->tTransform.col[1].xyz, *ptToCenter) < 0.0f) tVertex.y = -tVertex.y;
-    if(pl_dot_vec3(ptBox1->tTransform.col[2].xyz, *ptToCenter) < 0.0f) tVertex.z = -tVertex.z;
+    if(pl_dot_vec3(ptBox1->tTransform.col[0].xyz, tNormal) < 0.0f) tVertex.x = -tVertex.x;
+    if(pl_dot_vec3(ptBox1->tTransform.col[1].xyz, tNormal) < 0.0f) tVertex.y = -tVertex.y;
+    if(pl_dot_vec3(ptBox1->tTransform.col[2].xyz, tNormal) < 0.0f) tVertex.z = -tVertex.z;
 
     // create contact
     plContact tContact = {
         .tContactNormal = tNormal,
         .fPenetration   = fPenetration,
         .tContactPoint  = pl_mul_mat4_vec3(&ptBox1->tTransform, tVertex),
-        .fRestitution   = gptPhysicsCtx->fRestitution,
-        .fFriction      = ptBox0->fFriction,
+        .fRestitution   = pl_max(ptBox0->fRestitution, ptBox1->fRestitution),
+        .fFriction      = sqrtf(ptBox0->fFriction * ptBox1->fFriction),
         .atBodyIndices  = {
             ptBox0->uBodyIndex,
             ptBox1->uBodyIndex
@@ -2026,8 +2074,8 @@ pl__collision_box_box(const plCollisionPrimitive* ptBox0, const plCollisionPrimi
             .tContactNormal = tAxis,
             .fPenetration   = fPen,
             .tContactPoint  = tVertex,
-            .fRestitution   = gptPhysicsCtx->fRestitution,
-            .fFriction      = ptBox0->fFriction,
+            .fRestitution   = pl_max(ptBox0->fRestitution, ptBox1->fRestitution),
+            .fFriction      = sqrtf(ptBox0->fFriction * ptBox1->fFriction),
             .atBodyIndices  = {
                 ptBox0->uBodyIndex,
                 ptBox1->uBodyIndex
@@ -2075,7 +2123,7 @@ pl__collision_box_point(const plCollisionPrimitive* ptBox, plVec3 tPoint)
         .tContactNormal = tNormal,
         .fPenetration   = fMinDepth,
         .tContactPoint  = tPoint,
-        .fRestitution   = gptPhysicsCtx->fRestitution,
+        .fRestitution   = ptBox->fRestitution,
         .fFriction      = ptBox->fFriction,
         .atBodyIndices  = {
             ptBox->uBodyIndex,
@@ -2142,8 +2190,8 @@ pl__collision_box_sphere(const plCollisionPrimitive* ptBox, const plCollisionPri
         .tContactNormal = pl_norm_vec3(pl_sub_vec3(tClosestPointWorld, tCenter)),
         .fPenetration   = fRadius - sqrtf(fDist),
         .tContactPoint  = tClosestPointWorld,
-        .fRestitution   = gptPhysicsCtx->fRestitution,
-        .fFriction      = ptBox->fFriction,
+        .fRestitution   = pl_max(ptBox->fRestitution, ptSphere->fRestitution),
+        .fFriction      = sqrtf(ptBox->fFriction * ptSphere->fFriction),
         .atBodyIndices  = {
             ptBox->uBodyIndex,
             ptSphere->uBodyIndex
@@ -2306,6 +2354,8 @@ pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_settings                = pl_physics_get_settings,
         .update                      = pl_physics_update,
         .draw                        = pl_physics_draw,
+        .set_linear_velocity         = pl_physics_set_linear_velocity,
+        .set_angular_velocity        = pl_physics_set_angular_velocity,
         .apply_force                 = pl_physics_apply_force,
         .apply_force_at_point        = pl_physics_apply_force_at_point,
         .apply_force_at_body_point   = pl_physics_apply_force_at_body_point,
@@ -2313,6 +2363,7 @@ pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .apply_impulse_at_point      = pl_physics_apply_impulse_at_point,
         .apply_impulse_at_body_point = pl_physics_apply_impulse_at_body_point,
         .apply_torque                = pl_physics_apply_torque,
+        .apply_impulse_torque        = pl_physics_apply_impulse_torque,
         .wake_up_body                = pl_physics_wake_up_body,
         .wake_up_all                 = pl_physics_wake_up_all,
         .sleep_body                  = pl_physics_sleep_body,

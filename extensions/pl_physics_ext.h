@@ -72,6 +72,11 @@ typedef struct _plPhysicsI
     void (*apply_impulse_at_point)     (plComponentLibrary*, plEntity, plVec3, plVec3 point);
     void (*apply_impulse_at_body_point)(plComponentLibrary*, plEntity, plVec3, plVec3 point);
     void (*apply_torque)               (plComponentLibrary*, plEntity, plVec3);
+    void (*apply_impulse_torque)       (plComponentLibrary*, plEntity, plVec3);
+
+    // velocities
+    void (*set_linear_velocity)  (plComponentLibrary*, plEntity, plVec3);
+    void (*set_angular_velocity) (plComponentLibrary*, plEntity, plVec3);
 
     // ops
     void (*wake_up_body)(plComponentLibrary*, plEntity);
