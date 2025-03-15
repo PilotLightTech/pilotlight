@@ -335,14 +335,24 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         gptRenderer->outline_entities(uSceneHandle, 0, NULL);
                         gptRenderer->remove_objects_from_scene(uSceneHandle, 1, ptSelectedEntity);
                         ptSelectedEntity->ulData = UINT64_MAX;
-                        
                     }
-                    gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
+                    
                 }
                 else
                 {
                     gptUI->text("Entity: %u, %u", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
                 }
+
+                if(ptTransformComp && ptRigidComp == NULL)
+                {
+                    gptUI->layout_dynamic(0.0f, 1);
+                    if(gptUI->button("Add Rigid Body Component"))
+                    {
+                        gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, *ptSelectedEntity);
+                    }
+                }
+
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
 
                 if(ptTagComp && gptUI->begin_collapsing_header("Tag", 0))
                 {
@@ -390,6 +400,17 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
 
                 if(ptRigidComp && gptUI->begin_collapsing_header("Rigid Body Physics", 0))
                 {
+                    bool bNoSleeping = ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING;
+                    if(gptUI->checkbox("No Sleeping", &bNoSleeping))
+                    {
+                        if(bNoSleeping)
+                        {
+                            ptRigidComp->tFlags |= PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING;
+                            gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
+                        }
+                        else
+                            ptRigidComp->tFlags &= ~PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING;
+                    }
                     gptUI->input_float("Mass", &ptRigidComp->fMass, "%g", 0);
                     gptUI->slider_float("Friction", &ptRigidComp->fFriction, 0.0f, 1.0f, 0);
                     gptUI->slider_float("Restitution", &ptRigidComp->fRestitution, 0.0f, 1.0f, 0);
@@ -416,22 +437,36 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     }
 
                     static plVec3 tPoint = {0};
-                    static plVec3 tForce = {100.0f};
-                    static plVec3 tTorque = {0};
+                    static plVec3 tForce = {1000.0f};
+                    static plVec3 tTorque = {0.0f, 100.0f, 0.0f};
                     gptUI->input_float3("Point", tPoint.d, NULL, 0);
                     gptUI->input_float3("Force", tForce.d, NULL, 0);
                     gptUI->input_float3("Torque", tTorque.d, NULL, 0);
 
-                    gptUI->layout_dynamic(0.0f, 3);
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON, (plVec4){0.02f, 0.51f, 0.10f, 1.00f});
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, (plVec4){ 0.02f, 0.61f, 0.10f, 1.00f});
+                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, (plVec4){0.02f, 0.87f, 0.10f, 1.00f});
+
+                    gptUI->layout_dynamic(0.0f, 2);
+                    if(gptUI->button("Stop"))
+                    {
+                        gptPhysics->set_linear_velocity(ptLibrary, *ptSelectedEntity, (plVec3){0});
+                        gptPhysics->set_angular_velocity(ptLibrary, *ptSelectedEntity, (plVec3){0});
+                    }
+                    
                     if(gptUI->button("torque"))                gptPhysics->apply_torque(ptLibrary, *ptSelectedEntity, tTorque);
+                    if(gptUI->button("impulse torque"))        gptPhysics->apply_impulse_torque(ptLibrary, *ptSelectedEntity, tTorque);
                     if(gptUI->button("force"))                 gptPhysics->apply_force(ptLibrary, *ptSelectedEntity, tForce);
                     if(gptUI->button("force at point"))        gptPhysics->apply_force_at_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
                     if(gptUI->button("force at body point"))   gptPhysics->apply_force_at_body_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
                     if(gptUI->button("impulse"))               gptPhysics->apply_impulse(ptLibrary, *ptSelectedEntity, tForce);
                     if(gptUI->button("impulse at point"))      gptPhysics->apply_impulse_at_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
                     if(gptUI->button("impulse at body point")) gptPhysics->apply_impulse_at_body_point(ptLibrary, *ptSelectedEntity, tForce, tPoint);
-                    if(gptUI->button("wake up"))                     gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
-                    if(gptUI->button("sleep"))                       gptPhysics->sleep_body(ptLibrary, *ptSelectedEntity);
+                    if(gptUI->button("wake up"))               gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
+                    if(gptUI->button("sleep"))                 gptPhysics->sleep_body(ptLibrary, *ptSelectedEntity);
+                    gptUI->invisible_button("not_used", (plVec2){1.0f, 1.0f});
+
+                    gptUI->pop_theme_color(3);
 
                     gptUI->end_collapsing_header();
                 }
