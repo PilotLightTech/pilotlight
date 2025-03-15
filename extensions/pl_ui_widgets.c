@@ -1216,10 +1216,7 @@ pl_end_collapsing_header(void)
     }
     else
     {
-        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
-        {
-            pl_sb_pop(ptWindow->sbfMaxCursorYStack);
-        }
+        pl_sb_pop(ptWindow->sbfMaxCursorYStack);
         pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, tOldCursorInfo.tPos.y});
         ptWindow->tTempData.tLayoutRow.fMaxHeight = pl_maxf(ptWindow->tTempData.tLayoutRow.fMaxHeight - gptCtx->tStyle.tItemSpacing.y, tNewCursor.y - tOldCursorInfo.tPos.y);
     }
@@ -1783,7 +1780,7 @@ pl_input_float2(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
@@ -1830,7 +1827,7 @@ pl_input_float3(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
@@ -1877,7 +1874,7 @@ pl_input_float4(const char* pcLabel, float* afValue, const char* pcFormat, plUiI
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, pcFormat, afValue[i]);
@@ -1942,7 +1939,7 @@ pl_input_int2(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
@@ -1987,7 +1984,7 @@ pl_input_int3(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
@@ -2032,7 +2029,7 @@ pl_input_int4(const char* pcLabel, int* aiValue, plUiInputTextFlags tFlags)
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%d", aiValue[i]);
@@ -2098,7 +2095,7 @@ pl_input_uint2(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFlags
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
@@ -2143,7 +2140,7 @@ pl_input_uint3(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFlags
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
@@ -2188,7 +2185,7 @@ pl_input_uint4(const char* pcLabel, uint32_t* auValue, plUiInputTextFlags tFlags
     {
         pl_push_id_uint(i);
         
-        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth, tWidgetSize.y};
+        plVec2 tSubWidgetSize = {1.0f * fActualSubWidth - gptCtx->tStyle.tInnerSpacing.x, tWidgetSize.y};
         
         char acBuffer[64] = {0};
         pl_sprintf(acBuffer, "%u", auValue[i]);
