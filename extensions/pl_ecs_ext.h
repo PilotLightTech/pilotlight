@@ -160,8 +160,9 @@ typedef struct _plEcsI
     void     (*attach_script)(plComponentLibrary*, const char* pcFile, plScriptFlags, plEntity tEntity, plScriptComponent**);
 
     // hierarchy
-    void (*attach_component)   (plComponentLibrary*, plEntity tEntity, plEntity tParent);
-    void (*deattach_component) (plComponentLibrary*, plEntity);
+    void   (*attach_component)        (plComponentLibrary*, plEntity tEntity, plEntity tParent);
+    void   (*deattach_component)      (plComponentLibrary*, plEntity);
+    plMat4 (*compute_parent_transform)(plComponentLibrary*, plEntity);
 
     // systems
     void (*run_object_update_system)            (plComponentLibrary*);
@@ -231,7 +232,8 @@ enum _plRigidBodyPhysicsFlags
 {
     PL_RIGID_BODY_PHYSICS_FLAG_NONE           = 0,
     PL_RIGID_BODY_PHYSICS_FLAG_START_SLEEPING = 1 << 0,
-    PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING    = 1 << 1
+    PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING    = 1 << 1,
+    PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC      = 1 << 2,
 };
 
 enum _plForceFieldType

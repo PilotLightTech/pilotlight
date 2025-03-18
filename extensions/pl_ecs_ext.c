@@ -1226,6 +1226,39 @@ pl_ecs_attach_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
         *pptCompOut = ptScript;
 }
 
+static plMat4
+pl_ecs_compute_parent_transform(plComponentLibrary* ptLibrary, plEntity tChildEntity)
+{
+    plMat4 tResult = pl_identity_mat4();
+
+    plHierarchyComponent* ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tChildEntity);
+    if(ptHierarchyComponent)
+    {
+        plEntity tParentEntity = ptHierarchyComponent->tParent;
+        while(tParentEntity.uIndex != 0)
+        {
+            plTransformComponent* ptParentTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tParentEntity);
+            if(ptParentTransform)
+            {
+                plMat4 tParentTransform = pl_rotation_translation_scale(ptParentTransform->tRotation, ptParentTransform->tTranslation, ptParentTransform->tScale);
+                tResult = pl_mul_mat4(&tParentTransform, &tResult);
+            }
+
+            ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tParentEntity);
+            if(ptHierarchyComponent)
+            {
+                tParentEntity = ptHierarchyComponent->tParent;
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+
+    return tResult;
+}
+
 static plEntity
 pl_ecs_create_object(plComponentLibrary* ptLibrary, const char* pcName, plObjectComponent** pptCompOut)
 {
@@ -2291,6 +2324,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .attach_script                        = pl_ecs_attach_script,
         .attach_component                     = pl_ecs_attach_component,
         .deattach_component                   = pl_ecs_deattach_component,
+        .compute_parent_transform             = pl_ecs_compute_parent_transform,
         .calculate_normals                    = pl_calculate_normals,
         .calculate_tangents                   = pl_calculate_tangents,
         .run_object_update_system             = pl_run_object_update_system,
