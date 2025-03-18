@@ -411,6 +411,18 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         else
                             ptRigidComp->tFlags &= ~PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING;
                     }
+
+                    bool bKinematic = ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC;
+                    if(gptUI->checkbox("Kinematic", &bKinematic))
+                    {
+                        if(bKinematic)
+                        {
+                            ptRigidComp->tFlags |= PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC;
+                            gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
+                        }
+                        else
+                            ptRigidComp->tFlags &= ~PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC;
+                    }
                     gptUI->input_float("Mass", &ptRigidComp->fMass, "%g", 0);
                     gptUI->slider_float("Friction", &ptRigidComp->fFriction, 0.0f, 1.0f, 0);
                     gptUI->slider_float("Restitution", &ptRigidComp->fRestitution, 0.0f, 1.0f, 0);

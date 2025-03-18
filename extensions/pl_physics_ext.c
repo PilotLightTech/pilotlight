@@ -46,8 +46,6 @@ Index of this file:
     * Consider removing ecs extension reliance & instead consider relying on
       only the rigid body component
 
-    * Still deciding how to handle transform heirarchy situation & scaling
-
     * Many of the function currently use the context implicitly. I'd like
       to make the functions rely only on arguments.
 
@@ -152,6 +150,7 @@ typedef struct _plRigidBody
     float    fMotion;
     bool     bIsAwake;
     bool     bCanSleep;
+    bool     bKinematic;
     float    fFriction;
     float    fRestitution;
     plVec3   tForceAccumulation;
@@ -315,7 +314,7 @@ void
 pl_physics_set_settings(plPhysicsEngineSettings tSettings)
 {
     // defaults
-    if(tSettings.fSleepEpsilon == 0.0f)       tSettings.fSleepEpsilon = 0.3f;
+    if(tSettings.fSleepEpsilon == 0.0f)       tSettings.fSleepEpsilon = 0.5f;
     if(tSettings.fPositionEpsilon == 0.0f)    tSettings.fPositionEpsilon = 0.02f;
     if(tSettings.fVelocityEpsilon == 0.0f)    tSettings.fVelocityEpsilon = 0.01f;
     if(tSettings.uMaxPositionIterations == 0) tSettings.uMaxPositionIterations = 256;
@@ -375,21 +374,30 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
         plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
         plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
 
+        plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, tEntity);
+        plVec3 tWorldTranslation = pl_mul_mat4_vec3(&tParentTransform, ptTransform->tTranslation);
+        plVec3 tPosition = pl_add_vec3(tWorldTranslation, ptRigidBody->tLocalOffset);
+        plVec3 tUnUsedScale = {0};
+        plVec3 tUnUsedTranslate = {0};
+        plVec4 tParentRotation = {0};
+
+        pl_decompose_matrix(&tParentTransform, &tUnUsedScale, &tParentRotation, &tUnUsedTranslate);
+        plVec4 tDesiredRotation = pl_mul_quat(tParentRotation, ptTransform->tRotation);
+
+        plMat4 tTransform = pl_rotation_translation_scale(tDesiredRotation, tPosition, (plVec3){1.0f, 1.0f, 1.0f});
+
         // first time seeing this body
+
         if(ptRigidBody->uPhysicsObject == UINT64_MAX)
         {
             ptRigidBody->uPhysicsObject = pl_sb_size(gptPhysicsCtx->sbtRigidBodies);
-
-            plVec3 tPosition = pl_add_vec3(ptTransform->tTranslation, ptRigidBody->tLocalOffset);
-
-            plMat4 tTransform = pl_rotation_translation_scale(ptTransform->tRotation, tPosition, (plVec3){1.0f, 1.0f, 1.0f});
 
             plRigidBody tBody = {
                 .fLinearDamping    = 1.0f - ptRigidBody->fLinearDamping,
                 .fAngularDamping   = 1.0f - ptRigidBody->fAngularDamping,
                 .fInverseMass      = 1.0f / ptRigidBody->fMass,
                 .tPosition         = tPosition,
-                .tOrientation      = ptTransform->tRotation,
+                .tOrientation      = tDesiredRotation,
                 .tAcceleration     = ptRigidBody->tGravity,
                 .fFriction         = ptRigidBody->fFriction,
                 .fRestitution      = ptRigidBody->fRestitution,
@@ -398,7 +406,8 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
                 .tAnglularVelocity = (plVec3){0},
                 .tEntity           = tEntity,
                 .bIsAwake          = true,
-                .bCanSleep         = !(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING)
+                .bCanSleep         = !(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING),
+                .bKinematic        = ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC
             };
 
             if(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_START_SLEEPING)
@@ -442,8 +451,7 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
 
         else // body exists, so just update it
         {
-            plVec3 tPosition = pl_add_vec3(ptTransform->tTranslation, ptRigidBody->tLocalOffset);
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform = pl_rotation_translation_scale(ptTransform->tRotation, tPosition, (plVec3){1.0f, 1.0f, 1.0f});
+            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform = tTransform;
 
             if(ptTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
                 pl__set_awake(&gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject], true);
@@ -451,11 +459,12 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fAngularDamping = 1.0f - ptRigidBody->fAngularDamping;
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fInverseMass = 1.0f / ptRigidBody->fMass;
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tPosition = tPosition;
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tOrientation = ptTransform->tRotation;
+            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tOrientation = tDesiredRotation;
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tAcceleration = ptRigidBody->tGravity;
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fFriction = ptRigidBody->fFriction;
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fRestitution = ptRigidBody->fRestitution;
             gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].bCanSleep = !(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING);
+            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].bKinematic = ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC;
 
             if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
             {
@@ -505,10 +514,18 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
     // update transforms
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
-        plTransformComponent* ptSphereTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, gptPhysicsCtx->sbtRigidBodies[i].tEntity);
-        plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, gptPhysicsCtx->sbtRigidBodies[i].tEntity);
-        ptSphereTransform->tRotation = gptPhysicsCtx->sbtRigidBodies[i].tOrientation;
-        ptSphereTransform->tTranslation = pl_sub_vec3(gptPhysicsCtx->sbtRigidBodies[i].tPosition, ptRigidBody->tLocalOffset);
+        plTransformComponent* ptSphereTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, sbtRigidBodyEntities[i]);
+        plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, sbtRigidBodyEntities[i]);
+
+        plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, sbtRigidBodyEntities[i]);
+        plMat4 tInvParentTransform = pl_mat4_invert(&tParentTransform);
+
+        gptPhysicsCtx->sbtRigidBodies[i].tTransform.col[3].xyz = pl_sub_vec3(gptPhysicsCtx->sbtRigidBodies[i].tTransform.col[3].xyz, ptRigidBody->tLocalOffset);
+
+        plMat4 tChildWorld = pl_mul_mat4(&tInvParentTransform, &gptPhysicsCtx->sbtRigidBodies[i].tTransform);
+
+        plVec3 tUnUsedScale = {0};
+        pl_decompose_matrix(&tChildWorld, &tUnUsedScale, &ptSphereTransform->tRotation, &ptSphereTransform->tTranslation);
         ptSphereTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
     }
 
@@ -534,6 +551,19 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
         plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
         plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
 
+        plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, tEntity);
+        plVec3 tWorldTranslation = pl_mul_mat4_vec3(&tParentTransform, ptTransform->tTranslation);
+        plVec3 tPosition = pl_add_vec3(tWorldTranslation, ptBody->tLocalOffset);
+
+        plVec3 tUnUsedScale = {0};
+        plVec3 tUnUsedTranslate = {0};
+        plVec4 tParentRotation = {0};
+        pl_decompose_matrix(&tParentTransform, &tUnUsedScale, &tParentRotation, &tUnUsedTranslate);
+        plVec4 tDesiredRotation = pl_mul_quat(tParentRotation, ptTransform->tRotation);
+
+        plMat4 tTransform = pl_rotation_translation_scale(tDesiredRotation, tPosition, (plVec3){1.0f, 1.0f, 1.0f});
+
+
         uint32_t uColor = PL_COLOR_32_CYAN;
         if(ptBody->uPhysicsObject != UINT64_MAX)
             uColor = gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject].bIsAwake ? PL_COLOR_32_GREEN : PL_COLOR_32_YELLOW;
@@ -542,22 +572,12 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
         {
             plDrawSphereDesc tDesc = {
                 .fRadius = ptBody->fRadius,
-                .tCenter = pl_add_vec3(ptTransform->tTranslation, ptBody->tLocalOffset)
+                .tCenter = tPosition
             };
             gptDraw->add_3d_sphere(ptDrawlist, tDesc, (plDrawLineOptions){.uColor = uColor, .fThickness = 0.01f});
         }
         else if(ptBody->tShape == PL_COLLISION_SHAPE_BOX)
         {
-            // recreating the transform without scale since we currently assume the API user is including
-            // the correct scale in the rigid body formulation
-            plVec3 tScale = {0};
-            plVec4 tRotation = {0};
-            plVec3 tTranslation = {0};
-            pl_decompose_matrix(&ptTransform->tWorld, &tScale, &tRotation, &tTranslation);
-
-            tTranslation = pl_add_vec3(tTranslation, ptBody->tLocalOffset);
-
-            plMat4 tTransform = pl_rotation_translation_scale(tRotation, tTranslation, (plVec3){1.0f, 1.0f, 1.0f});
 
             plVec3 tP0 = {  0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
             plVec3 tP1 = {  0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
@@ -935,13 +955,13 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
     plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
     const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
 
-    plCollisionPrimitive tPrimFloor = {
-        .tType = PL_COLLISION_PRIMITIVE_TYPE_PLANE,
-        .uBodyIndex = UINT32_MAX,
-        .tTransform = pl_identity_mat4(),
-        .tDirection = {0.0f, 1.0f, 0.0f},
-        .fFriction = 0.9f
-    };
+    // plCollisionPrimitive tPrimFloor = {
+    //     .tType = PL_COLLISION_PRIMITIVE_TYPE_PLANE,
+    //     .uBodyIndex = UINT32_MAX,
+    //     .tTransform = pl_identity_mat4(),
+    //     .tDirection = {0.0f, 1.0f, 0.0f},
+    //     .fFriction = 0.9f
+    // };
 
     pl_sb_reset(gptPhysicsCtx->sbtContactArray);
     pl_sb_reset(gptPhysicsCtx->sbtPrimitives);
@@ -964,7 +984,7 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
                 .fRestitution  = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fRestitution
             };
             pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
-            pl__collision_box_half_space(&tPrim, &tPrimFloor);
+            // pl__collision_box_half_space(&tPrim, &tPrimFloor);
         }
         else if(ptRigidBody->tShape == PL_COLLISION_SHAPE_SPHERE)
         {
@@ -977,7 +997,7 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
                 .fRestitution = gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fRestitution
             };
             pl_sb_push(gptPhysicsCtx->sbtPrimitives, tPrim);
-            pl__collision_sphere_half_space(&tPrim, &tPrimFloor);
+            // pl__collision_sphere_half_space(&tPrim, &tPrimFloor);
         }
     }
 
@@ -1197,10 +1217,13 @@ pl__contact_apply_velocity_change(plContact* ptContact, plVec3 atVelocityChange[
     atVelocityChange[0] = pl_mul_vec3_scalarf(tImpulse, ptBody0->fInverseMass);
 
     // Apply the changes
-    ptBody0->tLinearVelocity = pl_add_vec3(ptBody0->tLinearVelocity, atVelocityChange[0]);
-    ptBody0->tAnglularVelocity = pl_add_vec3(ptBody0->tAnglularVelocity, atRotationChange[0]);
+    if(!ptBody0->bKinematic)
+    {
+        ptBody0->tLinearVelocity = pl_add_vec3(ptBody0->tLinearVelocity, atVelocityChange[0]);
+        ptBody0->tAnglularVelocity = pl_add_vec3(ptBody0->tAnglularVelocity, atRotationChange[0]);
+    }
 
-    if (ptBody1)
+    if (ptBody1 && !ptBody1->bKinematic)
     {
         // Work out body one's linear and angular changes
         tImpulsiveTorque = pl_cross_vec3(tImpulse, ptContact->atRelativeContactPositions[1]);
@@ -1233,6 +1256,9 @@ pl__contact_apply_position_change(plContact* ptContact, plVec3 atLinearChange[2]
 
         plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[ptContact->atBodyIndices[i]];
 
+        if(ptBody->bKinematic)
+            continue;
+
         plMat3 tInverseInertiaTensor = ptBody->tInverseInertiaTensorWorld;
 
         // Use the same procedure as for calculating frictionless
@@ -1261,73 +1287,77 @@ pl__contact_apply_position_change(plContact* ptContact, plVec3 atLinearChange[2]
 
         plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[ptContact->atBodyIndices[i]];
 
-        // The linear and angular movements required are in proportion to
-        // the two inverse inertias.
-        float fSign = (i == 0) ? 1.0f : -1.0f;
-        afAngularMove[i] = fSign * ptContact->fPenetration * (afAngularInertia[i] / fTotalInertia);
-        afLinearMove[i] = fSign * ptContact->fPenetration * (afLinearInertia[i] / fTotalInertia);
-
-        // To avoid angular projections that are too great (when mass is large
-        // but inertia tensor is small) limit the angular move.
-        plVec3 tProjection = ptContact->atRelativeContactPositions[i];
-        tProjection = pl_add_vec3(tProjection, pl_mul_vec3_scalarf(ptContact->tContactNormal, -pl_dot_vec3(ptContact->tContactNormal, ptContact->atRelativeContactPositions[i])));
-
-        // Use the small angle approximation for the sine of the angle (i.e.
-        // the magnitude would be sine(angularLimit) * projection.magnitude
-        // but we approximate sine(angularLimit) to angularLimit).
-        float fMaxMagnitude = fAngularLimit * pl_length_vec3(tProjection);
-
-        if (afAngularMove[i] < -fMaxMagnitude)
+        if(!ptBody->bKinematic)
         {
-            float fTotalMove = afAngularMove[i] + afLinearMove[i];
-            afAngularMove[i] = -fMaxMagnitude;
-            afLinearMove[i] = fTotalMove - afAngularMove[i];
+
+            // The linear and angular movements required are in proportion to
+            // the two inverse inertias.
+            float fSign = (i == 0) ? 1.0f : -1.0f;
+            afAngularMove[i] = fSign * ptContact->fPenetration * (afAngularInertia[i] / fTotalInertia);
+            afLinearMove[i] = fSign * ptContact->fPenetration * (afLinearInertia[i] / fTotalInertia);
+
+            // To avoid angular projections that are too great (when mass is large
+            // but inertia tensor is small) limit the angular move.
+            plVec3 tProjection = ptContact->atRelativeContactPositions[i];
+            tProjection = pl_add_vec3(tProjection, pl_mul_vec3_scalarf(ptContact->tContactNormal, -pl_dot_vec3(ptContact->tContactNormal, ptContact->atRelativeContactPositions[i])));
+
+            // Use the small angle approximation for the sine of the angle (i.e.
+            // the magnitude would be sine(angularLimit) * projection.magnitude
+            // but we approximate sine(angularLimit) to angularLimit).
+            float fMaxMagnitude = fAngularLimit * pl_length_vec3(tProjection);
+
+            if (afAngularMove[i] < -fMaxMagnitude)
+            {
+                float fTotalMove = afAngularMove[i] + afLinearMove[i];
+                afAngularMove[i] = -fMaxMagnitude;
+                afLinearMove[i] = fTotalMove - afAngularMove[i];
+            }
+            else if (afAngularMove[i] > fMaxMagnitude)
+            {
+                float fTotalMove = afAngularMove[i] + afLinearMove[i];
+                afAngularMove[i] = fMaxMagnitude;
+                afLinearMove[i] = fTotalMove - afAngularMove[i];
+            }
+
+            // We have the linear amount of movement required by turning
+            // the rigid body (in angularMove[i]). We now need to
+            // calculate the desired rotation to achieve that.
+            if (afAngularMove[i] == 0)
+            {
+                // Easy case - no angular movement means no rotation.
+                atAngularChange[i] = (plVec3){0};
+            }
+            else
+            {
+                // Work out the direction we'd like to rotate in.
+                plVec3 tTargetAngularDirection = pl_cross_vec3(ptContact->atRelativeContactPositions[i], ptContact->tContactNormal);
+
+                plMat3 tInverseInertiaTensor = ptBody->tInverseInertiaTensorWorld;
+
+                // Work out the direction we'd need to rotate to achieve that
+                atAngularChange[i] = pl_mul_vec3_scalarf(pl_mul_mat3_vec3(&tInverseInertiaTensor, tTargetAngularDirection), afAngularMove[i] / afAngularInertia[i]);
+            }
+
+            // Velocity change is easier - it is just the linear movement
+            // along the contact normal.
+            atLinearChange[i] = pl_mul_vec3_scalarf(ptContact->tContactNormal, afLinearMove[i]);
+
+            // Now we can start to apply the values we've calculated.
+            // Apply the linear movement
+            plVec3 tPos = ptBody->tPosition;
+            tPos = pl_add_vec3(tPos, pl_mul_vec3_scalarf(ptContact->tContactNormal, afLinearMove[i]));
+            ptBody->tPosition = tPos;
+
+            // And the change in orientation
+            plVec4 tQ = ptBody->tOrientation;
+            plVec4 tQ2 = {atAngularChange[i].x, atAngularChange[i].y, atAngularChange[i].z, 0.0f};
+            tQ2 = pl_mul_quat(tQ2, tQ);
+            tQ.x += tQ2.x * 0.5f;
+            tQ.y += tQ2.y * 0.5f;
+            tQ.z += tQ2.z * 0.5f;
+            tQ.w += tQ2.w * 0.5f;
+            ptBody->tOrientation = tQ;
         }
-        else if (afAngularMove[i] > fMaxMagnitude)
-        {
-            float fTotalMove = afAngularMove[i] + afLinearMove[i];
-            afAngularMove[i] = fMaxMagnitude;
-            afLinearMove[i] = fTotalMove - afAngularMove[i];
-        }
-
-        // We have the linear amount of movement required by turning
-        // the rigid body (in angularMove[i]). We now need to
-        // calculate the desired rotation to achieve that.
-        if (afAngularMove[i] == 0)
-        {
-            // Easy case - no angular movement means no rotation.
-            atAngularChange[i] = (plVec3){0};
-        }
-        else
-        {
-            // Work out the direction we'd like to rotate in.
-            plVec3 tTargetAngularDirection = pl_cross_vec3(ptContact->atRelativeContactPositions[i], ptContact->tContactNormal);
-
-            plMat3 tInverseInertiaTensor = ptBody->tInverseInertiaTensorWorld;
-
-            // Work out the direction we'd need to rotate to achieve that
-            atAngularChange[i] = pl_mul_vec3_scalarf(pl_mul_mat3_vec3(&tInverseInertiaTensor, tTargetAngularDirection), afAngularMove[i] / afAngularInertia[i]);
-        }
-
-        // Velocity change is easier - it is just the linear movement
-        // along the contact normal.
-        atLinearChange[i] = pl_mul_vec3_scalarf(ptContact->tContactNormal, afLinearMove[i]);
-
-        // Now we can start to apply the values we've calculated.
-        // Apply the linear movement
-        plVec3 tPos = ptBody->tPosition;
-        tPos = pl_add_vec3(tPos, pl_mul_vec3_scalarf(ptContact->tContactNormal, afLinearMove[i]));
-        ptBody->tPosition = tPos;
-
-        // And the change in orientation
-        plVec4 tQ = ptBody->tOrientation;
-        plVec4 tQ2 = {atAngularChange[i].x, atAngularChange[i].y, atAngularChange[i].z, 0.0f};
-        tQ2 = pl_mul_quat(tQ2, tQ);
-        tQ.x += tQ2.x * 0.5f;
-        tQ.y += tQ2.y * 0.5f;
-        tQ.z += tQ2.z * 0.5f;
-        tQ.w += tQ2.w * 0.5f;
-        ptBody->tOrientation = tQ;
 
         // We need to calculate the derived data for any body that is
         // asleep, so that the changes are reflected in the object's
@@ -1417,6 +1447,9 @@ pl__contact_adjust_positions(float fDeltaTime)
 
                 plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtContactArray[i].atBodyIndices[b]];
 
+                if(ptBody->bKinematic)
+                    continue;
+
                 // Check for a match with each body in the newly
                 // resolved contact
                 for (uint32_t d = 0; d < 2; d++)
@@ -1479,7 +1512,7 @@ pl__contact_adjust_velocities(float fDeltaTime)
         // Do the resolution on the contact that came out top.
         pl__contact_apply_velocity_change(&gptPhysicsCtx->sbtContactArray[uIndex], atVelocityChange, atRotationChange);
 
-            // With the change in velocity of the two bodies, the update of
+        // With the change in velocity of the two bodies, the update of
         // contact velocities means that some of the relative closing
         // velocities need recomputing.
         for (uint32_t i = 0; i < uContactCount; i++)
@@ -1488,6 +1521,11 @@ pl__contact_adjust_velocities(float fDeltaTime)
             for (uint32_t b = 0; b < 2; b++)
             {
                 if(gptPhysicsCtx->sbtContactArray[i].atBodyIndices[b] == UINT32_MAX)
+                    continue;
+
+                plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtContactArray[i].atBodyIndices[b]];
+
+                if(ptBody->bKinematic)
                     continue;
 
                 // Check for a match with each body in the newly
@@ -1562,47 +1600,53 @@ pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCou
 
         if(ptBody->bIsAwake)
         {
+            if(ptBody->bKinematic)
+            {
+                ptBody->fMotion = 0.0f;
+            }
+            else
+            {
+                // calculate linear acceleration from force inputs
+                ptBody->tLastFrameAcceleration = ptBody->tAcceleration;
+                ptBody->tLastFrameAcceleration = pl_add_vec3(ptBody->tLastFrameAcceleration, pl_mul_vec3_scalarf(ptBody->tForceAccumulation, ptBody->fInverseMass));
 
-            // calculate linear acceleration from force inputs
-            ptBody->tLastFrameAcceleration = ptBody->tAcceleration;
-            ptBody->tLastFrameAcceleration = pl_add_vec3(ptBody->tLastFrameAcceleration, pl_mul_vec3_scalarf(ptBody->tForceAccumulation, ptBody->fInverseMass));
+                // calculate angular acceleration from torque inputs
+                plVec3 tAngularAcceleration = pl_mul_mat3_vec3(&ptBody->tInverseInertiaTensorWorld, ptBody->tTorqueAccumulation);
 
-            // calculate angular acceleration from torque inputs
-            plVec3 tAngularAcceleration = pl_mul_mat3_vec3(&ptBody->tInverseInertiaTensorWorld, ptBody->tTorqueAccumulation);
+                // adjust velocities
 
-            // adjust velocities
+                // update linear velocity from both acceleration and impulse
+                ptBody->tLinearVelocity = pl_add_vec3(ptBody->tLinearVelocity, pl_mul_vec3_scalarf(ptBody->tLastFrameAcceleration, fDeltaTime));
 
-            // update linear velocity from both acceleration and impulse
-            ptBody->tLinearVelocity = pl_add_vec3(ptBody->tLinearVelocity, pl_mul_vec3_scalarf(ptBody->tLastFrameAcceleration, fDeltaTime));
+                // update angular velocity from both accleration and impulse
+                ptBody->tAnglularVelocity = pl_add_vec3(ptBody->tAnglularVelocity, pl_mul_vec3_scalarf(tAngularAcceleration, fDeltaTime));
 
-            // update angular velocity from both accleration and impulse
-            ptBody->tAnglularVelocity = pl_add_vec3(ptBody->tAnglularVelocity, pl_mul_vec3_scalarf(tAngularAcceleration, fDeltaTime));
+                // impose drag
+                ptBody->tLinearVelocity = pl_mul_vec3_scalarf(ptBody->tLinearVelocity, powf(ptBody->fLinearDamping, fDeltaTime));
+                ptBody->tAnglularVelocity = pl_mul_vec3_scalarf(ptBody->tAnglularVelocity, powf(ptBody->fAngularDamping, fDeltaTime));
 
-            // impose drag
-            ptBody->tLinearVelocity = pl_mul_vec3_scalarf(ptBody->tLinearVelocity, powf(ptBody->fLinearDamping, fDeltaTime));
-            ptBody->tAnglularVelocity = pl_mul_vec3_scalarf(ptBody->tAnglularVelocity, powf(ptBody->fAngularDamping, fDeltaTime));
+                // adjust positions
 
-            // adjust positions
+                // update linear position
+                ptBody->tPosition = pl_add_vec3(ptBody->tPosition, pl_mul_vec3_scalarf(ptBody->tLinearVelocity, fDeltaTime));
 
-            // update linear position
-            ptBody->tPosition = pl_add_vec3(ptBody->tPosition, pl_mul_vec3_scalarf(ptBody->tLinearVelocity, fDeltaTime));
+                // update angular position
+                plVec4 tQ0 = {fDeltaTime * ptBody->tAnglularVelocity.x, fDeltaTime * ptBody->tAnglularVelocity.y, fDeltaTime * ptBody->tAnglularVelocity.z, 0};
+                tQ0 = pl_mul_quat(tQ0, ptBody->tOrientation);
+                ptBody->tOrientation.x += tQ0.x * 0.5f;
+                ptBody->tOrientation.y += tQ0.y * 0.5f;
+                ptBody->tOrientation.z += tQ0.z * 0.5f;
+                ptBody->tOrientation.w += tQ0.w * 0.5f;
 
-            // update angular position
-            plVec4 tQ0 = {fDeltaTime * ptBody->tAnglularVelocity.x, fDeltaTime * ptBody->tAnglularVelocity.y, fDeltaTime * ptBody->tAnglularVelocity.z, 0};
-            tQ0 = pl_mul_quat(tQ0, ptBody->tOrientation);
-            ptBody->tOrientation.x += tQ0.x * 0.5f;
-            ptBody->tOrientation.y += tQ0.y * 0.5f;
-            ptBody->tOrientation.z += tQ0.z * 0.5f;
-            ptBody->tOrientation.w += tQ0.w * 0.5f;
+                // Normalise the orientation, and update the matrices with the new
+                // position and orientation
+                ptBody->tOrientation = pl_norm_quat(ptBody->tOrientation);
 
-            // Normalise the orientation, and update the matrices with the new
-            // position and orientation
-            ptBody->tOrientation = pl_norm_quat(ptBody->tOrientation);
+                // calculate the transform matrix for the body.
+                ptBody->tTransform = pl_rotation_translation_scale(ptBody->tOrientation, ptBody->tPosition, (plVec3){1.0f, 1.0f, 1.0f});
 
-            // calculate the transform matrix for the body.
-            ptBody->tTransform = pl_rotation_translation_scale(ptBody->tOrientation, ptBody->tPosition, (plVec3){1.0f, 1.0f, 1.0f});
-
-            pl__transform_inertia_tensor(&ptBody->tInverseInertiaTensorWorld, &ptBody->tOrientation, &ptBody->tInverseInertiaTensor, &ptBody->tTransform);
+                pl__transform_inertia_tensor(&ptBody->tInverseInertiaTensorWorld, &ptBody->tOrientation, &ptBody->tInverseInertiaTensor, &ptBody->tTransform);
+            }
 
             // clear accumulators
             ptBody->tForceAccumulation = (plVec3){0};
@@ -2205,6 +2249,9 @@ pl__contact_calculate_local_velocity(plContact* ptContact, uint32_t uBodyIndex, 
 {
     plRigidBody* ptThisBody = &gptPhysicsCtx->sbtRigidBodies[ptContact->atBodyIndices[uBodyIndex]];
 
+    if(ptThisBody->bKinematic)
+        return (plVec3){0};
+
     // work out velocity of contact point
     plVec3 tVelocity = pl_cross_vec3(ptThisBody->tAnglularVelocity, ptContact->atRelativeContactPositions[uBodyIndex]);
     tVelocity = pl_add_vec3(tVelocity, ptThisBody->tLinearVelocity);
@@ -2239,12 +2286,12 @@ pl__contact_calculate_desired_delta_velocity(plContact* ptContact, float fDeltaT
 
     plRigidBody* ptBody0 = &gptPhysicsCtx->sbtRigidBodies[ptContact->atBodyIndices[0]];
     plRigidBody* ptBody1 = ptContact->atBodyIndices[1] == UINT32_MAX ? NULL : &gptPhysicsCtx->sbtRigidBodies[ptContact->atBodyIndices[1]];
-    if(ptBody0->bIsAwake)
+    if(ptBody0->bIsAwake && !ptBody0->bKinematic)
     {
         fVelocityFromAcc += pl_dot_vec3(ptBody0->tLastFrameAcceleration, pl_mul_vec3_scalarf(ptContact->tContactNormal, fDeltaTime));
     }
 
-    if(ptBody1 && ptBody1->bIsAwake)
+    if(ptBody1 && ptBody1->bIsAwake && !ptBody1->bKinematic)
     {
         fVelocityFromAcc -= pl_dot_vec3(ptContact->tContactNormal, pl_mul_vec3_scalarf(ptBody1->tLastFrameAcceleration, fDeltaTime));
     }

@@ -4290,6 +4290,10 @@ pl_refr_get_view_color_texture(uint32_t uSceneHandle, uint32_t uViewHandle)
 static void
 pl_add_drawable_objects_to_scene(uint32_t uSceneHandle, uint32_t uObjectCount, const plEntity* atObjects)
 {
+
+    if(uObjectCount == 0)
+        return;
+
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
 
