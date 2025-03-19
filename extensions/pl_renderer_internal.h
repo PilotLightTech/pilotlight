@@ -603,9 +603,6 @@ typedef struct _plRefRendererData
     bool     bMultiViewportShadows;
     bool     bImageBasedLighting;
     bool     bPunctualLighting;
-    bool     bPhysicsActive;
-    bool     bPhysicsDebugDraw;
-    float    fPhysicSimulationMultiplier;
     float    fShadowConstantDepthBias;
     float    fShadowSlopeDepthBias;
     uint32_t uOutlineWidth;

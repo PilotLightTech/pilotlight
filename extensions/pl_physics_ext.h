@@ -83,6 +83,9 @@ typedef struct _plPhysicsI
     void (*wake_up_all) (void);
     void (*sleep_body)  (plComponentLibrary*, plEntity);
     void (*sleep_all)   (void);
+
+    // misc.
+    void (*create_rigid_body)(plComponentLibrary*, plEntity);
 } plPhysicsI;
 
 //-----------------------------------------------------------------------------
@@ -92,11 +95,12 @@ typedef struct _plPhysicsI
 typedef struct _plPhysicsEngineSettings
 {
     bool     bEnabled;               // default: false
-    float    fSleepEpsilon;          // default: 0.5
-    float    fPositionEpsilon;       // default: 0.01
-    float    fVelocityEpsilon;       // default: 0.01
+    float    fSleepEpsilon;          // default: 0.5f
+    float    fPositionEpsilon;       // default: 0.01f
+    float    fVelocityEpsilon;       // default: 0.01f
     uint32_t uMaxPositionIterations; // default: 256
     uint32_t uMaxVelocityIterations; // default: 256
+    float    fSimulationMultiplier;  // default: 1.0f
 } plPhysicsEngineSettings;
 
 #endif // PL_PHYSICS_EXT_H

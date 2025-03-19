@@ -120,9 +120,6 @@ pl_refr_initialize(plRendererSettings tSettings)
     gptData->pdDrawCalls = gptStats->get_counter("draw calls");
     gptData->bMSAA = true;
     gptData->bVSync = true;
-    gptData->bPhysicsActive = false;
-    gptData->bPhysicsDebugDraw = true;
-    gptData->fPhysicSimulationMultiplier = 1.0f;
     gptData->uMaxTextureResolution = tSettings.uMaxTextureResolution > 0 ? tSettings.uMaxTextureResolution : 1024;
     gptData->uOutlineWidth = 4;
     gptData->bShowSelectedBoundingBox = true;
@@ -2673,8 +2670,7 @@ pl_refr_run_ecs(uint32_t uSceneHandle)
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     gptECS->run_script_update_system(&ptScene->tComponentLibrary);
     gptECS->run_animation_update_system(&ptScene->tComponentLibrary, gptIOI->get_io()->fDeltaTime);
-    if(gptData->bPhysicsActive)
-        gptPhysics->update(gptIOI->get_io()->fDeltaTime * gptData->fPhysicSimulationMultiplier, &ptScene->tComponentLibrary);
+    gptPhysics->update(gptIOI->get_io()->fDeltaTime, &ptScene->tComponentLibrary);
     gptECS->run_transform_update_system(&ptScene->tComponentLibrary);
     gptECS->run_hierarchy_update_system(&ptScene->tComponentLibrary);
     gptECS->run_light_update_system(&ptScene->tComponentLibrary);
@@ -3613,9 +3609,6 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             const plMat4 tTransform = pl_identity_mat4();
             gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, (plDrawLineOptions){.fThickness = 0.02f});
         }
-
-        if(gptData->bPhysicsDebugDraw)
-            gptPhysics->draw(&ptScene->tComponentLibrary, ptView->pt3DDrawList);
 
         if(gptData->bShowProbes)
         {
@@ -4668,14 +4661,7 @@ pl_show_graphics_options(const char* pcTitle)
         gptUI->input_float("Depth Bias", &gptData->fShadowConstantDepthBias, NULL, 0);
         gptUI->input_float("Slope Depth Bias", &gptData->fShadowSlopeDepthBias, NULL, 0);
         gptUI->slider_uint("Outline Width", &gptData->uOutlineWidth, 2, 50, 0);
-        if(gptUI->checkbox("Physics Active", &gptData->bPhysicsActive))
-        {
-            plPhysicsEngineSettings tPhysicsSettings = gptPhysics->get_settings();
-            tPhysicsSettings.bEnabled = gptData->bPhysicsActive;
-            gptPhysics->set_settings(tPhysicsSettings);
-        }
-        gptUI->checkbox("Physics Debug Draw", &gptData->bPhysicsDebugDraw);
-        gptUI->slider_float("Simulation Speed", &gptData->fPhysicSimulationMultiplier, 0.01f, 3.0f, 0);
+        
 
         for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
         {

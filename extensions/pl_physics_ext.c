@@ -114,6 +114,7 @@ typedef struct _plCollisionPrimitive plCollisionPrimitive;
 
 // enums
 typedef int plCollisionPrimitiveType;
+typedef int plRigidBodyMotionType;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -128,33 +129,42 @@ enum _plCollisionPrimitiveType
     PL_COLLISION_PRIMITIVE_TYPE_PLANE
 };
 
+enum _plRigidBodyMotionType
+{
+    PL_RIGID_BODY_MOTION_TYPE_STATIC = 0,
+    PL_RIGID_BODY_MOTION_TYPE_KINEMATIC,
+    PL_RIGID_BODY_MOTION_TYPE_DYNAMIC,
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
 
 typedef struct _plRigidBody
 {
-    plEntity tEntity;
-    plVec3   tPosition;
-    plVec4   tOrientation;
-    plMat4   tTransform;
-    plMat3   tInverseInertiaTensor;
-    plMat3   tInverseInertiaTensorWorld;
-    plVec3   tLinearVelocity;
-    plVec3   tAnglularVelocity;
-    plVec3   tLastFrameAcceleration;
-    plVec3   tAcceleration;
-    float    fLinearDamping;
-    float    fAngularDamping;
-    float    fInverseMass;
-    float    fMotion;
-    bool     bIsAwake;
-    bool     bCanSleep;
-    bool     bKinematic;
-    float    fFriction;
-    float    fRestitution;
-    plVec3   tForceAccumulation;
-    plVec3   tTorqueAccumulation;
+    plRigidBodyMotionType tMotionType;
+    plEntity              tEntity;
+    plVec3                tPosition;
+    plVec4                tOrientation;
+    plMat4                tTransform;
+    plMat4                tAdditionalTransform;
+    plMat4                tInverseAdditionalTransform;
+    plMat3                tInverseInertiaTensor;
+    plMat3                tInverseInertiaTensorWorld;
+    plVec3                tLinearVelocity;
+    plVec3                tAnglularVelocity;
+    plVec3                tLastFrameAcceleration;
+    plVec3                tAcceleration;
+    float                 fLinearDamping;
+    float                 fAngularDamping;
+    float                 fInverseMass;
+    float                 fMotion;
+    bool                  bIsAwake;
+    bool                  bCanSleep;
+    float                 fFriction;
+    float                 fRestitution;
+    plVec3                tForceAccumulation;
+    plVec3                tTorqueAccumulation;
 } plRigidBody;
 
 typedef struct _plContact
@@ -314,11 +324,12 @@ void
 pl_physics_set_settings(plPhysicsEngineSettings tSettings)
 {
     // defaults
-    if(tSettings.fSleepEpsilon == 0.0f)       tSettings.fSleepEpsilon = 0.5f;
-    if(tSettings.fPositionEpsilon == 0.0f)    tSettings.fPositionEpsilon = 0.02f;
-    if(tSettings.fVelocityEpsilon == 0.0f)    tSettings.fVelocityEpsilon = 0.01f;
-    if(tSettings.uMaxPositionIterations == 0) tSettings.uMaxPositionIterations = 256;
-    if(tSettings.uMaxVelocityIterations == 0) tSettings.uMaxVelocityIterations = 256;
+    if(tSettings.fSimulationMultiplier == 0.0f) tSettings.fSimulationMultiplier = 1.0f;
+    if(tSettings.fSleepEpsilon == 0.0f)         tSettings.fSleepEpsilon = 0.5f;
+    if(tSettings.fPositionEpsilon == 0.0f)      tSettings.fPositionEpsilon = 0.01f;
+    if(tSettings.fVelocityEpsilon == 0.0f)      tSettings.fVelocityEpsilon = 0.01f;
+    if(tSettings.uMaxPositionIterations == 0)   tSettings.uMaxPositionIterations = 256;
+    if(tSettings.uMaxVelocityIterations == 0)   tSettings.uMaxVelocityIterations = 256;
 
     gptPhysicsCtx->tSettings = tSettings;
 }
@@ -353,68 +364,72 @@ pl_physics_cleanup(void)
 }
 
 void
-pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
+pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
+    plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
 
-    if(!gptPhysicsCtx->tSettings.bEnabled)
-        return;
+    plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, tEntity);
 
-    pl_begin_cpu_sample(gptProfile, 0, "Physics Update");
+    plMat4 tAdditionalTransform = pl_mat4_translate_vec3(ptRigidBody->tLocalOffset);
 
-    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
-    const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
-    
+    plMat4 tTransform = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, (plVec3){1.0f, 1.0f, 1.0f});
+    tTransform = pl_mul_mat4(&tTransform, &tAdditionalTransform);
+    tTransform = pl_mul_mat4(&tParentTransform, &tTransform);
 
-    // register rigid bodies or update them if they already exists
+    plVec3 tUnUsedScale = {0};
+    plVec3 tPosition = {0};
+    plVec4 tRotation = {0};
+    pl_decompose_matrix(&tTransform, &tUnUsedScale, &tRotation, &tPosition);
 
-    pl_begin_cpu_sample(gptProfile, 0, "Update Objects");
-    for(uint32_t i = 0; i < uRigidBodyCount; i++)
+    plRigidBodyMotionType tMotionType = PL_RIGID_BODY_MOTION_TYPE_DYNAMIC;
+
+    float fInverseMass = 0.0f;
+    if(ptRigidBody->fMass > 0.0f)
     {
-        plEntity tEntity = sbtRigidBodyEntities[i];
-        plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
-        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+        fInverseMass = 1.0f / ptRigidBody->fMass;
 
-        plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, tEntity);
-        plVec3 tWorldTranslation = pl_mul_mat4_vec3(&tParentTransform, ptTransform->tTranslation);
-        plVec3 tPosition = pl_add_vec3(tWorldTranslation, ptRigidBody->tLocalOffset);
-        plVec3 tUnUsedScale = {0};
-        plVec3 tUnUsedTranslate = {0};
-        plVec4 tParentRotation = {0};
+        if(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC)
+            tMotionType = PL_RIGID_BODY_MOTION_TYPE_KINEMATIC;
+    }
+    else
+    {
+        tMotionType = PL_RIGID_BODY_MOTION_TYPE_STATIC;
+    }
 
-        pl_decompose_matrix(&tParentTransform, &tUnUsedScale, &tParentRotation, &tUnUsedTranslate);
-        plVec4 tDesiredRotation = pl_mul_quat(tParentRotation, ptTransform->tRotation);
+    // first time seeing this body
 
-        plMat4 tTransform = pl_rotation_translation_scale(tDesiredRotation, tPosition, (plVec3){1.0f, 1.0f, 1.0f});
+    if(ptRigidBody->uPhysicsObject == UINT64_MAX)
+    {
+        ptRigidBody->uPhysicsObject = pl_sb_size(gptPhysicsCtx->sbtRigidBodies);
 
-        // first time seeing this body
+        plRigidBody tBody = {
+            .tMotionType                 = tMotionType,
+            .fLinearDamping              = 1.0f - ptRigidBody->fLinearDamping,
+            .fAngularDamping             = 1.0f - ptRigidBody->fAngularDamping,
+            .fInverseMass                = fInverseMass,
+            .tPosition                   = tPosition,
+            .tOrientation                = pl_norm_quat(tRotation),
+            .tAcceleration               = ptRigidBody->tGravity,
+            .fFriction                   = ptRigidBody->fFriction,
+            .fRestitution                = ptRigidBody->fRestitution,
+            .tTransform                  = tTransform,
+            .tAdditionalTransform        = tAdditionalTransform,
+            .tInverseAdditionalTransform = pl_mat4_invert(&tAdditionalTransform),
+            .tLinearVelocity             = (plVec3){0},
+            .tAnglularVelocity           = (plVec3){0},
+            .tEntity                     = tEntity,
+            .bIsAwake                    = true,
+            .bCanSleep                   = !(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING),
+        };
 
-        if(ptRigidBody->uPhysicsObject == UINT64_MAX)
+        if(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_START_SLEEPING)
+            pl__set_awake(&tBody, false);
+        else
+            pl__set_awake(&tBody, true);
+
+        if(tMotionType != PL_RIGID_BODY_MOTION_TYPE_STATIC)
         {
-            ptRigidBody->uPhysicsObject = pl_sb_size(gptPhysicsCtx->sbtRigidBodies);
-
-            plRigidBody tBody = {
-                .fLinearDamping    = 1.0f - ptRigidBody->fLinearDamping,
-                .fAngularDamping   = 1.0f - ptRigidBody->fAngularDamping,
-                .fInverseMass      = 1.0f / ptRigidBody->fMass,
-                .tPosition         = tPosition,
-                .tOrientation      = tDesiredRotation,
-                .tAcceleration     = ptRigidBody->tGravity,
-                .fFriction         = ptRigidBody->fFriction,
-                .fRestitution      = ptRigidBody->fRestitution,
-                .tTransform        = tTransform,
-                .tLinearVelocity   = (plVec3){0},
-                .tAnglularVelocity = (plVec3){0},
-                .tEntity           = tEntity,
-                .bIsAwake          = true,
-                .bCanSleep         = !(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING),
-                .bKinematic        = ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC
-            };
-
-            if(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_START_SLEEPING)
-                pl__set_awake(&tBody, false);
-            else
-                pl__set_awake(&tBody, true);
-
             if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
             {
 
@@ -445,27 +460,32 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
             }
 
             pl__transform_inertia_tensor(&tBody.tInverseInertiaTensorWorld, &tBody.tOrientation, &tBody.tInverseInertiaTensor, &tBody.tTransform);
-
-            pl_sb_push(gptPhysicsCtx->sbtRigidBodies, tBody);
         }
 
-        else // body exists, so just update it
+        pl_sb_push(gptPhysicsCtx->sbtRigidBodies, tBody);
+    }
+
+    else // body exists, so just update it
+    {
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform = tTransform;
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tAdditionalTransform = tAdditionalTransform;
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseAdditionalTransform = pl_mat4_invert(&tAdditionalTransform);
+
+        if(ptTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
+            pl__set_awake(&gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject], true);
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fLinearDamping = 1.0f - ptRigidBody->fLinearDamping;
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fAngularDamping = 1.0f - ptRigidBody->fAngularDamping;
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fInverseMass = fInverseMass;
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tPosition = tPosition;
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tOrientation = tRotation;
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tAcceleration = ptRigidBody->tGravity;
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fFriction = ptRigidBody->fFriction;
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fRestitution = ptRigidBody->fRestitution;
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].bCanSleep = !(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING);
+        gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tMotionType = tMotionType;
+
+        if(tMotionType != PL_RIGID_BODY_MOTION_TYPE_STATIC)
         {
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform = tTransform;
-
-            if(ptTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
-                pl__set_awake(&gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject], true);
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fLinearDamping = 1.0f - ptRigidBody->fLinearDamping;
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fAngularDamping = 1.0f - ptRigidBody->fAngularDamping;
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fInverseMass = 1.0f / ptRigidBody->fMass;
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tPosition = tPosition;
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tOrientation = tDesiredRotation;
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tAcceleration = ptRigidBody->tGravity;
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fFriction = ptRigidBody->fFriction;
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fRestitution = ptRigidBody->fRestitution;
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].bCanSleep = !(ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING);
-            gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].bKinematic = ptRigidBody->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC;
-
             if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
             {
 
@@ -498,6 +518,30 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
             pl__transform_inertia_tensor(&gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseInertiaTensorWorld, &ptTransform->tRotation, &gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseInertiaTensor, &gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tTransform);
         }
     }
+}
+
+void
+pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
+{
+
+    if(!gptPhysicsCtx->tSettings.bEnabled)
+        return;
+
+    pl_begin_cpu_sample(gptProfile, 0, "Physics Update");
+
+    fDeltaTime = fDeltaTime * gptPhysicsCtx->tSettings.fSimulationMultiplier;
+
+    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
+    const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
+    
+
+    // register rigid bodies or update them if they already exists
+
+    pl_begin_cpu_sample(gptProfile, 0, "Update Objects");
+    for(uint32_t i = 0; i < uRigidBodyCount; i++)
+    {
+        pl_physics_create_rigid_body(ptLibrary, sbtRigidBodyEntities[i]);
+    }
     pl_end_cpu_sample(gptProfile, 0);
 
     // update stats
@@ -516,16 +560,16 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
     {
         plTransformComponent* ptSphereTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, sbtRigidBodyEntities[i]);
         plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, sbtRigidBodyEntities[i]);
+        plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[i];
 
-        plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, sbtRigidBodyEntities[i]);
+        plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, ptBody->tEntity);
         plMat4 tInvParentTransform = pl_mat4_invert(&tParentTransform);
+        plMat4 tTransform = pl_mul_mat4(&ptBody->tTransform, &ptBody->tInverseAdditionalTransform);
+        tTransform = pl_mul_mat4(&tInvParentTransform, &tTransform);
 
-        gptPhysicsCtx->sbtRigidBodies[i].tTransform.col[3].xyz = pl_sub_vec3(gptPhysicsCtx->sbtRigidBodies[i].tTransform.col[3].xyz, ptRigidBody->tLocalOffset);
-
-        plMat4 tChildWorld = pl_mul_mat4(&tInvParentTransform, &gptPhysicsCtx->sbtRigidBodies[i].tTransform);
 
         plVec3 tUnUsedScale = {0};
-        pl_decompose_matrix(&tChildWorld, &tUnUsedScale, &ptSphereTransform->tRotation, &ptSphereTransform->tTranslation);
+        pl_decompose_matrix(&tTransform, &tUnUsedScale, &ptSphereTransform->tRotation, &ptSphereTransform->tTranslation);
         ptSphereTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
     }
 
@@ -553,7 +597,7 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 
         plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, tEntity);
         plVec3 tWorldTranslation = pl_mul_mat4_vec3(&tParentTransform, ptTransform->tTranslation);
-        plVec3 tPosition = pl_add_vec3(tWorldTranslation, ptBody->tLocalOffset);
+        
 
         plVec3 tUnUsedScale = {0};
         plVec3 tUnUsedTranslate = {0};
@@ -561,12 +605,15 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
         pl_decompose_matrix(&tParentTransform, &tUnUsedScale, &tParentRotation, &tUnUsedTranslate);
         plVec4 tDesiredRotation = pl_mul_quat(tParentRotation, ptTransform->tRotation);
 
-        plMat4 tTransform = pl_rotation_translation_scale(tDesiredRotation, tPosition, (plVec3){1.0f, 1.0f, 1.0f});
+        plMat4 tTransform = pl_rotation_translation_scale(tDesiredRotation, tWorldTranslation, (plVec3){1.0f, 1.0f, 1.0f});
+        plVec3 tPosition = pl_add_vec3(tWorldTranslation, ptBody->tLocalOffset);
 
+        if(ptBody->uPhysicsObject == UINT64_MAX)
+            pl_physics_create_rigid_body(ptLibrary, tEntity);
 
-        uint32_t uColor = PL_COLOR_32_CYAN;
-        if(ptBody->uPhysicsObject != UINT64_MAX)
-            uColor = gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject].bIsAwake ? PL_COLOR_32_GREEN : PL_COLOR_32_YELLOW;
+        uint32_t uColor = gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject].bIsAwake ? PL_COLOR_32_GREEN : PL_COLOR_32_YELLOW;
+        if(gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject].tMotionType == PL_RIGID_BODY_MOTION_TYPE_STATIC)
+            uColor = PL_COLOR_32_LIGHT_GREY;
 
         if(ptBody->tShape == PL_COLLISION_SHAPE_SPHERE)
         {
@@ -579,14 +626,14 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
         else if(ptBody->tShape == PL_COLLISION_SHAPE_BOX)
         {
 
-            plVec3 tP0 = {  0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
-            plVec3 tP1 = {  0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
-            plVec3 tP2 = { -0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
-            plVec3 tP3 = { -0.5f * ptBody->tExtents.x, -0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
-            plVec3 tP4 = {  0.5f * ptBody->tExtents.x,  0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
-            plVec3 tP5 = {  0.5f * ptBody->tExtents.x,  0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
-            plVec3 tP6 = { -0.5f * ptBody->tExtents.x,  0.5f * ptBody->tExtents.y, -0.5f * ptBody->tExtents.z};
-            plVec3 tP7 = { -0.5f * ptBody->tExtents.x,  0.5f * ptBody->tExtents.y,  0.5f * ptBody->tExtents.z};
+            plVec3 tP0 = {  0.5f * ptBody->tExtents.x + ptBody->tLocalOffset.x, -0.5f * ptBody->tExtents.y + ptBody->tLocalOffset.y,  0.5f * ptBody->tExtents.z + ptBody->tLocalOffset.z};
+            plVec3 tP1 = {  0.5f * ptBody->tExtents.x + ptBody->tLocalOffset.x, -0.5f * ptBody->tExtents.y + ptBody->tLocalOffset.y, -0.5f * ptBody->tExtents.z + ptBody->tLocalOffset.z};
+            plVec3 tP2 = { -0.5f * ptBody->tExtents.x + ptBody->tLocalOffset.x, -0.5f * ptBody->tExtents.y + ptBody->tLocalOffset.y, -0.5f * ptBody->tExtents.z + ptBody->tLocalOffset.z};
+            plVec3 tP3 = { -0.5f * ptBody->tExtents.x + ptBody->tLocalOffset.x, -0.5f * ptBody->tExtents.y + ptBody->tLocalOffset.y,  0.5f * ptBody->tExtents.z + ptBody->tLocalOffset.z};
+            plVec3 tP4 = {  0.5f * ptBody->tExtents.x + ptBody->tLocalOffset.x,  0.5f * ptBody->tExtents.y + ptBody->tLocalOffset.y,  0.5f * ptBody->tExtents.z + ptBody->tLocalOffset.z};
+            plVec3 tP5 = {  0.5f * ptBody->tExtents.x + ptBody->tLocalOffset.x,  0.5f * ptBody->tExtents.y + ptBody->tLocalOffset.y, -0.5f * ptBody->tExtents.z + ptBody->tLocalOffset.z};
+            plVec3 tP6 = { -0.5f * ptBody->tExtents.x + ptBody->tLocalOffset.x,  0.5f * ptBody->tExtents.y + ptBody->tLocalOffset.y, -0.5f * ptBody->tExtents.z + ptBody->tLocalOffset.z};
+            plVec3 tP7 = { -0.5f * ptBody->tExtents.x + ptBody->tLocalOffset.x,  0.5f * ptBody->tExtents.y + ptBody->tLocalOffset.y,  0.5f * ptBody->tExtents.z + ptBody->tLocalOffset.z};
 
             tP0 = pl_mul_mat4_vec3(&tTransform, tP0);
             tP1 = pl_mul_mat4_vec3(&tTransform, tP1);
@@ -683,8 +730,11 @@ pl_physics_apply_force(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 t
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
 
-        ptRigidBody->tForceAccumulation = pl_add_vec3(ptRigidBody->tForceAccumulation, tForce);
-        pl__set_awake(ptRigidBody, true);
+        if(ptRigidBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
+        {
+            ptRigidBody->tForceAccumulation = pl_add_vec3(ptRigidBody->tForceAccumulation, tForce);
+            pl__set_awake(ptRigidBody, true);
+        }
     }
 }
 
@@ -697,19 +747,22 @@ pl_physics_apply_force_at_point(plComponentLibrary* ptLibrary, plEntity tEntity,
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
 
-        ptRigidBody->tForceAccumulation = pl_add_vec3(ptRigidBody->tForceAccumulation, tForce);
+        if(ptRigidBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
+        {
+            ptRigidBody->tForceAccumulation = pl_add_vec3(ptRigidBody->tForceAccumulation, tForce);
 
-        tPoint = pl_sub_vec3(tPoint, ptRigidBody->tPosition);
+            tPoint = pl_sub_vec3(tPoint, ptRigidBody->tPosition);
 
-        plVec3 tTorque = {
-            tPoint.y * tForce.z - tPoint.z * tForce.y,
-            tPoint.z * tForce.x - tPoint.x * tForce.z,
-            tPoint.x * tForce.y - tPoint.y * tForce.x
-        };
-    
-        ptRigidBody->tTorqueAccumulation = pl_add_vec3(ptRigidBody->tTorqueAccumulation, tTorque);
+            plVec3 tTorque = {
+                tPoint.y * tForce.z - tPoint.z * tForce.y,
+                tPoint.z * tForce.x - tPoint.x * tForce.z,
+                tPoint.x * tForce.y - tPoint.y * tForce.x
+            };
+        
+            ptRigidBody->tTorqueAccumulation = pl_add_vec3(ptRigidBody->tTorqueAccumulation, tTorque);
 
-        pl__set_awake(ptRigidBody, true);
+            pl__set_awake(ptRigidBody, true);
+        }
     }
 }
 
@@ -721,22 +774,24 @@ pl_physics_apply_force_at_body_point(plComponentLibrary* ptLibrary, plEntity tEn
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
+        if(ptRigidBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
+        {
+            ptRigidBody->tForceAccumulation = pl_add_vec3(ptRigidBody->tForceAccumulation, tForce);
 
-        ptRigidBody->tForceAccumulation = pl_add_vec3(ptRigidBody->tForceAccumulation, tForce);
+            tPoint = pl_mul_mat4_vec4(&ptRigidBody->tTransform, (plVec4){.xyz = tPoint, .w = 1.0f}).xyz;
 
-        tPoint = pl_mul_mat4_vec4(&ptRigidBody->tTransform, (plVec4){.xyz = tPoint, .w = 1.0f}).xyz;
+            tPoint = pl_sub_vec3(tPoint, ptRigidBody->tPosition);
 
-        tPoint = pl_sub_vec3(tPoint, ptRigidBody->tPosition);
+            plVec3 tTorque = {
+                tPoint.y * tForce.z - tPoint.z * tForce.y,
+                tPoint.z * tForce.x - tPoint.x * tForce.z,
+                tPoint.x * tForce.y - tPoint.y * tForce.x
+            };
+        
+            ptRigidBody->tTorqueAccumulation = pl_add_vec3(ptRigidBody->tTorqueAccumulation, tTorque);
 
-        plVec3 tTorque = {
-            tPoint.y * tForce.z - tPoint.z * tForce.y,
-            tPoint.z * tForce.x - tPoint.x * tForce.z,
-            tPoint.x * tForce.y - tPoint.y * tForce.x
-        };
-    
-        ptRigidBody->tTorqueAccumulation = pl_add_vec3(ptRigidBody->tTorqueAccumulation, tTorque);
-
-        pl__set_awake(ptRigidBody, true);
+            pl__set_awake(ptRigidBody, true);
+        }
     }
 }
 
@@ -749,9 +804,12 @@ pl_physics_apply_impulse(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
 
-        ptRigidBody->tLinearVelocity = pl_add_vec3(ptRigidBody->tLinearVelocity, pl_mul_vec3_scalarf(tForce, ptRigidBody->fInverseMass));
+        if(ptRigidBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
+        {
+            ptRigidBody->tLinearVelocity = pl_add_vec3(ptRigidBody->tLinearVelocity, pl_mul_vec3_scalarf(tForce, ptRigidBody->fInverseMass));
 
-        pl__set_awake(ptRigidBody, true);
+            pl__set_awake(ptRigidBody, true);
+        }
     }
 }
 
@@ -763,21 +821,23 @@ pl_physics_apply_impulse_at_point(plComponentLibrary* ptLibrary, plEntity tEntit
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
+        if(ptRigidBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
+        {
+            ptRigidBody->tLinearVelocity = pl_add_vec3(ptRigidBody->tLinearVelocity, pl_mul_vec3_scalarf(tForce, ptRigidBody->fInverseMass));
 
-        ptRigidBody->tLinearVelocity = pl_add_vec3(ptRigidBody->tLinearVelocity, pl_mul_vec3_scalarf(tForce, ptRigidBody->fInverseMass));
+            tPoint = pl_sub_vec3(tPoint, ptRigidBody->tPosition);
 
-        tPoint = pl_sub_vec3(tPoint, ptRigidBody->tPosition);
+            plVec3 tTorque = {
+                tPoint.y * tForce.z - tPoint.z * tForce.y,
+                tPoint.z * tForce.x - tPoint.x * tForce.z,
+                tPoint.x * tForce.y - tPoint.y * tForce.x
+            };
 
-        plVec3 tTorque = {
-            tPoint.y * tForce.z - tPoint.z * tForce.y,
-            tPoint.z * tForce.x - tPoint.x * tForce.z,
-            tPoint.x * tForce.y - tPoint.y * tForce.x
-        };
+            plVec3 tAngularAcceleration = pl_mul_mat3_vec3(&ptRigidBody->tInverseInertiaTensorWorld, tTorque);
+            ptRigidBody->tAnglularVelocity = pl_add_vec3(ptRigidBody->tAnglularVelocity, tAngularAcceleration);
 
-        plVec3 tAngularAcceleration = pl_mul_mat3_vec3(&ptRigidBody->tInverseInertiaTensorWorld, tTorque);
-        ptRigidBody->tAnglularVelocity = pl_add_vec3(ptRigidBody->tAnglularVelocity, tAngularAcceleration);
-
-        pl__set_awake(ptRigidBody, true);
+            pl__set_awake(ptRigidBody, true);
+        }
     }
 }
 
@@ -790,21 +850,23 @@ pl_physics_apply_impulse_at_body_point(plComponentLibrary* ptLibrary, plEntity t
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
+        if(ptRigidBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
+        {
+            ptRigidBody->tLinearVelocity = pl_add_vec3(ptRigidBody->tLinearVelocity, pl_mul_vec3_scalarf(tForce, ptRigidBody->fInverseMass));
 
-        ptRigidBody->tLinearVelocity = pl_add_vec3(ptRigidBody->tLinearVelocity, pl_mul_vec3_scalarf(tForce, ptRigidBody->fInverseMass));
+            tPoint = pl_mul_mat4_vec4(&ptRigidBody->tTransform, (plVec4){.xyz = tPoint, .w = 1.0f}).xyz;
+            tPoint = pl_sub_vec3(tPoint, ptRigidBody->tPosition);
+            plVec3 tTorque = {
+                tPoint.y * tForce.z - tPoint.z * tForce.y,
+                tPoint.z * tForce.x - tPoint.x * tForce.z,
+                tPoint.x * tForce.y - tPoint.y * tForce.x
+            };
 
-        tPoint = pl_mul_mat4_vec4(&ptRigidBody->tTransform, (plVec4){.xyz = tPoint, .w = 1.0f}).xyz;
-        tPoint = pl_sub_vec3(tPoint, ptRigidBody->tPosition);
-        plVec3 tTorque = {
-            tPoint.y * tForce.z - tPoint.z * tForce.y,
-            tPoint.z * tForce.x - tPoint.x * tForce.z,
-            tPoint.x * tForce.y - tPoint.y * tForce.x
-        };
+            plVec3 tAngularAcceleration = pl_mul_mat3_vec3(&ptRigidBody->tInverseInertiaTensorWorld, tTorque);
+            ptRigidBody->tAnglularVelocity = pl_add_vec3(ptRigidBody->tAnglularVelocity, tAngularAcceleration);
 
-        plVec3 tAngularAcceleration = pl_mul_mat3_vec3(&ptRigidBody->tInverseInertiaTensorWorld, tTorque);
-        ptRigidBody->tAnglularVelocity = pl_add_vec3(ptRigidBody->tAnglularVelocity, tAngularAcceleration);
-
-        pl__set_awake(ptRigidBody, true);
+            pl__set_awake(ptRigidBody, true);
+        }
     }
 }
 
@@ -816,9 +878,11 @@ pl_physics_apply_torque(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
-
-        ptRigidBody->tTorqueAccumulation = pl_add_vec3(ptRigidBody->tTorqueAccumulation, tTorque);
-        pl__set_awake(ptRigidBody, true);
+        if(ptRigidBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
+        {
+            ptRigidBody->tTorqueAccumulation = pl_add_vec3(ptRigidBody->tTorqueAccumulation, tTorque);
+            pl__set_awake(ptRigidBody, true);
+        }
     }
 }
 
@@ -830,9 +894,12 @@ pl_physics_apply_impulse_torque(plComponentLibrary* ptLibrary, plEntity tEntity,
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
         plRigidBody* ptRigidBody = &gptPhysicsCtx->sbtRigidBodies[ptBody->uPhysicsObject];
-        plVec3 tAngularAcceleration = pl_mul_mat3_vec3(&ptRigidBody->tInverseInertiaTensorWorld, tTorque);
-        ptRigidBody->tAnglularVelocity = pl_add_vec3(ptRigidBody->tAnglularVelocity, tAngularAcceleration);
-        pl__set_awake(ptRigidBody, true);
+        if(ptRigidBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
+        {
+            plVec3 tAngularAcceleration = pl_mul_mat3_vec3(&ptRigidBody->tInverseInertiaTensorWorld, tTorque);
+            ptRigidBody->tAnglularVelocity = pl_add_vec3(ptRigidBody->tAnglularVelocity, tAngularAcceleration);
+            pl__set_awake(ptRigidBody, true);
+        }
     }
 }
 
@@ -905,16 +972,18 @@ pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
             for(uint32_t j = 0; j < uRigidBodyCount; j++)
             {
                 plRigidBody* ptParticle = &gptPhysicsCtx->sbtRigidBodies[j];
-
-                plVec3 tDirection = pl_sub_vec3(ptParticle->tPosition, ptTransform->tTranslation);
-
-                float fDistance2 = pl_length_sqr_vec3(tDirection);
-
-                if(fDistance2 < ptForceField->fRange * ptForceField->fRange)
+                if(ptParticle->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
                 {
-                    tDirection = pl_norm_vec3(tDirection);
-                    ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tDirection, -ptForceField->fGravity / ptParticle->fInverseMass));
-                    pl__set_awake(ptParticle, true);
+                    plVec3 tDirection = pl_sub_vec3(ptParticle->tPosition, ptTransform->tTranslation);
+
+                    float fDistance2 = pl_length_sqr_vec3(tDirection);
+
+                    if(fDistance2 < ptForceField->fRange * ptForceField->fRange)
+                    {
+                        tDirection = pl_norm_vec3(tDirection);
+                        ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tDirection, -ptForceField->fGravity / ptParticle->fInverseMass));
+                        pl__set_awake(ptParticle, true);
+                    }
                 }
             }
         }
@@ -928,18 +997,21 @@ pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
             for(uint32_t j = 0; j < uRigidBodyCount; j++)
             {
                 plRigidBody* ptParticle = &gptPhysicsCtx->sbtRigidBodies[j];
-
-                float fDistance = tForceDirection.x * (ptParticle->tPosition.x - ptTransform->tTranslation.x) +
-                tForceDirection.y * (ptParticle->tPosition.y - ptTransform->tTranslation.y) +
-                tForceDirection.z * (ptParticle->tPosition.z - ptTransform->tTranslation.z);
-
-                if(fabsf(fDistance) < ptForceField->fRange)
+                if(ptParticle->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
                 {
-                    if(fDistance < 0)
-                        ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tForceDirection, ptForceField->fGravity / ptParticle->fInverseMass));
-                    else
-                        ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tForceDirection, -ptForceField->fGravity / ptParticle->fInverseMass));
-                    pl__set_awake(ptParticle, true);
+
+                    float fDistance = tForceDirection.x * (ptParticle->tPosition.x - ptTransform->tTranslation.x) +
+                    tForceDirection.y * (ptParticle->tPosition.y - ptTransform->tTranslation.y) +
+                    tForceDirection.z * (ptParticle->tPosition.z - ptTransform->tTranslation.z);
+
+                    if(fabsf(fDistance) < ptForceField->fRange)
+                    {
+                        if(fDistance < 0)
+                            ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tForceDirection, ptForceField->fGravity / ptParticle->fInverseMass));
+                        else
+                            ptParticle->tForceAccumulation = pl_add_vec3(ptParticle->tForceAccumulation, pl_mul_vec3_scalarf(tForceDirection, -ptForceField->fGravity / ptParticle->fInverseMass));
+                        pl__set_awake(ptParticle, true);
+                    }
                 }
             }
         }
@@ -1213,17 +1285,17 @@ pl__contact_apply_velocity_change(plContact* ptContact, plVec3 atVelocityChange[
 
     // Split in the impulse into linear and rotational components
     plVec3 tImpulsiveTorque = pl_cross_vec3(ptContact->atRelativeContactPositions[0], tImpulse);
-    atRotationChange[0] = pl_mul_mat3_vec3(&atInverseInertiaTensor[0], tImpulsiveTorque);
-    atVelocityChange[0] = pl_mul_vec3_scalarf(tImpulse, ptBody0->fInverseMass);
 
     // Apply the changes
-    if(!ptBody0->bKinematic)
+    if(ptBody0->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
     {
+        atRotationChange[0] = pl_mul_mat3_vec3(&atInverseInertiaTensor[0], tImpulsiveTorque);
+        atVelocityChange[0] = pl_mul_vec3_scalarf(tImpulse, ptBody0->fInverseMass);
         ptBody0->tLinearVelocity = pl_add_vec3(ptBody0->tLinearVelocity, atVelocityChange[0]);
         ptBody0->tAnglularVelocity = pl_add_vec3(ptBody0->tAnglularVelocity, atRotationChange[0]);
     }
 
-    if (ptBody1 && !ptBody1->bKinematic)
+    if (ptBody1 && ptBody1->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
     {
         // Work out body one's linear and angular changes
         tImpulsiveTorque = pl_cross_vec3(tImpulse, ptContact->atRelativeContactPositions[1]);
@@ -1256,7 +1328,7 @@ pl__contact_apply_position_change(plContact* ptContact, plVec3 atLinearChange[2]
 
         plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[ptContact->atBodyIndices[i]];
 
-        if(ptBody->bKinematic)
+        if(ptBody->tMotionType != PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
             continue;
 
         plMat3 tInverseInertiaTensor = ptBody->tInverseInertiaTensorWorld;
@@ -1287,7 +1359,7 @@ pl__contact_apply_position_change(plContact* ptContact, plVec3 atLinearChange[2]
 
         plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[ptContact->atBodyIndices[i]];
 
-        if(!ptBody->bKinematic)
+        if(ptBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
         {
 
             // The linear and angular movements required are in proportion to
@@ -1356,7 +1428,7 @@ pl__contact_apply_position_change(plContact* ptContact, plVec3 atLinearChange[2]
             tQ.y += tQ2.y * 0.5f;
             tQ.z += tQ2.z * 0.5f;
             tQ.w += tQ2.w * 0.5f;
-            ptBody->tOrientation = tQ;
+            ptBody->tOrientation = pl_norm_quat(tQ);
         }
 
         // We need to calculate the derived data for any body that is
@@ -1447,7 +1519,7 @@ pl__contact_adjust_positions(float fDeltaTime)
 
                 plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtContactArray[i].atBodyIndices[b]];
 
-                if(ptBody->bKinematic)
+                if(ptBody->tMotionType != PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
                     continue;
 
                 // Check for a match with each body in the newly
@@ -1525,7 +1597,7 @@ pl__contact_adjust_velocities(float fDeltaTime)
 
                 plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[gptPhysicsCtx->sbtContactArray[i].atBodyIndices[b]];
 
-                if(ptBody->bKinematic)
+                if(ptBody->tMotionType != PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
                     continue;
 
                 // Check for a match with each body in the newly
@@ -1600,11 +1672,32 @@ pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCou
 
         if(ptBody->bIsAwake)
         {
-            if(ptBody->bKinematic)
+            if(ptBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_STATIC)
             {
                 ptBody->fMotion = 0.0f;
             }
-            else
+            else if(ptBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_KINEMATIC)
+            {
+
+                // update linear position
+                ptBody->tPosition = pl_add_vec3(ptBody->tPosition, pl_mul_vec3_scalarf(ptBody->tLinearVelocity, fDeltaTime));
+
+                // update angular position
+                plVec4 tQ0 = {fDeltaTime * ptBody->tAnglularVelocity.x, fDeltaTime * ptBody->tAnglularVelocity.y, fDeltaTime * ptBody->tAnglularVelocity.z, 0};
+                tQ0 = pl_mul_quat(tQ0, ptBody->tOrientation);
+                ptBody->tOrientation.x += tQ0.x * 0.5f;
+                ptBody->tOrientation.y += tQ0.y * 0.5f;
+                ptBody->tOrientation.z += tQ0.z * 0.5f;
+                ptBody->tOrientation.w += tQ0.w * 0.5f;
+
+                // Normalise the orientation, and update the matrices with the new
+                // position and orientation
+                ptBody->tOrientation = pl_norm_quat(ptBody->tOrientation);
+
+                // calculate the transform matrix for the body.
+                ptBody->tTransform = pl_rotation_translation_scale(ptBody->tOrientation, ptBody->tPosition, (plVec3){1.0f, 1.0f, 1.0f});
+            }
+            else if(ptBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_DYNAMIC)
             {
                 // calculate linear acceleration from force inputs
                 ptBody->tLastFrameAcceleration = ptBody->tAcceleration;
@@ -2249,7 +2342,7 @@ pl__contact_calculate_local_velocity(plContact* ptContact, uint32_t uBodyIndex, 
 {
     plRigidBody* ptThisBody = &gptPhysicsCtx->sbtRigidBodies[ptContact->atBodyIndices[uBodyIndex]];
 
-    if(ptThisBody->bKinematic)
+    if(ptThisBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_STATIC)
         return (plVec3){0};
 
     // work out velocity of contact point
@@ -2286,12 +2379,12 @@ pl__contact_calculate_desired_delta_velocity(plContact* ptContact, float fDeltaT
 
     plRigidBody* ptBody0 = &gptPhysicsCtx->sbtRigidBodies[ptContact->atBodyIndices[0]];
     plRigidBody* ptBody1 = ptContact->atBodyIndices[1] == UINT32_MAX ? NULL : &gptPhysicsCtx->sbtRigidBodies[ptContact->atBodyIndices[1]];
-    if(ptBody0->bIsAwake && !ptBody0->bKinematic)
+    if(ptBody0->bIsAwake && ptBody0->tMotionType != PL_RIGID_BODY_MOTION_TYPE_STATIC)
     {
         fVelocityFromAcc += pl_dot_vec3(ptBody0->tLastFrameAcceleration, pl_mul_vec3_scalarf(ptContact->tContactNormal, fDeltaTime));
     }
 
-    if(ptBody1 && ptBody1->bIsAwake && !ptBody1->bKinematic)
+    if(ptBody1 && ptBody1->bIsAwake && ptBody1->tMotionType != PL_RIGID_BODY_MOTION_TYPE_STATIC)
     {
         fVelocityFromAcc -= pl_dot_vec3(ptContact->tContactNormal, pl_mul_vec3_scalarf(ptBody1->tLastFrameAcceleration, fDeltaTime));
     }
@@ -2400,6 +2493,7 @@ pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .set_settings                = pl_physics_set_settings,
         .get_settings                = pl_physics_get_settings,
         .update                      = pl_physics_update,
+        .create_rigid_body           = pl_physics_create_rigid_body,
         .draw                        = pl_physics_draw,
         .set_linear_velocity         = pl_physics_set_linear_velocity,
         .set_angular_velocity        = pl_physics_set_angular_velocity,

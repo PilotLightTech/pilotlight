@@ -348,7 +348,17 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     gptUI->layout_dynamic(0.0f, 1);
                     if(gptUI->button("Add Rigid Body Component"))
                     {
-                        gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, *ptSelectedEntity);
+                        plRigidBodyPhysicsComponent* ptRigid = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, *ptSelectedEntity);
+                        ptRigid->tFlags |= PL_RIGID_BODY_PHYSICS_FLAG_START_SLEEPING;
+                        ptRigid->fMass = 10.0f;
+                        ptRigid->tShape = PL_COLLISION_SHAPE_SPHERE;
+                        
+                        ptRigid->tLocalOffset.x = 0.0f;
+                        ptRigid->tLocalOffset.y = 0.0f;
+                        ptRigid->tLocalOffset.z = 0.0f;
+                        ptRigid->tExtents.x = 1.0f;
+                        ptRigid->tExtents.y = 1.0f;
+                        ptRigid->tExtents.z = 1.0f;
                     }
                 }
 
@@ -451,9 +461,13 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     static plVec3 tPoint = {0};
                     static plVec3 tForce = {1000.0f};
                     static plVec3 tTorque = {0.0f, 100.0f, 0.0f};
+                    static plVec3 tLinearVelocity = {0.0f, 0.0f, 0.0f};
+                    static plVec3 tAngularVelocity = {0.0f, 0.0f, 0.0f};
                     gptUI->input_float3("Point", tPoint.d, NULL, 0);
                     gptUI->input_float3("Force", tForce.d, NULL, 0);
                     gptUI->input_float3("Torque", tTorque.d, NULL, 0);
+                    gptUI->input_float3("Velocity", tLinearVelocity.d, NULL, 0);
+                    gptUI->input_float3("Angular Velocity", tAngularVelocity.d, NULL, 0);
 
                     gptUI->push_theme_color(PL_UI_COLOR_BUTTON, (plVec4){0.02f, 0.51f, 0.10f, 1.00f});
                     gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, (plVec4){ 0.02f, 0.61f, 0.10f, 1.00f});
@@ -466,6 +480,8 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                         gptPhysics->set_angular_velocity(ptLibrary, *ptSelectedEntity, (plVec3){0});
                     }
                     
+                    if(gptUI->button("Set Velocity"))          gptPhysics->set_linear_velocity(ptLibrary, *ptSelectedEntity, tLinearVelocity);
+                    if(gptUI->button("Set A. Velocity"))       gptPhysics->set_angular_velocity(ptLibrary, *ptSelectedEntity, tAngularVelocity);
                     if(gptUI->button("torque"))                gptPhysics->apply_torque(ptLibrary, *ptSelectedEntity, tTorque);
                     if(gptUI->button("impulse torque"))        gptPhysics->apply_impulse_torque(ptLibrary, *ptSelectedEntity, tTorque);
                     if(gptUI->button("force"))                 gptPhysics->apply_force(ptLibrary, *ptSelectedEntity, tForce);
