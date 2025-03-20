@@ -31,7 +31,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plNetworkI_version (plVersion){1, 0, 0}
+#define plNetworkI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

@@ -33,7 +33,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawI_version (plVersion){1, 1, 0}
+#define plDrawI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

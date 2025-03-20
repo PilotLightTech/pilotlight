@@ -21,7 +21,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plRendererI_version (plVersion){0, 1, 0}
+#define plRendererI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

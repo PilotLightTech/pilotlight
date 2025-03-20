@@ -30,7 +30,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plThreadsI_version (plVersion){1, 0, 0}
+#define plThreadsI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

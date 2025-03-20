@@ -160,7 +160,7 @@ pl_load_script(plApiRegistryI* ptApiRegistry, bool bReload)
         .run   = pl_script_run
     };
 
-    ptApiRegistry->set_api("pl_script_camera", plScriptI_version, &tApi, sizeof(plScriptI));
+    ptApiRegistry->set_api("pl_script_camera", (plVersion)plScriptI_version, &tApi, sizeof(plScriptI));
 }
 
 PL_EXPORT void
@@ -170,6 +170,6 @@ pl_unload_script(plApiRegistryI* ptApiRegistry, bool bReload)
     if(bReload)
         return;
         
-    const plScriptI* ptApi = ptApiRegistry->get_api("pl_script_camera", plScriptI_version);
+    const plScriptI* ptApi = ptApiRegistry->get_api("pl_script_camera", (plVersion)plScriptI_version);
     ptApiRegistry->remove_api(ptApi);
 }

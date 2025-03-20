@@ -20,7 +20,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plResourceI_version (plVersion){0, 1, 0}
+#define plResourceI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
