@@ -501,14 +501,7 @@ pl_app_update(plAppData* ptAppData)
         {
             
             gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-            #ifdef PL_METAL_BACKEND
-            gptUi->text("Graphics Backend: Metal");
-            #elif PL_VULKAN_BACKEND
-            gptUi->text("Graphics Backend: Vulkan");
-            #else
-            gptUi->text("Graphics Backend: Unknown");
-            #endif
-
+            gptUi->text("Graphics Backend: %s", gptGfx->get_backend_string());
             gptUi->end_collapsing_header();
         }
         if(gptUi->begin_collapsing_header("User Interface", 0))
