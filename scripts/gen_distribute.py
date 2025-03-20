@@ -120,6 +120,7 @@ with pl.project("pilotlight deploy"):
         "pl_console_ext",
         "pl_screen_log_ext",
         "pl_physics_ext",
+        "pl_collision_ext",
     ]
 
     for extension in extensions:

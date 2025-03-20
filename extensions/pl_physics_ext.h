@@ -101,6 +101,7 @@ typedef struct _plPhysicsEngineSettings
     uint32_t uMaxPositionIterations; // default: 256
     uint32_t uMaxVelocityIterations; // default: 256
     float    fSimulationMultiplier;  // default: 1.0f
+    float    fSimulationFrameRate;   // default: 60.0f;
 } plPhysicsEngineSettings;
 
 #endif // PL_PHYSICS_EXT_H

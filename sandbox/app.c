@@ -69,6 +69,7 @@ Index of this file:
 #include "pl_ecs_tools_ext.h"
 #include "pl_gizmo_ext.h"
 #include "pl_physics_ext.h"
+#include "pl_collision_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
@@ -98,6 +99,7 @@ const plGizmoI*        gptGizmo       = NULL;
 const plConsoleI*      gptConsole     = NULL;
 const plScreenLogI*    gptScreenLog   = NULL;
 const plPhysicsI *     gptPhysics     = NULL;
+const plCollisionI*    gptCollision   = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -242,6 +244,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
         gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
         gptPhysics     = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+        gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
 
@@ -281,6 +284,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
     gptPhysics     = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+    gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -1034,6 +1038,7 @@ pl__show_editor_window(plAppData* ptAppData)
             gptUI->input_float("Velocity Epsilon", &tPhysicsSettings.fVelocityEpsilon, "%g", 0);
             gptUI->input_uint("Max Position Its.", &tPhysicsSettings.uMaxPositionIterations, 0);
             gptUI->input_uint("Max Velocity Its.", &tPhysicsSettings.uMaxVelocityIterations, 0);
+            gptUI->input_float("Frame Rate", &tPhysicsSettings.fSimulationFrameRate, "%g", 0);
             if(gptUI->button("Wake All")) gptPhysics->wake_up_all();
             if(gptUI->button("Sleep All")) gptPhysics->sleep_all();
 
@@ -1877,6 +1882,7 @@ pl__show_ui_demo_window(plAppData* ptAppData)
     }
     gptUI->end_window();
 }
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] unity build

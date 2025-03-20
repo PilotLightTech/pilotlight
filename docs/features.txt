@@ -109,8 +109,6 @@ Wishlist (from Wicked Engine):
     * GPU-based particles (emit from point, mesh, animated mesh)
     * Soft particles
     * Hair particle systems (grass/vegetation)
-    * Instanced rendering
-    * MSAA
     * FXAA
     * TAA (Temporal Antialiasing)
     * Supersampling

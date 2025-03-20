@@ -41,6 +41,7 @@ Index of this file:
 #include "pl_console_ext.c"
 #include "pl_screen_log_ext.c"
 #include "pl_physics_ext.c"
+#include "pl_collision_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -78,6 +79,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptGizmo             = pl_get_api_latest(ptApiRegistry, plGizmoI);
     gptScreenLog         = pl_get_api_latest(ptApiRegistry, plScreenLogI);
     gptPhysics           = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+    gptCollision         = pl_get_api_latest(ptApiRegistry, plCollisionI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -105,6 +107,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_tools_ext(ptApiRegistry, bReload);
     pl_load_profile_ext(ptApiRegistry, bReload);
     pl_load_physics_ext(ptApiRegistry, bReload);
+    pl_load_collision_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -133,6 +136,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_profile_ext(ptApiRegistry, bReload);
     pl_unload_log_ext(ptApiRegistry, bReload);
     pl_unload_physics_ext(ptApiRegistry, bReload);
+    pl_unload_collision_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------

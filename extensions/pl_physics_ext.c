@@ -33,10 +33,6 @@ Index of this file:
       library. Because of this, I'd like to minimize reliance on too many
       extensions.
 
-    * I'm also debating separating collision detection into a separate
-      extension all together. This would allow much of the work to be shared
-      with scene culling.
-
     * Long term, I'd like to follow some of the resources from the "Jolt"
       physics engine to improve this engine.
 
@@ -73,6 +69,7 @@ Index of this file:
 
 // unstable extensions
 #include "pl_ecs_ext.h"
+#include "pl_collision_ext.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -92,11 +89,12 @@ Index of this file:
     #endif
 
     // required APIs
-    static const plEcsI*     gptECS     = NULL;
-    static const plDrawI*    gptDraw    = NULL;
-    static const plProfileI* gptProfile = NULL;
-    static const plLogI*     gptLog     = NULL;
-    static const plStatsI*   gptStats   = NULL;
+    static const plEcsI*       gptECS       = NULL;
+    static const plDrawI*      gptDraw      = NULL;
+    static const plProfileI*   gptProfile   = NULL;
+    static const plLogI*       gptLog       = NULL;
+    static const plStatsI*     gptStats     = NULL;
+    static const plCollisionI* gptCollision = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -146,6 +144,8 @@ typedef struct _plRigidBody
     plEntity              tEntity;
     plVec3                tPosition;
     plVec4                tOrientation;
+    plVec3                tPreviousPosition;
+    plVec4                tPreviousOrientation;
     plMat4                tTransform;
     plMat4                tAdditionalTransform;
     plMat4                tInverseAdditionalTransform;
@@ -234,24 +234,10 @@ static void pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary
 // [SECTION] collision detection forward declarations
 //-----------------------------------------------------------------------------
 
-// intersection tests
-static bool pl__intersect_box_half_space   (const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptPlane);
-static bool pl__intersect_box_box          (const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1);
-static bool pl__intersect_sphere_half_space(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane);
-static bool pl__intersect_sphere_sphere    (const plCollisionPrimitive* ptSphere0, const plCollisionPrimitive* ptSphere1);
-
 // collision detection (actually adds contacts to context)
-static void pl__collision_sphere_half_space(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane);
-static void pl__collision_sphere_true_plane(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane);
-static void pl__collision_sphere_sphere    (const plCollisionPrimitive* ptSphere0, const plCollisionPrimitive* ptSphere1);
-static void pl__collision_box_half_space   (const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptPlane);
-static void pl__collision_box_box          (const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1);
-static void pl__collision_box_point        (const plCollisionPrimitive* ptBox, plVec3 tPoint);
-static void pl__collision_box_sphere       (const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptSphere);
-
-// helpers
-static bool  pl__overlap_on_axis  (const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1, plVec3 tAxis, plVec3 tToCenter);
-static float pl__transform_to_axis(const plCollisionPrimitive* ptBox, const plVec3* ptAxis);
+static void pl__collision_sphere_sphere(const plCollisionPrimitive* ptSphere0, const plCollisionPrimitive* ptSphere1);
+static void pl__collision_box_box      (const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1);
+static void pl__collision_box_sphere   (const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptSphere);
 
 //-----------------------------------------------------------------------------
 // [SECTION] collision resolution forward declarations
@@ -330,6 +316,7 @@ pl_physics_set_settings(plPhysicsEngineSettings tSettings)
     if(tSettings.fVelocityEpsilon == 0.0f)      tSettings.fVelocityEpsilon = 0.01f;
     if(tSettings.uMaxPositionIterations == 0)   tSettings.uMaxPositionIterations = 256;
     if(tSettings.uMaxVelocityIterations == 0)   tSettings.uMaxVelocityIterations = 256;
+    if(tSettings.fSimulationFrameRate == 0.0f)  tSettings.fSimulationFrameRate = 60.0f;
 
     gptPhysicsCtx->tSettings = tSettings;
 }
@@ -521,7 +508,7 @@ pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 }
 
 void
-pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
+pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
 {
 
     if(!gptPhysicsCtx->tSettings.bEnabled)
@@ -529,20 +516,10 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
 
     pl_begin_cpu_sample(gptProfile, 0, "Physics Update");
 
-    fDeltaTime = fDeltaTime * gptPhysicsCtx->tSettings.fSimulationMultiplier;
+    const float fSubstepTime = (1.0f / gptPhysicsCtx->tSettings.fSimulationFrameRate);
 
     plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
     const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
-    
-
-    // register rigid bodies or update them if they already exists
-
-    pl_begin_cpu_sample(gptProfile, 0, "Update Objects");
-    for(uint32_t i = 0; i < uRigidBodyCount; i++)
-    {
-        pl_physics_create_rigid_body(ptLibrary, sbtRigidBodyEntities[i]);
-    }
-    pl_end_cpu_sample(gptProfile, 0);
 
     // update stats
     static double* pdPhysicsObjects = NULL;
@@ -550,12 +527,48 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
         pdPhysicsObjects = gptStats->get_counter("physics objects");
     *pdPhysicsObjects = (double)uRigidBodyCount;
 
-    pl__physics_update_force_fields(fDeltaTime, ptLibrary);
-    pl__detect_collisions(fDeltaTime, ptLibrary);
-    pl__resolve_contacts(fDeltaTime);
-    pl__physics_integrate(fDeltaTime, gptPhysicsCtx->sbtRigidBodies, uRigidBodyCount);
-    
+    float fRatio = fRenderDeltaTime / fSubstepTime;
+    float fRemainder = 0.0f;
+    fRemainder = modff(fRatio, &fRemainder);
+    uint32_t uSubsteps = (uint32_t)ceilf(fRatio);
+
+    pl_begin_cpu_sample(gptProfile, 0, "Update Physics Objects");
+    for(uint32_t i = 0; i < uRigidBodyCount; i++)
+    {
+        // register rigid bodies or update them if they already exists
+        pl_physics_create_rigid_body(ptLibrary, sbtRigidBodyEntities[i]);
+    }
+    pl_end_cpu_sample(gptProfile, 0);
+
+    // physics substep
+    for(uint32_t uSubstep = 0; uSubstep < uSubsteps; uSubstep++)
+    {
+        pl_begin_cpu_sample(gptProfile, 0, "Substep");
+        pl__physics_update_force_fields(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, ptLibrary);
+        pl__detect_collisions(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, ptLibrary);
+        pl__resolve_contacts(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier);
+        pl__physics_integrate(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, gptPhysicsCtx->sbtRigidBodies, uRigidBodyCount);
+        pl_end_cpu_sample(gptProfile, 0);
+    }
+
+    // interpolation required
+    if(fRemainder > 0.0f)
+    {
+        pl_begin_cpu_sample(gptProfile, 0, "Interpolation Step");
+        for(uint32_t i = 0; i < uRigidBodyCount; i++)
+        {
+            plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[i];
+            ptBody->tPosition.x = ((ptBody->tPosition.x - ptBody->tPreviousPosition.x) / fSubstepTime) * fRemainder * fSubstepTime + ptBody->tPreviousPosition.x;
+            ptBody->tPosition.y = ((ptBody->tPosition.y - ptBody->tPreviousPosition.y) / fSubstepTime) * fRemainder * fSubstepTime + ptBody->tPreviousPosition.y;
+            ptBody->tPosition.z = ((ptBody->tPosition.z - ptBody->tPreviousPosition.z) / fSubstepTime) * fRemainder * fSubstepTime + ptBody->tPreviousPosition.z;
+            ptBody->tOrientation = pl_quat_slerp(ptBody->tPreviousOrientation, ptBody->tOrientation, fRemainder);
+            ptBody->tTransform = pl_rotation_translation_scale(ptBody->tOrientation, ptBody->tPosition, (plVec3){1.0f, 1.0f, 1.0f});
+        }
+        pl_end_cpu_sample(gptProfile, 0);
+    }
+
     // update transforms
+    pl_begin_cpu_sample(gptProfile, 0, "Update Transforms");
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
         plTransformComponent* ptSphereTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, sbtRigidBodyEntities[i]);
@@ -567,11 +580,11 @@ pl_physics_update(float fDeltaTime, plComponentLibrary* ptLibrary)
         plMat4 tTransform = pl_mul_mat4(&ptBody->tTransform, &ptBody->tInverseAdditionalTransform);
         tTransform = pl_mul_mat4(&tInvParentTransform, &tTransform);
 
-
         plVec3 tUnUsedScale = {0};
         pl_decompose_matrix(&tTransform, &tUnUsedScale, &ptSphereTransform->tRotation, &ptSphereTransform->tTranslation);
         ptSphereTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
     }
+    pl_end_cpu_sample(gptProfile, 0);
 
     pl_end_cpu_sample(gptProfile, 0);
 }
@@ -1094,28 +1107,6 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
     }
 
     pl_end_cpu_sample(gptProfile, 0);
-}
-
-static float
-pl__transform_to_axis(const plCollisionPrimitive* ptBox, const plVec3* ptAxis)
-{
-    return ptBox->tHalfSize.x * fabsf(pl_dot_vec3(*ptAxis, ptBox->tTransform.col[0].xyz)) + 
-        ptBox->tHalfSize.y * fabsf(pl_dot_vec3(*ptAxis, ptBox->tTransform.col[1].xyz)) + 
-        ptBox->tHalfSize.z * fabsf(pl_dot_vec3(*ptAxis, ptBox->tTransform.col[2].xyz));
-}
-
-static bool
-pl__overlap_on_axis(const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1, plVec3 tAxis, plVec3 tToCenter)
-{
-    // project the half-size of one onto axis
-    float fOneProject = pl__transform_to_axis(ptBox0, &tAxis);
-    float fTwoProject = pl__transform_to_axis(ptBox1, &tAxis);
-
-    // project this onto the axis
-    float fDistance = fabsf(pl_dot_vec3(tToCenter, tAxis));
-
-    // check for overlap
-    return (fDistance < fOneProject + fTwoProject);
 }
 
 static plVec3
@@ -1670,6 +1661,9 @@ pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCou
     {
         plRigidBody* ptBody = &atBodies[i];
 
+        ptBody->tPreviousOrientation = ptBody->tOrientation;
+        ptBody->tPreviousPosition = ptBody->tPosition;
+
         if(ptBody->bIsAwake)
         {
             if(ptBody->tMotionType == PL_RIGID_BODY_MOTION_TYPE_STATIC)
@@ -1766,456 +1760,33 @@ pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCou
     pl_end_cpu_sample(gptProfile, 0);
 }
 
-static bool
-pl__intersect_box_half_space(const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptPlane)
-{
-    float fProjectedRadius = pl__transform_to_axis(ptBox, &ptPlane->tDirection);
-
-    float fBoxDistance = pl_dot_vec3(ptPlane->tDirection, ptBox->tTransform.col[3].xyz) - fProjectedRadius;
-
-    return fBoxDistance <= ptPlane->fOffset;
-}
-
-static bool
-pl__intersect_box_box(const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1)
-{
-    plVec3 tToCenter = pl_sub_vec3(ptBox1->tTransform.col[3].xyz, ptBox0->tTransform.col[3].xyz);
-    return (
-        // check on box 0's axes first
-        pl__overlap_on_axis(ptBox0, ptBox1, ptBox0->tTransform.col[0].xyz, tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, ptBox0->tTransform.col[1].xyz, tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, ptBox0->tTransform.col[2].xyz, tToCenter) && 
-
-        // box 1
-        pl__overlap_on_axis(ptBox0, ptBox1, ptBox1->tTransform.col[0].xyz, tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, ptBox1->tTransform.col[1].xyz, tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, ptBox1->tTransform.col[2].xyz, tToCenter) && 
-
-        // cross products
-        pl__overlap_on_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[0].xyz, ptBox1->tTransform.col[0].xyz), tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[0].xyz, ptBox1->tTransform.col[1].xyz), tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[0].xyz, ptBox1->tTransform.col[2].xyz), tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[1].xyz, ptBox1->tTransform.col[0].xyz), tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[1].xyz, ptBox1->tTransform.col[1].xyz), tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[1].xyz, ptBox1->tTransform.col[2].xyz), tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[2].xyz, ptBox1->tTransform.col[0].xyz), tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[2].xyz, ptBox1->tTransform.col[1].xyz), tToCenter) && 
-        pl__overlap_on_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[2].xyz, ptBox1->tTransform.col[2].xyz), tToCenter)
-    );
-}
-
-static bool
-pl__intersect_sphere_half_space(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane)
-{
-    float fRadius = ptSphere->fRadius;
-
-    // find the distance from the origin
-    float fBallDistance = pl_dot_vec3(ptPlane->tDirection, ptSphere->tTransform.col[3].xyz) - fRadius;
-
-    // check for intersection
-    return fBallDistance <= ptPlane->fOffset;
-}
-
-static bool
-pl__intersect_sphere_sphere(const plCollisionPrimitive* ptSphere0, const plCollisionPrimitive* ptSphere1)
-{
-    float fRadius0 = ptSphere0->fRadius;
-    float fRadius1 = ptSphere1->fRadius;
-
-    // find the vector between the objects
-    plVec3 tMidLine = pl_sub_vec3(ptSphere0->tTransform.col[3].xyz, ptSphere1->tTransform.col[3].xyz);
-
-    // see if it is large enough
-    return pl_length_sqr_vec3(tMidLine) < (fRadius0 + fRadius1) * (fRadius0 + fRadius1);
-}
-
-static void
-pl__collision_sphere_half_space(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane)
-{
-    // cache sphere position
-    plVec3 tPosition = ptSphere->tTransform.col[3].xyz;
-
-    float fRadius = ptSphere->fRadius;
-
-    // find distance from plane
-    const float fBallDistance = pl_dot_vec3(ptPlane->tDirection, tPosition) - fRadius - ptPlane->fOffset;
-
-    if(fBallDistance >= 0)
-        return;
-
-    // create contact
-    plContact tContact = {
-        .tContactNormal = ptPlane->tDirection,
-        .fPenetration   = -fBallDistance,
-        .tContactPoint  = pl_sub_vec3(tPosition, pl_mul_vec3_scalarf(ptPlane->tDirection, fBallDistance + fRadius)),
-        .fRestitution   = 0.0f,
-        .fFriction      = ptSphere->fFriction,
-        .atBodyIndices  = {
-            ptSphere->uBodyIndex,
-            UINT32_MAX
-        }
-    };
-    pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
-}
-
-static void
-pl__collision_sphere_true_plane(const plCollisionPrimitive* ptSphere, const plCollisionPrimitive* ptPlane)
-{
-    // cache sphere position
-    plVec3 tPosition = ptSphere->tTransform.col[3].xyz;
-
-    float fRadius = ptSphere->fRadius;
-
-    // find distance from plane
-    const float fCenterDistance = pl_dot_vec3(ptPlane->tDirection, tPosition) - ptPlane->fOffset;
-
-    // check if within radius
-    if(fCenterDistance * fCenterDistance > fRadius * fRadius)
-        return;
-
-    // check which side of plane we're on
-    plVec3 tNormal = ptPlane->tDirection;
-    float fPenetration = -fCenterDistance;
-    if(fCenterDistance < 0)
-    {
-        tNormal = pl_mul_vec3_scalarf(tNormal, -1.0f);
-        fPenetration = -fPenetration;
-    }
-    fPenetration += fRadius;
-
-    // create contact
-    plContact tContact = {
-        .tContactNormal = tNormal,
-        .fPenetration   = fPenetration,
-        .tContactPoint  = pl_sub_vec3(tPosition, pl_mul_vec3_scalarf(ptPlane->tDirection, fCenterDistance)),
-        .fRestitution   = 0.0f,
-        .fFriction      = ptSphere->fFriction,
-        .atBodyIndices  = {
-            ptSphere->uBodyIndex,
-            UINT32_MAX
-        }
-    };
-    pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
-}
-
 static void
 pl__collision_sphere_sphere(const plCollisionPrimitive* ptSphere0, const plCollisionPrimitive* ptSphere1)
 {
-    // cache sphere positions
-    plVec3 tPosition0 = ptSphere0->tTransform.col[3].xyz;
-    plVec3 tPosition1 = ptSphere1->tTransform.col[3].xyz;
-
-    float fRadius0 = ptSphere0->fRadius;
-    float fRadius1 = ptSphere1->fRadius;
-
-    // find vector between objects
-    plVec3 tMidLine = pl_sub_vec3(tPosition0, tPosition1);
-    float fSize = pl_length_vec3(tMidLine);
-
-    // see if large enough
-    if(fSize <= 0.0f || fSize >= fRadius0 + fRadius1)
-        return;
-
-    // manually create normal because we have size already
-    plVec3 tNormal = pl_mul_vec3_scalarf(tMidLine, 1.0f / fSize);
-
-    // create contact
-    plContact tContact = {
-        .tContactNormal = tNormal,
-        .fPenetration   = fRadius0 + fRadius1 - fSize,
-        .tContactPoint  = pl_add_vec3(tPosition0, pl_mul_vec3_scalarf(tMidLine, 0.5f)),
-        .fRestitution   = pl_max(ptSphere0->fRestitution, ptSphere1->fRestitution),
-        .fFriction      = sqrtf(ptSphere0->fFriction * ptSphere1->fFriction),
-        .atBodyIndices  = {
-            ptSphere0->uBodyIndex,
-            ptSphere1->uBodyIndex
-        }
+    plCollisionSphere tSphere0 = {
+        .tCenter = ptSphere0->tTransform.col[3].xyz,
+        .fRadius = ptSphere0->fRadius
     };
-    pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
-}
 
-static void
-pl__collision_box_half_space(const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptPlane)
-{
-    // check for intersection
-    if(!pl__intersect_box_half_space(ptBox, ptPlane))
-        return;
-
-    // We have an intersection, so find the intersection points. We can make
-    // do with only checking vertices. If the box is resting on a plane
-    // or on an edge, it will be reported as four or two contact points.
-
-    // Go through each combination of + and - for each half-size
-    static float atOffsets[8][3] = {
-        {  1.0f,  1.0f,  1.0f},
-        { -1.0f,  1.0f,  1.0f},
-        {  1.0f, -1.0f,  1.0f},
-        { -1.0f, -1.0f,  1.0f},
-        {  1.0f,  1.0f, -1.0f},
-        { -1.0f,  1.0f, -1.0f},
-        {  1.0f, -1.0f, -1.0f},
-        { -1.0f, -1.0f, -1.0f}
-    }; 
-
-    for(uint32_t i = 0; i < 8; i++)
-    {
-        // calculate position of each vertex
-        plVec3 tVertexPos = {
-            atOffsets[i][0] * ptBox->tHalfSize.x,
-            atOffsets[i][1] * ptBox->tHalfSize.y,
-            atOffsets[i][2] * ptBox->tHalfSize.z
-        };
-        tVertexPos = pl_mul_mat4_vec3(&ptBox->tTransform, tVertexPos);
-
-        // calculate distance from plane
-        float fVertexDistance = pl_dot_vec3(tVertexPos, ptPlane->tDirection);
-
-        // compare to distance from plane
-        if(fVertexDistance <= ptPlane->fOffset)
-        {
-            // create contact info
-
-            // create contact
-            plContact tContact = {
-                .tContactNormal = ptPlane->tDirection,
-                .fPenetration   = ptPlane->fOffset - fVertexDistance,
-                .tContactPoint  = pl_add_vec3(tVertexPos, pl_mul_vec3_scalarf(ptPlane->tDirection, fVertexDistance - ptPlane->fOffset)),
-                .fRestitution   = 0.0f,
-                .fFriction      = ptBox->fFriction,
-                .atBodyIndices  = {
-                    ptBox->uBodyIndex,
-                    UINT32_MAX
-                }
-            };
-            pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
-        }
-    }
-}
-
-static inline float
-pl__penetration_on_axis(const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1, const plVec3* ptAxis, const plVec3* ptToCenter)
-{
-    // project half-size of one onto axis
-    float fOneProject = pl__transform_to_axis(ptBox0, ptAxis);
-    float fTwoProject = pl__transform_to_axis(ptBox1, ptAxis);
-
-    // project this onto axis
-    float fDistance = fabsf(pl_dot_vec3(*ptToCenter, *ptAxis));
-
-    // return overlap
-    return fOneProject + fTwoProject - fDistance;
-}
-
-static inline bool
-pl__try_axis(const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1, plVec3 tAxis,
-    const plVec3* ptToCenter, uint32_t uIndex, float* pfSmallestPenetration, uint32_t* puSmallestCase)
-{
-    // make sure we have normalized axis and don't check almost parallel axes
-    if(pl_length_sqr_vec3(tAxis) < 0.0001f)
-        return true;
-    
-    tAxis = pl_norm_vec3(tAxis);
-
-    float fPenetration = pl__penetration_on_axis(ptBox0, ptBox1, &tAxis, ptToCenter);
-
-    if(fPenetration < 0.0f)
-        return false;
-    if(fPenetration < *pfSmallestPenetration)
-    {
-        *pfSmallestPenetration = fPenetration;
-        *puSmallestCase = uIndex;
-    }
-    return true;
-}
-
-static inline void
-pl__fill_point_face_box_box(const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1,
-    const plVec3* ptToCenter, uint32_t uBest, float fPenetration)
-{
-    // we know which axis collision is on (i.e best), but
-    // we need to work out which of the two faces
-    plVec3 tNormal = ptBox0->tTransform.col[uBest].xyz;
-    if(pl_dot_vec3(tNormal, *ptToCenter) > 0.0f)
-    {
-        tNormal = pl_mul_vec3_scalarf(tNormal, -1.0f);
-    }
-
-    // work out which vertex of box 1 we're colliding with.
-    plVec3 tVertex = ptBox1->tHalfSize;
-    if(pl_dot_vec3(ptBox1->tTransform.col[0].xyz, tNormal) < 0.0f) tVertex.x = -tVertex.x;
-    if(pl_dot_vec3(ptBox1->tTransform.col[1].xyz, tNormal) < 0.0f) tVertex.y = -tVertex.y;
-    if(pl_dot_vec3(ptBox1->tTransform.col[2].xyz, tNormal) < 0.0f) tVertex.z = -tVertex.z;
-
-    // create contact
-    plContact tContact = {
-        .tContactNormal = tNormal,
-        .fPenetration   = fPenetration,
-        .tContactPoint  = pl_mul_mat4_vec3(&ptBox1->tTransform, tVertex),
-        .fRestitution   = pl_max(ptBox0->fRestitution, ptBox1->fRestitution),
-        .fFriction      = sqrtf(ptBox0->fFriction * ptBox1->fFriction),
-        .atBodyIndices  = {
-            ptBox0->uBodyIndex,
-            ptBox1->uBodyIndex
-        }
+    plCollisionSphere tSphere1 = {
+        .tCenter = ptSphere1->tTransform.col[3].xyz,
+        .fRadius = ptSphere1->fRadius
     };
-    pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
-}
 
-static inline plVec3
-pl__contact_point(const plVec3* ptPOne, const plVec3* ptDOne, float fOneSize, const plVec3* ptPTwo, const plVec3* ptDTwo, float fTwoSize, bool bUseOne)
-{
-    
-    float fSmOne = pl_length_sqr_vec3(*ptDOne);
-    float fSmTwo = pl_length_sqr_vec3(*ptDTwo);
-    float fDpOneTwo = pl_dot_vec3(*ptDTwo, *ptDOne);
+    plCollisionInfo tInfo = {0};
 
-    plVec3 tToSt = pl_sub_vec3(*ptPOne, *ptPTwo);
-    float fDpStAOne = pl_dot_vec3(*ptDOne, tToSt);
-    float fDpStATwo = pl_dot_vec3(*ptDTwo, tToSt);
-
-    float fDenom = fSmOne * fSmTwo - fDpOneTwo * fDpOneTwo;
-
-    // zero denominator indicates parallel lines
-    if(fabsf(fDenom) < 0.0001f)
-        return bUseOne ? *ptPOne : *ptPTwo;
-
-    float fMua = (fDpOneTwo * fDpStATwo - fSmTwo * fDpStAOne) / fDenom;
-    float fMub = (fSmOne * fDpStATwo - fDpOneTwo * fDpStAOne) / fDenom;
-
-    // If either of the edges has the nearest point out
-    // of bounds, then the edges aren't crossed, we have
-    // an edge-face contact. Our point is on the edge, which
-    // we know from the useOne parameter.
-    if (fMua > fOneSize ||
-        fMua < -fOneSize ||
-        fMub > fTwoSize ||
-        fMub < -fTwoSize)
+    if(gptCollision->pen_sphere_sphere(&tSphere0, &tSphere1, &tInfo))
     {
-        return bUseOne ? *ptPOne : *ptPTwo;
-    }
-    else
-    {
-        plVec3 tCOne = pl_add_vec3( *ptPOne, pl_mul_vec3_scalarf(*ptDOne, fMua));
-        plVec3 tCTwo = pl_add_vec3( *ptPTwo, pl_mul_vec3_scalarf(*ptDTwo, fMub));
-        return pl_add_vec3(pl_mul_vec3_scalarf(tCOne, 0.5f), pl_mul_vec3_scalarf(tCTwo, 0.5f));
-    }
-}
-
-static void
-pl__collision_box_box(const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1)
-{
-    // find vector between centers
-    plVec3 tToCenter = pl_sub_vec3(ptBox1->tTransform.col[3].xyz, ptBox0->tTransform.col[3].xyz);
-
-    // start by assuming no contact
-    float fPen = FLT_MAX;
-    uint32_t uBest = UINT32_MAX;
-
-    // new check each axes, returning if it gives us a
-    // separating axis, and keeping track of axis with smallest
-    // penetration otherwise
-    if(!pl__try_axis(ptBox0, ptBox1, ptBox0->tTransform.col[0].xyz, &tToCenter, 0, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, ptBox0->tTransform.col[1].xyz, &tToCenter, 1, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, ptBox0->tTransform.col[2].xyz, &tToCenter, 2, &fPen, &uBest)) return;
-
-    if(!pl__try_axis(ptBox0, ptBox1, ptBox1->tTransform.col[0].xyz, &tToCenter, 3, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, ptBox1->tTransform.col[1].xyz, &tToCenter, 4, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, ptBox1->tTransform.col[2].xyz, &tToCenter, 5, &fPen, &uBest)) return;
-
-    // store best axis-major in case we run into almost
-    // parallel edge collisions later
-    uint32_t uBestSingleAxis = uBest;
-    if(!pl__try_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[0].xyz, ptBox1->tTransform.col[0].xyz), &tToCenter,  6, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[0].xyz, ptBox1->tTransform.col[1].xyz), &tToCenter,  7, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[0].xyz, ptBox1->tTransform.col[2].xyz), &tToCenter,  8, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[1].xyz, ptBox1->tTransform.col[0].xyz), &tToCenter,  9, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[1].xyz, ptBox1->tTransform.col[1].xyz), &tToCenter, 10, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[1].xyz, ptBox1->tTransform.col[2].xyz), &tToCenter, 11, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[2].xyz, ptBox1->tTransform.col[0].xyz), &tToCenter, 12, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[2].xyz, ptBox1->tTransform.col[1].xyz), &tToCenter, 13, &fPen, &uBest)) return;
-    if(!pl__try_axis(ptBox0, ptBox1, pl_cross_vec3(ptBox0->tTransform.col[2].xyz, ptBox1->tTransform.col[2].xyz), &tToCenter, 14, &fPen, &uBest)) return;
-
-    // make sure we have a result
-    PL_ASSERT(uBest != UINT32_MAX);
-
-    // we not know there's a collision, and we know which
-    // axes gave smallest penetration. We now can deal with it
-    // depending on the case
-    if(uBest < 3)
-    {
-        // We've got a vertex of box two on a face of box one.
-        pl__fill_point_face_box_box(ptBox0, ptBox1, &tToCenter, uBest, fPen);
-        return;
-    }
-    else if(uBest < 6)
-    {
-        // We've got a vertex of box one on a face of box two.
-        // We use the same algorithm as above, but swap around
-        // one and two (and therefore also the vector between their
-        // centres).
-        tToCenter = pl_mul_vec3_scalarf(tToCenter, -1.0f);
-        pl__fill_point_face_box_box(ptBox1, ptBox0, &tToCenter, uBest - 3, fPen);
-        return;
-    }
-    else
-    {
-        // We've got an edge-edge contact. Find out which axes
-        uBest -= 6;
-        uint32_t uOneAxisIndex = uBest / 3;
-        uint32_t uTwoAxisIndex = uBest % 3;
-
-        plVec3 tOneAxis = ptBox0->tTransform.col[uOneAxisIndex].xyz;
-        plVec3 tTwoAxis = ptBox1->tTransform.col[uTwoAxisIndex].xyz;
-        plVec3 tAxis = pl_norm_vec3(pl_cross_vec3(tOneAxis, tTwoAxis));
-
-        // The axis should point from box one to box two.
-        if (pl_dot_vec3(tAxis, tToCenter) > 0.0f)
-            tAxis = pl_mul_vec3_scalarf(tAxis, -1.0f);
-
-        // We have the axes, but not the edges: each axis has 4 edges parallel
-        // to it, we need to find which of the 4 for each object. We do
-        // that by finding the point in the centre of the edge. We know
-        // its component in the direction of the box's collision axis is zero
-        // (its a mid-point) and we determine which of the extremes in each
-        // of the other axes is closest.
-        plVec3 tPointOnOneEdge = ptBox0->tHalfSize;
-        plVec3 tPointOnTwoEdge = ptBox1->tHalfSize;
-        for(uint32_t i = 0; i < 3; i++)
-        {
-            if(i == uOneAxisIndex)
-                tPointOnOneEdge.d[i] = 0;
-            else if(pl_dot_vec3(ptBox0->tTransform.col[i].xyz, tAxis) > 0.0f)
-                tPointOnOneEdge.d[i] = -tPointOnOneEdge.d[i];
-
-            if(i == uTwoAxisIndex)
-                tPointOnTwoEdge.d[i] = 0;
-            else if(pl_dot_vec3(ptBox1->tTransform.col[i].xyz, tAxis) < 0.0f)
-                tPointOnTwoEdge.d[i] = -tPointOnTwoEdge.d[i];
-        }
-
-        // Move them into world coordinates (they are already oriented
-        // correctly, since they have been derived from the axes).
-        tPointOnOneEdge = pl_mul_mat4_vec3(&ptBox0->tTransform, tPointOnOneEdge);
-        tPointOnTwoEdge = pl_mul_mat4_vec3(&ptBox1->tTransform, tPointOnTwoEdge);
-
-        // So we have a point and a direction for the colliding edges.
-        // We need to find out point of closest approach of the two
-        // line-segments.
-        plVec3 tVertex = pl__contact_point(
-            &tPointOnOneEdge, &tOneAxis, ptBox0->tHalfSize.d[uOneAxisIndex],
-            &tPointOnTwoEdge, &tTwoAxis, ptBox1->tHalfSize.d[uTwoAxisIndex],
-            uBestSingleAxis > 2);
-
         // create contact
         plContact tContact = {
-            .tContactNormal = tAxis,
-            .fPenetration   = fPen,
-            .tContactPoint  = tVertex,
-            .fRestitution   = pl_max(ptBox0->fRestitution, ptBox1->fRestitution),
-            .fFriction      = sqrtf(ptBox0->fFriction * ptBox1->fFriction),
+            .tContactNormal = tInfo.tNormal,
+            .fPenetration   = tInfo.fPenetration,
+            .tContactPoint  = tInfo.tPoint,
+            .fRestitution   = pl_max(ptSphere0->fRestitution, ptSphere1->fRestitution),
+            .fFriction      = sqrtf(ptSphere0->fFriction * ptSphere1->fFriction),
             .atBodyIndices  = {
-                ptBox0->uBodyIndex,
-                ptBox1->uBodyIndex
+                ptSphere0->uBodyIndex,
+                ptSphere1->uBodyIndex
             }
         };
         pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
@@ -2223,118 +1794,70 @@ pl__collision_box_box(const plCollisionPrimitive* ptBox0, const plCollisionPrimi
 }
 
 static void
-pl__collision_box_point(const plCollisionPrimitive* ptBox, plVec3 tPoint)
+pl__collision_box_box(const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1)
 {
-    // transform point into box coordinates
-    plMat4 tInverseTransform = pl_mat4_invert(&ptBox->tTransform);
-    plVec3 tRelPoint = pl_mul_mat4_vec3(&tInverseTransform, tPoint);
-
-    plVec3 tNormal = {0};
-
-    // check each axis, looking for axis with most shallow penetration
-    float fMinDepth = ptBox->tHalfSize.x - fabsf(tRelPoint.x);
-    if(fMinDepth < 0.0f)
-        return;
-    tNormal = pl_mul_vec3_scalarf(ptBox->tTransform.col[0].xyz, tRelPoint.x < 0.0f ? -1.0f : 1.0f);
-
-    float fDepth = ptBox->tHalfSize.y - fabsf(tRelPoint.y);
-    if(fDepth < 0.0f)
-        return;
-    else if(fDepth < fMinDepth)
-    {
-        fMinDepth = fDepth;
-        tNormal = pl_mul_vec3_scalarf(ptBox->tTransform.col[1].xyz, tRelPoint.y < 0.0f ? -1.0f : 1.0f);
-    }
-
-    fDepth = ptBox->tHalfSize.z - fabsf(tRelPoint.z);
-    if(fDepth < 0.0f)
-        return;
-    else if(fDepth < fMinDepth)
-    {
-        fMinDepth = fDepth;
-        tNormal = pl_mul_vec3_scalarf(ptBox->tTransform.col[2].xyz, tRelPoint.z < 0.0f ? -1.0f : 1.0f);
-    }
-
-    // create contact
-    plContact tContact = {
-        .tContactNormal = tNormal,
-        .fPenetration   = fMinDepth,
-        .tContactPoint  = tPoint,
-        .fRestitution   = ptBox->fRestitution,
-        .fFriction      = ptBox->fFriction,
-        .atBodyIndices  = {
-            ptBox->uBodyIndex,
-            UINT32_MAX
-        }
+    plCollisionBox tBox0 = {
+        .tHalfSize = ptBox0->tHalfSize,
+        .tTransform = ptBox0->tTransform
     };
-    pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
+
+    plCollisionBox tBox1 = {
+        .tHalfSize = ptBox1->tHalfSize,
+        .tTransform = ptBox1->tTransform
+    };
+
+    plCollisionInfo tInfo = {0};
+
+    if(gptCollision->pen_box_box(&tBox0, &tBox1, &tInfo))
+    {
+        // create contact
+        plContact tContact = {
+            .tContactNormal = tInfo.tNormal,
+            .fPenetration   = tInfo.fPenetration,
+            .tContactPoint  = tInfo.tPoint,
+            .fRestitution   = pl_max(ptBox0->fRestitution, ptBox1->fRestitution),
+            .fFriction      = sqrtf(ptBox0->fFriction * ptBox1->fFriction),
+            .atBodyIndices  = {
+                tInfo.bFlip ? ptBox1->uBodyIndex : ptBox0->uBodyIndex,
+                tInfo.bFlip ? ptBox0->uBodyIndex : ptBox1->uBodyIndex
+            }
+        };
+        pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
+    }
 }
 
 static void
 pl__collision_box_sphere(const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptSphere)
 {
-    // transform sphere center into box coordinates
-    plVec3 tCenter = ptSphere->tTransform.col[3].xyz;
-    plMat4 tInverseTransform = pl_mat4_invert(&ptBox->tTransform);
-    plVec3 tRelCenter = pl_mul_mat4_vec3(&tInverseTransform, tCenter);
-    // plVec3 tRelCenter = pl_sub_vec3(tCenter, ptBox->tTransform.col[3].xyz);
-
-    float fRadius = ptSphere->fRadius;
-
-    plVec3 tHalfSize = {
-        ptBox->tHalfSize.x,
-        ptBox->tHalfSize.y,
-        ptBox->tHalfSize.z
+    plCollisionBox tBox = {
+        .tHalfSize = ptBox->tHalfSize,
+        .tTransform = ptBox->tTransform
     };
 
-    // early out check
-    if(fabsf(tRelCenter.x) - fRadius > tHalfSize.x ||
-       fabsf(tRelCenter.y) - fRadius > tHalfSize.y ||
-       fabsf(tRelCenter.z) - fRadius > tHalfSize.z)
+    plCollisionSphere tSphere = {
+        .tCenter = ptSphere->tTransform.col[3].xyz,
+        .fRadius = ptSphere->fRadius
+    };
+
+    plCollisionInfo tInfo = {0};
+
+    if(gptCollision->pen_box_sphere(&tBox, &tSphere, &tInfo))
     {
-        return;
+        // create contact
+        plContact tContact = {
+            .tContactNormal = tInfo.tNormal,
+            .fPenetration   = tInfo.fPenetration,
+            .tContactPoint  = tInfo.tPoint,
+            .fRestitution   = pl_max(ptBox->fRestitution, ptSphere->fRestitution),
+            .fFriction      = sqrtf(ptBox->fFriction * ptSphere->fFriction),
+            .atBodyIndices  = {
+                ptBox->uBodyIndex,
+                ptSphere->uBodyIndex
+            }
+        };
+        pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
     }
 
-    plVec3 tClosestPoint = {0};
-    float fDist = 0.0f;
-
-    // clamp each coordinate to box
-    fDist = tRelCenter.x;
-    if(fDist > tHalfSize.x)  fDist = tHalfSize.x;
-    if(fDist < -tHalfSize.x) fDist = -tHalfSize.x;
-    tClosestPoint.x = fDist;
-
-    fDist = tRelCenter.y;
-    if(fDist > tHalfSize.y)  fDist = tHalfSize.y;
-    if(fDist < -tHalfSize.y) fDist = -tHalfSize.y;
-    tClosestPoint.y = fDist;
-
-    fDist = tRelCenter.z;
-    if(fDist > tHalfSize.z)  fDist = tHalfSize.z;
-    if(fDist < -tHalfSize.z) fDist = -tHalfSize.z;
-    tClosestPoint.z = fDist;
-
-    // check we're in contact
-    fDist = pl_length_sqr_vec3(pl_sub_vec3(tClosestPoint, tRelCenter));
-    if(fDist > fRadius * fRadius)
-        return;
-
-    // compile contact
-    plVec3 tClosestPointWorld = pl_mul_mat4_vec3(&ptBox->tTransform, tClosestPoint);
-
-    // create contact
-    plContact tContact = {
-        .tContactNormal = pl_norm_vec3(pl_sub_vec3(tClosestPointWorld, tCenter)),
-        .fPenetration   = fRadius - sqrtf(fDist),
-        .tContactPoint  = tClosestPointWorld,
-        .fRestitution   = pl_max(ptBox->fRestitution, ptSphere->fRestitution),
-        .fFriction      = sqrtf(ptBox->fFriction * ptSphere->fFriction),
-        .atBodyIndices  = {
-            ptBox->uBodyIndex,
-            ptSphere->uBodyIndex
-        }
-    };
-    pl_sb_push(gptPhysicsCtx->sbtContactArray, tContact);
 }
 
 static plVec3
@@ -2513,12 +2036,13 @@ pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plPhysicsI, &tApi);
 
     #ifndef PL_UNITY_BUILD
-        gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptECS     = pl_get_api_latest(ptApiRegistry, plEcsI);
-        gptDraw    = pl_get_api_latest(ptApiRegistry, plDrawI);
-        gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
-        gptStats   = pl_get_api_latest(ptApiRegistry, plStatsI);
-        gptLog     = pl_get_api_latest(ptApiRegistry, plLogI);
+        gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptECS       = pl_get_api_latest(ptApiRegistry, plEcsI);
+        gptDraw      = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptProfile   = pl_get_api_latest(ptApiRegistry, plProfileI);
+        gptStats     = pl_get_api_latest(ptApiRegistry, plStatsI);
+        gptLog       = pl_get_api_latest(ptApiRegistry, plLogI);
+        gptCollision = pl_get_api_latest(ptApiRegistry, plCollisionI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
