@@ -75,9 +75,17 @@ pl__create_texture_helper(plMaterialComponent* ptMaterial, plTextureSlot tSlot, 
     {
 
         const float* rawBytes = gptResource->get_buffer_data(ptMaterial->atTextureMaps[tSlot].tResource, &szResourceSize);
+        plFormat tTextureFormat = PL_FORMAT_R32G32B32A32_FLOAT;
+
+        // nasty hack until more material controls exposed
+        if(szResourceSize < sizeof(float) * 4 * ptMaterial->atTextureMaps[tSlot].uWidth * ptMaterial->atTextureMaps[tSlot].uHeight)
+        {
+            tTextureFormat = PL_FORMAT_R8G8B8A8_UNORM;
+            iMips = 1;
+        }
         const plTextureDesc tTextureDesc = {
             .tDimensions = {(float)ptMaterial->atTextureMaps[tSlot].uWidth, (float)ptMaterial->atTextureMaps[tSlot].uHeight, 1},
-            .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+            .tFormat     = tTextureFormat,
             .uLayers     = 1,
             .uMips       = iMips,
             .tType       = PL_TEXTURE_TYPE_2D,
