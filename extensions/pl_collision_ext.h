@@ -23,7 +23,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plCollisionI_version (plVersion){0, 1, 0}
+#define plCollisionI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

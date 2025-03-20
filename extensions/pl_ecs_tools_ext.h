@@ -22,7 +22,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plEcsToolsI_version (plVersion){0, 1, 0}
+#define plEcsToolsI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

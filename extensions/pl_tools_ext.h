@@ -22,7 +22,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plToolsI_version (plVersion){1, 0, 0}
+#define plToolsI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types

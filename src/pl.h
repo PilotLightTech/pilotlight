@@ -31,7 +31,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PILOT_LIGHT_VERSION          (plVersion){1, 0, 0}
+#define PILOT_LIGHT_VERSION          {1, 0, 0}
 #define plExtensionRegistryI_version PILOT_LIGHT_VERSION
 #define plMemoryI_version            PILOT_LIGHT_VERSION
 #define plIOI_version                PILOT_LIGHT_VERSION
@@ -74,10 +74,16 @@ typedef uint16_t plUiWChar;
 // [SECTION] helper macros
 //-----------------------------------------------------------------------------
 
-#define pl_set_api(ptApiReg, TYPE, ptr)     { const TYPE* ptTypedPtr = ptr; ptApiReg->set_api(#TYPE, TYPE##_version, ptTypedPtr, sizeof(TYPE)); }
-#define pl_get_api(ptApiReg, TYPE, VERSION) ptApiReg->get_api(#TYPE, VERSION)
-#define pl_get_api_latest(ptApiReg, TYPE)   ptApiReg->get_api(#TYPE, TYPE ## _version)
-#define pl_version(X, Y, Z)                 ((plVersion){(X), (Y), (Z)})
+#ifdef __cplusplus
+    #define PL_VERSION_PREFIX
+#else
+    #define PL_VERSION_PREFIX (plVersion)
+#endif
+
+#define pl_set_api(ptApiReg, TYPE, ptr)     { const TYPE* ptTypedPtr = ptr; ptApiReg->set_api(#TYPE, PL_VERSION_PREFIX TYPE##_version, ptTypedPtr, sizeof(TYPE)); }
+#define pl_get_api(ptApiReg, TYPE, VERSION) (TYPE*)ptApiReg->get_api(#TYPE, VERSION)
+#define pl_get_api_latest(ptApiReg, TYPE)   (TYPE*)ptApiReg->get_api(#TYPE, PL_VERSION_PREFIX TYPE ## _version)
+#define pl_version(X, Y, Z)                 (PL_VERSION_PREFIX {(X), (Y), (Z)})
 
 //-----------------------------------------------------------------------------
 // [SECTION] api structs

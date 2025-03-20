@@ -23,7 +23,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plPhysicsI_version (plVersion){0, 1, 0}
+#define plPhysicsI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

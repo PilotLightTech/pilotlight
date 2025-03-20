@@ -29,7 +29,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plGizmoI_version (plVersion){0, 2, 0}
+#define plGizmoI_version {0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

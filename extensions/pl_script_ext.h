@@ -22,7 +22,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plScriptI_version (plVersion){0, 1, 0}
+#define plScriptI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

@@ -1193,7 +1193,7 @@ pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
 
     gptExtensionRegistry->load(pcFile, "pl_load_script", "pl_unload_script", tFlags & PL_SCRIPT_FLAG_RELOADABLE);
 
-    const plScriptI* ptScriptApi = gptApiRegistry->get_api(pcFile, plScriptI_version);
+    const plScriptI* ptScriptApi = gptApiRegistry->get_api(pcFile, (plVersion)plScriptI_version);
     ptScript->_ptApi = ptScriptApi;
     PL_ASSERT(ptScriptApi->run);
 
@@ -1215,7 +1215,7 @@ pl_ecs_attach_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
 
     gptExtensionRegistry->load(pcFile, "pl_load_script", "pl_unload_script", tFlags & PL_SCRIPT_FLAG_RELOADABLE);
 
-    const plScriptI* ptScriptApi = gptApiRegistry->get_api(pcFile, plScriptI_version);
+    const plScriptI* ptScriptApi = gptApiRegistry->get_api(pcFile, (plVersion)plScriptI_version);
     ptScript->_ptApi = ptScriptApi;
     PL_ASSERT(ptScriptApi->run);
 
