@@ -66,29 +66,61 @@ body:
       description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
       render: shell
   - type: dropdown
+    id: extension
+    attributes:
+      label: Extension
+      options:
+        - Atomics
+        - Collision
+        - Console
+        - Draw Backend
+        - Draw
+        - ECS
+        - ECS Tools
+        - File
+        - Gizmo
+        - GPU Allocators
+        - Graphics
+        - Image
+        - Job
+        - Library
+        - Log
+        - Model Loader
+        - Network
+        - Physics
+        - Profile
+        - Rect Pack
+        - Renderer
+        - Resource Manager
+        - Screen Log
+        - Shader
+        - Stats
+        - String Intern
+        - Threads
+        - Tools
+        - UI
+        - Virtual Memory
+        - Window
+  - type: dropdown
+    id: libraries
+    attributes:
+      label: Libraries
+      options:
+        - pl_ds.h
+        - pl_json.h
+        - pl_log.h
+        - pl_math.h
+        - pl_memory.h
+        - pl_profile.h
+        - pl_stl.h
+        - pl_string.h
+        - pl_test.h
+  - type: dropdown
     id: system
     attributes:
       label: System
       options:
-        - Core
-        - OS
-        - Drawing
-        - User Interface
-        - Logging
-        - Profiling
-        - Data structures
-        - Memory
-        - ECS
-        - Job
-        - Stats
-        - Image
-        - Allocators
-        - Testing
-        - Build
-        - Graphics
-        - Model Loader
-        - Renderer
-        - Shader
-        - Resource
-        - GPU Allocators
-        - Libs
+        - Core Framework
+        - Build System
+        - Scripts
+        - Examples
