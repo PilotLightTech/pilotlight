@@ -27,7 +27,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plVirtualMemoryI_version (plVersion){1, 0, 0}
+#define plVirtualMemoryI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api

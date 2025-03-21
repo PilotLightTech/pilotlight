@@ -28,7 +28,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plRectPackI_version (plVersion){1, 0, 0}
+#define plRectPackI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

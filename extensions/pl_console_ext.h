@@ -24,7 +24,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plConsoleI_version (plVersion){1, 0, 0}
+#define plConsoleI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

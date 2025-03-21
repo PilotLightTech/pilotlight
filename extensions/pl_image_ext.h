@@ -29,7 +29,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plImageI_version (plVersion){1, 0, 0}
+#define plImageI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types

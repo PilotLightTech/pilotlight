@@ -30,7 +30,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plProfileI_version (plVersion){1, 0, 0}
+#define plProfileI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

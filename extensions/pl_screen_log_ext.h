@@ -23,7 +23,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plScreenLogI_version (plVersion){1, 0, 0}
+#define plScreenLogI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

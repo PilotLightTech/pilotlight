@@ -28,7 +28,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plStatsI_version (plVersion){1, 0, 0}
+#define plStatsI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api

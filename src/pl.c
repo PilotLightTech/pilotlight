@@ -733,7 +733,7 @@ pl__get_key_data(plKey tKey)
 plVersion
 pl_get_version(void)
 {
-    return PILOT_LIGHT_VERSION;
+    return (plVersion)PILOT_LIGHT_VERSION;
 }
 
 const char*
