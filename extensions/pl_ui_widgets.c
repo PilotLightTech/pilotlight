@@ -1164,6 +1164,7 @@ pl_begin_collapsing_header(const char* pcText, plUiTreeNodeFlags tFlags)
 
     if(*pbOpenState)
     {
+        pl_sb_push(ptWindow->sbfAvailableSizeStack, tWidgetSize.x);
         pl_sb_push(gptCtx->sbuIdStack, uHash);
 
         // push cursor info onto stack
@@ -1179,8 +1180,6 @@ pl_begin_collapsing_header(const char* pcText, plUiTreeNodeFlags tFlags)
         pl_sb_push(ptWindow->sbtRowStack, ptWindow->tTempData.tLayoutRow);
 
         pl_layout_static(0.0f, tWidgetSize.x, 1);
-
-        pl_sb_push(ptWindow->sbfAvailableSizeStack, tWidgetSize.x);
         if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
         {
             float fLastMax = pl_sb_top(ptWindow->sbfMaxCursorYStack);
@@ -1199,16 +1198,12 @@ pl_end_collapsing_header(void)
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     pl_sb_pop(ptWindow->sbfAvailableSizeStack);
     pl_sb_pop(gptCtx->sbuIdStack);
-    // plUiLayoutRow tCurrentRow = ptWindow->tTempData.tLayoutRow;
     ptWindow->tTempData.tLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
     plVec2 tNewCursor = ptWindow->tTempData.tRowCursorPos;
 
     plUiCursorStackItem tOldCursorInfo = pl_sb_pop(ptWindow->sbtCursorStack);
-
-    // did we wrap?
     if(ptWindow->tTempData.tLayoutRow.uCurrentColumn == 0)
     {
-        // pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, tNewCursor.y});
         pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, pl_sb_pop(ptWindow->sbfMaxCursorYStack)});
 
         if(pl_sb_size(ptWindow->sbfMaxCursorYStack) == 0)
@@ -1337,9 +1332,8 @@ pl_tree_pop(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     ptWindow->tTempData.uTreeDepth--;
-    pl_sb_pop(gptCtx->sbuIdStack);
     pl_sb_pop(ptWindow->sbfAvailableSizeStack);
-
+    pl_sb_pop(gptCtx->sbuIdStack);
     ptWindow->tTempData.tLayoutRow = pl_sb_pop(ptWindow->sbtRowStack);
     plVec2 tNewCursor = ptWindow->tTempData.tRowCursorPos;
 
@@ -1348,15 +1342,12 @@ pl_tree_pop(void)
     {
         pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, pl_sb_pop(ptWindow->sbfMaxCursorYStack)});
 
-        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) == 0)
+        // if(pl_sb_size(ptWindow->sbfMaxCursorYStack) == 0)
             pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, ptWindow->tTempData.tCursorMaxPos.y});
     }
     else
     {
-        if(pl_sb_size(ptWindow->sbfMaxCursorYStack) > 0)
-        {
-            pl_sb_pop(ptWindow->sbfMaxCursorYStack);
-        }
+        pl_sb_pop(ptWindow->sbfMaxCursorYStack);
         pl__set_cursor((plVec2){tOldCursorInfo.tPos.x, tOldCursorInfo.tPos.y});
         ptWindow->tTempData.tLayoutRow.fMaxHeight = pl_maxf(ptWindow->tTempData.tLayoutRow.fMaxHeight - gptCtx->tStyle.tItemSpacing.y, tNewCursor.y - tOldCursorInfo.tPos.y);
     }

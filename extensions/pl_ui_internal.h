@@ -403,7 +403,7 @@ typedef struct _plUiWindow
     bool                 bScrollbarY;             // set if vertical scroll bar is "on"
     plUiTempWindowData   tTempData;               // temporary data reset at the beginning of frame
     plUiWindow**         sbtChildWindows;         // child windows if any (reset every frame)
-    plUiLayoutRow*       sbtRowStack;             // row stack for containers to push parents row onto and pop when they exist (reset every frame)
+    plUiLayoutRow*       sbtRowStack;             // row stack for containers to push parents row onto and pop when they exit (reset every frame)
     plUiCursorStackItem* sbtCursorStack;
     float*               sbfAvailableSizeStack;
     float*               sbfMaxCursorYStack;
