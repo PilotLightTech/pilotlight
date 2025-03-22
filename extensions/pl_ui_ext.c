@@ -2139,6 +2139,10 @@ pl__calculate_item_size(float fDefaultHeight)
 
             fWidth *= fTotalWidthAvailable;
         }
+        else
+        {
+            fWidth -= (float)gptCtx->ptCurrentWindow->tTempData.uTreeDepth * gptCtx->tStyle.fIndentSize;
+        }
 
         const plVec2 tWidgetSize = { fWidth, fHeight};
         return tWidgetSize;
@@ -2461,27 +2465,6 @@ pl_show_debug_window(bool* pbOpen)
         pl_checkbox("Show Window Inner Clip Rect", &bShowWindowInnerClipRect);
         pl_checkbox("Show Window Outer Rect", &bShowWindowOuterRect);
         pl_checkbox("Show Window Outer Rect Clipped", &bShowWindowOuterClippedRect);
-
-        for(uint32_t uWindowIndex = 0; uWindowIndex < pl_sb_size(gptCtx->sbptFocusedWindows); uWindowIndex++)
-        {
-            const plUiWindow* ptWindow = gptCtx->sbptFocusedWindows[uWindowIndex];
-
-            if(ptWindow->bActive)
-            {
-                if(bShowWindowInnerRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerRect.tMin, ptWindow->tInnerRect.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
-
-                if(bShowWindowInnerClipRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerClipRect.tMin, ptWindow->tInnerClipRect.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
-
-                if(bShowWindowOuterRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
-
-                if(bShowWindowOuterClippedRect)
-                    gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRectClipped.tMin, ptWindow->tOuterRectClipped.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
-            }
-        }
-        
         pl_separator();
 
         if(pl_tree_node("Windows", 0))
@@ -2573,6 +2556,26 @@ pl_show_debug_window(bool* pbOpen)
 
         pl_end_window();
     } 
+
+    for(uint32_t uWindowIndex = 0; uWindowIndex < pl_sb_size(gptCtx->sbptWindows); uWindowIndex++)
+    {
+        const plUiWindow* ptWindow = gptCtx->sbptWindows[uWindowIndex];
+
+        if(ptWindow->bActive)
+        {
+            if(bShowWindowInnerRect)
+                gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerRect.tMin, ptWindow->tInnerRect.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
+
+            if(bShowWindowInnerClipRect)
+                gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tInnerClipRect.tMin, ptWindow->tInnerClipRect.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
+
+            if(bShowWindowOuterRect)
+                gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRect.tMin, ptWindow->tOuterRect.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
+
+            if(bShowWindowOuterClippedRect)
+                gptDraw->add_rect(gptCtx->ptDebugLayer, ptWindow->tOuterRectClipped.tMin, ptWindow->tOuterRectClipped.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 1.0f, 0.0f), .fThickness = 1.0f});
+        }
+    }
 }
 
 void
