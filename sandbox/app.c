@@ -1879,8 +1879,8 @@ pl__show_ui_demo_window(plAppData* ptAppData)
             }
             gptUI->end_collapsing_header();
         }
+        gptUI->end_window();
     }
-    gptUI->end_window();
 }
 
 
