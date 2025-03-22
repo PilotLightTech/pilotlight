@@ -602,7 +602,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     plTagComponent* ptMaterialTagComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tMaterial);
                     plTagComponent* ptSkinTagComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tSkinComponent);
                     gptUI->text("Material: %s, %u", ptMaterialTagComp->acName, ptMeshComp->tMaterial.uIndex);
-                    gptUI->text("Skin:     %s", ptSkinTagComp ? ptSkinTagComp->acName : " ");
+                    gptUI->text("Skin:     %s, %u", ptSkinTagComp ? ptSkinTagComp->acName : " ", ptSkinTagComp ? ptMeshComp->tSkinComponent.uIndex : 0);
 
                     gptUI->vertical_spacing();
                     gptUI->text("Vertex Data (%u verts, %u idx)", pl_sb_size(ptMeshComp->sbtVertexPositions), pl_sb_size(ptMeshComp->sbuIndices));
@@ -896,7 +896,9 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     }
                     gptUI->labeled_text("Start", "%0.3f s", ptAnimationComp->fStart);
                     gptUI->labeled_text("End", "%0.3f s", ptAnimationComp->fEnd);
-                    gptUI->labeled_text("Speed", "%0.3f s", ptAnimationComp->fSpeed);
+                    // gptUI->labeled_text("Speed", "%0.3f s", ptAnimationComp->fSpeed);
+                    gptUI->slider_float("Speed", &ptAnimationComp->fSpeed, 0.0f, 2.0f, 0);
+                    gptUI->slider_float("Time", &ptAnimationComp->fTimer, ptAnimationComp->fStart, ptAnimationComp->fEnd, 0);
                     gptUI->progress_bar(ptAnimationComp->fTimer / (ptAnimationComp->fEnd - ptAnimationComp->fStart), (plVec2){-1.0f, 0.0f}, NULL);
                     gptUI->end_collapsing_header();
                 }

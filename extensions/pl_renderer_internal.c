@@ -684,6 +684,7 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
         int iDestDataOffset;
         int iDestVertexOffset;
         uint32_t uMaxSize;
+        plMat4 tInverseWorld;
     } SkinDynamicData;
 
     if(uSkinCount)
@@ -710,6 +711,10 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
             ptDynamicData->iDestDataOffset = ptScene->sbtSkinData[i].iDestDataOffset;
             ptDynamicData->iDestVertexOffset = ptScene->sbtSkinData[i].iDestVertexOffset;
             ptDynamicData->uMaxSize = ptScene->sbtSkinData[i].uVertexCount;
+
+            plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, ptScene->sbtSkinData[i].tObjectEntity);
+            plTransformComponent* ptObjectTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
+            ptDynamicData->tInverseWorld = pl_mat4_invert(&ptObjectTransform->tWorld);
 
             const plDispatch tDispach = {
                 .uGroupCountX     = (uint32_t)ceilf((float)ptScene->sbtSkinData[i].uVertexCount / 64.0f),
@@ -2687,6 +2692,7 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
         }
     };
     tSkinData.tShader = gptGfx->create_compute_shader(gptData->ptDevice, &tComputeShaderDesc);
+    tSkinData.tObjectEntity = tEntity;
     pl_temp_allocator_reset(&gptData->tTempAllocator);
     atDrawables[uDrawableIndex].uSkinIndex = pl_sb_size(ptScene->sbtSkinData);
     pl_sb_push(ptScene->sbtSkinData, tSkinData);

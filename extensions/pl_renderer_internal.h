@@ -136,6 +136,7 @@ typedef struct _plComputeShaderVariant
 typedef struct _plSkinData
 {
     plEntity              tEntity;
+    plEntity              tObjectEntity;
     plBufferHandle        atDynamicSkinBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle     atBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
     plComputeShaderHandle tShader;

@@ -284,6 +284,7 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
 
         plSkinComponent* ptSkinComponent = NULL;
         plEntity tSkinEntity = gptECS->create_skin(ptLibrary, ptSkin->name, &ptSkinComponent);
+        plTransformComponent* ptSkinTransform = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSkinEntity);
         pl_sb_resize(ptSkinComponent->sbtJoints, (uint32_t)ptSkin->joints_count);
         pl_sb_resize(ptSkinComponent->sbtInverseBindMatrices, (uint32_t)ptSkin->joints_count);
 
@@ -889,7 +890,15 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
     plComponentLibrary* ptLibrary = ptSceneData->ptLibrary;
 
     plEntity tNewEntity = {UINT32_MAX, UINT32_MAX};
+    plEntity tSkinEntity = {UINT32_MAX, UINT32_MAX};
     plTransformComponent* ptTransform = NULL;
+
+    if(ptNode->skin)
+    {
+        tSkinEntity.ulData = pl_hm_lookup(ptSceneData->ptSkinHashmap, (uint64_t)ptNode->skin);
+        PL_ASSERT(tSkinEntity.ulData != UINT64_MAX && "skin not preregistered");
+    }
+
     const uint64_t ulObjectIndex = pl_hm_lookup(ptSceneData->ptJointHashmap, (uint64_t)ptNode);
     if(ulObjectIndex != UINT64_MAX)
     {
@@ -925,20 +934,6 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
     // attach to parent if parent is valid
     if(tParentEntity.uIndex != UINT32_MAX)
         gptECS->attach_component(ptLibrary, tNewEntity, tParentEntity);
-
-    // check if node has skin
-    plEntity tSkinEntity = {UINT32_MAX, UINT32_MAX};
-    if(ptNode->skin)
-    {
-        const uint64_t ulIndex = pl_hm_lookup(ptSceneData->ptSkinHashmap, (uint64_t)ptNode->skin);
-
-        if(ulIndex != UINT64_MAX)
-        {
-            tSkinEntity = *(plEntity*)&ulIndex;
-            plSkinComponent* ptSkinComponent = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tSkinEntity);
-            ptSkinComponent->tMeshNode = tNewEntity; 
-        }
-    }
 
     // check if node has attached mesh
     if(ptNode->mesh)

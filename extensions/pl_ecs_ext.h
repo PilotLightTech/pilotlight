@@ -491,9 +491,9 @@ typedef struct _plComponentManager
 {
     plComponentLibrary* ptParentLibrary;
     plComponentType     tComponentType;
-    struct plHashMap*   ptHashmap; // map entity -> index in sbtEntities/pComponents
-    plEntity*           sbtEntities;
-    void*               pComponents;
+    struct plHashMap*   ptHashmap;   // map entity -> index in sbtEntities/pComponents
+    plEntity*           sbtEntities; // aligned with pComponents
+    void*               pComponents; // aligned with sbtEntites
     size_t              szStride;
 } plComponentManager;
 
@@ -659,10 +659,10 @@ typedef struct _plMeshComponent
 
 typedef struct _plSkinComponent
 {
-    plEntity  tMeshNode;
     plMat4*   sbtInverseBindMatrices;
     plEntity* sbtJoints;
     plMat4*   sbtTextureData;
+    plAABB    tAABB;
 } plSkinComponent;
 
 typedef struct _plCameraComponent

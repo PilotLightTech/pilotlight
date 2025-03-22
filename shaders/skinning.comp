@@ -51,6 +51,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     int iDestDataOffset;
     int iDestVertexOffset;
     uint uMaxSize;
+    mat4 tInverseWorld;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -125,7 +126,7 @@ main()
     if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0))  { inJoints0      = tInputDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(bool(iSourceMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0)) { inWeights0     = tInputDataBuffer.atVertexData[iSourceVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
-    mat4 skin = get_skinning_matrix(inJoints0, inWeights0);
+    mat4 skin = tObjectInfo.tInverseWorld * get_skinning_matrix(inJoints0, inWeights0);
 
     vec4 outPosition = skin * inPosition;
     vec3 outNormal = normalize(mat3(skin) * inNormal);

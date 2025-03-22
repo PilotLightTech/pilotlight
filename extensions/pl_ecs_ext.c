@@ -658,7 +658,7 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
         if(bAddSlot)
             pl_sb_add(sbComponents);
         ptManager->pComponents = sbComponents;
-        sbComponents[uComponentIndex] = (plSkinComponent){.tMeshNode = {UINT32_MAX, UINT32_MAX}};
+        sbComponents[uComponentIndex] = (plSkinComponent){0};
         return &sbComponents[uComponentIndex];
     }
 
@@ -1475,20 +1475,44 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
         plSkinComponent* ptSkinComponent = &sbtComponents[i];
-        plTransformComponent* ptParent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSkinComponent->tMeshNode);
-        plMat4 tInverseWorldTransform = pl_mat4_invert(&ptParent->tWorld);
-        for(uint32_t j = 0; j < pl_sb_size(ptSkinComponent->sbtJoints); j++)
-        {
-            plEntity tJointEntity = ptSkinComponent->sbtJoints[j];
-            plTransformComponent* ptJointComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tJointEntity);
 
-            const plMat4* ptIBM = &ptSkinComponent->sbtInverseBindMatrices[j];
-            plMat4 tJointMatrix = pl_mul_mat4(&ptJointComponent->tWorld, ptIBM);
-            tJointMatrix = pl_mul_mat4(&tInverseWorldTransform, &tJointMatrix);
-            plMat4 tInvertJoint = pl_mat4_invert(&tJointMatrix);
-            plMat4 tNormalMatrix = pl_mat4_transpose(&tInvertJoint);
-            ptSkinComponent->sbtTextureData[j*2] = tJointMatrix;
-            ptSkinComponent->sbtTextureData[j*2 + 1] = tNormalMatrix;
+        // calculate AABB
+        ptSkinComponent->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
+        ptSkinComponent->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
+
+        plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptLibrary->tSkinComponentManager.sbtEntities[i]);
+        if(ptTransform)
+        {
+            plMat4 tInverseWorldTransform = pl_mat4_invert(&ptTransform->tWorld);
+            for(uint32_t j = 0; j < pl_sb_size(ptSkinComponent->sbtJoints); j++)
+            {
+                plEntity tJointEntity = ptSkinComponent->sbtJoints[j];
+                plTransformComponent* ptJointComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tJointEntity);
+
+                const plMat4* ptIBM = &ptSkinComponent->sbtInverseBindMatrices[j];
+                plMat4 tJointMatrix = pl_mul_mat4(&ptJointComponent->tWorld, ptIBM);
+                tJointMatrix = pl_mul_mat4(&tInverseWorldTransform, &tJointMatrix);
+
+                plMat4 tInvertJoint = pl_mat4_invert(&tJointMatrix);
+                plMat4 tNormalMatrix = pl_mat4_transpose(&tInvertJoint);
+                ptSkinComponent->sbtTextureData[j*2] = tJointMatrix;
+                ptSkinComponent->sbtTextureData[j*2 + 1] = tNormalMatrix;
+
+                plVec3 tBonePos = ptJointComponent->tWorld.col[3].xyz;
+
+                const float fBoneRadius = 1.0f;
+                plAABB tBoneAABB = {
+                    .tMin = {tBonePos.x - fBoneRadius, tBonePos.y - fBoneRadius, tBonePos.z - fBoneRadius},
+                    .tMax = {tBonePos.x + fBoneRadius, tBonePos.y + fBoneRadius, tBonePos.z + fBoneRadius},
+                };
+
+                if(tBoneAABB.tMin.x < ptSkinComponent->tAABB.tMin.x) ptSkinComponent->tAABB.tMin.x = tBoneAABB.tMin.x;
+                if(tBoneAABB.tMin.y < ptSkinComponent->tAABB.tMin.y) ptSkinComponent->tAABB.tMin.y = tBoneAABB.tMin.y;
+                if(tBoneAABB.tMin.z < ptSkinComponent->tAABB.tMin.z) ptSkinComponent->tAABB.tMin.z = tBoneAABB.tMin.z;
+                if(tBoneAABB.tMax.x > ptSkinComponent->tAABB.tMax.x) ptSkinComponent->tAABB.tMax.x = tBoneAABB.tMax.x;
+                if(tBoneAABB.tMax.y > ptSkinComponent->tAABB.tMax.y) ptSkinComponent->tAABB.tMax.y = tBoneAABB.tMax.y;
+                if(tBoneAABB.tMax.z > ptSkinComponent->tAABB.tMax.z) ptSkinComponent->tAABB.tMax.z = tBoneAABB.tMax.z;
+            }
         }
     }
 
@@ -1506,15 +1530,6 @@ pl__object_update_job(plInvocationData tInvoData, void* pData)
     plSkinComponent* ptSkinComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, ptMesh->tSkinComponent);
 
     plMat4 tTransform = ptTransform->tWorld;
-
-    if(ptSkinComponent)
-    {
-        plEntity tJointEntity = ptSkinComponent->sbtJoints[0];
-        plTransformComponent* ptJointComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tJointEntity);
-
-        const plMat4* ptIBM = &ptSkinComponent->sbtInverseBindMatrices[0];
-        tTransform = pl_mul_mat4(&ptJointComponent->tWorld, ptIBM);
-    }
 
     const plVec3 tVerticies[] = {
         pl_mul_mat4_vec3(&tTransform, (plVec3){  ptMesh->tAABB.tMin.x, ptMesh->tAABB.tMin.y, ptMesh->tAABB.tMin.z }),
@@ -1539,6 +1554,17 @@ pl__object_update_job(plInvocationData tInvoData, void* pData)
         if(tVerticies[i].x < ptObject->tAABB.tMin.x) ptObject->tAABB.tMin.x = tVerticies[i].x;
         if(tVerticies[i].y < ptObject->tAABB.tMin.y) ptObject->tAABB.tMin.y = tVerticies[i].y;
         if(tVerticies[i].z < ptObject->tAABB.tMin.z) ptObject->tAABB.tMin.z = tVerticies[i].z;
+    }
+
+    // merge
+    if(ptSkinComponent)
+    {
+        if(ptSkinComponent->tAABB.tMin.x < ptObject->tAABB.tMin.x) ptObject->tAABB.tMin.x = ptSkinComponent->tAABB.tMin.x;
+        if(ptSkinComponent->tAABB.tMin.y < ptObject->tAABB.tMin.y) ptObject->tAABB.tMin.y = ptSkinComponent->tAABB.tMin.y;
+        if(ptSkinComponent->tAABB.tMin.z < ptObject->tAABB.tMin.z) ptObject->tAABB.tMin.z = ptSkinComponent->tAABB.tMin.z;
+        if(ptSkinComponent->tAABB.tMax.x > ptObject->tAABB.tMax.x) ptObject->tAABB.tMax.x = ptSkinComponent->tAABB.tMax.x;
+        if(ptSkinComponent->tAABB.tMax.y > ptObject->tAABB.tMax.y) ptObject->tAABB.tMax.y = ptSkinComponent->tAABB.tMax.y;
+        if(ptSkinComponent->tAABB.tMax.z > ptObject->tAABB.tMax.z) ptObject->tAABB.tMax.z = ptSkinComponent->tAABB.tMax.z;
     }
 }
 
@@ -1574,10 +1600,7 @@ pl_run_transform_update_system(plComponentLibrary* ptLibrary)
         if(ptTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
         {
             ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
-
-            plHierarchyComponent* ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, ptLibrary->tTransformComponentManager.sbtEntities[i]);
-            if(ptHierarchyComponent == NULL) // let object update system have a chance to handle flag
-                ptTransform->tFlags &= ~PL_TRANSFORM_FLAGS_DIRTY;
+            ptTransform->tFlags &= ~PL_TRANSFORM_FLAGS_DIRTY;
         }
     }
 
@@ -1596,10 +1619,10 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
         plHierarchyComponent* ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tChildEntity);
         plTransformComponent* ptParentTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptHierarchyComponent->tParent);
         plTransformComponent* ptChildTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tChildEntity);
-        if(ptParentTransform && ptChildTransform && ptChildTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
+        if(ptParentTransform && ptChildTransform)
         {
             ptChildTransform->tWorld = pl_mul_mat4(&ptParentTransform->tWorld, &ptChildTransform->tWorld);
-            ptChildTransform->tFlags &= ~PL_TRANSFORM_FLAGS_DIRTY;
+            ptChildTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
         }
     }
 
@@ -1708,7 +1731,7 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
         if(!(ptAnimationComponent->tFlags & PL_ANIMATION_FLAG_PLAYING))
             continue;
 
-        ptAnimationComponent->fTimer += fDeltaTime;
+        ptAnimationComponent->fTimer += fDeltaTime * ptAnimationComponent->fSpeed;
 
         if(ptAnimationComponent->tFlags & PL_ANIMATION_FLAG_LOOPED)
         {
