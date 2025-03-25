@@ -1048,6 +1048,7 @@ typedef struct _plDeviceInit
 enum _plGraphicsBackend
 {
     PL_GRAPHICS_BACKEND_NONE = 0,
+    PL_GRAPHICS_BACKEND_CPU,
     PL_GRAPHICS_BACKEND_VULKAN,
     PL_GRAPHICS_BACKEND_METAL
 };

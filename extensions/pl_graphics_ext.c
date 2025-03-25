@@ -3,9 +3,11 @@
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
-#ifdef PL_VULKAN_BACKEND
+#ifdef PL_CPU_BACKEND
+    #include "pl_graphics_cpu.c"
+#elif defined(PL_VULKAN_BACKEND)
     #include "pl_graphics_vulkan.c"
-#elif PL_METAL_BACKEND
+#elif defined(PL_METAL_BACKEND)
     #include "pl_graphics_metal.m"
 #else
 #endif

@@ -154,10 +154,10 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
     gptShaderCtx->tDefaultShaderOptions.tFlags = ptShaderOptions->tFlags;
     if(ptShaderOptions->tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
-        #ifdef PL_METAL_BACKEND
+        #ifdef PL_CPU_BACKEND
+        #elif defined(PL_METAL_BACKEND)
             gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
-        #endif
-        #ifdef PL_VULKAN_BACKEND
+        #elif defined(PL_VULKAN_BACKEND)
             gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
         #endif
     }
@@ -254,10 +254,10 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
     gptShaderCtx->tDefaultShaderOptions.tFlags = ptShaderOptions->tFlags;
     if(ptShaderOptions->tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
-        #ifdef PL_METAL_BACKEND
+        #ifdef PL_CPU_BACKEND
+        #elif defined(PL_METAL_BACKEND)
             gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
-        #endif
-        #ifdef PL_VULKAN_BACKEND
+        #elif defined(PL_VULKAN_BACKEND)
             gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
         #endif
     }
@@ -638,10 +638,10 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
 
         if(ptOptions->tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
         {
-            #ifdef PL_METAL_BACKEND
+            #ifdef PL_CPU_BACKEND
+            #elif defined(PL_METAL_BACKEND)
                 ptOptions->tFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
-            #endif
-            #ifdef PL_VULKAN_BACKEND
+            #elif defined(PL_VULKAN_BACKEND)
                 ptOptions->tFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
             #endif
         }
