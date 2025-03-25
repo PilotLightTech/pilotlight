@@ -42,6 +42,61 @@ Index of this file:
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
+plVec3
+pl_collision_point_closest_point_plane(plVec3 tPoint, const plCollisionPlane* ptPlane)
+{
+    float fT = pl_dot_vec3(ptPlane->tDirection, tPoint) - ptPlane->fOffset;
+    return pl_sub_vec3(tPoint, pl_mul_vec3_scalarf(ptPlane->tDirection, fT));
+}
+
+plVec3
+pl_collision_point_closest_point_line_segment(plVec3 tPoint, plVec3 tA, plVec3 tB, float* pfT)
+{
+    plVec3 tResult = {0};
+    plVec3 tAB = pl_sub_vec3(tB, tA);
+    
+    float fT = pl_dot_vec3(pl_sub_vec3(tPoint, tA), tAB);
+
+    if(fT <= 0.0f)
+    {
+        fT = 0.0f;
+        tResult = tA;
+    }
+    else
+    {
+        float fDenom = pl_dot_vec3(tAB, tAB);
+        if(fT >= fDenom)
+        {
+            fT = 1.0f;
+            tResult = tB;
+        }
+        else
+        {
+            fT = fT / fDenom;
+            tResult = pl_add_vec3(tA, pl_mul_vec3_scalarf(tAB, fT));
+        }
+    }
+
+    if(pfT)
+        *pfT = fT;
+
+    return tResult;
+}
+
+plVec3
+pl_collision_point_closest_point_line_aabb(plVec3 tPoint, plAABB tAABB)
+{
+    plVec3 tResult = {0};
+    for(uint32_t i = 0; i < 3; i++)
+    {
+        float fV = tPoint.d[i];
+        if(fV < tAABB.tMin.d[i]) fV = tAABB.tMin.d[i];
+        if(fV > tAABB.tMax.d[i]) fV = tAABB.tMax.d[i];
+        tResult.d[i] = fV;
+    }
+    return tResult;
+}
+
 bool
 pl_collision_sphere_sphere(const plCollisionSphere* ptSphere0, const plCollisionSphere* ptSphere1)
 {
@@ -71,6 +126,9 @@ pl__collision_overlap_on_axis(const plCollisionBox* ptBox0, const plCollisionBox
     float fDistance = fabsf(pl_dot_vec3(tToCenter, tAxis));
 
     // check for overlap
+    float fCheckDistance = fOneProject + fTwoProject;
+    if(fCheckDistance == 0.0f && fDistance == 0.0f)
+        return true;
     return (fDistance < fOneProject + fTwoProject);
 }
 
@@ -463,14 +521,17 @@ PL_EXPORT void
 pl_load_collision_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plCollisionI tApi = {
-        .sphere_sphere     = pl_collision_sphere_sphere,
-        .box_box           = pl_collision_box_box,
-        .box_half_space    = pl_collision_box_half_space,
-        .sphere_half_space = pl_collision_sphere_half_space,
-        .box_sphere        = pl_collision_box_sphere,
-        .pen_sphere_sphere = pl_collision_pen_sphere_sphere,
-        .pen_box_box       = pl_collision_pen_box_box,
-        .pen_box_sphere    = pl_collision_pen_box_sphere,
+        .point_closest_point_plane        = pl_collision_point_closest_point_plane,
+        .point_closest_point_line_segment = pl_collision_point_closest_point_line_segment,
+        .point_closest_point_aabb         = pl_collision_point_closest_point_line_aabb,
+        .sphere_sphere                    = pl_collision_sphere_sphere,
+        .box_box                          = pl_collision_box_box,
+        .box_half_space                   = pl_collision_box_half_space,
+        .sphere_half_space                = pl_collision_sphere_half_space,
+        .box_sphere                       = pl_collision_box_sphere,
+        .pen_sphere_sphere                = pl_collision_pen_sphere_sphere,
+        .pen_box_box                      = pl_collision_pen_box_box,
+        .pen_box_sphere                   = pl_collision_pen_box_sphere,
     };
     pl_set_api(ptApiRegistry, plCollisionI, &tApi);
 

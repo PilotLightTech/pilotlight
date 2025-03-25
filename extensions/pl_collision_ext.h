@@ -49,6 +49,11 @@ typedef struct _plCollisionInfo   plCollisionInfo;
 typedef struct _plCollisionI
 {
 
+    // closest point
+    plVec3 (*point_closest_point_plane)       (plVec3, const plCollisionPlane*);
+    plVec3 (*point_closest_point_line_segment)(plVec3, plVec3, plVec3, float*);
+    plVec3 (*point_closest_point_aabb)        (plVec3, plAABB);
+
     // collision only
     bool (*sphere_sphere)    (const plCollisionSphere*, const plCollisionSphere*);
     bool (*box_box)          (const plCollisionBox*, const plCollisionBox*);
@@ -77,8 +82,8 @@ typedef struct _plCollisionInfo
 
 typedef struct _plCollisionPlane
 {
-    float  fOffset;
-    plVec3 tDirection;
+    float  fOffset;    // opposite of direction
+    plVec3 tDirection; // normal
 } plCollisionPlane;
 
 typedef struct _plCollisionSphere
