@@ -1230,13 +1230,7 @@ pl_show_ui_demo_window(plAppData* ptAppData)
                 if(gptUi->begin_collapsing_header("Information", 0))
                 {
                     gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                    #ifdef PL_METAL_BACKEND
-                    gptUi->text("Graphics Backend: Metal");
-                    #elif PL_VULKAN_BACKEND
-                    gptUi->text("Graphics Backend: Vulkan");
-                    #else
-                    gptUi->text("Graphics Backend: Unknown");
-                    #endif
+                    gptUi->text("Graphics Backend: %s", gptGfx->get_backend_string());
 
                     gptUi->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3, pfRatios3);
                     if(gptUi->begin_collapsing_header("sub0", 0))
