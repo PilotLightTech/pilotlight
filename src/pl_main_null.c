@@ -50,7 +50,16 @@ Index of this file:
     #include <windows.h>
 #elif defined(__APPLE__)
     #include <time.h> // clock_gettime_nsec_np
+    #include <sys/stat.h> // timespec
+    #include <copyfile.h> // copyfile
+    #include <dlfcn.h>    // dlopen, dlsym, dlclose
+    #include <unistd.h> // close
+    #include <fcntl.h> // O_RDONLY, O_WRONLY ,O_CREAT
 #else // linux
+    #include <sys/sendfile.h> // sendfile
+    #include <sys/stat.h> // stat, timespec
+    #include <dlfcn.h> // dlopen, dlsym, dlclose
+    #include <fcntl.h> // O_RDONLY, O_WRONLY ,O_CREAT
     #include <time.h> // clock_gettime, clock_getres
 #endif
 
@@ -82,7 +91,7 @@ typedef struct _plSharedLibrary
     char            acLockFile[PL_MAX_PATH_LENGTH];
     plLibraryDesc   tDesc;
     void*           handle;
-    struct timespec lastWriteTime;
+    struct timespec tLastWriteTime;
 } plSharedLibrary;
 
 #else // linux
@@ -96,7 +105,7 @@ typedef struct _plSharedLibrary
     char          acLockFile[PL_MAX_PATH_LENGTH];
     plLibraryDesc tDesc;
     void*         handle;
-    time_t        lastWriteTime;
+    time_t        tLastWriteTime;
 } plSharedLibrary;
 
 #endif
@@ -364,6 +373,11 @@ pl_copy_file(const char* source, const char* destination)
         if(bResult)
             return PL_FILE_RESULT_SUCCESS;
         return PL_FILE_RESULT_FAIL;
+    #elif defined(__APPLE__)
+    copyfile_state_t tS = copyfile_state_alloc();
+    copyfile(source, destination, tS, COPYFILE_XATTR | COPYFILE_DATA);
+    copyfile_state_free(tS);
+    return PL_FILE_RESULT_SUCCESS;
     #else
         size_t bufferSize = 0u;
         pl_binary_read_file(source, &bufferSize, NULL);
@@ -383,6 +397,7 @@ pl_copy_file(const char* source, const char* destination)
 // [SECTION] library ext
 //-----------------------------------------------------------------------------
 
+#ifdef _WIN32
 static inline FILETIME
 pl__get_last_write_time(const char* pcFilename)
 {
@@ -394,6 +409,24 @@ pl__get_last_write_time(const char* pcFilename)
     
     return tLastWriteTime;
 }
+#elif defined(__APPLE__)
+struct timespec
+pl__get_last_write_time(const char* filename)
+{
+    struct stat attr;
+    stat(filename, &attr);
+    return attr.st_mtimespec;
+}
+#else
+static inline time_t
+pl__get_last_write_time(const char* filename)
+{
+    struct stat attr;
+    stat(filename, &attr);
+    return attr.st_mtime;
+}
+#endif
+
 
 bool
 pl_has_library_changed(plSharedLibrary* ptLibrary)
@@ -401,8 +434,16 @@ pl_has_library_changed(plSharedLibrary* ptLibrary)
     PL_ASSERT(ptLibrary);
     if(ptLibrary)
     {
+        #ifdef _WIN32
         FILETIME newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
         return CompareFileTime(&newWriteTime, &ptLibrary->tLastWriteTime) != 0;
+        #elif defined(__APPLE__)
+        struct timespec newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+        return newWriteTime.tv_sec != ptLibrary->tLastWriteTime.tv_sec;
+        #else
+        time_t newWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+        return newWriteTime != ptLibrary->tLastWriteTime;
+        #endif
     }
     return false;
 }
@@ -423,13 +464,25 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
         ptLibrary->bValid = false;
         ptLibrary->tDesc = tDesc;
 
+        #ifdef _WIN32
         pl_sprintf(ptLibrary->acPath, "%s.dll", tDesc.pcName);
+        #elif defined(__APPLE__)
+        pl_sprintf(ptLibrary->acPath, "%s.dylib", tDesc.pcName);
+        #else
+        pl_sprintf(ptLibrary->acPath, "./%s.so", tDesc.pcName);
+        #endif
 
         if(tDesc.pcTransitionalName)
             strncpy(ptLibrary->acTransitionalName, tDesc.pcTransitionalName, PL_MAX_PATH_LENGTH);
         else
         {
+            #ifdef _WIN32
             pl_sprintf(ptLibrary->acTransitionalName, "%s_", tDesc.pcName);
+            #elif defined(__APPLE__)
+            pl_sprintf(ptLibrary->acTransitionalName, "%s_", tDesc.pcName);
+            #else
+            pl_sprintf(ptLibrary->acTransitionalName, "./%s_", tDesc.pcName);
+            #endif
         }
 
         if(tDesc.pcLockFile)
@@ -442,19 +495,32 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 
     ptLibrary->bValid = false;
 
+    #ifdef _WIN32
     WIN32_FILE_ATTRIBUTE_DATA tIgnored;
     if(!GetFileAttributesExA(ptLibrary->acLockFile, GetFileExInfoStandard, &tIgnored))  // lock file gone
+    #else
+    struct stat attr2;
+    if(stat(ptLibrary->acLockFile, &attr2) == -1)  // lock file gone
+    #endif
     {
         char acTemporaryName[2024] = {0};
         ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
         
+        #ifdef _WIN32
         pl_sprintf(acTemporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".dll");
+        #elif defined(__APPLE__)
+        pl_sprintf(acTemporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".dylib");
+        #else
+        pl_sprintf(acTemporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".so");
+        #endif
         if(++ptLibrary->uTempIndex >= 1024)
         {
             ptLibrary->uTempIndex = 0;
         }
         pl_copy_file(ptLibrary->acPath, acTemporaryName);
 
+        
+        #ifdef _WIN32
         ptLibrary->tHandle = NULL;
         ptLibrary->tHandle = LoadLibraryA(acTemporaryName);
         if(ptLibrary->tHandle)
@@ -464,6 +530,16 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
             DWORD iLastError = GetLastError();
             printf("LoadLibaryA() failed with error code : %d\n", iLastError);
         }
+        #else
+        ptLibrary->handle = NULL;
+        ptLibrary->handle = dlopen(acTemporaryName, RTLD_NOW);
+        if(ptLibrary->handle)
+            ptLibrary->bValid = true;
+        else
+        {
+            printf("\n\n%s\n\n", dlerror());
+        }
+        #endif
     }
 
     if(ptLibrary->bValid)
@@ -490,7 +566,11 @@ pl_load_library_function(plSharedLibrary* ptLibrary, const char* name)
     void* pLoadedFunction = NULL;
     if(ptLibrary->bValid)
     {
+        #ifdef _WIN32
         pLoadedFunction = (void*)GetProcAddress(ptLibrary->tHandle, name);
+        #else
+        pLoadedFunction = dlsym(ptLibrary->handle, name);
+        #endif
     }
     return pLoadedFunction;
 }

@@ -219,7 +219,7 @@ typedef struct _plDevice
     uint16_t*     sbtTextureFreeIndices;
 
     // sampler generation pool
-    // VkSampler* sbtSamplersHot;
+    int* sbtSamplersHot;
     plSampler* sbtSamplersCold;
     uint16_t*  sbtSamplerFreeIndices;
 
