@@ -17,8 +17,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_TEST_VERSION    "1.0.0"
-#define PL_TEST_VERSION_NUM 10000
+#define PL_TEST_VERSION    "1.0.1"
+#define PL_TEST_VERSION_NUM 10001
 
 /*
 Index of this file:
@@ -141,6 +141,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 
