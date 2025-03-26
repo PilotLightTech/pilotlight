@@ -42,8 +42,128 @@ Index of this file:
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
+bool
+pl_intersect_ray_plane(plVec3 tPoint, plVec3 tDir, const plPlane* ptPlane, plVec3* ptIntersectionPointOut)
+{
+    float fDenom = pl_dot_vec3(ptPlane->tDirection, tDir);
+    if(fDenom == 0.0f)
+        return false;
+
+    float fT = (ptPlane->fOffset - pl_dot_vec3(ptPlane->tDirection, tPoint)) / fDenom;
+
+    bool bResult = false;
+    if(fT >= 0.0f)
+    {
+        bResult = true;
+        if(ptIntersectionPointOut)
+        {
+            *ptIntersectionPointOut = pl_add_vec3(tPoint, pl_mul_vec3_scalarf(tDir, fT));
+        }
+    }
+    return bResult;
+}
+
+bool
+pl_intersect_line_segment_plane(plVec3 tA, plVec3 tB, const plPlane* ptPlane, plVec3* ptIntersectionPointOut)
+{
+    plVec3 tDir = pl_sub_vec3(tB, tA);
+
+    float fDenom = pl_dot_vec3(ptPlane->tDirection, tDir);
+    if(fDenom == 0.0f)
+        return false;
+
+    float fT = (ptPlane->fOffset - pl_dot_vec3(ptPlane->tDirection, tA)) / fDenom;
+
+    bool bResult = false;
+    if(fT >= 0.0f && fT <= 1.0f)
+    {
+        bResult = true;
+        if(ptIntersectionPointOut)
+        {
+            *ptIntersectionPointOut = pl_add_vec3(tA, pl_mul_vec3_scalarf(tDir, fT));
+        }
+    }
+    return bResult;
+}
+
+bool
+pl_intersect_line_segment_cylinder(plVec3 tA, plVec3 tB, const plCylinder* ptCylinder, float* pfT)
+{
+    plVec3 tD = pl_sub_vec3(ptCylinder->tTipPos, ptCylinder->tBasePos);
+    plVec3 tM = pl_sub_vec3(tA, ptCylinder->tBasePos);
+    plVec3 tN = pl_sub_vec3(tB, tA);
+
+    float fMd = pl_dot_vec3(tM, tD);
+    float fNd = pl_dot_vec3(tN, tD);
+    float fDd = pl_dot_vec3(tD, tD);
+
+    // test if segment fully outside endcap of cylinder
+    if(fMd < 0.0f && fMd + fNd < 0.0f)
+        return false;
+    if(fMd > fDd && fMd + fNd > fDd)
+        return false;
+
+    float fNn = pl_dot_vec3(tN, tN);
+    float fMn = pl_dot_vec3(tM, tN);
+    float fA = fDd * fNn - fNd * fNd;
+    float fK = pl_dot_vec3(tM, tM) - ptCylinder->fRadius * ptCylinder->fRadius;
+    float fC = fDd * fK - fMd * fMd;
+    float fT = 0.0f;
+
+    if(fabsf(fA) < 0.0001f)
+    {
+        // segment runs parallel to cylinder axis
+        if(fC > 0.0f)
+            return false;
+        
+        // now known segment intersects cylinder, figure out how
+        if(fMd < 0.0f) // intersect endcap at base
+            fT = -fMn / fNn;
+        else if (fMd > fDd) // intersect endcap at tip
+            fT = (fNd - fMn / fNn);
+        else // lies inside cylinder
+            fT = 0.0f;
+        if(pfT)
+            *pfT = fT;
+        return true;
+    }
+
+    float fB = fDd * fMn - fNd * fMd;
+    float fDiscr = fB * fB - fA * fC;
+    if(fDiscr < 0.0f) // no real roots, no intersection
+        return false;
+    
+    fT = (-fB - sqrtf(fDiscr)) / fA;
+    if(fT < 0.0f || fT > 1.0f) // intersection lies outside segment
+        return false;
+
+    if(fMd + fT * fNd < 0.0f)
+    {
+        // intersection outside cylinder on base side
+        if(fNd <= 0.0f) // segment pointing away from endcap
+            return false;
+        fT = -fMd / fNd;
+        if(pfT)
+            *pfT = fT;
+        return fK + 2.0f * fT * (fMn + fT * fNn) <= 0.0f;
+    }
+    else if(fMd + fT * fNd > fDd)
+    {
+        // intersection outside cylinder on tip side
+        if(fNd >= 0.0f) // segment pointing away from endcap
+            return false;
+        fT = (fDd - fMd) / fNd;
+        if(pfT)
+            *pfT = fT;
+        return fK + fDd - 2.0f * fMd + fT * (2.0f * (fMn - fNd) + fT * fNn) <= 0.0f;
+    }
+    if(pfT)
+        *pfT = fT;
+    return true;
+}
+
 plVec3
-pl_collision_point_closest_point_plane(plVec3 tPoint, const plCollisionPlane* ptPlane)
+pl_collision_point_closest_point_plane(plVec3 tPoint, const plPlane* ptPlane)
 {
     float fT = pl_dot_vec3(ptPlane->tDirection, tPoint) - ptPlane->fOffset;
     return pl_sub_vec3(tPoint, pl_mul_vec3_scalarf(ptPlane->tDirection, fT));
@@ -98,7 +218,7 @@ pl_collision_point_closest_point_line_aabb(plVec3 tPoint, plAABB tAABB)
 }
 
 bool
-pl_collision_sphere_sphere(const plCollisionSphere* ptSphere0, const plCollisionSphere* ptSphere1)
+pl_collision_sphere_sphere(const plSphere* ptSphere0, const plSphere* ptSphere1)
 {
     // find the vector between the objects
     const plVec3 tMidLine = pl_sub_vec3(ptSphere0->tCenter, ptSphere1->tCenter);
@@ -108,7 +228,7 @@ pl_collision_sphere_sphere(const plCollisionSphere* ptSphere0, const plCollision
 }
 
 static float
-pl__collision_transform_to_axis(const plCollisionBox* ptBox, const plVec3* ptAxis)
+pl__collision_transform_to_axis(const plBox* ptBox, const plVec3* ptAxis)
 {
     return ptBox->tHalfSize.x * fabsf(pl_dot_vec3(*ptAxis, ptBox->tTransform.col[0].xyz)) + 
         ptBox->tHalfSize.y * fabsf(pl_dot_vec3(*ptAxis, ptBox->tTransform.col[1].xyz)) + 
@@ -116,7 +236,7 @@ pl__collision_transform_to_axis(const plCollisionBox* ptBox, const plVec3* ptAxi
 }
 
 static bool
-pl__collision_overlap_on_axis(const plCollisionBox* ptBox0, const plCollisionBox* ptBox1, plVec3 tAxis, plVec3 tToCenter)
+pl__collision_overlap_on_axis(const plBox* ptBox0, const plBox* ptBox1, plVec3 tAxis, plVec3 tToCenter)
 {
     // project the half-size of one onto axis
     float fOneProject = pl__collision_transform_to_axis(ptBox0, &tAxis);
@@ -133,7 +253,7 @@ pl__collision_overlap_on_axis(const plCollisionBox* ptBox0, const plCollisionBox
 }
 
 bool
-pl_collision_box_box(const plCollisionBox* ptBox0, const plCollisionBox* ptBox1)
+pl_collision_box_box(const plBox* ptBox0, const plBox* ptBox1)
 {
     plVec3 tToCenter = pl_sub_vec3(ptBox1->tTransform.col[3].xyz, ptBox0->tTransform.col[3].xyz);
     return (
@@ -161,7 +281,7 @@ pl_collision_box_box(const plCollisionBox* ptBox0, const plCollisionBox* ptBox1)
 }
 
 bool
-pl_collision_box_half_space(const plCollisionBox* ptBox, const plCollisionPlane* ptPlane)
+pl_collision_box_half_space(const plBox* ptBox, const plPlane* ptPlane)
 {
     float fProjectedRadius = pl__collision_transform_to_axis(ptBox, &ptPlane->tDirection);
     float fBoxDistance = pl_dot_vec3(ptPlane->tDirection, ptBox->tTransform.col[3].xyz) - fProjectedRadius;
@@ -169,7 +289,7 @@ pl_collision_box_half_space(const plCollisionBox* ptBox, const plCollisionPlane*
 }
 
 bool
-pl_collision_sphere_half_space(const plCollisionSphere* ptSphere, const plCollisionPlane* ptPlane)
+pl_collision_sphere_half_space(const plSphere* ptSphere, const plPlane* ptPlane)
 {
     float fRadius = ptSphere->fRadius;
     float fBallDistance = pl_dot_vec3(ptPlane->tDirection, ptSphere->tCenter) - fRadius;
@@ -177,7 +297,7 @@ pl_collision_sphere_half_space(const plCollisionSphere* ptSphere, const plCollis
 }
 
 bool
-pl_collision_box_sphere(const plCollisionBox* ptBox, const plCollisionSphere* ptSphere)
+pl_collision_box_sphere(const plBox* ptBox, const plSphere* ptSphere)
 {
     // transform sphere center into box coordinates
     plMat4 tInverseTransform = pl_mat4_invert(&ptBox->tTransform);
@@ -221,7 +341,7 @@ pl_collision_box_sphere(const plCollisionBox* ptBox, const plCollisionSphere* pt
 }
 
 bool
-pl_collision_pen_sphere_sphere(const plCollisionSphere* ptSphere0, const plCollisionSphere* ptSphere1, plCollisionInfo* ptInfoOut)
+pl_collision_pen_sphere_sphere(const plSphere* ptSphere0, const plSphere* ptSphere1, plCollisionInfo* ptInfoOut)
 {
     // find the vector between the objects
     const plVec3 tMidLine = pl_sub_vec3(ptSphere0->tCenter, ptSphere1->tCenter);
@@ -245,7 +365,7 @@ pl_collision_pen_sphere_sphere(const plCollisionSphere* ptSphere0, const plColli
 }
 
 static inline float
-pl__collision_penetration_on_axis(const plCollisionBox* ptBox0, const plCollisionBox* ptBox1, const plVec3* ptAxis, const plVec3* ptToCenter)
+pl__collision_penetration_on_axis(const plBox* ptBox0, const plBox* ptBox1, const plVec3* ptAxis, const plVec3* ptToCenter)
 {
     // project half-size of one onto axis
     float fOneProject = pl__collision_transform_to_axis(ptBox0, ptAxis);
@@ -259,7 +379,7 @@ pl__collision_penetration_on_axis(const plCollisionBox* ptBox0, const plCollisio
 }
 
 static inline bool
-pl__collision_try_axis(const plCollisionBox* ptBox0, const plCollisionBox* ptBox1, plVec3 tAxis,
+pl__collision_try_axis(const plBox* ptBox0, const plBox* ptBox1, plVec3 tAxis,
     const plVec3* ptToCenter, uint32_t uIndex, float* pfSmallestPenetration, uint32_t* puSmallestCase)
 {
     // make sure we have normalized axis and don't check almost parallel axes
@@ -281,7 +401,7 @@ pl__collision_try_axis(const plCollisionBox* ptBox0, const plCollisionBox* ptBox
 }
 
 static inline void
-pl__collision_fill_point_face_box_box(const plCollisionBox* ptBox0, const plCollisionBox* ptBox1,
+pl__collision_fill_point_face_box_box(const plBox* ptBox0, const plBox* ptBox1,
     const plVec3* ptToCenter, uint32_t uBest, plCollisionInfo* ptInfoOut)
 {
     // we know which axis collision is on (i.e best), but
@@ -343,7 +463,7 @@ pl__collision_contact_point(const plVec3* ptPOne, const plVec3* ptDOne, float fO
 }
 
 bool
-pl_collision_pen_box_box(const plCollisionBox* ptBox0, const plCollisionBox* ptBox1, plCollisionInfo* ptInfoOut)
+pl_collision_pen_box_box(const plBox* ptBox0, const plBox* ptBox1, plCollisionInfo* ptInfoOut)
 {
     // find vector between centers
     plVec3 tToCenter = pl_sub_vec3(ptBox1->tTransform.col[3].xyz, ptBox0->tTransform.col[3].xyz);
@@ -462,7 +582,7 @@ pl_collision_pen_box_box(const plCollisionBox* ptBox0, const plCollisionBox* ptB
 }
 
 bool
-pl_collision_pen_box_sphere(const plCollisionBox* ptBox, const plCollisionSphere* ptSphere, plCollisionInfo* ptInfoOut)
+pl_collision_pen_box_sphere(const plBox* ptBox, const plSphere* ptSphere, plCollisionInfo* ptInfoOut)
 {
     // transform sphere center into box coordinates
     plMat4 tInverseTransform = pl_mat4_invert(&ptBox->tTransform);
@@ -521,6 +641,9 @@ PL_EXPORT void
 pl_load_collision_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plCollisionI tApi = {
+        .intersect_ray_plane              = pl_intersect_ray_plane,
+        .intersect_line_segment_plane     = pl_intersect_line_segment_plane,
+        .intersect_line_segment_cylinder  = pl_intersect_line_segment_cylinder,
         .point_closest_point_plane        = pl_collision_point_closest_point_plane,
         .point_closest_point_line_segment = pl_collision_point_closest_point_line_segment,
         .point_closest_point_aabb         = pl_collision_point_closest_point_line_aabb,

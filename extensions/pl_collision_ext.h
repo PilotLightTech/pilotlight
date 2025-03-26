@@ -37,10 +37,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plCollisionPlane  plCollisionPlane;
-typedef struct _plCollisionSphere plCollisionSphere;
-typedef struct _plCollisionBox    plCollisionBox;
-typedef struct _plCollisionInfo   plCollisionInfo;
+typedef struct _plCollisionInfo plCollisionInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -49,22 +46,27 @@ typedef struct _plCollisionInfo   plCollisionInfo;
 typedef struct _plCollisionI
 {
 
+    // intersection
+    bool (*intersect_ray_plane)            (plVec3 point, plVec3 dir, const plPlane*, plVec3* intersectionPointOut);
+    bool (*intersect_line_segment_plane)   (plVec3 a, plVec3 b, const plPlane*, plVec3* intersectionPointOut);
+    bool (*intersect_line_segment_cylinder)(plVec3 a, plVec3 b, const plCylinder*, float*);
+
     // closest point
-    plVec3 (*point_closest_point_plane)       (plVec3, const plCollisionPlane*);
+    plVec3 (*point_closest_point_plane)       (plVec3, const plPlane*);
     plVec3 (*point_closest_point_line_segment)(plVec3, plVec3, plVec3, float*);
     plVec3 (*point_closest_point_aabb)        (plVec3, plAABB);
 
     // collision only
-    bool (*sphere_sphere)    (const plCollisionSphere*, const plCollisionSphere*);
-    bool (*box_box)          (const plCollisionBox*, const plCollisionBox*);
-    bool (*box_sphere)       (const plCollisionBox*, const plCollisionSphere*);
-    bool (*box_half_space)   (const plCollisionBox*, const plCollisionPlane*);
-    bool (*sphere_half_space)(const plCollisionSphere*, const plCollisionPlane*);
+    bool (*sphere_sphere)    (const plSphere*, const plSphere*);
+    bool (*box_box)          (const plBox*, const plBox*);
+    bool (*box_sphere)       (const plBox*, const plSphere*);
+    bool (*box_half_space)   (const plBox*, const plPlane*);
+    bool (*sphere_half_space)(const plSphere*, const plPlane*);
 
     // collision & penetration
-    bool (*pen_sphere_sphere)(const plCollisionSphere*, const plCollisionSphere*, plCollisionInfo* infoOut);
-    bool (*pen_box_box)      (const plCollisionBox*, const plCollisionBox*, plCollisionInfo* infoOut);
-    bool (*pen_box_sphere)   (const plCollisionBox*, const plCollisionSphere*, plCollisionInfo* infoOut);
+    bool (*pen_sphere_sphere)(const plSphere*, const plSphere*, plCollisionInfo* infoOut);
+    bool (*pen_box_box)      (const plBox*, const plBox*, plCollisionInfo* infoOut);
+    bool (*pen_box_sphere)   (const plBox*, const plSphere*, plCollisionInfo* infoOut);
 
 } plCollisionI;
 
@@ -79,23 +81,5 @@ typedef struct _plCollisionInfo
     plVec3 tPoint;
     bool   bFlip;
 } plCollisionInfo;
-
-typedef struct _plCollisionPlane
-{
-    float  fOffset;    // opposite of direction
-    plVec3 tDirection; // normal
-} plCollisionPlane;
-
-typedef struct _plCollisionSphere
-{
-    float  fRadius;
-    plVec3 tCenter;
-} plCollisionSphere;
-
-typedef struct _plCollisionBox
-{
-    plMat4 tTransform;
-    plVec3 tHalfSize;
-} plCollisionBox;
 
 #endif // PL_COLLISION_EXT_H

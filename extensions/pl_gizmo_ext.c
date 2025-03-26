@@ -24,6 +24,7 @@ Index of this file:
 #include "pl_gizmo_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_ecs_ext.h"
+#include "pl_collision_ext.h"
 #include "pl_ui_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
@@ -31,9 +32,10 @@ Index of this file:
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
 #else
-static const plUiI*   gptUI   = NULL;
-static const plDrawI* gptDraw = NULL;
-static const plIOI*   gptIOI  = NULL;
+static const plUiI*        gptUI   = NULL;
+static const plDrawI*      gptDraw = NULL;
+static const plIOI*        gptIOI  = NULL;
+static const plCollisionI* gptCollision  = NULL;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -87,7 +89,6 @@ static plGizmoContext* gptGizmoCtx = NULL;
 //-----------------------------------------------------------------------------
 
 static bool pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1, float fRadius, float fHeight, float* pfDistance);
-static bool pl__does_line_intersect_plane   (plVec3 tP0, plVec3 tV0, plVec4 tPlane, plVec3* ptQ);
 static void pl__gizmo_translation           (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform);
 static void pl__gizmo_rotation              (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform);
 static void pl__gizmo_scale                 (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform);
@@ -181,18 +182,6 @@ pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1,
     return false;
 }
 
-static bool
-pl__does_line_intersect_plane(plVec3 tP0, plVec3 tV0, plVec4 tPlane, plVec3* ptQ)
-{
-    const float fFv = pl_dot_vec3(tPlane.xyz, tV0);
-    if(fabsf(fFv) > FLT_MIN)
-    {
-        *ptQ = pl_sub_vec3(tP0, pl_mul_vec3_scalarf(tV0, (pl_dot_vec3(tPlane.xyz, tP0) + tPlane.w) / fFv));
-        return true;
-    }
-    return false;
-}
-
 static void
 pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform)
 {
@@ -237,6 +226,8 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
     float fYDistanceAlong = 0.0f;
     float fZDistanceAlong = 0.0f;
 
+    const plVec3 tDirVec = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos));
+
     bool bXSelected = pl__does_line_intersect_cylinder(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), *ptCenter, (plVec3){1.0f, 0.0f, 0.0f}, fArrowRadius, fLength, &fXDistanceAlong);
     bool bYSelected = pl__does_line_intersect_cylinder(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), *ptCenter, (plVec3){0.0f, 1.0f, 0.0f}, fArrowRadius, fLength, &fYDistanceAlong);
     bool bZSelected = pl__does_line_intersect_cylinder(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), *ptCenter, (plVec3){0.0f, 0.0f, 1.0f}, fArrowRadius, fLength, &fZDistanceAlong);
@@ -245,10 +236,25 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
     plVec3 tXZIntersectionPoint = {0};
     plVec3 tXYIntersectionPoint = {0};
 
-    bool bYZSelected = pl__does_line_intersect_plane(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), (plVec4){1.0f, 0.0f, 0.0f, pl_dot_vec3((plVec3){-1.0f, 0.0f, 0.0f}, *ptCenter)}, &tYZIntersectionPoint);
-    bool bXZSelected = pl__does_line_intersect_plane(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), (plVec4){0.0f, 1.0f, 0.0f, pl_dot_vec3((plVec3){0.0f, -1.0f, 0.0f}, *ptCenter)}, &tXZIntersectionPoint);
-    bool bXYSelected = pl__does_line_intersect_plane(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), (plVec4){0.0f, 0.0f, 1.0f, pl_dot_vec3((plVec3){0.0f, 0.0f, -1.0f}, *ptCenter)}, &tXYIntersectionPoint);
-    
+    const plPlane tYZPlane = {
+        .tDirection = {1.0f, 0.0f, 0.0f},
+        .fOffset    = ptCenter->x
+    };
+
+    const plPlane tXZPlane = {
+        .tDirection = {0.0f, 1.0f, 0.0f},
+        .fOffset    = ptCenter->y
+    };
+
+    const plPlane tXYPlane = {
+        .tDirection = {0.0f, 0.0f, 1.0f},
+        .fOffset    = ptCenter->z
+    };
+
+    bool bYZSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tYZPlane, &tYZIntersectionPoint);
+    bool bXZSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tXZPlane, &tXZIntersectionPoint);
+    bool bXYSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tXYPlane, &tXYIntersectionPoint);
+
     bYZSelected = bYZSelected && 
         (tYZIntersectionPoint.y < ptCenter->y + fLength * 0.375f) &&
         (tYZIntersectionPoint.y > ptCenter->y + fLength * 0.125f) &&
@@ -644,9 +650,26 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, p
     plVec3 tYIntersectionPoint = {0};
     plVec3 tZIntersectionPoint = {0};
 
-    bool bXSelected = pl__does_line_intersect_plane(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), (plVec4){1.0f, 0.0f, 0.0f, pl_dot_vec3((plVec3){-1.0f, 0.0f, 0.0f}, *ptCenter)}, &tXIntersectionPoint);
-    bool bYSelected = pl__does_line_intersect_plane(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), (plVec4){0.0f, 1.0f, 0.0f, pl_dot_vec3((plVec3){0.0f, -1.0f, 0.0f}, *ptCenter)}, &tYIntersectionPoint);
-    bool bZSelected = pl__does_line_intersect_plane(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), (plVec4){0.0f, 0.0f, 1.0f, pl_dot_vec3((plVec3){0.0f, 0.0f, -1.0f}, *ptCenter)}, &tZIntersectionPoint);
+    const plPlane tYZPlane = {
+        .tDirection = {1.0f, 0.0f, 0.0f},
+        .fOffset    = ptCenter->x
+    };
+
+    const plPlane tXZPlane = {
+        .tDirection = {0.0f, 1.0f, 0.0f},
+        .fOffset    = ptCenter->y
+    };
+
+    const plPlane tXYPlane = {
+        .tDirection = {0.0f, 0.0f, 1.0f},
+        .fOffset    = ptCenter->z
+    };
+
+    const plVec3 tDirVec = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos));
+
+    bool bXSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tYZPlane, &tXIntersectionPoint);
+    bool bYSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tXZPlane, &tYIntersectionPoint);
+    bool bZSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tXYPlane, &tZIntersectionPoint);
 
     plVec4 tXColor = (plVec4){1.0f, 0.0f, 0.0f, 1.0f};
     plVec4 tYColor = (plVec4){0.0f, 1.0f, 0.0f, 1.0f};
@@ -943,8 +966,12 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTr
     bool bZSelected = pl__does_line_intersect_cylinder(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), *ptCenter, (plVec3){0.0f, 0.0f, 1.0f}, fArrowRadius, fLength, &fZDistanceAlong);
     
     plVec3 tCameraDir = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos));
-    bool bXYZSelected = pl__does_line_intersect_plane(ptCamera->tPos, tCameraDir, (plVec4){-tCameraDir.x, -tCameraDir.y, -tCameraDir.z, pl_dot_vec3(tCameraDir, *ptCenter)}, &tXYZIntersectionPoint);
 
+    const plPlane tPlane = {
+        .tDirection = tCameraDir,
+        .fOffset    = pl_dot_vec3(tCameraDir, *ptCenter)
+    };
+    bool bXYZSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tCameraDir, &tPlane, &tXYZIntersectionPoint);
 
     if(gptGizmoCtx->tState != PL_GIZMO_STATE_DEFAULT)
     {
@@ -1283,9 +1310,10 @@ pl_load_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plGizmoI, &tApi);
 
-    gptIOI    = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptUI     = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptDraw   = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptIOI       = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptDraw      = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptCollision = pl_get_api_latest(ptApiRegistry, plCollisionI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     if(bReload)
