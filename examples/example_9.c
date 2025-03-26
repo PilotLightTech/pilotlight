@@ -614,13 +614,12 @@ pl_app_update(plAppData* ptAppData)
     const plMat4 tOrigin = pl_identity_mat4();
     gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 10.0f, (plDrawLineOptions){.fThickness = 0.2f});
 
-    plDrawCylinderDesc tCylinderDesc = {
+    plCylinder tCylinderDesc = {
         .fRadius = 1.5f,
         .tBasePos = {-2.5f, 1.0f, 0.0f},
-        .tTipPos  = {-2.5f, 4.0f, 0.0f},
-        .uSegments = 12
+        .tTipPos  = {-2.5f, 4.0f, 0.0f}
     };
-    gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, tCylinderDesc, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
+    gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, tCylinderDesc, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
 
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
         (plVec3){1.0f, 1.0f, 0.0f},
@@ -629,7 +628,7 @@ pl_app_update(plAppData* ptAppData)
         (plDrawSolidOptions){.uColor = PL_COLOR_32_YELLOW});
 
     gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist,
-        (plDrawSphereDesc){.fRadius = 1.0F, .tCenter = {5.5f, 2.5f, 0.0f}}, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
+        (plSphere){.fRadius = 1.0F, .tCenter = {5.5f, 2.5f, 0.0f}}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
 
     gptDraw->add_3d_circle_xz_filled(ptAppData->pt3dDrawlist,
         (plVec3){8.5f, 2.5f, 0.0f}, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
