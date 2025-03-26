@@ -37,6 +37,7 @@ static const struct _plScreenLogI*         gptScreenLog         = 0;
 
 // experimental
 static const struct _plCollisionI* gptCollision = 0;
+static const struct _plBVHI*       gptBvh       = 0;
 static const struct _plCameraI*    gptCamera    = 0;
 static const struct _plResourceI*  gptResource  = 0;
 static const struct _plEcsI*       gptECS       = 0;

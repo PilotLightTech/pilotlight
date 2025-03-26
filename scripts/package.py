@@ -56,6 +56,7 @@ extension_headers = [
     "pl_ui_ext.h",
     "pl_physics_ext.h",
     "pl_collision_ext.h",
+    "pl_bvh_ext.h",
     "pl_virtual_memory_ext.h",
     "pl_window_ext.h"
 ]
@@ -85,6 +86,7 @@ extensions = [
     "pl_string_intern_ext",
     "pl_physics_ext",
     "pl_collision_ext",
+    "pl_bvh_ext",
     "pl_ui_ext"
 ]
 

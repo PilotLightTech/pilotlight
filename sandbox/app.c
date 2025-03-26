@@ -70,6 +70,7 @@ Index of this file:
 #include "pl_gizmo_ext.h"
 #include "pl_physics_ext.h"
 #include "pl_collision_ext.h"
+#include "pl_bvh_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
@@ -100,6 +101,7 @@ const plConsoleI*      gptConsole     = NULL;
 const plScreenLogI*    gptScreenLog   = NULL;
 const plPhysicsI *     gptPhysics     = NULL;
 const plCollisionI*    gptCollision   = NULL;
+const plBVHI*          gptBvh         = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -245,6 +247,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
         gptPhysics     = pl_get_api_latest(ptApiRegistry, plPhysicsI);
         gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
+        gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
 
@@ -285,6 +288,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
     gptPhysics     = pl_get_api_latest(ptApiRegistry, plPhysicsI);
     gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
+    gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
