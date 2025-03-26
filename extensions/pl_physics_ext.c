@@ -630,11 +630,11 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 
         if(ptBody->tShape == PL_COLLISION_SHAPE_SPHERE)
         {
-            plDrawSphereDesc tDesc = {
+            plSphere tDesc = {
                 .fRadius = ptBody->fRadius,
                 .tCenter = tPosition
             };
-            gptDraw->add_3d_sphere(ptDrawlist, tDesc, (plDrawLineOptions){.uColor = uColor, .fThickness = 0.01f});
+            gptDraw->add_3d_sphere(ptDrawlist, tDesc, 0, 0, (plDrawLineOptions){.uColor = uColor, .fThickness = 0.01f});
         }
         else if(ptBody->tShape == PL_COLLISION_SHAPE_BOX)
         {
@@ -687,11 +687,11 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
         {
             gptDraw->add_3d_cross(ptDrawlist, ptTransform->tTranslation, 0.25f, (plDrawLineOptions){.uColor = PL_COLOR_32_RED, .fThickness = 0.05f});
 
-            plDrawSphereDesc tDesc = {
+            plSphere tDesc = {
                 .fRadius = ptForceField->fRange,
                 .tCenter = ptTransform->tTranslation
             };
-            gptDraw->add_3d_sphere(ptDrawlist, tDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_RED, .fThickness = 0.01f});
+            gptDraw->add_3d_sphere(ptDrawlist, tDesc, 0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_RED, .fThickness = 0.01f});
         }
         else if(ptForceField->tType == PL_FORCE_FIELD_TYPE_PLANE)
         {
@@ -1763,12 +1763,12 @@ pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCou
 static void
 pl__collision_sphere_sphere(const plCollisionPrimitive* ptSphere0, const plCollisionPrimitive* ptSphere1)
 {
-    plCollisionSphere tSphere0 = {
+    plSphere tSphere0 = {
         .tCenter = ptSphere0->tTransform.col[3].xyz,
         .fRadius = ptSphere0->fRadius
     };
 
-    plCollisionSphere tSphere1 = {
+    plSphere tSphere1 = {
         .tCenter = ptSphere1->tTransform.col[3].xyz,
         .fRadius = ptSphere1->fRadius
     };
@@ -1796,12 +1796,12 @@ pl__collision_sphere_sphere(const plCollisionPrimitive* ptSphere0, const plColli
 static void
 pl__collision_box_box(const plCollisionPrimitive* ptBox0, const plCollisionPrimitive* ptBox1)
 {
-    plCollisionBox tBox0 = {
+    plBox tBox0 = {
         .tHalfSize = ptBox0->tHalfSize,
         .tTransform = ptBox0->tTransform
     };
 
-    plCollisionBox tBox1 = {
+    plBox tBox1 = {
         .tHalfSize = ptBox1->tHalfSize,
         .tTransform = ptBox1->tTransform
     };
@@ -1829,12 +1829,12 @@ pl__collision_box_box(const plCollisionPrimitive* ptBox0, const plCollisionPrimi
 static void
 pl__collision_box_sphere(const plCollisionPrimitive* ptBox, const plCollisionPrimitive* ptSphere)
 {
-    plCollisionBox tBox = {
+    plBox tBox = {
         .tHalfSize = ptBox->tHalfSize,
         .tTransform = ptBox->tTransform
     };
 
-    plCollisionSphere tSphere = {
+    plSphere tSphere = {
         .tCenter = ptSphere->tTransform.col[3].xyz,
         .fRadius = ptSphere->fRadius
     };

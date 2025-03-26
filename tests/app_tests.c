@@ -152,47 +152,47 @@ collision_only_tests_0(void* pAppData)
 {
     plAppData* ptAppData = pAppData;
 
-    plCollisionSphere tSphere0 = {
+    plSphere tSphere0 = {
         .fRadius = 1.0f,
         .tCenter = {0}
     };
 
-    plCollisionSphere tSphere1 = {
+    plSphere tSphere1 = {
         .fRadius = 1.0f,
         .tCenter = {0.4f, 0.0f, 0.0f}
     };
 
-    plCollisionSphere tSphere2 = {
+    plSphere tSphere2 = {
         .fRadius = 1.0f,
         .tCenter = {2.0f, 2.0f, 0.0f}
     };
 
-    plCollisionBox tBox0 = {
+    plBox tBox0 = {
         .tHalfSize = {0.5f, 0.5f, 0.5f},
         .tTransform = pl_identity_mat4()
     };
 
-    plCollisionBox tBox1 = {
+    plBox tBox1 = {
         .tHalfSize = {0.5f, 0.5f, 0.5f},
         .tTransform = pl_mat4_translate_xyz(0.25f, 0.25f, 0.1f)
     };
 
-    plCollisionBox tBox2 = {
+    plBox tBox2 = {
         .tHalfSize = {0.5f, 0.5f, 0.5f},
         .tTransform = pl_mat4_translate_xyz(1.0f, 1.0f, 0.3f)
     };
 
-    plCollisionPlane tPlane0 = {
+    plPlane tPlane0 = {
         .fOffset = 0.0f,
         .tDirection = {0.0f, 1.0f, 0.0f}
     };
 
-    plCollisionPlane tPlane1 = {
+    plPlane tPlane1 = {
         .fOffset = -2.0f,
         .tDirection = {0.0f, 1.0f, 0.0f}
     };
 
-    plCollisionPlane tPlane2 = {
+    plPlane tPlane2 = {
         .fOffset = -1.1f,
         .tDirection = {1.0f, 0.0f, 0.0f}
     };

@@ -3531,55 +3531,53 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                 const plVec4 tColor = {.rgb = sbtLights[i].tColor, .a = 1.0f};
                 if(sbtLights[i].tType == PL_LIGHT_TYPE_POINT)
                 {
-                    plDrawSphereDesc tSphere = {
+                    plSphere tSphere = {
                         .fRadius = sbtLights[i].fRadius,
-                        .tCenter = sbtLights[i].tPosition,
-                        .uLatBands = 6,
-                        .uLongBands = 6
+                        .tCenter = sbtLights[i].tPosition
                     };
-                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
+                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, 6, 6, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.005f});
                     tSphere.fRadius = sbtLights[i].fRange;
-                    plDrawSphereDesc tSphere2 = {
+                    plSphere tSphere2 = {
                         .fRadius = sbtLights[i].fRange,
                         .tCenter = sbtLights[i].tPosition
                     };
-                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, 6, 6, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
                 }
                 else if(sbtLights[i].tType == PL_LIGHT_TYPE_SPOT)
                 {
-                    plDrawConeDesc tCone0 = {
+                    plCone tCone0 = {
                         .fRadius = tanf(sbtLights[i].fOuterConeAngle) * sbtLights[i].fRange,
                         .tTipPos = sbtLights[i].tPosition,
                         .tBasePos = pl_add_vec3(sbtLights[i].tPosition, pl_mul_vec3_scalarf(sbtLights[i].tDirection, sbtLights[i].fRange))
                     };
-                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
 
                     if(sbtLights[i].fInnerConeAngle > 0.0f)
                     {
-                        plDrawConeDesc tCone1 = {
+                        plCone tCone1 = {
                             .fRadius = tanf(sbtLights[i].fInnerConeAngle) * sbtLights[i].fRange,
                             .tTipPos = sbtLights[i].tPosition,
                             .tBasePos = pl_add_vec3(sbtLights[i].tPosition, pl_mul_vec3_scalarf(sbtLights[i].tDirection, sbtLights[i].fRange))
                         };
-                        gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone1, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                        gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone1, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
                     }
                 }
 
                 else if(sbtLights[i].tType == PL_LIGHT_TYPE_DIRECTIONAL)
                 {
                     plVec3 tDirection = pl_norm_vec3(sbtLights[i].tDirection);
-                    plDrawConeDesc tCone0 = {
+                    plCone tCone0 = {
                         .fRadius = 0.125f,
                         .tBasePos = (plVec3){0.0f, 3.0f, 0.0f},
                         .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, 0.25f))
                     };
-                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
-                    plDrawCylinderDesc tCylinder = {
+                    gptDraw->add_3d_cone(ptView->pt3DDrawList, tCone0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    plCylinder tCylinder = {
                         .fRadius = 0.0625f,
                         .tBasePos = tCone0.tBasePos,
                         .tTipPos = pl_add_vec3((plVec3){0.0f, 3.0f, 0.0f}, pl_mul_vec3_scalarf(tDirection, -0.25f))
                     };
-                    gptDraw->add_3d_cylinder(ptView->pt3DDrawList, tCylinder, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    gptDraw->add_3d_cylinder(ptView->pt3DDrawList, tCylinder, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
                 }
             }
         }

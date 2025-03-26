@@ -1490,8 +1490,8 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
                 plTransformComponent* ptJointComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tJointEntity);
 
                 const plMat4* ptIBM = &ptSkinComponent->sbtInverseBindMatrices[j];
-                plMat4 tJointMatrix = pl_mul_mat4(&ptJointComponent->tWorld, ptIBM);
-                tJointMatrix = pl_mul_mat4(&tInverseWorldTransform, &tJointMatrix);
+
+                plMat4 tJointMatrix = pl_mul_mat4_3(&tInverseWorldTransform, &ptJointComponent->tWorld, ptIBM);
 
                 plMat4 tInvertJoint = pl_mat4_invert(&tJointMatrix);
                 plMat4 tNormalMatrix = pl_mat4_transpose(&tInvertJoint);
