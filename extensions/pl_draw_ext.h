@@ -63,10 +63,6 @@ typedef struct _plDraw3DText        plDraw3DText;
 typedef struct _plDrawLineOptions  plDrawLineOptions;  // options for lines
 typedef struct _plDrawSolidOptions plDrawSolidOptions; // options for solids
 typedef struct _plDrawTextOptions  plDrawTextOptions;  // options for text
-typedef struct _plDrawCapsuleDesc  plDrawCapsuleDesc;  // description for drawing capsules
-typedef struct _plDrawSphereDesc   plDrawSphereDesc;   // description for drawing spheres
-typedef struct _plDrawCylinderDesc plDrawCylinderDesc; // description for drawing cylinders
-typedef struct _plDrawConeDesc     plDrawConeDesc;     // description for drawing cones 
 typedef struct _plDrawFrustumDesc  plDrawFrustumDesc;  // description for drawing frustums 
 
 // font types
@@ -180,9 +176,9 @@ typedef struct _plDrawI
     void (*add_3d_plane_xz_filled)    (plDrawList3D*, plVec3 center, float width, float height, plDrawSolidOptions);
     void (*add_3d_plane_xy_filled)    (plDrawList3D*, plVec3 center, float width, float height, plDrawSolidOptions);
     void (*add_3d_plane_yz_filled)    (plDrawList3D*, plVec3 center, float width, float height, plDrawSolidOptions);
-    void (*add_3d_sphere_filled)      (plDrawList3D*, plDrawSphereDesc, plDrawSolidOptions);
-    void (*add_3d_cylinder_filled)    (plDrawList3D*, plDrawCylinderDesc, plDrawSolidOptions);
-    void (*add_3d_cone_filled)        (plDrawList3D*, plDrawConeDesc, plDrawSolidOptions);
+    void (*add_3d_sphere_filled)      (plDrawList3D*, plSphere, uint32_t latBands, uint32_t longBands, plDrawSolidOptions);
+    void (*add_3d_cylinder_filled)    (plDrawList3D*, plCylinder, uint32_t segments, plDrawSolidOptions);
+    void (*add_3d_cone_filled)        (plDrawList3D*, plCone, uint32_t segments, plDrawSolidOptions);
 
     // wireframe
     void (*add_3d_line)        (plDrawList3D*, plVec3 p0, plVec3 p1, plDrawLineOptions);
@@ -194,10 +190,10 @@ typedef struct _plDrawI
     void (*add_3d_bezier_quad) (plDrawList3D*, plVec3 p0, plVec3 p1, plVec3 p2, uint32_t segments, plDrawLineOptions);
     void (*add_3d_bezier_cubic)(plDrawList3D*, plVec3 p0, plVec3 p1, plVec3 p2, plVec3 tP3, uint32_t segments, plDrawLineOptions);
     void (*add_3d_circle_xz)   (plDrawList3D*, plVec3 center, float radius, uint32_t segments, plDrawLineOptions);
-    void (*add_3d_sphere)      (plDrawList3D*, plDrawSphereDesc, plDrawLineOptions);
-    void (*add_3d_capsule)     (plDrawList3D*, plDrawCapsuleDesc, plDrawLineOptions);
-    void (*add_3d_cylinder)    (plDrawList3D*, plDrawCylinderDesc, plDrawLineOptions);
-    void (*add_3d_cone)        (plDrawList3D*, plDrawConeDesc, plDrawLineOptions);
+    void (*add_3d_sphere)      (plDrawList3D*, plSphere, uint32_t latBands, uint32_t longBands, plDrawLineOptions);
+    void (*add_3d_capsule)     (plDrawList3D*, plCapsule, uint32_t latBands, uint32_t longBands, plDrawLineOptions);
+    void (*add_3d_cylinder)    (plDrawList3D*, plCylinder, uint32_t segments, plDrawLineOptions);
+    void (*add_3d_cone)        (plDrawList3D*, plCone, uint32_t segments, plDrawLineOptions);
 
 } plDrawI;
 
@@ -239,41 +235,6 @@ typedef struct _plDrawInit
 {
     int _iUnused;
 } plDrawInit;
-
-typedef struct _plDrawCapsuleDesc
-{
-    plVec3   tBasePos;
-    float    fBaseRadius;
-    plVec3   tTipPos;
-    float    fTipRadius;
-    uint32_t uLatBands;  // default: 16
-    uint32_t uLongBands; // default: 16
-    float    fEndOffsetRatio;
-} plDrawCapsuleDesc;
-
-typedef struct _plDrawSphereDesc
-{
-    plVec3   tCenter;
-    float    fRadius;
-    uint32_t uLatBands;  // default: 16
-    uint32_t uLongBands; // default: 16
-} plDrawSphereDesc;
-
-typedef struct _plDrawCylinderDesc
-{
-    plVec3   tBasePos;
-    plVec3   tTipPos;
-    float    fRadius;
-    uint32_t uSegments; // default: 12
-} plDrawCylinderDesc;
-
-typedef struct _plDrawConeDesc
-{
-    plVec3   tBasePos;
-    plVec3   tTipPos;
-    float    fRadius;
-    uint32_t uSegments; // default: 12
-} plDrawConeDesc;
 
 typedef struct _plDrawFrustumDesc
 {

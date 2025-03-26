@@ -14,8 +14,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_MATH_VERSION    "1.2.0"
-#define PL_MATH_VERSION_NUM 10200
+#define PL_MATH_VERSION    "1.3.0"
+#define PL_MATH_VERSION_NUM 10300
 
 /*
 Index of this file:
@@ -30,6 +30,7 @@ Index of this file:
 // [SECTION] matrix ops
 // [SECTION] quaternion ops
 // [SECTION] rect ops
+// [SECTION] aabb ops
 // [SECTION] colors
 // [SECTION] implementations
 */
@@ -40,20 +41,28 @@ Index of this file:
 
 #ifndef PL_MATH_INC
 #define PL_MATH_INC
-#define PL_MATH_DEFINED
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-// forward declarations
+// general math
 typedef union  _plVec2 plVec2;
 typedef union  _plVec3 plVec3;
 typedef union  _plVec4 plVec4;
 typedef union  _plMat3 plMat3;
 typedef union  _plMat4 plMat4;
-typedef struct _plRect plRect;
-typedef struct _plAABB plAABB;
+
+// geometric primitives
+typedef struct _plRect     plRect;
+typedef struct _plAABB     plAABB;
+typedef struct _plPlane    plPlane;
+typedef struct _plSphere   plSphere;
+typedef struct _plBox      plBox;
+typedef struct _plCone     plCone;
+typedef struct _plRay      plRay;
+typedef struct _plCylinder plCylinder;
+typedef struct _plCapsule  plCapsule;
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -194,6 +203,51 @@ typedef struct _plAABB
     plVec3 tMin;
     plVec3 tMax;
 } plAABB;
+
+typedef struct _plPlane
+{
+    float  fOffset;    // opposite of direction
+    plVec3 tDirection; // normal
+} plPlane;
+
+typedef struct _plSphere
+{
+    float  fRadius;
+    plVec3 tCenter;
+} plSphere;
+
+typedef struct _plBox
+{
+    plMat4 tTransform;
+    plVec3 tHalfSize;
+} plBox;
+
+typedef struct _plCone
+{
+    plVec3 tBasePos;
+    plVec3 tTipPos;
+    float  fRadius;
+} plCone;
+
+typedef struct _plCylinder
+{
+    plVec3 tBasePos;
+    plVec3 tTipPos;
+    float  fRadius;
+} plCylinder;
+
+typedef struct _plCapsule
+{
+    plVec3 tBasePos;
+    plVec3 tTipPos;
+    float  fRadius;
+} plCapsule;
+
+typedef struct _plRay
+{
+    plVec3 tOrigin;
+    plVec3 tDirection;
+} plRay;
 
 #endif // PL_MATH_INC
 
@@ -363,6 +417,7 @@ static inline plVec3 pl_mul_mat4_vec3   (const plMat4* ptLeft, plVec3 tRight);
 static inline plVec4 pl_mul_mat4_vec4   (const plMat4* ptLeft, plVec4 tRight);
 static inline plMat4 pl_mul_mat4        (const plMat4* ptLeft, const plMat4* ptRight);
 static inline plMat4 pl_add_mat4        (const plMat4* ptLeft, const plMat4* ptRight);
+static inline plMat4 pl_mul_mat4_3      (const plMat4* ptLeft, const plMat4* ptMiddle, const plMat4* ptRight);
 
 // translation, rotation, scaling
 static inline plMat4 pl_mat4_translate_xyz        (float fX, float fY, float fZ)               { plMat4 tResult = pl_create_mat4_diag(1.0f, 1.0f, 1.0f, 1.0f); tResult.x14 = fX; tResult.x24 = fY; tResult.x34 = fZ; return tResult;}
@@ -424,6 +479,14 @@ static inline plRect pl_rect_move_center_x (const plRect* ptRect, float fX)     
 static inline plRect pl_rect_move_start    (const plRect* ptRect, float fX, float fY)         { const plRect tResult = {{ fX, fY}, { fX + ptRect->tMax.x - ptRect->tMin.x, fY + ptRect->tMax.y - ptRect->tMin.y} }; return tResult;}
 static inline plRect pl_rect_move_start_x  (const plRect* ptRect, float fX)                   { const plRect tResult = { { fX, ptRect->tMin.y}, { fX + ptRect->tMax.x - ptRect->tMin.x, ptRect->tMax.y} }; return tResult;}
 static inline plRect pl_rect_move_start_y  (const plRect* ptRect, float fY)                   { const plRect tResult = {{ ptRect->tMin.x, fY}, { ptRect->tMax.x, fY + ptRect->tMax.y - ptRect->tMin.y}}; return tResult;}
+
+//-----------------------------------------------------------------------------
+// [SECTION] aabb ops
+//-----------------------------------------------------------------------------
+
+static inline plAABB pl_aabb_merge     (const plAABB* tA, const plAABB* tB) { plAABB tResult = {pl_min_vec3(tA->tMin, tB->tMin),pl_max_vec3(tA->tMax, tB->tMax)}; return tResult; }
+static inline plVec3 pl_aabb_half_width(const plAABB* tA)                   { return pl_create_vec3(0.5f * (tA->tMax.x - tA->tMin.x), 0.5f * (tA->tMax.y - tA->tMin.y), 0.5f * (tA->tMax.z - tA->tMin.z)); }
+static inline plVec3 pl_aabb_center    (const plAABB* tA)                   { return pl_create_vec3(0.5f * (tA->tMax.x + tA->tMin.x), 0.5f * (tA->tMax.y + tA->tMin.y), 0.5f * (tA->tMax.z + tA->tMin.z)); }
 
 //-----------------------------------------------------------------------------
 // [SECTION] colors
@@ -555,6 +618,13 @@ pl_mul_mat4(const plMat4* ptLeft, const plMat4* ptRight)
     tResult.x44 = ptLeft->col[0].d[3] * ptRight->col[3].d[0] + ptLeft->col[1].d[3] * ptRight->col[3].d[1] + ptLeft->col[2].d[3] * ptRight->col[3].d[2] + ptLeft->col[3].d[3] * ptRight->col[3].d[3];
 
     return tResult;
+}
+
+static inline plMat4
+pl_mul_mat4_3(const plMat4* ptLeft, const plMat4* ptMiddle, const plMat4* ptRight)
+{
+    plMat4 tIntermediateMatrix = pl_mul_mat4(ptMiddle, ptRight);
+    return pl_mul_mat4(ptLeft, &tIntermediateMatrix);
 }
 
 static inline plMat4
