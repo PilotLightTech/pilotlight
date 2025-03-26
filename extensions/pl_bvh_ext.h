@@ -46,7 +46,8 @@ typedef struct _plBVHNode plBVHNode;
 
 typedef struct _plBVHI
 {
-    void (*build)(plBVH*, const plAABB*, uint32_t count);
+    void (*build)  (plBVH*, const plAABB*, uint32_t count);
+    void (*cleanup)(plBVH*);
 } plBVHI;
 
 //-----------------------------------------------------------------------------

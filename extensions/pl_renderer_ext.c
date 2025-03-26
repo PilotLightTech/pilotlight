@@ -1103,8 +1103,9 @@ pl_refr_cleanup_scene(uint32_t uSceneHandle)
         }
     }
 
-
-
+    gptBvh->cleanup(&ptScene->tBvh);
+    pl_sb_free(ptScene->sbtBvhAABBs);
+    pl_sb_free(ptScene->sbtNodeStack);
     pl_sb_free(ptScene->sbtGPUProbeData);
     pl_sb_free(ptScene->sbtProbeData);
     pl_sb_free(ptScene->sbtShadowRects);
@@ -2657,8 +2658,6 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
         };
 
         gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
-
-
     }
     
 }
@@ -3541,7 +3540,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                         .fRadius = sbtLights[i].fRange,
                         .tCenter = sbtLights[i].tPosition
                     };
-                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, 6, 6, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
+                    gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere2, 0, 0, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tColor), .fThickness = 0.01f});
                 }
                 else if(sbtLights[i].tType == PL_LIGHT_TYPE_SPOT)
                 {
@@ -3617,6 +3616,38 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                 plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, ptProbe->tEntity);
                 gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.0f, 1.0f, 0.0f), .fThickness = 0.02f});
             }
+        }
+
+        if(gptData->bShowBVH)
+        {
+            if(ptScene->tBvh.uNodeCount > 0)
+            {
+                plObjectComponent* sbtComponents = ptScene->tComponentLibrary.tObjectComponentManager.pComponents;
+
+                pl_sb_push(ptScene->sbtNodeStack, &ptScene->tBvh.ptNodes[0]);
+
+                while(pl_sb_size(ptScene->sbtNodeStack) > 0)
+                {
+                    plBVHNode* ptNode = pl_sb_pop(ptScene->sbtNodeStack);
+                    gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptNode->tAABB.tMin, ptNode->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_WHITE});
+                    if(ptNode->uCount > 0) // is leaf
+                    {
+                        for(uint32_t i = 0; i < ptNode->uCount; i++)
+                        {
+                            uint32_t uIndex = ptScene->tBvh.puLeafIndices[ptNode->uOffset + i];
+                            plObjectComponent* ptObject = &sbtComponents[uIndex];
+                            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_DARK_BLUE});
+                        }
+                    }
+                    else
+                    {
+                        pl_sb_push(ptScene->sbtNodeStack, &ptScene->tBvh.ptNodes[ptNode->uLeft]);
+                        pl_sb_push(ptScene->sbtNodeStack, &ptScene->tBvh.ptNodes[ptNode->uLeft + 1]);
+                    }
+                }
+
+            }
+
         }
 
         if(ptCullCamera && ptCullCamera != ptCamera)
@@ -4636,6 +4667,7 @@ pl_show_graphics_options(const char* pcTitle)
         if(gptUI->checkbox("VSync", &gptData->bVSync))
             gptData->bReloadSwapchain = true;
         gptUI->checkbox("Show Origin", &gptData->bShowOrigin);
+        gptUI->checkbox("Show BVH", &gptData->bShowBVH);
         bool bReloadShaders = false;
         if(gptUI->checkbox("Wireframe", &gptData->bWireframe)) bReloadShaders = true;
         if(gptUI->checkbox("MultiViewport Shadows", &gptData->bMultiViewportShadows)) bReloadShaders = true;
@@ -4650,7 +4682,9 @@ pl_show_graphics_options(const char* pcTitle)
         if(bReloadShaders)
         {
             for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
+            {
                 pl_refr_reload_scene_shaders(i);
+            }
         }
         gptUI->checkbox("Frustum Culling", &gptData->bFrustumCulling);
         gptUI->checkbox("All Bounding Boxes", &gptData->bDrawAllBoundingBoxes);
@@ -4669,6 +4703,23 @@ pl_show_graphics_options(const char* pcTitle)
             if(gptUI->tree_node("Scene", 0))
             {
                 gptUI->checkbox("Show Skybox", &gptData->sbtScenes[i].bShowSkybox);
+                if(gptUI->button("Build BVH"))
+                {
+                    plComponentLibrary* ptLibrary = &gptData->sbtScenes[i].tComponentLibrary;
+                    plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
+                    const uint32_t uObjectCount = pl_sb_size(sbtComponents);
+                    pl_sb_resize(gptData->sbtScenes[i].sbtBvhAABBs, uObjectCount);
+                    for(uint32_t j = 0; j < uObjectCount; j++)
+                    {
+                        plObjectComponent* ptObject = &sbtComponents[j];
+                        gptData->sbtScenes[i].sbtBvhAABBs[j] = ptObject->tAABB;
+                    }
+
+                    gptBvh->build(&gptData->sbtScenes[i].tBvh, gptData->sbtScenes[i].sbtBvhAABBs, uObjectCount);
+
+                    pl_sb_reset(gptData->sbtScenes[i].sbtBvhAABBs);
+                    
+                }
                 gptUI->tree_pop();
             }
         }
@@ -4751,6 +4802,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptScreenLog     = pl_get_api_latest(ptApiRegistry, plScreenLogI);
     gptPhysics       = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+    gptBvh           = pl_get_api_latest(ptApiRegistry, plBVHI);
 
     if(bReload)
     {

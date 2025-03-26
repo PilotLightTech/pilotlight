@@ -52,6 +52,7 @@ Index of this file:
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
 #include "pl_physics_ext.h"
+#include "pl_bvh_ext.h"
 
 // stb
 #include "stb_image_resize2.h"
@@ -95,13 +96,15 @@ Index of this file:
     static const plLogI*           gptLog           = NULL;
     static const plRectPackI*      gptRect          = NULL;
     static const plConsoleI*       gptConsole       = NULL;
-    static const plPhysicsI *      gptPhysics       = NULL;
+
     
     // experimental
+    static const plPhysicsI*    gptPhysics    = NULL;
     static const plScreenLogI*  gptScreenLog  = NULL;
-    static const plCameraI*     gptCamera   = NULL;
-    static const plResourceI*   gptResource = NULL;
-    static const plEcsI*        gptECS      = NULL;
+    static const plCameraI*     gptCamera     = NULL;
+    static const plResourceI*   gptResource   = NULL;
+    static const plEcsI*        gptECS        = NULL;
+    static const plBVHI*        gptBvh        = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
@@ -493,6 +496,11 @@ typedef struct _plRefScene
     // transforms
     uint32_t uNextTransformIndex;
     // uint32_t* sbuFreeTransformIndices;
+
+    // bvh
+    plBVH tBvh;
+    plAABB* sbtBvhAABBs;
+    plBVHNode** sbtNodeStack;
 } plRefScene;
 
 typedef struct _plRefRendererData
@@ -592,6 +600,7 @@ typedef struct _plRefRendererData
     // graphics options
     bool     bMSAA;
     bool     bShowProbes;
+    bool     bShowBVH;
     bool     bWireframe;
     bool     bReloadSwapchain;
     bool     bReloadMSAA;

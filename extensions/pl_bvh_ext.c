@@ -111,6 +111,11 @@ pl_bvh_subdivide(plBVH* ptBvh, uint32_t uNodeIndex, const plAABB* ptAABBs)
 void
 pl_bvh_build(plBVH* ptBvh, const plAABB* ptAABBs, uint32_t uCount)
 {
+    if(ptBvh->puAllocation)
+    {
+        PL_FREE(ptBvh->puAllocation);
+        ptBvh->puAllocation = NULL;
+    }
     ptBvh->uNodeCount = 0;
     if(uCount == 0)
         return;
@@ -121,7 +126,7 @@ pl_bvh_build(plBVH* ptBvh, const plAABB* ptAABBs, uint32_t uCount)
     memset(ptBvh->puAllocation, 0, sizeof(plBVHNode) * uNodeCapacity + sizeof(uint32_t) * uCount);
 
     ptBvh->ptNodes = (plBVHNode*)ptBvh->puAllocation;
-    ptBvh->puLeafIndices = (uint32_t*)&ptBvh->ptNodes[uNodeCapacity];
+    ptBvh->puLeafIndices = (uint32_t*)(ptBvh->ptNodes + uNodeCapacity);
     ptBvh->uLeafCount = uCount;
 
     plBVHNode* ptNode = &ptBvh->ptNodes[ptBvh->uNodeCount++];
@@ -135,6 +140,17 @@ pl_bvh_build(plBVH* ptBvh, const plAABB* ptAABBs, uint32_t uCount)
     pl_bvh_subdivide(ptBvh, 0, ptAABBs);
 }
 
+void
+pl_bvh_cleanup(plBVH* ptBvh)
+{
+    if(ptBvh->puAllocation)
+    {
+        PL_FREE(ptBvh->puAllocation);
+        ptBvh->puAllocation = NULL;
+    }
+    *ptBvh = (plBVH){0};
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -143,7 +159,8 @@ PL_EXPORT void
 pl_load_bvh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plBVHI tApi = {
-        .build = pl_bvh_build
+        .build   = pl_bvh_build,
+        .cleanup = pl_bvh_cleanup
     };
     pl_set_api(ptApiRegistry, plBVHI, &tApi);
 
