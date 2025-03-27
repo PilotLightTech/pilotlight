@@ -60,10 +60,6 @@ Index of this file:
 #define PL_MAX_VIEWS_PER_SCENE 4
 #define PL_MAX_LIGHTS 100
 
-#ifndef PL_DEVICE_BUDDY_BLOCK_SIZE
-    #define PL_DEVICE_BUDDY_BLOCK_SIZE 268435456
-#endif
-
 #define PL_MAX_BINDLESS_TEXTURES 4096
 
 #ifdef PL_UNITY_BUILD

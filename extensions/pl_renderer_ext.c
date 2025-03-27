@@ -4071,7 +4071,7 @@ pl_refr_begin_frame(void)
     
             // allocate memory
             plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
-            if(ptColorTexture->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+            if(ptColorTexture->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
                 ptAllocator = gptData->ptLocalDedicatedAllocator;
             const plDeviceMemoryAllocation tColorAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
                 ptColorTexture->tMemoryRequirements.uMemoryTypeBits,

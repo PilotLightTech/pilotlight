@@ -56,6 +56,9 @@ typedef struct _plGPUAllocatorsI
     plDeviceMemoryAllocatorI* (*get_staging_uncached_buddy_allocator)(plDevice*);
     plDeviceMemoryAllocatorI* (*get_staging_cached_allocator)        (plDevice*);
 
+    // misc
+    size_t (*get_buddy_block_size)(void);
+
     void (*cleanup)(plDevice*);
 
     // for debug viewing

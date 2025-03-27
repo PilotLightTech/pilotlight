@@ -179,7 +179,7 @@ pl__refr_create_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_
 
     // choose allocator
     plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
-    if(ptTexture->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+    if(ptTexture->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
         ptAllocator = gptData->ptLocalDedicatedAllocator;
 
     // allocate memory
@@ -225,7 +225,7 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
 
     // choose allocator
     plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
-    if(ptTexture->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+    if(ptTexture->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
         ptAllocator = gptData->ptLocalDedicatedAllocator;
 
     // allocate memory
@@ -291,11 +291,9 @@ pl__refr_create_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, u
     plBuffer* ptBuffer = NULL;
     const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc, &ptBuffer);
 
-    // PL_DEVICE_BUDDY_BLOCK_SIZE
-
     plDeviceMemoryAllocatorI* ptAllocator = NULL;
 
-    if(ptBuffer->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+    if(ptBuffer->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
         ptAllocator = gptData->ptStagingUnCachedAllocator;
     else
         ptAllocator = gptData->ptStagingUnCachedBuddyAllocator;
@@ -359,7 +357,7 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
 
     // choose allocator
     plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
-    if(ptBuffer->tMemoryRequirements.ulSize > PL_DEVICE_BUDDY_BLOCK_SIZE)
+    if(ptBuffer->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
         ptAllocator = gptData->ptLocalDedicatedAllocator;
 
     // allocate memory
