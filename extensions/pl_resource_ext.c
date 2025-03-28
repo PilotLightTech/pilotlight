@@ -501,7 +501,10 @@ pl_resource_clear_all(void)
 
         
     }
-    PL_ASSERT(gptResourceManager->ptNameHashmap->_uItemCount == 0);
+    if(gptResourceManager->ptNameHashmap)
+    {
+       PL_ASSERT(gptResourceManager->ptNameHashmap->_uItemCount == 0);
+    }
 }
 
 const uint8_t*
