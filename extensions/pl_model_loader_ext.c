@@ -72,10 +72,10 @@ typedef struct _plGltfLoadingData
 //-----------------------------------------------------------------------------
 
 // internal gltf helpers
-static void pl__load_gltf_texture(plTextureSlot tSlot, const cgltf_texture_view* ptTexture, const char* pcDirectory, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
-static void pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial, const cgltf_material* ptGltfMaterial);
+static void pl__load_gltf_texture(const char* pcPath, plTextureSlot tSlot, const cgltf_texture_view* ptTexture, const char* pcDirectory, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
+static void pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialComponent* ptMaterial, const cgltf_material* ptGltfMaterial);
 static void pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimitive);
-static void pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneData, const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode);
+static void pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfLoadingData* ptSceneData, const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode);
 static void pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animation* ptAnimation);
 
 //-----------------------------------------------------------------------------
@@ -335,7 +335,7 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
                 ptTransformComponent->tWorld = *ptTransform;
                 pl_decompose_matrix(&ptTransformComponent->tWorld, &ptTransformComponent->tScale, &ptTransformComponent->tRotation, &ptTransformComponent->tTranslation);
             }
-            pl__refr_load_gltf_object(ptDataOut, &tLoadingData, acDirectory, tRoot, ptNode);
+            pl__refr_load_gltf_object(pcPath, ptDataOut, &tLoadingData, acDirectory, tRoot, ptNode);
         }
     }
 
@@ -359,44 +359,50 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
 //-----------------------------------------------------------------------------
 
 static void
-pl__load_gltf_texture(plTextureSlot tSlot, const cgltf_texture_view* ptTexture, const char* pcDirectory, const cgltf_material* ptGltfMaterial, plMaterialComponent* ptMaterial)
+pl__load_gltf_texture(const char* pcPath, plTextureSlot tSlot, const cgltf_texture_view* ptTexture, const char* pcDirectory, const cgltf_material* ptGltfMaterial, plMaterialComponent* ptMaterial)
 {
     ptMaterial->atTextureMaps[tSlot].uUVSet = ptTexture->texcoord;
 
     if(ptTexture->texture->image->buffer_view)
     {
-        static int iSeed = 0;
-        iSeed++;
         char* pucBufferData = ptTexture->texture->image->buffer_view->buffer->data;
         char* pucActualBuffer = &pucBufferData[ptTexture->texture->image->buffer_view->offset];
-        ptMaterial->atTextureMaps[tSlot].acName[0] = (char)(tSlot + iSeed);
-        strncpy(&ptMaterial->atTextureMaps[tSlot].acName[1], pucActualBuffer, 127);
         
-        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptMaterial->atTextureMaps[tSlot].acName, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, (uint8_t*)pucActualBuffer, ptTexture->texture->image->buffer_view->size);
+        char acResourceName[64] = {0};
+
+        // int iOffset = pl_sprintf(acResourceName, "gltf_import_%p.", pucActualBuffer);
+        int iOffset = pl_sprintf(acResourceName, "gltf_import_%u.", pl_str_hash_data(pucActualBuffer, ptTexture->texture->image->buffer_view->size, 0));
+        char* pcNext = acResourceName;
+        pcNext += iOffset;
+        
+        pl_str_get_file_name_only(ptTexture->texture->image->mime_type, pcNext, 4);
+        strcpy(ptMaterial->atTextureMaps[tSlot].acName, acResourceName);
+        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_ex(acResourceName, 0, (uint8_t*)pucActualBuffer, ptTexture->texture->image->buffer_view->size, pcPath, 0);
     }
     else if(strncmp(ptTexture->texture->image->uri, "data:", 5) == 0)
     {
-        const char* comma = strchr(ptTexture->texture->image->uri, ',');
+        PL_ASSERT(false && "currently don't support gltf with embedded data");
+        // const char* comma = strchr(ptTexture->texture->image->uri, ',');
 
-        if (comma && comma - ptTexture->texture->image->uri >= 7 && strncmp(comma - 7, ";base64", 7) == 0)
-        {
-            cgltf_options tOptions = {0};
-            ptMaterial->atTextureMaps[tSlot].acName[0] = (char)tSlot + 1;
-            strcpy(&ptMaterial->atTextureMaps[tSlot].acName[1], ptGltfMaterial->name);
+        // if (comma && comma - ptTexture->texture->image->uri >= 7 && strncmp(comma - 7, ";base64", 7) == 0)
+        // {
+        //     cgltf_options tOptions = {0};
+        //     ptMaterial->atTextureMaps[tSlot].acName[0] = (char)tSlot + 1;
+        //     strcpy(&ptMaterial->atTextureMaps[tSlot].acName[1], ptGltfMaterial->name);
             
-            void* outData = NULL;
-            const char *base64 = comma + 1;
-            const size_t szBufferLength = strlen(base64);
-            size_t szSize = szBufferLength - szBufferLength / 4;
-            if(szBufferLength >= 2)
-            {
-                szSize -= base64[szBufferLength - 2] == '=';
-                szSize -= base64[szBufferLength - 1] == '=';
-            }
-            cgltf_result res = cgltf_load_buffer_base64(&tOptions, szSize, base64, &outData);
-            PL_ASSERT(res == cgltf_result_success);
-            ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptMaterial->atTextureMaps[tSlot].acName, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, outData, szSize);
-        }
+        //     void* outData = NULL;
+        //     const char *base64 = comma + 1;
+        //     const size_t szBufferLength = strlen(base64);
+        //     size_t szSize = szBufferLength - szBufferLength / 4;
+        //     if(szBufferLength >= 2)
+        //     {
+        //         szSize -= base64[szBufferLength - 2] == '=';
+        //         szSize -= base64[szBufferLength - 1] == '=';
+        //     }
+        //     cgltf_result res = cgltf_load_buffer_base64(&tOptions, szSize, base64, &outData);
+        //     PL_ASSERT(res == cgltf_result_success);
+        //     ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptMaterial->atTextureMaps[tSlot].acName, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, outData, szSize);
+        // }
     }
     else
     {
@@ -404,19 +410,12 @@ pl__load_gltf_texture(plTextureSlot tSlot, const cgltf_texture_view* ptTexture, 
         char acFilepath[2048] = {0};
         strcpy(acFilepath, pcDirectory);
         pl_str_concatenate(acFilepath, ptMaterial->atTextureMaps[tSlot].acName, acFilepath, 2048);
-
-        size_t szFileSize = 0;
-        gptFile->binary_read(acFilepath, &szFileSize, NULL);
-        uint8_t* pcBuffer = PL_ALLOC(szFileSize);
-        memset(pcBuffer, 0, szFileSize);
-        gptFile->binary_read(acFilepath, &szFileSize, pcBuffer);
-        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_resource(ptTexture->texture->image->uri, PL_RESOURCE_LOAD_FLAG_RETAIN_DATA, pcBuffer, szFileSize);
-        PL_FREE(pcBuffer);
+        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load(acFilepath, 0);
     }
 }
 
 static void
-pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial, const cgltf_material* ptGltfMaterial)
+pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialComponent* ptMaterial, const cgltf_material* ptGltfMaterial)
 {
     ptMaterial->tShaderType = PL_SHADER_TYPE_PBR;
     ptMaterial->tFlags |= ptGltfMaterial->double_sided ? PL_MATERIAL_FLAG_DOUBLE_SIDED : PL_MATERIAL_FLAG_NONE;
@@ -431,7 +430,7 @@ pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial,
         ptMaterial->tBlendMode = PL_BLEND_MODE_CLIP_MASK;
 
 	if(ptGltfMaterial->normal_texture.texture)
-		pl__load_gltf_texture(PL_TEXTURE_SLOT_NORMAL_MAP, &ptGltfMaterial->normal_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+		pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_NORMAL_MAP, &ptGltfMaterial->normal_texture, pcDirectory, ptGltfMaterial, ptMaterial);
 
     ptMaterial->tEmissiveColor.r = ptGltfMaterial->emissive_factor[0];
     ptMaterial->tEmissiveColor.g = ptGltfMaterial->emissive_factor[1];
@@ -440,12 +439,12 @@ pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial,
         ptMaterial->tEmissiveColor.a = 1.0f;
 	if(ptGltfMaterial->emissive_texture.texture)
     {
-		pl__load_gltf_texture(PL_TEXTURE_SLOT_EMISSIVE_MAP, &ptGltfMaterial->emissive_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+		pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_EMISSIVE_MAP, &ptGltfMaterial->emissive_texture, pcDirectory, ptGltfMaterial, ptMaterial);
     }
 
 	if(ptGltfMaterial->occlusion_texture.texture)
     {
-		pl__load_gltf_texture(PL_TEXTURE_SLOT_OCCLUSION_MAP, &ptGltfMaterial->occlusion_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+		pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_OCCLUSION_MAP, &ptGltfMaterial->occlusion_texture, pcDirectory, ptGltfMaterial, ptMaterial);
     }
 
     if(ptGltfMaterial->has_pbr_metallic_roughness)
@@ -459,10 +458,10 @@ pl__refr_load_material(const char* pcDirectory, plMaterialComponent* ptMaterial,
 		ptMaterial->fRoughness = ptGltfMaterial->pbr_metallic_roughness.roughness_factor;
 
         if(ptGltfMaterial->pbr_metallic_roughness.base_color_texture.texture)
-			pl__load_gltf_texture(PL_TEXTURE_SLOT_BASE_COLOR_MAP, &ptGltfMaterial->pbr_metallic_roughness.base_color_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_BASE_COLOR_MAP, &ptGltfMaterial->pbr_metallic_roughness.base_color_texture, pcDirectory, ptGltfMaterial, ptMaterial);
 
         if(ptGltfMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture)
-            pl__load_gltf_texture(PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP, &ptGltfMaterial->pbr_metallic_roughness.metallic_roughness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+            pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP, &ptGltfMaterial->pbr_metallic_roughness.metallic_roughness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
         
     }
 }
@@ -885,7 +884,7 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
 }
 
 static void
-pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneData, const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode)
+pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfLoadingData* ptSceneData, const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode)
 {
     plComponentLibrary* ptLibrary = ptSceneData->ptLibrary;
 
@@ -999,7 +998,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
                     pl_hm_insert(ptSceneData->ptMaterialHashMap,(uint64_t)ptPrimitive->material, ulMaterialIndex);
                     ptMesh->tMaterial = gptECS->create_material(ptLibrary, ptPrimitive->material->name, &ptMaterial);
                     pl_sb_push(ptSceneData->sbtMaterialEntities, ptMesh->tMaterial);
-                    pl__refr_load_material(pcDirectory, ptMaterial, ptPrimitive->material);
+                    pl__refr_load_material(pcPath, pcDirectory, ptMaterial, ptPrimitive->material);
                 }
 
                 if(ptPrimitive->material->has_transmission)
@@ -1013,7 +1012,7 @@ pl__refr_load_gltf_object(plModelLoaderData* ptData, plGltfLoadingData* ptSceneD
     // recurse through children
     for(size_t i = 0; i < ptNode->children_count; i++)
     {
-        pl__refr_load_gltf_object(ptData, ptSceneData, pcDirectory, tNewEntity, ptNode->children[i]);
+        pl__refr_load_gltf_object(pcPath, ptData, ptSceneData, pcDirectory, tNewEntity, ptNode->children[i]);
     }
 }
 
@@ -1035,7 +1034,6 @@ pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
     gptECS         = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
-
 }
 
 PL_EXPORT void

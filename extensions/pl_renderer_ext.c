@@ -172,6 +172,8 @@ pl_refr_initialize(plRendererSettings tSettings)
     };
     gptData->ptDevice = gptGfx->create_device(&tDeviceInit);
 
+    gptResource->initialize((plResourceManagerInit){.ptDevice = gptData->ptDevice, .uMaxTextureResolution = tSettings.uMaxTextureResolution});
+
     gptData->tDeviceInfo = atDeviceInfos[iBestDvcIdx];
     if(gptData->tDeviceInfo.tCapabilities & PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS)
         gptData->bMultiViewportShadows = true;
@@ -1085,23 +1087,7 @@ pl_refr_cleanup_scene(uint32_t uSceneHandle)
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptScene->tSkyboxBindGroup);
     }
 
-    plMaterialComponent* sbtMaterials = (plMaterialComponent*)ptScene->tComponentLibrary.tMaterialComponentManager.pComponents;
-    for(uint32_t i = 0; i < pl_sb_size(ptScene->tComponentLibrary.tMaterialComponentManager.sbtEntities); i++)
-    {
-        plMaterialComponent* ptMaterial = &sbtMaterials[i];
-        for(uint32_t j = 0; j < PL_TEXTURE_SLOT_COUNT; j++)
-        {
-            if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[j].tResource) == false)
-                continue;
-
-            if(pl_hm_has_key(gptData->ptTextureHashmap, ptMaterial->atTextureMaps[j].tResource.ulData))
-            {
-                uint64_t ulValue = pl_hm_lookup(gptData->ptTextureHashmap, ptMaterial->atTextureMaps[j].tResource.ulData);
-                gptGfx->queue_texture_for_deletion(gptData->ptDevice, gptData->sbtTextureHandles[ulValue]);
-                pl_hm_remove(gptData->ptTextureHashmap, ptMaterial->atTextureMaps[j].tResource.ulData);
-            }
-        }
-    }
+    gptResource->clear();
 
     gptBvh->cleanup(&ptScene->tBvh);
     pl_sb_free(ptScene->sbtBvhAABBs);
@@ -1184,7 +1170,6 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
 
     const plTextureDesc tNormalTextureDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
-        // .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
         .tFormat       = PL_FORMAT_R16G16_FLOAT,
         .uLayers       = 1,
         .uMips         = 1,
@@ -1279,7 +1264,7 @@ pl_refr_create_view(uint32_t uSceneHandle, plVec2 tDimensions)
     ptView->tAlbedoTexture           = pl__refr_create_texture(&tAlbedoTextureDesc, "albedo original", 0, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
     ptView->tNormalTexture           = pl__refr_create_texture(&tNormalTextureDesc, "normal original", 0, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
     ptView->tAOMetalRoughnessTexture = pl__refr_create_texture(&tEmmissiveTexDesc, "metalroughness original", 0, PL_TEXTURE_USAGE_COLOR_ATTACHMENT);
-    ptView->tDepthTexture            = pl__refr_create_texture(&tDepthTextureDesc,      "offscreen depth original", 0, PL_TEXTURE_USAGE_SAMPLED);
+    ptView->tDepthTexture            = pl__refr_create_texture(&tDepthTextureDesc, "offscreen depth original", 0, PL_TEXTURE_USAGE_SAMPLED);
     ptView->atUVMaskTexture0         = pl__refr_create_texture(&tMaskTextureDesc, "uv mask texture 0", 0, PL_TEXTURE_USAGE_STORAGE);
     ptView->atUVMaskTexture1         = pl__refr_create_texture(&tMaskTextureDesc, "uv mask texture 1", 0, PL_TEXTURE_USAGE_STORAGE);
     ptView->tFinalTexture            = pl__refr_create_texture(&tRawOutputTextureDesc,  "offscreen final", 0, PL_TEXTURE_USAGE_SAMPLED);
@@ -1698,7 +1683,7 @@ pl_refr_cleanup(void)
 {
     pl_temp_allocator_free(&gptData->tTempAllocator);
     gptGfx->cleanup_draw_stream(&gptData->tDrawStream);
-
+    
     for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
         pl_refr_cleanup_scene(i);
 
@@ -1709,9 +1694,8 @@ pl_refr_cleanup(void)
     }
     pl_sb_free(gptData->sbuSceneFreeIndices);
     pl_sb_free(gptData->_sbtVariantHandles);
-    pl_sb_free(gptData->sbtTextureHandles);
     pl_hm_free(gptData->ptVariantHashmap);
-    pl_hm_free(gptData->ptTextureHashmap);
+    gptResource->cleanup();
     gptGfx->flush_device(gptData->ptDevice);
 
     gptGfx->destroy_texture(gptData->ptDevice, gptData->tMSAATexture);
@@ -3620,34 +3604,24 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         if(gptData->bShowBVH)
         {
-            if(ptScene->tBvh.uNodeCount > 0)
+            pl_begin_cpu_sample(gptProfile, 0, "draw BVH");
+            plObjectComponent* sbtComponents = ptScene->tComponentLibrary.tObjectComponentManager.pComponents;
+
+            plBVHNode* ptNode = NULL;
+            uint32_t uLeafIndex = UINT32_MAX;
+            while (gptBvh->traverse(&ptScene->tBvh, &ptNode, &uLeafIndex))
             {
-                plObjectComponent* sbtComponents = ptScene->tComponentLibrary.tObjectComponentManager.pComponents;
-
-                pl_sb_push(ptScene->sbtNodeStack, &ptScene->tBvh.ptNodes[0]);
-
-                while(pl_sb_size(ptScene->sbtNodeStack) > 0)
+                if(uLeafIndex != UINT32_MAX)
                 {
-                    plBVHNode* ptNode = pl_sb_pop(ptScene->sbtNodeStack);
-                    gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptNode->tAABB.tMin, ptNode->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_WHITE});
-                    if(ptNode->uCount > 0) // is leaf
-                    {
-                        for(uint32_t i = 0; i < ptNode->uCount; i++)
-                        {
-                            uint32_t uIndex = ptScene->tBvh.puLeafIndices[ptNode->uOffset + i];
-                            plObjectComponent* ptObject = &sbtComponents[uIndex];
-                            gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_DARK_BLUE});
-                        }
-                    }
-                    else
-                    {
-                        pl_sb_push(ptScene->sbtNodeStack, &ptScene->tBvh.ptNodes[ptNode->uLeft]);
-                        pl_sb_push(ptScene->sbtNodeStack, &ptScene->tBvh.ptNodes[ptNode->uLeft + 1]);
-                    }
+                    plObjectComponent* ptObject = &sbtComponents[uLeafIndex];
+                    gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_DARK_BLUE});
                 }
-
+                else
+                {
+                    gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptNode->tAABB.tMin, ptNode->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_WHITE});
+                }
             }
-
+            pl_end_cpu_sample(gptProfile, 0);
         }
 
         if(ptCullCamera && ptCullCamera != ptCamera)
@@ -4338,7 +4312,7 @@ pl_add_drawable_objects_to_scene(uint32_t uSceneHandle, uint32_t uObjectCount, c
         if(ptMaterial->tBlendMode == PL_BLEND_MODE_ALPHA)
             bForward = true;
 
-        if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
+        if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
             bForward = true;
 
         if(bForward)
@@ -4419,11 +4393,26 @@ pl_refr_update_scene_materials(uint32_t uSceneHandle, uint32_t uMaterialCount, c
         else
         {
             // load textures
-            plTextureHandle tBaseColorTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0);
-            plTextureHandle tNormalTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_NORMAL_MAP, false, 0);
-            plTextureHandle tEmissiveTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_EMISSIVE_MAP, true, 0);
-            plTextureHandle tMetallicRoughnessTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP, false, 0);
-            plTextureHandle tOcclusionTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_OCCLUSION_MAP, false, 1);
+            plTextureHandle tBaseColorTex = gptData->tDummyTexture;
+            plTextureHandle tNormalTex = gptData->tDummyTexture;
+            plTextureHandle tEmissiveTex = gptData->tDummyTexture;
+            plTextureHandle tMetallicRoughnessTex = gptData->tDummyTexture;
+            plTextureHandle tOcclusionTex = gptData->tDummyTexture;
+
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource))
+                tBaseColorTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource);
+
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource))
+                tNormalTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource);
+
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
+                tEmissiveTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource);
+
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource))
+                tMetallicRoughnessTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource);
+
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource))
+                tOcclusionTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource);
 
             int iBaseColorTexIdx = (int)pl__get_bindless_texture_index(uSceneHandle, tBaseColorTex);
             int iNormalTexIdx = (int)pl__get_bindless_texture_index(uSceneHandle, tNormalTex);
@@ -4512,92 +4501,15 @@ pl_refr_add_materials_to_scene(uint32_t uSceneHandle, uint32_t uMaterialCount, c
         plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, tMaterialComp);
 
         // load textures from disk
-        int texWidth, texHeight, texNumChannels;
-        int texForceNumChannels = 4;
         for(uint32_t uTextureSlot = 0; uTextureSlot < PL_TEXTURE_SLOT_COUNT; uTextureSlot++)
         {
 
-            if(gptResource->is_resource_valid(ptMaterial->atTextureMaps[uTextureSlot].tResource))
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[uTextureSlot].tResource))
             {
-
-                if(uTextureSlot == PL_TEXTURE_SLOT_BASE_COLOR_MAP || uTextureSlot == PL_TEXTURE_SLOT_EMISSIVE_MAP)
-                {
-                    size_t szResourceSize = 0;
-                    const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[uTextureSlot].tResource, &szResourceSize);
-                    if(pcFileData)
-                    {
-                        float* rawBytes = gptImage->load_hdr((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-
-                        uint32_t uMaxDim = (uint32_t)pl_max(texWidth, texHeight);
-
-                        if(uMaxDim > gptData->uMaxTextureResolution)
-                        {
-                            int iNewWidth = 0;
-                            int iNewHeight = 0;
-
-                            if(texWidth > texHeight)
-                            {
-                                iNewWidth = (int)gptData->uMaxTextureResolution;
-                                iNewHeight = (int)(((float)gptData->uMaxTextureResolution / (float)texWidth) * (float)texHeight);
-                            }
-                            else
-                            {
-                                iNewWidth = (int)(((float)gptData->uMaxTextureResolution / (float)texHeight) * (float)texWidth);
-                                iNewHeight = (int)gptData->uMaxTextureResolution;
-                            }
-
-                            float* oldrawBytes = rawBytes;
-                            rawBytes = stbir_resize_float_linear(rawBytes, texWidth, texHeight, 0, NULL, iNewWidth, iNewHeight, 0, STBIR_RGBA);
-                            PL_ASSERT(rawBytes);
-                            gptImage->free(oldrawBytes);
-
-                            texWidth = iNewWidth;
-                            texHeight = iNewHeight;
-                        }
-
-                        gptResource->set_buffer_data(ptMaterial->atTextureMaps[uTextureSlot].tResource, sizeof(float) * texWidth * texHeight * 4, rawBytes);
-                        ptMaterial->atTextureMaps[uTextureSlot].uWidth = texWidth;
-                        ptMaterial->atTextureMaps[uTextureSlot].uHeight = texHeight;
-                    }
-                }
-                else
-                {
-                    size_t szResourceSize = 0;
-                    const char* pcFileData = gptResource->get_file_data(ptMaterial->atTextureMaps[uTextureSlot].tResource, &szResourceSize);
-                    unsigned char* rawBytes = gptImage->load((unsigned char*)pcFileData, (int)szResourceSize, &texWidth, &texHeight, &texNumChannels, texForceNumChannels);
-
-                    uint32_t uMaxDim = (uint32_t)pl_max(texWidth, texHeight);
-
-                    if(uMaxDim > gptData->uMaxTextureResolution)
-                    {
-                        int iNewWidth = 0;
-                        int iNewHeight = 0;
-
-                        if(texWidth > texHeight)
-                        {
-                            iNewWidth = (int)gptData->uMaxTextureResolution;
-                            iNewHeight = (int)(((float)gptData->uMaxTextureResolution / (float)texWidth) * (float)texHeight);
-                        }
-                        else
-                        {
-                            iNewWidth = (int)(((float)gptData->uMaxTextureResolution / (float)texHeight) * (float)texWidth);
-                            iNewHeight = (int)gptData->uMaxTextureResolution;
-                        }
-
-                        unsigned char* oldrawBytes = rawBytes;
-                        rawBytes = stbir_resize_uint8_linear(rawBytes, texWidth, texHeight, 0, NULL, iNewWidth, iNewHeight, 0, STBIR_RGBA);
-                        PL_ASSERT(rawBytes);
-                        gptImage->free(oldrawBytes);
-
-                        texWidth = iNewWidth;
-                        texHeight = iNewHeight;
-                    }
-
-                    
-                    ptMaterial->atTextureMaps[uTextureSlot].uWidth = texWidth;
-                    ptMaterial->atTextureMaps[uTextureSlot].uHeight = texHeight;
-                    gptResource->set_buffer_data(ptMaterial->atTextureMaps[uTextureSlot].tResource, texWidth * texHeight * 4, rawBytes);
-                }
+                plTextureHandle tTextureHandle = gptResource->get_texture(ptMaterial->atTextureMaps[uTextureSlot].tResource);
+                plTexture* ptTexture = gptGfx->get_texture(gptData->ptDevice, tTextureHandle);
+                ptMaterial->atTextureMaps[uTextureSlot].uWidth = (uint32_t)ptTexture->tDesc.tDimensions.x;
+                ptMaterial->atTextureMaps[uTextureSlot].uHeight = (uint32_t)ptTexture->tDesc.tDimensions.y;
             }
         }
 
@@ -4620,11 +4532,26 @@ pl_refr_add_materials_to_scene(uint32_t uSceneHandle, uint32_t uMaterialCount, c
             uMaterialIndex = (uint32_t)ulValue;
 
             // load textures
-            plTextureHandle tBaseColorTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_BASE_COLOR_MAP, true, 0);
-            plTextureHandle tNormalTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_NORMAL_MAP, false, 0);
-            plTextureHandle tEmissiveTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_EMISSIVE_MAP, true, 0);
-            plTextureHandle tMetallicRoughnessTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP, false, 0);
-            plTextureHandle tOcclusionTex = pl__create_texture_helper(ptMaterial, PL_TEXTURE_SLOT_OCCLUSION_MAP, false, 1);
+            plTextureHandle tBaseColorTex = gptData->tDummyTexture;
+            plTextureHandle tNormalTex = gptData->tDummyTexture;
+            plTextureHandle tEmissiveTex = gptData->tDummyTexture;
+            plTextureHandle tMetallicRoughnessTex = gptData->tDummyTexture;
+            plTextureHandle tOcclusionTex = gptData->tDummyTexture;
+
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource))
+                tBaseColorTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource);
+
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource))
+                tNormalTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource);
+
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
+                tEmissiveTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource);
+
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource))
+                tMetallicRoughnessTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource);
+
+            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource))
+                tOcclusionTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource);
 
             int iBaseColorTexIdx = (int)pl__get_bindless_texture_index(uSceneHandle, tBaseColorTex);
             int iNormalTexIdx = (int)pl__get_bindless_texture_index(uSceneHandle, tNormalTex);
@@ -4690,6 +4617,7 @@ pl_show_graphics_options(const char* pcTitle)
         gptUI->checkbox("All Bounding Boxes", &gptData->bDrawAllBoundingBoxes);
         gptUI->checkbox("Visible Bounding Boxes", &gptData->bDrawVisibleBoundingBoxes);
         gptUI->checkbox("Selected Bounding Box", &gptData->bShowSelectedBoundingBox);
+        
         gptUI->input_float("Depth Bias", &gptData->fShadowConstantDepthBias, NULL, 0);
         gptUI->input_float("Slope Depth Bias", &gptData->fShadowSlopeDepthBias, NULL, 0);
         gptUI->slider_uint("Outline Width", &gptData->uOutlineWidth, 2, 50, 0);
@@ -4703,7 +4631,8 @@ pl_show_graphics_options(const char* pcTitle)
             if(gptUI->tree_node("Scene", 0))
             {
                 gptUI->checkbox("Show Skybox", &gptData->sbtScenes[i].bShowSkybox);
-                if(gptUI->button("Build BVH"))
+                gptUI->checkbox("Dynamic BVH", &gptData->sbtScenes[i].bContinuousBVH);
+                if(gptUI->button("Build BVH") || gptData->sbtScenes[i].bContinuousBVH)
                 {
                     plComponentLibrary* ptLibrary = &gptData->sbtScenes[i].tComponentLibrary;
                     plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
@@ -4839,9 +4768,3 @@ pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #endif
 
 #endif
-
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#define STBIR_MALLOC(x, user_data) PL_ALLOC(x)
-#define STBIR_FREE(x, user_data) PL_FREE(x)
-#include "stb_image_resize2.h"
-#undef STB_IMAGE_RESIZE_IMPLEMENTATION

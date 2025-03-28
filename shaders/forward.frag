@@ -256,7 +256,7 @@ vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
         tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
-        baseColor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tDefaultSampler), tShaderIn.tUV[iUVSet]);
+        baseColor *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tDefaultSampler), tShaderIn.tUV[iUVSet]));
     }
     return baseColor * tShaderIn.tColor;
 }
@@ -608,7 +608,7 @@ void main()
     vec3 f_emissive = material.u_EmissiveFactor;
     if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
     {
-        f_emissive *= texture(sampler2D(at2DTextures[nonuniformEXT(material.iEmissiveTexIdx)], tDefaultSampler), tShaderIn.tUV[material.EmissiveUVSet]).rgb;
+        f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.iEmissiveTexIdx)], tDefaultSampler), tShaderIn.tUV[material.EmissiveUVSet]).rgb);
     }
     
     // ambient occlusion

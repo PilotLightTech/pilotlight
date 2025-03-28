@@ -24,6 +24,7 @@ Index of this file:
 
 #include "defines.glsl"
 #include "material.glsl"
+#include "math.glsl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -220,7 +221,7 @@ vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
     if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
         tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
-        baseColor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tDefaultSampler), tShaderIn.tUV[iUVSet]);
+        baseColor *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tDefaultSampler), tShaderIn.tUV[iUVSet]));
     }
     return baseColor * tShaderIn.tColor;
 }

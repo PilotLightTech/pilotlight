@@ -54,9 +54,6 @@ Index of this file:
 #include "pl_physics_ext.h"
 #include "pl_bvh_ext.h"
 
-// stb
-#include "stb_image_resize2.h"
-
 #define PL_MAX_VIEWS_PER_SCENE 4
 #define PL_MAX_LIGHTS 100
 
@@ -93,14 +90,13 @@ Index of this file:
     static const plRectPackI*      gptRect          = NULL;
     static const plConsoleI*       gptConsole       = NULL;
 
-    
     // experimental
-    static const plPhysicsI*    gptPhysics    = NULL;
-    static const plScreenLogI*  gptScreenLog  = NULL;
-    static const plCameraI*     gptCamera     = NULL;
-    static const plResourceI*   gptResource   = NULL;
-    static const plEcsI*        gptECS        = NULL;
-    static const plBVHI*        gptBvh        = NULL;
+    static const plPhysicsI*   gptPhysics    = NULL;
+    static const plScreenLogI* gptScreenLog  = NULL;
+    static const plCameraI*    gptCamera     = NULL;
+    static const plResourceI*  gptResource   = NULL;
+    static const plEcsI*       gptECS        = NULL;
+    static const plBVHI*       gptBvh        = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
@@ -495,6 +491,7 @@ typedef struct _plRefScene
 
     // bvh
     plBVH tBvh;
+    bool bContinuousBVH;
     plAABB* sbtBvhAABBs;
     plBVHNode** sbtNodeStack;
 } plRefScene;
@@ -589,10 +586,6 @@ typedef struct _plRefRendererData
     // dynamic buffer system
     plDynamicDataBlock tCurrentDynamicDataBlock;
 
-    // texture lookup (resource handle <-> texture handle)
-    plTextureHandle*  sbtTextureHandles;
-    plHashMap*        ptTextureHashmap;
-
     // graphics options
     bool     bMSAA;
     bool     bShowProbes;
@@ -671,7 +664,6 @@ static plRefRendererData* gptData = NULL;
 static void pl__refr_cull_job(plInvocationData, void*);
 
 // resource creation helpers
-static plTextureHandle pl__create_texture_helper            (plMaterialComponent*, plTextureSlot, bool bHdr, int iMips);
 static plTextureHandle pl__refr_create_texture              (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
 static plTextureHandle pl__refr_create_local_texture        (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
 static plTextureHandle pl__refr_create_texture_with_data    (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);

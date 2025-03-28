@@ -644,11 +644,6 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
             .fAlphaCutoff          = 0.5f,
             .atTextureMaps         = {0}
         };
-        for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
-        {
-            sbComponents[uComponentIndex].atTextureMaps[i].tResource.uIndex = UINT32_MAX;
-            sbComponents[uComponentIndex].atTextureMaps[i].tResource.uGeneration = UINT32_MAX;
-        }
         return &sbComponents[uComponentIndex];
     }
 
