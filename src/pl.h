@@ -519,4 +519,6 @@ typedef struct _plVersion
     #endif
 #endif
 
+#define PL_ARRAYSIZE(X) ((int)(sizeof(X) / sizeof(*(X))))  // Size of a static C-style array. Don't use on pointers!
+
 #endif // PL_H
