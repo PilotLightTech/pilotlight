@@ -47,9 +47,6 @@ Index of this file:
 
     * Currently we are not doing a broad pass but we need to immediately
       start work on this with a BVH system.
-
-    * Currently assuming a plane is always present. This is until I come
-      up with a better API for how to define contraints.
 */
 
 //-----------------------------------------------------------------------------
