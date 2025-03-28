@@ -272,7 +272,7 @@ pl__show_memory_allocations(bool* bValue)
         {
             gptUI->layout_template_begin(30.0f);
             gptUI->layout_template_push_static(50.0f);
-            gptUI->layout_template_push_variable(300.0f);
+            gptUI->layout_template_push_variable(100.0f);
             gptUI->layout_template_push_variable(50.0f);
             gptUI->layout_template_push_variable(50.0f);
             gptUI->layout_template_end();
@@ -285,9 +285,9 @@ pl__show_memory_allocations(bool* bValue)
                 {
                     size_t szUnused = 0;
                     plAllocationEntry tEntry = gptDebugCtx->sbtActiveAllocations[i];
-                    if(gptUI->text_filter_pass(&gptDebugCtx->tMemoryFilter, tEntry.pcFile, NULL))
+                    if(gptUI->text_filter_pass(&gptDebugCtx->tMemoryFilter, tEntry.pcFileOnly, NULL))
                     {
-                        strncpy(pcFile, tEntry.pcFile, 1024);
+                        strncpy(pcFile, tEntry.pcFileOnly, 1024);
                         gptUI->text("%i", i);
                         gptUI->text("%s", pcFile);
                         gptUI->text("%i", tEntry.iLine);
@@ -304,7 +304,7 @@ pl__show_memory_allocations(bool* bValue)
                     {
                         size_t szUnused = 0;
                         plAllocationEntry tEntry = gptDebugCtx->sbtActiveAllocations[i];
-                        strncpy(pcFile, tEntry.pcFile, 1024);
+                        strncpy(pcFile, tEntry.pcFileOnly, 1024);
                         gptUI->text("%i", i);
                         gptUI->text("%s", pcFile);
                         gptUI->text("%i", tEntry.iLine);
@@ -1045,6 +1045,8 @@ pl__show_device_memory(bool* bValue)
                         {
                             gptDraw->add_rect(ptFgLayer, tHitBox.tMin, tHitBox.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tWhiteColor), .fThickness = 1.0f});
                             gptUI->begin_tooltip();
+                            float fMaxWidth = gptDraw->calculate_text_size(ptRange->acName, (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x + 25.0f;
+                            gptUI->layout_static(0.0f, pl_max(fMaxWidth, 300), 1);
                             gptUI->text(ptRange->acName);
                             gptUI->text("Offset:          %lu", ptRange->ulOffset);
                             gptUI->text("Requested Size:  %lu", ptRange->ulUsedSize);
