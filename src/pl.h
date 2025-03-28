@@ -424,7 +424,8 @@ typedef struct _plAllocationEntry
     void*       pAddress;
     size_t      szSize;
     int         iLine;
-    const char* pcFile; 
+    const char* pcFile;
+    const char* pcFileOnly;
 } plAllocationEntry;
 
 typedef struct _plVersion
