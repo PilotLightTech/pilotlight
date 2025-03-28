@@ -1270,7 +1270,7 @@ pl__check_for_leaks(void)
     {
         if(gsbtAllocations[i].pAddress != NULL)
         {
-            printf("Unfreed memory from line %i in file '%s'.\n", gsbtAllocations[i].iLine, gsbtAllocations[i].pcFile);
+            printf("Unfreed memory from line %i in file '%s'.\n", gsbtAllocations[i].iLine, gsbtAllocations[i].pcFileOnly);
             uMemoryLeakCount++;
         }
     }
@@ -1376,6 +1376,7 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
         
         gsbtAllocations[ulFreeIndex].iLine = iLine;
         gsbtAllocations[ulFreeIndex].pcFile = pcFile;
+        gsbtAllocations[ulFreeIndex].pcFileOnly = pl_str_get_file_name(pcFile, NULL, 0);
         gsbtAllocations[ulFreeIndex].pAddress = pNewBuffer;
         gsbtAllocations[ulFreeIndex].szSize = szSize;        
     }
