@@ -4,8 +4,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_DS_VERSION    "1.1.1"
-#define PL_DS_VERSION_NUM 10101
+#define PL_DS_VERSION    "1.1.2"
+#define PL_DS_VERSION_NUM 10102
 
 /*
 Index of this file:
@@ -564,6 +564,9 @@ pl__hm_remove(plHashMap** pptHashMap, uint64_t ulKey)
 {
     plHashMap* ptHashMap = *pptHashMap;
     if(ptHashMap == NULL)
+        return;
+
+    if(ptHashMap->_uItemCount == 0)
         return;
 
 	uint64_t mask = ptHashMap->_uBucketCount - 1;
