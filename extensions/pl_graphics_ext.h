@@ -314,11 +314,6 @@ typedef struct _plGraphicsI
     void (*pipeline_barrier_compute)(plComputeEncoder*, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses);
     void (*pipeline_barrier_render) (plRenderEncoder*,  plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses);
 
-    // resource barriers (not ready)
-    void (*_unused0)(void);
-    void (*_unused1)(void);
-    void (*_unused2)(void);
-
     //-----------------------------------------------------------------------------
 
     // buffers
@@ -327,12 +322,14 @@ typedef struct _plGraphicsI
     void           (*queue_buffer_for_deletion)(plDevice*, plBufferHandle);
     void           (*destroy_buffer)           (plDevice*, plBufferHandle);
     plBuffer*      (*get_buffer)               (plDevice*, plBufferHandle); // do not store
+    bool           (*is_buffer_valid)          (plDevice*, plBufferHandle);
 
     // samplers
     plSamplerHandle (*create_sampler)            (plDevice*, const plSamplerDesc*);
     void            (*destroy_sampler)           (plDevice*, plSamplerHandle);
     void            (*queue_sampler_for_deletion)(plDevice*, plSamplerHandle);
     plSampler*      (*get_sampler)               (plDevice*, plSamplerHandle); // do not store
+    bool            (*is_sampler_valid)          (plDevice*, plSamplerHandle);
 
     // textures
     plTextureHandle (*create_texture)            (plDevice*, const plTextureDesc*, plTexture**);
@@ -341,6 +338,7 @@ typedef struct _plGraphicsI
     void            (*queue_texture_for_deletion)(plDevice*, plTextureHandle);
     void            (*destroy_texture)           (plDevice*, plTextureHandle);
     plTexture*      (*get_texture)               (plDevice*, plTextureHandle); // do not store
+    bool            (*is_texture_valid)          (plDevice*, plTextureHandle);
 
     // bind groups
     plBindGroupPool*  (*create_bind_group_pool)       (plDevice*, const plBindGroupPoolDesc*);
@@ -351,6 +349,7 @@ typedef struct _plGraphicsI
     void              (*queue_bind_group_for_deletion)(plDevice*, plBindGroupHandle);
     void              (*destroy_bind_group)           (plDevice*, plBindGroupHandle);
     plBindGroup*      (*get_bind_group)               (plDevice*, plBindGroupHandle); // do not store
+    bool              (*is_bind_group_valid)          (plDevice*, plBindGroupHandle);
     
     // render passes
     plRenderPassHandle (*create_render_pass)            (plDevice*, const plRenderPassDesc*, const plRenderPassAttachments*);
@@ -358,23 +357,27 @@ typedef struct _plGraphicsI
     void               (*queue_render_pass_for_deletion)(plDevice*, plRenderPassHandle);
     void               (*destroy_render_pass)           (plDevice*, plRenderPassHandle);
     plRenderPass*      (*get_render_pass)               (plDevice*, plRenderPassHandle); // do not store
+    bool               (*is_render_pass_valid)          (plDevice*, plRenderPassHandle);
 
     // render pass layouts
     plRenderPassLayoutHandle (*create_render_pass_layout)            (plDevice*, const plRenderPassLayoutDesc*);
     void                     (*queue_render_pass_layout_for_deletion)(plDevice*, plRenderPassLayoutHandle);
     void                     (*destroy_render_pass_layout)           (plDevice*, plRenderPassLayoutHandle);
     plRenderPassLayout*      (*get_render_pass_layout)               (plDevice*, plRenderPassLayoutHandle); // do not store
+    bool                     (*is_render_pass_layout_valid)          (plDevice*, plRenderPassLayoutHandle);
 
     // pixel & vertex shaders
     plShaderHandle (*create_shader)            (plDevice*, const plShaderDesc*);
     void           (*queue_shader_for_deletion)(plDevice*, plShaderHandle);
     void           (*destroy_shader)           (plDevice*, plShaderHandle);
     plShader*      (*get_shader)               (plDevice*, plShaderHandle); // do not store
+    bool           (*is_shader_valid)          (plDevice*, plShaderHandle);
 
     // compute shaders
     plComputeShaderHandle (*create_compute_shader)            (plDevice*, const plComputeShaderDesc*);
     void                  (*queue_compute_shader_for_deletion)(plDevice*, plComputeShaderHandle);
     void                  (*destroy_compute_shader)           (plDevice*, plComputeShaderHandle);
+    bool                  (*is_compute_shader_valid)          (plDevice*, plComputeShaderHandle);
 
     // dynamic data system
     //   Notes:

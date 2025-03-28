@@ -71,6 +71,15 @@ static plBindGroup*        pl__get_bind_group       (plDevice*, plBindGroupHandl
 static plShader*           pl__get_shader           (plDevice*, plShaderHandle);
 static plComputeShader*    pl__get_compute_shader   (plDevice*, plComputeShaderHandle);
 
+static bool pl_is_buffer_valid            (plDevice*, plBufferHandle);
+static bool pl_is_sampler_valid           (plDevice*, plSamplerHandle);
+static bool pl_is_texture_valid           (plDevice*, plTextureHandle);
+static bool pl_is_bind_group_valid        (plDevice*, plBindGroupHandle);
+static bool pl_is_render_pass_valid       (plDevice*, plRenderPassHandle);
+static bool pl_is_render_pass_layout_valid(plDevice*, plRenderPassLayoutHandle);
+static bool pl_is_shader_valid            (plDevice*, plShaderHandle);
+static bool pl_is_compute_shader_valid    (plDevice*, plComputeShaderHandle);
+
 // new handles
 static plBufferHandle           pl__get_new_buffer_handle(plDevice*);
 static plTextureHandle          pl__get_new_texture_handle(plDevice*);

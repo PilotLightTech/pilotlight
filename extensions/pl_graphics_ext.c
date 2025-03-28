@@ -395,6 +395,54 @@ pl__cleanup_common_device(plDevice* ptDevice)
     PL_FREE(ptDevice);
 }
 
+static bool
+pl_is_buffer_valid(plDevice* ptDevice, plBufferHandle tHandle)
+{
+    return (tHandle.uGeneration == ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration);
+}
+
+static bool
+pl_is_sampler_valid(plDevice* ptDevice, plSamplerHandle tHandle)
+{
+    return (tHandle.uGeneration == ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration);
+}
+
+static bool
+pl_is_texture_valid(plDevice* ptDevice, plTextureHandle tHandle)
+{
+    return (tHandle.uGeneration == ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration);
+}
+
+static bool
+pl_is_bind_group_valid(plDevice* ptDevice, plBindGroupHandle tHandle)
+{
+    return (tHandle.uGeneration == ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration);
+}
+
+static bool
+pl_is_render_pass_valid(plDevice* ptDevice, plRenderPassHandle tHandle)
+{
+    return (tHandle.uGeneration == ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration);
+}
+
+static bool
+pl_is_render_pass_layout_valid(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+{
+    return (tHandle.uGeneration == ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration);
+}
+
+static bool
+pl_is_shader_valid(plDevice* ptDevice, plShaderHandle tHandle)
+{
+    return (tHandle.uGeneration == ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration);
+}
+
+static bool
+pl_is_compute_shader_valid(plDevice* ptDevice, plComputeShaderHandle tHandle)
+{
+    return (tHandle.uGeneration == ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration);
+}
+
 static plBufferHandle
 pl__get_new_buffer_handle(plDevice* ptDevice)
 {
@@ -804,7 +852,15 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .reset_bind_group_pool                  = pl_reset_bind_group_pool,
         .pipeline_barrier_blit                  = pl_pipeline_barrier_blit,
         .pipeline_barrier_render                = pl_pipeline_barrier_render,
-        .pipeline_barrier_compute               = pl_pipeline_barrier_compute
+        .pipeline_barrier_compute               = pl_pipeline_barrier_compute,
+        .is_buffer_valid                        = pl_is_buffer_valid,
+        .is_sampler_valid                       = pl_is_sampler_valid,
+        .is_texture_valid                       = pl_is_texture_valid,
+        .is_bind_group_valid                    = pl_is_bind_group_valid,
+        .is_render_pass_valid                   = pl_is_render_pass_valid,
+        .is_render_pass_layout_valid            = pl_is_render_pass_layout_valid,
+        .is_shader_valid                        = pl_is_shader_valid,
+        .is_compute_shader_valid                = pl_is_compute_shader_valid
     };
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
 
