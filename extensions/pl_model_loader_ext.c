@@ -1060,4 +1060,10 @@ pl_unload_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #include "cgltf.h"
     #undef CGLTF_IMPLEMENTATION
 
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
 #endif

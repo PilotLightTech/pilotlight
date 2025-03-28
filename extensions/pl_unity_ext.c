@@ -183,7 +183,6 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 #include "stb_truetype.h"
 #undef STB_TRUETYPE_IMPLEMENTATION
 
-
 #define PL_STL_IMPLEMENTATION
 #include "pl_stl.h"
 #undef PL_STL_IMPLEMENTATION

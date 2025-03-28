@@ -30,6 +30,8 @@ Index of this file:
 // libs
 #include "pl_string.h"
 #include "pl_memory.h"
+#define PL_MATH_INCLUDE_FUNCTIONS
+#include "pl_math.h"
 
 // stb
 #include "stb_image_resize2.h"
@@ -243,7 +245,6 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
     // load file data
     if(puFileData == NULL)
     {
-        szFileByteSize = 0;
         gptFile->binary_read(pcContainerFileName, &szFileByteSize, NULL);
         puFileData = PL_ALLOC(szFileByteSize);
         memset(puFileData, 0, szFileByteSize);
@@ -286,7 +287,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
     pl_hm_insert_str(gptResourceManager->ptNameHashmap, pcName, uIndex);
 
     // perform any post processing our resource may need
-    switch(tDataType)
+    switch(tDataType) //-V785
     {
         case PL_RESOURCE_DATA_TYPE_IMAGE:
         {
