@@ -218,6 +218,15 @@ pl_collision_point_closest_point_line_aabb(plVec3 tPoint, plAABB tAABB)
 }
 
 bool
+pl_collision_aabb_aabb(const plAABB* ptAABB0, const plAABB* ptAABB1)
+{
+    if(ptAABB0->tMax.x < ptAABB1->tMin.x || ptAABB0->tMin.x > ptAABB1->tMax.x) return false;
+    if(ptAABB0->tMax.y < ptAABB1->tMin.y || ptAABB0->tMin.y > ptAABB1->tMax.y) return false;
+    if(ptAABB0->tMax.z < ptAABB1->tMin.z || ptAABB0->tMin.z > ptAABB1->tMax.z) return false;
+    return true;
+}
+
+bool
 pl_collision_sphere_sphere(const plSphere* ptSphere0, const plSphere* ptSphere1)
 {
     // find the vector between the objects
@@ -647,6 +656,7 @@ pl_load_collision_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .point_closest_point_plane        = pl_collision_point_closest_point_plane,
         .point_closest_point_line_segment = pl_collision_point_closest_point_line_segment,
         .point_closest_point_aabb         = pl_collision_point_closest_point_line_aabb,
+        .aabb_aabb                        = pl_collision_aabb_aabb,
         .sphere_sphere                    = pl_collision_sphere_sphere,
         .box_box                          = pl_collision_box_box,
         .box_half_space                   = pl_collision_box_half_space,

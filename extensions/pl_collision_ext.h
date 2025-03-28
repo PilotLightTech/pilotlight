@@ -57,6 +57,7 @@ typedef struct _plCollisionI
     plVec3 (*point_closest_point_aabb)        (plVec3, plAABB);
 
     // collision only
+    bool (*aabb_aabb)        (const plAABB*, const plAABB*);
     bool (*sphere_sphere)    (const plSphere*, const plSphere*);
     bool (*box_box)          (const plBox*, const plBox*);
     bool (*box_sphere)       (const plBox*, const plSphere*);
