@@ -971,6 +971,12 @@ pl_cleanup_allocators(plDevice* ptDevice)
     pl_sb_free(ptAllocatorData->sbtFreeBlockIndices);
 }
 
+static size_t
+pl_get_buddy_block_size(void)
+{
+    return PL_DEVICE_BUDDY_BLOCK_SIZE;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -986,7 +992,8 @@ pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_staging_uncached_buddy_allocator = pl_get_staging_uncached_allocator_buddy,
         .get_blocks                           = pl_get_allocator_blocks,
         .get_ranges                           = pl_get_allocator_ranges,
-        .cleanup                              = pl_cleanup_allocators
+        .cleanup                              = pl_cleanup_allocators,
+        .get_buddy_block_size                 = pl_get_buddy_block_size
     };
     pl_set_api(ptApiRegistry, plGPUAllocatorsI, &tApi);
 
