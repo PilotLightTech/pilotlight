@@ -9,7 +9,8 @@
 void
 hashmap_test_0(void* pData)
 {
-    plHashMap* ptHashMap = NULL;
+    plHashMap tHashMap = {0};
+    plHashMap* ptHashMap = &tHashMap;
 
     int* sbiValues = NULL;
     pl_sb_push(sbiValues, 0);
@@ -30,7 +31,7 @@ hashmap_test_0(void* pData)
     pl_hm_remove(ptHashMap, pl_hm_hash_str("Dirty Number"));
 
     uint64_t ulFreeIndex = pl_hm_get_free_index(ptHashMap);
-    if(ulFreeIndex == UINT64_MAX)
+    if(ulFreeIndex == PL_DS_HASH_64_UNUSED)
     {
         pl_sb_add(sbiValues);
         ulFreeIndex = pl_sb_size(sbiValues) - 1;
@@ -49,7 +50,8 @@ hashmap_test_0(void* pData)
 void
 hashmap_test_1(void* pData)
 {
-    plHashMap* ptHashMap = NULL;
+    plHashMap tHashMap = {0};
+    plHashMap* ptHashMap = &tHashMap;
 
     pl_hm_insert(ptHashMap, pl_hm_hash_str("Dirty Number"), 945);
     pl_hm_insert(ptHashMap, pl_hm_hash_str("Spartan Number"), 117);
@@ -63,7 +65,8 @@ hashmap_test_1(void* pData)
 void
 hashmap_test_2(void* pData)
 {
-    plHashMap* ptHashMap = NULL;
+    plHashMap tHashMap = {0};
+    plHashMap* ptHashMap = &tHashMap;
 
     int* sbiValues = NULL;
     pl_sb_push(sbiValues, 0);
@@ -84,7 +87,7 @@ hashmap_test_2(void* pData)
     pl_hm_remove_str(ptHashMap, "Dirty Number");
 
     uint64_t ulFreeIndex = pl_hm_get_free_index(ptHashMap);
-    if(ulFreeIndex == UINT64_MAX)
+    if(ulFreeIndex == PL_DS_HASH_64_UNUSED)
     {
         pl_sb_add(sbiValues);
         ulFreeIndex = pl_sb_size(sbiValues) - 1;

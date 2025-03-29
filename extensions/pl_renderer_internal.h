@@ -456,18 +456,18 @@ typedef struct _plRefScene
     plShaderHandle* sbtOutlineDrawablesOldEnvShaders;
 
     // entity to drawable hashmaps
-    plHashMap* ptDrawableHashmap;
+    plHashMap64 tDrawableHashmap;
 
     // bindless texture system
     uint32_t          uTextureIndexCount;
     uint32_t          uCubeTextureIndexCount;
-    plHashMap*        ptTextureIndexHashmap; // texture handle <-> index
-    plHashMap*        ptCubeTextureIndexHashmap; // texture handle <-> index
+    plHashMap64       tTextureIndexHashmap; // texture handle <-> index
+    plHashMap64       tCubeTextureIndexHashmap; // texture handle <-> index
     plBindGroupHandle atGlobalBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
 
     // material hashmaps (material component <-> GPU material)
     plMaterialComponent* sbtMaterials;
-    plHashMap* ptMaterialHashmap;
+    plHashMap64 tMaterialHashmap;
 
     // shadows
     plBufferHandle atShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
@@ -542,7 +542,7 @@ typedef struct _plRefRendererData
     plComputeShaderHandle tJFAShader;
 
     // graphics shader variant system
-    plHashMap*      ptVariantHashmap;
+    plHashMap64     tVariantHashmap;
     plShaderHandle* _sbtVariantHandles; // needed for cleanup
 
     // renderer specific log channel

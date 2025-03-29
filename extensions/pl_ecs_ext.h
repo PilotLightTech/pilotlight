@@ -106,7 +106,7 @@ typedef union _plEntity
 } plEntity;
 
 // external forward declarations
-typedef struct plHashMap plHashMap; // pl_ds.h
+typedef struct _plHashMap64 plHashMap; // pl_ds.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -491,7 +491,6 @@ typedef struct _plComponentManager
 {
     plComponentLibrary* ptParentLibrary;
     plComponentType     tComponentType;
-    struct plHashMap*   ptHashmap;   // map entity -> index in sbtEntities/pComponents
     plEntity*           sbtEntities; // aligned with pComponents
     void*               pComponents; // aligned with sbtEntites
     size_t              szStride;
@@ -501,7 +500,7 @@ typedef struct _plComponentLibrary
 {
     uint32_t*  sbtEntityGenerations;
     uint32_t*  sbtEntityFreeIndices;
-    plHashMap* ptTagHashmap;
+    plHashMap* atHashmaps; // map entity -> index in sbtEntities/pComponents
 
     // managers
     plComponentManager tTagComponentManager;
