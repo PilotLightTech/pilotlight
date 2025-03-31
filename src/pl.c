@@ -212,7 +212,7 @@ const plApiRegistryI* pl__load_api_registry(void);
 uint64_t guRuntimeLogChannel = 0;
 
 // data registry
-plHashMap*         gptHashmap = NULL;
+plHashMap64        gtHashmap = {0};
 plDataRegistryData gtDataRegistryData = {0};
 plMutex*           gptDataMutex = {0};
 plMutex*           gptMemoryMutex = {0};
@@ -246,7 +246,7 @@ size_t             gszActiveAllocations = 0;
 size_t             gszAllocationFrees   = 0;
 size_t             gszMemoryUsage       = 0;
 plAllocationEntry* gsbtAllocations      = NULL;
-plHashMap*         gptMemoryHashMap     = NULL;
+plHashMap64        gtMemoryHashMap      = {0};
 
 //-----------------------------------------------------------------------------
 // [SECTION] api registry implementation
@@ -396,10 +396,10 @@ void
 pl_set_data(const char* pcName, void* pData)
 {
     plDataID tData = {
-        .ulData = pl_hm_lookup_str(gptHashmap, pcName)
+        .ulData = pl_hm_lookup_str(&gtHashmap, pcName)
     };
 
-    if(tData.ulData == UINT64_MAX)
+    if(tData.ulData == PL_DS_HASH_INVALID)
     {
         tData = pl_create_object();
     }
@@ -413,7 +413,7 @@ void*
 pl_get_data(const char* pcName)
 {
     plDataID tData = pl_get_object_by_name(pcName);
-    if(tData.ulData == UINT64_MAX)
+    if(tData.ulData == PL_DS_HASH_INVALID)
         return NULL;
     const plDataObject* ptReader = pl_read(tData);
     void* pData = pl_get_buffer(ptReader, 1);
@@ -481,7 +481,7 @@ plDataID
 pl_get_object_by_name(const char* pcName)
 {
     plDataID tID = {
-        .ulData = pl_hm_lookup_str(gptHashmap, pcName)
+        .ulData = pl_hm_lookup_str(&gtHashmap, pcName)
     };
     return tID;
 }
@@ -542,13 +542,13 @@ pl_set_string(plDataObject* ptWriter, uint32_t uProperty, const char* pcValue)
     ptWriter->ptProperties[uProperty].pcValue = pcValue;
     if(uProperty == 0)
     {
-        if(pl_hm_has_key_str(gptHashmap, pcValue))
+        if(pl_hm_has_key_str(&gtHashmap, pcValue))
         {
-            pl_hm_remove_str(gptHashmap, pcValue);
+            pl_hm_remove_str(&gtHashmap, pcValue);
         }
         else
         {
-            pl_hm_insert_str(gptHashmap, pcValue, ptWriter->tId.ulData);
+            pl_hm_insert_str(&gtHashmap, pcValue, ptWriter->tId.ulData);
         }
     }
 }
@@ -1330,17 +1330,14 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
     {
 
             const uint64_t ulHash = pl_hm_hash(&pBuffer, sizeof(void*), 1);
-            const bool bDataExists = pl_hm_has_key(gptMemoryHashMap, ulHash);
-
-            if(bDataExists)
+            uint64_t ulIndex = PL_DS_HASH_INVALID;
+            if(pl_hm_has_key_ex(&gtMemoryHashMap, ulHash, &ulIndex))
             {
-                
-                const uint64_t ulIndex = pl_hm_lookup(gptMemoryHashMap, ulHash);
                 gsbtAllocations[ulIndex].pAddress = NULL;
                 szOldSize = gsbtAllocations[ulIndex].szSize;
                 gszMemoryUsage -= gsbtAllocations[ulIndex].szSize;
                 gsbtAllocations[ulIndex].szSize = 0;
-                pl_hm_remove(gptMemoryHashMap, ulHash);
+                pl_hm_remove(&gtMemoryHashMap, ulHash);
                 gszAllocationFrees++;
                 gszActiveAllocations--;
             }
@@ -1366,13 +1363,13 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 
         const uint64_t ulHash = pl_hm_hash(&pNewBuffer, sizeof(void*), 1);
 
-        uint64_t ulFreeIndex = pl_hm_get_free_index(gptMemoryHashMap);
-        if(ulFreeIndex == UINT64_MAX)
+        uint64_t ulFreeIndex = pl_hm_get_free_index(&gtMemoryHashMap);
+        if(ulFreeIndex == PL_DS_HASH_INVALID)
         {
             pl_sb_push(gsbtAllocations, (plAllocationEntry){0});
             ulFreeIndex = pl_sb_size(gsbtAllocations) - 1;
         }
-        pl_hm_insert(gptMemoryHashMap, ulHash, ulFreeIndex);
+        pl_hm_insert(&gtMemoryHashMap, ulHash, ulFreeIndex);
         
         gsbtAllocations[ulFreeIndex].iLine = iLine;
         gsbtAllocations[ulFreeIndex].pcFile = pcFile;
@@ -1537,7 +1534,7 @@ pl__unload_core_apis(void)
     pl_sb_free(gtDataRegistryData.sbtDataObjects);
     pl_sb_free(gtDataRegistryData.sbtDataObjectsDeletionQueue);
     pl_destroy_mutex(&gptDataMutex);
-    pl_hm_free(gptHashmap);
+    pl_hm_free(&gtHashmap);
 
     // api registry
     plApiEntry* ptCurrentEntry = gptApiHead;
