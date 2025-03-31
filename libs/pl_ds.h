@@ -407,14 +407,14 @@ static inline void
 pl_hms_clear(plHashMapStatic64* ptHashmap)
 {
     memset(ptHashmap->auKeys, 0xff, sizeof(*ptHashmap->auKeys) * ptHashmap->uBucketCount);
-    memset(ptHashmap->auKeys, 0xff, sizeof(*ptHashmap->auValueBucket) * ptHashmap->uBucketCount);
+    memset(ptHashmap->auValueBucket, 0xff, sizeof(*ptHashmap->auValueBucket) * ptHashmap->uBucketCount);
 }
 
 static inline void
 pl_hms_clear32(plHashMapStatic32* ptHashmap)
 {
     memset(ptHashmap->auKeys, 0xff, sizeof(*ptHashmap->auKeys) * ptHashmap->uBucketCount);
-    // memset(ptHashmap->auKeys, 0xff, sizeof(*ptHashmap->auValueBucket) * ptHashmap->uBucketCount);
+    memset(ptHashmap->auValueBucket, 0xff, sizeof(*ptHashmap->auValueBucket) * ptHashmap->uBucketCount);
 }
 
 static inline void
@@ -452,7 +452,7 @@ pl_hms_get32(const plHashMapStatic32* ptHashmap, uint64_t uKey)
     uint64_t uBucketIndex = uKey % ptHashmap->uBucketCount;
     while (ptHashmap->auKeys[uBucketIndex] != uKey && ptHashmap->auKeys[uBucketIndex] != PL_DS_HASH_INVALID)
         uBucketIndex = (uBucketIndex + 1) % ptHashmap->uBucketCount;
-    return ptHashmap->auKeys[uBucketIndex] == PL_DS_HASH_INVALID ? PL_DS_HASH_INVALID : ptHashmap->auValueBucket[uBucketIndex];
+    return ptHashmap->auKeys[uBucketIndex] == PL_DS_HASH_INVALID ? PL_DS_HASH32_INVALID : ptHashmap->auValueBucket[uBucketIndex];
 }
 
 static inline void
@@ -709,7 +709,7 @@ pl__hm_lookup32(const plHashMap32* ptHashMap, uint64_t uKey, uint32_t* puBucketI
     const uint32_t uOriginalBucketIndex = uBucketIndex; // to check for full wrap around
 
     // find where a value would be and handle collisions with linear probing
-    while(ptHashMap->_auKeys[uBucketIndex] != uKey && ptHashMap->_auKeys[uBucketIndex] != PL_DS_HASH32_INVALID)
+    while(ptHashMap->_auKeys[uBucketIndex] != uKey && ptHashMap->_auKeys[uBucketIndex] != PL_DS_HASH_INVALID)
     {
         uBucketIndex = (uBucketIndex + 1) & uMask;
 
@@ -843,7 +843,7 @@ pl__hm_resize32(plHashMap32* ptHashMap, uint32_t uBucketCount, const char* pcFil
         {
             const uint64_t uKey = aulOldKeys[i];
 
-            if(uKey < UINT32_MAX-1)
+            if(uKey < UINT64_MAX-1)
             {
                 uint32_t uOldBucketIndex = pl__hm_get_existing_bucket_index(aulOldKeys, uOldBucketCount, uKey);
                 const uint32_t uValue = sbuOldBucket[uOldBucketIndex];
@@ -935,12 +935,12 @@ pl__hm_insert32(plHashMap32* ptHashMap, uint64_t uKey, uint32_t uValue, const ch
     if(uValueIndex == PL_DS_HASH32_INVALID) // key doesn't exist
     {
         // handle collisions with linear probing
-        while(ptHashMap->_auKeys[uBucketIndex] != uKey && ptHashMap->_auKeys[uBucketIndex] != PL_DS_HASH32_INVALID)
+        while(ptHashMap->_auKeys[uBucketIndex] != uKey && ptHashMap->_auKeys[uBucketIndex] != PL_DS_HASH_INVALID)
         {
             uBucketIndex = (uBucketIndex + 1) & uMask;
 
             // check if slot is empty
-            if(ptHashMap->_auKeys[uBucketIndex] == UINT32_MAX-1)
+            if(ptHashMap->_auKeys[uBucketIndex] == UINT64_MAX-1)
                 break;
         }
 
@@ -956,7 +956,7 @@ static inline void
 pl_hm_remove(plHashMap64* ptHashMap, uint64_t uKey)
 {
 
-    uint32_t uBucketIndex = UINT64_MAX;
+    uint32_t uBucketIndex = UINT32_MAX;
     uint64_t uValueIndex = pl__hm_lookup64(ptHashMap, uKey, &uBucketIndex, NULL);
 
     if(uValueIndex != PL_DS_HASH_INVALID)
@@ -983,7 +983,7 @@ pl_hm_remove32(plHashMap32* ptHashMap, uint64_t uKey)
         pl_sb_push(ptHashMap->_sbuFreeIndices, uValue);
 
         ptHashMap->_auValueBucket[uBucketIndex] = PL_DS_HASH32_INVALID;
-        ptHashMap->_auKeys[uBucketIndex] = UINT32_MAX-1;
+        ptHashMap->_auKeys[uBucketIndex] = UINT64_MAX-1;
         ptHashMap->_uItemCount--;
     }
 }

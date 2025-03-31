@@ -143,7 +143,11 @@ shashmap_test_0(void* pData)
 {
     uint64_t auKeys[1024] = {0};
     uint32_t auValues[1024] = {0};
-    plHashMapStatic32 tHashMap = {.uBucketCount = 1024};
+    plHashMapStatic32 tHashMap = {
+        .auKeys = auKeys,
+        .auValueBucket = auValues,
+        .uBucketCount = 1024
+    };
 
     pl_hms_clear32(&tHashMap);
 
@@ -287,11 +291,11 @@ hashmap32_test_3(void* pData)
     pl_test_expect_uint64_equal(pl_hm_lookup32(&tHashMap, 417 + 2 * tHashMap._uBucketCapacity), 119, NULL);
 
     pl_hm_remove32(&tHashMap, 417 + tHashMap._uBucketCapacity * 2);
-    pl_test_expect_uint64_equal(pl_hm_lookup32(&tHashMap, 417 + 2 * tHashMap._uBucketCapacity), UINT64_MAX, NULL);
+    pl_test_expect_uint64_equal(pl_hm_lookup32(&tHashMap, 417 + 2 * tHashMap._uBucketCapacity), UINT32_MAX, NULL);
     pl_hm_remove32(&tHashMap, 417);
-    pl_test_expect_uint64_equal(pl_hm_lookup32(&tHashMap, 417), UINT64_MAX, NULL);
+    pl_test_expect_uint64_equal(pl_hm_lookup32(&tHashMap, 417), UINT32_MAX, NULL);
     pl_hm_remove32(&tHashMap, 417 + tHashMap._uBucketCapacity);
-    pl_test_expect_uint64_equal(pl_hm_lookup32(&tHashMap, 417 + tHashMap._uBucketCapacity), UINT64_MAX, NULL);
+    pl_test_expect_uint64_equal(pl_hm_lookup32(&tHashMap, 417 + tHashMap._uBucketCapacity), UINT32_MAX, NULL);
     
     pl_test_expect_uint32_equal(pl_hm_size32(&tHashMap), 0, NULL);
 }
