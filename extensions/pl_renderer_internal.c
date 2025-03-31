@@ -2003,7 +2003,7 @@ pl__get_shader_variant(uint32_t uSceneHandle, plShaderHandle tHandle, const plSh
     }
 
     const uint64_t ulVariantHash = pl_hm_hash(ptVariant->pTempConstantData, szSpecializationSize, ptVariant->tGraphicsState.ulValue);
-    const uint64_t ulIndex = pl_hm_lookup(gptData->ptVariantHashmap, ulVariantHash);
+    const uint64_t ulIndex = pl_hm_lookup(&gptData->tVariantHashmap, ulVariantHash);
 
     if(ulIndex != UINT64_MAX)
         return gptData->_sbtVariantHandles[ulIndex];
@@ -2014,7 +2014,7 @@ pl__get_shader_variant(uint32_t uSceneHandle, plShaderHandle tHandle, const plSh
 
     plShaderHandle tShader = gptGfx->create_shader(ptDevice, &tDesc);
 
-    pl_hm_insert(gptData->ptVariantHashmap, ulVariantHash, pl_sb_size(gptData->_sbtVariantHandles));
+    pl_hm_insert(&gptData->tVariantHashmap, ulVariantHash, pl_sb_size(gptData->_sbtVariantHandles));
     pl_sb_push(gptData->_sbtVariantHandles, tShader);
     return tShader;
 }
@@ -2913,13 +2913,12 @@ pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle tTexture)
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
 
-    if(pl_hm_has_key(ptScene->ptTextureIndexHashmap, tTexture.uData))
-    {
-        return (uint32_t)pl_hm_lookup(ptScene->ptTextureIndexHashmap, tTexture.uData);
-    }
+    uint64_t uIndex = 0;
+    if(pl_hm_has_key_ex(&ptScene->tTextureIndexHashmap, tTexture.uData, &uIndex))
+        return (uint32_t)uIndex;
 
-    uint64_t ulValue = pl_hm_get_free_index(ptScene->ptTextureIndexHashmap);
-    if(ulValue == UINT64_MAX)
+    uint64_t ulValue = pl_hm_get_free_index(&ptScene->tTextureIndexHashmap);
+    if(ulValue == PL_DS_HASH_INVALID)
     {
         ulValue = ptScene->uTextureIndexCount++;
 
@@ -2951,13 +2950,12 @@ pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle tText
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
 
-    if(pl_hm_has_key(ptScene->ptCubeTextureIndexHashmap, tTexture.uData))
-    {
-        return (uint32_t)pl_hm_lookup(ptScene->ptCubeTextureIndexHashmap, tTexture.uData);
-    }
+    uint64_t uIndex = 0;
+    if(pl_hm_has_key_ex(&ptScene->tCubeTextureIndexHashmap, tTexture.uData, &uIndex))
+        return (uint32_t)uIndex;
 
-    uint64_t ulValue = pl_hm_get_free_index(ptScene->ptCubeTextureIndexHashmap);
-    if(ulValue == UINT64_MAX)
+    uint64_t ulValue = pl_hm_get_free_index(&ptScene->tCubeTextureIndexHashmap);
+    if(ulValue == PL_DS_HASH_INVALID)
     {
         ulValue = ptScene->uCubeTextureIndexCount++;
 
@@ -4162,18 +4160,14 @@ pl__refr_set_drawable_shaders(uint32_t uSceneHandle)
         plMeshComponent*     ptMesh     = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
         plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, ptMesh->tMaterial);
 
-        uint32_t uMaterialIndex = UINT32_MAX;
+        uint64_t uMaterialIndex = UINT64_MAX;
 
-        if(pl_hm_has_key(ptScene->ptMaterialHashmap, ptMesh->tMaterial.ulData))
-        {
-            uMaterialIndex = (uint32_t)pl_hm_lookup(ptScene->ptMaterialHashmap, ptMesh->tMaterial.ulData);
-        }
-        else
+        if(!pl_hm_has_key_ex(&ptScene->tMaterialHashmap, ptMesh->tMaterial.ulData, &uMaterialIndex))
         {
             PL_ASSERT(false && "material not added to scene");
         }
 
-        ptScene->sbtDrawables[i].uMaterialIndex = uMaterialIndex;
+        ptScene->sbtDrawables[i].uMaterialIndex = (uint32_t)uMaterialIndex;
 
         int iDataStride = 0;
         int iFlagCopy0 = (int)ptMesh->ulVertexStreamMask;
@@ -4412,7 +4406,6 @@ pl__refr_unstage_drawables(uint32_t uSceneHandle)
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtStagedDrawables);
     pl_sb_reserve(ptScene->sbtDrawables, uDrawableCount);
-    pl_hm_resize(ptScene->ptDrawableHashmap, uDrawableCount);
 
     // reserve sizes
     const uint32_t uInitialIndexCount  = pl_sb_size(ptScene->sbuIndexBuffer);
@@ -4461,7 +4454,7 @@ pl__refr_unstage_drawables(uint32_t uSceneHandle)
         // {
         //     pl_hm_remove(ptScene->ptDrawableHashmap, tEntity.ulData);
         // }
-        pl_hm_insert(ptScene->ptDrawableHashmap, tEntity.ulData, i);
+        pl_hm_insert(&ptScene->tDrawableHashmap, tEntity.ulData, i);
         
         // add data to global buffers
         // if(ptScene->sbtStagedDrawables[i].uVertexCount == 0) // first time

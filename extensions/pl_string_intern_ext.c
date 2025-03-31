@@ -62,7 +62,7 @@ typedef struct _plStringInternEntry
 typedef struct _plStringRepository
 {
     plStringInternBlock* ptHeadBlock;
-    plHashMap*           ptEntryLookup;
+    plHashMap64          tEntryLookup;
     plStringInternEntry* sbtEntries;
 } plStringRepository;
 
@@ -92,7 +92,7 @@ pl_destroy_string_repository(plStringRepository* ptRepo)
     }
 
     pl_sb_free(ptRepo->sbtEntries);
-    pl_hm_free(ptRepo->ptEntryLookup);
+    pl_hm_free(&ptRepo->tEntryLookup);
     PL_FREE(ptRepo);
 }
 
@@ -102,14 +102,14 @@ pl_intern(plStringRepository* ptRepo, const char* pcString)
 
     // do hash once
     uint64_t uHash = pl_hm_hash_str(pcString);
-    uint64_t uKey = pl_hm_lookup(ptRepo->ptEntryLookup, uHash);
+    uint64_t uKey = pl_hm_lookup(&ptRepo->tEntryLookup, uHash);
 
     // check if key exists already
-    if(uKey == UINT64_MAX) // doesn't exist
+    if(uKey == PL_DS_HASH_INVALID) // doesn't exist
     {
-        uKey = pl_hm_get_free_index(ptRepo->ptEntryLookup);
+        uKey = pl_hm_get_free_index(&ptRepo->tEntryLookup);
         
-        if(uKey == UINT64_MAX) // no free index
+        if(uKey == PL_DS_HASH_INVALID) // no free index
         {
             uKey = pl_sb_size(ptRepo->sbtEntries);
             pl_sb_add(ptRepo->sbtEntries);
@@ -118,7 +118,7 @@ pl_intern(plStringRepository* ptRepo, const char* pcString)
             ptRepo->sbtEntries[uKey].uRefCount = 0;
             ptRepo->sbtEntries[uKey].uSize = 0;
         }
-        pl_hm_insert(ptRepo->ptEntryLookup, uHash, uKey);
+        pl_hm_insert(&ptRepo->tEntryLookup, uHash, uKey);
 
         const uint16_t uStringLength = (uint16_t)(strlen(pcString) + 1);
 
@@ -196,10 +196,10 @@ pl_remove_intern(plStringRepository* ptRepo, const char* pcString)
 {
     // do hash once
     uint64_t uHash = pl_hm_hash_str(pcString);
-    uint64_t uKey = pl_hm_lookup(ptRepo->ptEntryLookup, uHash);
+    uint64_t uKey = pl_hm_lookup(&ptRepo->tEntryLookup, uHash);
 
     // check if key exists already
-    if(uKey == UINT64_MAX) // doesn't exist
+    if(uKey == PL_DS_HASH_INVALID) // doesn't exist
     {
         PL_ASSERT(false && "string does not exist in this repository");
     }
@@ -209,7 +209,7 @@ pl_remove_intern(plStringRepository* ptRepo, const char* pcString)
 
         if(ptRepo->sbtEntries[uKey].uRefCount == 0)
         {
-            pl_hm_remove(ptRepo->ptEntryLookup, uKey);
+            pl_hm_remove(&ptRepo->tEntryLookup, uKey);
 
             // add hole
             plStringInternEntry tHole = {

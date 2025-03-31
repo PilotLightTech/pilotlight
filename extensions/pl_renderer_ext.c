@@ -1110,10 +1110,10 @@ pl_refr_cleanup_scene(uint32_t uSceneHandle)
     pl_sb_free(ptScene->sbtOutlineDrawables);
     pl_sb_free(ptScene->sbtOutlineDrawablesOldShaders);
     pl_sb_free(ptScene->sbtOutlineDrawablesOldEnvShaders);
-    pl_hm_free(ptScene->ptDrawableHashmap);
-    pl_hm_free(ptScene->ptMaterialHashmap);
-    pl_hm_free(ptScene->ptTextureIndexHashmap);
-    pl_hm_free(ptScene->ptCubeTextureIndexHashmap);
+    pl_hm_free(&ptScene->tDrawableHashmap);
+    pl_hm_free(&ptScene->tMaterialHashmap);
+    pl_hm_free(&ptScene->tTextureIndexHashmap);
+    pl_hm_free(&ptScene->tCubeTextureIndexHashmap);
     gptECS->cleanup_component_library(&ptScene->tComponentLibrary);
 
     pl_sb_push(gptData->sbuSceneFreeIndices, uSceneHandle);
@@ -1694,7 +1694,7 @@ pl_refr_cleanup(void)
     }
     pl_sb_free(gptData->sbuSceneFreeIndices);
     pl_sb_free(gptData->_sbtVariantHandles);
-    pl_hm_free(gptData->ptVariantHashmap);
+    pl_hm_free(&gptData->tVariantHashmap);
     gptResource->cleanup();
     gptGfx->flush_device(gptData->ptDevice);
 
@@ -2094,9 +2094,9 @@ pl_refr_outline_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnt
         // const uint64_t ulVariantHash = pl_hm_hash(tOutlineVariant.pTempConstantData, szSpecializationSize, tOutlineVariant.tGraphicsState.ulValue);
         // pl_hm_remove(&gptData->ptVariantHashmap, ulVariantHash);
 
-        if(pl_hm_has_key(ptScene->ptDrawableHashmap, tEntity.ulData))
+        uint64_t ulIndex = 0;
+        if(pl_hm_has_key_ex(&ptScene->tDrawableHashmap, tEntity.ulData, &ulIndex))
         {
-            uint64_t ulIndex = pl_hm_lookup(ptScene->ptDrawableHashmap, tEntity.ulData);
             plDrawable* ptDrawable = &ptScene->sbtDrawables[ulIndex];
             ptDrawable->tShader = ptScene->sbtOutlineDrawablesOldShaders[i];
             ptDrawable->tEnvShader = ptScene->sbtOutlineDrawablesOldEnvShaders[i];
@@ -2170,9 +2170,9 @@ pl_refr_outline_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnt
             pl_sb_capacity(ptScene->sbtProbeData),
         };
 
-        if(pl_hm_has_key(ptScene->ptDrawableHashmap, tEntity.ulData))
+        uint64_t ulIndex = 0;
+        if(pl_hm_has_key_ex(&ptScene->tDrawableHashmap, tEntity.ulData, &ulIndex))
         {
-            uint64_t ulIndex = pl_hm_lookup(ptScene->ptDrawableHashmap, tEntity.ulData);
             plDrawable* ptDrawable = &ptScene->sbtDrawables[ulIndex];
             plShader* ptOldShader = gptGfx->get_shader(ptDevice, ptDrawable->tShader);
             plGraphicsState tVariantTemp = ptOldShader->tDesc.tGraphicsState;
@@ -2255,7 +2255,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
         gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
     }
     pl_sb_free(gptData->_sbtVariantHandles);
-    pl_hm_free(gptData->ptVariantHashmap);
+    pl_hm_free(&gptData->tVariantHashmap);
 
     gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tDeferredShader);
     gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tForwardShader);
@@ -4385,7 +4385,7 @@ pl_refr_update_scene_materials(uint32_t uSceneHandle, uint32_t uMaterialCount, c
         const plEntity tMaterialComp = atMaterials[i];
         plMaterialComponent* ptMaterial = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MATERIAL, tMaterialComp);
 
-        uint32_t uMaterialIndex = (uint32_t)pl_hm_lookup(ptScene->ptMaterialHashmap, tMaterialComp.ulData);
+        uint32_t uMaterialIndex = (uint32_t)pl_hm_lookup(&ptScene->tMaterialHashmap, tMaterialComp.ulData);
         if(uMaterialIndex == UINT32_MAX)
         {
             PL_ASSERT(false && "material isn't in scene");
@@ -4461,7 +4461,7 @@ pl_refr_remove_objects_from_scene(uint32_t uSceneHandle, uint32_t uObjectCount, 
         {
             if(ptScene->sbtStagedDrawables[j].tEntity.ulData == tObject.ulData)
             {
-                pl_hm_remove(ptScene->ptDrawableHashmap, tObject.ulData);
+                pl_hm_remove(&ptScene->tDrawableHashmap, tObject.ulData);
                 pl_sb_del_swap(ptScene->sbtStagedDrawables, j);
                 j--;
                 uDrawableCount--;
@@ -4513,23 +4513,19 @@ pl_refr_add_materials_to_scene(uint32_t uSceneHandle, uint32_t uMaterialCount, c
             }
         }
 
-        uint32_t uMaterialIndex = UINT32_MAX;
+        uint64_t uMaterialIndex = UINT64_MAX;
 
         // see if material already exists
-        if(pl_hm_has_key(ptScene->ptMaterialHashmap, tMaterialComp.ulData))
+        if(!pl_hm_has_key_ex(&ptScene->tMaterialHashmap, tMaterialComp.ulData, &uMaterialIndex))
         {
-            uMaterialIndex = (uint32_t)pl_hm_lookup(ptScene->ptMaterialHashmap, tMaterialComp.ulData);
-        }
-        else // material doesn't exist
-        {
-            uint64_t ulValue = pl_hm_get_free_index(ptScene->ptMaterialHashmap);
-            if(ulValue == UINT64_MAX)
+            uint64_t ulValue = pl_hm_get_free_index(&ptScene->tMaterialHashmap);
+            if(ulValue == PL_DS_HASH_INVALID)
             {
                 ulValue = pl_sb_size(ptScene->sbtMaterialBuffer);
                 pl_sb_add(ptScene->sbtMaterialBuffer);
             }
 
-            uMaterialIndex = (uint32_t)ulValue;
+            uMaterialIndex = ulValue;
 
             // load textures
             plTextureHandle tBaseColorTex = gptData->tDummyTexture;
@@ -4580,7 +4576,7 @@ pl_refr_add_materials_to_scene(uint32_t uSceneHandle, uint32_t uMaterialCount, c
                 .iOcclusionTexIdx         = iOcclusionTexIdx
             };
             ptScene->sbtMaterialBuffer[uMaterialIndex] = tGPUMaterial;
-            pl_hm_insert(ptScene->ptMaterialHashmap, tMaterialComp.ulData, ulValue);
+            pl_hm_insert(&ptScene->tMaterialHashmap, tMaterialComp.ulData, ulValue);
         }
     }
     pl_end_cpu_sample(gptProfile, 0);
