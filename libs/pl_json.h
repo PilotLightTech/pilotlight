@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_JSON_VERSION    "1.0.2"
-#define PL_JSON_VERSION_NUM 10002
+#define PL_JSON_VERSION    "1.1.0"
+#define PL_JSON_VERSION_NUM 10100
 
 /*
 Index of this file:
@@ -68,6 +68,7 @@ plJsonObject* pl_json_member_by_index(plJsonObject*, uint32_t uIndex);
 void          pl_json_member_list    (plJsonObject*, char** pcListOut, uint32_t* puSizeOut, uint32_t* puLength);
 bool          pl_json_member_exist   (plJsonObject*, const char* pcName);
 plJsonType    pl_json_get_type       (plJsonObject*);
+const char*   pl_json_get_name       (plJsonObject*);
 
 // retrieve and cast values (default used if member isn't present)
 int           pl_json_int_member   (plJsonObject*, const char* pcName,      int iDefaultValue);
@@ -1040,6 +1041,12 @@ plJsonType
 pl_json_get_type(plJsonObject* ptJson)
 {
     return ptJson->tType;
+}
+
+const char*
+pl_json_get_name(plJsonObject* ptJson)
+{
+    return ptJson->acName;
 }
 
 bool
