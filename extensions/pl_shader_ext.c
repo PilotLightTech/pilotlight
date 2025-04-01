@@ -127,7 +127,7 @@ pl_shaderc_include_resolve_fn(void* pUserData, const char* pcRequestedSource, in
 static void
 pl_shaderc_include_result_release_fn(void* pUserData, shaderc_include_result* ptIncludeResult)
 {
-    pl_temp_allocator_free(&gptShaderCtx->tTempAllocator);
+    pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator);
 }
 
 static void
@@ -142,6 +142,7 @@ static void
 pl_cleanup_shader_ext(void)
 {
     pl_temp_allocator_free(&gptShaderCtx->tTempAllocator);
+    pl_temp_allocator_free(&gptShaderCtx->tTempAllocator2);
 }
 
 static bool

@@ -125,12 +125,12 @@ void   pl_pool_allocator_free (plPoolAllocator*, void* pItem);
 
 typedef struct _plTempAllocator
 {
-    size_t szSize;
-    size_t szOffset;
-    char*  pcBuffer;
+    size_t szSize;   // size in bytes of current working buffer
+    size_t szOffset; // offset into pcBuffer
+    char*  pcBuffer; // current working buffer (starts as acStackBuffer)
     char   acStackBuffer[PL_MEMORY_TEMP_STACK_SIZE];
     char** ppcMemoryBlocks;
-    size_t szMemoryBlockCount;
+    size_t szMemoryBlockCount; // current number working heap alloc blocks
     size_t szMemoryBlockCapacity;
     size_t szCurrentBlockSizes;
     size_t szNextBlockSizes;
@@ -347,6 +347,7 @@ pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
             ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1));
             memset(ptAllocator->ppcMemoryBlocks, 0, (sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1)));
             memcpy(ptAllocator->ppcMemoryBlocks, ppcOldBlocks, sizeof(char*) * ptAllocator->szMemoryBlockCapacity);
+            PL_MEMORY_FREE(ppcOldBlocks);
             ptAllocator->szMemoryBlockCapacity++;
             ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount] = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
             ptAllocator->szSize = szNewBlockSize;
@@ -369,7 +370,10 @@ pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
             ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1));
             memset(ptAllocator->ppcMemoryBlocks, 0, (sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1)));
             memcpy(ptAllocator->ppcMemoryBlocks, ppcOldBlocks, sizeof(char*) * ptAllocator->szMemoryBlockCapacity);
+            PL_MEMORY_FREE(ppcOldBlocks);
             ptAllocator->szMemoryBlockCapacity++;
+            if(ptAllocator->szMemoryBlockCount == 0) // special case
+                PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount]);
             ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount] = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
             ptAllocator->szSize = szNewBlockSize;
             ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount];
