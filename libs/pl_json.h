@@ -761,6 +761,11 @@ pl_load_json(const char* pcJson, plJsonObject** pptJsonOut)
     *pptJsonOut = PL_JSON_ALLOC(sizeof(plJsonObject));
     memset(*pptJsonOut, 0, sizeof(plJsonObject));
     plJsonObject* ptJsonOut = *pptJsonOut;
+    if(ptJsonOut == NULL)
+    {
+        pl_sb_json_free(sbtTokens);
+        return false;
+    }
     ptJsonOut->ptRootObject = ptJsonOut;
     pl_sb_json_reserve(ptJsonOut->sbcBuffer, strlen(pcJson));
     ptJsonOut->tType = pl__get_json_token_object_type(pcJson, &sbtTokens[uCurrentTokenIndex]);
