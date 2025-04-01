@@ -127,25 +127,24 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
     pl_load_stl((const char*)pcBuffer, szFileSize, NULL, NULL, NULL, &tInfo);
 
     ptMesh->ulVertexStreamMask = PL_MESH_FORMAT_FLAG_HAS_NORMAL;
-    pl_sb_resize(ptMesh->sbtVertexPositions, (uint32_t)(tInfo.szPositionStreamSize / 3));
-    pl_sb_resize(ptMesh->sbtVertexNormals, (uint32_t)(tInfo.szNormalStreamSize / 3));
-    pl_sb_resize(ptMesh->sbuIndices, (uint32_t)tInfo.szIndexBufferSize);
 
-    pl_load_stl((const char*)pcBuffer, szFileSize, (float*)ptMesh->sbtVertexPositions, (float*)ptMesh->sbtVertexNormals, (uint32_t*)ptMesh->sbuIndices, &tInfo);
+    gptECS->allocate_vertex_data(ptMesh, tInfo.szPositionStreamSize / 3, PL_MESH_FORMAT_FLAG_HAS_NORMAL, (uint32_t)tInfo.szIndexBufferSize);
+
+    pl_load_stl((const char*)pcBuffer, szFileSize, (float*)ptMesh->ptVertexPositions, (float*)ptMesh->ptVertexNormals, (uint32_t*)ptMesh->puIndices, &tInfo);
     PL_FREE(pcBuffer);
 
     // calculate AABB
     ptMesh->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
     ptMesh->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
     
-    for(uint32_t i = 0; i < pl_sb_size(ptMesh->sbtVertexPositions); i++)
+    for(uint32_t i = 0; i < ptMesh->szVertexCount; i++)
     {
-        if(ptMesh->sbtVertexPositions[i].x > ptMesh->tAABB.tMax.x) ptMesh->tAABB.tMax.x = ptMesh->sbtVertexPositions[i].x;
-        if(ptMesh->sbtVertexPositions[i].y > ptMesh->tAABB.tMax.y) ptMesh->tAABB.tMax.y = ptMesh->sbtVertexPositions[i].y;
-        if(ptMesh->sbtVertexPositions[i].z > ptMesh->tAABB.tMax.z) ptMesh->tAABB.tMax.z = ptMesh->sbtVertexPositions[i].z;
-        if(ptMesh->sbtVertexPositions[i].x < ptMesh->tAABB.tMin.x) ptMesh->tAABB.tMin.x = ptMesh->sbtVertexPositions[i].x;
-        if(ptMesh->sbtVertexPositions[i].y < ptMesh->tAABB.tMin.y) ptMesh->tAABB.tMin.y = ptMesh->sbtVertexPositions[i].y;
-        if(ptMesh->sbtVertexPositions[i].z < ptMesh->tAABB.tMin.z) ptMesh->tAABB.tMin.z = ptMesh->sbtVertexPositions[i].z;
+        if(ptMesh->ptVertexPositions[i].x > ptMesh->tAABB.tMax.x) ptMesh->tAABB.tMax.x = ptMesh->ptVertexPositions[i].x;
+        if(ptMesh->ptVertexPositions[i].y > ptMesh->tAABB.tMax.y) ptMesh->tAABB.tMax.y = ptMesh->ptVertexPositions[i].y;
+        if(ptMesh->ptVertexPositions[i].z > ptMesh->tAABB.tMax.z) ptMesh->tAABB.tMax.z = ptMesh->ptVertexPositions[i].z;
+        if(ptMesh->ptVertexPositions[i].x < ptMesh->tAABB.tMin.x) ptMesh->tAABB.tMin.x = ptMesh->ptVertexPositions[i].x;
+        if(ptMesh->ptVertexPositions[i].y < ptMesh->tAABB.tMin.y) ptMesh->tAABB.tMin.y = ptMesh->ptVertexPositions[i].y;
+        if(ptMesh->ptVertexPositions[i].z < ptMesh->tAABB.tMin.z) ptMesh->tAABB.tMin.z = ptMesh->ptVertexPositions[i].z;
     }
 
     pl_sb_push(ptDataOut->atObjects, tEntity);
@@ -470,6 +469,56 @@ static void
 pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimitive)
 {
     const size_t szVertexCount = ptPrimitive->attributes[0].data->count;
+
+    for(size_t szAttributeIndex = 0; szAttributeIndex < ptPrimitive->attributes_count; szAttributeIndex++)
+    {
+        const cgltf_attribute* ptAttribute = &ptPrimitive->attributes[szAttributeIndex];
+
+        switch(ptAttribute->type)
+        {
+            case cgltf_attribute_type_position:break;
+            case cgltf_attribute_type_normal: 
+                ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL;
+                break;
+            case cgltf_attribute_type_tangent:
+                ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT;
+                break;
+            case cgltf_attribute_type_texcoord:
+                if(ptAttribute->index == 0 || ptAttribute->index == 1)
+                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0;
+                else if(ptAttribute->index == 2 || ptAttribute->index == 3)
+                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1;
+                else if(ptAttribute->index == 4 || ptAttribute->index == 5)
+                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2;
+                else if(ptAttribute->index == 6 || ptAttribute->index == 7)
+                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3;
+                break;
+            case cgltf_attribute_type_color:
+                if(ptAttribute->index == 0)
+                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0;
+                else if(ptAttribute->index == 1)
+                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1;
+                break;
+            case cgltf_attribute_type_joints:
+                if(ptAttribute->index == 0)
+                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0;
+                else if(ptAttribute->index == 1)
+                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_1;
+                break;
+            case cgltf_attribute_type_weights:
+                if(ptAttribute->index == 0)
+                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0;
+                else if(ptAttribute->index == 1)
+                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1;
+                break;
+        }
+    }
+
+    if(ptPrimitive->indices)
+        ptMesh->szIndexCount = (uint32_t)ptPrimitive->indices->count;
+
+    gptECS->allocate_vertex_data(ptMesh, szVertexCount, ptMesh->ulVertexStreamMask, ptMesh->szIndexCount);
+
     for(size_t szAttributeIndex = 0; szAttributeIndex < ptPrimitive->attributes_count; szAttributeIndex++)
     {
         const cgltf_attribute* ptAttribute = &ptPrimitive->attributes[szAttributeIndex];
@@ -485,24 +534,37 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
             {
                 ptMesh->tAABB.tMax = (plVec3){ptAttribute->data->max[0], ptAttribute->data->max[1], ptAttribute->data->max[2]};
                 ptMesh->tAABB.tMin = (plVec3){ptAttribute->data->min[0], ptAttribute->data->min[1], ptAttribute->data->min[2]};
-                pl_sb_resize(ptMesh->sbtVertexPositions, (uint32_t)szVertexCount);
-                for(size_t i = 0; i < szVertexCount; i++)
+
+                if(szStride == sizeof(plVec3))
                 {
-                    plVec3* ptRawData = (plVec3*)&pucBufferStart[i * szStride];
-                    ptMesh->sbtVertexPositions[i] = *ptRawData;
+                    memcpy(ptMesh->ptVertexPositions, pucBufferStart, sizeof(plVec3) * szVertexCount);
+                }
+                else
+                {
+                    for(size_t i = 0; i < szVertexCount; i++)
+                    {
+                        plVec3* ptRawData = (plVec3*)&pucBufferStart[i * szStride];
+                        ptMesh->ptVertexPositions[i] = *ptRawData;
+                    }
                 }
                 break;
             }
 
             case cgltf_attribute_type_normal:
             {
-                pl_sb_resize(ptMesh->sbtVertexNormals, (uint32_t)szVertexCount);
                 if(ptAttribute->data->component_type == cgltf_component_type_r_32f && ptAttribute->data->type == cgltf_type_vec3)
                 {
-                    for(size_t i = 0; i < szVertexCount; i++)
+                    if(szStride == sizeof(plVec3))
                     {
-                        plVec3* ptRawData = (plVec3*)&pucBufferStart[i * szStride];
-                        ptMesh->sbtVertexNormals[i] = *ptRawData;
+                        memcpy(ptMesh->ptVertexNormals, pucBufferStart, sizeof(plVec3) * szVertexCount);
+                    }
+                    else
+                    {
+                        for(size_t i = 0; i < szVertexCount; i++)
+                        {
+                            plVec3* ptRawData = (plVec3*)&pucBufferStart[i * szStride];
+                            ptMesh->ptVertexNormals[i] = *ptRawData;
+                        }
                     }
                 }
                 else if(ptAttribute->data->component_type == cgltf_component_type_r_8 && ptAttribute->data->type == cgltf_type_vec3)
@@ -510,9 +572,9 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         int8_t* puRawData = (int8_t*)&pucBufferStart[i * szStride];
-                        ptMesh->sbtVertexNormals[i].x = (float)puRawData[0];
-                        ptMesh->sbtVertexNormals[i].y = (float)puRawData[1];
-                        ptMesh->sbtVertexNormals[i].z = (float)puRawData[2];
+                        ptMesh->ptVertexNormals[i].x = (float)puRawData[0];
+                        ptMesh->ptVertexNormals[i].y = (float)puRawData[1];
+                        ptMesh->ptVertexNormals[i].z = (float)puRawData[2];
                     }
                 }
                 else
@@ -524,13 +586,19 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
 
             case cgltf_attribute_type_tangent:
             {
-                pl_sb_resize(ptMesh->sbtVertexTangents, (uint32_t)szVertexCount);
                 if(ptAttribute->data->component_type == cgltf_component_type_r_32f && ptAttribute->data->type == cgltf_type_vec4)
                 {
-                    for(size_t i = 0; i < szVertexCount; i++)
+                    if(szStride == sizeof(plVec4))
                     {
-                        plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
-                        ptMesh->sbtVertexTangents[i] = *ptRawData;
+                        memcpy(ptMesh->ptVertexTangents, pucBufferStart, sizeof(plVec4) * szVertexCount);
+                    }
+                    else
+                    {
+                        for(size_t i = 0; i < szVertexCount; i++)
+                        {
+                            plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
+                            ptMesh->ptVertexTangents[i] = *ptRawData;
+                        }
                     }
                 }
                 else if(ptAttribute->data->component_type == cgltf_component_type_r_8 && ptAttribute->data->type == cgltf_type_vec4)
@@ -538,10 +606,10 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         int8_t* puRawData = (int8_t*)&pucBufferStart[i * szStride];
-                        ptMesh->sbtVertexTangents[i].x = (float)puRawData[0];
-                        ptMesh->sbtVertexTangents[i].y = (float)puRawData[1];
-                        ptMesh->sbtVertexTangents[i].z = (float)puRawData[2];
-                        ptMesh->sbtVertexTangents[i].w = (float)puRawData[3];
+                        ptMesh->ptVertexTangents[i].x = (float)puRawData[0];
+                        ptMesh->ptVertexTangents[i].y = (float)puRawData[1];
+                        ptMesh->ptVertexTangents[i].z = (float)puRawData[2];
+                        ptMesh->ptVertexTangents[i].w = (float)puRawData[3];
                     }
                 }
                 else
@@ -553,14 +621,19 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
 
             case cgltf_attribute_type_texcoord:
             {
-                pl_sb_resize(ptMesh->sbtVertexTextureCoordinates[ptAttribute->index], (uint32_t)szVertexCount);
-                
                 if(ptAttribute->data->component_type == cgltf_component_type_r_32f)
                 {
-                    for(size_t i = 0; i < szVertexCount; i++)
+                    if(szStride == sizeof(plVec2))
                     {
-                        plVec2* ptRawData = (plVec2*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexTextureCoordinates[ptAttribute->index])[i] = *ptRawData;
+                        memcpy((ptMesh->ptVertexTextureCoordinates[ptAttribute->index]), pucBufferStart, sizeof(plVec2) * szVertexCount);
+                    }
+                    else
+                    {
+                        for(size_t i = 0; i < szVertexCount; i++)
+                        {
+                            plVec2* ptRawData = (plVec2*)&pucBufferStart[i * szStride];
+                            (ptMesh->ptVertexTextureCoordinates[ptAttribute->index])[i] = *ptRawData;
+                        }
                     }
                 }
                 else if(ptAttribute->data->component_type == cgltf_component_type_r_16u)
@@ -568,8 +641,8 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         uint16_t* puRawData = (uint16_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexTextureCoordinates[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexTextureCoordinates[ptAttribute->index])[i].y = (float)puRawData[1];
+                        (ptMesh->ptVertexTextureCoordinates[ptAttribute->index])[i].x = (float)puRawData[0];
+                        (ptMesh->ptVertexTextureCoordinates[ptAttribute->index])[i].y = (float)puRawData[1];
                     }
                 }
                 else if(ptAttribute->data->component_type == cgltf_component_type_r_8u)
@@ -577,8 +650,8 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         uint8_t* puRawData = (uint8_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexTextureCoordinates[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexTextureCoordinates[ptAttribute->index])[i].y = (float)puRawData[1];
+                        (ptMesh->ptVertexTextureCoordinates[ptAttribute->index])[i].x = (float)puRawData[0];
+                        (ptMesh->ptVertexTextureCoordinates[ptAttribute->index])[i].y = (float)puRawData[1];
                     }
                 }
                 break;
@@ -586,14 +659,19 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
 
             case cgltf_attribute_type_color:
             {
-                pl_sb_resize(ptMesh->sbtVertexColors[ptAttribute->index], (uint32_t)szVertexCount);
-                
                 if(ptAttribute->data->component_type == cgltf_component_type_r_32f)
                 {
-                    for(size_t i = 0; i < szVertexCount; i++)
+                    if(szStride == sizeof(plVec4))
                     {
-                        plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i] = *ptRawData;
+                        memcpy((ptMesh->ptVertexColors[ptAttribute->index]), pucBufferStart, sizeof(plVec4) * szVertexCount);
+                    }
+                    else
+                    {
+                        for(size_t i = 0; i < szVertexCount; i++)
+                        {
+                            plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
+                            (ptMesh->ptVertexColors[ptAttribute->index])[i] = *ptRawData;
+                        }
                     }
                 }
                 else if(ptAttribute->data->component_type == cgltf_component_type_r_16u)
@@ -602,10 +680,10 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         uint16_t* puRawData = (uint16_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].r = (float)puRawData[0] * fConversion;
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].g = (float)puRawData[1] * fConversion;
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].b = (float)puRawData[2] * fConversion;
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].a = (float)puRawData[3] * fConversion;
+                        (ptMesh->ptVertexColors[ptAttribute->index])[i].r = (float)puRawData[0] * fConversion;
+                        (ptMesh->ptVertexColors[ptAttribute->index])[i].g = (float)puRawData[1] * fConversion;
+                        (ptMesh->ptVertexColors[ptAttribute->index])[i].b = (float)puRawData[2] * fConversion;
+                        (ptMesh->ptVertexColors[ptAttribute->index])[i].a = (float)puRawData[3] * fConversion;
                     }
                 }
                 else if(ptAttribute->data->component_type == cgltf_component_type_r_8u)
@@ -614,10 +692,10 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         uint8_t* puRawData = (uint8_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].r = (float)puRawData[0] * fConversion;
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].g = (float)puRawData[1] * fConversion;
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].b = (float)puRawData[2] * fConversion;
-                        (ptMesh->sbtVertexColors[ptAttribute->index])[i].a = (float)puRawData[3] * fConversion;
+                        (ptMesh->ptVertexColors[ptAttribute->index])[i].r = (float)puRawData[0] * fConversion;
+                        (ptMesh->ptVertexColors[ptAttribute->index])[i].g = (float)puRawData[1] * fConversion;
+                        (ptMesh->ptVertexColors[ptAttribute->index])[i].b = (float)puRawData[2] * fConversion;
+                        (ptMesh->ptVertexColors[ptAttribute->index])[i].a = (float)puRawData[3] * fConversion;
                     }
                 }
                 else
@@ -630,17 +708,15 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
 
             case cgltf_attribute_type_joints:
             {
-                pl_sb_resize(ptMesh->sbtVertexJoints[ptAttribute->index], (uint32_t)szVertexCount);
-                
                 if(ptAttribute->data->component_type == cgltf_component_type_r_16u)
                 {
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         uint16_t* puRawData = (uint16_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].y = (float)puRawData[1];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].z = (float)puRawData[2];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].w = (float)puRawData[3];
+                        (ptMesh->ptVertexJoints[ptAttribute->index])[i].x = (float)puRawData[0];
+                        (ptMesh->ptVertexJoints[ptAttribute->index])[i].y = (float)puRawData[1];
+                        (ptMesh->ptVertexJoints[ptAttribute->index])[i].z = (float)puRawData[2];
+                        (ptMesh->ptVertexJoints[ptAttribute->index])[i].w = (float)puRawData[3];
                     }
                 }
                 else if(ptAttribute->data->component_type == cgltf_component_type_r_8u)
@@ -648,10 +724,10 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         uint8_t* puRawData = (uint8_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].y = (float)puRawData[1];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].z = (float)puRawData[2];
-                        (ptMesh->sbtVertexJoints[ptAttribute->index])[i].w = (float)puRawData[3];
+                        (ptMesh->ptVertexJoints[ptAttribute->index])[i].x = (float)puRawData[0];
+                        (ptMesh->ptVertexJoints[ptAttribute->index])[i].y = (float)puRawData[1];
+                        (ptMesh->ptVertexJoints[ptAttribute->index])[i].z = (float)puRawData[2];
+                        (ptMesh->ptVertexJoints[ptAttribute->index])[i].w = (float)puRawData[3];
                     }
                 }
                 break;
@@ -659,14 +735,19 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
 
             case cgltf_attribute_type_weights:
             {
-                pl_sb_resize(ptMesh->sbtVertexWeights[ptAttribute->index], (uint32_t)szVertexCount);
-                
                 if(ptAttribute->data->component_type == cgltf_component_type_r_32f)
                 {
-                    for(size_t i = 0; i < szVertexCount; i++)
+                    if(szStride == sizeof(plVec4))
                     {
-                        plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i] = *ptRawData;
+                        memcpy((ptMesh->ptVertexWeights[ptAttribute->index]), pucBufferStart, sizeof(plVec4) * szVertexCount);
+                    }
+                    else
+                    {
+                        for(size_t i = 0; i < szVertexCount; i++)
+                        {
+                            plVec4* ptRawData = (plVec4*)&pucBufferStart[i * szStride];
+                            (ptMesh->ptVertexWeights[ptAttribute->index])[i] = *ptRawData;
+                        }
                     }
                 }
                 else if(ptAttribute->data->component_type == cgltf_component_type_r_16u)
@@ -674,10 +755,10 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         uint16_t* puRawData = (uint16_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].y = (float)puRawData[1];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].z = (float)puRawData[2];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].w = (float)puRawData[3];
+                        (ptMesh->ptVertexWeights[ptAttribute->index])[i].x = (float)puRawData[0];
+                        (ptMesh->ptVertexWeights[ptAttribute->index])[i].y = (float)puRawData[1];
+                        (ptMesh->ptVertexWeights[ptAttribute->index])[i].z = (float)puRawData[2];
+                        (ptMesh->ptVertexWeights[ptAttribute->index])[i].w = (float)puRawData[3];
                     }
                 }
                 else if(ptAttribute->data->component_type == cgltf_component_type_r_8u)
@@ -685,10 +766,10 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                     for(size_t i = 0; i < szVertexCount; i++)
                     {
                         uint8_t* puRawData = (uint8_t*)&pucBufferStart[i * szStride];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].x = (float)puRawData[0];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].y = (float)puRawData[1];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].z = (float)puRawData[2];
-                        (ptMesh->sbtVertexWeights[ptAttribute->index])[i].w = (float)puRawData[3];
+                        (ptMesh->ptVertexWeights[ptAttribute->index])[i].x = (float)puRawData[0];
+                        (ptMesh->ptVertexWeights[ptAttribute->index])[i].y = (float)puRawData[1];
+                        (ptMesh->ptVertexWeights[ptAttribute->index])[i].z = (float)puRawData[2];
+                        (ptMesh->ptVertexWeights[ptAttribute->index])[i].w = (float)puRawData[3];
                     }
                 }
                 break;
@@ -704,22 +785,20 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
     // index buffer
     if(ptPrimitive->indices)
     {
-        pl_sb_resize(ptMesh->sbuIndices, (uint32_t)ptPrimitive->indices->count);
         unsigned char* pucIdexBufferStart = &((unsigned char*)ptPrimitive->indices->buffer_view->buffer->data)[ptPrimitive->indices->buffer_view->offset + ptPrimitive->indices->offset];
         switch(ptPrimitive->indices->component_type)
         {
             case cgltf_component_type_r_32u:
             {
                 
-                if(ptPrimitive->indices->buffer_view->stride == 0)
+                if(ptPrimitive->indices->buffer_view->stride == 0 || ptPrimitive->indices->buffer_view->stride == sizeof(uint32_t))
                 {
-                    for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = *(uint32_t*)&pucIdexBufferStart[i * sizeof(uint32_t)];
+                    memcpy(ptMesh->puIndices, pucIdexBufferStart, ptPrimitive->indices->count * sizeof(uint32_t));
                 }
                 else
                 {
                     for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = *(uint32_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
+                        ptMesh->puIndices[i] = *(uint32_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
                 }
                 break;
             }
@@ -729,12 +808,12 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                 if(ptPrimitive->indices->buffer_view->stride == 0)
                 {
                     for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * sizeof(unsigned short)];
+                        ptMesh->puIndices[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * sizeof(unsigned short)];
                 }
                 else
                 {
                     for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
+                        ptMesh->puIndices[i] = (uint32_t)*(unsigned short*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
                 }
                 break;
             }
@@ -743,12 +822,12 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                 if(ptPrimitive->indices->buffer_view->stride == 0)
                 {
                     for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * sizeof(uint8_t)];
+                        ptMesh->puIndices[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * sizeof(uint8_t)];
                 }
                 else
                 {
                     for(uint32_t i = 0; i < ptPrimitive->indices->count; i++)
-                        ptMesh->sbuIndices[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
+                        ptMesh->puIndices[i] = (uint32_t)*(uint8_t*)&pucIdexBufferStart[i * ptPrimitive->indices->buffer_view->stride];
                 }
                 break;
             }

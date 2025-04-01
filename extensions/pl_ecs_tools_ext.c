@@ -605,7 +605,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     gptUI->text("Skin:     %s, %u", ptSkinTagComp ? ptSkinTagComp->acName : " ", ptSkinTagComp ? ptMeshComp->tSkinComponent.uIndex : 0);
 
                     gptUI->vertical_spacing();
-                    gptUI->text("Vertex Data (%u verts, %u idx)", pl_sb_size(ptMeshComp->sbtVertexPositions), pl_sb_size(ptMeshComp->sbuIndices));
+                    gptUI->text("Vertex Data (%u verts, %u idx)", (uint32_t)ptMeshComp->szVertexCount, (uint32_t)ptMeshComp->szIndexCount);
                     gptUI->indent(15.0f);
                     gptUI->text("%s Positions", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_POSITION ? "ACTIVE" : "     ");
                     gptUI->text("%s Normals", ptMeshComp->ulVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL ? "ACTIVE" : "     ");

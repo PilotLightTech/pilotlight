@@ -148,12 +148,13 @@ typedef struct _plEcsI
     plEntity (*copy_object) (plComponentLibrary*, const char* pcName, plEntity tOriginalObject, plObjectComponent**);
 
     // mesh entity helpers
-    plEntity (*create_mesh)       (plComponentLibrary*, const char* pcName, plMeshComponent**);
-    plEntity (*create_sphere_mesh)(plComponentLibrary*, const char* pcName, float fRadius, uint32_t uLatitudeBands, uint32_t uLongitudeBands, plMeshComponent**);
-    plEntity (*create_cube_mesh)  (plComponentLibrary*, const char* pcName, plMeshComponent**);
-    plEntity (*create_plane_mesh) (plComponentLibrary*, const char* pcName, plMeshComponent**);
-    void     (*calculate_normals) (plMeshComponent*, uint32_t uMeshCount);
-    void     (*calculate_tangents)(plMeshComponent*, uint32_t uMeshCount);
+    plEntity (*create_mesh)         (plComponentLibrary*, const char* pcName, plMeshComponent**);
+    plEntity (*create_sphere_mesh)  (plComponentLibrary*, const char* pcName, float fRadius, uint32_t uLatitudeBands, uint32_t uLongitudeBands, plMeshComponent**);
+    plEntity (*create_cube_mesh)    (plComponentLibrary*, const char* pcName, plMeshComponent**);
+    plEntity (*create_plane_mesh)   (plComponentLibrary*, const char* pcName, plMeshComponent**);
+    void     (*allocate_vertex_data)(plMeshComponent*, size_t vertexCount, uint64_t vertexStreamMask, size_t indexCount);
+    void     (*calculate_normals)   (plMeshComponent*, uint32_t uMeshCount);
+    void     (*calculate_tangents)  (plMeshComponent*, uint32_t uMeshCount);
 
     // scripts
     plEntity (*create_script)(plComponentLibrary*, const char* pcFile, plScriptFlags, plScriptComponent**);
@@ -643,16 +644,19 @@ typedef struct _plMaterialComponent
 typedef struct _plMeshComponent
 {
     uint64_t     ulVertexStreamMask;
+    size_t       szVertexCount;
+    size_t       szIndexCount;
+    uint8_t*     puRawData;
     plEntity     tMaterial;
     plEntity     tSkinComponent;
-    plVec3*      sbtVertexPositions;
-    plVec3*      sbtVertexNormals;
-    plVec4*      sbtVertexTangents;
-    plVec4*      sbtVertexColors[2];
-    plVec4*      sbtVertexWeights[2];
-    plVec4*      sbtVertexJoints[2];
-    plVec2*      sbtVertexTextureCoordinates[8];
-    uint32_t*    sbuIndices;
+    plVec3*      ptVertexPositions;
+    plVec3*      ptVertexNormals;
+    plVec4*      ptVertexTangents;
+    plVec4*      ptVertexColors[2];
+    plVec4*      ptVertexWeights[2];
+    plVec4*      ptVertexJoints[2];
+    plVec2*      ptVertexTextureCoordinates[8];
+    uint32_t*    puIndices;
     plAABB       tAABB;
 } plMeshComponent;
 

@@ -2439,7 +2439,7 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
         return;
 
     const uint32_t uVertexDataStartIndex = pl_sb_size(ptScene->sbtSkinVertexDataBuffer);
-    const uint32_t uVertexCount          = pl_sb_size(ptMesh->sbtVertexPositions);
+    const uint32_t uVertexCount          = (uint32_t)ptMesh->szVertexCount;
 
     // stride within storage buffer
     uint32_t uStride = 0;
@@ -2447,13 +2447,13 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
     uint64_t ulVertexStreamMask = 0;
 
     // calculate vertex stream mask based on provided data
-    if(pl_sb_size(ptMesh->sbtVertexPositions) > 0)  { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_POSITION; }
-    if(pl_sb_size(ptMesh->sbtVertexNormals) > 0)    { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL; }
-    if(pl_sb_size(ptMesh->sbtVertexTangents) > 0)   { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT; }
-    if(pl_sb_size(ptMesh->sbtVertexWeights[0]) > 0) { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0; }
-    if(pl_sb_size(ptMesh->sbtVertexWeights[1]) > 0) { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1; }
-    if(pl_sb_size(ptMesh->sbtVertexJoints[0]) > 0)  { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0; }
-    if(pl_sb_size(ptMesh->sbtVertexJoints[1]) > 0)  { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_1; }
+    if(ptMesh->ptVertexPositions)  { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_POSITION; }
+    if(ptMesh->ptVertexNormals)    { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL; }
+    if(ptMesh->ptVertexTangents)   { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT; }
+    if(ptMesh->ptVertexWeights[0]) { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0; }
+    if(ptMesh->ptVertexWeights[1]) { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1; }
+    if(ptMesh->ptVertexJoints[0])  { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_0; }
+    if(ptMesh->ptVertexJoints[1])  { uStride += 1; ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_JOINTS_1; }
 
     pl_sb_add_n(ptScene->sbtSkinVertexDataBuffer, uStride * uVertexCount);
 
@@ -2461,10 +2461,10 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
     uint32_t uOffset = 0;
 
     // positions
-    const uint32_t uVertexPositionCount = pl_sb_size(ptMesh->sbtVertexPositions);
+    const uint32_t uVertexPositionCount = uVertexCount;
     for(uint32_t i = 0; i < uVertexPositionCount; i++)
     {
-        const plVec3* ptPosition = &ptMesh->sbtVertexPositions[i];
+        const plVec3* ptPosition = &ptMesh->ptVertexPositions[i];
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride].x = ptPosition->x;
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride].y = ptPosition->y;
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride].z = ptPosition->z;
@@ -2475,11 +2475,11 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
         uOffset += 1;
 
     // normals
-    const uint32_t uVertexNormalCount = pl_sb_size(ptMesh->sbtVertexNormals);
+    const uint32_t uVertexNormalCount = ptMesh->ptVertexNormals ? uVertexCount : 0;
     for(uint32_t i = 0; i < uVertexNormalCount; i++)
     {
-        ptMesh->sbtVertexNormals[i] = pl_norm_vec3(ptMesh->sbtVertexNormals[i]);
-        const plVec3* ptNormal = &ptMesh->sbtVertexNormals[i];
+        ptMesh->ptVertexNormals[i] = pl_norm_vec3(ptMesh->ptVertexNormals[i]);
+        const plVec3* ptNormal = &ptMesh->ptVertexNormals[i];
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].x = ptNormal->x;
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].y = ptNormal->y;
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].z = ptNormal->z;
@@ -2490,10 +2490,10 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
         uOffset += 1;
 
     // tangents
-    const uint32_t uVertexTangentCount = pl_sb_size(ptMesh->sbtVertexTangents);
+    const uint32_t uVertexTangentCount = ptMesh->ptVertexTangents ? uVertexCount : 0;
     for(uint32_t i = 0; i < uVertexTangentCount; i++)
     {
-        const plVec4* ptTangent = &ptMesh->sbtVertexTangents[i];
+        const plVec4* ptTangent = &ptMesh->ptVertexTangents[i];
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].x = ptTangent->x;
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].y = ptTangent->y;
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].z = ptTangent->z;
@@ -2504,10 +2504,10 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
         uOffset += 1;
 
     // joints 0
-    const uint32_t uVertexJoint0Count = pl_sb_size(ptMesh->sbtVertexJoints[0]);
+    const uint32_t uVertexJoint0Count = ptMesh->ptVertexJoints[0] ? uVertexCount : 0;
     for(uint32_t i = 0; i < uVertexJoint0Count; i++)
     {
-        const plVec4* ptJoint = &ptMesh->sbtVertexJoints[0][i];
+        const plVec4* ptJoint = &ptMesh->ptVertexJoints[0][i];
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].x = ptJoint->x;
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].y = ptJoint->y;
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].z = ptJoint->z;
@@ -2518,10 +2518,10 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
         uOffset += 1;
 
     // weights 0
-    const uint32_t uVertexWeights0Count = pl_sb_size(ptMesh->sbtVertexWeights[0]);
+    const uint32_t uVertexWeights0Count = ptMesh->ptVertexWeights[0] ? uVertexCount : 0;
     for(uint32_t i = 0; i < uVertexWeights0Count; i++)
     {
-        const plVec4* ptWeight = &ptMesh->sbtVertexWeights[0][i];
+        const plVec4* ptWeight = &ptMesh->ptVertexWeights[0][i];
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].x = ptWeight->x;
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].y = ptWeight->y;
         ptScene->sbtSkinVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].z = ptWeight->z;
@@ -2537,14 +2537,14 @@ pl__add_drawable_skin_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawa
     uint32_t uDestStride = 0;
 
     // calculate vertex stream mask based on provided data
-    if(pl_sb_size(ptMesh->sbtVertexNormals) > 0)               { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexTangents) > 0)              { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexColors[0]) > 0)             { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexColors[1]) > 0)             { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[0]) > 0) { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[2]) > 0) { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[4]) > 0) { uDestStride += 1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[6]) > 0) { uDestStride += 1; }
+    if(ptMesh->ptVertexNormals)               { uDestStride += 1; }
+    if(ptMesh->ptVertexTangents)              { uDestStride += 1; }
+    if(ptMesh->ptVertexColors[0])             { uDestStride += 1; }
+    if(ptMesh->ptVertexColors[1])             { uDestStride += 1; }
+    if(ptMesh->ptVertexTextureCoordinates[0]) { uDestStride += 1; }
+    if(ptMesh->ptVertexTextureCoordinates[2]) { uDestStride += 1; }
+    if(ptMesh->ptVertexTextureCoordinates[4]) { uDestStride += 1; }
+    if(ptMesh->ptVertexTextureCoordinates[6]) { uDestStride += 1; }
 
     plSkinData tSkinData = {
         .tEntity = ptMesh->tSkinComponent,
@@ -2640,30 +2640,35 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
     const uint32_t uVertexPosStartIndex  = pl_sb_size(ptScene->sbtVertexPosBuffer);
     const uint32_t uIndexBufferStart     = pl_sb_size(ptScene->sbuIndexBuffer);
     const uint32_t uVertexDataStartIndex = pl_sb_size(ptScene->sbtVertexDataBuffer);
-    const uint32_t uIndexCount           = pl_sb_size(ptMesh->sbuIndices);
-    const uint32_t uVertexCount          = pl_sb_size(ptMesh->sbtVertexPositions);
+    const uint32_t uIndexCount           = (uint32_t)ptMesh->szIndexCount;
+    const uint32_t uVertexCount          = (uint32_t)ptMesh->szVertexCount;
 
     // add index buffer data
     pl_sb_add_n(ptScene->sbuIndexBuffer, uIndexCount);
     for(uint32_t j = 0; j < uIndexCount; j++)
-        ptScene->sbuIndexBuffer[uIndexBufferStart + j] = uVertexPosStartIndex + ptMesh->sbuIndices[j];
+        ptScene->sbuIndexBuffer[uIndexBufferStart + j] = uVertexPosStartIndex + ptMesh->puIndices[j];
 
     // add vertex position data
     pl_sb_add_n(ptScene->sbtVertexPosBuffer, uVertexCount);
-    memcpy(&ptScene->sbtVertexPosBuffer[uVertexPosStartIndex], ptMesh->sbtVertexPositions, sizeof(plVec3) * uVertexCount);
+    memcpy(&ptScene->sbtVertexPosBuffer[uVertexPosStartIndex], ptMesh->ptVertexPositions, sizeof(plVec3) * uVertexCount);
 
     // stride within storage buffer
     uint32_t uStride = 0;
 
     // calculate vertex stream mask based on provided data
-    if(pl_sb_size(ptMesh->sbtVertexNormals) > 0)               { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL; }
-    if(pl_sb_size(ptMesh->sbtVertexTangents) > 0)              { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT; }
-    if(pl_sb_size(ptMesh->sbtVertexColors[0]) > 0)             { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0; }
-    if(pl_sb_size(ptMesh->sbtVertexColors[1]) > 0)             { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[0]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[2]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[4]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2; }
-    if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[6]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3; }
+    if(ptMesh->ptVertexNormals)               { uStride += 1; }
+    if(ptMesh->ptVertexTangents)              { uStride += 1; }
+    if(ptMesh->ptVertexColors[0])             { uStride += 1; }
+    if(ptMesh->ptVertexColors[1])             { uStride += 1; }
+    if(ptMesh->ptVertexTextureCoordinates[0]) { uStride += 1; }
+    if(ptMesh->ptVertexTextureCoordinates[2]) { uStride += 1; }
+    if(ptMesh->ptVertexTextureCoordinates[4]) { uStride += 1; }
+    if(ptMesh->ptVertexTextureCoordinates[6]) { uStride += 1; }
+
+    ptMesh->ulVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_JOINTS_0;
+    ptMesh->ulVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_JOINTS_1;
+    ptMesh->ulVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0;
+    ptMesh->ulVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1;
 
     pl_sb_add_n(ptScene->sbtVertexDataBuffer, uStride * uVertexCount);
 
@@ -2671,11 +2676,11 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
     uint32_t uOffset = 0;
 
     // normals
-    const uint32_t uVertexNormalCount = pl_sb_size(ptMesh->sbtVertexNormals);
+    const uint32_t uVertexNormalCount = ptMesh->ptVertexNormals ? uVertexCount : 0;
     for(uint32_t i = 0; i < uVertexNormalCount; i++)
     {
-        ptMesh->sbtVertexNormals[i] = pl_norm_vec3(ptMesh->sbtVertexNormals[i]);
-        const plVec3* ptNormal = &ptMesh->sbtVertexNormals[i];
+        ptMesh->ptVertexNormals[i] = pl_norm_vec3(ptMesh->ptVertexNormals[i]);
+        const plVec3* ptNormal = &ptMesh->ptVertexNormals[i];
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride].x = ptNormal->x;
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride].y = ptNormal->y;
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride].z = ptNormal->z;
@@ -2686,10 +2691,10 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
         uOffset += 1;
 
     // tangents
-    const uint32_t uVertexTangentCount = pl_sb_size(ptMesh->sbtVertexTangents);
+    const uint32_t uVertexTangentCount = ptMesh->ptVertexTangents ? uVertexCount : 0;
     for(uint32_t i = 0; i < uVertexTangentCount; i++)
     {
-        const plVec4* ptTangent = &ptMesh->sbtVertexTangents[i];
+        const plVec4* ptTangent = &ptMesh->ptVertexTangents[i];
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].x = ptTangent->x;
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].y = ptTangent->y;
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].z = ptTangent->z;
@@ -2702,15 +2707,15 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
     // texture coordinates 0
     for(uint32_t i = 0; i < 8; i+=2)
     {
-        const uint32_t uVertexTexCount0 = pl_sb_size(ptMesh->sbtVertexTextureCoordinates[i]);
-        const uint32_t uVertexTexCount1 = pl_sb_size(ptMesh->sbtVertexTextureCoordinates[i + 1]);
+        const uint32_t uVertexTexCount0 = ptMesh->ptVertexTextureCoordinates[i] ? uVertexCount : 0;
+        const uint32_t uVertexTexCount1 = ptMesh->ptVertexTextureCoordinates[i + 1] ? uVertexCount : 0;
 
         if(uVertexTexCount1 > 0)
         {
             for(uint32_t j = 0; j < uVertexTexCount0; j++)
             {
-                const plVec2* ptTextureCoordinates0 = &(ptMesh->sbtVertexTextureCoordinates[i])[j];
-                const plVec2* ptTextureCoordinates1 = &(ptMesh->sbtVertexTextureCoordinates[i + 1])[j];
+                const plVec2* ptTextureCoordinates0 = &(ptMesh->ptVertexTextureCoordinates[i])[j];
+                const plVec2* ptTextureCoordinates1 = &(ptMesh->ptVertexTextureCoordinates[i + 1])[j];
                 ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].x = ptTextureCoordinates0->u;
                 ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].y = ptTextureCoordinates0->v;
                 ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].z = ptTextureCoordinates1->u;
@@ -2721,7 +2726,7 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
         {
             for(uint32_t j = 0; j < uVertexTexCount0; j++)
             {
-                const plVec2* ptTextureCoordinates = &(ptMesh->sbtVertexTextureCoordinates[i])[j];
+                const plVec2* ptTextureCoordinates = &(ptMesh->ptVertexTextureCoordinates[i])[j];
                 ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].x = ptTextureCoordinates->u;
                 ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].y = ptTextureCoordinates->v;
                 ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + j * uStride + uOffset].z = 0.0f;
@@ -2734,10 +2739,10 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
     }
 
     // color 0
-    const uint32_t uVertexColorCount0 = pl_sb_size(ptMesh->sbtVertexColors[0]);
+    const uint32_t uVertexColorCount0 = ptMesh->ptVertexColors[0] ? uVertexCount : 0;
     for(uint32_t i = 0; i < uVertexColorCount0; i++)
     {
-        const plVec4* ptColor = &ptMesh->sbtVertexColors[0][i];
+        const plVec4* ptColor = &ptMesh->ptVertexColors[0][i];
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].x = ptColor->r;
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].y = ptColor->g;
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].z = ptColor->b;
@@ -2747,10 +2752,10 @@ pl__add_drawable_data_to_global_buffer(plRefScene* ptScene, uint32_t uDrawableIn
     if(uVertexColorCount0 > 0)
         uOffset += 1;
 
-    const uint32_t uVertexColorCount1 = pl_sb_size(ptMesh->sbtVertexColors[1]);
+    const uint32_t uVertexColorCount1 = ptMesh->ptVertexColors[1] ? uVertexCount : 0;
     for(uint32_t i = 0; i < uVertexColorCount1; i++)
     {
-        const plVec4* ptColor = &ptMesh->sbtVertexColors[1][i];
+        const plVec4* ptColor = &ptMesh->ptVertexColors[1][i];
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].x = ptColor->r;
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].y = ptColor->g;
         ptScene->sbtVertexDataBuffer[uVertexDataStartIndex + i * uStride + uOffset].z = ptColor->b;
@@ -4423,22 +4428,22 @@ pl__refr_unstage_drawables(uint32_t uSceneHandle)
         plObjectComponent*   ptObject   = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
         plMeshComponent*     ptMesh     = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
     
-        uAdditonalIndexCount += pl_sb_size(ptMesh->sbuIndices);
-        uAdditonalVertexCount += pl_sb_size(ptMesh->sbtVertexPositions);
+        uAdditonalIndexCount += (uint32_t)ptMesh->szIndexCount;
+        uAdditonalVertexCount += (uint32_t)ptMesh->szVertexCount;
 
         uint32_t uStride = 0;
 
         // calculate vertex stream mask based on provided data
-        if(pl_sb_size(ptMesh->sbtVertexNormals) > 0)               { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_NORMAL; }
-        if(pl_sb_size(ptMesh->sbtVertexTangents) > 0)              { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TANGENT; }
-        if(pl_sb_size(ptMesh->sbtVertexColors[0]) > 0)             { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_0; }
-        if(pl_sb_size(ptMesh->sbtVertexColors[1]) > 0)             { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_COLOR_1; }
-        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[0]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0; }
-        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[2]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1; }
-        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[4]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2; }
-        if(pl_sb_size(ptMesh->sbtVertexTextureCoordinates[6]) > 0) { uStride += 1; ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3; }
+        if(ptMesh->ptVertexNormals)               { uStride += 1; }
+        if(ptMesh->ptVertexTangents)              { uStride += 1; }
+        if(ptMesh->ptVertexColors[0])             { uStride += 1; }
+        if(ptMesh->ptVertexColors[1])             { uStride += 1; }
+        if(ptMesh->ptVertexTextureCoordinates[0]) { uStride += 1; }
+        if(ptMesh->ptVertexTextureCoordinates[2]) { uStride += 1; }
+        if(ptMesh->ptVertexTextureCoordinates[4]) { uStride += 1; }
+        if(ptMesh->ptVertexTextureCoordinates[6]) { uStride += 1; }
     
-        uAdditonalVertexDataCount += uStride * pl_sb_size(ptMesh->sbtVertexPositions);
+        uAdditonalVertexDataCount += uStride * (uint32_t)ptMesh->szVertexCount;
     }
     pl_sb_reserve(ptScene->sbuIndexBuffer, uInitialIndexCount + uAdditonalIndexCount);
     pl_sb_reserve(ptScene->sbtVertexPosBuffer, uInitialVertexCount + uAdditonalVertexCount);
