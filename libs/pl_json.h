@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_JSON_VERSION    "1.0.1"
-#define PL_JSON_VERSION_NUM 10001
+#define PL_JSON_VERSION    "1.0.2"
+#define PL_JSON_VERSION_NUM 10002
 
 /*
 Index of this file:
@@ -144,7 +144,7 @@ enum plJsonType_
 
 #ifdef PL_JSON_IMPLEMENTATION
 
-#ifndef PL_GLTF_EXTENSION_H
+#ifndef CGLTF_IMPLEMENTATION
 
 //-----------------------------------------------------------------------------
 // [SECTION] jsmn.h
@@ -791,19 +791,19 @@ pl_load_json(const char* pcJson, plJsonObject** pptJsonOut)
                 if(ptParentObject->tType == PL_JSON_TYPE_ARRAY)
                 {
                     const uint32_t uBufferLocation = pl_sb_json_size(ptJsonOut->sbcBuffer);
-                    pl_sb_json_resize(ptJsonOut->sbcBuffer, uBufferLocation + ptCurrentToken->end - ptCurrentToken->start + 1);
+                    pl_sb_json_resize(ptJsonOut->sbcBuffer, (uint32_t)(uBufferLocation + ptCurrentToken->end - ptCurrentToken->start + 1));
                     memcpy(&ptJsonOut->sbcBuffer[uBufferLocation], &pcJson[ptCurrentToken->start], ptCurrentToken->end - ptCurrentToken->start);
                     pl_sb_json_push(ptParentObject->sbuValueOffsets, uBufferLocation);
-                    pl_sb_json_push(ptParentObject->sbuValueLength, ptCurrentToken->end - ptCurrentToken->start);
+                    pl_sb_json_push(ptParentObject->sbuValueLength, (uint32_t)(ptCurrentToken->end - ptCurrentToken->start));
                     ptParentObject->uChildrenFound++;
                 }
                 else
                 {
                     const uint32_t uBufferLocation = pl_sb_json_size(ptJsonOut->sbcBuffer);
-                    pl_sb_json_resize(ptJsonOut->sbcBuffer, uBufferLocation + ptCurrentToken->end - ptCurrentToken->start + 1);
+                    pl_sb_json_resize(ptJsonOut->sbcBuffer, (uint32_t)(uBufferLocation + ptCurrentToken->end - ptCurrentToken->start + 1));
                     memcpy(&ptJsonOut->sbcBuffer[uBufferLocation], &pcJson[ptCurrentToken->start], ptCurrentToken->end - ptCurrentToken->start);
                     ptParentObject->uValueOffset = uBufferLocation;
-                    ptParentObject->uValueLength = ptCurrentToken->end - ptCurrentToken->start;
+                    ptParentObject->uValueLength = (uint32_t)(ptCurrentToken->end - ptCurrentToken->start);
                     ptParentObject->uChildrenFound++;
                     pl_sb_json_pop(sbtObjectStack);
                 }
@@ -817,19 +817,19 @@ pl_load_json(const char* pcJson, plJsonObject** pptJsonOut)
                     if(ptParentObject->tType == PL_JSON_TYPE_ARRAY)
                     {
                         const uint32_t uBufferLocation = pl_sb_json_size(ptJsonOut->sbcBuffer);
-                        pl_sb_json_resize(ptJsonOut->sbcBuffer, uBufferLocation + ptCurrentToken->end - ptCurrentToken->start + 1);
+                        pl_sb_json_resize(ptJsonOut->sbcBuffer, (uint32_t)(uBufferLocation + ptCurrentToken->end - ptCurrentToken->start + 1));
                         memcpy(&ptJsonOut->sbcBuffer[uBufferLocation], &pcJson[ptCurrentToken->start], ptCurrentToken->end - ptCurrentToken->start);
                         pl_sb_json_push(ptParentObject->sbuValueOffsets, uBufferLocation);
-                        pl_sb_json_push(ptParentObject->sbuValueLength, ptCurrentToken->end - ptCurrentToken->start);
+                        pl_sb_json_push(ptParentObject->sbuValueLength, (uint32_t)(ptCurrentToken->end - ptCurrentToken->start));
                         ptParentObject->uChildrenFound++;
                     }
                     else
                     {
                         const uint32_t uBufferLocation = pl_sb_json_size(ptJsonOut->sbcBuffer);
-                        pl_sb_json_resize(ptJsonOut->sbcBuffer, uBufferLocation + ptCurrentToken->end - ptCurrentToken->start + 1);
+                        pl_sb_json_resize(ptJsonOut->sbcBuffer, (uint32_t)(uBufferLocation + ptCurrentToken->end - ptCurrentToken->start + 1));
                         memcpy(&ptJsonOut->sbcBuffer[uBufferLocation], &pcJson[ptCurrentToken->start], ptCurrentToken->end - ptCurrentToken->start);
                         ptParentObject->uValueOffset = uBufferLocation;
-                        ptParentObject->uValueLength = ptCurrentToken->end - ptCurrentToken->start;
+                        ptParentObject->uValueLength = (uint32_t)(ptCurrentToken->end - ptCurrentToken->start);
                         ptParentObject->uChildrenFound++;
                         pl_sb_json_pop(sbtObjectStack);
                     }
