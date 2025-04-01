@@ -63,6 +63,7 @@ Index of this file:
 
 // unstable extensions
 #include "pl_ecs_ext.h"
+#include "pl_config_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_model_loader_ext.h"
 #include "pl_renderer_ext.h"
@@ -102,6 +103,7 @@ const plScreenLogI*    gptScreenLog   = NULL;
 const plPhysicsI *     gptPhysics     = NULL;
 const plCollisionI*    gptCollision   = NULL;
 const plBVHI*          gptBvh         = NULL;
+const plConfigI*       gptConfig      = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -248,6 +250,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptPhysics     = pl_get_api_latest(ptApiRegistry, plPhysicsI);
         gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
         gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
+        gptConfig      = pl_get_api_latest(ptApiRegistry, plConfigI);
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
 
@@ -289,6 +292,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptPhysics     = pl_get_api_latest(ptApiRegistry, plPhysicsI);
     gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
     gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
+    gptConfig      = pl_get_api_latest(ptApiRegistry, plConfigI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -299,7 +303,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tSelectedEntity.ulData = UINT64_MAX;
     ptAppData->uSceneHandle0 = UINT32_MAX;
     ptAppData->bShowPilotLightTool = true;
-    ptAppData->bEditorAttached = true;
+
+    gptConfig->load_from_disk(NULL);
+    ptAppData->bEditorAttached = gptConfig->load_bool("bEditorAttached", true);
+    ptAppData->bShowEntityWindow = gptConfig->load_bool("bShowEntityWindow", false);
+    ptAppData->bPhysicsDebugDraw = gptConfig->load_bool("bPhysicsDebugDraw", false);
 
     // add console variables
     gptConsole->initialize((plConsoleSettings){.tFlags = PL_CONSOLE_FLAGS_POPUP});
@@ -352,6 +360,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->pbShowProfiling            = (bool*)gptConsole->get_variable("t.ProfileTool", NULL, NULL);
     ptAppData->pbShowMemoryAllocations    = (bool*)gptConsole->get_variable("t.MemoryAllocationTool", NULL, NULL);
     ptAppData->pbShowDeviceMemoryAnalyzer = (bool*)gptConsole->get_variable("t.DeviceMemoryAnalyzerTool", NULL, NULL);
+
+    *ptAppData->pbShowLogging = gptConfig->load_bool("pbShowLogging", *ptAppData->pbShowLogging);
+    *ptAppData->pbShowStats = gptConfig->load_bool("pbShowStats", *ptAppData->pbShowStats);
+    *ptAppData->pbShowProfiling = gptConfig->load_bool("pbShowProfiling", *ptAppData->pbShowProfiling);
+    *ptAppData->pbShowMemoryAllocations = gptConfig->load_bool("pbShowMemoryAllocations", *ptAppData->pbShowMemoryAllocations);
+    *ptAppData->pbShowDeviceMemoryAnalyzer = gptConfig->load_bool("pbShowDeviceMemoryAnalyzer", *ptAppData->pbShowDeviceMemoryAnalyzer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~setup draw extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -431,10 +445,24 @@ pl_app_shutdown(plAppData* ptAppData)
 
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(gptRenderer->get_device());
+
+    gptConfig->set_bool("bEditorAttached", ptAppData->bEditorAttached);
+    gptConfig->set_bool("bShowEntityWindow", ptAppData->bShowEntityWindow);
+    gptConfig->set_bool("bPhysicsDebugDraw", ptAppData->bPhysicsDebugDraw);
+    gptConfig->set_bool("pbShowLogging", *ptAppData->pbShowLogging);
+    gptConfig->set_bool("pbShowStats", *ptAppData->pbShowStats);
+    gptConfig->set_bool("pbShowProfiling", *ptAppData->pbShowProfiling);
+    gptConfig->set_bool("pbShowMemoryAllocations", *ptAppData->pbShowMemoryAllocations);
+    gptConfig->set_bool("pbShowDeviceMemoryAnalyzer", *ptAppData->pbShowDeviceMemoryAnalyzer);
+
+    gptConfig->save_to_disk(NULL);
+    gptConfig->cleanup();
+
     gptDrawBackend->cleanup_font_atlas(gptDraw->get_current_font_atlas());
     gptUI->cleanup();
     gptEcsTools->cleanup();
     gptPhysics->cleanup();
+    gptShader->cleanup();
     gptConsole->cleanup();
     gptScreenLog->cleanup();
     gptDrawBackend->cleanup();

@@ -43,6 +43,7 @@ Index of this file:
 #include "pl_physics_ext.c"
 #include "pl_collision_ext.c"
 #include "pl_bvh_ext.c"
+#include "pl_config_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -82,6 +83,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptPhysics           = pl_get_api_latest(ptApiRegistry, plPhysicsI);
     gptCollision         = pl_get_api_latest(ptApiRegistry, plCollisionI);
     gptBvh               = pl_get_api_latest(ptApiRegistry, plBVHI);
+    gptConfig            = pl_get_api_latest(ptApiRegistry, plConfigI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -111,6 +113,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_physics_ext(ptApiRegistry, bReload);
     pl_load_collision_ext(ptApiRegistry, bReload);
     pl_load_bvh_ext(ptApiRegistry, bReload);
+    pl_load_config_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -141,6 +144,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_physics_ext(ptApiRegistry, bReload);
     pl_unload_collision_ext(ptApiRegistry, bReload);
     pl_unload_bvh_ext(ptApiRegistry, bReload);
+    pl_unload_config_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------
@@ -152,6 +156,8 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 #undef PL_STRING_IMPLEMENTATION
 
 #define PL_MEMORY_IMPLEMENTATION
+#define PL_MEMORY_ALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_MEMORY_FREE(x)  gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 #include "pl_memory.h"
 #undef PL_MEMORY_IMPLEMENTATION
 
@@ -189,4 +195,9 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
+
+#define PL_JSON_IMPLEMENTATION
+#include "pl_json.h"
+#undef PL_JSON_IMPLEMENTATION
+
 #undef CGLTF_IMPLEMENTATION

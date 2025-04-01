@@ -36,6 +36,7 @@ static const struct _plConsoleI*           gptConsole           = 0;
 static const struct _plScreenLogI*         gptScreenLog         = 0;
 
 // experimental
+static const struct _plConfigI*    gptConfig = 0;
 static const struct _plCollisionI* gptCollision = 0;
 static const struct _plBVHI*       gptBvh       = 0;
 static const struct _plCameraI*    gptCamera    = 0;
@@ -53,6 +54,9 @@ static struct _plIO* gptIO = 0;
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
 #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+#define PL_MEMORY_ALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_MEMORY_FREE(x)  gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
 #ifndef PL_DS_ALLOC
     #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
