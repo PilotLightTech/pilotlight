@@ -66,6 +66,7 @@ typedef struct _plShaderI
 {
     // setup
     bool (*initialize) (const plShaderOptions*);
+    void (*cleanup)(void);
 
     // settings
     void                   (*set_options)(const plShaderOptions*);
