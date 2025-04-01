@@ -549,6 +549,12 @@ pl_unload_config_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #include "pl_string.h"
     #undef PL_STRING_IMPLEMENTATION
 
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
    #define PL_JSON_IMPLEMENTATION
    #include "pl_json.h"
    #undef PL_JSON_IMPLEMENTATION

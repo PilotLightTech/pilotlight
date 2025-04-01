@@ -511,6 +511,8 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
                 else if(ptAttribute->index == 1)
                     ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1;
                 break;
+            default:
+                break;
         }
     }
 
