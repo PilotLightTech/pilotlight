@@ -342,48 +342,61 @@ typedef plHashMap64 plHashMap;
 
 // general
 static inline uint64_t pl_hm_hash    (const void* data, size_t dataSize, uint64_t seed);
-static inline uint64_t pl_hm_hash_str(const char*);
+static inline uint64_t pl_hm_hash_str(const char*, uint64_t seed);
 
 #define pl_hm_size(PLHM) \
     ((PLHM) ? (PLHM)->_uItemCount : 0)
 
-#define pl_hm_size32(PLHM) pl_hm_size((PLHM))
+#define pl_hm32_size         pl_hm_size
+#define pl_hm64_size         pl_hm_size
+#define pl_hm_insert         pl_hm64_insert
+#define pl_hm_insert_str     pl_hm64_insert_str
+#define pl_hm_lookup         pl_hm64_lookup
+#define pl_hm_has_key        pl_hm64_has_key
+#define pl_hm_has_key_ex     pl_hm64_has_key_ex
+#define pl_hm_get_free_index pl_hm64_get_free_index
+#define pl_hm_free           pl_hm64_free
+#define pl_hm_remove         pl_hm64_remove
+#define pl_hm_lookup_str     pl_hm64_lookup_str
+#define pl_hm_remove_str     pl_hm64_remove_str
+#define pl_hm_has_key_str    pl_hm64_has_key_str
+#define pl_hm_has_key_str_ex pl_hm64_has_key_str_ex
 
 // 64 bit
-#define pl_hm_insert(ptHashMap, uKey, uValue) \
+#define pl_hm64_insert(ptHashMap, uKey, uValue) \
     pl__hm_insert((ptHashMap), (uKey), (uValue), __FILE__, __LINE__)
 
-#define pl_hm_insert_str(ptHashMap, pcKey, uValue) \
-    pl_hm_insert((ptHashMap), pl_hm_hash_str((pcKey)), (uValue))
+#define pl_hm64_insert_str(ptHashMap, pcKey, uValue) \
+    pl_hm64_insert((ptHashMap), (pl_hm_hash_str((pcKey), 0)), (uValue))
 
-static inline uint64_t pl_hm_lookup        (const plHashMap64*, uint64_t key);
-static inline bool     pl_hm_has_key       (const plHashMap64*, uint64_t key);
-static inline bool     pl_hm_has_key_ex    (const plHashMap64*, uint64_t key, uint64_t* valueOut);
-static inline uint64_t pl_hm_get_free_index(plHashMap64*);
-static inline void     pl_hm_free          (plHashMap64*);
-static inline void     pl_hm_remove        (plHashMap64*, uint64_t key);
-static inline uint64_t pl_hm_lookup_str    (const plHashMap64*, const char* key);
-static inline void     pl_hm_remove_str    (plHashMap64*, const char* key);
-static inline bool     pl_hm_has_key_str   (const plHashMap64*, const char* key);
-static inline bool     pl_hm_has_key_str_ex(const plHashMap64*, const char* key, uint64_t* valueOut);
+static inline uint64_t pl_hm64_lookup        (const plHashMap64*, uint64_t key);
+static inline bool     pl_hm64_has_key       (const plHashMap64*, uint64_t key);
+static inline bool     pl_hm64_has_key_ex    (const plHashMap64*, uint64_t key, uint64_t* valueOut);
+static inline uint64_t pl_hm64_get_free_index(plHashMap64*);
+static inline void     pl_hm64_free          (plHashMap64*);
+static inline void     pl_hm64_remove        (plHashMap64*, uint64_t key);
+static inline uint64_t pl_hm64_lookup_str    (const plHashMap64*, const char* key);
+static inline void     pl_hm64_remove_str    (plHashMap64*, const char* key);
+static inline bool     pl_hm64_has_key_str   (const plHashMap64*, const char* key);
+static inline bool     pl_hm64_has_key_str_ex(const plHashMap64*, const char* key, uint64_t* valueOut);
 
 // 32 bit
-#define pl_hm_insert32(ptHashMap, uKey, uValue) \
+#define pl_hm32_insert(ptHashMap, uKey, uValue) \
     pl__hm_insert32((ptHashMap), (uKey), (uValue), __FILE__, __LINE__)
 
-#define pl_hm_insert_str32(ptHashMap, pcKey, uValue) \
-    pl_hm_insert32((ptHashMap), pl_hm_hash_str((pcKey)), (uValue))
+#define pl_hm32_insert_str(ptHashMap, pcKey, uValue) \
+    pl_hm32_insert((ptHashMap), pl_hm_hash_str((pcKey), 0), (uValue))
 
-static inline uint32_t pl_hm_lookup32        (const plHashMap32*, uint64_t key);
-static inline bool     pl_hm_has_key32       (const plHashMap32*, uint64_t key);
-static inline bool     pl_hm_has_key_ex32    (const plHashMap32*, uint64_t key, uint32_t* valueOut);
-static inline uint32_t pl_hm_get_free_index32(plHashMap32*);
-static inline void     pl_hm_free32          (plHashMap32*);
-static inline void     pl_hm_remove32        (plHashMap32*, uint64_t key);
-static inline uint32_t pl_hm_lookup_str32    (const plHashMap32*, const char* key);
-static inline void     pl_hm_remove_str32    (plHashMap32*, const char* key);
-static inline bool     pl_hm_has_key_str32   (const plHashMap32*, const char* key);
-static inline bool     pl_hm_has_key_str_ex32(const plHashMap32*, const char* key, uint32_t* valueOut);
+static inline uint32_t pl_hm32_lookup        (const plHashMap32*, uint64_t key);
+static inline bool     pl_hm32_has_key       (const plHashMap32*, uint64_t key);
+static inline bool     pl_hm32_has_key_ex    (const plHashMap32*, uint64_t key, uint32_t* valueOut);
+static inline uint32_t pl_hm32_get_free_index(plHashMap32*);
+static inline void     pl_hm32_free          (plHashMap32*);
+static inline void     pl_hm32_remove        (plHashMap32*, uint64_t key);
+static inline uint32_t pl_hm32_lookup_str    (const plHashMap32*, const char* key);
+static inline void     pl_hm32_remove_str    (plHashMap32*, const char* key);
+static inline bool     pl_hm32_has_key_str   (const plHashMap32*, const char* key);
+static inline bool     pl_hm32_has_key_str_ex(const plHashMap32*, const char* key, uint32_t* valueOut);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api (static hashmaps)
@@ -458,25 +471,25 @@ pl_hms_get32(const plHashMapStatic32* ptHashmap, uint64_t uKey)
 static inline void
 pl_hms_set_str(plHashMapStatic64* ptHashmap, const char* pcKey, uint64_t uValue)
 {
-    pl_hms_set(ptHashmap, pl_hm_hash_str(pcKey), uValue);
+    pl_hms_set(ptHashmap, pl_hm_hash_str(pcKey, 0), uValue);
 }
 
 static inline void
 pl_hms_set_str32(plHashMapStatic32* ptHashmap, const char* pcKey, uint32_t uValue)
 {
-    pl_hms_set32(ptHashmap, pl_hm_hash_str(pcKey), uValue);
+    pl_hms_set32(ptHashmap, pl_hm_hash_str(pcKey, 0), uValue);
 }
 
 static inline uint64_t
 pl_hms_get_str(const plHashMapStatic64* ptHashmap, const char* pcKey)
 {
-    return pl_hms_get(ptHashmap, pl_hm_hash_str(pcKey));
+    return pl_hms_get(ptHashmap, pl_hm_hash_str(pcKey, 0));
 }
 
 static inline uint32_t
 pl_hms_get_str32(const plHashMapStatic32* ptHashmap, const char* pcKey)
 {
-    return pl_hms_get32(ptHashmap, pl_hm_hash_str(pcKey));
+    return pl_hms_get32(ptHashmap, pl_hm_hash_str(pcKey, 0));
 }
 
 //-----------------------------------------------------------------------------
@@ -653,7 +666,7 @@ pl_hm_get_free_index(plHashMap64* ptHashMap)
 }
 
 static inline uint32_t
-pl_hm_get_free_index32(plHashMap32* ptHashMap)
+pl_hm32_get_free_index(plHashMap32* ptHashMap)
 {
 
     uint32_t uResult = PL_DS_HASH32_INVALID;
@@ -729,37 +742,37 @@ pl__hm_lookup32(const plHashMap32* ptHashMap, uint64_t uKey, uint32_t* puBucketI
 }
 
 static inline uint64_t
-pl_hm_lookup(const plHashMap64* ptHashMap, uint64_t uKey)
+pl_hm64_lookup(const plHashMap64* ptHashMap, uint64_t uKey)
 {
     return pl__hm_lookup64(ptHashMap, uKey, NULL, NULL);
 }
 
 static inline uint32_t
-pl_hm_lookup32(const plHashMap32* ptHashMap, uint64_t uKey)
+pl_hm32_lookup(const plHashMap32* ptHashMap, uint64_t uKey)
 {
     return pl__hm_lookup32(ptHashMap, uKey, NULL, NULL);
 }
 
 static inline bool
-pl_hm_has_key(const plHashMap64* ptHashMap, uint64_t uKey)
+pl_hm64_has_key(const plHashMap64* ptHashMap, uint64_t uKey)
 {
-    return pl_hm_lookup(ptHashMap, uKey) != PL_DS_HASH_INVALID;
+    return pl_hm64_lookup(ptHashMap, uKey) != PL_DS_HASH_INVALID;
 }
 
 static inline bool
-pl_hm_has_key32(const plHashMap32* ptHashMap, uint64_t uKey)
+pl_hm32_has_key(const plHashMap32* ptHashMap, uint64_t uKey)
 {
-    return pl_hm_lookup32(ptHashMap, uKey) != PL_DS_HASH32_INVALID;
+    return pl_hm32_lookup(ptHashMap, uKey) != PL_DS_HASH32_INVALID;
 }
 
 static inline bool
-pl_hm_has_key_ex(const plHashMap64* ptHashMap, uint64_t uKey, uint64_t* puValue)
+pl_hm64_has_key_ex(const plHashMap64* ptHashMap, uint64_t uKey, uint64_t* puValue)
 {
     return pl__hm_lookup64(ptHashMap, uKey,  NULL, puValue) != PL_DS_HASH_INVALID;
 }
 
 static inline bool
-pl_hm_has_key_ex32(const plHashMap32* ptHashMap, uint64_t uKey, uint32_t* puValue)
+pl_hm32_has_key_ex(const plHashMap32* ptHashMap, uint64_t uKey, uint32_t* puValue)
 {
     return pl__hm_lookup32(ptHashMap, uKey,  NULL, puValue) != PL_DS_HASH32_INVALID;
 }
@@ -871,13 +884,13 @@ pl__hm_resize32(plHashMap32* ptHashMap, uint32_t uBucketCount, const char* pcFil
 }
 
 static inline void
-pl_hm_free(plHashMap64* ptHashMap)
+pl_hm64_free(plHashMap64* ptHashMap)
 {
     pl__hm_resize(ptHashMap, 0, __FILE__, __LINE__);
 }
 
 static inline void
-pl_hm_free32(plHashMap32* ptHashMap)
+pl_hm32_free(plHashMap32* ptHashMap)
 {
     pl__hm_resize32(ptHashMap, 0, __FILE__, __LINE__);
 }
@@ -953,7 +966,7 @@ pl__hm_insert32(plHashMap32* ptHashMap, uint64_t uKey, uint32_t uValue, const ch
 }
 
 static inline void
-pl_hm_remove(plHashMap64* ptHashMap, uint64_t uKey)
+pl_hm64_remove(plHashMap64* ptHashMap, uint64_t uKey)
 {
 
     uint32_t uBucketIndex = UINT32_MAX;
@@ -971,7 +984,7 @@ pl_hm_remove(plHashMap64* ptHashMap, uint64_t uKey)
 }
 
 static inline void
-pl_hm_remove32(plHashMap32* ptHashMap, uint64_t uKey)
+pl_hm32_remove(plHashMap32* ptHashMap, uint64_t uKey)
 {
 
     uint32_t uBucketIndex = UINT32_MAX;
@@ -989,10 +1002,9 @@ pl_hm_remove32(plHashMap32* ptHashMap, uint64_t uKey)
 }
 
 static inline uint64_t
-pl_hm_hash_str(const char* pcKey)
+pl_hm_hash_str(const char* pcKey, uint64_t uSeed)
 {
-
-    uint64_t uCrc = 0;
+    uint64_t uCrc = uSeed;
     const unsigned char* pucData = (const unsigned char*)pcKey;
 
     unsigned char c = *pucData++;
@@ -1006,15 +1018,15 @@ pl_hm_hash_str(const char* pcKey)
 }
 
 static inline void
-pl_hm_remove_str(plHashMap64* ptHashMap, const char* pcKey)
+pl_hm64_remove_str(plHashMap64* ptHashMap, const char* pcKey)
 {
-    pl_hm_remove(ptHashMap, pl_hm_hash_str(pcKey));
+    pl_hm64_remove(ptHashMap, pl_hm_hash_str(pcKey, 0));
 }
 
 static inline void
-pl_hm_remove_str32(plHashMap32* ptHashMap, const char* pcKey)
+pl_hm32_remove_str(plHashMap32* ptHashMap, const char* pcKey)
 {
-    pl_hm_remove32(ptHashMap, pl_hm_hash_str(pcKey));
+    pl_hm32_remove(ptHashMap, pl_hm_hash_str(pcKey, 0));
 }
 
 static inline uint64_t
@@ -1028,39 +1040,39 @@ pl_hm_hash(const void* pData, size_t szDataSize, uint64_t uSeed)
 }
 
 static inline bool
-pl_hm_has_key_str(const plHashMap64* ptHashMap, const char* pcKey)
+pl_hm64_has_key_str(const plHashMap64* ptHashMap, const char* pcKey)
 {
-    return pl_hm_lookup(ptHashMap, pl_hm_hash_str(pcKey)) != PL_DS_HASH_INVALID;
+    return pl_hm64_lookup(ptHashMap, pl_hm_hash_str(pcKey, 0)) != PL_DS_HASH_INVALID;
 }
 
 static inline bool
-pl_hm_has_key_str32(const plHashMap32* ptHashMap, const char* pcKey)
+pl_hm32_has_key_str(const plHashMap32* ptHashMap, const char* pcKey)
 {
-    return pl_hm_lookup32(ptHashMap, pl_hm_hash_str(pcKey)) != PL_DS_HASH32_INVALID;
+    return pl_hm32_lookup(ptHashMap, pl_hm_hash_str(pcKey, 0)) != PL_DS_HASH32_INVALID;
 }
 
 static inline bool
-pl_hm_has_key_str_ex(const plHashMap64* ptHashMap, const char* pcKey, uint64_t* puValue)
+pl_hm64_has_key_str_ex(const plHashMap64* ptHashMap, const char* pcKey, uint64_t* puValue)
 {
-    return pl__hm_lookup64(ptHashMap, pl_hm_hash_str(pcKey), NULL, puValue) != PL_DS_HASH_INVALID;
+    return pl__hm_lookup64(ptHashMap, pl_hm_hash_str(pcKey, 0), NULL, puValue) != PL_DS_HASH_INVALID;
 }
 
 static inline bool
-pl_hm_has_key_str_ex32(const plHashMap32* ptHashMap, const char* pcKey, uint32_t* puValue)
+pl_hm32_has_key_str_ex(const plHashMap32* ptHashMap, const char* pcKey, uint32_t* puValue)
 {
-    return pl__hm_lookup32(ptHashMap, pl_hm_hash_str(pcKey), NULL, puValue) != PL_DS_HASH32_INVALID;
+    return pl__hm_lookup32(ptHashMap, pl_hm_hash_str(pcKey, 0), NULL, puValue) != PL_DS_HASH32_INVALID;
 }
 
 static inline uint64_t
-pl_hm_lookup_str(const plHashMap64* ptHashMap, const char* pcKey)
+pl_hm64_lookup_str(const plHashMap64* ptHashMap, const char* pcKey)
 {
-    return pl__hm_lookup64(ptHashMap, pl_hm_hash_str(pcKey), NULL, NULL);
+    return pl__hm_lookup64(ptHashMap, pl_hm_hash_str(pcKey, 0), NULL, NULL);
 }
 
 static inline uint32_t
-pl_hm_lookup_str32(const plHashMap32* ptHashMap, const char* pcKey)
+pl_hm32_lookup_str(const plHashMap32* ptHashMap, const char* pcKey)
 {
-    return pl__hm_lookup32(ptHashMap, pl_hm_hash_str(pcKey), NULL, NULL);
+    return pl__hm_lookup32(ptHashMap, pl_hm_hash_str(pcKey, 0), NULL, NULL);
 }
 
 #endif // PL_DS_H

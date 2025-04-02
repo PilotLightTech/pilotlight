@@ -111,7 +111,7 @@ static void         pl__set_max_frames  (uint32_t);
 static double*
 pl__get_counter(char const* pcName)
 {
-    const uint64_t ulHash = pl_hm_hash_str(pcName);
+    const uint64_t ulHash = pl_hm_hash_str(pcName, 0);
 
     uint64_t ulIndex = UINT64_MAX;
     if(!pl_hm_has_key_ex(&gptStatsCtx->tHashmap, ulHash, &ulIndex))
@@ -199,7 +199,7 @@ pl__set_max_frames(uint32_t uMaxFrames)
 static double**
 pl__get_counter_data(char const* pcName)
 {
-    const uint64_t ulHash = pl_hm_hash_str(pcName);
+    const uint64_t ulHash = pl_hm_hash_str(pcName, 0);
     uint64_t ulIndex = UINT64_MAX;
     if(!pl_hm_has_key_ex(&gptStatsCtx->tHashmap, ulHash, &ulIndex))
     {
