@@ -8,6 +8,8 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
+// [SECTION] public api struct
+// [SECTION] structs
 */
 
 //-----------------------------------------------------------------------------
@@ -21,7 +23,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plConfigI_version {0, 1, 0}
+#define plConfigI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -29,6 +31,7 @@ Index of this file:
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "pl_math.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -38,7 +41,7 @@ Index of this file:
 typedef struct _plConfigSettings plConfigSettings;
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plConfigI
@@ -48,30 +51,31 @@ typedef struct _plConfigI
     void (*cleanup)   (void);
 
     // saving/loading
-    void (*load_from_disk)(const char* fileName);
-    void (*save_to_disk)  (const char* fileName);
+    void (*load_from_disk)(const char* fileName); // if NULL, default: "pl_config.json"
+    void (*save_to_disk)  (const char* fileName); // if NULL, default: "pl_config.json"
     
     // loading
-    bool     (*load_bool)(const char* name, bool defaultValue);
-    int      (*load_int)(const char* name, int defaultValue);
-    uint32_t (*load_uint)(const char* name, uint32_t defaultValue);
-    double   (*load_double)(const char* name, double defaultValue);
+    bool     (*load_bool)  (const char* name, bool     defaultValue);
+    int      (*load_int)   (const char* name, int      defaultValue);
+    uint32_t (*load_uint)  (const char* name, uint32_t defaultValue);
+    double   (*load_double)(const char* name, double   defaultValue);
+    plVec2   (*load_vec2)  (const char* name, plVec2   defaultValue);
 
     // setting
-    void (*set_bool)(const char* name, bool value);
-    void (*set_int)(const char* name, int value);
-    void (*set_uint)(const char* name, uint32_t value);
-    void (*set_double)(const char* name, double value);
+    void (*set_bool)  (const char* name, bool);
+    void (*set_int)   (const char* name, int);
+    void (*set_uint)  (const char* name, uint32_t);
+    void (*set_double)(const char* name, double);
+    void (*set_vec2)  (const char* name, plVec2);
 } plConfigI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-// basic types
 typedef struct _plConfigSettings
 {
-    int iUnused;
+    int _iUnused;
 } plConfigSettings;
 
 #endif // PL_CONFIG_EXT_H

@@ -5,8 +5,13 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] forward declarations & basic types
+// [SECTION] enums
+// [SECTION] internal structs
+// [SECTION] global data
 // [SECTION] public api implementation
 // [SECTION] extension loading
+// [SECTION] unity build
 */
 
 //-----------------------------------------------------------------------------
@@ -67,9 +72,11 @@ enum _plConfigVarType
 {
     PL_CONFIG_VAR_TYPE_NONE = 0,
     PL_CONFIG_VAR_TYPE_BOOL,
+    PL_CONFIG_VAR_TYPE_STRING,
     PL_CONFIG_VAR_TYPE_INT,
     PL_CONFIG_VAR_TYPE_UINT,
     PL_CONFIG_VAR_TYPE_DOUBLE,
+    PL_CONFIG_VAR_TYPE_VEC2,
 };
 
 //-----------------------------------------------------------------------------
@@ -85,7 +92,9 @@ typedef struct _plConfigVar
         int      iValue;
         uint32_t uValue;
         double   dValue;
+        plVec2   tValueVec2;
     };
+
 } plConfigVar;
 
 typedef struct _plConfigContext
@@ -116,7 +125,7 @@ void
 pl_config_cleanup(void)
 {
     pl_sb_free(gptConfigCtx->sbtVars);
-    pl_hm_free32(&gptConfigCtx->tHashmap);
+    pl_hm32_free(&gptConfigCtx->tHashmap);
     pl_temp_allocator_free(&gptConfigCtx->tTempAllocator);
 }
 
@@ -124,13 +133,17 @@ bool
 pl_config_load_bool(const char* pcName, bool bDefaultValue)
 {
 
-    const uint64_t uHash = pl_hm_hash_str(pcName);
+    const uint64_t uHash = pl_hm_hash_str(pcName, 0);
 
     uint32_t uIndex = 0;
-    if(pl_hm_has_key_ex32(&gptConfigCtx->tHashmap, uHash, &uIndex))
-        return gptConfigCtx->sbtVars[uIndex].bValue;
+    if(pl_hm32_has_key_ex(&gptConfigCtx->tHashmap, uHash, &uIndex))
+    {
+        if(gptConfigCtx->sbtVars[uIndex].tType == PL_CONFIG_VAR_TYPE_BOOL)
+            return gptConfigCtx->sbtVars[uIndex].bValue;
+        return bDefaultValue;
+    }
 
-    uIndex = pl_hm_get_free_index32(&gptConfigCtx->tHashmap);
+    uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
     if(uIndex == PL_DS_HASH32_INVALID)
     {
         uIndex = pl_sb_size(gptConfigCtx->sbtVars);
@@ -144,7 +157,7 @@ pl_config_load_bool(const char* pcName, bool bDefaultValue)
     strncpy(tVar.acName, pcName, PL_MAX_NAME_LENGTH);
     gptConfigCtx->sbtVars[uIndex] = tVar;
 
-    pl_hm_insert32(&gptConfigCtx->tHashmap, uHash, uIndex);
+    pl_hm32_insert(&gptConfigCtx->tHashmap, uHash, uIndex);
 
     return bDefaultValue;
 }
@@ -153,13 +166,17 @@ int
 pl_config_load_int(const char* pcName, int iDefaultValue)
 {
 
-    const uint64_t uHash = pl_hm_hash_str(pcName);
+    const uint64_t uHash = pl_hm_hash_str(pcName, 0);
 
     uint32_t uIndex = 0;
-    if(pl_hm_has_key_ex32(&gptConfigCtx->tHashmap, uHash, &uIndex))
-        return gptConfigCtx->sbtVars[uIndex].iValue;
+    if(pl_hm32_has_key_ex(&gptConfigCtx->tHashmap, uHash, &uIndex))
+    {
+        if(gptConfigCtx->sbtVars[uIndex].tType == PL_CONFIG_VAR_TYPE_INT)
+            return gptConfigCtx->sbtVars[uIndex].iValue;
+        return iDefaultValue;
+    }
 
-    uIndex = pl_hm_get_free_index32(&gptConfigCtx->tHashmap);
+    uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
     if(uIndex == PL_DS_HASH32_INVALID)
     {
         uIndex = pl_sb_size(gptConfigCtx->sbtVars);
@@ -173,7 +190,7 @@ pl_config_load_int(const char* pcName, int iDefaultValue)
     strncpy(tVar.acName, pcName, PL_MAX_NAME_LENGTH);
     gptConfigCtx->sbtVars[uIndex] = tVar;
 
-    pl_hm_insert32(&gptConfigCtx->tHashmap, uHash, uIndex);
+    pl_hm32_insert(&gptConfigCtx->tHashmap, uHash, uIndex);
 
     return iDefaultValue;
 }
@@ -182,13 +199,17 @@ uint32_t
 pl_config_load_uint(const char* pcName, uint32_t uDefaultValue)
 {
 
-    const uint64_t uHash = pl_hm_hash_str(pcName);
+    const uint64_t uHash = pl_hm_hash_str(pcName, 0);
 
     uint32_t uIndex = 0;
-    if(pl_hm_has_key_ex32(&gptConfigCtx->tHashmap, uHash, &uIndex))
-        return gptConfigCtx->sbtVars[uIndex].uValue;
+    if(pl_hm32_has_key_ex(&gptConfigCtx->tHashmap, uHash, &uIndex))
+    {
+        if(gptConfigCtx->sbtVars[uIndex].tType == PL_CONFIG_VAR_TYPE_UINT)
+            return gptConfigCtx->sbtVars[uIndex].uValue;
+        return uDefaultValue;
+    }
 
-    uIndex = pl_hm_get_free_index32(&gptConfigCtx->tHashmap);
+    uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
     if(uIndex == PL_DS_HASH32_INVALID)
     {
         uIndex = pl_sb_size(gptConfigCtx->sbtVars);
@@ -202,7 +223,7 @@ pl_config_load_uint(const char* pcName, uint32_t uDefaultValue)
     strncpy(tVar.acName, pcName, PL_MAX_NAME_LENGTH);
     gptConfigCtx->sbtVars[uIndex] = tVar;
 
-    pl_hm_insert32(&gptConfigCtx->tHashmap, uHash, uIndex);
+    pl_hm32_insert(&gptConfigCtx->tHashmap, uHash, uIndex);
 
     return uDefaultValue;
 }
@@ -211,13 +232,17 @@ double
 pl_config_load_double(const char* pcName, double dDefaultValue)
 {
 
-    const uint64_t uHash = pl_hm_hash_str(pcName);
+    const uint64_t uHash = pl_hm_hash_str(pcName, 0);
 
     uint32_t uIndex = 0;
-    if(pl_hm_has_key_ex32(&gptConfigCtx->tHashmap, uHash, &uIndex))
-        return gptConfigCtx->sbtVars[uIndex].dValue;
+    if(pl_hm32_has_key_ex(&gptConfigCtx->tHashmap, uHash, &uIndex))
+    {
+        if(gptConfigCtx->sbtVars[uIndex].tType == PL_CONFIG_VAR_TYPE_DOUBLE)
+            return gptConfigCtx->sbtVars[uIndex].dValue;
+        return dDefaultValue;
+    }
 
-    uIndex = pl_hm_get_free_index32(&gptConfigCtx->tHashmap);
+    uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
     if(uIndex == PL_DS_HASH32_INVALID)
     {
         uIndex = pl_sb_size(gptConfigCtx->sbtVars);
@@ -231,26 +256,60 @@ pl_config_load_double(const char* pcName, double dDefaultValue)
     strncpy(tVar.acName, pcName, PL_MAX_NAME_LENGTH);
     gptConfigCtx->sbtVars[uIndex] = tVar;
 
-    pl_hm_insert32(&gptConfigCtx->tHashmap, uHash, uIndex);
+    pl_hm32_insert(&gptConfigCtx->tHashmap, uHash, uIndex);
 
     return dDefaultValue;
+}
+
+plVec2
+pl_config_load_vec2(const char* pcName, plVec2 tDefaultValue)
+{
+
+    const uint64_t uHash = pl_hm_hash_str(pcName, 0);
+
+    uint32_t uIndex = 0;
+    if(pl_hm32_has_key_ex(&gptConfigCtx->tHashmap, uHash, &uIndex))
+    {
+        if(gptConfigCtx->sbtVars[uIndex].tType == PL_CONFIG_VAR_TYPE_VEC2)
+            return gptConfigCtx->sbtVars[uIndex].tValueVec2;
+        return tDefaultValue;
+    }
+
+    uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
+    if(uIndex == PL_DS_HASH32_INVALID)
+    {
+        uIndex = pl_sb_size(gptConfigCtx->sbtVars);
+        pl_sb_add(gptConfigCtx->sbtVars);
+    }
+
+    plConfigVar tVar = {
+        .tType = PL_CONFIG_VAR_TYPE_VEC2,
+        .tValueVec2 = tDefaultValue
+    };
+    strncpy(tVar.acName, pcName, PL_MAX_NAME_LENGTH);
+    gptConfigCtx->sbtVars[uIndex] = tVar;
+
+    pl_hm32_insert(&gptConfigCtx->tHashmap, uHash, uIndex);
+
+    return tDefaultValue;
 }
 
 void
 pl_config_set_bool(const char* pcName, bool bValue)
 {
 
-    const uint64_t uHash = pl_hm_hash_str(pcName);
+    const uint64_t uHash = pl_hm_hash_str(pcName, 0);
 
     uint32_t uIndex = 0;
-    if(pl_hm_has_key_ex32(&gptConfigCtx->tHashmap, uHash, &uIndex))
+    if(pl_hm32_has_key_ex(&gptConfigCtx->tHashmap, uHash, &uIndex))
     {
-        gptConfigCtx->sbtVars[uIndex].bValue = bValue;
+        if(gptConfigCtx->sbtVars[uIndex].tType == PL_CONFIG_VAR_TYPE_BOOL)
+            gptConfigCtx->sbtVars[uIndex].bValue = bValue;
     }
     else
     {
 
-        uIndex = pl_hm_get_free_index32(&gptConfigCtx->tHashmap);
+        uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
         if(uIndex == PL_DS_HASH32_INVALID)
         {
             uIndex = pl_sb_size(gptConfigCtx->sbtVars);
@@ -264,7 +323,7 @@ pl_config_set_bool(const char* pcName, bool bValue)
         strncpy(tVar.acName, pcName, PL_MAX_NAME_LENGTH);
         gptConfigCtx->sbtVars[uIndex] = tVar;
 
-        pl_hm_insert32(&gptConfigCtx->tHashmap, uHash, uIndex);
+        pl_hm32_insert(&gptConfigCtx->tHashmap, uHash, uIndex);
     }
 }
 
@@ -272,17 +331,18 @@ void
 pl_config_set_int(const char* pcName, int iValue)
 {
 
-    const uint64_t uHash = pl_hm_hash_str(pcName);
+    const uint64_t uHash = pl_hm_hash_str(pcName, 0);
 
     uint32_t uIndex = 0;
-    if(pl_hm_has_key_ex32(&gptConfigCtx->tHashmap, uHash, &uIndex))
+    if(pl_hm32_has_key_ex(&gptConfigCtx->tHashmap, uHash, &uIndex))
     {
-        gptConfigCtx->sbtVars[uIndex].iValue = iValue;
+        if(gptConfigCtx->sbtVars[uIndex].tType == PL_CONFIG_VAR_TYPE_INT)
+            gptConfigCtx->sbtVars[uIndex].iValue = iValue;
     }
     else
     {
 
-        uIndex = pl_hm_get_free_index32(&gptConfigCtx->tHashmap);
+        uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
         if(uIndex == PL_DS_HASH32_INVALID)
         {
             uIndex = pl_sb_size(gptConfigCtx->sbtVars);
@@ -296,7 +356,7 @@ pl_config_set_int(const char* pcName, int iValue)
         strncpy(tVar.acName, pcName, PL_MAX_NAME_LENGTH);
         gptConfigCtx->sbtVars[uIndex] = tVar;
 
-        pl_hm_insert32(&gptConfigCtx->tHashmap, uHash, uIndex);
+        pl_hm32_insert(&gptConfigCtx->tHashmap, uHash, uIndex);
     }
 }
 
@@ -304,17 +364,18 @@ void
 pl_config_set_uint(const char* pcName, uint32_t uValue)
 {
 
-    const uint64_t uHash = pl_hm_hash_str(pcName);
+    const uint64_t uHash = pl_hm_hash_str(pcName, 0);
 
     uint32_t uIndex = 0;
-    if(pl_hm_has_key_ex32(&gptConfigCtx->tHashmap, uHash, &uIndex))
+    if(pl_hm32_has_key_ex(&gptConfigCtx->tHashmap, uHash, &uIndex))
     {
-        gptConfigCtx->sbtVars[uIndex].uValue = uValue;
+        if(gptConfigCtx->sbtVars[uIndex].tType == PL_CONFIG_VAR_TYPE_UINT)
+            gptConfigCtx->sbtVars[uIndex].uValue = uValue;
     }
     else
     {
 
-        uIndex = pl_hm_get_free_index32(&gptConfigCtx->tHashmap);
+        uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
         if(uIndex == PL_DS_HASH32_INVALID)
         {
             uIndex = pl_sb_size(gptConfigCtx->sbtVars);
@@ -328,7 +389,7 @@ pl_config_set_uint(const char* pcName, uint32_t uValue)
         strncpy(tVar.acName, pcName, PL_MAX_NAME_LENGTH);
         gptConfigCtx->sbtVars[uIndex] = tVar;
 
-        pl_hm_insert32(&gptConfigCtx->tHashmap, uHash, uIndex);
+        pl_hm32_insert(&gptConfigCtx->tHashmap, uHash, uIndex);
     }
 }
 
@@ -336,17 +397,18 @@ void
 pl_config_set_double(const char* pcName, double dValue)
 {
 
-    const uint64_t uHash = pl_hm_hash_str(pcName);
+    const uint64_t uHash = pl_hm_hash_str(pcName, 0);
 
     uint32_t uIndex = 0;
-    if(pl_hm_has_key_ex32(&gptConfigCtx->tHashmap, uHash, &uIndex))
+    if(pl_hm32_has_key_ex(&gptConfigCtx->tHashmap, uHash, &uIndex))
     {
-        gptConfigCtx->sbtVars[uIndex].dValue = dValue;
+        if(gptConfigCtx->sbtVars[uIndex].tType == PL_CONFIG_VAR_TYPE_DOUBLE)
+            gptConfigCtx->sbtVars[uIndex].dValue = dValue;
     }
     else
     {
 
-        uIndex = pl_hm_get_free_index32(&gptConfigCtx->tHashmap);
+        uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
         if(uIndex == PL_DS_HASH32_INVALID)
         {
             uIndex = pl_sb_size(gptConfigCtx->sbtVars);
@@ -360,7 +422,40 @@ pl_config_set_double(const char* pcName, double dValue)
         strncpy(tVar.acName, pcName, PL_MAX_NAME_LENGTH);
         gptConfigCtx->sbtVars[uIndex] = tVar;
 
-        pl_hm_insert32(&gptConfigCtx->tHashmap, uHash, uIndex);
+        pl_hm32_insert(&gptConfigCtx->tHashmap, uHash, uIndex);
+    }
+}
+
+void
+pl_config_set_vec2(const char* pcName, plVec2 tValue)
+{
+
+    const uint64_t uHash = pl_hm_hash_str(pcName, 0);
+
+    uint32_t uIndex = 0;
+    if(pl_hm32_has_key_ex(&gptConfigCtx->tHashmap, uHash, &uIndex))
+    {
+        if(gptConfigCtx->sbtVars[uIndex].tType == PL_CONFIG_VAR_TYPE_VEC2)
+            gptConfigCtx->sbtVars[uIndex].tValueVec2 = tValue;
+    }
+    else
+    {
+
+        uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
+        if(uIndex == PL_DS_HASH32_INVALID)
+        {
+            uIndex = pl_sb_size(gptConfigCtx->sbtVars);
+            pl_sb_add(gptConfigCtx->sbtVars);
+        }
+
+        plConfigVar tVar = {
+            .tType = PL_CONFIG_VAR_TYPE_VEC2,
+            .tValueVec2 = tValue
+        };
+        strncpy(tVar.acName, pcName, PL_MAX_NAME_LENGTH);
+        gptConfigCtx->sbtVars[uIndex] = tVar;
+
+        pl_hm32_insert(&gptConfigCtx->tHashmap, uHash, uIndex);
     }
 }
 
@@ -417,16 +512,22 @@ pl_config_load_from_disk(const char* pcFileName)
         {
             tVar.tType = PL_CONFIG_VAR_TYPE_DOUBLE;
             tVar.dValue = pl_json_double_member(ptVarObject, "value", 0.0);
+            
+        }
+        else if(pl_str_equal(pcTypeString, "vec2"))
+        {
+            tVar.tType = PL_CONFIG_VAR_TYPE_VEC2;
+            pl_json_float_array_member(ptVarObject, "value", tVar.tValueVec2.d, NULL);
         }
 
-        uint32_t uIndex = pl_hm_get_free_index32(&gptConfigCtx->tHashmap);
+        uint32_t uIndex = pl_hm32_get_free_index(&gptConfigCtx->tHashmap);
         if(uIndex == PL_DS_HASH32_INVALID)
         {
             uIndex = pl_sb_size(gptConfigCtx->sbtVars);
             pl_sb_add(gptConfigCtx->sbtVars);
         }
 
-        pl_hm_insert_str32(&gptConfigCtx->tHashmap, tVar.acName, uIndex);
+        pl_hm32_insert_str(&gptConfigCtx->tHashmap, tVar.acName, uIndex);
 
         gptConfigCtx->sbtVars[uIndex] = tVar;
     }
@@ -468,6 +569,10 @@ pl_config_save_to_disk(const char* pcFileName)
                 pl_json_add_string_member(ptNewJsonVar, "type", "double");
                 pl_json_add_bool_member(ptNewJsonVar, "value", ptVar->dValue);
                 break;
+            case PL_CONFIG_VAR_TYPE_VEC2:
+                pl_json_add_string_member(ptNewJsonVar, "type", "vec2");
+                pl_json_add_float_array(ptNewJsonVar, "value", ptVar->tValueVec2.d, 2);
+                break;
             default:
                 PL_ASSERT(false);
                 break;
@@ -504,10 +609,12 @@ pl_load_config_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .load_int       = pl_config_load_int,
         .load_uint      = pl_config_load_uint,
         .load_double    = pl_config_load_double,
+        .load_vec2      = pl_config_load_vec2,
         .set_bool       = pl_config_set_bool,
         .set_int        = pl_config_set_int,
         .set_uint       = pl_config_set_uint,
         .set_double     = pl_config_set_double,
+        .set_vec2       = pl_config_set_vec2,
     };
     pl_set_api(ptApiRegistry, plConfigI, &tApi);
 
