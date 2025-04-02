@@ -197,7 +197,7 @@ plResourceHandle
 pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puOriginalFileData, size_t szFileByteSize, const char* pcContainerFileName, size_t szFileBytesOffset)
 {
     // check if resource already exists
-    const uint64_t ulHash = pl_hm_hash_str(pcName);
+    const uint64_t ulHash = pl_hm_hash_str(pcName, 0);
     uint64_t ulExistingSlot = 0;
     if(pl_hm_has_key_ex(&gptResourceManager->tNameHashmap, ulHash, &ulExistingSlot))
     {

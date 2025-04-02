@@ -496,7 +496,7 @@ pl_ecs_is_entity_valid(plComponentLibrary* ptLibrary, plEntity tEntity)
 static plEntity
 pl_ecs_get_entity(plComponentLibrary* ptLibrary, const char* pcName)
 {
-    const uint64_t ulHash = pl_hm_hash_str(pcName);
+    const uint64_t ulHash = pl_hm_hash_str(pcName, 0);
     uint64_t uIndex = 0;
     if(pl_hm_has_key_ex(&ptLibrary->atHashmaps[PL_COMPONENT_TYPE_COUNT], ulHash, &uIndex))
     {
