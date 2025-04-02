@@ -2343,12 +2343,12 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
 
     if (tMemoryMode == PL_MEMORY_GPU)
     {
-        pl_log_info_f(gptLog, uLogChannelGraphics, "allocated GPU local memory: %s", pcName);
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "allocated GPU local memory: %s", pcName);
         gptGraphics->szLocalMemoryInUse += tBlock.ulSize;
     }
     else
     {
-        pl_log_info_f(gptLog, uLogChannelGraphics, "allocated memory: %s", pcName);
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "allocated memory: %s", pcName);
         PL_VULKAN(vkMapMemory(ptDevice->tLogicalDevice, (VkDeviceMemory)tBlock.uHandle, 0, tBlock.ulSize, 0, (void **)&tBlock.pHostMapped));
         gptGraphics->szHostMemoryInUse += tBlock.ulSize;
     }
@@ -2374,12 +2374,12 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 
     if (ptBlock->tMemoryMode == PL_MEMORY_GPU)
     {
-        pl_log_info_f(gptLog, uLogChannelGraphics, "%llu byte local memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "%llu byte local memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
         gptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
     }
     else
     {
-        pl_log_info_f(gptLog, uLogChannelGraphics, "%llu byte memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "%llu byte memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
         gptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
     }
 
