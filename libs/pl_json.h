@@ -115,12 +115,12 @@ void pl_json_add_bool_member  (plJsonObject*, const char* pcName,        bool);
 void pl_json_add_string_member(plJsonObject*, const char* pcName, const char*);
 
 // arrays
-void pl_json_add_int_array   (plJsonObject*, const char* pcName,      int*, uint32_t uCount);
-void pl_json_add_uint_array  (plJsonObject*, const char* pcName, uint32_t*, uint32_t uCount);
-void pl_json_add_float_array (plJsonObject*, const char* pcName,    float*, uint32_t uCount);
-void pl_json_add_double_array(plJsonObject*, const char* pcName,   double*, uint32_t uCount);
-void pl_json_add_bool_array  (plJsonObject*, const char* pcName,     bool*, uint32_t uCount);
-void pl_json_add_string_array(plJsonObject*, const char* pcName,    char**, uint32_t uCount);
+void pl_json_add_int_array   (plJsonObject*, const char* pcName, const int*, uint32_t uCount);
+void pl_json_add_uint_array  (plJsonObject*, const char* pcName, const uint32_t*, uint32_t uCount);
+void pl_json_add_float_array (plJsonObject*, const char* pcName, const float*, uint32_t uCount);
+void pl_json_add_double_array(plJsonObject*, const char* pcName, const double*, uint32_t uCount);
+void pl_json_add_bool_array  (plJsonObject*, const char* pcName, const bool*, uint32_t uCount);
+void pl_json_add_string_array(plJsonObject*, const char* pcName, const char**, uint32_t uCount);
 
 // objects & object arrays
 plJsonObject* pl_json_add_member      (plJsonObject*, const char* pcName);                  // returns object to be modified with above commands
@@ -1547,7 +1547,7 @@ pl_json_add_member_array(plJsonObject* ptJson, const char* pcName, uint32_t uSiz
 }
 
 void
-pl_json_add_int_array(plJsonObject* ptJson, const char* pcName, int* piValues, uint32_t uSize)
+pl_json_add_int_array(plJsonObject* ptJson, const char* pcName, const int* piValues, uint32_t uSize)
 {
     ptJson->uChildCount++;
     ptJson->uChildrenFound++;
@@ -1581,7 +1581,7 @@ pl_json_add_int_array(plJsonObject* ptJson, const char* pcName, int* piValues, u
 }
 
 void
-pl_json_add_uint_array(plJsonObject* ptJson, const char* pcName, uint32_t* puValues, uint32_t uSize)
+pl_json_add_uint_array(plJsonObject* ptJson, const char* pcName, const uint32_t* puValues, uint32_t uSize)
 {
     ptJson->uChildCount++;
     ptJson->uChildrenFound++;
@@ -1615,7 +1615,7 @@ pl_json_add_uint_array(plJsonObject* ptJson, const char* pcName, uint32_t* puVal
 }
 
 void
-pl_json_add_float_array(plJsonObject* ptJson, const char* pcName, float* pfValues, uint32_t uSize)
+pl_json_add_float_array(plJsonObject* ptJson, const char* pcName, const float* pfValues, uint32_t uSize)
 {
     ptJson->uChildCount++;
     ptJson->uChildrenFound++;
@@ -1649,7 +1649,7 @@ pl_json_add_float_array(plJsonObject* ptJson, const char* pcName, float* pfValue
 }
 
 void
-pl_json_add_double_array(plJsonObject* ptJson, const char* pcName, double* pdValues, uint32_t uSize)
+pl_json_add_double_array(plJsonObject* ptJson, const char* pcName, const double* pdValues, uint32_t uSize)
 {
     ptJson->uChildCount++;
     ptJson->uChildrenFound++;
@@ -1683,7 +1683,7 @@ pl_json_add_double_array(plJsonObject* ptJson, const char* pcName, double* pdVal
 }
 
 void
-pl_json_add_bool_array(plJsonObject* ptJson, const char* pcName, bool* pbValues, uint32_t uSize)
+pl_json_add_bool_array(plJsonObject* ptJson, const char* pcName, const bool* pbValues, uint32_t uSize)
 {
     ptJson->uChildCount++;
     ptJson->uChildrenFound++;
@@ -1717,7 +1717,7 @@ pl_json_add_bool_array(plJsonObject* ptJson, const char* pcName, bool* pbValues,
 }
 
 void
-pl_json_add_string_array(plJsonObject* ptJson, const char* pcName, char** ppcBuffer, uint32_t uSize)
+pl_json_add_string_array(plJsonObject* ptJson, const char* pcName, const char** ppcBuffer, uint32_t uSize)
 {
     ptJson->uChildCount++;
     ptJson->uChildrenFound++;
