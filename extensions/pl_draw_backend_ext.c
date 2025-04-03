@@ -1062,6 +1062,12 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
     pl_submit_2d_drawlist(ptDrawlist->pt2dDrawlist, ptEncoder, fWidth, fHeight, uMSAASampleCount);
 }
 
+plBindGroupPool*
+pl_draw_get_bind_group_pool(void)
+{
+    return gptDrawBackendCtx->ptBindGroupPool;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -1079,6 +1085,7 @@ pl_load_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .submit_2d_drawlist = pl_submit_2d_drawlist,
         .submit_3d_drawlist = pl_submit_3d_drawlist,
         .create_bind_group_for_texture = pl_create_bind_group_for_texture,
+        .get_bind_group_pool = pl_draw_get_bind_group_pool,
     };
     pl_set_api(ptApiRegistry, plDrawBackendI, &tApi);
 

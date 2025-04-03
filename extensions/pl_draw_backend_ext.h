@@ -61,6 +61,7 @@ typedef struct _plDrawBackendI
     void (*cleanup_font_atlas)(plFontAtlas*);
 
     plBindGroupHandle (*create_bind_group_for_texture)(plTextureHandle);
+    plBindGroupPool*  (*get_bind_group_pool)(void);
 
     void (*submit_2d_drawlist)(plDrawList2D*, plRenderEncoder*, float fWidth, float fHeight, uint32_t sampleCount);
     void (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t sampleCount);
