@@ -860,7 +860,20 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .is_render_pass_valid                   = pl_is_render_pass_valid,
         .is_render_pass_layout_valid            = pl_is_render_pass_layout_valid,
         .is_shader_valid                        = pl_is_shader_valid,
-        .is_compute_shader_valid                = pl_is_compute_shader_valid
+        .is_compute_shader_valid                = pl_is_compute_shader_valid,
+
+        #if defined(PL_GRAPHICS_EXPOSE_VULKAN) && defined(PL_VULKAN_BACKEND)
+        .get_vulkan_instance        = pl_get_vulkan_instance,
+        .get_vulkan_api_version     = pl_get_vulkan_api_version,
+        .get_vulkan_device          = pl_get_vulkan_device,
+        .get_vulkan_physical_device = pl_get_vulkan_physical_device,
+        .get_vulkan_queue           = pl_get_vulkan_queue,
+        .get_vulkan_queue_family    = pl_get_vulkan_queue_family,
+        .get_vulkan_render_pass     = pl_get_vulkan_render_pass,
+        .get_vulkan_descriptor_pool = pl_get_vulkan_descriptor_pool,
+        .get_vulkan_sample_count    = pl_get_vulkan_sample_count,
+        .get_vulkan_command_buffer  = pl_get_vulkan_command_buffer,
+        #endif
     };
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
 

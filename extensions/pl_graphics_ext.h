@@ -206,6 +206,17 @@ typedef int plGraphicsBackend;        // -> enum _plGraphicsBackend        // En
 // external
 typedef struct _plWindow plWindow; // pl_os.h
 
+#ifdef PL_GRAPHICS_EXPOSE_VULKAN
+typedef struct VkInstance_T*       VkInstance;
+typedef struct VkPhysicalDevice_T* VkPhysicalDevice;
+typedef struct VkDevice_T*         VkDevice;
+typedef struct VkQueue_T*          VkQueue;
+typedef struct VkCommandBuffer_T*  VkCommandBuffer;
+
+typedef struct VkRenderPass_T*     VkRenderPass;
+typedef struct VkDescriptorPool_T* VkDescriptorPool;
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
@@ -393,6 +404,21 @@ typedef struct _plGraphicsI
     plDeviceMemoryAllocation        (*allocate_memory)(plDevice*, size_t, plMemoryMode, uint32_t typeFilter, const char* debugName);
     void                            (*free_memory)    (plDevice*, plDeviceMemoryAllocation*);
     const plDeviceMemoryAllocation* (*get_allocations)(plDevice*, uint32_t* sizeOut);
+
+    //------------------------------NOT STABLE-------------------------------------
+
+    #ifdef PL_GRAPHICS_EXPOSE_VULKAN
+    VkInstance       (*get_vulkan_instance)(void);
+    uint32_t         (*get_vulkan_api_version)(void);
+    VkDevice         (*get_vulkan_device)(plDevice*);
+    VkPhysicalDevice (*get_vulkan_physical_device)(plDevice*);
+    VkQueue          (*get_vulkan_queue)(plDevice*);
+    uint32_t         (*get_vulkan_queue_family)(plDevice*);
+    VkRenderPass     (*get_vulkan_render_pass)(plDevice*, plRenderPassHandle);
+    VkDescriptorPool (*get_vulkan_descriptor_pool)(plBindGroupPool*);
+    int              (*get_vulkan_sample_count)(plSwapchain*);
+    VkCommandBuffer  (*get_vulkan_command_buffer)(plCommandBuffer*);
+    #endif
 
 } plGraphicsI;
 
@@ -1575,13 +1601,12 @@ pl_allocate_dynamic_data(const plGraphicsI* ptGfx, plDevice* ptDevice, plDynamic
         *ptCurrentBlock = ptGfx->allocate_dynamic_data_block(ptDevice);
     }
 
-    const plDynamicBinding tBinding = {
-        .uBufferHandle = ptCurrentBlock->_uBufferHandle,
-        .uByteOffset   = ptCurrentBlock->_uCurrentOffset,
-        .pcData        = &ptCurrentBlock->_pcData[ptCurrentBlock->_uCurrentOffset]
-    };
+    plDynamicBinding tBinding = PL_ZERO_INIT;
+    tBinding.uBufferHandle = ptCurrentBlock->_uBufferHandle;
+    tBinding.uByteOffset   = ptCurrentBlock->_uCurrentOffset;
+    tBinding.pcData        = &ptCurrentBlock->_pcData[ptCurrentBlock->_uCurrentOffset];
 
-    ptCurrentBlock->_uCurrentOffset = (((size_t)ptCurrentBlock->_uCurrentOffset + ptCurrentBlock->_uBumpAmount + (ptCurrentBlock->_uAlignment - 1)) & ~(ptCurrentBlock->_uAlignment - 1));
+    ptCurrentBlock->_uCurrentOffset = ((ptCurrentBlock->_uCurrentOffset + ptCurrentBlock->_uBumpAmount + (ptCurrentBlock->_uAlignment - 1)) & ~(ptCurrentBlock->_uAlignment - 1));
     return tBinding;
 }
 

@@ -5548,3 +5548,63 @@ pl__garbage_collect(plDevice* ptDevice)
     pl_sb_reset(ptGarbage->sbtBindGroups);
     pl_end_cpu_sample(gptProfile, 0);
 }
+
+VkInstance
+pl_get_vulkan_instance(void)
+{
+    return gptGraphics->tInstance;
+}
+
+uint32_t
+pl_get_vulkan_api_version(void)
+{
+    return VK_API_VERSION_1_2;
+}
+
+VkDevice
+pl_get_vulkan_device(plDevice* ptDevice)
+{
+    return ptDevice->tLogicalDevice;
+}
+
+VkPhysicalDevice
+pl_get_vulkan_physical_device(plDevice* ptDevice)
+{
+    return ptDevice->tPhysicalDevice;
+}
+
+VkQueue
+pl_get_vulkan_queue(plDevice* ptDevice)
+{
+    return ptDevice->tGraphicsQueue;
+}
+
+uint32_t
+pl_get_vulkan_queue_family(plDevice* ptDevice)
+{
+    return ptDevice->iGraphicsQueueFamily;
+}
+
+VkRenderPass
+pl_get_vulkan_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
+{
+    return ptDevice->sbtRenderPassesHot[tHandle.uIndex].tRenderPass;
+}
+
+VkDescriptorPool
+pl_get_vulkan_descriptor_pool(plBindGroupPool* ptPool)
+{
+    return ptPool->tDescriptorPool;
+}
+
+int
+pl_get_vulkan_sample_count(plSwapchain* ptSwap)
+{
+    return ptSwap->tInfo.tSampleCount;
+}
+
+VkCommandBuffer
+pl_get_vulkan_command_buffer(plCommandBuffer* ptCmdBuffer)
+{
+    return ptCmdBuffer->tCmdBuffer;
+}

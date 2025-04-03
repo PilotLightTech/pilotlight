@@ -34,4 +34,14 @@
 // experimental (don't use yet)
 // #define PL_EXPERIMENTAL_RENDER_WHILE_RESIZE
 
+// experimental (don't use yet)
+#ifdef PL_CPU_BACKEND
+    #define PL_GRAPHICS_EXPOSE_CPU
+#elif defined(PL_VULKAN_BACKEND)
+    #define PL_GRAPHICS_EXPOSE_VULKAN
+#elif defined(PL_METAL_BACKEND)
+    #define PL_GRAPHICS_EXPOSE_METAL
+#else
+#endif
+
 #endif // PL_CONFIG_H
