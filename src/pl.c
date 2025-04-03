@@ -226,6 +226,9 @@ plSharedLibrary** gsbptLibs      = NULL;
 uint32_t*         gsbtHotLibs    = NULL; // index into gsbptLibs
 
 // IO
+#ifdef __cplusplus
+plIO gtIO = plIO();
+#else
 plIO gtIO = {
     .fHeadlessUpdateRate      = 30.0f,
     .fMouseDoubleClickTime    = 0.3f,
@@ -240,6 +243,7 @@ plIO gtIO = {
     .bViewportSizeChanged     = true,
     .bRunning                 = true,
 };
+#endif
 
 // memory tracking
 size_t             gszActiveAllocations = 0;
@@ -305,7 +309,7 @@ pl__set_api(const char* pcName, plVersion tVersion, const void* pInterface, size
         ptCurrentEntry = ptCurrentEntry->ptNext;
     }
 
-    ptCurrentEntry = PL_ALLOC(sizeof(plApiEntry));
+    ptCurrentEntry = (plApiEntry*)PL_ALLOC(sizeof(plApiEntry));
     memset(ptCurrentEntry, 0, sizeof(plApiEntry)); 
 
     ptCurrentEntry->pcName = pcName;
@@ -355,7 +359,7 @@ pl__get_api(const char* pcName, plVersion tVersion)
     }
 
     // none found, create entry
-    ptCurrentEntry = PL_ALLOC(sizeof(plApiEntry));
+    ptCurrentEntry = (plApiEntry*)PL_ALLOC(sizeof(plApiEntry));
     memset(ptCurrentEntry, 0, sizeof(plApiEntry)); 
     ptCurrentEntry->pcName = pcName;
     ptCurrentEntry->tVersion = tVersion;
@@ -395,9 +399,8 @@ pl__remove_api(const void* pInterface)
 void
 pl_set_data(const char* pcName, void* pData)
 {
-    plDataID tData = {
-        .ulData = pl_hm_lookup_str(&gtHashmap, pcName)
-    };
+    plDataID tData = PL_ZERO_INIT;
+    tData.ulData = pl_hm_lookup_str(&gtHashmap, pcName);
 
     if(tData.ulData == PL_DS_HASH_INVALID)
     {
@@ -442,7 +445,8 @@ pl__garbage_collect_data_reg(void)
 plDataID
 pl_create_object(void)
 {
-    plDataID tId = {.ulData = UINT64_MAX};
+    plDataID tId = PL_ZERO_INIT;
+    tId.ulData = UINT64_MAX;
 
     pl_lock_mutex(gptDataMutex);
     if(pl_sb_size(gtDataRegistryData.sbtFreeDataIDs) > 0)
@@ -461,7 +465,7 @@ pl_create_object(void)
     }
     else
     {
-        ptObject = PL_ALLOC(sizeof(plDataObject));
+        ptObject = (plDataObject*)PL_ALLOC(sizeof(plDataObject));
         memset(ptObject, 0, sizeof(plDataObject));
     }
     pl_unlock_mutex(gptDataMutex);
@@ -480,9 +484,8 @@ pl_create_object(void)
 plDataID
 pl_get_object_by_name(const char* pcName)
 {
-    plDataID tID = {
-        .ulData = pl_hm_lookup_str(&gtHashmap, pcName)
-    };
+    plDataID tID = PL_ZERO_INIT;
+    tID.ulData = pl_hm_lookup_str(&gtHashmap, pcName);
     return tID;
 }
 
@@ -524,7 +527,7 @@ pl_write(plDataID tId)
     }
     else
     {
-        ptObject = PL_ALLOC(sizeof(plDataObject));
+        ptObject = (plDataObject*)PL_ALLOC(sizeof(plDataObject));
         memset(ptObject, 0, sizeof(plDataObject));
     }
     pl_unlock_mutex(gptDataMutex);
@@ -604,18 +607,16 @@ pl_load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnlo
 
     const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
 
-    plExtension tExtension = {
-        .bReloadable = bReloadable
-    };
+    plExtension tExtension = PL_ZERO_INIT;
+    tExtension.bReloadable = bReloadable;
     pl__create_extension(pcName, pcLoadFunc, pcUnloadFunc, &tExtension);
 
     plSharedLibrary* ptLibrary = NULL;
 
     const plLibraryI* ptLibraryApi = pl_get_api_latest(ptApiRegistry, plLibraryI);
 
-    plLibraryDesc tDesc = {
-        .pcName = tExtension.pcLibPath
-    };
+    plLibraryDesc tDesc = PL_ZERO_INIT;
+    tDesc.pcName = tExtension.pcLibPath;
 
     if(ptLibraryApi->load(tDesc, &ptLibrary))
     {
@@ -733,7 +734,11 @@ pl__get_key_data(plKey tKey)
 plVersion
 pl_get_version(void)
 {
-    return (plVersion)PILOT_LIGHT_VERSION;
+    #ifdef __cplusplus
+        return PILOT_LIGHT_VERSION;
+    #else
+        return (plVersion)PILOT_LIGHT_VERSION;
+    #endif
 }
 
 const char*
@@ -750,23 +755,21 @@ pl_add_key_event(plKey tKey, bool bDown)
     if(ptLastEvent && ptLastEvent->bKeyDown == bDown)
         return;
 
-    const plInputEvent tEvent = {
-        .tType    = PL_INPUT_EVENT_TYPE_KEY,
-        .tSource  = PL_INPUT_EVENT_SOURCE_KEYBOARD,
-        .tKey     = tKey,
-        .bKeyDown = bDown
-    };
+    plInputEvent tEvent = PL_ZERO_INIT;
+    tEvent.tType    = PL_INPUT_EVENT_TYPE_KEY;
+    tEvent.tSource  = PL_INPUT_EVENT_SOURCE_KEYBOARD;
+    tEvent.tKey     = tKey;
+    tEvent.bKeyDown = bDown;
     pl_sb_push(gtIO._sbtInputEvents, tEvent);
 }
 
 void
 pl_add_text_event(uint32_t uChar)
 {
-    const plInputEvent tEvent = {
-        .tType    = PL_INPUT_EVENT_TYPE_TEXT,
-        .tSource  = PL_INPUT_EVENT_SOURCE_KEYBOARD,
-        .uChar     = uChar
-    };
+    plInputEvent tEvent = PL_ZERO_INIT;
+    tEvent.tType    = PL_INPUT_EVENT_TYPE_TEXT;
+    tEvent.tSource  = PL_INPUT_EVENT_SOURCE_KEYBOARD;
+    tEvent.uChar     = uChar;
     pl_sb_push(gtIO._sbtInputEvents, tEvent);
 }
 
@@ -821,12 +824,11 @@ pl_add_mouse_pos_event(float fX, float fY)
     if(ptLastEvent && ptLastEvent->fPosX == fX && ptLastEvent->fPosY == fY)
         return;
 
-    const plInputEvent tEvent = {
-        .tType    = PL_INPUT_EVENT_TYPE_MOUSE_POS,
-        .tSource  = PL_INPUT_EVENT_SOURCE_MOUSE,
-        .fPosX    = fX,
-        .fPosY    = fY
-    };
+    plInputEvent tEvent = PL_ZERO_INIT;
+    tEvent.tType    = PL_INPUT_EVENT_TYPE_MOUSE_POS;
+    tEvent.tSource  = PL_INPUT_EVENT_SOURCE_MOUSE;
+    tEvent.fPosX    = fX;
+    tEvent.fPosY    = fY;
     pl_sb_push(gtIO._sbtInputEvents, tEvent);
 }
 
@@ -839,25 +841,22 @@ pl_add_mouse_button_event(int iButton, bool bDown)
     if(ptLastEvent && ptLastEvent->bMouseDown == bDown)
         return;
 
-    const plInputEvent tEvent = {
-        .tType      = PL_INPUT_EVENT_TYPE_MOUSE_BUTTON,
-        .tSource    = PL_INPUT_EVENT_SOURCE_MOUSE,
-        .iButton    = iButton,
-        .bMouseDown = bDown
-    };
+    plInputEvent tEvent = PL_ZERO_INIT;
+    tEvent.tType      = PL_INPUT_EVENT_TYPE_MOUSE_BUTTON;
+    tEvent.tSource    = PL_INPUT_EVENT_SOURCE_MOUSE;
+    tEvent.iButton    = iButton;
+    tEvent.bMouseDown = bDown;
     pl_sb_push(gtIO._sbtInputEvents, tEvent);
 }
 
 void
 pl_add_mouse_wheel_event(float fX, float fY)
 {
-
-    const plInputEvent tEvent = {
-        .tType   = PL_INPUT_EVENT_TYPE_MOUSE_WHEEL,
-        .tSource = PL_INPUT_EVENT_SOURCE_MOUSE,
-        .fWheelX = fX,
-        .fWheelY = fY
-    };
+    plInputEvent tEvent = PL_ZERO_INIT;
+    tEvent.tType   = PL_INPUT_EVENT_TYPE_MOUSE_WHEEL;
+    tEvent.tSource = PL_INPUT_EVENT_SOURCE_MOUSE;
+    tEvent.fWheelX = fX;
+    tEvent.fWheelY = fY;
     pl_sb_push(gtIO._sbtInputEvents, tEvent);
 }
 
@@ -1366,7 +1365,11 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
         uint64_t ulFreeIndex = pl_hm_get_free_index(&gtMemoryHashMap);
         if(ulFreeIndex == PL_DS_HASH_INVALID)
         {
+            #ifdef __cplusplus
+            pl_sb_push(gsbtAllocations, plAllocationEntry());
+            #else
             pl_sb_push(gsbtAllocations, (plAllocationEntry){0});
+            #endif
             ulFreeIndex = pl_sb_size(gsbtAllocations) - 1;
         }
         pl_hm_insert(&gtMemoryHashMap, ulHash, ulFreeIndex);
@@ -1411,11 +1414,10 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 const plApiRegistryI*
 pl__load_api_registry(void)
 {
-    static const plApiRegistryI tApiRegistry = {
-        .get_api    = pl__get_api,
-        .set_api    = pl__set_api,
-        .remove_api = pl__remove_api
-    };
+    static plApiRegistryI tApiRegistry = PL_ZERO_INIT;
+    tApiRegistry.get_api    = pl__get_api;
+    tApiRegistry.set_api    = pl__set_api;
+    tApiRegistry.remove_api = pl__remove_api;
 
     return &tApiRegistry;
 }
@@ -1434,65 +1436,61 @@ pl__load_core_apis(void)
         gtDataRegistryData.sbtFreeDataIDs[i].uIndex = i;
     }
 
-    const plIOI tIOApi = {
-        .new_frame               = pl_new_frame,
-        .get_io                  = pl_get_io,
-        .is_key_down             = pl_is_key_down,
-        .is_key_pressed          = pl_is_key_pressed,
-        .is_key_released         = pl_is_key_released,
-        .get_key_pressed_amount  = pl_get_key_pressed_amount,
-        .is_mouse_down           = pl_is_mouse_down,
-        .is_mouse_clicked        = pl_is_mouse_clicked,
-        .is_mouse_released       = pl_is_mouse_released,
-        .is_mouse_double_clicked = pl_is_mouse_double_clicked,
-        .is_mouse_dragging       = pl_is_mouse_dragging,
-        .is_mouse_hovering_rect  = pl_is_mouse_hovering_rect,
-        .reset_mouse_drag_delta  = pl_reset_mouse_drag_delta,
-        .get_mouse_drag_delta    = pl_get_mouse_drag_delta,
-        .get_mouse_pos           = pl_get_mouse_pos,
-        .get_mouse_wheel         = pl_get_mouse_wheel,
-        .is_mouse_pos_valid      = pl_is_mouse_pos_valid,
-        .set_mouse_cursor        = pl_set_mouse_cursor,
-        .add_key_event           = pl_add_key_event,
-        .add_text_event          = pl_add_text_event,
-        .add_text_event_utf16    = pl_add_text_event_utf16,
-        .add_text_events_utf8    = pl_add_text_events_utf8,
-        .add_mouse_pos_event     = pl_add_mouse_pos_event,
-        .add_mouse_button_event  = pl_add_mouse_button_event,
-        .add_mouse_wheel_event   = pl_add_mouse_wheel_event,
-        .clear_input_characters  = pl_clear_input_characters,
-        .get_version             = pl_get_version,
-        .get_version_string      = pl_get_version_string
-    };
+    plIOI tIOApi = PL_ZERO_INIT;
+    tIOApi.new_frame               = pl_new_frame;
+    tIOApi.get_io                  = pl_get_io;
+    tIOApi.is_key_down             = pl_is_key_down;
+    tIOApi.is_key_pressed          = pl_is_key_pressed;
+    tIOApi.is_key_released         = pl_is_key_released;
+    tIOApi.get_key_pressed_amount  = pl_get_key_pressed_amount;
+    tIOApi.is_mouse_down           = pl_is_mouse_down;
+    tIOApi.is_mouse_clicked        = pl_is_mouse_clicked;
+    tIOApi.is_mouse_released       = pl_is_mouse_released;
+    tIOApi.is_mouse_double_clicked = pl_is_mouse_double_clicked;
+    tIOApi.is_mouse_dragging       = pl_is_mouse_dragging;
+    tIOApi.is_mouse_hovering_rect  = pl_is_mouse_hovering_rect;
+    tIOApi.reset_mouse_drag_delta  = pl_reset_mouse_drag_delta;
+    tIOApi.get_mouse_drag_delta    = pl_get_mouse_drag_delta;
+    tIOApi.get_mouse_pos           = pl_get_mouse_pos;
+    tIOApi.get_mouse_wheel         = pl_get_mouse_wheel;
+    tIOApi.is_mouse_pos_valid      = pl_is_mouse_pos_valid;
+    tIOApi.set_mouse_cursor        = pl_set_mouse_cursor;
+    tIOApi.add_key_event           = pl_add_key_event;
+    tIOApi.add_text_event          = pl_add_text_event;
+    tIOApi.add_text_event_utf16    = pl_add_text_event_utf16;
+    tIOApi.add_text_events_utf8    = pl_add_text_events_utf8;
+    tIOApi.add_mouse_pos_event     = pl_add_mouse_pos_event;
+    tIOApi.add_mouse_button_event  = pl_add_mouse_button_event;
+    tIOApi.add_mouse_wheel_event   = pl_add_mouse_wheel_event;
+    tIOApi.clear_input_characters  = pl_clear_input_characters;
+    tIOApi.get_version             = pl_get_version;
+    tIOApi.get_version_string      = pl_get_version_string;
 
-    const plDataRegistryI tDataRegistryApi = {
-        .set_data           = pl_set_data,
-        .get_data           = pl_get_data,
-        .create_object      = pl_create_object,
-        .get_object_by_name = pl_get_object_by_name,
-        .read               = pl_read,
-        .end_read           = pl_end_read,
-        .get_string         = pl_get_string,
-        .get_buffer         = pl_get_buffer,
-        .write              = pl_write,
-        .set_string         = pl_set_string,
-        .set_buffer         = pl_set_buffer,
-        .commit             = pl_commit
-    };
+    plDataRegistryI tDataRegistryApi = PL_ZERO_INIT;
+    tDataRegistryApi.set_data           = pl_set_data;
+    tDataRegistryApi.get_data           = pl_get_data;
+    tDataRegistryApi.create_object      = pl_create_object;
+    tDataRegistryApi.get_object_by_name = pl_get_object_by_name;
+    tDataRegistryApi.read               = pl_read;
+    tDataRegistryApi.end_read           = pl_end_read;
+    tDataRegistryApi.get_string         = pl_get_string;
+    tDataRegistryApi.get_buffer         = pl_get_buffer;
+    tDataRegistryApi.write              = pl_write;
+    tDataRegistryApi.set_string         = pl_set_string;
+    tDataRegistryApi.set_buffer         = pl_set_buffer;
+    tDataRegistryApi.commit             = pl_commit;
 
-    const plExtensionRegistryI tExtensionRegistryApi = {
-        .load   = pl_load_extension,
-        .unload = pl_unload_extension
-    };
+    plExtensionRegistryI tExtensionRegistryApi = PL_ZERO_INIT;
+    tExtensionRegistryApi.load   = pl_load_extension;
+    tExtensionRegistryApi.unload = pl_unload_extension;
 
-    static const plMemoryI tMemoryApi = {
-        .realloc              = pl_realloc,
-        .tracked_realloc      = pl_tracked_realloc,
-        .get_allocation_count = pl_get_allocation_count,
-        .get_memory_usage     = pl_get_memory_usage,
-        .get_free_count       = pl_get_free_count,
-        .get_allocations      = pl_get_allocations
-    };
+    static plMemoryI tMemoryApi = PL_ZERO_INIT;
+    tMemoryApi.realloc              = pl_realloc;
+    tMemoryApi.tracked_realloc      = pl_tracked_realloc;
+    tMemoryApi.get_allocation_count = pl_get_allocation_count;
+    tMemoryApi.get_memory_usage     = pl_get_memory_usage;
+    tMemoryApi.get_free_count       = pl_get_free_count;
+    tMemoryApi.get_allocations      = pl_get_allocations;
 
     gptMemory = &tMemoryApi;
 
@@ -1560,97 +1558,90 @@ void
 pl__load_ext_apis(void)
 {
 
-    const plWindowI tWindowApi = {
-        .create_window  = pl_create_window,
-        .destroy_window = pl_destroy_window
-    };
+    plWindowI tWindowApi = PL_ZERO_INIT;
+    tWindowApi.create_window  = pl_create_window;
+    tWindowApi.destroy_window = pl_destroy_window;
 
-    const plLibraryI tLibraryApi = {
-        .has_changed   = pl_has_library_changed,
-        .load          = pl_load_library,
-        .load_function = pl_load_library_function,
-        .reload        = pl_reload_library
-    };
+    plLibraryI tLibraryApi = PL_ZERO_INIT;
+    tLibraryApi.has_changed   = pl_has_library_changed;
+    tLibraryApi.load          = pl_load_library;
+    tLibraryApi.load_function = pl_load_library_function;
+    tLibraryApi.reload        = pl_reload_library;
 
-    const plFileI tFileApi = {
-        .copy         = pl_copy_file,
-        .exists       = pl_file_exists,
-        .delete       = pl_file_delete,
-        .binary_read  = pl_binary_read_file,
-        .binary_write = pl_binary_write_file
-    };
+    plFileI tFileApi = PL_ZERO_INIT;
+    tFileApi.copy         = pl_copy_file;
+    tFileApi.exists       = pl_file_exists;
+    tFileApi.remove       = pl_file_delete;
+    tFileApi.binary_read  = pl_binary_read_file;
+    tFileApi.binary_write = pl_binary_write_file;
 
-    const plNetworkI tNetworkApi = {
-        .create_address       = pl_create_address,
-        .destroy_address      = pl_destroy_address,
-        .create_socket        = pl_create_socket,
-        .destroy_socket       = pl_destroy_socket,
-        .bind_socket          = pl_bind_socket,
-        .send_socket_data_to  = pl_send_socket_data_to,
-        .get_socket_data_from = pl_get_socket_data_from,
-        .connect_socket       = pl_connect_socket,
-        .get_socket_data      = pl_get_socket_data,
-        .listen_socket        = pl_listen_socket,
-        .select_sockets       = pl_select_sockets,
-        .accept_socket        = pl_accept_socket,
-        .send_socket_data     = pl_send_socket_data,
-    };
+    plNetworkI tNetworkApi = PL_ZERO_INIT;
+    tNetworkApi.create_address       = pl_create_address;
+    tNetworkApi.destroy_address      = pl_destroy_address;
+    tNetworkApi.create_socket        = pl_create_socket;
+    tNetworkApi.destroy_socket       = pl_destroy_socket;
+    tNetworkApi.bind_socket          = pl_bind_socket;
+    tNetworkApi.send_socket_data_to  = pl_send_socket_data_to;
+    tNetworkApi.get_socket_data_from = pl_get_socket_data_from;
+    tNetworkApi.connect_socket       = pl_connect_socket;
+    tNetworkApi.get_socket_data      = pl_get_socket_data;
+    tNetworkApi.listen_socket        = pl_listen_socket;
+    tNetworkApi.select_sockets       = pl_select_sockets;
+    tNetworkApi.accept_socket        = pl_accept_socket;
+    tNetworkApi.send_socket_data     = pl_send_socket_data;
 
-    const plThreadsI tThreadApi = {
-        .get_hardware_thread_count   = pl_get_hardware_thread_count,
-        .create_thread               = pl_create_thread,
-        .destroy_thread              = pl_destroy_thread,
-        .join_thread                 = pl_join_thread,
-        .yield_thread                = pl_yield_thread,
-        .sleep_thread                = pl_sleep,
-        .get_thread_id               = pl_get_thread_id,
-        .get_current_thread_id       = pl_get_current_thread_id,
-        .create_mutex                = pl_create_mutex,
-        .destroy_mutex               = pl_destroy_mutex,
-        .lock_mutex                  = pl_lock_mutex,
-        .unlock_mutex                = pl_unlock_mutex,
-        .create_semaphore            = pl_create_semaphore,
-        .destroy_semaphore           = pl_destroy_semaphore,
-        .wait_on_semaphore           = pl_wait_on_semaphore,
-        .try_wait_on_semaphore       = pl_try_wait_on_semaphore,
-        .release_semaphore           = pl_release_semaphore,
-        .allocate_thread_local_key   = pl_allocate_thread_local_key,
-        .allocate_thread_local_data  = pl_allocate_thread_local_data,
-        .free_thread_local_key       = pl_free_thread_local_key, 
-        .get_thread_local_data       = pl_get_thread_local_data, 
-        .free_thread_local_data      = pl_free_thread_local_data, 
-        .create_critical_section     = pl_create_critical_section,
-        .destroy_critical_section    = pl_destroy_critical_section,
-        .enter_critical_section      = pl_enter_critical_section,
-        .leave_critical_section      = pl_leave_critical_section,
-        .create_condition_variable   = pl_create_condition_variable,
-        .destroy_condition_variable  = pl_destroy_condition_variable,
-        .wake_condition_variable     = pl_wake_condition_variable,
-        .wake_all_condition_variable = pl_wake_all_condition_variable,
-        .sleep_condition_variable    = pl_sleep_condition_variable,
-        .create_barrier              = pl_create_barrier,
-        .destroy_barrier             = pl_destroy_barrier,
-        .wait_on_barrier             = pl_wait_on_barrier
-    };
+    plThreadsI tThreadApi = PL_ZERO_INIT;
+    tThreadApi.get_hardware_thread_count   = pl_get_hardware_thread_count;
+    tThreadApi.create_thread               = pl_create_thread;
+    tThreadApi.destroy_thread              = pl_destroy_thread;
+    tThreadApi.join_thread                 = pl_join_thread;
+    tThreadApi.yield_thread                = pl_yield_thread;
+    tThreadApi.sleep_thread                = pl_sleep;
+    tThreadApi.get_thread_id               = pl_get_thread_id;
+    tThreadApi.get_current_thread_id       = pl_get_current_thread_id;
+    tThreadApi.create_mutex                = pl_create_mutex;
+    tThreadApi.destroy_mutex               = pl_destroy_mutex;
+    tThreadApi.lock_mutex                  = pl_lock_mutex;
+    tThreadApi.unlock_mutex                = pl_unlock_mutex;
+    tThreadApi.create_semaphore            = pl_create_semaphore;
+    tThreadApi.destroy_semaphore           = pl_destroy_semaphore;
+    tThreadApi.wait_on_semaphore           = pl_wait_on_semaphore;
+    tThreadApi.try_wait_on_semaphore       = pl_try_wait_on_semaphore;
+    tThreadApi.release_semaphore           = pl_release_semaphore;
+    tThreadApi.allocate_thread_local_key   = pl_allocate_thread_local_key;
+    tThreadApi.allocate_thread_local_data  = pl_allocate_thread_local_data;
+    tThreadApi.free_thread_local_key       = pl_free_thread_local_key;
+    tThreadApi.get_thread_local_data       = pl_get_thread_local_data;
+    tThreadApi.free_thread_local_data      = pl_free_thread_local_data;
+    tThreadApi.create_critical_section     = pl_create_critical_section;
+    tThreadApi.destroy_critical_section    = pl_destroy_critical_section;
+    tThreadApi.enter_critical_section      = pl_enter_critical_section;
+    tThreadApi.leave_critical_section      = pl_leave_critical_section;
+    tThreadApi.create_condition_variable   = pl_create_condition_variable;
+    tThreadApi.destroy_condition_variable  = pl_destroy_condition_variable;
+    tThreadApi.wake_condition_variable     = pl_wake_condition_variable;
+    tThreadApi.wake_all_condition_variable = pl_wake_all_condition_variable;
+    tThreadApi.sleep_condition_variable    = pl_sleep_condition_variable;
+    tThreadApi.create_barrier              = pl_create_barrier;
+    tThreadApi.destroy_barrier             = pl_destroy_barrier;
+    tThreadApi.wait_on_barrier             = pl_wait_on_barrier;
 
-    const plAtomicsI tAtomicsApi = {
-        .create_atomic_counter   = pl_create_atomic_counter,
-        .destroy_atomic_counter  = pl_destroy_atomic_counter,
-        .atomic_store            = pl_atomic_store,
-        .atomic_load             = pl_atomic_load,
-        .atomic_compare_exchange = pl_atomic_compare_exchange,
-        .atomic_increment        = pl_atomic_increment,
-        .atomic_decrement        = pl_atomic_decrement
-    };
+    plAtomicsI tAtomicsApi = PL_ZERO_INIT;
+    tAtomicsApi.create_atomic_counter   = pl_create_atomic_counter;
+    tAtomicsApi.destroy_atomic_counter  = pl_destroy_atomic_counter;
+    tAtomicsApi.atomic_store            = pl_atomic_store;
+    tAtomicsApi.atomic_load             = pl_atomic_load;
+    tAtomicsApi.atomic_compare_exchange = pl_atomic_compare_exchange;
+    tAtomicsApi.atomic_increment        = pl_atomic_increment;
+    tAtomicsApi.atomic_decrement        = pl_atomic_decrement;
 
-    const plVirtualMemoryI tVirtualMemoryApi = {
-        .get_page_size = pl_get_page_size,
-        .alloc         = pl_virtual_alloc,
-        .reserve       = pl_virtual_reserve,
-        .commit        = pl_virtual_commit,
-        .uncommit      = pl_virtual_uncommit,
-        .free          = pl_virtual_free,
-    };
+    plVirtualMemoryI tVirtualMemoryApi = PL_ZERO_INIT;
+    tVirtualMemoryApi.get_page_size = pl_get_page_size;
+    tVirtualMemoryApi.alloc         = pl_virtual_alloc;
+    tVirtualMemoryApi.reserve       = pl_virtual_reserve;
+    tVirtualMemoryApi.commit        = pl_virtual_commit;
+    tVirtualMemoryApi.uncommit      = pl_virtual_uncommit;
+    tVirtualMemoryApi.free          = pl_virtual_free;
 
     pl_set_api(gptApiRegistry, plFileI, &tFileApi);
     pl_set_api(gptApiRegistry, plWindowI, &tWindowApi);

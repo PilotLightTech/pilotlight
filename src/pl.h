@@ -289,6 +289,8 @@ enum plMouseCursor_
     PL_MOUSE_CURSOR_RESIZE_NESW,
     PL_MOUSE_CURSOR_RESIZE_NWSE,
     PL_MOUSE_CURSOR_HAND,
+    PL_MOUSE_CURSOR_WAIT,
+    PL_MOUSE_CURSOR_PROGRESS,
     PL_MOUSE_CURSOR_NOT_ALLOWED,
     PL_MOUSE_CURSOR_COUNT
 };
@@ -402,6 +404,24 @@ typedef struct _plIO
     int   _iFrameRateSecPerFrameCount;
     float _fFrameRateSecPerFrameAccum;
 
+    #ifdef __cplusplus
+    plIO()
+    {
+        fHeadlessUpdateRate      = 30.0f;
+        fMouseDoubleClickTime    = 0.3f;
+        fMouseDoubleClickMaxDist = 6.0f;
+        fMouseDragThreshold      = 6.0f;
+        fKeyRepeatDelay          = 0.275f;
+        fKeyRepeatRate           = 0.050f;
+        tMainFramebufferScale    = {1.0f, 1.0f};
+        tCurrentCursor           = PL_MOUSE_CURSOR_ARROW;
+        tNextCursor              = PL_MOUSE_CURSOR_ARROW;
+        tMainViewportSize        = {500.0f, 500.0f};
+        bViewportSizeChanged     = true;
+        bRunning                 = true;
+    }
+    #endif
+
 } plIO;
 
 //-----------------------------------------------------------------------------
@@ -440,6 +460,7 @@ typedef struct _plVersion
 //-----------------------------------------------------------------------------
 
 #ifdef __cplusplus
+    #define PL_ZERO_INIT {}
     #if defined(_MSC_VER) //  Microsoft 
         #define PL_EXPORT extern "C" __declspec(dllexport)
         #define PL_CALL_CONVENTION (__cdecl *)
@@ -452,7 +473,7 @@ typedef struct _plVersion
         #pragma warning Unknown dynamic link import/export semantics.
     #endif
 #else
-
+    #define PL_ZERO_INIT {0}
     #if defined(_MSC_VER) //  Microsoft 
         #define PL_EXPORT __declspec(dllexport)
         #define PL_CALL_CONVENTION (__cdecl *)
