@@ -275,8 +275,8 @@ typedef struct _plRay
     #define pl_create_vec2(XARG, YARG)                  {(XARG), (YARG)}
     #define pl_create_vec3(XARG, YARG, ZARG)            {(XARG), (YARG), (ZARG)}
     #define pl_create_vec4(XARG, YARG, ZARG, WARG)      {(XARG), (YARG), (ZARG), (WARG)}
-    #define pl_create_mat3_diag(XARG, YARG, ZARG, WARG) {(XARG), 0.0, 0.0f, 0.0f, (YARG), 0.0f, 0.0f, 0.0f, (ZARG)}
-    #define pl_create_mat3_cols(XARG, YARG, ZARG, WARG) {(XARG).x, (XARG).y, (XARG).z, (YARG).x, (YARG).y, (YARG).z, (ZARG).x, (ZARG).y, (ZARG).z}
+    #define pl_create_mat3_diag(XARG, YARG, ZARG)       {(XARG), 0.0, 0.0f, 0.0f, (YARG), 0.0f, 0.0f, 0.0f, (ZARG)}
+    #define pl_create_mat3_cols(XARG, YARG, ZARG)       {(XARG).x, (XARG).y, (XARG).z, (YARG).x, (YARG).y, (YARG).z, (ZARG).x, (ZARG).y, (ZARG).z}
     #define pl_create_mat4_diag(XARG, YARG, ZARG, WARG) {(XARG), 0.0, 0.0f, 0.0f, 0.0f, (YARG), 0.0f, 0.0f, 0.0f, 0.0f, (ZARG), 0.0f, 0.0f, 0.0f, 0.0f, (WARG)}
     #define pl_create_mat4_cols(XARG, YARG, ZARG, WARG) {(XARG).x, (XARG).y, (XARG).z, (XARG).w, (YARG).x, (YARG).y, (YARG).z, (YARG).w, (ZARG).x, (ZARG).y, (ZARG).z, (ZARG).w, (WARG).x, (WARG).y, (WARG).z, (WARG).w}
     #define pl_create_rect_vec2(XARG, YARG)             {(XARG), (YARG)}
