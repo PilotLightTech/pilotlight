@@ -438,9 +438,9 @@ pl__temp_allocator_sprintf_va(plTempAllocator* ptAllocator, const char* cPFormat
 
     pRequestedMemory = pl_temp_allocator_alloc(ptAllocator, n + 1);
     memset(pRequestedMemory, 0, n + 1);
-    pl_vnsprintf(pRequestedMemory, n + 1, cPFormat, args);
+    pl_vnsprintf((char*)pRequestedMemory, n + 1, cPFormat, args);
 
-    return pRequestedMemory;
+    return (char*)pRequestedMemory;
 }
 
 char*
@@ -453,7 +453,7 @@ pl_temp_allocator_sprintf(plTempAllocator* ptAllocator, const char* cPFormat, ..
     pRequestedMemory = pl__temp_allocator_sprintf_va(ptAllocator, cPFormat, argptr);
     va_end(argptr);
 
-    return pRequestedMemory;   
+    return (char*)pRequestedMemory;   
 }
 
 void
