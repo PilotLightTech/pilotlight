@@ -232,6 +232,61 @@ with pl.project("pilotlight"):
                     pl.add_dynamic_link_libraries("shaderc_shared")
 
     #-----------------------------------------------------------------------------
+    # [SECTION] platform extension
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_platform_ext", pl.TargetType.DYNAMIC_LIBRARY, False):
+    
+        pl.set_output_binary("pl_platform_ext")
+
+        # default config
+        with pl.configuration("debug"):
+
+            # win32
+            with pl.platform("Windows"):
+                with pl.compiler("msvc"):
+                    pl.add_source_files("../extensions/pl_platform_win32_ext.c")
+                    pl.add_static_link_libraries("ucrtd", "user32", "Ole32")
+                       
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_source_files("../extensions/pl_platform_linux_ext.c")
+                    pl.add_dynamic_link_libraries("pthread")
+
+            # mac os
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_source_files("../extensions/pl_platform_macos_ext.m")
+        
+        # release
+        with pl.configuration("release"):
+
+            # win32
+            with pl.platform("Windows"):
+                with pl.compiler("msvc"):
+                    pl.add_source_files("../extensions/pl_platform_win32_ext.c")
+                    pl.add_static_link_libraries("ucrt", "user32", "Ole32")
+                    
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_source_files("../extensions/pl_platform_linux_ext.c")
+                    pl.add_dynamic_link_libraries("pthread")
+
+            # mac os
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_source_files("../extensions/pl_platform_macos_ext.m")
+
+        # vulkan on macos
+        with pl.configuration("vulkan"):
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_source_files("../extensions/pl_platform_macos_ext.m")
+
+    #-----------------------------------------------------------------------------
     # [SECTION] app
     #-----------------------------------------------------------------------------
 

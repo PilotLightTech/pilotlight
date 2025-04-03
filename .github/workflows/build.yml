@@ -65,6 +65,7 @@ jobs:
         if not exist ../out/example_9.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/pl_unity_ext.dll exit 1
+        if not exist ../out/pl_platform_ext.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
         cd ..
 
@@ -93,6 +94,7 @@ jobs:
         if not exist ../out/example_9.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/pl_unity_ext.dll exit 1
+        if not exist ../out/pl_platform_ext.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
 
     - name: Build Pilot Light Deployment (RELEASE)
@@ -127,6 +129,7 @@ jobs:
         if not exist ../out/pl_collision_ext.dll exit 1
         if not exist ../out/pl_bvh_ext.dll exit 1
         if not exist ../out/pl_config_ext.dll exit 1
+        if not exist ../out/pl_platform_ext.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
         if not exist ../out/pl_script_camera.dll exit 1
         cd ..
@@ -196,6 +199,7 @@ jobs:
         test -f ./out/example_8.dylib || exit 1
         test -f ./out/example_9.dylib || exit 1
         test -f ./out/pl_unity_ext.dylib || exit 1
+        test -f ./out/pl_platform_ext.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
 
     - name: Prep 2
@@ -228,6 +232,7 @@ jobs:
         test -f ./out/example_8.dylib || exit 1
         test -f ./out/example_9.dylib || exit 1
         test -f ./out/pl_unity_ext.dylib || exit 1
+        test -f ./out/pl_platform_ext.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
 
     - name: Build Pilot Light Deployment (RELEASE)
@@ -267,6 +272,7 @@ jobs:
         test -f ./out/pl_collision_ext.dylib || exit 1
         test -f ./out/pl_bvh_ext.dylib || exit 1
         test -f ./out/pl_config_ext.dylib || exit 1
+        test -f ./out/pl_platform_ext.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
 
     - name: Package Pilot Light
@@ -308,6 +314,9 @@ jobs:
         sudo apt install libxcb-cursor-dev
         sudo apt install libxcb-cursor0
         sudo apt install libxcb-keysyms1-dev
+        sudo apt install libxcursor-dev
+        sudo apt install libxrandr-dev
+        sudo apt install libxinerama-dev
 
     - name: Prep 1
       run: |
@@ -341,6 +350,7 @@ jobs:
         test -f ./out/example_8.so || exit 1
         test -f ./out/example_9.so || exit 1
         test -f ./out/pl_unity_ext.so || exit 1
+        test -f ./out/pl_platform_ext.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
 
     - name: Prep 2
@@ -373,6 +383,7 @@ jobs:
         test -f ./out/example_8.so || exit 1
         test -f ./out/example_9.so || exit 1
         test -f ./out/pl_unity_ext.so || exit 1
+        test -f ./out/pl_platform_ext.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
 
     - name: Build Pilot Light Deployment (RELEASE)
@@ -412,6 +423,7 @@ jobs:
         test -f ./out/pl_collision_ext.so || exit 1
         test -f ./out/pl_bvh_ext.so || exit 1
         test -f ./out/pl_config_ext.so || exit 1
+        test -f ./out/pl_platform_ext.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
 
     - name: Package Pilot Light

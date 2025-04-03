@@ -24,7 +24,7 @@ Index of this file:
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_gpu_allocators_ext.h"
-#include "pl_file_ext.h"
+#include "pl_platform_ext.h" // file
 #include "pl_image_ext.h"
 
 // libs

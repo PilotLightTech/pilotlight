@@ -32,6 +32,7 @@ Index of this file:
     #define VK_USE_PLATFORM_METAL_EXT
 #else // linux
     #define VK_USE_PLATFORM_XCB_KHR
+    #define VK_USE_PLATFORM_XLIB_KHR
 #endif
 
 #include "vulkan/vulkan.h"
@@ -44,7 +45,7 @@ Index of this file:
     #ifdef NDEBUG
         #define PL_VULKAN(x) x
     #else
-    #include <assert.h>
+        #include <assert.h>
         #define PL_VULKAN(x) assert(x == VK_SUCCESS)
     #endif
 #endif
@@ -2450,6 +2451,7 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
             apcExtensions[uExtensionCount++] = "VK_EXT_metal_surface";
             apcExtensions[uExtensionCount++] = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
     #else // linux
+            apcExtensions[uExtensionCount++] = VK_KHR_XLIB_SURFACE_EXTENSION_NAME;
             apcExtensions[uExtensionCount++] = VK_KHR_XCB_SURFACE_EXTENSION_NAME;
     #endif
     }
@@ -3122,19 +3124,42 @@ pl_create_surface(plWindow* ptWindow)
             .pLayer = ((plWindowData *)ptWindow->_pPlatformData)->ptLayer};
         PL_VULKAN(vkCreateMetalSurfaceEXT(gptGraphics->tInstance, &tSurfaceCreateInfo, NULL, &ptSurface->tSurface));
     #else // linux
-        struct tPlatformData
+        const uint32_t uHeader = *(uint32_t*)ptWindow->_pPlatformData;
+
+        if(uHeader == 0)
         {
-            xcb_connection_t* ptConnection;
-            xcb_window_t tWindow;
-        };
-        struct tPlatformData* ptPlatformData = (struct tPlatformData *)ptWindow->_pPlatformData;
-        const VkXcbSurfaceCreateInfoKHR tSurfaceCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
-            .pNext = NULL,
-            .flags = 0,
-            .window = ptPlatformData->tWindow,
-            .connection = ptPlatformData->ptConnection};
-        PL_VULKAN(vkCreateXcbSurfaceKHR(gptGraphics->tInstance, &tSurfaceCreateInfo, NULL, &ptSurface->tSurface));
+            struct tPlatformData
+            {
+                uint32_t header;
+                xcb_connection_t* ptConnection;
+                xcb_window_t tWindow;
+            };
+            struct tPlatformData* ptPlatformData = (struct tPlatformData *)ptWindow->_pPlatformData;
+            const VkXcbSurfaceCreateInfoKHR tSurfaceCreateInfo = {
+                .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
+                .pNext = NULL,
+                .flags = 0,
+                .window = ptPlatformData->tWindow,
+                .connection = ptPlatformData->ptConnection};
+            PL_VULKAN(vkCreateXcbSurfaceKHR(gptGraphics->tInstance, &tSurfaceCreateInfo, NULL, &ptSurface->tSurface));
+        }
+        else
+        {
+            struct tPlatformData
+            {
+                uint32_t header;
+                Display* dpy;
+                Window window;
+            };
+            struct tPlatformData* ptPlatformData = (struct tPlatformData *)ptWindow->_pPlatformData;
+            const VkXlibSurfaceCreateInfoKHR tSurfaceCreateInfo = {
+                .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+                .pNext = NULL,
+                .flags = 0,
+                .window = ptPlatformData->window,
+                .dpy = ptPlatformData->dpy};
+            PL_VULKAN(vkCreateXlibSurfaceKHR(gptGraphics->tInstance, &tSurfaceCreateInfo, NULL, &ptSurface->tSurface));
+        }
     #endif
     return ptSurface;
 }
@@ -3283,8 +3308,8 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
     }
 
     PL_VULKAN(vkResetFences(ptDevice->tLogicalDevice, 1, &ptCurrentFrame->tInFlight));
-    PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, ptCurrentFrame->tInFlight));
-
+    VkResult tResult = vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, ptCurrentFrame->tInFlight);
+    PL_VULKAN(tResult);
     VkSwapchainKHR atSwapchains[64] = {0};
     uint32_t auImageIndices[64] = {0};
     for(uint32_t i = 0; i < uSwapchainCount; i++)
@@ -3301,7 +3326,7 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
         .pSwapchains        = atSwapchains,
         .pImageIndices      = auImageIndices
     };
-    const VkResult tResult = vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo);
+    tResult = vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo);
     if (tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
         pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
@@ -4769,7 +4794,7 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
         plTexture* ptTexture = pl__get_texture(ptDevice, tHandle);
         ptTexture->tView = tTextureViewDesc;
 
-        ptTexture->tDesc.tDimensions = (plVec3){gptIO->tMainViewportSize.x, gptIO->tMainViewportSize.y, 1.0f};
+        ptTexture->tDesc.tDimensions = (plVec3){(float)ptSwap->tInfo.uWidth, (float)ptSwap->tInfo.uHeight, 1.0f};
         ptTexture->tDesc.uLayers = 1;
         ptTexture->tDesc.uMips = 1;
         ptTexture->tDesc.tSampleCount = ptSwap->tInfo.tSampleCount;

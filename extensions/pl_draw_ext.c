@@ -36,7 +36,7 @@ Index of this file:
 #include "stb_truetype.h"
 
 // extensions
-#include "pl_file_ext.h"
+#include "pl_platform_ext.h" // file
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines

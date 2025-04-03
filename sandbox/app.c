@@ -52,12 +52,9 @@ Index of this file:
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_string_intern_ext.h"
-#include "pl_network_ext.h"
-#include "pl_threads_ext.h"
-#include "pl_atomics_ext.h"
+#include "pl_platform_ext.h"
 #include "pl_window_ext.h"
 #include "pl_library_ext.h"
-#include "pl_file_ext.h"
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
 
@@ -264,6 +261,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // load extensions
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
+    ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false);
     
     // load apis
     gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
@@ -661,7 +659,10 @@ pl_app_update(plAppData* ptAppData)
 
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
 
-    gptRenderer->end_frame();
+    plRenderEncoder* ptRenderEncoder = NULL;
+    plCommandBuffer* ptCommandBuffer = NULL;
+    gptRenderer->begin_final_pass(&ptRenderEncoder, &ptCommandBuffer);
+    gptRenderer->end_final_pass(ptRenderEncoder, ptCommandBuffer);
 
     pl_end_cpu_sample(gptProfile, 0);
     gptProfile->end_frame();

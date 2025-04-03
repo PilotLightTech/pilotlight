@@ -20,8 +20,7 @@ Index of this file:
 
 #include "pl.h"
 #include "pl_job_ext.h"
-#include "pl_threads_ext.h"
-#include "pl_atomics_ext.h"
+#include "pl_platform_ext.h" // atomics & threads
 #include <math.h>
 #include <string.h>
 

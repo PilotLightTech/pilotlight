@@ -129,7 +129,7 @@ PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
 PL_SOURCES="../src/pl_main_null.c "
 
 # run compiler (and linker)
@@ -234,7 +234,7 @@ PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
 PL_SOURCES="app_tests.c "
 
 # run compiler (and linker)
@@ -346,7 +346,7 @@ PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
 PL_SOURCES="../src/pl_main_null.c "
 
 # run compiler (and linker)
@@ -451,7 +451,7 @@ PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
 PL_SOURCES="app_tests.c "
 
 # run compiler (and linker)

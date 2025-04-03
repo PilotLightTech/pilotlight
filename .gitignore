@@ -8,6 +8,8 @@ out/
 user/
 game/
 app/
+# dependencies/glfw/
+# dependencies/imgui/
 
 sandbox/model-index.json
 
@@ -22,7 +24,9 @@ tests/*.pdb
 
 # build scripts
 src/build.bat
+src/build_glfw.bat
 src/build.sh
+src/build_glfw.sh
 examples/build.bat
 examples/build.sh
 tests/build.bat

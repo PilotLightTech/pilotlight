@@ -217,6 +217,12 @@ typedef struct VkRenderPass_T*     VkRenderPass;
 typedef struct VkDescriptorPool_T* VkDescriptorPool;
 #endif
 
+#ifdef PL_GRAPHICS_EXPOSE_METAL
+@class MTLRenderPassDescriptor;
+@protocol MTLDevice, MTLCommandBuffer, MTLRenderCommandEncoder;
+// typedef __unsafe_unretained id<MTLDevice> MTLDevice_id;
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
@@ -418,6 +424,13 @@ typedef struct _plGraphicsI
     VkDescriptorPool (*get_vulkan_descriptor_pool)(plBindGroupPool*);
     int              (*get_vulkan_sample_count)(plSwapchain*);
     VkCommandBuffer  (*get_vulkan_command_buffer)(plCommandBuffer*);
+    #endif
+
+    #ifdef PL_GRAPHICS_EXPOSE_METAL
+    id<MTLDevice> (*get_metal_device)(plDevice*);
+    MTLRenderPassDescriptor*     (*get_metal_render_pass_descriptor)(plDevice*, plRenderPassHandle);
+    id<MTLCommandBuffer>  (*get_metal_command_buffer)(plCommandBuffer*);
+    id<MTLRenderCommandEncoder>  (*get_metal_command_encoder)(plRenderEncoder*);
     #endif
 
 } plGraphicsI;

@@ -874,6 +874,13 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_vulkan_sample_count    = pl_get_vulkan_sample_count,
         .get_vulkan_command_buffer  = pl_get_vulkan_command_buffer,
         #endif
+
+        #if defined(PL_GRAPHICS_EXPOSE_METAL) && defined(PL_METAL_BACKEND)
+        .get_metal_device = pl_get_metal_device,
+        .get_metal_render_pass_descriptor = pl_get_metal_render_pass_descriptor,
+        .get_metal_command_buffer = pl_get_metal_command_buffer,
+        .get_metal_command_encoder= pl_get_metal_command_encoder,
+        #endif
     };
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
 

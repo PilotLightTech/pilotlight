@@ -79,6 +79,9 @@
     @if exist "../out/pl_script_camera.dll" del "..\out\pl_script_camera.dll"
     @if exist "../out/pl_script_camera_*.dll" del "..\out\pl_script_camera_*.dll"
     @if exist "../out/pl_script_camera_*.pdb" del "..\out\pl_script_camera_*.pdb"
+    @if exist "../out/pl_platform_ext.dll" del "..\out\pl_platform_ext.dll"
+    @if exist "../out/pl_platform_ext_*.dll" del "..\out\pl_platform_ext_*.dll"
+    @if exist "../out/pl_platform_ext_*.pdb" del "..\out\pl_platform_ext_*.pdb"
     @if exist "../out/app.dll" del "..\out\app.dll"
     @if exist "../out/app_*.dll" del "..\out\app_*.dll"
     @if exist "../out/app_*.pdb" del "..\out\app_*.pdb"
@@ -147,6 +150,42 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 :: print results
 @echo [36mResult: [0m %PL_RESULT%
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_platform_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: skip during hot reload
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_platform_ext
+
+@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
+@set PL_STATIC_LINK_LIBRARIES=ucrtd.lib user32.lib Ole32.lib 
+@set PL_SOURCES="../extensions/pl_platform_win32_ext.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: pl_platform_ext[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_platform_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_platform_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+:Exit_pl_platform_ext
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -266,6 +305,9 @@ goto ExitLabel
     @if exist "../out/pl_script_camera.dll" del "..\out\pl_script_camera.dll"
     @if exist "../out/pl_script_camera_*.dll" del "..\out\pl_script_camera_*.dll"
     @if exist "../out/pl_script_camera_*.pdb" del "..\out\pl_script_camera_*.pdb"
+    @if exist "../out/pl_platform_ext.dll" del "..\out\pl_platform_ext.dll"
+    @if exist "../out/pl_platform_ext_*.dll" del "..\out\pl_platform_ext_*.dll"
+    @if exist "../out/pl_platform_ext_*.pdb" del "..\out\pl_platform_ext_*.pdb"
     @if exist "../out/app.dll" del "..\out\app.dll"
     @if exist "../out/app_*.dll" del "..\out\app_*.dll"
     @if exist "../out/app_*.pdb" del "..\out\app_*.pdb"
@@ -334,6 +376,42 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 :: print results
 @echo [36mResult: [0m %PL_RESULT%
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_platform_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: skip during hot reload
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_platform_ext
+
+@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE 
+@set PL_INCLUDE_DIRECTORIES=-I"../sandbox" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
+@set PL_STATIC_LINK_LIBRARIES=ucrt.lib user32.lib Ole32.lib 
+@set PL_SOURCES="../extensions/pl_platform_win32_ext.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: pl_platform_ext[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_platform_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_platform_ext_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanuprelease
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+:Exit_pl_platform_ext
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

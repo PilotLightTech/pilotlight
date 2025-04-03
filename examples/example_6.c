@@ -36,7 +36,7 @@ Index of this file:
 // extensions
 #include "pl_log_ext.h"
 #include "pl_window_ext.h"
-#include "pl_file_ext.h"
+#include "pl_platform_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_image_ext.h"
 #include "pl_shader_ext.h"
@@ -134,6 +134,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // load extensions
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
+    ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false);
     
     // load required apis
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
