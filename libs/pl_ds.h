@@ -818,6 +818,7 @@ pl__hm_resize(plHashMap64* ptHashMap, uint32_t uBucketCount, const char* pcFile,
         ptHashMap->_auKeys = NULL;
         pl_sb_free(ptHashMap->_sbuFreeIndices);
         ptHashMap->_uItemCount = 0;
+        ptHashMap->_uBucketCapacity = 0;
     }
 
     if(sbuOldBucket)
