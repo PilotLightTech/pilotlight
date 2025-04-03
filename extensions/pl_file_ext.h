@@ -49,7 +49,7 @@ typedef struct _plFileI
 
     // simple file ops
     bool         (*exists)(const char* path);
-    plFileResult (*delete)(const char* path);
+    plFileResult (*remove)(const char* path);
     plFileResult (*copy)  (const char* source, const char* destination);
 
     // binary files
