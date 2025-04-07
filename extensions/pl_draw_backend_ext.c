@@ -728,11 +728,16 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 
     const plPipelineEntry* ptEntry = pl__get_2d_pipeline(gptGfx->get_encoder_render_pass(ptEncoder), uMSAASampleCount, gptGfx->get_render_encoder_subpass(ptEncoder));
 
-    // const plVec2 tClipScale = gptIOI->get_io()->tMainFramebufferScale;
+    const plVec2 tClipScale = gptIOI->get_io()->tMainFramebufferScale;
+
+    const float fScale[] = { 2.0f / fWidth, 2.0f / fHeight};
+
+    fWidth = fWidth * tClipScale.x;
+    fHeight = fHeight * tClipScale.y;
     
     // const plVec2 tClipScale = {1.0f, 1.0f};
     // const plVec2 tClipScale = ptCtx->tFrameBufferScale;
-    const float fScale[] = { 2.0f / fWidth, 2.0f / fHeight};
+    
     const float fTranslate[] = {-1.0f, -1.0f};
     plShaderHandle tCurrentShader = ptEntry->tRegularPipeline;
 
@@ -745,8 +750,8 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
     plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &gptDrawBackendCtx->tCurrentDynamicDataBlock);
 
     plDrawDynamicData* ptDynamicData = (plDrawDynamicData*)tDynamicBinding.pcData;
-    ptDynamicData->uScale.x = 2.0f / fWidth;
-    ptDynamicData->uScale.y = 2.0f / fHeight;
+    ptDynamicData->uScale.x = fScale[0];
+    ptDynamicData->uScale.y = fScale[1];
     ptDynamicData->uTranslate.x = -1.0f;
     ptDynamicData->uTranslate.y = -1.0f;
 
@@ -791,10 +796,10 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         else
         {
 
-            // cmd.tClip.tMin.x = tClipScale.x * cmd.tClip.tMin.x;
-            // cmd.tClip.tMax.x = tClipScale.x * cmd.tClip.tMax.x;
-            // cmd.tClip.tMin.y = tClipScale.y * cmd.tClip.tMin.y;
-            // cmd.tClip.tMax.y = tClipScale.y * cmd.tClip.tMax.y;
+            cmd.tClip.tMin.x = tClipScale.x * cmd.tClip.tMin.x;
+            cmd.tClip.tMax.x = tClipScale.x * cmd.tClip.tMax.x;
+            cmd.tClip.tMin.y = tClipScale.y * cmd.tClip.tMin.y;
+            cmd.tClip.tMax.y = tClipScale.y * cmd.tClip.tMax.y;
 
             // clamp to viewport
             if (cmd.tClip.tMin.x < 0.0f)   { cmd.tClip.tMin.x = 0.0f; }
