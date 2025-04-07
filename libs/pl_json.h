@@ -710,7 +710,7 @@ static void       pl__check_json_object(plJsonObject* ptJson, uint32_t* puBuffer
 plJsonObject*
 pl_json_new_root_object(const char* pcName)
 {
-    plJsonObject* ptJson = PL_JSON_ALLOC(sizeof(plJsonObject));
+    plJsonObject* ptJson = (plJsonObject*)PL_JSON_ALLOC(sizeof(plJsonObject));
     memset(ptJson, 0, sizeof(plJsonObject));
     ptJson->tType = PL_JSON_TYPE_OBJECT;
     ptJson->ptRootObject = ptJson;
@@ -758,7 +758,7 @@ pl_load_json(const char* pcJson, plJsonObject** pptJsonOut)
     uint32_t uLayer = 0;
     uint32_t uCurrentTokenIndex = 0;
     plJsonObject** sbtObjectStack = NULL;
-    *pptJsonOut = PL_JSON_ALLOC(sizeof(plJsonObject));
+    *pptJsonOut = (plJsonObject*)PL_JSON_ALLOC(sizeof(plJsonObject));
     memset(*pptJsonOut, 0, sizeof(plJsonObject));
     plJsonObject* ptJsonOut = *pptJsonOut;
     if(ptJsonOut == NULL)

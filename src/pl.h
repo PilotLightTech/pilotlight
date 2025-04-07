@@ -405,7 +405,7 @@ typedef struct _plIO
     float _fFrameRateSecPerFrameAccum;
 
     #ifdef __cplusplus
-    plIO()
+    _plIO()
     {
         fHeadlessUpdateRate      = 30.0f;
         fMouseDoubleClickTime    = 0.3f;
