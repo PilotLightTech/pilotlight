@@ -27,7 +27,7 @@ Index of this file:
 // extensions
 #include "pl_resource_ext.h"
 #include "pl_ecs_ext.h"
-#include "pl_file_ext.h"
+#include "pl_platform_ext.h" // file
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"

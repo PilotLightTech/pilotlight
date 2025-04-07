@@ -39,11 +39,6 @@ Index of this file:
 // embedded extensions
 #include "pl_window_ext.h"
 #include "pl_library_ext.h"
-#include "pl_file_ext.h"
-#include "pl_atomics_ext.h"
-#include "pl_threads_ext.h"
-#include "pl_network_ext.h"
-#include "pl_virtual_memory_ext.h"
 #include "pl_profile_ext.h"
 
 //-----------------------------------------------------------------------------
@@ -1568,102 +1563,8 @@ pl__load_ext_apis(void)
     tLibraryApi.load_function = pl_load_library_function;
     tLibraryApi.reload        = pl_reload_library;
 
-    plFileI tFileApi = PL_ZERO_INIT;
-    tFileApi.copy         = pl_copy_file;
-    tFileApi.exists       = pl_file_exists;
-    tFileApi.remove       = pl_file_delete;
-    tFileApi.binary_read  = pl_binary_read_file;
-    tFileApi.binary_write = pl_binary_write_file;
-
-    plNetworkI tNetworkApi = PL_ZERO_INIT;
-    tNetworkApi.create_address       = pl_create_address;
-    tNetworkApi.destroy_address      = pl_destroy_address;
-    tNetworkApi.create_socket        = pl_create_socket;
-    tNetworkApi.destroy_socket       = pl_destroy_socket;
-    tNetworkApi.bind_socket          = pl_bind_socket;
-    tNetworkApi.send_socket_data_to  = pl_send_socket_data_to;
-    tNetworkApi.get_socket_data_from = pl_get_socket_data_from;
-    tNetworkApi.connect_socket       = pl_connect_socket;
-    tNetworkApi.get_socket_data      = pl_get_socket_data;
-    tNetworkApi.listen_socket        = pl_listen_socket;
-    tNetworkApi.select_sockets       = pl_select_sockets;
-    tNetworkApi.accept_socket        = pl_accept_socket;
-    tNetworkApi.send_socket_data     = pl_send_socket_data;
-
-    plThreadsI tThreadApi = PL_ZERO_INIT;
-    tThreadApi.get_hardware_thread_count   = pl_get_hardware_thread_count;
-    tThreadApi.create_thread               = pl_create_thread;
-    tThreadApi.destroy_thread              = pl_destroy_thread;
-    tThreadApi.join_thread                 = pl_join_thread;
-    tThreadApi.yield_thread                = pl_yield_thread;
-    tThreadApi.sleep_thread                = pl_sleep;
-    tThreadApi.get_thread_id               = pl_get_thread_id;
-    tThreadApi.get_current_thread_id       = pl_get_current_thread_id;
-    tThreadApi.create_mutex                = pl_create_mutex;
-    tThreadApi.destroy_mutex               = pl_destroy_mutex;
-    tThreadApi.lock_mutex                  = pl_lock_mutex;
-    tThreadApi.unlock_mutex                = pl_unlock_mutex;
-    tThreadApi.create_semaphore            = pl_create_semaphore;
-    tThreadApi.destroy_semaphore           = pl_destroy_semaphore;
-    tThreadApi.wait_on_semaphore           = pl_wait_on_semaphore;
-    tThreadApi.try_wait_on_semaphore       = pl_try_wait_on_semaphore;
-    tThreadApi.release_semaphore           = pl_release_semaphore;
-    tThreadApi.allocate_thread_local_key   = pl_allocate_thread_local_key;
-    tThreadApi.allocate_thread_local_data  = pl_allocate_thread_local_data;
-    tThreadApi.free_thread_local_key       = pl_free_thread_local_key;
-    tThreadApi.get_thread_local_data       = pl_get_thread_local_data;
-    tThreadApi.free_thread_local_data      = pl_free_thread_local_data;
-    tThreadApi.create_critical_section     = pl_create_critical_section;
-    tThreadApi.destroy_critical_section    = pl_destroy_critical_section;
-    tThreadApi.enter_critical_section      = pl_enter_critical_section;
-    tThreadApi.leave_critical_section      = pl_leave_critical_section;
-    tThreadApi.create_condition_variable   = pl_create_condition_variable;
-    tThreadApi.destroy_condition_variable  = pl_destroy_condition_variable;
-    tThreadApi.wake_condition_variable     = pl_wake_condition_variable;
-    tThreadApi.wake_all_condition_variable = pl_wake_all_condition_variable;
-    tThreadApi.sleep_condition_variable    = pl_sleep_condition_variable;
-    tThreadApi.create_barrier              = pl_create_barrier;
-    tThreadApi.destroy_barrier             = pl_destroy_barrier;
-    tThreadApi.wait_on_barrier             = pl_wait_on_barrier;
-
-    plAtomicsI tAtomicsApi = PL_ZERO_INIT;
-    tAtomicsApi.create_atomic_counter   = pl_create_atomic_counter;
-    tAtomicsApi.destroy_atomic_counter  = pl_destroy_atomic_counter;
-    tAtomicsApi.atomic_store            = pl_atomic_store;
-    tAtomicsApi.atomic_load             = pl_atomic_load;
-    tAtomicsApi.atomic_compare_exchange = pl_atomic_compare_exchange;
-    tAtomicsApi.atomic_increment        = pl_atomic_increment;
-    tAtomicsApi.atomic_decrement        = pl_atomic_decrement;
-
-    plVirtualMemoryI tVirtualMemoryApi = PL_ZERO_INIT;
-    tVirtualMemoryApi.get_page_size = pl_get_page_size;
-    tVirtualMemoryApi.alloc         = pl_virtual_alloc;
-    tVirtualMemoryApi.reserve       = pl_virtual_reserve;
-    tVirtualMemoryApi.commit        = pl_virtual_commit;
-    tVirtualMemoryApi.uncommit      = pl_virtual_uncommit;
-    tVirtualMemoryApi.free          = pl_virtual_free;
-
-    pl_set_api(gptApiRegistry, plFileI, &tFileApi);
     pl_set_api(gptApiRegistry, plWindowI, &tWindowApi);
     pl_set_api(gptApiRegistry, plLibraryI, &tLibraryApi);
-    pl_set_api(gptApiRegistry, plVirtualMemoryI, &tVirtualMemoryApi);
-    pl_set_api(gptApiRegistry, plAtomicsI, &tAtomicsApi);
-    pl_set_api(gptApiRegistry, plThreadsI, &tThreadApi);
-    pl_set_api(gptApiRegistry, plNetworkI, &tNetworkApi);
-
-    gptNetwork       = pl_get_api_latest(gptApiRegistry, plNetworkI);
-    gptThreads       = pl_get_api_latest(gptApiRegistry, plThreadsI);
-    gptAtomics       = pl_get_api_latest(gptApiRegistry, plAtomicsI);
-    gptVirtualMemory = pl_get_api_latest(gptApiRegistry, plVirtualMemoryI);
-}
-
-void
-pl__unload_ext_apis(void)
-{
-    gptApiRegistry->remove_api(gptNetwork);
-    gptApiRegistry->remove_api(gptThreads);
-    gptApiRegistry->remove_api(gptAtomics);
-    gptApiRegistry->remove_api(gptVirtualMemory);
 }
 
 //-----------------------------------------------------------------------------

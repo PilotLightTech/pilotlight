@@ -27,7 +27,7 @@ scripts = [
 
 # extension headers
 extension_headers = [
-    "pl_atomics_ext.h",
+    "pl_platform_ext.h",
     "pl_console_ext.h",
     "pl_screen_log_ext.h",
     "pl_tools_ext.h",
@@ -36,7 +36,6 @@ extension_headers = [
     "pl_ecs_ext.h",
     "pl_ecs_tools_ext.h",
     "pl_gizmo_ext.h",
-    "pl_file_ext.h",
     "pl_gpu_allocators_ext.h",
     "pl_graphics_ext.h",
     "pl_image_ext.h",
@@ -44,7 +43,6 @@ extension_headers = [
     "pl_library_ext.h",
     "pl_log_ext.h",
     "pl_model_loader_ext.h",
-    "pl_network_ext.h",
     "pl_profile_ext.h",
     "pl_rect_pack_ext.h",
     "pl_renderer_ext.h",
@@ -52,18 +50,17 @@ extension_headers = [
     "pl_shader_ext.h",
     "pl_stats_ext.h",
     "pl_string_intern_ext.h",
-    "pl_threads_ext.h",
     "pl_ui_ext.h",
     "pl_physics_ext.h",
     "pl_collision_ext.h",
     "pl_bvh_ext.h",
-    "pl_virtual_memory_ext.h",
     "pl_config_ext.h",
     "pl_window_ext.h"
 ]
 
 # extension binaries
 extensions = [
+    "pl_platform_ext",
     "pl_console_ext",
     "pl_screen_log_ext",
     "pl_tools_ext",

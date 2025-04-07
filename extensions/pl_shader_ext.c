@@ -25,7 +25,7 @@ Index of this file:
 // extensions
 #include "pl_shader_ext.h"
 #include "pl_graphics_ext.h"
-#include "pl_file_ext.h"
+#include "pl_platform_ext.h" // file api
 #include "pl_log_ext.h"
 #include "pl_screen_log_ext.h"
 

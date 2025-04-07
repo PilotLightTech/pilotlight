@@ -5,28 +5,17 @@
 
 /*
 Index of this file:
-// [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] structs
 // [SECTION] globals
 // [SECTION] entry point
-// [SECTION] windows procedure
-// [SECTION] helper implementations
 // [SECTION] window ext
 // [SECTION] file ext
 // [SECTION] library ext
-// [SECTION] clipboard api
-// [SECTION] atomics ext
 // [SECTION] threads ext
-// [SECTION] network ext
-// [SECTION] virtual memory ext
 // [SECTION] unity build
 */
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -38,12 +27,6 @@ Index of this file:
 // embedded extensions
 #include "pl_window_ext.h"
 #include "pl_library_ext.h"
-#include "pl_file_ext.h"
-#include "pl_atomics_ext.h"
-#include "pl_threads_ext.h"
-#include "pl_network_ext.h"
-#include "pl_virtual_memory_ext.h"
-
 
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
@@ -140,11 +123,6 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[i], "--extensions") == 0)
         {
             plVersion tWindowExtVersion = plWindowI_version;
-            plVersion tFileExtVersion = plFileI_version;
-            plVersion tVirtualMemoryExtVersion = plVirtualMemoryI_version;
-            plVersion tAtomicsExtVersion = plAtomicsI_version;
-            plVersion tThreadsExtVersion = plThreadsI_version;
-            plVersion tNetworkExtVersion = plNetworkI_version;
             plVersion tLibraryVersion = plLibraryI_version;
             printf("\nPilot Light - light weight game engine\n\n");
             printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
@@ -155,13 +133,8 @@ int main(int argc, char *argv[])
                 printf("Config: release\n\n");
             #endif
             printf("Embedded Extensions:\n");
-            printf("   pl_window_ext:         %u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uMinor);
-            printf("   pl_file_ext:           %u.%u.%u\n", tFileExtVersion.uMajor, tFileExtVersion.uMinor, tFileExtVersion.uMinor);
-            printf("   pl_virtual_memory_ext: %u.%u.%u\n", tVirtualMemoryExtVersion.uMajor, tVirtualMemoryExtVersion.uMinor, tVirtualMemoryExtVersion.uMinor);
-            printf("   pl_atomics_ext:        %u.%u.%u\n", tAtomicsExtVersion.uMajor, tAtomicsExtVersion.uMinor, tAtomicsExtVersion.uMinor);
-            printf("   pl_threads_ext:        %u.%u.%u\n", tThreadsExtVersion.uMajor, tThreadsExtVersion.uMinor, tThreadsExtVersion.uMinor);
-            printf("   pl_network_ext:        %u.%u.%u\n", tNetworkExtVersion.uMajor, tNetworkExtVersion.uMinor, tNetworkExtVersion.uMinor);
-            printf("   pl_library_ext:        %u.%u.%u\n", tLibraryVersion.uMajor, tLibraryVersion.uMinor, tLibraryVersion.uMinor);
+            printf("   pl_window_ext:  %u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uMinor);
+            printf("   pl_library_ext: %u.%u.%u\n", tLibraryVersion.uMajor, tLibraryVersion.uMinor, tLibraryVersion.uMinor);
             return 0;
         }
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
@@ -257,7 +230,6 @@ int main(int argc, char *argv[])
 
     // unload extensions & APIs
     pl__unload_all_extensions();
-    pl__unload_ext_apis();
     pl__unload_core_apis();
 
     if(gptAppLibrary)
@@ -287,33 +259,11 @@ pl_destroy_window(plWindow* ptWindow)
 // [SECTION] file ext
 //-----------------------------------------------------------------------------
 
-bool
-pl_file_exists(const char* pcFile)
-{
-    FILE* ptDataFile = fopen(pcFile, "r");
-    
-    if(ptDataFile)
-    {
-        fclose(ptDataFile);
-        return true;
-    }
-    return false;
-}
-
-plFileResult
-pl_file_delete(const char* pcFile)
-{
-    int iResult = remove(pcFile);
-    if(iResult)
-        return PL_FILE_RESULT_FAIL;
-    return PL_FILE_RESULT_SUCCESS;
-}
-
-plFileResult
+void
 pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
     if(pszSizeIn == NULL)
-        return PL_FILE_RESULT_FAIL;
+        return;
 
     FILE* ptDataFile = fopen(pcFile, "rb");
     size_t uSize = 0u;
@@ -321,7 +271,7 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
     if (ptDataFile == NULL)
     {
         *pszSizeIn = 0u;
-        return PL_FILE_RESULT_FAIL;
+        return;
     }
 
     // obtain file size
@@ -332,7 +282,7 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
     {
         *pszSizeIn = uSize;
         fclose(ptDataFile);
-        return PL_FILE_RESULT_SUCCESS;
+        return;
     }
     fseek(ptDataFile, 0, SEEK_SET);
 
@@ -345,39 +295,22 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
         else if (ferror(ptDataFile)) {
             perror("Error reading test.bin");
         }
-        return PL_FILE_RESULT_FAIL;
+        return;
     }
 
     fclose(ptDataFile);
-    return PL_FILE_RESULT_SUCCESS;
+    return;
 }
 
-plFileResult
-pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
-{
-    FILE* ptDataFile = fopen(pcFile, "wb");
-    if (ptDataFile)
-    {
-        fwrite(pcBuffer, 1, szSize, ptDataFile);
-        fclose(ptDataFile);
-        return PL_FILE_RESULT_SUCCESS;
-    }
-    return PL_FILE_RESULT_FAIL;
-}
-
-plFileResult
+void
 pl_copy_file(const char* source, const char* destination)
 {
     #ifdef _WIN32
         BOOL bResult = CopyFile(source, destination, FALSE);
-        if(bResult)
-            return PL_FILE_RESULT_SUCCESS;
-        return PL_FILE_RESULT_FAIL;
     #elif defined(__APPLE__)
     copyfile_state_t tS = copyfile_state_alloc();
     copyfile(source, destination, tS, COPYFILE_XATTR | COPYFILE_DATA);
     copyfile_state_free(tS);
-    return PL_FILE_RESULT_SUCCESS;
     #else
         size_t bufferSize = 0u;
         pl_binary_read_file(source, &bufferSize, NULL);
@@ -389,7 +322,6 @@ pl_copy_file(const char* source, const char* destination)
         int n = 1;
         while (n > 0)
             n = sendfile(tofd, fromfd, 0, bufferSize * 2);
-        return PL_FILE_RESULT_SUCCESS;
     #endif
 }
 
@@ -426,7 +358,6 @@ pl__get_last_write_time(const char* filename)
     return attr.st_mtime;
 }
 #endif
-
 
 bool
 pl_has_library_changed(plSharedLibrary* ptLibrary)
@@ -555,7 +486,22 @@ pl_reload_library(plSharedLibrary* ptLibrary)
     {
         if(pl_load_library(ptLibrary->tDesc, &ptLibrary))
             break;
-        pl_sleep(100);
+        // pl_sleep(100);
+        #ifdef _WIN32
+        Sleep((long)100);
+        #else
+        struct timespec ts = {0};
+        int res;
+    
+        ts.tv_sec = 100 / 1000;
+        ts.tv_nsec = (100 % 1000) * 1000000;
+    
+        do 
+        {
+            res = nanosleep(&ts, &ts);
+        } 
+        while (res);
+        #endif
     }
 }
 
@@ -575,173 +521,14 @@ pl_load_library_function(plSharedLibrary* ptLibrary, const char* name)
     return pLoadedFunction;
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] atomics ext
-//-----------------------------------------------------------------------------
-
-typedef struct _plAtomicCounter
-{
-    int64_t ilValue;
-} plAtomicCounter;
-
-plAtomicsResult
-pl_create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
-{
-    *ptCounter = malloc(sizeof(plAtomicCounter));
-    (*ptCounter)->ilValue = ilValue;
-    return PL_ATOMICS_RESULT_SUCCESS;
-}
-
-void
-pl_destroy_atomic_counter(plAtomicCounter** ptCounter)
-{
-    free((*ptCounter));
-    (*ptCounter) = NULL;
-}
-
-void
-pl_atomic_store(plAtomicCounter* ptCounter, int64_t ilValue)
-{
-    ptCounter->ilValue = ilValue;
-}
-
-int64_t
-pl_atomic_load(plAtomicCounter* ptCounter)
-{
-    return ptCounter->ilValue;
-}
-
-bool
-pl_atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue)
-{
-    return true;
-}
-
-int64_t
-pl_atomic_increment(plAtomicCounter* ptCounter)
-{
-    return ptCounter->ilValue++;
-}
-
-int64_t
-pl_atomic_decrement(plAtomicCounter* ptCounter)
-{
-    return ptCounter->ilValue--;
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] network ext
-//-----------------------------------------------------------------------------
-
-plNetworkResult
-pl_create_address(const char* pcAddress, const char* pcService, plNetworkAddressFlags tFlags, plNetworkAddress** pptAddress)
-{
-    return PL_NETWORK_RESULT_FAIL;
-}
-
-void
-pl_destroy_address(plNetworkAddress** pptAddress)
-{
-}
-
-void
-pl_create_socket(plSocketFlags tFlags, plSocket** pptSocketOut)
-{
-}
-
-void
-pl_destroy_socket(plSocket** pptSocket)
-{
-}
-
-plNetworkResult
-pl_send_socket_data_to(plSocket* ptFromSocket, plNetworkAddress* ptAddress, const void* pData, size_t szSize, size_t* pszSentSize)
-{
-    return PL_NETWORK_RESULT_FAIL;
-}
-
-plNetworkResult
-pl_bind_socket(plSocket* ptSocket, plNetworkAddress* ptAddress)
-{
-    return PL_NETWORK_RESULT_FAIL;
-}
-
-plNetworkResult
-pl_get_socket_data_from(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize, plSocketReceiverInfo* ptReceiverInfo)
-{
-    return PL_NETWORK_RESULT_FAIL;
-}
-
-plNetworkResult
-pl_connect_socket(plSocket* ptFromSocket, plNetworkAddress* ptAddress)
-{
-    return PL_NETWORK_RESULT_FAIL;
-}
-
-plNetworkResult
-pl_get_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize)
-{
-    return PL_NETWORK_RESULT_FAIL; // connection closed by peer
-}
-
-plNetworkResult
-pl_select_sockets(plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec)
-{
-    return PL_NETWORK_RESULT_FAIL;
-}
-
-plNetworkResult
-pl_accept_socket(plSocket* ptSocket, plSocket** pptSocketOut)
-{
-    return PL_NETWORK_RESULT_FAIL;
-}
-
-plNetworkResult
-pl_listen_socket(plSocket* ptSocket)
-{
-    return PL_NETWORK_RESULT_FAIL;
-}
-
-plNetworkResult
-pl_send_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszSentSize)
-{
-    return PL_NETWORK_RESULT_FAIL;
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] threads ext
 //-----------------------------------------------------------------------------
 
 void
-pl_sleep(uint32_t uMillisec)
-{
-}
-
-plThreadResult
-pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** ppThreadOut)
-{
-    return PL_THREAD_RESULT_FAIL;
-}
-
-void
-pl_join_thread(plThread* ptThread)
-{
-}
-
-void
-pl_destroy_thread(plThread** ppThread)
-{
-}
-
-void
-pl_yield_thread(void)
-{
-}
-
-plThreadResult
 pl_create_mutex(plMutex** ppMutexOut)
 {
-    return PL_THREAD_RESULT_FAIL;
 }
 
 void
@@ -756,180 +543,6 @@ pl_lock_mutex(plMutex* ptMutex)
 
 void
 pl_unlock_mutex(plMutex* ptMutex)
-{
-}
-
-plThreadResult
-pl_create_critical_section(plCriticalSection** pptCriticalSectionOut)
-{
-    return PL_THREAD_RESULT_FAIL;
-}
-
-void
-pl_destroy_critical_section(plCriticalSection** pptCriticalSection)
-{
-}
-
-void
-pl_enter_critical_section(plCriticalSection* ptCriticalSection)
-{
-}
-
-void
-pl_leave_critical_section(plCriticalSection* ptCriticalSection)
-{
-}
-
-uint32_t
-pl_get_hardware_thread_count(void)
-{
-    return 1;
-}
-
-plThreadResult
-pl_create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
-{
-    return PL_THREAD_RESULT_FAIL;
-}
-
-void
-pl_destroy_barrier(plBarrier** pptBarrier)
-{
-}
-
-void
-pl_wait_on_barrier(plBarrier* ptBarrier)
-{
-}
-
-plThreadResult
-pl_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
-{
-    return PL_THREAD_RESULT_FAIL;
-}
-
-void
-pl_destroy_semaphore(plSemaphore** pptSemaphore)
-{
-}
-
-void
-pl_wait_on_semaphore(plSemaphore* ptSemaphore)
-{
-}
-
-bool
-pl_try_wait_on_semaphore(plSemaphore* ptSemaphore)
-{
-    return false;
-}
-
-void
-pl_release_semaphore(plSemaphore* ptSemaphore)
-{
-}
-
-plThreadResult
-pl_allocate_thread_local_key(plThreadKey** pptKeyOut)
-{
-    return PL_THREAD_RESULT_FAIL;
-}
-
-void
-pl_free_thread_local_key(plThreadKey** pptKey)
-{
-}
-
-void*
-pl_allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
-{
-    return NULL;
-}
-
-void*
-pl_get_thread_local_data(plThreadKey* ptKey)
-{
-    return NULL;
-}
-
-uint64_t
-pl_get_thread_id(plThread* ptThread)
-{
-    return 0;
-}
-
-uint64_t
-pl_get_current_thread_id(void)
-{
-    return 0;
-}
-
-void
-pl_free_thread_local_data(plThreadKey* ptKey, void* pData)
-{
-}
-
-plThreadResult
-pl_create_condition_variable(plConditionVariable** pptConditionVariableOut)
-{
-    return PL_THREAD_RESULT_FAIL;
-}
-
-void               
-pl_destroy_condition_variable(plConditionVariable** pptConditionVariable)
-{
-}
-
-void               
-pl_wake_condition_variable(plConditionVariable* ptConditionVariable)
-{
-}
-
-void               
-pl_wake_all_condition_variable(plConditionVariable* ptConditionVariable)
-{
-}
-
-void               
-pl_sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
-{
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] virtual memory ext
-//-----------------------------------------------------------------------------
-
-size_t
-pl_get_page_size(void)
-{
-    return 0;
-}
-
-void*
-pl_virtual_alloc(void* pAddress, size_t szSize)
-{
-    return NULL;
-}
-
-void*
-pl_virtual_reserve(void* pAddress, size_t szSize)
-{
-    return NULL;
-}
-
-void*
-pl_virtual_commit(void* pAddress, size_t szSize)
-{
-    return NULL;
-}
-
-void
-pl_virtual_free(void* pAddress, size_t szSize)
-{
-}
-
-void
-pl_virtual_uncommit(void* pAddress, size_t szSize)
 {
 }
 

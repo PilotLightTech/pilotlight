@@ -3,7 +3,7 @@
 
 #include "pl.h"
 #include "pl_log_ext.h"
-#include "pl_threads_ext.h"
+#include "pl_platform_ext.h" // threads
 #include "pl_graphics_ext.h"
 #include "pl_window_ext.h"
 #include "pl_profile_ext.h"
