@@ -52,7 +52,6 @@ static void pl_show_graphics_options(const char*);
 static void pl_refr_run_ecs(uint32_t uSceneHandle);
 static void pl_refr_render_scene(uint32_t, const uint32_t*, const plViewOptions*, uint32_t);
 static bool pl_refr_begin_frame(void);
-static void pl_refr_end_frame(void);
 static bool pl_refr_get_hovered_entity(uint32_t uSceneHandle, uint32_t uCount, plEntity*);
 
 // misc.
@@ -118,7 +117,8 @@ pl_refr_initialize(plRendererSettings tSettings)
 
     // default options
     gptData->pdDrawCalls = gptStats->get_counter("draw calls");
-    gptData->bMSAA = true;
+    gptData->bMSAA = false;
+    gptData->bReloadMSAA = false;
     gptData->bVSync = true;
     gptData->uMaxTextureResolution = tSettings.uMaxTextureResolution > 0 ? tSettings.uMaxTextureResolution : 1024;
     gptData->uOutlineWidth = 4;
@@ -193,7 +193,7 @@ pl_refr_initialize(plRendererSettings tSettings)
     // create swapchain
     const plSwapchainInit tSwapInit = {
         .bVSync = true,
-        .tSampleCount = atDeviceInfos[iBestDvcIdx].tMaxSampleCount
+        .tSampleCount = gptData->bMSAA ? atDeviceInfos[iBestDvcIdx].tMaxSampleCount : 1
     };
     gptData->ptSwap = gptGfx->create_swapchain(gptData->ptDevice, gptData->ptSurface, &tSwapInit);
     gptDataRegistry->set_data("device", gptData->ptDevice); // used by debug extension
@@ -615,87 +615,31 @@ pl_refr_initialize(plRendererSettings tSettings)
     };
     gptData->tMainMSAARenderPassLayout = gptGfx->create_render_pass_layout(gptData->ptDevice, &tMainMSAARenderPassLayoutDesc);
 
+    uint32_t uImageCount = 0;
+    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptData->ptSwap, &uImageCount);
+
+    plRenderPassAttachments atMainAttachmentSets[16] = {0};
+    for(uint32_t i = 0; i < uImageCount; i++)
+    {
+        atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
+    }
     plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptData->ptSwap);
-
-    const plTextureDesc tColorTextureDesc = {
-        .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
-        .tFormat       = gptGfx->get_swapchain_info(gptData->ptSwap).tFormat,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-        .pcDebugName   = "MSAA texture",
-        .tSampleCount  = tInfo.tSampleCount
-    };
-
-    // create textures
-    gptData->tMSAATexture = gptGfx->create_texture(gptData->ptDevice, &tColorTextureDesc, NULL);
-
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptData->atCmdPools[0]);
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-
-    // begin blit pass, copy buffer, end pass
-    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-
-    // retrieve textures
-    plTexture* ptColorTexture = gptGfx->get_texture(gptData->ptDevice, gptData->tMSAATexture);
-
-    // allocate memory
-    const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(gptData->ptDevice, 
-        ptColorTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU,
-        ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
-        "color texture memory");
-
-    // bind memory
-    gptGfx->bind_texture_to_memory(gptData->ptDevice, gptData->tMSAATexture, &tColorAllocation);
-
-    // set initial usage
-    gptGfx->set_texture_usage(ptEncoder, gptData->tMSAATexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
-
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-    gptGfx->end_blit_pass(ptEncoder);
-
-    // finish recording
-    gptGfx->end_command_recording(ptCommandBuffer);
-
-    // submit command buffer
-    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
-
-    const plRenderPassDesc tMainMSAARenderPassDesc = {
-        .tLayout = gptData->tMainMSAARenderPassLayout,
-        .tResolveTarget = { // swapchain image
-            .tLoadOp       = PL_LOAD_OP_DONT_CARE,
-            .tStoreOp      = PL_STORE_OP_STORE,
-            .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-            .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
-            .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
-        },
+    const plRenderPassDesc tMainRenderPassDesc = {
+        .tLayout = gptData->tMainRenderPassLayout,
         .atColorTargets = { // msaa
             {
                 .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tStoreOp      = PL_STORE_OP_STORE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+                .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
         .tDimensions = {(float)tInfo.uWidth, (float)tInfo.uHeight},
         .ptSwapchain = gptData->ptSwap
     };
-    uint32_t uImageCount = 0;
-    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptData->ptSwap, &uImageCount);
-    plRenderPassAttachments atMainMSAAAttachmentSets[16] = {0};
-    for(uint32_t i = 0; i < uImageCount; i++)
-    {
-        atMainMSAAAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
-        atMainMSAAAttachmentSets[i].atViewAttachments[1] = gptData->tMSAATexture;
-    }
-    gptData->tMainMSAARenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tMainMSAARenderPassDesc, atMainMSAAAttachmentSets);
-    gptData->tCurrentMainRenderPass = gptData->tMainMSAARenderPass;
+    gptData->tMainRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
+    gptData->tCurrentMainRenderPass = gptData->tMainRenderPass;
 
     plComputeShaderDesc tFilterComputeShaderDesc = {
         .tShader = gptShader->load_glsl("filter_environment.comp", "main", NULL, NULL),
@@ -3984,8 +3928,8 @@ pl_refr_resize(void)
 
     plSwapchainInit tDesc = {
         .bVSync  = gptData->bVSync,
-        .uWidth  = (uint32_t)gptIO->tMainViewportSize.x,
-        .uHeight = (uint32_t)gptIO->tMainViewportSize.y,
+        .uWidth  = (uint32_t)(gptIO->tMainViewportSize.x * gptIO->tMainFramebufferScale.x),
+        .uHeight = (uint32_t)(gptIO->tMainViewportSize.y * gptIO->tMainFramebufferScale.y),
         .tSampleCount = gptData->bMSAA ? gptData->tDeviceInfo.tMaxSampleCount : PL_SAMPLE_COUNT_1
     };
     gptGfx->recreate_swapchain(gptData->ptSwap, &tDesc);
@@ -4076,7 +4020,7 @@ pl_refr_begin_frame(void)
                 atMainMSAAAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
                 atMainMSAAAttachmentSets[i].atViewAttachments[1] = gptData->tMSAATexture;
             }
-            gptGfx->update_render_pass_attachments(gptData->ptDevice, gptData->tMainMSAARenderPass, gptIO->tMainViewportSize, atMainMSAAAttachmentSets);
+            gptGfx->update_render_pass_attachments(gptData->ptDevice, gptData->tMainMSAARenderPass, tColorTextureDesc.tDimensions.xy, atMainMSAAAttachmentSets);
             gptData->tCurrentMainRenderPass = gptData->tMainMSAARenderPass;
         }
         else
@@ -4088,28 +4032,28 @@ pl_refr_begin_frame(void)
             {
                 atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
             }
-
+            plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptData->ptSwap);
+            const plRenderPassDesc tMainRenderPassDesc = {
+                .tLayout = gptData->tMainRenderPassLayout,
+                .atColorTargets = { // msaa
+                    {
+                        .tLoadOp       = PL_LOAD_OP_CLEAR,
+                        .tStoreOp      = PL_STORE_OP_STORE,
+                        .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+                        .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
+                        .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                    }
+                },
+                .tDimensions = {(float)tInfo.uWidth, (float)tInfo.uHeight},
+                .ptSwapchain = gptData->ptSwap
+            };
             if(gptData->tMainRenderPass.uIndex == 0)
             {
-                plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptData->ptSwap);
-                const plRenderPassDesc tMainRenderPassDesc = {
-                    .tLayout = gptData->tMainRenderPassLayout,
-                    .atColorTargets = { // msaa
-                        {
-                            .tLoadOp       = PL_LOAD_OP_CLEAR,
-                            .tStoreOp      = PL_STORE_OP_STORE,
-                            .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-                            .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
-                            .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
-                        }
-                    },
-                    .tDimensions = {(float)tInfo.uWidth, (float)tInfo.uHeight},
-                    .ptSwapchain = gptData->ptSwap
-                };
+
                 gptData->tMainRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
             }
             else
-                gptGfx->update_render_pass_attachments(gptData->ptDevice, gptData->tMainRenderPass, gptIO->tMainViewportSize, atMainAttachmentSets);
+                gptGfx->update_render_pass_attachments(gptData->ptDevice, gptData->tMainRenderPass, tMainRenderPassDesc.tDimensions, atMainAttachmentSets);
             
             gptData->tCurrentMainRenderPass = gptData->tMainRenderPass;
         }
@@ -4203,11 +4147,15 @@ pl_refr_begin_frame(void)
     return true;
 }
 
-static void
-pl_refr_end_frame(void)
+static plRenderPassHandle
+pl_refr_get_main_render_pass(void)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    return gptData->tCurrentMainRenderPass;
+}
 
+static void
+pl_refr_begin_final_pass(plRenderEncoder** pptEncoder, plCommandBuffer** pptCommandBuffer)
+{
     plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
     plDevice*   ptDevice   = gptData->ptDevice;
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -4227,16 +4175,30 @@ pl_refr_end_frame(void)
 
     plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptData->tCurrentMainRenderPass, NULL);
 
+    plIO* ptIO = gptIOI->get_io();
+    float fWidth = ptIO->tMainViewportSize.x;
+    float fHeight = ptIO->tMainViewportSize.y;
+
     // render ui
     pl_begin_cpu_sample(gptProfile, 0, "render ui");
-    plIO* ptIO = gptIOI->get_io();
+    
     gptUI->end_frame();
-    gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
-    gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
+    gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), ptEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
+    gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
     pl_end_cpu_sample(gptProfile, 0);
 
-    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y);
-    gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
+    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth, fHeight);
+    gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
+
+
+    *pptEncoder = ptEncoder;
+    *pptCommandBuffer = ptCommandBuffer;
+}
+
+static void
+pl_refr_end_final_pass(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer)
+{
+    const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
     gptGfx->end_render_pass(ptEncoder);
 
@@ -4244,19 +4206,15 @@ pl_refr_end_frame(void)
 
     const plSubmitInfo tSubmitInfo = {
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {tSemHandle},
-        .auSignalSemaphoreValues = {++ulValue},
+        .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+        .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]},
     };
-    gptData->aulNextTimelineValue[uFrameIdx] = ulValue;
     if(!gptGfx->present(ptCommandBuffer, &tSubmitInfo, &gptData->ptSwap, 1))
     {
         pl_refr_resize();
     }
 
     gptGfx->return_command_buffer(ptCommandBuffer);
-
-    // *gptData->pdDrawCalls = 0.0f;
-    pl_end_cpu_sample(gptProfile, 0);
 }
 
 static plDrawList3D*
@@ -4681,7 +4639,8 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .cleanup_view                       = pl_refr_cleanup_view,
         .run_ecs                            = pl_refr_run_ecs,
         .begin_frame                        = pl_refr_begin_frame,
-        .end_frame                          = pl_refr_end_frame,
+        .begin_final_pass                   = pl_refr_begin_final_pass,
+        .end_final_pass                     = pl_refr_end_final_pass,
         .get_component_library              = pl_refr_get_component_library,
         .get_device                         = pl_refr_get_device,
         .get_swapchain                      = pl_refr_get_swapchain,
@@ -4699,6 +4658,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .show_graphics_options              = pl_show_graphics_options,
         .get_command_pool                   = pl__refr_get_command_pool,
         .resize                             = pl_refr_resize,
+        .get_main_render_pass               = pl_refr_get_main_render_pass,
     };
     pl_set_api(ptApiRegistry, plRendererI, &tApi);
 

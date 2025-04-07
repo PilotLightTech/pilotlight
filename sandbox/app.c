@@ -659,7 +659,10 @@ pl_app_update(plAppData* ptAppData)
 
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
 
-    gptRenderer->end_frame();
+    plRenderEncoder* ptRenderEncoder = NULL;
+    plCommandBuffer* ptCommandBuffer = NULL;
+    gptRenderer->begin_final_pass(&ptRenderEncoder, &ptCommandBuffer);
+    gptRenderer->end_final_pass(ptRenderEncoder, ptCommandBuffer);
 
     pl_end_cpu_sample(gptProfile, 0);
     gptProfile->end_frame();

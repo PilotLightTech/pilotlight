@@ -42,6 +42,8 @@ typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
 typedef struct _plCommandPool      plCommandPool;      // pl_graphics_ext.h
 typedef struct _plSwapchain        plSwapchain;        // pl_graphics_ext.h
 typedef union  plTextureHandle     plTextureHandle;    // pl_graphics_ext.h
+typedef struct _plRenderEncoder    plRenderEncoder;    // pl_graphics_ext.h
+typedef union  plRenderPassHandle  plRenderPassHandle; // pl_graphics_ext.h
 typedef union  plBindGroupHandle   plBindGroupHandle;  // pl_graphics_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plCameraComponent  plCameraComponent;  // pl_ecs_ext.h
@@ -89,10 +91,11 @@ typedef struct _plRendererI
     void (*show_graphics_options)(const char* pcTitle);
 
     // per frame
-    void (*run_ecs)     (uint32_t uSceneHandle);
-    void (*render_scene)(uint32_t uSceneHandle, const uint32_t* auViewHandles, const plViewOptions* atOptions, uint32_t uViewCount);
-    bool (*begin_frame) (void);
-    void (*end_frame)   (void);
+    void (*run_ecs)         (uint32_t uSceneHandle);
+    void (*render_scene)    (uint32_t uSceneHandle, const uint32_t* auViewHandles, const plViewOptions* atOptions, uint32_t uViewCount);
+    bool (*begin_frame)     (void);
+    void (*begin_final_pass)(plRenderEncoder**, plCommandBuffer**);
+    void (*end_final_pass)  (plRenderEncoder*, plCommandBuffer*);
 
     // selection & highlighting
     void (*update_hovered_entity)(uint32_t uSceneHandle, uint32_t uViewHandle);
@@ -106,6 +109,7 @@ typedef struct _plRendererI
     plDrawList3D*       (*get_debug_drawlist)(uint32_t uSceneHandle, uint32_t uViewHandle);
     plDrawList3D*       (*get_gizmo_drawlist)(uint32_t uSceneHandle, uint32_t uViewHandle);
     plCommandPool*      (*get_command_pool)(void);
+    plRenderPassHandle  (*get_main_render_pass)(void);
 
 } plRendererI;
 
