@@ -206,6 +206,8 @@ typedef int plGraphicsBackend;        // -> enum _plGraphicsBackend        // En
 // external
 typedef struct _plWindow plWindow; // pl_os.h
 
+//------------------------------NOT STABLE-------------------------------------
+
 #ifdef PL_GRAPHICS_EXPOSE_VULKAN
 typedef struct VkInstance_T*       VkInstance;
 typedef struct VkPhysicalDevice_T* VkPhysicalDevice;
@@ -215,6 +217,11 @@ typedef struct VkCommandBuffer_T*  VkCommandBuffer;
 
 typedef struct VkRenderPass_T*     VkRenderPass;
 typedef struct VkDescriptorPool_T* VkDescriptorPool;
+#endif
+
+#ifdef PL_GRAPHICS_EXPOSE_METAL
+@class MTLRenderPassDescriptor;
+@protocol MTLDevice, MTLCommandBuffer, MTLRenderCommandEncoder;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -408,16 +415,23 @@ typedef struct _plGraphicsI
     //------------------------------NOT STABLE-------------------------------------
 
     #ifdef PL_GRAPHICS_EXPOSE_VULKAN
-    VkInstance       (*get_vulkan_instance)(void);
-    uint32_t         (*get_vulkan_api_version)(void);
-    VkDevice         (*get_vulkan_device)(plDevice*);
+    VkInstance       (*get_vulkan_instance)       (void);
+    uint32_t         (*get_vulkan_api_version)    (void);
+    VkDevice         (*get_vulkan_device)         (plDevice*);
     VkPhysicalDevice (*get_vulkan_physical_device)(plDevice*);
-    VkQueue          (*get_vulkan_queue)(plDevice*);
-    uint32_t         (*get_vulkan_queue_family)(plDevice*);
-    VkRenderPass     (*get_vulkan_render_pass)(plDevice*, plRenderPassHandle);
+    VkQueue          (*get_vulkan_queue)          (plDevice*);
+    uint32_t         (*get_vulkan_queue_family)   (plDevice*);
+    VkRenderPass     (*get_vulkan_render_pass)    (plDevice*, plRenderPassHandle);
     VkDescriptorPool (*get_vulkan_descriptor_pool)(plBindGroupPool*);
-    int              (*get_vulkan_sample_count)(plSwapchain*);
-    VkCommandBuffer  (*get_vulkan_command_buffer)(plCommandBuffer*);
+    int              (*get_vulkan_sample_count)   (plSwapchain*);
+    VkCommandBuffer  (*get_vulkan_command_buffer) (plCommandBuffer*);
+    #endif
+
+    #ifdef PL_GRAPHICS_EXPOSE_METAL
+    id<MTLDevice>               (*get_metal_device)(plDevice*);
+    MTLRenderPassDescriptor*    (*get_metal_render_pass_descriptor)(plDevice*, plRenderPassHandle);
+    id<MTLCommandBuffer>        (*get_metal_command_buffer)(plCommandBuffer*);
+    id<MTLRenderCommandEncoder> (*get_metal_command_encoder)(plRenderEncoder*);
     #endif
 
 } plGraphicsI;

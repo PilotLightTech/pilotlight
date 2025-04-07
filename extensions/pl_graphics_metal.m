@@ -3466,3 +3466,27 @@ pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
     ptVariantMetalResource->tPipelineState = nil;
     pl_sb_push(ptDevice->sbtComputeShaderFreeIndices, tHandle.uIndex);
 }
+
+id<MTLDevice>
+pl_get_metal_device(plDevice* ptDevice)
+{
+    return ptDevice->tDevice;
+}
+
+MTLRenderPassDescriptor*
+pl_get_metal_render_pass_descriptor(plDevice* ptDevice, plRenderPassHandle tHandle)
+{
+    return ptDevice->sbtRenderPassesHot[tHandle.uIndex].atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0];
+}
+
+id<MTLCommandBuffer>
+pl_get_metal_command_buffer(plCommandBuffer* ptCommandBuffer)
+{
+    return ptCommandBuffer->tCmdBuffer;
+}
+
+id<MTLRenderCommandEncoder>
+pl_get_metal_command_encoder(plRenderEncoder* ptEncoder)
+{
+    return ptEncoder->tEncoder;
+}
