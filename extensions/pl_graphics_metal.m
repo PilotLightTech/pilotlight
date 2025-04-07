@@ -189,6 +189,7 @@ typedef struct _plGraphics
     
     // per frame
     id<CAMetalDrawable> tCurrentDrawable;
+    plRenderPassHandle* sbtMainRenderPassHandles;
 } plGraphics;
 
 typedef struct _plDevice
@@ -387,7 +388,10 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const 
     // subpasses
     uint32_t uCount = gptGraphics->uFramesInFlight;
     if(ptDesc->ptSwapchain)
+    {
         uCount = ptDesc->ptSwapchain->uImageCount;
+        pl_sb_push(gptGraphics->sbtMainRenderPassHandles, tHandle);
+    }
 
     for(uint32_t uFrameIndex = 0; uFrameIndex < uCount; uFrameIndex++)
     {
@@ -1809,14 +1813,16 @@ pl_acquire_swapchain_image(plSwapchain* ptSwapchain)
     plIO* ptIOCtx = gptIOI->get_io();
     gptGraphics->pMetalLayer = ptIOCtx->pBackendPlatformData;
 
-    
     // get next drawable
     gptGraphics->tCurrentDrawable = [gptGraphics->pMetalLayer nextDrawable];
 
-    if(!gptGraphics->tCurrentDrawable)
+    for(uint32_t i = 0; i < pl_sb_size(gptGraphics->sbtMainRenderPassHandles); i++)
     {
-        pl_end_cpu_sample(gptProfile, 0);
-        return false;
+        plMetalRenderPass* ptMetalRenderPass = &ptDevice->sbtRenderPassesHot[gptGraphics->sbtMainRenderPassHandles[i].uIndex];
+        if(ptMetalRenderPass->uResolveIndex == UINT32_MAX)
+            ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0].colorAttachments[0].texture = gptGraphics->tCurrentDrawable.texture;
+        else
+            ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0].colorAttachments[ptMetalRenderPass->uResolveIndex].resolveTexture = gptGraphics->tCurrentDrawable.texture;
     }
 
     pl_end_cpu_sample(gptProfile, 0);
@@ -2018,19 +2024,13 @@ pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, con
     plRenderPass* ptRenderPass = pl_get_render_pass(ptDevice, tPass);
     plMetalRenderPass* ptMetalRenderPass = &ptDevice->sbtRenderPassesHot[tPass.uIndex];
     plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, ptRenderPass->tDesc.tLayout);
-
+    ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0]];
     if(ptRenderPass->tDesc.ptSwapchain)
     {
-        if(ptMetalRenderPass->uResolveIndex == UINT32_MAX)
-            ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0].colorAttachments[0].texture = gptGraphics->tCurrentDrawable.texture;
-        else
-            ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0].colorAttachments[ptMetalRenderPass->uResolveIndex].resolveTexture = gptGraphics->tCurrentDrawable.texture;
-        ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0]];
         ptEncoder->tEncoder.label = @"main encoder";
     }
     else
     {
-        ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0]];
         ptEncoder->tEncoder.label = @"offscreen encoder";
         [ptEncoder->tEncoder waitForFence:ptMetalRenderPass->tFence beforeStages:MTLRenderStageFragment | MTLRenderStageVertex];
     }
@@ -2695,6 +2695,7 @@ pl_flush_device(plDevice* ptDevice)
 static void
 pl_cleanup_graphics(void)
 {
+    pl_sb_free(gptGraphics->sbtMainRenderPassHandles);
     pl__cleanup_common_graphics();
 }
 
