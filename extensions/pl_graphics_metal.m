@@ -148,6 +148,7 @@ typedef struct _plMetalBindGroup
     plSamplerHandle   atSamplerBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
     uint64_t          uHeapUsageMask;
     uint32_t          uOffset;
+    plTextureHandle   tFirstTexture; // for use with imgui for now (temp)
 } plMetalBindGroup;
 
 typedef struct _plMetalShader
@@ -958,6 +959,8 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     {
         const plBindGroupUpdateTextureData* ptUpdate = &ptData->atTextureBindings[i];
         plTexture* ptTexture = pl__get_texture(ptDevice, ptUpdate->tTexture);
+        if(i == 0)
+            ptMetalBindGroup->tFirstTexture = ptUpdate->tTexture;
         plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[ptUpdate->tTexture.uIndex];
         MTLResourceID* pptDestination = (MTLResourceID*)&pulDescriptorStart[ptUpdate->uSlot + ptUpdate->uIndex];
         *pptDestination = ptMetalTexture->tTexture.gpuResourceID;
@@ -3490,4 +3493,16 @@ id<MTLRenderCommandEncoder>
 pl_get_metal_command_encoder(plRenderEncoder* ptEncoder)
 {
     return ptEncoder->tEncoder;
+}
+
+id<MTLTexture>
+pl_get_metal_texture(plDevice* ptDevice, plTextureHandle tHandle)
+{
+    return ptDevice->sbtTexturesHot[tHandle.uIndex].tTexture;
+}
+
+plTextureHandle
+pl_get_metal_bind_group_texture(plDevice* ptDevice, plBindGroupHandle tHandle)
+{
+    return ptDevice->sbtBindGroupsHot[tHandle.uIndex].tFirstTexture;
 }

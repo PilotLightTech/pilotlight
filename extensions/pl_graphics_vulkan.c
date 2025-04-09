@@ -5633,3 +5633,21 @@ pl_get_vulkan_command_buffer(plCommandBuffer* ptCmdBuffer)
 {
     return ptCmdBuffer->tCmdBuffer;
 }
+
+VkImageView
+pl_get_vulkan_image_view(plDevice* ptDevice, plTextureHandle tHandle)
+{
+    return ptDevice->sbtTexturesHot[tHandle.uIndex].tImageView;
+}
+
+VkSampler
+pl_get_vulkan_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
+{
+    return ptDevice->sbtSamplersHot[tHandle.uIndex];
+}
+
+VkDescriptorSet
+pl_get_vulkan_descriptor_set(plDevice* ptDevice, plBindGroupHandle tHandle)
+{
+    return ptDevice->sbtBindGroupsHot[tHandle.uIndex].tDescriptorSet;
+}

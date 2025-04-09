@@ -217,11 +217,14 @@ typedef struct VkCommandBuffer_T*  VkCommandBuffer;
 
 typedef struct VkRenderPass_T*     VkRenderPass;
 typedef struct VkDescriptorPool_T* VkDescriptorPool;
+typedef struct VkImageView_T*      VkImageView;
+typedef struct VkSampler_T*        VkSampler;
+typedef struct VkDescriptorSet_T*  VkDescriptorSet;
 #endif
 
 #ifdef PL_GRAPHICS_EXPOSE_METAL
 @class MTLRenderPassDescriptor;
-@protocol MTLDevice, MTLCommandBuffer, MTLRenderCommandEncoder;
+@protocol MTLDevice, MTLCommandBuffer, MTLRenderCommandEncoder, MTLTexture;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -425,10 +428,15 @@ typedef struct _plGraphicsI
     VkDescriptorPool (*get_vulkan_descriptor_pool)(plBindGroupPool*);
     int              (*get_vulkan_sample_count)   (plSwapchain*);
     VkCommandBuffer  (*get_vulkan_command_buffer) (plCommandBuffer*);
+    VkImageView      (*get_vulkan_image_view)     (plDevice*, plTextureHandle);
+    VkSampler        (*get_vulkan_sampler)        (plDevice*, plSamplerHandle);
+    VkDescriptorSet  (*get_vulkan_descriptor_set) (plDevice*, plBindGroupHandle);
     #endif
 
     #ifdef PL_GRAPHICS_EXPOSE_METAL
     id<MTLDevice>               (*get_metal_device)(plDevice*);
+    plTextureHandle             (*get_metal_bind_group_texture)(plDevice*, plBindGroupHandle);
+    id<MTLTexture>              (*get_metal_texture)(plDevice*, plTextureHandle);
     MTLRenderPassDescriptor*    (*get_metal_render_pass_descriptor)(plDevice*, plRenderPassHandle);
     id<MTLCommandBuffer>        (*get_metal_command_buffer)(plCommandBuffer*);
     id<MTLRenderCommandEncoder> (*get_metal_command_encoder)(plRenderEncoder*);
