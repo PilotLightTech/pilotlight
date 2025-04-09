@@ -14,7 +14,7 @@
 # [SECTION] version
 #-----------------------------------------------------------------------------
 
-__version__ = "1.0.12"
+__version__ = "1.1.0"
 
 #-----------------------------------------------------------------------------
 # [SECTION] imports
@@ -69,6 +69,7 @@ class CompilerSettings:
         self.target_type = None
         self.lock_file = None
         self.reloadable = None
+        self.always_build = None
 
 class ScriptData:
 
@@ -76,7 +77,7 @@ class ScriptData:
         self.version = __version__
         self.current_settings = []
         self.project_name = None
-        self.reload_target_name = None
+        self.reload_target_names = []
         self.registered_configurations = []
         
 class BuildContext:
@@ -87,12 +88,14 @@ class BuildContext:
 
         # current profiles
         self._profiles = []
+        self._stashed_profiles = []
 
         # current target information
         self._target_name = None
         self._target_type = None
         self._target_lock_file = None
         self._target_reloadable = False
+        self._target_always_build = True
 
         # current platform
         self._platform_name = None
@@ -274,18 +277,20 @@ def project(name: str):
         pass
 
 @contextmanager
-def target(name: str, target_type: TargetType = TargetType.EXECUTABLE, reloadable: bool = False):
+def target(name: str, target_type: TargetType = TargetType.EXECUTABLE, reloadable: bool = False, always_build: bool = True):
     try:
         _context._target_name = name
         _context._target_type = target_type
         _context._target_lock_file = "lock.tmp"
         _context._target_reloadable = reloadable
+        _context._target_always_build = always_build
         yield None
     finally:
         _context._target_name = None
         _context._target_type = None
         _context._target_lock_file = None
         _context._target_reloadable = False
+        _context._target_always_build = True
         _context._target_output_directory = None
         _context._target_output_binary = None
         _context._target_definitions = []
@@ -359,6 +364,7 @@ def compiler(name: str):
         compiler.target_type = _context._target_type
         compiler.lock_file = _context._target_lock_file
         compiler.reloadable = _context._target_reloadable
+        compiler.always_build = _context._target_always_build
 
         # inherited from various scopes
         if _context._platform_output_directory is not None:
@@ -415,8 +421,19 @@ def compiler(name: str):
 # [SECTION] public api
 #-----------------------------------------------------------------------------
     
+def stash_profiles():
+    _context._stashed_profiles = _context._profiles
+    _context._profiles = []
+
+def apply_profiles():
+    _context._profiles = _context._stashed_profiles
+    _context._stashed_profiles = []
+
 def set_hot_reload_target(target_name: str):
-    _context._script_data.reload_target_name = target_name
+    _context._script_data.reload_target_names = [target_name]
+
+def add_hot_reload_target(target_name: str):
+    _context._script_data.reload_target_names.append(target_name)
 
 def add_source_files(*args):
 

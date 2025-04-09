@@ -147,8 +147,6 @@ def generate_build(name, user_options = None):
     #     helper.add_line(_context.pre_build_step)
     #     helper.add_spacing()
 
-
-
     for register_config in data.registered_configurations:
 
         # filter this config only settings
@@ -161,7 +159,7 @@ def generate_build(name, user_options = None):
             continue
 
         # find hot reload target
-        if data.reload_target_name is not None:
+        if len(data.reload_target_names) > 0:
             hot_reload = True
 
         helper.add_title("configuration | " + register_config)
@@ -193,9 +191,10 @@ def generate_build(name, user_options = None):
             helper.add_line("@set PL_HOT_RELOAD_STATUS=0")
             
             helper.add_spacing()
-            helper.add_comment("hack to see if " + data.reload_target_name + " exe is running")
+            helper.add_comment("hack to see if hot reload target exes are running")
             helper.add_line("@echo off")
-            helper.add_line('2>nul (>>"' + data.reload_target_name + '.exe" echo off) && (@set PL_HOT_RELOAD_STATUS=0) || (@set PL_HOT_RELOAD_STATUS=1)')
+            for reload_target in data.reload_target_names:
+                helper.add_line('2>nul (>>"' + reload_target + '.exe" echo off) && (@set PL_HOT_RELOAD_STATUS=%PL_HOT_RELOAD_STATUS%) || (@set PL_HOT_RELOAD_STATUS=1)')
             
             helper.add_spacing()
             helper.add_comment("let user know if hot reloading")
@@ -212,7 +211,7 @@ def generate_build(name, user_options = None):
         
         # delete old binaries & files
         for settings in config_only_settings:
-            if settings.source_files:
+            if settings.source_files and settings.always_build:
                 helper.delete_file(settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension)
                 if settings.target_type == pl.TargetType.DYNAMIC_LIBRARY:
                     helper.delete_file(settings.output_directory + '/' + settings.output_binary + '_*' + settings.output_binary_extension)
@@ -234,6 +233,12 @@ def generate_build(name, user_options = None):
             if not settings.reloadable and hot_reload:
                 helper.add_comment("skip during hot reload")
                 helper.add_line('@if %PL_HOT_RELOAD_STATUS% equ 1 goto ' + "Exit_" + settings.target_name)
+                helper.add_spacing()
+
+            if not settings.always_build:
+                p = pathlib.PureWindowsPath(settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension)
+                helper.add_comment("only build once")
+                helper.add_line('@if exist "' + str(p) + '" goto Exit_' + settings.target_name)
                 helper.add_spacing()
 
             if settings.pre_build_step is not None:
@@ -426,6 +431,9 @@ def generate_build(name, user_options = None):
             if not settings.reloadable:
                 helper.add_label("Exit_" + settings.target_name)
                 helper.add_spacing()
+
+            helper.add_line('@del "' + str(pathlib.PureWindowsPath(settings.output_directory + '/*.obj')) + '"  > nul 2> nul')
+            helper.add_spacing()
 
         helper.add_line(':Cleanup' + register_config)
         helper.add_spacing()

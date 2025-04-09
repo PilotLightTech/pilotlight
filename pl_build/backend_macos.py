@@ -155,7 +155,7 @@ def generate_build(name, user_options = None):
             continue
 
         # check if hot reload
-        if data.reload_target_name is not None:
+        if len(data.reload_target_names) > 0:
             hot_reload = True
 
         helper.add_title("configuration | " + register_config)
@@ -188,23 +188,28 @@ def generate_build(name, user_options = None):
             helper.add_spacing()
 
             helper.add_comment("# let user know if hot reloading")
-            helper.add_line('running_count=$(ps aux | grep -v grep | grep -ci "' + PurePath(data.reload_target_name).stem + '")')
-            helper.add_line('if [ $running_count -gt 0 ]')
-            helper.add_line('then')
-            helper.set_indent(4)
-            helper.add_line('PL_HOT_RELOAD_STATUS=1')
-            helper.print_space()
-            helper.print_line('${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}')
-            helper.print_space()
-            helper.set_indent(0)
+            for reload_target in data.reload_target_names:
+                helper.add_comment("# let user know if hot reloading")
+                helper.add_line('running_count=$(ps aux | grep -v grep | grep -ci "' + PurePath(reload_target).stem + '")')
+                if reload_target == data.reload_target_names[0]:
+                    helper.add_line('if [ $running_count -gt 0 ]')
+                else:
+                    helper.add_line('elif [ $running_count -gt 0 ]')
+                helper.add_line('then')
+                helper.set_indent(4)
+                helper.add_line('PL_HOT_RELOAD_STATUS=1')
+                helper.print_space()
+                helper.print_line('${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}')
+                helper.print_space()
+                helper.set_indent(0)
             helper.add_line('else')
             helper.set_indent(4)
             helper.add_comment('cleanup binaries if not hot reloading')
-            helper.add_line('PL_HOT_RELOAD_STATUS=0')
+            helper.add_line('PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS')
 
         # delete old binaries & files
         for settings in config_only_settings:
-            if settings.source_files:
+            if settings.source_files and settings.always_build:
                 if settings.name == compiler:
                     if settings.target_type == pl.TargetType.DYNAMIC_LIBRARY:
                         helper.delete_file(settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension)
@@ -227,6 +232,12 @@ def generate_build(name, user_options = None):
             if not settings.reloadable and hot_reload:
                 helper.add_comment('skip during hot reload')
                 helper.add_line('if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then')
+                helper.add_spacing()
+
+            if not settings.always_build:
+                helper.add_comment('only build once')
+                file_name = settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension
+                helper.add_line('if [ ! -f "' + file_name + '" ]; then')
                 helper.add_spacing()
 
             if settings.pre_build_step is not None:
@@ -312,7 +323,7 @@ def generate_build(name, user_options = None):
                 helper.print_line('${YELLOW}Step: ' + settings.target_name +'${NC}')
                 helper.print_line('${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}')
                 helper.print_line('${CYAN}Compiling and Linking...${NC}')
-                helper.add_line('clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS -o "./' + settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension +'"')
+                helper.add_line('clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./' + settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension +'"')
                 helper.add_spacing()
 
             elif settings.target_type == pl.TargetType.EXECUTABLE:
@@ -321,7 +332,7 @@ def generate_build(name, user_options = None):
                 helper.print_line('${YELLOW}Step: ' + settings.target_name +'${NC}')
                 helper.print_line('${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}')
                 helper.print_line('${CYAN}Compiling and Linking...${NC}')
-                helper.add_line('clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_LINKER_FLAGS $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES -o "./' + settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension +'"')
+                helper.add_line('clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./' + settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension +'"')
                 helper.add_spacing()
 
             # check build status
@@ -341,6 +352,10 @@ def generate_build(name, user_options = None):
             if settings.post_build_step is not None:
                 helper.add_line(settings.post_build_step)
                 helper.add_spacing()
+
+            if not settings.always_build:
+                helper.add_comment('only build once check')
+                helper.add_line('fi')
 
             if not settings.reloadable and hot_reload:
                 helper.add_comment("hot reload skip")
