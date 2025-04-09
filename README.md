@@ -44,7 +44,7 @@ A template application can be found [here](https://git.pilotlight.tech/pilotligh
 * <ins>extensions</ins> - Contains extensions (most functionality is provided through these extensions).
 * <ins>libs</ins> - Contains standalone "stb-style" libraries that can be used in other projects.
 * <ins>pl_build</ins> - Contains a lightweight python-based build system used for this project.
-* <ins>sandbox</ins> - Contains janky code used for development.
+* <ins>editor</ins> - Contains janky code used for development & eventual editor.
 * <ins>scripts</ins> - Contains helper scripts for various things.
 * <ins>shaders</ins> - Contains shader code.
 * <ins>src</ins> - Contains the small core of Pilot Light.

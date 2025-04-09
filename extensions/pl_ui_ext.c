@@ -50,7 +50,7 @@ pl_set_dark_theme(void)
     // colors
     gptCtx->tColorScheme.tTitleActiveCol       = (plVec4){0.33f, 0.02f, 0.10f, 1.00f};
     gptCtx->tColorScheme.tTitleBgCol           = (plVec4){0.04f, 0.04f, 0.04f, 1.00f};
-    gptCtx->tColorScheme.tTitleBgCollapsedCol  = (plVec4){0.04f, 0.04f, 0.04f, 1.00f};
+    gptCtx->tColorScheme.tTitleBgCollapsedCol  = (plVec4){0.00f, 0.00f, 0.00f, 1.00f};
     gptCtx->tColorScheme.tWindowBgColor        = (plVec4){0.10f, 0.10f, 0.10f, 0.78f};
     gptCtx->tColorScheme.tWindowBorderColor    = (plVec4){0.33f, 0.02f, 0.10f, 1.00f};
     gptCtx->tColorScheme.tChildBgColor         = (plVec4){0.25f, 0.10f, 0.10f, 0.78f};

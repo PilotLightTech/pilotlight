@@ -15,7 +15,6 @@ defines = [
     "PL_JSON_IMPLEMENTATION",
     "PL_VULKAN_BACKEND",
     "PL_METAL_BACKEND",
-    "PL_CPU_BACKEND",
     "PL_TEST_IMPLEMENTATION",
     "PL_CONFIG_DEBUG",
     "PL_INCLUDE_SPIRV_CROSS",
@@ -23,12 +22,14 @@ defines = [
 
 includes = [
     "${workspaceFolder}/**",
-    "${workspaceFolder}/sandbox",
+    "${workspaceFolder}/editor",
     "${workspaceFolder}/src",
     "${workspaceFolder}/libs",
     "${workspaceFolder}/extensions",
     "${workspaceFolder}/dependencies/stb",
     "${workspaceFolder}/dependencies/cgltf",
+    "${workspaceFolder}/dependencies/imgui",
+    "${workspaceFolder}/dependencies/glfw",
     "${env:VK_SDK_PATH}/Include"
 ]
 

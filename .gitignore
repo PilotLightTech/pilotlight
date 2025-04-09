@@ -9,13 +9,14 @@ user/
 game/
 app/
 
-sandbox/model-index.json
+editor/model-index.json
 
 # python
 pl_build/__pycache__/
 scripts/__pycache__/
 
 # debug files
+editor/*.pdb
 src/*.pdb
 examples/*.pdb
 tests/*.pdb
@@ -36,21 +37,21 @@ extensions/*_user.*
 scripts/*_user.*
 examples/*_user.*
 shaders/*_user.*
-sandbox/*_user.*
+editor/*_user.*
 
 src/*_custom.*
 extensions/*_custom.*
 scripts/*_custom.*
 examples/*_custom.*
 shaders/*_custom.*
-sandbox/*_custom.*
+editor/*_custom.*
 
 src/*_mod.*
 extensions/*_mod.*
 scripts/*_mod.*
 examples/*_mod.*
 shaders/*_mod.*
-sandbox/*_mod.*
+editor/*_mod.*
 
 # misc
 .DS_Store

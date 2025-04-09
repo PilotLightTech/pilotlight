@@ -51,9 +51,19 @@ jobs:
         set VULKAN_SDK=D:/a/VulkanSDK
         cd src
         call build.bat -c debug
+        call build.bat -c debug_editor
         cd ../examples
         call build.bat -c debug
         if not exist ../out/app.dll exit 1
+        if not exist ../out/dearimguid.lib exit 1
+        if not exist ../out/editor.dll exit 1
+        if not exist ../out/glfwd.lib exit 1
+        if not exist ../out/pilot_light.exe exit 1
+        if not exist ../out/pl_dear_imgui_ext.dll exit 1
+        if not exist ../out/pl_editor.exe exit 1
+        if not exist ../out/pl_platform_ext.dll exit 1
+        if not exist ../out/pl_script_camera.dll exit 1
+        if not exist ../out/pl_unity_ext.dll exit 1
         if not exist ../out/example_0.dll exit 1
         if not exist ../out/example_1.dll exit 1
         if not exist ../out/example_2.dll exit 1
@@ -63,10 +73,6 @@ jobs:
         if not exist ../out/example_6.dll exit 1
         if not exist ../out/example_8.dll exit 1
         if not exist ../out/example_9.dll exit 1
-        if not exist ../out/pilot_light.exe exit 1
-        if not exist ../out/pl_unity_ext.dll exit 1
-        if not exist ../out/pl_platform_ext.dll exit 1
-        if not exist ../out/pl_script_camera.dll exit 1
         cd ..
 
     - name: Prep 2
@@ -80,9 +86,19 @@ jobs:
         set VULKAN_SDK=D:/a/VulkanSDK
         cd src
         call build.bat -c release
+        call build.bat -c release_editor
         cd ../examples
         call build.bat -c release
         if not exist ../out/app.dll exit 1
+        if not exist ../out/dearimgui.lib exit 1
+        if not exist ../out/editor.dll exit 1
+        if not exist ../out/glfw.lib exit 1
+        if not exist ../out/pilot_light.exe exit 1
+        if not exist ../out/pl_dear_imgui_ext.dll exit 1
+        if not exist ../out/pl_editor.exe exit 1
+        if not exist ../out/pl_platform_ext.dll exit 1
+        if not exist ../out/pl_script_camera.dll exit 1
+        if not exist ../out/pl_unity_ext.dll exit 1
         if not exist ../out/example_0.dll exit 1
         if not exist ../out/example_1.dll exit 1
         if not exist ../out/example_2.dll exit 1
@@ -92,10 +108,6 @@ jobs:
         if not exist ../out/example_6.dll exit 1
         if not exist ../out/example_8.dll exit 1
         if not exist ../out/example_9.dll exit 1
-        if not exist ../out/pilot_light.exe exit 1
-        if not exist ../out/pl_unity_ext.dll exit 1
-        if not exist ../out/pl_platform_ext.dll exit 1
-        if not exist ../out/pl_script_camera.dll exit 1
 
     - name: Build Pilot Light Deployment (RELEASE)
       shell: cmd
@@ -180,6 +192,7 @@ jobs:
         cd src
         chmod +x build.sh
         ./build.sh -c debug
+        ./build.sh -c debug_editor
         cd ../examples
         chmod +x build.sh
         ./build.sh -c debug
@@ -187,8 +200,16 @@ jobs:
         cd out
         chmod +x pilot_light
         cd ..
-        test -f ./out/pilot_light || exit 1
         test -f ./out/app.dylib || exit 1
+        test -f ./out/libdearimguid.a || exit 1
+        test -f ./out/editor.dylib || exit 1
+        test -f ./out/libglfwd.a || exit 1
+        test -f ./out/pilot_light || exit 1
+        test -f ./out/pl_dear_imgui_ext.dylib || exit 1
+        test -f ./out/pl_editor || exit 1
+        test -f ./out/pl_platform_ext.dylib || exit 1
+        test -f ./out/pl_script_camera.dylib || exit 1
+        test -f ./out/pl_unity_ext.dylib || exit 1
         test -f ./out/example_0.dylib || exit 1
         test -f ./out/example_1.dylib || exit 1
         test -f ./out/example_2.dylib || exit 1
@@ -198,9 +219,6 @@ jobs:
         test -f ./out/example_6.dylib || exit 1
         test -f ./out/example_8.dylib || exit 1
         test -f ./out/example_9.dylib || exit 1
-        test -f ./out/pl_unity_ext.dylib || exit 1
-        test -f ./out/pl_platform_ext.dylib || exit 1
-        test -f ./out/pl_script_camera.dylib || exit 1
 
     - name: Prep 2
       run: |
@@ -213,6 +231,7 @@ jobs:
         cd src
         chmod +x build.sh
         ./build.sh -c release
+        ./build.sh -c release_editor
         cd ../examples
         chmod +x build.sh
         ./build.sh -c release
@@ -220,8 +239,16 @@ jobs:
         cd out
         chmod +x pilot_light
         cd ..
-        test -f ./out/pilot_light || exit 1
         test -f ./out/app.dylib || exit 1
+        test -f ./out/libdearimgui.a || exit 1
+        test -f ./out/editor.dylib || exit 1
+        test -f ./out/libglfw.a || exit 1
+        test -f ./out/pilot_light || exit 1
+        test -f ./out/pl_dear_imgui_ext.dylib || exit 1
+        test -f ./out/pl_editor || exit 1
+        test -f ./out/pl_platform_ext.dylib || exit 1
+        test -f ./out/pl_script_camera.dylib || exit 1
+        test -f ./out/pl_unity_ext.dylib || exit 1
         test -f ./out/example_0.dylib || exit 1
         test -f ./out/example_1.dylib || exit 1
         test -f ./out/example_2.dylib || exit 1
@@ -231,9 +258,6 @@ jobs:
         test -f ./out/example_6.dylib || exit 1
         test -f ./out/example_8.dylib || exit 1
         test -f ./out/example_9.dylib || exit 1
-        test -f ./out/pl_unity_ext.dylib || exit 1
-        test -f ./out/pl_platform_ext.dylib || exit 1
-        test -f ./out/pl_script_camera.dylib || exit 1
 
     - name: Build Pilot Light Deployment (RELEASE)
       run: |
@@ -317,6 +341,8 @@ jobs:
         sudo apt install libxcursor-dev
         sudo apt install libxrandr-dev
         sudo apt install libxinerama-dev
+        sudo apt install libgl-dev
+        sudo apt install libxi-dev
 
     - name: Prep 1
       run: |
@@ -331,6 +357,7 @@ jobs:
         cd src
         chmod +x build.sh
         ./build.sh -c debug
+        ./build.sh -c debug_editor
         cd ../examples
         chmod +x build.sh
         ./build.sh -c debug
@@ -338,8 +365,16 @@ jobs:
         cd out
         chmod +x pilot_light
         cd ..
-        test -f ./out/pilot_light || exit 1
         test -f ./out/app.so || exit 1
+        test -f ./out/dearimguid.a || exit 1
+        test -f ./out/editor.so || exit 1
+        test -f ./out/glfwd.a || exit 1
+        test -f ./out/pilot_light || exit 1
+        test -f ./out/pl_dear_imgui_ext.so || exit 1
+        test -f ./out/pl_editor || exit 1
+        test -f ./out/pl_platform_ext.so || exit 1
+        test -f ./out/pl_script_camera.so || exit 1
+        test -f ./out/pl_unity_ext.so || exit 1
         test -f ./out/example_0.so || exit 1
         test -f ./out/example_1.so || exit 1
         test -f ./out/example_2.so || exit 1
@@ -349,9 +384,6 @@ jobs:
         test -f ./out/example_6.so || exit 1
         test -f ./out/example_8.so || exit 1
         test -f ./out/example_9.so || exit 1
-        test -f ./out/pl_unity_ext.so || exit 1
-        test -f ./out/pl_platform_ext.so || exit 1
-        test -f ./out/pl_script_camera.so || exit 1
 
     - name: Prep 2
       run: |
@@ -364,6 +396,7 @@ jobs:
         cd src
         chmod +x build.sh
         ./build.sh -c release
+        ./build.sh -c release_editor
         cd ../examples
         chmod +x build.sh
         ./build.sh -c release
@@ -371,8 +404,16 @@ jobs:
         cd out
         chmod +x pilot_light
         cd ..
-        test -f ./out/pilot_light || exit 1
         test -f ./out/app.so || exit 1
+        test -f ./out/dearimgui.a || exit 1
+        test -f ./out/editor.so || exit 1
+        test -f ./out/glfw.a || exit 1
+        test -f ./out/pilot_light || exit 1
+        test -f ./out/pl_dear_imgui_ext.so || exit 1
+        test -f ./out/pl_editor || exit 1
+        test -f ./out/pl_platform_ext.so || exit 1
+        test -f ./out/pl_script_camera.so || exit 1
+        test -f ./out/pl_unity_ext.so || exit 1
         test -f ./out/example_0.so || exit 1
         test -f ./out/example_1.so || exit 1
         test -f ./out/example_2.so || exit 1
@@ -382,9 +423,6 @@ jobs:
         test -f ./out/example_6.so || exit 1
         test -f ./out/example_8.so || exit 1
         test -f ./out/example_9.so || exit 1
-        test -f ./out/pl_unity_ext.so || exit 1
-        test -f ./out/pl_platform_ext.so || exit 1
-        test -f ./out/pl_script_camera.so || exit 1
 
     - name: Build Pilot Light Deployment (RELEASE)
       run: |

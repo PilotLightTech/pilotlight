@@ -1,4 +1,4 @@
-# gen_core.py
+# gen_distribute.py
 
 # Index of this file:
 # [SECTION] imports
@@ -39,7 +39,7 @@ with pl.project("pilotlight deploy"):
     # project wide settings
     pl.set_output_directory("../out")
     pl.add_link_directories("../out")
-    pl.add_include_directories("../sandbox", "../src", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
+    pl.add_include_directories("../editor", "../src", "../libs", "../extensions", "../out", "../dependencies/stb", "../dependencies/cgltf")
 
     #-----------------------------------------------------------------------------
     # [SECTION] profiles

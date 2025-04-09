@@ -586,7 +586,7 @@ pl_refr_initialize(plRendererSettings tSettings)
     const plRenderPassLayoutDesc tMainMSAARenderPassLayoutDesc = {
         .atRenderTargets = {
             { .tFormat = gptGfx->get_swapchain_info(gptData->ptSwap).tFormat, .bResolve = true }, // swapchain
-            { .tFormat = gptGfx->get_swapchain_info(gptData->ptSwap).tFormat, .tSamples = gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount}, // msaa
+            { .tFormat = gptGfx->get_swapchain_info(gptData->ptSwap).tFormat, .tSamples = gptData->tDeviceInfo.tMaxSampleCount}, // msaa
         },
         .atSubpasses = {
             {
@@ -4174,22 +4174,6 @@ pl_refr_begin_final_pass(plRenderEncoder** pptEncoder, plCommandBuffer** pptComm
     gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
     plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, gptData->tCurrentMainRenderPass, NULL);
-
-    plIO* ptIO = gptIOI->get_io();
-    float fWidth = ptIO->tMainViewportSize.x;
-    float fHeight = ptIO->tMainViewportSize.y;
-
-    // render ui
-    pl_begin_cpu_sample(gptProfile, 0, "render ui");
-    
-    gptUI->end_frame();
-    gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), ptEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
-    gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
-    pl_end_cpu_sample(gptProfile, 0);
-
-    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth, fHeight);
-    gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptData->ptSwap).tSampleCount);
-
 
     *pptEncoder = ptEncoder;
     *pptCommandBuffer = ptCommandBuffer;

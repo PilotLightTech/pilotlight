@@ -1,5 +1,5 @@
 /*
-   app.c
+   editor.cpp
 
    Notes:
      * absolute mess
@@ -70,6 +70,11 @@ Index of this file:
 #include "pl_collision_ext.h"
 #include "pl_bvh_ext.h"
 
+// dear imgui
+#include "pl_dear_imgui_ext.h"
+#include "imgui.h"
+#include "implot.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
@@ -101,6 +106,7 @@ const plPhysicsI *     gptPhysics     = NULL;
 const plCollisionI*    gptCollision   = NULL;
 const plBVHI*          gptBvh         = NULL;
 const plConfigI*       gptConfig      = NULL;
+const plDearImGuiI*    gptDearImGui   = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -150,6 +156,8 @@ typedef struct _plAppData
     bool bResize;
 
     // ui options
+    bool  bShowImGuiDemo;
+    bool  bShowPlotDemo;
     bool  bEditorAttached;
     bool  bShowUiDemo;
     bool  bShowUiDebug;
@@ -214,6 +222,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // between extensions & the runtime
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
+    ImGuiContext* ptImguiContext = (ImGuiContext*)ptDataRegistry->get_data("imgui");
+    ImGui::SetCurrentContext(ptImguiContext);
+
+    ImGuiMemAllocFunc p_alloc_func = (ImGuiMemAllocFunc)ptDataRegistry->get_data("imgui allocate");
+    ImGuiMemFreeFunc p_free_func = (ImGuiMemFreeFunc)ptDataRegistry->get_data("imgui free");
+    ImGui::SetAllocatorFunctions(p_alloc_func, p_free_func, nullptr);
+
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
     if(ptAppData) // reload
@@ -248,6 +263,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
         gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
         gptConfig      = pl_get_api_latest(ptApiRegistry, plConfigI);
+        gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
 
@@ -262,7 +278,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // load extensions
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
     ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false);
-    
+    ptExtensionRegistry->load("pl_dear_imgui_ext", NULL, NULL, false);
+
     // load apis
     gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
     gptStats       = pl_get_api_latest(ptApiRegistry, plStatsI);
@@ -291,10 +308,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
     gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
     gptConfig      = pl_get_api_latest(ptApiRegistry, plConfigI);
+    gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
-    ptAppData = PL_ALLOC(sizeof(plAppData));
+    ptAppData = (plAppData*)PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
 
     // defaults
@@ -308,26 +326,20 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->bPhysicsDebugDraw = gptConfig->load_bool("bPhysicsDebugDraw", false);
 
     // add console variables
-    gptConsole->initialize((plConsoleSettings){.tFlags = PL_CONSOLE_FLAGS_POPUP});
+    gptConsole->initialize({PL_CONSOLE_FLAGS_POPUP});
     gptConsole->add_toggle_variable("a.PilotLight", &ptAppData->bShowPilotLightTool, "shows main pilot light window", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
     gptConsole->add_toggle_variable("a.Entities", &ptAppData->bShowEntityWindow, "shows ecs tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
     gptConsole->add_toggle_variable("a.FreezeCullCamera", &ptAppData->bFreezeCullCamera, "freezes culling camera", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
 
     // initialize APIs that require it
     gptEcsTools->initialize();
-    gptPhysics->initialize((plPhysicsEngineSettings){0});
+    gptPhysics->initialize({});
     
-    // initialize shader extension
-    static plShaderOptions tDefaultShaderOptions = {
-        .apcIncludeDirectories = {
-            "../shaders/"
-        },
-        .apcDirectories = {
-            "../shaders/"
-        },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
-
-    };
+    // initialize shader compiler
+    static plShaderOptions tDefaultShaderOptions = PL_ZERO_INIT;
+    tDefaultShaderOptions.apcIncludeDirectories[0] = "../shaders/";
+    tDefaultShaderOptions.apcDirectories[0] = "../shaders/";
+    tDefaultShaderOptions.tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE;
     gptShader->initialize(&tDefaultShaderOptions);
 
     // initialize job system
@@ -335,22 +347,22 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create window (only 1 allowed currently)
     plWindowDesc tWindowDesc = {
-        .pcTitle = "Pilot Light Sandbox",
-        .iXPos   = 200,
-        .iYPos   = 200,
-        .uWidth  = 600,
-        .uHeight = 600,
+        "Pilot Light Editor",
+        500,
+        500,
+        200,
+        200
     };
     gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
 
     // setup reference renderer
-    plRendererSettings tRenderSettings = {
-        .ptWindow              = ptAppData->ptWindow,
-        .uMaxTextureResolution = 1024
-    };
+    plRendererSettings tRenderSettings = PL_ZERO_INIT;
+    tRenderSettings.ptWindow              = ptAppData->ptWindow;
+    tRenderSettings.uMaxTextureResolution = 1024;
+    tRenderSettings.bValidationOn         = true;
     gptRenderer->initialize(tRenderSettings);
 
-    gptTools->initialize((plToolsInit){.ptDevice = gptRenderer->get_device()});
+    gptTools->initialize({gptRenderer->get_device()});
 
     // retrieve some console variables
     ptAppData->pbShowLogging              = (bool*)gptConsole->get_variable("t.LogTool", NULL, NULL);
@@ -376,35 +388,31 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptDraw->set_font_atlas(ptAtlas);
 
     // create fonts
-    plFontRange tFontRange = {
-        .iFirstCodePoint = 0x0020,
-        .uCharCount = 0x00FF - 0x0020
-    };
+    plFontRange tFontRange = PL_ZERO_INIT;
+    tFontRange.iFirstCodePoint = 0x0020;
+    tFontRange.uCharCount = 0x00FF - 0x0020;
 
-    plFontConfig tFontConfig0 = {
-        .bSdf = false,
-        .fSize = 16.0f,
-        .uHOverSampling = 1,
-        .uVOverSampling = 1,
-        .ptRanges = &tFontRange,
-        .uRangeCount = 1
-    };
+    plFontConfig tFontConfig0 = PL_ZERO_INIT;
+    tFontConfig0.bSdf = false;
+    tFontConfig0.fSize = 14.0f;
+    tFontConfig0.uHOverSampling = 1;
+    tFontConfig0.uVOverSampling = 1;
+    tFontConfig0.ptRanges = &tFontRange;
+    tFontConfig0.uRangeCount = 1;
     ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
 
-    const plFontRange tIconRange = {
-        .iFirstCodePoint = ICON_MIN_FA,
-        .uCharCount = ICON_MAX_16_FA - ICON_MIN_FA
-    };
+    plFontRange tIconRange = PL_ZERO_INIT;
+    tIconRange.iFirstCodePoint = ICON_MIN_FA;
+    tIconRange.uCharCount = ICON_MAX_16_FA - ICON_MIN_FA;
 
-    plFontConfig tFontConfig1 = {
-        .bSdf           = false,
-        .fSize          = 16.0f,
-        .uHOverSampling = 1,
-        .uVOverSampling = 1,
-        .ptMergeFont    = ptAppData->tDefaultFont,
-        .ptRanges       = &tIconRange,
-        .uRangeCount    = 1
-    };
+    plFontConfig tFontConfig1 = PL_ZERO_INIT;
+    tFontConfig1.bSdf           = false;
+    tFontConfig1.fSize          = 14.0f;
+    tFontConfig1.uHOverSampling = 1;
+    tFontConfig1.uVOverSampling = 1;
+    tFontConfig1.ptMergeFont    = ptAppData->tDefaultFont;
+    tFontConfig1.ptRanges       = &tIconRange;
+    tFontConfig1.uRangeCount    = 1;
     gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig1, "../data/pilotlight-assets-master/fonts/fa-solid-900.otf");
 
     // build font atlas
@@ -414,7 +422,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~message extension~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
-    gptScreenLog->initialize((plScreenLogSettings){.ptFont = ptAppData->tDefaultFont});
+    gptScreenLog->initialize({ptAppData->tDefaultFont});
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ui extension~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -428,6 +436,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     pl__find_models(ptAppData);
 
+    gptDearImGui->initialize(gptRenderer->get_device(), gptRenderer->get_swapchain(), gptRenderer->get_main_render_pass());
+    ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
+    ImGuiIO& tImGuiIO = ImGui::GetIO();
+    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf", 14.0f);
     return ptAppData;
 }
 
@@ -443,6 +455,8 @@ pl_app_shutdown(plAppData* ptAppData)
 
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(gptRenderer->get_device());
+
+    gptDearImGui->cleanup();
 
     gptConfig->set_bool("bEditorAttached", ptAppData->bEditorAttached);
     gptConfig->set_bool("bShowEntityWindow", ptAppData->bShowEntityWindow);
@@ -480,7 +494,7 @@ pl_app_resize(plAppData* ptAppData)
 {
     plIO* ptIO = gptIO->get_io();
     if(ptAppData->uSceneHandle0 != UINT32_MAX)
-        gptCamera->set_aspect(gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
+        gptCamera->set_aspect((plCameraComponent*)gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
     ptAppData->bResize = true;
     gptRenderer->resize();
 }
@@ -496,7 +510,7 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     gptIO->new_frame();
-
+    
     // for convience
     plIO* ptIO = gptIO->get_io();
 
@@ -506,6 +520,8 @@ pl_app_update(plAppData* ptAppData)
         gptProfile->end_frame();
         return;
     }
+
+    gptDearImGui->new_frame(gptRenderer->get_device(), gptRenderer->get_main_render_pass());
 
     if(ptAppData->bResize)
     {
@@ -532,22 +548,24 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->uSceneHandle0 != UINT32_MAX)
     {
         plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
-        plCameraComponent*  ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
-        plCameraComponent*  ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
+        plCameraComponent*  ptCamera = (plCameraComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
+        plCameraComponent*  ptCullCamera = (plCameraComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
         gptCamera->update(ptCullCamera);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~selection stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+        plVec2 tMousePos = gptIO->get_mouse_pos();
 
         if(!gptUI->wants_mouse_capture() && !gptGizmo->active())
         {
             static plVec2 tClickPos = {0};
             if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
             {
-                tClickPos = gptIO->get_mouse_pos();
+                tClickPos = tMousePos;
             }
             else if(gptIO->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
             {
-                plVec2 tReleasePos = gptIO->get_mouse_pos();
+                plVec2 tReleasePos = tMousePos;
 
                 if(tReleasePos.x == tClickPos.x && tReleasePos.y == tClickPos.y)
                     gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0);
@@ -571,8 +589,8 @@ pl_app_update(plAppData* ptAppData)
                 gptScreenLog->add_message_ex(565168477883, 5.0, PL_COLOR_32_RED, 1.0f, "Selected Entity {%u, %u}", tNextEntity.uIndex, tNextEntity.uGeneration);
                 gptRenderer->outline_entities(ptAppData->uSceneHandle0, 1, &tNextEntity);
                 ptAppData->tSelectedEntity = tNextEntity;
-                gptPhysics->set_angular_velocity(gptRenderer->get_component_library(ptAppData->uSceneHandle0), tNextEntity, (plVec3){0});
-                gptPhysics->set_linear_velocity(gptRenderer->get_component_library(ptAppData->uSceneHandle0), tNextEntity, (plVec3){0});
+                gptPhysics->set_angular_velocity(gptRenderer->get_component_library(ptAppData->uSceneHandle0), tNextEntity, pl_create_vec3(0, 0, 0));
+                gptPhysics->set_linear_velocity(gptRenderer->get_component_library(ptAppData->uSceneHandle0), tNextEntity, pl_create_vec3(0, 0, 0));
             }
 
         }
@@ -598,13 +616,13 @@ pl_app_update(plAppData* ptAppData)
         if(ptAppData->tSelectedEntity.uIndex != UINT32_MAX)
         {
             plDrawList3D* ptGizmoDrawlist =  gptRenderer->get_gizmo_drawlist(ptAppData->uSceneHandle0, ptAppData->uViewHandle0);
-            plObjectComponent* ptSelectedObject = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_OBJECT, ptAppData->tSelectedEntity);
-            plTransformComponent* ptSelectedTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptAppData->tSelectedEntity);
+            plObjectComponent* ptSelectedObject = (plObjectComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_OBJECT, ptAppData->tSelectedEntity);
+            plTransformComponent* ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptAppData->tSelectedEntity);
             plTransformComponent* ptParentTransform = NULL;
-            plHierarchyComponent* ptHierarchyComp = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_HIERARCHY, ptAppData->tSelectedEntity);
+            plHierarchyComponent* ptHierarchyComp = (plHierarchyComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_HIERARCHY, ptAppData->tSelectedEntity);
             if(ptHierarchyComp)
             {
-                ptParentTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptHierarchyComp->tParent);
+                ptParentTransform = (plTransformComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptHierarchyComp->tParent);
             }
             if(ptSelectedTransform)
             {
@@ -612,7 +630,7 @@ pl_app_update(plAppData* ptAppData)
             }
             else if(ptSelectedObject)
             {
-                ptSelectedTransform = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSelectedObject->tTransform);
+                ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSelectedObject->tTransform);
                 gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
             }
         }
@@ -624,10 +642,9 @@ pl_app_update(plAppData* ptAppData)
         }
     
         // render scene
-        const plViewOptions tViewOptions = {
-            .ptViewCamera = &ptAppData->tMainCamera,
-            .ptCullCamera = ptAppData->bFreezeCullCamera ? &ptAppData->tCullCamera : NULL
-        };
+        plViewOptions tViewOptions = PL_ZERO_INIT;
+        tViewOptions.ptViewCamera = &ptAppData->tMainCamera;
+        tViewOptions.ptCullCamera = ptAppData->bFreezeCullCamera ? &ptAppData->tCullCamera : NULL;
         gptRenderer->render_scene(ptAppData->uSceneHandle0, &ptAppData->uViewHandle0, &tViewOptions, 1);
     }
 
@@ -653,15 +670,56 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowUiDebug)
         gptUI->show_debug_window(&ptAppData->bShowUiDebug);
 
+
+
     // add full screen quad for offscreen render
     if(ptAppData->uSceneHandle0 != UINT32_MAX)
-        gptDraw->add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0).uData, (plVec2){0}, ptIO->tMainViewportSize);
+        gptDraw->add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0).uData, pl_create_vec2(0, 0), ptIO->tMainViewportSize);
 
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
+
+    if(ptAppData->uSceneHandle0 != UINT32_MAX)
+    {
+
+        if(ImGui::Begin("Offscreen", NULL, ImGuiWindowFlags_NoTitleBar))
+        {
+            ImVec2 tContextSize = ImGui::GetContentRegionAvail();
+            ImVec2 tCursorStart = ImGui::GetCursorScreenPos();
+            ImVec2 tHoverMousePos = ImGui::GetMousePos();
+
+            ImTextureID tTexture = gptDearImGui->get_texture_id_from_bindgroup(gptRenderer->get_device(), gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0));
+            ImGui::Image(tTexture, tContextSize);
+        }
+        ImGui::End();
+    }
+
+    if(ptAppData->bShowPlotDemo)
+        ImPlot::ShowDemoWindow(&ptAppData->bShowPlotDemo);
+
+    if(ptAppData->bShowImGuiDemo)
+        ImGui::ShowDemoWindow(&ptAppData->bShowImGuiDemo);
 
     plRenderEncoder* ptRenderEncoder = NULL;
     plCommandBuffer* ptCommandBuffer = NULL;
     gptRenderer->begin_final_pass(&ptRenderEncoder, &ptCommandBuffer);
+
+    // render ui
+    pl_begin_cpu_sample(gptProfile, 0, "render ui");
+    
+    gptUI->end_frame();
+
+    float fWidth = ptIO->tMainViewportSize.x;
+    float fHeight = ptIO->tMainViewportSize.y;
+    gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptRenderer->get_swapchain()).tSampleCount);
+    gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptRenderer->get_swapchain()).tSampleCount);
+    pl_end_cpu_sample(gptProfile, 0);
+
+    gptDearImGui->render(ptRenderEncoder, ptCommandBuffer);
+
+    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth, fHeight);
+    gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptRenderer->get_swapchain()).tSampleCount);
+
+
     gptRenderer->end_final_pass(ptRenderEncoder, ptCommandBuffer);
 
     pl_end_cpu_sample(gptProfile, 0);
@@ -677,10 +735,9 @@ pl__find_models(plAppData* ptAppData)
 {
     if(gptFile->exists("../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf"))
     {
-        plTestModel tModel = {
-            .uVariantCount = 1,
-            .bSelected = true
-        };
+        plTestModel tModel = PL_ZERO_INIT;
+        tModel.uVariantCount = 1;
+        tModel.bSelected = true;
         strcpy(tModel.acName, "Fembot");
         strcpy(tModel.acVariants[0].acType, "glTF");
         strcpy(tModel.acVariants[0].acFilePath, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf");
@@ -689,24 +746,23 @@ pl__find_models(plAppData* ptAppData)
 
     if(gptFile->exists("../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf"))
     {
-        plTestModel tModel = {
-            .uVariantCount = 1,
-            .bSelected = true
-        };
+        plTestModel tModel = PL_ZERO_INIT;
+        tModel.uVariantCount = 1;
+        tModel.bSelected = true;
         strcpy(tModel.acName, "Floor");
         strcpy(tModel.acVariants[0].acType, "glTF");
         strcpy(tModel.acVariants[0].acFilePath, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf");
         pl_sb_push(ptAppData->sbtTestModels, tModel);
     }
 
-    if(gptFile->exists("../sandbox/model-index.json"))
+    if(gptFile->exists("../editor/model-index.json"))
     {
         size_t szJsonFileSize = 0;
-        gptFile->binary_read("../sandbox/model-index.json", &szJsonFileSize, NULL);
-        uint8_t* puFileBuffer = PL_ALLOC(szJsonFileSize + 1);
+        gptFile->binary_read("../editor/model-index.json", &szJsonFileSize, NULL);
+        uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
         memset(puFileBuffer, 0, szJsonFileSize + 1);
 
-        gptFile->binary_read("../sandbox/model-index.json", &szJsonFileSize, puFileBuffer);
+        gptFile->binary_read("../editor/model-index.json", &szJsonFileSize, puFileBuffer);
 
         plJsonObject* ptRootJsonObject = NULL;
         pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
@@ -781,7 +837,7 @@ pl__find_models(plAppData* ptAppData)
     {
         size_t szJsonFileSize = 0;
         gptFile->binary_read("../data/glTF-Sample-Assets-main/Models/model-index.json", &szJsonFileSize, NULL);
-        uint8_t* puFileBuffer = PL_ALLOC(szJsonFileSize + 1);
+        uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
         memset(puFileBuffer, 0, szJsonFileSize + 1);
 
         gptFile->binary_read("../data/glTF-Sample-Assets-main/Models/model-index.json", &szJsonFileSize, puFileBuffer);
@@ -866,8 +922,8 @@ pl__show_editor_window(plAppData* ptAppData)
     if(ptAppData->bEditorAttached)
     {
         tWindowFlags = PL_UI_WINDOW_FLAGS_NO_TITLE_BAR | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR;
-        gptUI->set_next_window_pos((plVec2){0, 0}, PL_UI_COND_ALWAYS);
-        gptUI->set_next_window_size((plVec2){600.0f, ptIO->tMainViewportSize.y}, PL_UI_COND_ALWAYS);
+        gptUI->set_next_window_pos(pl_create_vec2(0, 0), PL_UI_COND_ALWAYS);
+        gptUI->set_next_window_size(pl_create_vec2(600.0f, ptIO->tMainViewportSize.y), PL_UI_COND_ALWAYS);
     }
 
     if(gptUI->begin_window("Pilot Light", NULL, tWindowFlags))
@@ -910,13 +966,15 @@ pl__show_editor_window(plAppData* ptAppData)
         if(gptUI->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
         {
             gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
+            gptUI->checkbox("Dear ImGui Demo", &ptAppData->bShowImGuiDemo);
+            gptUI->checkbox("Dear ImPlot Demo", &ptAppData->bShowPlotDemo);
             if(ptAppData->uSceneHandle0 != UINT32_MAX)
             {
                 if(gptUI->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
                 {
                     plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
-                    plCameraComponent*  ptCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
-                    plCameraComponent*  ptCullCamera = gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
+                    plCameraComponent*  ptCamera = (plCameraComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
+                    plCameraComponent*  ptCullCamera = (plCameraComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
                     *ptCullCamera = *ptCamera;
                 }
             }
@@ -1124,20 +1182,20 @@ pl__create_scene(plAppData* ptAppData)
 
     // create main camera
     plCameraComponent* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", (plVec3){-4.7f, 4.2f, -3.256f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
+    ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", pl_create_vec3(-4.7f, 4.2f, -3.256f), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
     gptCamera->update(ptMainCamera);
     gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
 
     // create cull camera
     plCameraComponent* ptCullCamera = NULL;
-    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", (plVec3){0, 0, 5.0f}, PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
+    ptAppData->tCullCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "cull camera", pl_create_vec3(0, 0, 5.0f), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
     gptCamera->set_pitch_yaw(ptCullCamera, 0.0f, PL_PI);
     gptCamera->update(ptCullCamera);
 
     // create lights
     plLightComponent* ptLight = NULL;
-    gptEcs->create_directional_light(ptMainComponentLibrary, "direction light", (plVec3){-0.375f, -1.0f, -0.085f}, &ptLight);
+    gptEcs->create_directional_light(ptMainComponentLibrary, "direction light", pl_create_vec3(-0.375f, -1.0f, -0.085f), &ptLight);
     ptLight->uCascadeCount = 4;
     ptLight->fIntensity = 1.0f;
     ptLight->uShadowResolution = 1024;
@@ -1147,23 +1205,23 @@ pl__create_scene(plAppData* ptAppData)
     ptLight->afCascadeSplits[3] = 1.00f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
-    plEntity tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", (plVec3){0.0f, 2.0f, 2.0f}, &ptLight);
+    plEntity tPointLight = gptEcs->create_point_light(ptMainComponentLibrary, "point light", pl_create_vec3(0.0f, 2.0f, 2.0f), &ptLight);
     ptLight->uShadowResolution = 1024;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptPLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tPointLight);
-    ptPLightTransform->tTranslation = (plVec3){0.0f, 1.497f, 2.0f};
+    plTransformComponent* ptPLightTransform = (plTransformComponent* )gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tPointLight);
+    ptPLightTransform->tTranslation = pl_create_vec3(0.0f, 1.497f, 2.0f);
 
-    plEntity tSpotLight = gptEcs->create_spot_light(ptMainComponentLibrary, "spot light", (plVec3){0.0f, 4.0f, -1.18f}, (plVec3){0.0, -1.0f, 0.376f}, &ptLight);
+    plEntity tSpotLight = gptEcs->create_spot_light(ptMainComponentLibrary, "spot light", pl_create_vec3(0.0f, 4.0f, -1.18f), pl_create_vec3(0.0, -1.0f, 0.376f), &ptLight);
     ptLight->uShadowResolution = 1024;
     ptLight->fRange = 5.0f;
     ptLight->fRadius = 0.025f;
     ptLight->fIntensity = 20.0f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptSLightTransform = gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSpotLight);
-    ptSLightTransform->tTranslation = (plVec3){0.0f, 4.0f, -1.18f};
+    plTransformComponent* ptSLightTransform = (plTransformComponent* )gptEcs->add_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, tSpotLight);
+    ptSLightTransform->tTranslation = pl_create_vec3(0.0f, 4.0f, -1.18f);
 
     plEnvironmentProbeComponent* ptProbe = NULL;
-    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", (plVec3){0.0f, 3.0f, 0.0f}, &ptProbe);
+    gptEcs->create_environment_probe(ptMainComponentLibrary, "Main Probe", pl_create_vec3(0.0f, 3.0f, 0.0f), &ptProbe);
     ptProbe->fRange = 30.0f;
     ptProbe->uResolution = 128;
     ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
@@ -1404,7 +1462,7 @@ pl__show_ui_demo_window(plAppData* ptAppData)
 
             if(gptUI->tree_node("Plotting", 0))
             {
-                gptUI->progress_bar(0.75f, (plVec2){-1.0f, 0.0f}, NULL);
+                gptUI->progress_bar(0.75f, pl_create_vec2(-1.0f, 0.0f), NULL);
                 gptUI->tree_pop();
             }
 
