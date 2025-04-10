@@ -28,10 +28,12 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plViewOptions          plViewOptions;
-typedef struct _plShaderVariant        plShaderVariant;
-typedef struct _plComputeShaderVariant plComputeShaderVariant;
-typedef struct _plRendererSettings     plRendererSettings;
+typedef struct _plViewOptions            plViewOptions;
+typedef struct _plShaderVariant          plShaderVariant;
+typedef struct _plComputeShaderVariant   plComputeShaderVariant;
+typedef struct _plRendererSettings       plRendererSettings;
+typedef struct _plRendererRuntimeOptions plRendererRuntimeOptions;
+typedef struct _plSceneRuntimeOptions    plSceneRuntimeOptions;
 
 // external 
 typedef struct _plWindow           plWindow;           // pl_os.h
@@ -87,9 +89,6 @@ typedef struct _plRendererI
     void              (*resize_view)(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tDimensions);
     void              (*resize)(void);
 
-    // ui
-    void (*show_graphics_options)(const char* pcTitle);
-
     // per frame
     void (*run_ecs)         (uint32_t uSceneHandle);
     void (*render_scene)    (uint32_t uSceneHandle, const uint32_t* auViewHandles, const plViewOptions* atOptions, uint32_t uViewCount);
@@ -110,6 +109,9 @@ typedef struct _plRendererI
     plDrawList3D*       (*get_gizmo_drawlist)(uint32_t uSceneHandle, uint32_t uViewHandle);
     plCommandPool*      (*get_command_pool)(void);
     plRenderPassHandle  (*get_main_render_pass)(void);
+    plRendererRuntimeOptions* (*get_runtime_options)(void);
+    plSceneRuntimeOptions* (*get_scene_runtime_options)(uint32_t uSceneHandle);
+    void (*rebuild_scene_bvh)(uint32_t uSceneHandle);
 
 } plRendererI;
 
@@ -125,9 +127,38 @@ typedef struct _plViewOptions
 
 typedef struct _plRendererSettings
 {
-    plWindow* ptWindow;
+    plDevice* ptDevice;
+    plDeviceInfo tDeviceInfo;
+    plSwapchain* ptSwap;
     uint32_t  uMaxTextureResolution; // default 1024 (should be factor of 2)
-    bool      bValidationOn;
 } plRendererSettings;
+
+typedef struct _plRendererRuntimeOptions
+{
+    bool     bMSAA;
+    bool     bShowProbes;
+    bool     bShowBVH;
+    bool     bWireframe;
+    bool     bReloadSwapchain;
+    bool     bReloadMSAA;
+    bool     bVSync;
+    bool     bShowOrigin;
+    bool     bFrustumCulling;
+    bool     bDrawAllBoundingBoxes;
+    bool     bDrawVisibleBoundingBoxes;
+    bool     bShowSelectedBoundingBox;
+    bool     bMultiViewportShadows;
+    bool     bImageBasedLighting;
+    bool     bPunctualLighting;
+    float    fShadowConstantDepthBias;
+    float    fShadowSlopeDepthBias;
+    uint32_t uOutlineWidth;
+} plRendererRuntimeOptions;
+
+typedef struct _plSceneRuntimeOptions
+{
+    bool bShowSkybox;
+    bool bContinuousBVH;
+} plSceneRuntimeOptions;
 
 #endif // PL_RENDERER_EXT_H

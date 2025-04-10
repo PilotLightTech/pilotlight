@@ -45,9 +45,6 @@ static void pl_refr_load_skybox_from_panorama(uint32_t, const char*, int);
 static void pl_refr_finalize_scene(uint32_t);
 static void pl_refr_reload_scene_shaders(uint32_t);
 
-// ui
-static void pl_show_graphics_options(const char*);
-
 // per frame
 static void pl_refr_run_ecs(uint32_t uSceneHandle);
 static void pl_refr_render_scene(uint32_t, const uint32_t*, const plViewOptions*, uint32_t);
@@ -77,7 +74,7 @@ pl__refr_console_shader_reload(const char* pcName, void* pData)
 static void
 pl__refr_console_swapchain_reload(const char* pcName, void* pData)
 {
-    gptData->bReloadSwapchain = true;
+    gptData->tRuntimeOptions.bReloadSwapchain = true;
 }
 
 static void
@@ -88,25 +85,29 @@ pl_refr_initialize(plRendererSettings tSettings)
     gptData = PL_ALLOC(sizeof(plRefRendererData));
     memset(gptData, 0, sizeof(plRefRendererData));
 
+    gptData->ptDevice = tSettings.ptDevice;
+    gptData->tDeviceInfo = tSettings.tDeviceInfo;
+    gptData->ptSwap = tSettings.ptSwap;
+
     // register data with registry (for reloads)
     gptDataRegistry->set_data("ref renderer data", gptData);
 
     // register console variables
-    gptConsole->add_toggle_variable("r.FrustumCulling", &gptData->bFrustumCulling, "frustum culling", PL_CONSOLE_VARIABLE_FLAGS_NONE);
-    gptConsole->add_toggle_variable("r.DrawAllBoundBoxes", &gptData->bDrawAllBoundingBoxes, "draw all bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
-    gptConsole->add_toggle_variable("r.DrawVisibleBoundBoxes", &gptData->bDrawVisibleBoundingBoxes, "draw visible bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
-    gptConsole->add_toggle_variable("r.DrawSelectedBoundBoxes", &gptData->bShowSelectedBoundingBox, "draw selected bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
-    gptConsole->add_toggle_variable("r.ShowProbes", &gptData->bShowProbes, "show environment probes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
-    gptConsole->add_toggle_variable("r.ShowOrigin", &gptData->bShowOrigin, "show world origin", PL_CONSOLE_VARIABLE_FLAGS_NONE);
-    gptConsole->add_float_variable("r.ShadowConstantDepthBias", &gptData->fShadowConstantDepthBias, "shadow constant depth bias", PL_CONSOLE_VARIABLE_FLAGS_NONE);
-    gptConsole->add_float_variable("r.ShadowSlopeDepthBias", &gptData->fShadowSlopeDepthBias, "shadow slope depth bias", PL_CONSOLE_VARIABLE_FLAGS_NONE | PL_CONSOLE_VARIABLE_FLAGS_READ_ONLY);
-    gptConsole->add_uint_variable("r.OutlineWidth", &gptData->uOutlineWidth, "selection outline width", PL_CONSOLE_VARIABLE_FLAGS_NONE);
-    gptConsole->add_toggle_variable_ex("r.Wireframe", &gptData->bWireframe, "wireframe rendering", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
-    gptConsole->add_toggle_variable_ex("r.IBL", &gptData->bImageBasedLighting, "image based lighting", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
-    gptConsole->add_toggle_variable_ex("r.PunctualLighting", &gptData->bPunctualLighting, "punctual lighting", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
-    gptConsole->add_toggle_variable_ex("r.MultiViewportShadows", &gptData->bMultiViewportShadows, "utilize multiviewport features", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
-    gptConsole->add_toggle_variable_ex("r.VSync", &gptData->bVSync, "monitor vsync", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_swapchain_reload, NULL);
-    gptConsole->add_toggle_variable_ex("r.UIMSAA", &gptData->bMSAA, "UI MSAA", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_swapchain_reload, NULL);
+    gptConsole->add_toggle_variable("r.FrustumCulling", &gptData->tRuntimeOptions.bFrustumCulling, "frustum culling", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.DrawAllBoundBoxes", &gptData->tRuntimeOptions.bDrawAllBoundingBoxes, "draw all bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.DrawVisibleBoundBoxes", &gptData->tRuntimeOptions.bDrawVisibleBoundingBoxes, "draw visible bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.DrawSelectedBoundBoxes", &gptData->tRuntimeOptions.bShowSelectedBoundingBox, "draw selected bounding boxes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.ShowProbes", &gptData->tRuntimeOptions.bShowProbes, "show environment probes", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("r.ShowOrigin", &gptData->tRuntimeOptions.bShowOrigin, "show world origin", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_float_variable("r.ShadowConstantDepthBias", &gptData->tRuntimeOptions.fShadowConstantDepthBias, "shadow constant depth bias", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_float_variable("r.ShadowSlopeDepthBias", &gptData->tRuntimeOptions.fShadowSlopeDepthBias, "shadow slope depth bias", PL_CONSOLE_VARIABLE_FLAGS_NONE | PL_CONSOLE_VARIABLE_FLAGS_READ_ONLY);
+    gptConsole->add_uint_variable("r.OutlineWidth", &gptData->tRuntimeOptions.uOutlineWidth, "selection outline width", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable_ex("r.Wireframe", &gptData->tRuntimeOptions.bWireframe, "wireframe rendering", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
+    gptConsole->add_toggle_variable_ex("r.IBL", &gptData->tRuntimeOptions.bImageBasedLighting, "image based lighting", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
+    gptConsole->add_toggle_variable_ex("r.PunctualLighting", &gptData->tRuntimeOptions.bPunctualLighting, "punctual lighting", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
+    gptConsole->add_toggle_variable_ex("r.MultiViewportShadows", &gptData->tRuntimeOptions.bMultiViewportShadows, "utilize multiviewport features", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_shader_reload, NULL);
+    gptConsole->add_toggle_variable_ex("r.VSync", &gptData->tRuntimeOptions.bVSync, "monitor vsync", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_swapchain_reload, NULL);
+    gptConsole->add_toggle_variable_ex("r.UIMSAA", &gptData->tRuntimeOptions.bMSAA, "UI MSAA", PL_CONSOLE_VARIABLE_FLAGS_NONE, pl__refr_console_swapchain_reload, NULL);
 
     // add specific log channel for renderer
     plLogExtChannelInit tLogInit = {
@@ -117,66 +118,25 @@ pl_refr_initialize(plRendererSettings tSettings)
 
     // default options
     gptData->pdDrawCalls = gptStats->get_counter("draw calls");
-    gptData->bMSAA = false;
-    gptData->bReloadMSAA = false;
-    gptData->bVSync = true;
+    gptData->tRuntimeOptions.bMSAA = false;
+    gptData->tRuntimeOptions.bReloadMSAA = false;
+    gptData->tRuntimeOptions.bVSync = true;
     gptData->uMaxTextureResolution = tSettings.uMaxTextureResolution > 0 ? tSettings.uMaxTextureResolution : 1024;
-    gptData->uOutlineWidth = 4;
-    gptData->bShowSelectedBoundingBox = true;
-    gptData->bFrustumCulling = true;
-    gptData->bImageBasedLighting = true;
-    gptData->bPunctualLighting = true;
-    gptData->fShadowConstantDepthBias = -1.25f;
-    gptData->fShadowSlopeDepthBias = -10.75f;
+    gptData->tRuntimeOptions.uOutlineWidth = 4;
+    gptData->tRuntimeOptions.bShowSelectedBoundingBox = true;
+    gptData->tRuntimeOptions.bFrustumCulling = true;
+    gptData->tRuntimeOptions.bImageBasedLighting = true;
+    gptData->tRuntimeOptions.bPunctualLighting = true;
+    gptData->tRuntimeOptions.fShadowConstantDepthBias = -1.25f;
+    gptData->tRuntimeOptions.fShadowSlopeDepthBias = -10.75f;
 
     // shader default values
     gptData->tSkyboxShader = (plShaderHandle){0}; // is this needed still?
 
-    // initialize graphics
-    plGraphicsInit tGraphicsDesc = {
-        .tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED
-    };
-    if(tSettings.bValidationOn)
-        tGraphicsDesc.tFlags |= PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
-    gptGfx->initialize(&tGraphicsDesc);
-
-    gptData->ptSurface = gptGfx->create_surface(tSettings.ptWindow);
-
-    uint32_t uDeviceCount = 16;
-    plDeviceInfo atDeviceInfos[16] = {0};
-    gptGfx->enumerate_devices(atDeviceInfos, &uDeviceCount);
-
-    // we will prefer discrete, then integrated GPUs
-    int iBestDvcIdx = 0;
-    int iDiscreteGPUIdx   = -1;
-    int iIntegratedGPUIdx = -1;
-    for(uint32_t i = 0; i < uDeviceCount; i++)
-    {
-        
-        if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_DISCRETE)
-            iDiscreteGPUIdx = i;
-        else if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_INTEGRATED)
-            iIntegratedGPUIdx = i;
-    }
-
-    if(iDiscreteGPUIdx > -1)
-        iBestDvcIdx = iDiscreteGPUIdx;
-    else if(iIntegratedGPUIdx > -1)
-        iBestDvcIdx = iIntegratedGPUIdx;
-
-    // create device
-    const plDeviceInit tDeviceInit = {
-        .uDeviceIdx = iBestDvcIdx,
-        .ptSurface = gptData->ptSurface,
-        .szDynamicBufferBlockSize = 134217728
-    };
-    gptData->ptDevice = gptGfx->create_device(&tDeviceInit);
-
     gptResource->initialize((plResourceManagerInit){.ptDevice = gptData->ptDevice, .uMaxTextureResolution = tSettings.uMaxTextureResolution});
 
-    gptData->tDeviceInfo = atDeviceInfos[iBestDvcIdx];
     if(gptData->tDeviceInfo.tCapabilities & PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS)
-        gptData->bMultiViewportShadows = true;
+        gptData->tRuntimeOptions.bMultiViewportShadows = true;
 
     // create main bind group pool
     const plBindGroupPoolDesc tBindGroupPoolDesc = {
@@ -189,14 +149,6 @@ pl_refr_initialize(plRendererSettings tSettings)
         .szAttachmentTextureBindings = 100000
     };
     gptData->ptBindGroupPool = gptGfx->create_bind_group_pool(gptData->ptDevice, &tBindGroupPoolDesc);
-
-    // create swapchain
-    const plSwapchainInit tSwapInit = {
-        .bVSync = true,
-        .tSampleCount = gptData->bMSAA ? atDeviceInfos[iBestDvcIdx].tMaxSampleCount : 1
-    };
-    gptData->ptSwap = gptGfx->create_swapchain(gptData->ptDevice, gptData->ptSurface, &tSwapInit);
-    gptDataRegistry->set_data("device", gptData->ptDevice); // used by debug extension
 
     // create pools
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -1655,10 +1607,8 @@ pl_refr_cleanup(void)
         gptGfx->cleanup_bind_group_pool(gptData->aptTempGroupPools[i]);
         gptGfx->cleanup_command_pool(gptData->atCmdPools[i]);
     }
-    gptGfx->cleanup_swapchain(gptData->ptSwap);
-    gptGfx->cleanup_surface(gptData->ptSurface);
-    gptGfx->cleanup_device(gptData->ptDevice);
-    gptGfx->cleanup();
+
+    
 
     // must be cleaned up after graphics since 3D drawlist are registered as pointers
     pl_sb_free(gptData->sbtScenes);
@@ -1692,7 +1642,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plDevice* ptDevice = gptData->ptDevice;
     plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
-    ptScene->bShowSkybox = true;
+    ptScene->tRuntimeOptions.bShowSkybox = true;
 
     // create skybox shader if we haven't
     if(gptData->tSkyboxShader.uIndex == 0)
@@ -1961,9 +1911,9 @@ pl_refr_outline_entities(uint32_t uSceneHandle, uint32_t uCount, plEntity* atEnt
     plDevice*   ptDevice = gptData->ptDevice;
 
     int iSceneWideRenderingFlags = 0;
-    if(gptData->bPunctualLighting)
+    if(gptData->tRuntimeOptions.bPunctualLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
-    if(gptData->bImageBasedLighting)
+    if(gptData->tRuntimeOptions.bImageBasedLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
     // reset old entities
@@ -2255,9 +2205,9 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
     gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tEnvLightingShader);
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
-    if(gptData->bPunctualLighting)
+    if(gptData->tRuntimeOptions.bPunctualLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
-    if(gptData->bImageBasedLighting)
+    if(gptData->tRuntimeOptions.bImageBasedLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
     // create lighting shader
@@ -2351,7 +2301,7 @@ pl_refr_reload_scene_shaders(uint32_t uSceneHandle)
             tLightingShaderDesc.atConstants[i].tType = PL_DATA_TYPE_INT;
         }
         ptScene->tLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
-        aiLightingConstantData[0] = gptData->bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+        aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
         ptScene->tEnvLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
     }
 
@@ -2466,9 +2416,9 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
     }
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
-    if(gptData->bPunctualLighting)
+    if(gptData->tRuntimeOptions.bPunctualLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
-    if(gptData->bImageBasedLighting)
+    if(gptData->tRuntimeOptions.bImageBasedLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
     // create lighting shader
@@ -2560,7 +2510,7 @@ pl_refr_finalize_scene(uint32_t uSceneHandle)
             tLightingShaderDesc.atConstants[i].tType = PL_DATA_TYPE_INT;
         }
         ptScene->tLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
-        aiLightingConstantData[0] = gptData->bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+        aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
         ptScene->tEnvLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
     }
 
@@ -3090,7 +3040,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
     
         const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
-        if(!gptData->bFrustumCulling)
+        if(!gptData->tRuntimeOptions.bFrustumCulling)
             ptCullCamera = NULL;
 
         pl_begin_cpu_sample(gptProfile, 0, "Scene Prep");
@@ -3175,7 +3125,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                     }
                     else if(tDrawable.tFlags & PL_DRAWABLE_FLAG_PROBE)
                     {
-                        if(gptData->bShowProbes)
+                        if(gptData->tRuntimeOptions.bShowProbes)
                         {
                             pl_sb_push(ptView->sbtVisibleTransparentDrawables, uDrawableIndex);
                             pl_sb_push(ptView->sbtVisibleDrawables, uDrawableIndex);
@@ -3337,7 +3287,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         gptGfx->next_subpass(ptSceneEncoder, NULL);
 
-        if(ptScene->tSkyboxTexture.uIndex != 0 && ptScene->bShowSkybox)
+        if(ptScene->tSkyboxTexture.uIndex != 0 && ptScene->tRuntimeOptions.bShowSkybox)
         {
 
             const plBindGroupUpdateBufferData tSkyboxBG0BufferData = {
@@ -3438,7 +3388,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         // bounding boxes
         const uint32_t uOutlineDrawableCount = pl_sb_size(ptScene->sbtOutlineDrawables);
-        if(uOutlineDrawableCount > 0 && gptData->bShowSelectedBoundingBox)
+        if(uOutlineDrawableCount > 0 && gptData->tRuntimeOptions.bShowSelectedBoundingBox)
         {
             const plVec4 tOutlineColor = (plVec4){0.0f, (float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 1.0f};
             for(uint32_t i = 0; i < uOutlineDrawableCount; i++)
@@ -3510,7 +3460,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
         }
 
         // debug drawing
-        if(gptData->bDrawAllBoundingBoxes)
+        if(gptData->tRuntimeOptions.bDrawAllBoundingBoxes)
         {
             for(uint32_t i = 0; i < uDrawableCount; i++)
             {
@@ -3519,7 +3469,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
                 gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(1.0f, 0.0f, 0.0f), .fThickness = 0.02f});
             }
         }
-        else if(gptData->bDrawVisibleBoundingBoxes)
+        else if(gptData->tRuntimeOptions.bDrawVisibleBoundingBoxes)
         {
             for(uint32_t i = 0; i < uVisibleDeferredDrawCount; i++)
             {
@@ -3529,13 +3479,13 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             }
         }
 
-        if(gptData->bShowOrigin)
+        if(gptData->tRuntimeOptions.bShowOrigin)
         {
             const plMat4 tTransform = pl_identity_mat4();
             gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, (plDrawLineOptions){.fThickness = 0.02f});
         }
 
-        if(gptData->bShowProbes)
+        if(gptData->tRuntimeOptions.bShowProbes)
         {
             for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
             {
@@ -3546,7 +3496,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             }
         }
 
-        if(gptData->bShowBVH)
+        if(gptData->tRuntimeOptions.bShowBVH)
         {
             pl_begin_cpu_sample(gptProfile, 0, "draw BVH");
             plObjectComponent* sbtComponents = ptScene->tComponentLibrary.tObjectComponentManager.pComponents;
@@ -3748,7 +3698,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         // find next power of 2
         uint32_t uJumpDistance = 1;
-        uint32_t uHalfWidth = gptData->uOutlineWidth / 2;
+        uint32_t uHalfWidth = gptData->tRuntimeOptions.uOutlineWidth / 2;
         if (uHalfWidth && !(uHalfWidth & (uHalfWidth - 1))) 
             uJumpDistance = uHalfWidth;
         while(uJumpDistance < uHalfWidth)
@@ -3922,15 +3872,15 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 static void
 pl_refr_resize(void)
 {
-    gptData->bReloadMSAA = true;
+    gptData->tRuntimeOptions.bReloadMSAA = true;
 
     pl_log_info(gptLog, gptData->uLogChannel, "resizing");
 
     plSwapchainInit tDesc = {
-        .bVSync  = gptData->bVSync,
+        .bVSync  = gptData->tRuntimeOptions.bVSync,
         .uWidth  = (uint32_t)(gptIO->tMainViewportSize.x * gptIO->tMainFramebufferScale.x),
         .uHeight = (uint32_t)(gptIO->tMainViewportSize.y * gptIO->tMainFramebufferScale.y),
-        .tSampleCount = gptData->bMSAA ? gptData->tDeviceInfo.tMaxSampleCount : PL_SAMPLE_COUNT_1
+        .tSampleCount = gptData->tRuntimeOptions.bMSAA ? gptData->tDeviceInfo.tMaxSampleCount : PL_SAMPLE_COUNT_1
     };
     gptGfx->recreate_swapchain(gptData->ptSwap, &tDesc);
 }
@@ -3943,22 +3893,22 @@ pl_refr_begin_frame(void)
     plDevice* ptDevice = gptData->ptDevice;
     gptGfx->begin_frame(ptDevice);
 
-    if(gptData->bReloadSwapchain)
+    if(gptData->tRuntimeOptions.bReloadSwapchain)
     {
-        gptData->bReloadSwapchain = false;
+        gptData->tRuntimeOptions.bReloadSwapchain = false;
         pl_refr_resize();
         pl_end_cpu_sample(gptProfile, 0);
         return false;
     }
 
-    if(gptData->bReloadMSAA)
+    if(gptData->tRuntimeOptions.bReloadMSAA)
     {
-        gptData->bReloadMSAA = false;
+        gptData->tRuntimeOptions.bReloadMSAA = false;
 
         uint32_t uImageCount = 0;
         plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptData->ptSwap, &uImageCount);
 
-        if(gptData->bMSAA)
+        if(gptData->tRuntimeOptions.bMSAA)
         {
             plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptData->atCmdPools[0]);
             gptGfx->begin_command_recording(ptCommandBuffer, NULL);
@@ -4020,7 +3970,35 @@ pl_refr_begin_frame(void)
                 atMainMSAAAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
                 atMainMSAAAttachmentSets[i].atViewAttachments[1] = gptData->tMSAATexture;
             }
-            gptGfx->update_render_pass_attachments(gptData->ptDevice, gptData->tMainMSAARenderPass, tColorTextureDesc.tDimensions.xy, atMainMSAAAttachmentSets);
+
+            if(gptData->tMainMSAARenderPass.uIndex == 0)
+            {
+                const plRenderPassDesc tMainMSAARenderPassDesc = {
+                    .tLayout = gptData->tMainMSAARenderPassLayout,
+                    .tResolveTarget = { // swapchain image
+                        .tLoadOp       = PL_LOAD_OP_DONT_CARE,
+                        .tStoreOp      = PL_STORE_OP_STORE,
+                        .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+                        .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
+                        .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                    },
+                    .atColorTargets = { // msaa
+                        {
+                            .tLoadOp       = PL_LOAD_OP_CLEAR,
+                            .tStoreOp      = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
+                            .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                            .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                            .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                        }
+                    },
+                    .tDimensions = {(float)tInfo.uWidth, (float)tInfo.uHeight},
+                    .ptSwapchain = gptData->ptSwap
+                };
+                gptData->tMainMSAARenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tMainMSAARenderPassDesc, atMainMSAAAttachmentSets);
+            }
+            else
+                gptGfx->update_render_pass_attachments(gptData->ptDevice, gptData->tMainMSAARenderPass, tColorTextureDesc.tDimensions.xy, atMainMSAAAttachmentSets);
+            
             gptData->tCurrentMainRenderPass = gptData->tMainMSAARenderPass;
         }
         else
@@ -4524,75 +4502,34 @@ pl_refr_add_materials_to_scene(uint32_t uSceneHandle, uint32_t uMaterialCount, c
     pl_end_cpu_sample(gptProfile, 0);
 }
 
-static void
-pl_show_graphics_options(const char* pcTitle)
+plRendererRuntimeOptions*
+pl_refr_get_runtime_options(void)
 {
-    if(gptUI->begin_collapsing_header(pcTitle, 0))
+    return &gptData->tRuntimeOptions;
+}
+
+plSceneRuntimeOptions*
+pl_refr_get_scene_runtime_options(uint32_t uSceneHandle)
+{
+    return &gptData->sbtScenes[uSceneHandle].tRuntimeOptions;
+}
+
+void
+pl_refr_rebuild_bvh(uint32_t uSceneHandle)
+{
+    plComponentLibrary* ptLibrary = &gptData->sbtScenes[uSceneHandle].tComponentLibrary;
+    plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
+    const uint32_t uObjectCount = pl_sb_size(sbtComponents);
+    pl_sb_resize(gptData->sbtScenes[uSceneHandle].sbtBvhAABBs, uObjectCount);
+    for(uint32_t j = 0; j < uObjectCount; j++)
     {
-        if(gptUI->checkbox("VSync", &gptData->bVSync))
-            gptData->bReloadSwapchain = true;
-        gptUI->checkbox("Show Origin", &gptData->bShowOrigin);
-        gptUI->checkbox("Show BVH", &gptData->bShowBVH);
-        bool bReloadShaders = false;
-        if(gptUI->checkbox("Wireframe", &gptData->bWireframe)) bReloadShaders = true;
-        if(gptUI->checkbox("MultiViewport Shadows", &gptData->bMultiViewportShadows)) bReloadShaders = true;
-        if(gptUI->checkbox("Image Based Lighting", &gptData->bImageBasedLighting)) bReloadShaders = true;
-        if(gptUI->checkbox("Punctual Lighting", &gptData->bPunctualLighting)) bReloadShaders = true;
-        gptUI->checkbox("Show Probes", &gptData->bShowProbes);
-        if(gptUI->checkbox("UI MSAA", &gptData->bMSAA))
-        {
-            gptData->bReloadSwapchain = true;
-        }
-
-        if(bReloadShaders)
-        {
-            for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
-            {
-                pl_refr_reload_scene_shaders(i);
-            }
-        }
-        gptUI->checkbox("Frustum Culling", &gptData->bFrustumCulling);
-        gptUI->checkbox("All Bounding Boxes", &gptData->bDrawAllBoundingBoxes);
-        gptUI->checkbox("Visible Bounding Boxes", &gptData->bDrawVisibleBoundingBoxes);
-        gptUI->checkbox("Selected Bounding Box", &gptData->bShowSelectedBoundingBox);
-        
-        gptUI->input_float("Depth Bias", &gptData->fShadowConstantDepthBias, NULL, 0);
-        gptUI->input_float("Slope Depth Bias", &gptData->fShadowSlopeDepthBias, NULL, 0);
-        gptUI->slider_uint("Outline Width", &gptData->uOutlineWidth, 2, 50, 0);
-        
-
-        for(uint32_t i = 0; i < pl_sb_size(gptData->sbtScenes); i++)
-        {
-            if(!gptData->sbtScenes[i].bActive)
-                continue;
-
-            if(gptUI->tree_node("Scene", 0))
-            {
-                gptUI->checkbox("Show Skybox", &gptData->sbtScenes[i].bShowSkybox);
-                gptUI->checkbox("Dynamic BVH", &gptData->sbtScenes[i].bContinuousBVH);
-                if(gptUI->button("Build BVH") || gptData->sbtScenes[i].bContinuousBVH)
-                {
-                    plComponentLibrary* ptLibrary = &gptData->sbtScenes[i].tComponentLibrary;
-                    plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
-                    const uint32_t uObjectCount = pl_sb_size(sbtComponents);
-                    pl_sb_resize(gptData->sbtScenes[i].sbtBvhAABBs, uObjectCount);
-                    for(uint32_t j = 0; j < uObjectCount; j++)
-                    {
-                        plObjectComponent* ptObject = &sbtComponents[j];
-                        gptData->sbtScenes[i].sbtBvhAABBs[j] = ptObject->tAABB;
-                    }
-
-                    gptBvh->build(&gptData->sbtScenes[i].tBvh, gptData->sbtScenes[i].sbtBvhAABBs, uObjectCount);
-
-                    pl_sb_reset(gptData->sbtScenes[i].sbtBvhAABBs);
-                    
-                }
-                gptUI->tree_pop();
-            }
-        }
-
-        gptUI->end_collapsing_header();
+        plObjectComponent* ptObject = &sbtComponents[j];
+        gptData->sbtScenes[uSceneHandle].sbtBvhAABBs[j] = ptObject->tAABB;
     }
+
+    gptBvh->build(&gptData->sbtScenes[uSceneHandle].tBvh, gptData->sbtScenes[uSceneHandle].sbtBvhAABBs, uObjectCount);
+
+    pl_sb_reset(gptData->sbtScenes[uSceneHandle].sbtBvhAABBs); 
 }
 
 static plCommandPool*
@@ -4639,10 +4576,12 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_gizmo_drawlist                 = pl_refr_get_gizmo_drawlist,
         .update_hovered_entity              = pl_refr_update_hovered_entity,
         .get_hovered_entity                 = pl_refr_get_hovered_entity,
-        .show_graphics_options              = pl_show_graphics_options,
         .get_command_pool                   = pl__refr_get_command_pool,
         .resize                             = pl_refr_resize,
         .get_main_render_pass               = pl_refr_get_main_render_pass,
+        .get_runtime_options                = pl_refr_get_runtime_options,
+        .get_scene_runtime_options          = pl_refr_get_scene_runtime_options,
+        .rebuild_scene_bvh                  = pl_refr_rebuild_bvh,
     };
     pl_set_api(ptApiRegistry, plRendererI, &tApi);
 
@@ -4665,7 +4604,6 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptDrawBackend   = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-    gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
     gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
     gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);

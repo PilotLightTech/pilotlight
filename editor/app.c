@@ -121,6 +121,12 @@ typedef struct _plAppData
     // windows
     plWindow* ptWindow;
 
+    // graphics
+    plDevice*    ptDevice;
+    plDeviceInfo tDeviceInfo;
+    plSwapchain* ptSwap;
+    plSurface*   ptSurface;
+
     // swapchains
     bool bResize;
 
@@ -306,11 +312,59 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
     gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
 
+    // initialize graphics
+    plGraphicsInit tGraphicsDesc = {
+        .tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED
+    };
+    gptGfx->initialize(&tGraphicsDesc);
+
+    ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
+
+    uint32_t uDeviceCount = 16;
+    plDeviceInfo atDeviceInfos[16] = {0};
+    gptGfx->enumerate_devices(atDeviceInfos, &uDeviceCount);
+
+    // we will prefer discrete, then integrated GPUs
+    int iBestDvcIdx = 0;
+    int iDiscreteGPUIdx   = -1;
+    int iIntegratedGPUIdx = -1;
+    for(uint32_t i = 0; i < uDeviceCount; i++)
+    {
+        
+        if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_DISCRETE)
+            iDiscreteGPUIdx = i;
+        else if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_INTEGRATED)
+            iIntegratedGPUIdx = i;
+    }
+
+    if(iDiscreteGPUIdx > -1)
+        iBestDvcIdx = iDiscreteGPUIdx;
+    else if(iIntegratedGPUIdx > -1)
+        iBestDvcIdx = iIntegratedGPUIdx;
+
+    // create device
+    const plDeviceInit tDeviceInit = {
+        .uDeviceIdx = iBestDvcIdx,
+        .ptSurface = ptAppData->ptSurface,
+        .szDynamicBufferBlockSize = 134217728
+    };
+    ptAppData->ptDevice = gptGfx->create_device(&tDeviceInit);
+    ptAppData->tDeviceInfo = atDeviceInfos[iBestDvcIdx];
+
+    // create swapchain
+    const plSwapchainInit tSwapInit = {
+        .bVSync = true,
+        .tSampleCount = 1
+    };
+    ptAppData->ptSwap = gptGfx->create_swapchain(ptAppData->ptDevice, ptAppData->ptSurface, &tSwapInit);
+    ptDataRegistry->set_data("device", ptAppData->ptDevice); // used by debug extension
+
     // setup reference renderer
     plRendererSettings tRenderSettings = {
-        .ptWindow              = ptAppData->ptWindow,
+        .ptDevice = ptAppData->ptDevice,
+        .tDeviceInfo = ptAppData->tDeviceInfo,
+        .ptSwap = ptAppData->ptSwap,
         .uMaxTextureResolution = 1024,
-        .bValidationOn         = true
     };
     gptRenderer->initialize(tRenderSettings);
 
@@ -481,6 +535,11 @@ pl_app_shutdown(plAppData* ptAppData)
     gptScreenLog->cleanup();
     gptDrawBackend->cleanup();
     gptRenderer->cleanup();
+    
+    gptGfx->cleanup_swapchain(ptAppData->ptSwap);
+    gptGfx->cleanup_surface(ptAppData->ptSurface);
+    gptGfx->cleanup_device(ptAppData->ptDevice);
+    gptGfx->cleanup();
     gptWindows->destroy_window(ptAppData->ptWindow);
     PL_FREE(ptAppData);
 }
@@ -753,7 +812,52 @@ pl__show_editor_window(plAppData* ptAppData)
             gptUI->end_collapsing_header();
         }
         
-        gptRenderer->show_graphics_options(ICON_FA_DICE_D6 " Graphics");
+        if(gptUI->begin_collapsing_header(ICON_FA_DICE_D6 " Graphics", 0))
+        {
+            plRendererRuntimeOptions* ptRuntimeOptions = gptRenderer->get_runtime_options();
+            if(gptUI->checkbox("VSync", &ptRuntimeOptions->bVSync))
+                ptRuntimeOptions->bReloadSwapchain = true;
+            gptUI->checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
+            gptUI->checkbox("Show BVH", &ptRuntimeOptions->bShowBVH);
+            bool bReloadShaders = false;
+            if(gptUI->checkbox("Wireframe", &ptRuntimeOptions->bWireframe)) bReloadShaders = true;
+            if(gptUI->checkbox("MultiViewport Shadows", &ptRuntimeOptions->bMultiViewportShadows)) bReloadShaders = true;
+            if(gptUI->checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;
+            if(gptUI->checkbox("Punctual Lighting", &ptRuntimeOptions->bPunctualLighting)) bReloadShaders = true;
+            gptUI->checkbox("Show Probes", &ptRuntimeOptions->bShowProbes);
+            if(gptUI->checkbox("UI MSAA", &ptRuntimeOptions->bMSAA))
+            {
+                ptRuntimeOptions->bReloadSwapchain = true;
+            }
+
+            if(bReloadShaders)
+            {
+                gptRenderer->reload_scene_shaders(ptAppData->uSceneHandle0);
+            }
+            gptUI->checkbox("Frustum Culling", &ptRuntimeOptions->bFrustumCulling);
+            gptUI->checkbox("All Bounding Boxes", &ptRuntimeOptions->bDrawAllBoundingBoxes);
+            gptUI->checkbox("Visible Bounding Boxes", &ptRuntimeOptions->bDrawVisibleBoundingBoxes);
+            gptUI->checkbox("Selected Bounding Box", &ptRuntimeOptions->bShowSelectedBoundingBox);
+            
+            gptUI->input_float("Depth Bias", &ptRuntimeOptions->fShadowConstantDepthBias, NULL, 0);
+            gptUI->input_float("Slope Depth Bias", &ptRuntimeOptions->fShadowSlopeDepthBias, NULL, 0);
+            gptUI->slider_uint("Outline Width", &ptRuntimeOptions->uOutlineWidth, 2, 50, 0);
+            
+
+            if(ptAppData->uSceneHandle0 != UINT32_MAX)
+            {
+                if(gptUI->tree_node("Scene", 0))
+                {
+                    plSceneRuntimeOptions* ptSceneRuntimeOptions = gptRenderer->get_scene_runtime_options(ptAppData->uSceneHandle0);
+                    gptUI->checkbox("Show Skybox", &ptSceneRuntimeOptions->bShowSkybox);
+                    gptUI->checkbox("Dynamic BVH", &ptSceneRuntimeOptions->bContinuousBVH);
+                    if(gptUI->button("Build BVH") || ptSceneRuntimeOptions->bContinuousBVH)
+                        gptRenderer->rebuild_scene_bvh(ptAppData->uSceneHandle0);
+                    gptUI->tree_pop();
+                }
+            }
+            gptUI->end_collapsing_header();
+        }
 
         if(gptUI->begin_collapsing_header(ICON_FA_BOXES_STACKED " Physics", 0))
         {

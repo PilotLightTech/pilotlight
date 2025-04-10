@@ -81,7 +81,6 @@ Index of this file:
     static const plJobI*           gptJob           = NULL;
     static const plDrawI*          gptDraw          = NULL;
     static const plDrawBackendI*   gptDrawBackend   = NULL;
-    static const plUiI*            gptUI            = NULL;
     static const plIOI*            gptIOI           = NULL;
     static const plShaderI*        gptShader        = NULL;
     static const plFileI*          gptFile          = NULL;
@@ -397,7 +396,6 @@ typedef struct _plRefScene
     plDrawable        tSkyboxDrawable;
     plTextureHandle   tSkyboxTexture;
     plBindGroupHandle tSkyboxBindGroup;
-    bool              bShowSkybox;
         
     // shared bind groups
     plBindGroupHandle tSkinBindGroup0;
@@ -491,9 +489,10 @@ typedef struct _plRefScene
 
     // bvh
     plBVH tBvh;
-    bool bContinuousBVH;
     plAABB* sbtBvhAABBs;
     plBVHNode** sbtNodeStack;
+
+    plSceneRuntimeOptions tRuntimeOptions;
 } plRefScene;
 
 typedef struct _plRefRendererData
@@ -501,7 +500,7 @@ typedef struct _plRefRendererData
     plDevice* ptDevice;
     plDeviceInfo tDeviceInfo;
     plSwapchain* ptSwap;
-    plSurface* ptSurface;
+    // plSurface* ptSurface;
     plTempAllocator tTempAllocator;
     uint32_t uMaxTextureResolution;
 
@@ -587,24 +586,7 @@ typedef struct _plRefRendererData
     plDynamicDataBlock tCurrentDynamicDataBlock;
 
     // graphics options
-    bool     bMSAA;
-    bool     bShowProbes;
-    bool     bShowBVH;
-    bool     bWireframe;
-    bool     bReloadSwapchain;
-    bool     bReloadMSAA;
-    bool     bVSync;
-    bool     bShowOrigin;
-    bool     bFrustumCulling;
-    bool     bDrawAllBoundingBoxes;
-    bool     bDrawVisibleBoundingBoxes;
-    bool     bShowSelectedBoundingBox;
-    bool     bMultiViewportShadows;
-    bool     bImageBasedLighting;
-    bool     bPunctualLighting;
-    float    fShadowConstantDepthBias;
-    float    fShadowSlopeDepthBias;
-    uint32_t uOutlineWidth;
+    plRendererRuntimeOptions tRuntimeOptions;
 
     // stats
     double* pdDrawCalls;

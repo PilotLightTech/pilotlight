@@ -925,11 +925,11 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
         if(ptLight->tType == PL_LIGHT_TYPE_POINT)
         {
 
-            if(gptData->bMultiViewportShadows)
+            if(gptData->tRuntimeOptions.bMultiViewportShadows)
             {
 
                 gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
-                gptGfx->set_depth_bias(ptEncoder, gptData->fShadowConstantDepthBias, 0.0f, gptData->fShadowSlopeDepthBias);
+                gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
                 *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
                 for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                 {
@@ -1115,7 +1115,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
                 {
 
                     gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
-                    gptGfx->set_depth_bias(ptEncoder, gptData->fShadowConstantDepthBias, 0.0f, gptData->fShadowSlopeDepthBias);
+                    gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
                     *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
                     for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                     {
@@ -1244,7 +1244,7 @@ pl_refr_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptComm
         {
 
             gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
-            gptGfx->set_depth_bias(ptEncoder, gptData->fShadowConstantDepthBias, 0.0f, gptData->fShadowSlopeDepthBias);
+            gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
             *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
@@ -1604,10 +1604,10 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
 
         const uint32_t uCascadeCount = iMode == 0 ? ptLight->uCascadeCount : 1; // probe only needs single cascade
 
-        if(gptData->bMultiViewportShadows)
+        if(gptData->tRuntimeOptions.bMultiViewportShadows)
         {
             gptGfx->reset_draw_stream(ptStream, uOpaqueDrawableCount + uTransparentDrawableCount);
-            gptGfx->set_depth_bias(ptEncoder, gptData->fShadowConstantDepthBias, 0.0f, gptData->fShadowSlopeDepthBias);
+            gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
             *gptData->pdDrawCalls += (double)uOpaqueDrawableCount;
             for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
             {
@@ -1765,7 +1765,7 @@ pl_refr_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer
             {
 
                 gptGfx->reset_draw_stream(ptStream, uOpaqueDrawableCount + uTransparentDrawableCount);
-                gptGfx->set_depth_bias(ptEncoder, gptData->fShadowConstantDepthBias, 0.0f, gptData->fShadowSlopeDepthBias);
+                gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
                 *gptData->pdDrawCalls += (double)uOpaqueDrawableCount;
                 for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
                 {
@@ -1968,7 +1968,7 @@ pl_refr_post_process_scene(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHand
 
     plPostProcessOptions* ptDynamicData = (plPostProcessOptions*)tDynamicBinding.pcData;
     const plVec4 tOutlineColor = (plVec4){(float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
-    ptDynamicData->fTargetWidth = (float)gptData->uOutlineWidth * tOutlineColor.r + 1.0f;
+    ptDynamicData->fTargetWidth = (float)gptData->tRuntimeOptions.uOutlineWidth * tOutlineColor.r + 1.0f;
     ptDynamicData->tOutlineColor = tOutlineColor;
 
     gptGfx->bind_shader(ptEncoder, ptScene->tTonemapShader);
@@ -2058,7 +2058,7 @@ pl_refr_create_global_shaders(void)
             .ulDepthWriteEnabled  = 1,
             .ulDepthMode          = PL_COMPARE_MODE_GREATER,
             .ulCullMode           = PL_CULL_MODE_CULL_BACK,
-            .ulWireframe          = gptData->bWireframe,
+            .ulWireframe          = gptData->tRuntimeOptions.bWireframe,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
             .ulStencilMask        = 0xff,
@@ -2135,7 +2135,7 @@ pl_refr_create_global_shaders(void)
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
             .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulWireframe          = gptData->bWireframe,
+            .ulWireframe          = gptData->tRuntimeOptions.bWireframe,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
             .ulStencilMask        = 0xff,
@@ -4149,9 +4149,9 @@ pl__refr_set_drawable_shaders(uint32_t uSceneHandle)
     plDevice*   ptDevice = gptData->ptDevice;
 
     int iSceneWideRenderingFlags = 0;
-    if(gptData->bPunctualLighting)
+    if(gptData->tRuntimeOptions.bPunctualLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
-    if(gptData->bImageBasedLighting)
+    if(gptData->tRuntimeOptions.bImageBasedLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
@@ -4220,7 +4220,7 @@ pl__refr_set_drawable_shaders(uint32_t uSceneHandle)
                 .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
-                .ulWireframe          = gptData->bWireframe
+                .ulWireframe          = gptData->tRuntimeOptions.bWireframe
             };
 
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
@@ -4232,7 +4232,7 @@ pl__refr_set_drawable_shaders(uint32_t uSceneHandle)
             };
 
             ptScene->sbtDrawables[i].tShader = pl__get_shader_variant(uSceneHandle, gptData->tDeferredShader, &tVariant);
-            aiConstantData0[4] = gptData->bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+            aiConstantData0[4] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
             ptScene->sbtDrawables[i].tEnvShader = pl__get_shader_variant(uSceneHandle, gptData->tDeferredShader, &tVariant);
         }
 
@@ -4249,7 +4249,7 @@ pl__refr_set_drawable_shaders(uint32_t uSceneHandle)
                 .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
-                .ulWireframe          = gptData->bWireframe
+                .ulWireframe          = gptData->tRuntimeOptions.bWireframe
             };
 
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
@@ -4261,7 +4261,7 @@ pl__refr_set_drawable_shaders(uint32_t uSceneHandle)
             };
 
             ptScene->sbtDrawables[i].tShader = pl__get_shader_variant(uSceneHandle, gptData->tForwardShader, &tVariant);
-            aiConstantData0[4] = gptData->bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+            aiConstantData0[4] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
             ptScene->sbtDrawables[i].tEnvShader = pl__get_shader_variant(uSceneHandle, gptData->tForwardShader, &tVariant);
   
         }
