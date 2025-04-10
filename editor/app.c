@@ -231,7 +231,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // load extensions
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
     ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false);
-    ptExtensionRegistry->load("pl_dear_imgui_ext", NULL, NULL, false);
 
     // load apis
     gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
@@ -362,7 +361,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // setup reference renderer
     plRendererSettings tRenderSettings = {
         .ptDevice = ptAppData->ptDevice,
-        .tDeviceInfo = ptAppData->tDeviceInfo,
+        .ptDeviceInfo = &ptAppData->tDeviceInfo,
         .ptSwap = ptAppData->ptSwap,
         .uMaxTextureResolution = 1024,
     };

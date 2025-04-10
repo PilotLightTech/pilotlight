@@ -68,11 +68,6 @@ if pidof -x "pilot_light" -o $$ >/dev/null;then
     echo
     echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
     echo
-elif pidof -x "pl_editor" -o $$ >/dev/null;then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
@@ -273,11 +268,6 @@ if pidof -x "pilot_light" -o $$ >/dev/null;then
     echo
     echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
     echo
-elif pidof -x "pl_editor" -o $$ >/dev/null;then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
@@ -458,10 +448,10 @@ rm -f ../out/lock.tmp
 fi
 
 # ################################################################################
-# #                         configuration | debug_editor                         #
+# #                      configuration | debug_experimental                      #
 # ################################################################################
 
-if [[ "$PL_CONFIG" == "debug_editor" ]]; then
+if [[ "$PL_CONFIG" == "debug_experimental" ]]; then
 
 # create output directory(s)
 mkdir -p "../out"
@@ -478,23 +468,148 @@ if pidof -x "pilot_light" -o $$ >/dev/null;then
     echo
     echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
     echo
-elif pidof -x "pl_editor" -o $$ >/dev/null;then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
+    rm -f ../out/pl_unity_ext.so
+    rm -f ../out/pl_unity_ext_*.so
+    rm -f ../out/pl_script_camera.so
+    rm -f ../out/pl_script_camera_*.so
+    rm -f ../out/pl_platform_ext.so
+    rm -f ../out/pl_platform_ext_*.so
+    rm -f ../out/app.so
+    rm -f ../out/app_*.so
     rm -f ../out/editor.so
     rm -f ../out/editor_*.so
     rm -f ../out/pl_dear_imgui_ext.so
     rm -f ../out/pl_dear_imgui_ext_*.so
-    rm -f ../out/pl_editor
+    rm -f ../out/pilot_light
 
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | debug_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
+PL_SOURCES="../extensions/pl_unity_ext.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_unity_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_unity_ext.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~ pl_script_camera | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_script_camera.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_script_camera${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_script_camera.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~ pl_platform_ext | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="../extensions/pl_platform_linux_ext.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_platform_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_platform_ext.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
+PL_SOURCES="../editor/app.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: app${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/app.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -540,7 +655,7 @@ fi
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | debug_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -584,7 +699,7 @@ fi
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~ editor app | debug_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~ editor | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD "
@@ -598,7 +713,7 @@ PL_SOURCES="../editor/editor.cpp "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: editor app${NC}
+echo ${YELLOW}Step: editor${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
 gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/editor.so"
@@ -613,7 +728,7 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | debug_editor ~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | debug_experimental ~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -648,7 +763,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~ pilot_light_editor | debug_editor ~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~ pilot_light_experimental | debug_experimental ~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -665,10 +780,10 @@ PL_SOURCES="../editor/pl_main_glfw.cpp "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pilot_light_editor${NC}
+echo ${YELLOW}Step: pilot_light_experimental${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_editor"
+gcc $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light"
 
 # check build status
 if [ $? -ne 0 ]
@@ -687,14 +802,14 @@ fi
 rm -f ../out/lock.tmp
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# end of debug_editor
+# end of debug_experimental
 fi
 
 # ################################################################################
-# #                        configuration | release_editor                        #
+# #                     configuration | release_experimental                     #
 # ################################################################################
 
-if [[ "$PL_CONFIG" == "release_editor" ]]; then
+if [[ "$PL_CONFIG" == "release_experimental" ]]; then
 
 # create output directory(s)
 mkdir -p "../out"
@@ -711,23 +826,148 @@ if pidof -x "pilot_light" -o $$ >/dev/null;then
     echo
     echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
     echo
-elif pidof -x "pl_editor" -o $$ >/dev/null;then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
+    rm -f ../out/pl_unity_ext.so
+    rm -f ../out/pl_unity_ext_*.so
+    rm -f ../out/pl_script_camera.so
+    rm -f ../out/pl_script_camera_*.so
+    rm -f ../out/pl_platform_ext.so
+    rm -f ../out/pl_platform_ext_*.so
+    rm -f ../out/app.so
+    rm -f ../out/app_*.so
     rm -f ../out/editor.so
     rm -f ../out/editor_*.so
     rm -f ../out/pl_dear_imgui_ext.so
     rm -f ../out/pl_dear_imgui_ext_*.so
-    rm -f ../out/pl_editor
+    rm -f ../out/pilot_light
 
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | release_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | release_experimental ~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
+PL_SOURCES="../extensions/pl_unity_ext.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_unity_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_unity_ext.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~ pl_script_camera | release_experimental ~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_script_camera.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_script_camera${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_script_camera.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~ pl_platform_ext | release_experimental ~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="../extensions/pl_platform_linux_ext.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_platform_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_platform_ext.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ app | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out -L/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
+PL_SOURCES="../editor/app.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: app${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/app.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -773,7 +1013,7 @@ fi
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | release_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -817,7 +1057,7 @@ fi
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~ editor app | release_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~ editor | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD "
@@ -831,7 +1071,7 @@ PL_SOURCES="../editor/editor.cpp "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: editor app${NC}
+echo ${YELLOW}Step: editor${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
 gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/editor.so"
@@ -846,7 +1086,7 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | release_editor ~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | release_experimental ~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -881,7 +1121,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~ pilot_light_editor | release_editor ~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~ pilot_light_experimental | release_experimental ~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -898,10 +1138,10 @@ PL_SOURCES="../editor/pl_main_glfw.cpp "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pilot_light_editor${NC}
+echo ${YELLOW}Step: pilot_light_experimental${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_editor"
+gcc $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light"
 
 # check build status
 if [ $? -ne 0 ]
@@ -920,7 +1160,7 @@ fi
 rm -f ../out/lock.tmp
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# end of release_editor
+# end of release_experimental
 fi
 
 

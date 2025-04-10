@@ -86,7 +86,7 @@ pl_refr_initialize(plRendererSettings tSettings)
     memset(gptData, 0, sizeof(plRefRendererData));
 
     gptData->ptDevice = tSettings.ptDevice;
-    gptData->tDeviceInfo = tSettings.tDeviceInfo;
+    gptData->tDeviceInfo = *tSettings.ptDeviceInfo;
     gptData->ptSwap = tSettings.ptSwap;
 
     // register data with registry (for reloads)

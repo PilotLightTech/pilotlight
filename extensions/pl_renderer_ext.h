@@ -39,6 +39,7 @@ typedef struct _plSceneRuntimeOptions    plSceneRuntimeOptions;
 typedef struct _plWindow           plWindow;           // pl_os.h
 typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
 typedef struct _plDevice           plDevice;           // pl_graphics_ext.h
+typedef struct _plDeviceInfo       plDeviceInfo;       // pl_graphics_ext.h
 typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
 typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
 typedef struct _plCommandPool      plCommandPool;      // pl_graphics_ext.h
@@ -128,7 +129,7 @@ typedef struct _plViewOptions
 typedef struct _plRendererSettings
 {
     plDevice* ptDevice;
-    plDeviceInfo tDeviceInfo;
+    plDeviceInfo* ptDeviceInfo;
     plSwapchain* ptSwap;
     uint32_t  uMaxTextureResolution; // default 1024 (should be factor of 2)
 } plRendererSettings;

@@ -410,7 +410,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tRenderSettings.ptDevice              = ptAppData->ptDevice;
     tRenderSettings.uMaxTextureResolution = 1024;
     tRenderSettings.ptSwap                = ptAppData->ptSwap;
-    tRenderSettings.tDeviceInfo           = ptAppData->tDeviceInfo;
+    tRenderSettings.ptDeviceInfo           = &ptAppData->tDeviceInfo;
     gptRenderer->initialize(tRenderSettings);
 
     gptTools->initialize({gptRenderer->get_device()});

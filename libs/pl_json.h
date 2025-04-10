@@ -1872,7 +1872,7 @@ pl__write_json_object(plJsonObject* ptJson, char* pcBuffer, uint32_t* puBufferSi
 
                     const char* pcPrevChar = &ptJson->ptRootObject->sbcBuffer[ptJson->sbuValueOffsets[i]];
                     char cPreviousChar = ' ';
-                    if(pcPrevChar)
+                    // if(pcPrevChar)
                     {
                         const char* pcPrevCharAddr = pcPrevChar - 1;
                         cPreviousChar = pcPrevCharAddr[0];
@@ -2012,7 +2012,7 @@ pl__check_json_object(plJsonObject* ptJson, uint32_t* puBufferSize, uint32_t* pu
 
                     const char* pcPrevChar = &ptJson->ptRootObject->sbcBuffer[ptJson->sbuValueOffsets[i]];
                     char cPreviousChar = ' ';
-                    if(pcPrevChar)
+                    // if(pcPrevChar)
                     {
                         const char* pcPrevCharAddr = pcPrevChar - 1;
                         cPreviousChar = pcPrevCharAddr[0];

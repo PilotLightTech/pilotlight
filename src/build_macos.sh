@@ -73,14 +73,6 @@ then
     echo
     echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
     echo
-# # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pl_editor")
-elif [ $running_count -gt 0 ]
-then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
@@ -323,14 +315,6 @@ then
     echo
     echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
     echo
-# # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pl_editor")
-elif [ $running_count -gt 0 ]
-then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
@@ -550,10 +534,10 @@ rm -f ../out/lock.tmp
 fi
 
 # ################################################################################
-# #                           configuration | moltenvk                           #
+# #                      configuration | debug_experimental                      #
 # ################################################################################
 
-if [[ "$PL_CONFIG" == "moltenvk" ]]; then
+if [[ "$PL_CONFIG" == "debug_experimental" ]]; then
 
 # create output directory(s)
 mkdir -p "../out"
@@ -573,9 +557,871 @@ then
     echo
     echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
     echo
+else
+    # cleanup binaries if not hot reloading
+    PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
+    rm -f ../out/pl_unity_ext.dylib
+    rm -f ../out/pl_unity_ext_*.dylib
+    rm -f ../out/pl_script_camera.dylib
+    rm -f ../out/pl_script_camera_*.dylib
+    rm -f ../out/pl_platform_ext.dylib
+    rm -f ../out/pl_platform_ext_*.dylib
+    rm -f ../out/app.dylib
+    rm -f ../out/app_*.dylib
+    rm -f ../out/editor.dylib
+    rm -f ../out/editor_*.dylib
+    rm -f ../out/pl_dear_imgui_ext.dylib
+    rm -f ../out/pl_dear_imgui_ext_*.dylib
+    rm -f ../out/pilot_light
+
+fi
+#~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared "
+PL_SOURCES="../extensions/pl_unity_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_unity_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_unity_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~ pl_script_camera | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_script_camera.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_script_camera${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_script_camera.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~ pl_platform_ext | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_platform_macos_ext.m "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_platform_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_platform_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../editor/app.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: app${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/app.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+# only build once
+if [ ! -f "../out/glfwd.a" ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_COCOA -D_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -L$VULKAN_SDK/lib "
+PL_COMPILER_FLAGS="-Wno-deprecated-declarations --debug -g -std=c99 -fmodules -ObjC -fPIC "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lvulkan "
+PL_SOURCES="../dependencies/glfw/src/glfw_unity.c ../dependencies/glfw/src/null_window.c "
+PL_LINK_FRAMEWORKS="-framework Cocoa -framework IOKit -framework CoreFoundation "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# # run compiler only
+echo
+echo ${YELLOW}Step: glfw${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
+
+# each file must be compiled separately
+clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/glfw/src/glfw_unity.c -o "./../out/glfw_unity.o"
+clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/glfw/src/null_window.c -o "./../out/null_window.o"
+
+# combine object files into a static lib
+ar rcs ./../out/libglfwd.a ./../out/*.o
+rm ./../out/*.o
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# only build once check
+fi
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+# only build once
+if [ ! -f "../out/dearimguid.a" ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../dependencies/imgui/imgui_unity.cpp "
+PL_LINK_FRAMEWORKS=""
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# # run compiler only
+echo
+echo ${YELLOW}Step: imgui${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
+
+# each file must be compiled separately
+clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/imgui/imgui_unity.cpp -o "./../out/imgui_unity.o"
+
+# combine object files into a static lib
+ar rcs ./../out/libdearimguid.a ./../out/*.o
+rm ./../out/*.o
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# only build once check
+fi
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ editor | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-fPIC -ObjC++ --debug -g -std=c++14 "
+PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
+PL_STATIC_LINK_LIBRARIES="-ldearimguid "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../editor/editor.cpp "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: editor${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/editor.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | debug_experimental ~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 --debug -g -Wno-nullability-completeness "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-lglfwd -ldearimguid "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../editor/pl_dear_imgui_ext.cpp "
+PL_LINK_FRAMEWORKS=""
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_dear_imgui_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_dear_imgui_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~ pilot_light_experimental | debug_experimental ~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-fPIC -ObjC++ --debug -g -std=c++11 "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-lglfwd -ldearimguid "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../editor/pl_main_glfw.cpp "
+PL_LINK_FRAMEWORKS=""
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pilot_light_experimental${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+# delete lock file(s)
+rm -f ../out/lock.tmp
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# end of debug_experimental
+fi
+
+# ################################################################################
+# #                     configuration | release_experimental                     #
+# ################################################################################
+
+if [[ "$PL_CONFIG" == "release_experimental" ]]; then
+
+# create output directory(s)
+mkdir -p "../out"
+
+# create lock file(s)
+echo LOCKING > "../out/lock.tmp"
+
+# check if this is a reload
+PL_HOT_RELOAD_STATUS=0
+
 # # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pl_editor")
-elif [ $running_count -gt 0 ]
+# # let user know if hot reloading
+running_count=$(ps aux | grep -v grep | grep -ci "pilot_light")
+if [ $running_count -gt 0 ]
+then
+    PL_HOT_RELOAD_STATUS=1
+    echo
+    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
+    echo
+else
+    # cleanup binaries if not hot reloading
+    PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
+    rm -f ../out/pl_unity_ext.dylib
+    rm -f ../out/pl_unity_ext_*.dylib
+    rm -f ../out/pl_script_camera.dylib
+    rm -f ../out/pl_script_camera_*.dylib
+    rm -f ../out/pl_platform_ext.dylib
+    rm -f ../out/pl_platform_ext_*.dylib
+    rm -f ../out/app.dylib
+    rm -f ../out/app_*.dylib
+    rm -f ../out/editor.dylib
+    rm -f ../out/editor_*.dylib
+    rm -f ../out/pl_dear_imgui_ext.dylib
+    rm -f ../out/pl_dear_imgui_ext_*.dylib
+    rm -f ../out/pilot_light
+
+fi
+#~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | release_experimental ~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared "
+PL_SOURCES="../extensions/pl_unity_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_unity_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_unity_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~ pl_script_camera | release_experimental ~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_script_camera.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_script_camera${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_script_camera.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~ pl_platform_ext | release_experimental ~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_platform_macos_ext.m "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_platform_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_platform_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ app | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../editor/app.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: app${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/app.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+# only build once
+if [ ! -f "../out/glfw.a" ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_COCOA "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -L$VULKAN_SDK/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lvulkan "
+PL_SOURCES="../dependencies/glfw/src/glfw_unity.c ../dependencies/glfw/src/null_window.c "
+PL_LINK_FRAMEWORKS="-framework Cocoa -framework IOKit -framework CoreFoundation "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# # run compiler only
+echo
+echo ${YELLOW}Step: glfw${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
+
+# each file must be compiled separately
+clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/glfw/src/glfw_unity.c -o "./../out/glfw_unity.o"
+clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/glfw/src/null_window.c -o "./../out/null_window.o"
+
+# combine object files into a static lib
+ar rcs ./../out/libglfw.a ./../out/*.o
+rm ./../out/*.o
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# only build once check
+fi
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+# only build once
+if [ ! -f "../out/dearimgui.a" ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-fPIC -std=c++14 "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../dependencies/imgui/imgui_unity.cpp "
+PL_LINK_FRAMEWORKS=""
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# # run compiler only
+echo
+echo ${YELLOW}Step: imgui${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling...${NC}
+
+# each file must be compiled separately
+clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/imgui/imgui_unity.cpp -o "./../out/imgui_unity.o"
+
+# combine object files into a static lib
+ar rcs ./../out/libdearimgui.a ./../out/*.o
+rm ./../out/*.o
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# only build once check
+fi
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~ editor | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-ldearimgui "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../editor/editor.cpp "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: editor${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/editor.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | release_experimental ~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 -Wno-nullability-completeness "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-lglfw -ldearimgui "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../editor/pl_dear_imgui_ext.cpp "
+PL_LINK_FRAMEWORKS=""
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_dear_imgui_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_dear_imgui_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~ pilot_light_experimental | release_experimental ~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++11 "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES="-lglfw -ldearimgui "
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../editor/pl_main_glfw.cpp "
+PL_LINK_FRAMEWORKS=""
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pilot_light_experimental${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+# delete lock file(s)
+rm -f ../out/lock.tmp
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# end of release_experimental
+fi
+
+# ################################################################################
+# #                           configuration | moltenvk                           #
+# ################################################################################
+
+if [[ "$PL_CONFIG" == "moltenvk" ]]; then
+
+# create output directory(s)
+mkdir -p "../out"
+
+# create lock file(s)
+echo LOCKING > "../out/lock.tmp"
+
+# check if this is a reload
+PL_HOT_RELOAD_STATUS=0
+
+# # let user know if hot reloading
+# # let user know if hot reloading
+running_count=$(ps aux | grep -v grep | grep -ci "pilot_light")
+if [ $running_count -gt 0 ]
 then
     PL_HOT_RELOAD_STATUS=1
     echo
@@ -800,10 +1646,10 @@ rm -f ../out/lock.tmp
 fi
 
 # ################################################################################
-# #                         configuration | debug_editor                         #
+# #                    configuration | moltenvk_experimental                     #
 # ################################################################################
 
-if [[ "$PL_CONFIG" == "debug_editor" ]]; then
+if [[ "$PL_CONFIG" == "moltenvk_experimental" ]]; then
 
 # create output directory(s)
 mkdir -p "../out"
@@ -823,25 +1669,140 @@ then
     echo
     echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
     echo
-# # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pl_editor")
-elif [ $running_count -gt 0 ]
-then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
 else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
+    rm -f ../out/pl_unity_ext.dylib
+    rm -f ../out/pl_unity_ext_*.dylib
+    rm -f ../out/pl_platform_ext.dylib
+    rm -f ../out/pl_platform_ext_*.dylib
+    rm -f ../out/app.dylib
+    rm -f ../out/app_*.dylib
     rm -f ../out/editor.dylib
     rm -f ../out/editor_*.dylib
     rm -f ../out/pl_dear_imgui_ext.dylib
     rm -f ../out/pl_dear_imgui_ext_*.dylib
-    rm -f ../out/pl_editor
+    rm -f ../out/pilot_light
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | debug_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | moltenvk_experimental ~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lpthread -lvulkan "
+PL_SOURCES="../extensions/pl_unity_ext.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_unity_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_unity_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~ pl_platform_ext | moltenvk_experimental ~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_platform_macos_ext.m "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_platform_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_platform_ext.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ app | moltenvk_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_LINK_DIRECTORIES="-L../out "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../editor/app.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: app${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/app.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | moltenvk_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -896,7 +1857,7 @@ fi
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | debug_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~ imgui | moltenvk_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -950,569 +1911,7 @@ fi
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~ editor app | debug_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out "
-PL_COMPILER_FLAGS="-fPIC -ObjC++ --debug -g -std=c++14 "
-PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
-PL_STATIC_LINK_LIBRARIES="-ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../editor/editor.cpp "
-PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: editor app${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/editor.dylib"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-#~~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | debug_editor ~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out "
-PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 --debug -g -Wno-nullability-completeness "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-lglfwd -ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../editor/pl_dear_imgui_ext.cpp "
-PL_LINK_FRAMEWORKS=""
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_dear_imgui_ext.dylib"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~ pilot_light_editor | debug_editor ~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out "
-PL_COMPILER_FLAGS="-fPIC -ObjC++ --debug -g -std=c++11 "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-lglfwd -ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../editor/pl_main_glfw.cpp "
-PL_LINK_FRAMEWORKS=""
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: pilot_light_editor${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_editor"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# hot reload skip
-fi
-
-# delete lock file(s)
-rm -f ../out/lock.tmp
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# end of debug_editor
-fi
-
-# ################################################################################
-# #                        configuration | release_editor                        #
-# ################################################################################
-
-if [[ "$PL_CONFIG" == "release_editor" ]]; then
-
-# create output directory(s)
-mkdir -p "../out"
-
-# create lock file(s)
-echo LOCKING > "../out/lock.tmp"
-
-# check if this is a reload
-PL_HOT_RELOAD_STATUS=0
-
-# # let user know if hot reloading
-# # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pilot_light")
-if [ $running_count -gt 0 ]
-then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
-# # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pl_editor")
-elif [ $running_count -gt 0 ]
-then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
-else
-    # cleanup binaries if not hot reloading
-    PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
-    rm -f ../out/editor.dylib
-    rm -f ../out/editor_*.dylib
-    rm -f ../out/pl_dear_imgui_ext.dylib
-    rm -f ../out/pl_dear_imgui_ext_*.dylib
-    rm -f ../out/pl_editor
-
-fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | release_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-# only build once
-if [ ! -f "../out/glfw.a" ]; then
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_COCOA "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
-PL_LINK_DIRECTORIES="-L../out -L$VULKAN_SDK/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
-PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lvulkan "
-PL_SOURCES="../dependencies/glfw/src/glfw_unity.c ../dependencies/glfw/src/null_window.c "
-PL_LINK_FRAMEWORKS="-framework Cocoa -framework IOKit -framework CoreFoundation "
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# # run compiler only
-echo
-echo ${YELLOW}Step: glfw${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling...${NC}
-
-# each file must be compiled separately
-clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/glfw/src/glfw_unity.c -o "./../out/glfw_unity.o"
-clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/glfw/src/null_window.c -o "./../out/null_window.o"
-
-# combine object files into a static lib
-ar rcs ./../out/libglfw.a ./../out/*.o
-rm ./../out/*.o
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# only build once check
-fi
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | release_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-# only build once
-if [ ! -f "../out/dearimgui.a" ]; then
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../dependencies/imgui/imgui_unity.cpp "
-PL_LINK_FRAMEWORKS=""
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# # run compiler only
-echo
-echo ${YELLOW}Step: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling...${NC}
-
-# each file must be compiled separately
-clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/imgui/imgui_unity.cpp -o "./../out/imgui_unity.o"
-
-# combine object files into a static lib
-ar rcs ./../out/libdearimgui.a ./../out/*.o
-rm ./../out/*.o
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# only build once check
-fi
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~ editor app | release_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out "
-PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-ldearimgui "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../editor/editor.cpp "
-PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: editor app${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/editor.dylib"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-#~~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | release_editor ~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out "
-PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 -Wno-nullability-completeness "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-lglfw -ldearimgui "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../editor/pl_dear_imgui_ext.cpp "
-PL_LINK_FRAMEWORKS=""
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: pl_dear_imgui_ext${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/pl_dear_imgui_ext.dylib"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~ pilot_light_editor | release_editor ~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out "
-PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++11 "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES="-lglfw -ldearimgui "
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../editor/pl_main_glfw.cpp "
-PL_LINK_FRAMEWORKS=""
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: pilot_light_editor${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_editor"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# hot reload skip
-fi
-
-# delete lock file(s)
-rm -f ../out/lock.tmp
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# end of release_editor
-fi
-
-# ################################################################################
-# #                       configuration | moltenvk_editor                        #
-# ################################################################################
-
-if [[ "$PL_CONFIG" == "moltenvk_editor" ]]; then
-
-# create output directory(s)
-mkdir -p "../out"
-
-# create lock file(s)
-echo LOCKING > "../out/lock.tmp"
-
-# check if this is a reload
-PL_HOT_RELOAD_STATUS=0
-
-# # let user know if hot reloading
-# # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pilot_light")
-if [ $running_count -gt 0 ]
-then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
-# # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pl_editor")
-elif [ $running_count -gt 0 ]
-then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
-else
-    # cleanup binaries if not hot reloading
-    PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
-    rm -f ../out/editor.dylib
-    rm -f ../out/editor_*.dylib
-    rm -f ../out/pl_dear_imgui_ext.dylib
-    rm -f ../out/pl_dear_imgui_ext_*.dylib
-    rm -f ../out/pl_editor
-
-fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ glfw | moltenvk_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-# only build once
-if [ ! -f "../out/glfwd.a" ]; then
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_COCOA -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
-PL_LINK_DIRECTORIES="-L../out -L$VULKAN_SDK/lib "
-PL_COMPILER_FLAGS="-Wno-deprecated-declarations --debug -g -std=c99 -fmodules -ObjC -fPIC "
-PL_LINKER_FLAGS="-Wl,-rpath,/usr/local/lib "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lvulkan "
-PL_SOURCES="../dependencies/glfw/src/glfw_unity.c ../dependencies/glfw/src/null_window.c "
-PL_LINK_FRAMEWORKS="-framework Cocoa -framework IOKit -framework CoreFoundation "
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# # run compiler only
-echo
-echo ${YELLOW}Step: glfw${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling...${NC}
-
-# each file must be compiled separately
-clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/glfw/src/glfw_unity.c -o "./../out/glfw_unity.o"
-clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/glfw/src/null_window.c -o "./../out/null_window.o"
-
-# combine object files into a static lib
-ar rcs ./../out/libglfwd.a ./../out/*.o
-rm ./../out/*.o
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# only build once check
-fi
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~ imgui | moltenvk_editor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-# only build once
-if [ ! -f "../out/dearimguid.a" ]; then
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out "
-PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
-PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../dependencies/imgui/imgui_unity.cpp "
-PL_LINK_FRAMEWORKS=""
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# # run compiler only
-echo
-echo ${YELLOW}Step: imgui${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling...${NC}
-
-# each file must be compiled separately
-clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ../dependencies/imgui/imgui_unity.cpp -o "./../out/imgui_unity.o"
-
-# combine object files into a static lib
-ar rcs ./../out/libdearimguid.a ./../out/*.o
-rm ./../out/*.o
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# only build once check
-fi
-# hot reload skip
-fi
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~ editor app | moltenvk_editor ~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~ editor | moltenvk_experimental ~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD "
@@ -1534,7 +1933,7 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: editor app${NC}
+echo ${YELLOW}Step: editor${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
 clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/editor.dylib"
@@ -1549,7 +1948,7 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | moltenvk_editor ~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~ pl_dear_imgui_ext | moltenvk_experimental ~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -1592,7 +1991,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~ pilot_light_editor | moltenvk_editor ~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~ pilot_light_experimental | moltenvk_experimental ~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
@@ -1617,10 +2016,10 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pilot_light_editor${NC}
+echo ${YELLOW}Step: pilot_light_experimental${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_editor"
+clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light"
 
 # check build status
 if [ $? -ne 0 ]
@@ -1639,7 +2038,7 @@ fi
 rm -f ../out/lock.tmp
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# end of moltenvk_editor
+# end of moltenvk_experimental
 fi
 
 
