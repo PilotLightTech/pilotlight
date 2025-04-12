@@ -58,15 +58,16 @@ jobs:
         if not exist ../out/pl_platform_ext.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
         if not exist ../out/pl_unity_ext.dll exit 1
-        if not exist ../out/example_0.dll exit 1
-        if not exist ../out/example_1.dll exit 1
-        if not exist ../out/example_2.dll exit 1
-        if not exist ../out/example_3.dll exit 1
-        if not exist ../out/example_4.dll exit 1
-        if not exist ../out/example_5.dll exit 1
-        if not exist ../out/example_6.dll exit 1
-        if not exist ../out/example_8.dll exit 1
-        if not exist ../out/example_9.dll exit 1
+        if not exist ../out/example_basic_0.dll exit 1
+        if not exist ../out/example_basic_1.dll exit 1
+        if not exist ../out/example_basic_2.dll exit 1
+        if not exist ../out/example_basic_3.dll exit 1
+        if not exist ../out/example_basic_4.dll exit 1
+        if not exist ../out/example_gfx_0.dll exit 1
+        if not exist ../out/example_gfx_1.dll exit 1
+        if not exist ../out/example_gfx_2.dll exit 1
+        if not exist ../out/example_gfx_3.dll exit 1
+        if not exist ../out/example_gfx_4.dll exit 1
         cd ..
 
     - name: Prep 2
@@ -130,15 +131,16 @@ jobs:
         if not exist ../out/pl_platform_ext.dll exit 1
         if not exist ../out/pl_script_camera.dll exit 1
         if not exist ../out/pl_unity_ext.dll exit 1
-        if not exist ../out/example_0.dll exit 1
-        if not exist ../out/example_1.dll exit 1
-        if not exist ../out/example_2.dll exit 1
-        if not exist ../out/example_3.dll exit 1
-        if not exist ../out/example_4.dll exit 1
-        if not exist ../out/example_5.dll exit 1
-        if not exist ../out/example_6.dll exit 1
-        if not exist ../out/example_8.dll exit 1
-        if not exist ../out/example_9.dll exit 1
+        if not exist ../out/example_basic_0.dll exit 1
+        if not exist ../out/example_basic_1.dll exit 1
+        if not exist ../out/example_basic_2.dll exit 1
+        if not exist ../out/example_basic_3.dll exit 1
+        if not exist ../out/example_basic_4.dll exit 1
+        if not exist ../out/example_gfx_0.dll exit 1
+        if not exist ../out/example_gfx_1.dll exit 1
+        if not exist ../out/example_gfx_2.dll exit 1
+        if not exist ../out/example_gfx_3.dll exit 1
+        if not exist ../out/example_gfx_4.dll exit 1
 
     - name: Build Pilot Light Deployment (RELEASE)
       shell: cmd
@@ -236,15 +238,16 @@ jobs:
         test -f ./out/pl_platform_ext.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
         test -f ./out/pl_unity_ext.dylib || exit 1
-        test -f ./out/example_0.dylib || exit 1
-        test -f ./out/example_1.dylib || exit 1
-        test -f ./out/example_2.dylib || exit 1
-        test -f ./out/example_3.dylib || exit 1
-        test -f ./out/example_4.dylib || exit 1
-        test -f ./out/example_5.dylib || exit 1
-        test -f ./out/example_6.dylib || exit 1
-        test -f ./out/example_8.dylib || exit 1
-        test -f ./out/example_9.dylib || exit 1
+        test -f ./out/example_basic_0.dylib || exit 1
+        test -f ./out/example_basic_1.dylib || exit 1
+        test -f ./out/example_basic_2.dylib || exit 1
+        test -f ./out/example_basic_3.dylib || exit 1
+        test -f ./out/example_basic_4.dylib || exit 1
+        test -f ./out/example_gfx_0.dylib || exit 1
+        test -f ./out/example_gfx_1.dylib || exit 1
+        test -f ./out/example_gfx_2.dylib || exit 1
+        test -f ./out/example_gfx_3.dylib || exit 1
+        test -f ./out/example_gfx_4.dylib || exit 1
 
     - name: Prep 2
       run: |
@@ -319,15 +322,16 @@ jobs:
         test -f ./out/pl_platform_ext.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
         test -f ./out/pl_unity_ext.dylib || exit 1
-        test -f ./out/example_0.dylib || exit 1
-        test -f ./out/example_1.dylib || exit 1
-        test -f ./out/example_2.dylib || exit 1
-        test -f ./out/example_3.dylib || exit 1
-        test -f ./out/example_4.dylib || exit 1
-        test -f ./out/example_5.dylib || exit 1
-        test -f ./out/example_6.dylib || exit 1
-        test -f ./out/example_8.dylib || exit 1
-        test -f ./out/example_9.dylib || exit 1
+        test -f ./out/example_basic_0.dylib || exit 1
+        test -f ./out/example_basic_1.dylib || exit 1
+        test -f ./out/example_basic_2.dylib || exit 1
+        test -f ./out/example_basic_3.dylib || exit 1
+        test -f ./out/example_basic_4.dylib || exit 1
+        test -f ./out/example_gfx_0.dylib || exit 1
+        test -f ./out/example_gfx_1.dylib || exit 1
+        test -f ./out/example_gfx_2.dylib || exit 1
+        test -f ./out/example_gfx_3.dylib || exit 1
+        test -f ./out/example_gfx_4.dylib || exit 1
 
     - name: Build Pilot Light Deployment (RELEASE)
       run: |
@@ -440,15 +444,16 @@ jobs:
         test -f ./out/pl_platform_ext.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
         test -f ./out/pl_unity_ext.so || exit 1
-        test -f ./out/example_0.so || exit 1
-        test -f ./out/example_1.so || exit 1
-        test -f ./out/example_2.so || exit 1
-        test -f ./out/example_3.so || exit 1
-        test -f ./out/example_4.so || exit 1
-        test -f ./out/example_5.so || exit 1
-        test -f ./out/example_6.so || exit 1
-        test -f ./out/example_8.so || exit 1
-        test -f ./out/example_9.so || exit 1
+        test -f ./out/example_basic_0.so || exit 1
+        test -f ./out/example_basic_1.so || exit 1
+        test -f ./out/example_basic_2.so || exit 1
+        test -f ./out/example_basic_3.so || exit 1
+        test -f ./out/example_basic_4.so || exit 1
+        test -f ./out/example_gfx_0.so || exit 1
+        test -f ./out/example_gfx_1.so || exit 1
+        test -f ./out/example_gfx_2.so || exit 1
+        test -f ./out/example_gfx_3.so || exit 1
+        test -f ./out/example_gfx_4.so || exit 1
 
     - name: Prep 2
       run: |
@@ -523,15 +528,16 @@ jobs:
         test -f ./out/pl_platform_ext.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1
         test -f ./out/pl_unity_ext.so || exit 1
-        test -f ./out/example_0.so || exit 1
-        test -f ./out/example_1.so || exit 1
-        test -f ./out/example_2.so || exit 1
-        test -f ./out/example_3.so || exit 1
-        test -f ./out/example_4.so || exit 1
-        test -f ./out/example_5.so || exit 1
-        test -f ./out/example_6.so || exit 1
-        test -f ./out/example_8.so || exit 1
-        test -f ./out/example_9.so || exit 1
+        test -f ./out/example_basic_0.so || exit 1
+        test -f ./out/example_basic_1.so || exit 1
+        test -f ./out/example_basic_2.so || exit 1
+        test -f ./out/example_basic_3.so || exit 1
+        test -f ./out/example_basic_4.so || exit 1
+        test -f ./out/example_gfx_0.so || exit 1
+        test -f ./out/example_gfx_1.so || exit 1
+        test -f ./out/example_gfx_2.so || exit 1
+        test -f ./out/example_gfx_3.so || exit 1
+        test -f ./out/example_gfx_4.so || exit 1
 
     - name: Build Pilot Light Deployment (RELEASE)
       run: |

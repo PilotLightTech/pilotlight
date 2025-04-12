@@ -44,6 +44,8 @@
 @if "%~1"=="-c" (@set PL_CONFIG=%2) & @shift & @shift & @goto CheckConfiguration
 @if "%PL_CONFIG%" equ "debug" ( goto debug )
 @if "%PL_CONFIG%" equ "release" ( goto release )
+@if "%PL_CONFIG%" equ "debug_experimental" ( goto debug_experimental )
+@if "%PL_CONFIG%" equ "release_experimental" ( goto release_experimental )
 
 :: ################################################################################
 :: #                            configuration | debug                             #
@@ -72,51 +74,54 @@
 :: cleanup binaries if not hot reloading
 @if %PL_HOT_RELOAD_STATUS% equ 0 (
 
-    @if exist "../out/example_0.dll" del "..\out\example_0.dll"
-    @if exist "../out/example_0_*.dll" del "..\out\example_0_*.dll"
-    @if exist "../out/example_0_*.pdb" del "..\out\example_0_*.pdb"
-    @if exist "../out/example_1.dll" del "..\out\example_1.dll"
-    @if exist "../out/example_1_*.dll" del "..\out\example_1_*.dll"
-    @if exist "../out/example_1_*.pdb" del "..\out\example_1_*.pdb"
-    @if exist "../out/example_2.dll" del "..\out\example_2.dll"
-    @if exist "../out/example_2_*.dll" del "..\out\example_2_*.dll"
-    @if exist "../out/example_2_*.pdb" del "..\out\example_2_*.pdb"
-    @if exist "../out/example_3.dll" del "..\out\example_3.dll"
-    @if exist "../out/example_3_*.dll" del "..\out\example_3_*.dll"
-    @if exist "../out/example_3_*.pdb" del "..\out\example_3_*.pdb"
-    @if exist "../out/example_4.dll" del "..\out\example_4.dll"
-    @if exist "../out/example_4_*.dll" del "..\out\example_4_*.dll"
-    @if exist "../out/example_4_*.pdb" del "..\out\example_4_*.pdb"
-    @if exist "../out/example_5.dll" del "..\out\example_5.dll"
-    @if exist "../out/example_5_*.dll" del "..\out\example_5_*.dll"
-    @if exist "../out/example_5_*.pdb" del "..\out\example_5_*.pdb"
-    @if exist "../out/example_6.dll" del "..\out\example_6.dll"
-    @if exist "../out/example_6_*.dll" del "..\out\example_6_*.dll"
-    @if exist "../out/example_6_*.pdb" del "..\out\example_6_*.pdb"
-    @if exist "../out/example_8.dll" del "..\out\example_8.dll"
-    @if exist "../out/example_8_*.dll" del "..\out\example_8_*.dll"
-    @if exist "../out/example_8_*.pdb" del "..\out\example_8_*.pdb"
-    @if exist "../out/example_9.dll" del "..\out\example_9.dll"
-    @if exist "../out/example_9_*.dll" del "..\out\example_9_*.dll"
-    @if exist "../out/example_9_*.pdb" del "..\out\example_9_*.pdb"
+    @if exist "../out/example_basic_0.dll" del "..\out\example_basic_0.dll"
+    @if exist "../out/example_basic_0_*.dll" del "..\out\example_basic_0_*.dll"
+    @if exist "../out/example_basic_0_*.pdb" del "..\out\example_basic_0_*.pdb"
+    @if exist "../out/example_basic_1.dll" del "..\out\example_basic_1.dll"
+    @if exist "../out/example_basic_1_*.dll" del "..\out\example_basic_1_*.dll"
+    @if exist "../out/example_basic_1_*.pdb" del "..\out\example_basic_1_*.pdb"
+    @if exist "../out/example_basic_2.dll" del "..\out\example_basic_2.dll"
+    @if exist "../out/example_basic_2_*.dll" del "..\out\example_basic_2_*.dll"
+    @if exist "../out/example_basic_2_*.pdb" del "..\out\example_basic_2_*.pdb"
+    @if exist "../out/example_basic_3.dll" del "..\out\example_basic_3.dll"
+    @if exist "../out/example_basic_3_*.dll" del "..\out\example_basic_3_*.dll"
+    @if exist "../out/example_basic_3_*.pdb" del "..\out\example_basic_3_*.pdb"
+    @if exist "../out/example_basic_4.dll" del "..\out\example_basic_4.dll"
+    @if exist "../out/example_basic_4_*.dll" del "..\out\example_basic_4_*.dll"
+    @if exist "../out/example_basic_4_*.pdb" del "..\out\example_basic_4_*.pdb"
+    @if exist "../out/example_gfx_0.dll" del "..\out\example_gfx_0.dll"
+    @if exist "../out/example_gfx_0_*.dll" del "..\out\example_gfx_0_*.dll"
+    @if exist "../out/example_gfx_0_*.pdb" del "..\out\example_gfx_0_*.pdb"
+    @if exist "../out/example_gfx_1.dll" del "..\out\example_gfx_1.dll"
+    @if exist "../out/example_gfx_1_*.dll" del "..\out\example_gfx_1_*.dll"
+    @if exist "../out/example_gfx_1_*.pdb" del "..\out\example_gfx_1_*.pdb"
+    @if exist "../out/example_gfx_2.dll" del "..\out\example_gfx_2.dll"
+    @if exist "../out/example_gfx_2_*.dll" del "..\out\example_gfx_2_*.dll"
+    @if exist "../out/example_gfx_2_*.pdb" del "..\out\example_gfx_2_*.pdb"
+    @if exist "../out/example_gfx_3.dll" del "..\out\example_gfx_3.dll"
+    @if exist "../out/example_gfx_3_*.dll" del "..\out\example_gfx_3_*.dll"
+    @if exist "../out/example_gfx_3_*.pdb" del "..\out\example_gfx_3_*.pdb"
+    @if exist "../out/example_gfx_4.dll" del "..\out\example_gfx_4.dll"
+    @if exist "../out/example_gfx_4_*.dll" del "..\out\example_gfx_4_*.dll"
+    @if exist "../out/example_gfx_4_*.pdb" del "..\out\example_gfx_4_*.pdb"
 
 )
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_0.c" 
+@set PL_SOURCES="example_basic_0.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_0[0m
+@echo [1m[93mStep: example_basic_0[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_0_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_0_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -134,21 +139,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_1 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_1 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_1.c" 
+@set PL_SOURCES="example_basic_1.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_1[0m
+@echo [1m[93mStep: example_basic_1[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_1_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_1_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -166,21 +171,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_2 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_2 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_2.c" 
+@set PL_SOURCES="example_basic_2.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_2[0m
+@echo [1m[93mStep: example_basic_2[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_2_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_2_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -198,21 +203,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_3 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_3 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_3.c" 
+@set PL_SOURCES="example_basic_3.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_3[0m
+@echo [1m[93mStep: example_basic_3[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_3_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_3_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -230,21 +235,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_4 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_4 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_4.c" 
+@set PL_SOURCES="example_basic_4.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_4[0m
+@echo [1m[93mStep: example_basic_4[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_4_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_4_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -262,21 +267,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_5 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_5.c" 
+@set PL_SOURCES="example_gfx_0.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_5[0m
+@echo [1m[93mStep: example_gfx_0[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_5.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_5_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_0_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -294,21 +299,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_6 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_1 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_6.c" 
+@set PL_SOURCES="example_gfx_1.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_6[0m
+@echo [1m[93mStep: example_gfx_1[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_6_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_1_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -326,21 +331,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_8 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_2 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_8.c" 
+@set PL_SOURCES="example_gfx_2.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_8[0m
+@echo [1m[93mStep: example_gfx_2[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_8.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_8_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_2_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -358,21 +363,53 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_9 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_3 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_9.c" 
+@set PL_SOURCES="example_gfx_3.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_9[0m
+@echo [1m[93mStep: example_gfx_3[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_9.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_9_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_3_%random%.pdb" %PL_LINK_DIRECTORIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+@del "..\out\*.obj"  > nul 2> nul
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_4 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
+@set PL_SOURCES="example_gfx_4.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: example_gfx_4[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_4_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -431,51 +468,54 @@ goto ExitLabel
 :: cleanup binaries if not hot reloading
 @if %PL_HOT_RELOAD_STATUS% equ 0 (
 
-    @if exist "../out/example_0.dll" del "..\out\example_0.dll"
-    @if exist "../out/example_0_*.dll" del "..\out\example_0_*.dll"
-    @if exist "../out/example_0_*.pdb" del "..\out\example_0_*.pdb"
-    @if exist "../out/example_1.dll" del "..\out\example_1.dll"
-    @if exist "../out/example_1_*.dll" del "..\out\example_1_*.dll"
-    @if exist "../out/example_1_*.pdb" del "..\out\example_1_*.pdb"
-    @if exist "../out/example_2.dll" del "..\out\example_2.dll"
-    @if exist "../out/example_2_*.dll" del "..\out\example_2_*.dll"
-    @if exist "../out/example_2_*.pdb" del "..\out\example_2_*.pdb"
-    @if exist "../out/example_3.dll" del "..\out\example_3.dll"
-    @if exist "../out/example_3_*.dll" del "..\out\example_3_*.dll"
-    @if exist "../out/example_3_*.pdb" del "..\out\example_3_*.pdb"
-    @if exist "../out/example_4.dll" del "..\out\example_4.dll"
-    @if exist "../out/example_4_*.dll" del "..\out\example_4_*.dll"
-    @if exist "../out/example_4_*.pdb" del "..\out\example_4_*.pdb"
-    @if exist "../out/example_5.dll" del "..\out\example_5.dll"
-    @if exist "../out/example_5_*.dll" del "..\out\example_5_*.dll"
-    @if exist "../out/example_5_*.pdb" del "..\out\example_5_*.pdb"
-    @if exist "../out/example_6.dll" del "..\out\example_6.dll"
-    @if exist "../out/example_6_*.dll" del "..\out\example_6_*.dll"
-    @if exist "../out/example_6_*.pdb" del "..\out\example_6_*.pdb"
-    @if exist "../out/example_8.dll" del "..\out\example_8.dll"
-    @if exist "../out/example_8_*.dll" del "..\out\example_8_*.dll"
-    @if exist "../out/example_8_*.pdb" del "..\out\example_8_*.pdb"
-    @if exist "../out/example_9.dll" del "..\out\example_9.dll"
-    @if exist "../out/example_9_*.dll" del "..\out\example_9_*.dll"
-    @if exist "../out/example_9_*.pdb" del "..\out\example_9_*.pdb"
+    @if exist "../out/example_basic_0.dll" del "..\out\example_basic_0.dll"
+    @if exist "../out/example_basic_0_*.dll" del "..\out\example_basic_0_*.dll"
+    @if exist "../out/example_basic_0_*.pdb" del "..\out\example_basic_0_*.pdb"
+    @if exist "../out/example_basic_1.dll" del "..\out\example_basic_1.dll"
+    @if exist "../out/example_basic_1_*.dll" del "..\out\example_basic_1_*.dll"
+    @if exist "../out/example_basic_1_*.pdb" del "..\out\example_basic_1_*.pdb"
+    @if exist "../out/example_basic_2.dll" del "..\out\example_basic_2.dll"
+    @if exist "../out/example_basic_2_*.dll" del "..\out\example_basic_2_*.dll"
+    @if exist "../out/example_basic_2_*.pdb" del "..\out\example_basic_2_*.pdb"
+    @if exist "../out/example_basic_3.dll" del "..\out\example_basic_3.dll"
+    @if exist "../out/example_basic_3_*.dll" del "..\out\example_basic_3_*.dll"
+    @if exist "../out/example_basic_3_*.pdb" del "..\out\example_basic_3_*.pdb"
+    @if exist "../out/example_basic_4.dll" del "..\out\example_basic_4.dll"
+    @if exist "../out/example_basic_4_*.dll" del "..\out\example_basic_4_*.dll"
+    @if exist "../out/example_basic_4_*.pdb" del "..\out\example_basic_4_*.pdb"
+    @if exist "../out/example_gfx_0.dll" del "..\out\example_gfx_0.dll"
+    @if exist "../out/example_gfx_0_*.dll" del "..\out\example_gfx_0_*.dll"
+    @if exist "../out/example_gfx_0_*.pdb" del "..\out\example_gfx_0_*.pdb"
+    @if exist "../out/example_gfx_1.dll" del "..\out\example_gfx_1.dll"
+    @if exist "../out/example_gfx_1_*.dll" del "..\out\example_gfx_1_*.dll"
+    @if exist "../out/example_gfx_1_*.pdb" del "..\out\example_gfx_1_*.pdb"
+    @if exist "../out/example_gfx_2.dll" del "..\out\example_gfx_2.dll"
+    @if exist "../out/example_gfx_2_*.dll" del "..\out\example_gfx_2_*.dll"
+    @if exist "../out/example_gfx_2_*.pdb" del "..\out\example_gfx_2_*.pdb"
+    @if exist "../out/example_gfx_3.dll" del "..\out\example_gfx_3.dll"
+    @if exist "../out/example_gfx_3_*.dll" del "..\out\example_gfx_3_*.dll"
+    @if exist "../out/example_gfx_3_*.pdb" del "..\out\example_gfx_3_*.pdb"
+    @if exist "../out/example_gfx_4.dll" del "..\out\example_gfx_4.dll"
+    @if exist "../out/example_gfx_4_*.dll" del "..\out\example_gfx_4_*.dll"
+    @if exist "../out/example_gfx_4_*.pdb" del "..\out\example_gfx_4_*.pdb"
 
 )
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_0.c" 
+@set PL_SOURCES="example_basic_0.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_0[0m
+@echo [1m[93mStep: example_basic_0[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_0_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_0_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -493,21 +533,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_1 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_1 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_1.c" 
+@set PL_SOURCES="example_basic_1.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_1[0m
+@echo [1m[93mStep: example_basic_1[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_1_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_1_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -525,21 +565,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_2 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_2 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_2.c" 
+@set PL_SOURCES="example_basic_2.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_2[0m
+@echo [1m[93mStep: example_basic_2[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_2_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_2_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -557,21 +597,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_3 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_3 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_3.c" 
+@set PL_SOURCES="example_basic_3.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_3[0m
+@echo [1m[93mStep: example_basic_3[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_3_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_3_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -589,21 +629,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_4 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_4 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_4.c" 
+@set PL_SOURCES="example_basic_4.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_4[0m
+@echo [1m[93mStep: example_basic_4[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_4_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_4_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -621,21 +661,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_5 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_5.c" 
+@set PL_SOURCES="example_gfx_0.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_5[0m
+@echo [1m[93mStep: example_gfx_0[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_5.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_5_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_0.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_0_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -653,21 +693,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_6 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_1 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_6.c" 
+@set PL_SOURCES="example_gfx_1.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_6[0m
+@echo [1m[93mStep: example_gfx_1[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_6.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_6_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_1.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_1_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -685,21 +725,21 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_8 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_2 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_8.c" 
+@set PL_SOURCES="example_gfx_2.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_8[0m
+@echo [1m[93mStep: example_gfx_2[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_8.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_8_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_2.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_2_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -717,21 +757,53 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
-::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_9 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_3 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_SOURCES="example_9.c" 
+@set PL_SOURCES="example_gfx_3.c" 
 
 :: run compiler (and linker)
 @echo.
-@echo [1m[93mStep: example_9[0m
+@echo [1m[93mStep: example_gfx_3[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_9.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_9_%random%.pdb" %PL_LINK_DIRECTORIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_3.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_3_%random%.pdb" %PL_LINK_DIRECTORIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanuprelease
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+@del "..\out\*.obj"  > nul 2> nul
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_4 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
+@set PL_SOURCES="example_gfx_4.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: example_gfx_4[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_gfx_4.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_gfx_4_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -761,6 +833,166 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 :: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 :: end of release configuration
+goto ExitLabel
+
+:: ################################################################################
+:: #                      configuration | debug_experimental                      #
+:: ################################################################################
+
+:debug_experimental
+
+:: create output directories
+@if not exist "../out" @mkdir "../out"
+
+:: create lock file(s)
+@echo LOCKING > "../out/lock.tmp"
+
+:: check if this is a hot reload
+@set PL_HOT_RELOAD_STATUS=0
+
+:: hack to see if hot reload target exes are running
+@echo off
+2>nul (>>"../out/pilot_light.exe" echo off) && (@set PL_HOT_RELOAD_STATUS=%PL_HOT_RELOAD_STATUS%) || (@set PL_HOT_RELOAD_STATUS=1)
+
+:: let user know if hot reloading
+@if %PL_HOT_RELOAD_STATUS% equ 1 (
+    @echo [1m[97m[41m--------[42m HOT RELOADING [41m--------[0m
+)
+
+:: cleanup binaries if not hot reloading
+@if %PL_HOT_RELOAD_STATUS% equ 0 (
+
+    @if exist "../out/example_basic_5.dll" del "..\out\example_basic_5.dll"
+    @if exist "../out/example_basic_5_*.dll" del "..\out\example_basic_5_*.dll"
+    @if exist "../out/example_basic_5_*.pdb" del "..\out\example_basic_5_*.pdb"
+
+)
+
+::~~~~~~~~~~~~~~~~~~~~~ example_basic_5 | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
+
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
+@set PL_STATIC_LINK_LIBRARIES=dearimguid.lib 
+@set PL_SOURCES="example_basic_5.cpp" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: example_basic_5[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_5.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_5_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug_experimental
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+@del "..\out\*.obj"  > nul 2> nul
+
+:Cleanupdebug_experimental
+
+@echo [1m[36mCleaning...[0m
+
+:: delete obj files(s)
+@del "..\out\*.obj"  > nul 2> nul
+
+:: delete lock file(s)
+@if exist "../out/lock.tmp" del "..\out\lock.tmp"
+
+:: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+:: end of debug_experimental configuration
+goto ExitLabel
+
+:: ################################################################################
+:: #                     configuration | release_experimental                     #
+:: ################################################################################
+
+:release_experimental
+
+:: create output directories
+@if not exist "../out" @mkdir "../out"
+
+:: create lock file(s)
+@echo LOCKING > "../out/lock.tmp"
+
+:: check if this is a hot reload
+@set PL_HOT_RELOAD_STATUS=0
+
+:: hack to see if hot reload target exes are running
+@echo off
+2>nul (>>"../out/pilot_light.exe" echo off) && (@set PL_HOT_RELOAD_STATUS=%PL_HOT_RELOAD_STATUS%) || (@set PL_HOT_RELOAD_STATUS=1)
+
+:: let user know if hot reloading
+@if %PL_HOT_RELOAD_STATUS% equ 1 (
+    @echo [1m[97m[41m--------[42m HOT RELOADING [41m--------[0m
+)
+
+:: cleanup binaries if not hot reloading
+@if %PL_HOT_RELOAD_STATUS% equ 0 (
+
+    @if exist "../out/example_basic_5.dll" del "..\out\example_basic_5.dll"
+    @if exist "../out/example_basic_5_*.dll" del "..\out\example_basic_5_*.dll"
+    @if exist "../out/example_basic_5_*.pdb" del "..\out\example_basic_5_*.pdb"
+
+)
+
+::~~~~~~~~~~~~~~~~~~~~ example_basic_5 | release_experimental ~~~~~~~~~~~~~~~~~~~~
+
+@set PL_DEFINES=-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../editor" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/imgui" 
+@set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
+@set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
+@set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
+@set PL_STATIC_LINK_LIBRARIES=dearimgui.lib 
+@set PL_SOURCES="example_basic_5.cpp" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: example_basic_5[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/example_basic_5.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/example_basic_5_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanuprelease_experimental
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+@del "..\out\*.obj"  > nul 2> nul
+
+:Cleanuprelease_experimental
+
+@echo [1m[36mCleaning...[0m
+
+:: delete obj files(s)
+@del "..\out\*.obj"  > nul 2> nul
+
+:: delete lock file(s)
+@if exist "../out/lock.tmp" del "..\out\lock.tmp"
+
+:: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+:: end of release_experimental configuration
 goto ExitLabel
 
 :ExitLabel

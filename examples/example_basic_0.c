@@ -1,10 +1,11 @@
 /*
-   example_0.c
+   example_basic_0.c
      - demonstrates minimal app
 */
 
 /*
 Index of this file:
+// [SECTION] quick notes
 // [SECTION] includes
 // [SECTION] apis
 // [SECTION] pl_app_load
@@ -14,10 +15,43 @@ Index of this file:
 */
 
 //-----------------------------------------------------------------------------
+// [SECTION] quick notes
+//-----------------------------------------------------------------------------
+
+/*
+    The purpose of this example is to demonstrate a bare minimum app. This app
+    is not actually meant to run though it might(?). The most important
+    information to gather from this example is the 4 functions that most apps 
+    should export:
+
+    ~~~> void* pl_app_load    (plApiRegistryI*, void*)
+    ~~~> void  pl_app_shutdown(void*)
+    ~~~> void  pl_app_resize  (void*)
+    ~~~> void  pl_app_update  (void*)
+
+    The primary "components" of Pilot Light are:
+
+    * runtime    ~~~> small executable (i.e. pilot_light.exe)
+    * app        ~~~> shared library (i.e. this file)
+    * extensions ~~~> shared libraries
+    
+    runtime:
+        This is the small executable that manages & orchestrates the core
+        systems: API, Extension, and Data registries (among other things).
+
+    app:
+        This is a shared library exporting the functions discussed above.
+
+    extension:
+        A shared library that exports load & unload functions for loading
+        and registering APIs. This will be discussed in another example.
+*/
+
+//-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdio.h>
+#include <stdio.h> // printf
 #include "pl.h"
 
 //-----------------------------------------------------------------------------
@@ -35,10 +69,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, void* pAppData)
 {
 
     // NOTE: on first load, "pAppData" will be NULL
-
-    // retrieve the data registry API, this is the API used for sharing data
-    // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
     // retrieve the IO API required to use plIO for "talking" with runtime)
     gptIO = pl_get_api_latest(ptApiRegistry, plIOI);

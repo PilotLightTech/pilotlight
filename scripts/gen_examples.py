@@ -37,25 +37,31 @@ with pl.project("pilotlight_examples"):
     pl.set_output_directory("../out")
     pl.add_link_directories("../out")
     pl.add_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS", "PL_CONFIG_DEBUG")
-    pl.add_include_directories("../examples", "../src", "../libs", "../extensions", "../out", "../dependencies/stb")
+    pl.add_include_directories("../examples", "../editor", "../src", "../libs", "../extensions", "../out",
+                               "../dependencies/stb", "../dependencies/imgui")
         
     #-----------------------------------------------------------------------------
     # [SECTION] examples
     #-----------------------------------------------------------------------------
 
-    examples = [
-        'example_0',
-        'example_1',
-        'example_2',
-        'example_3',
-        'example_4',
-        'example_5',
-        'example_6',
-        'example_8',
-        'example_9',
+    c_examples = [
+        'example_basic_0',
+        'example_basic_1',
+        'example_basic_2',
+        'example_basic_3',
+        'example_basic_4',
+        'example_gfx_0',
+        'example_gfx_1',
+        'example_gfx_2',
+        'example_gfx_3',
+        'example_gfx_4',
     ]
 
-    for name in examples:
+    cpp_examples = [
+        'example_basic_5',
+    ]
+
+    for name in c_examples:
 
         with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, True):
 
@@ -107,6 +113,65 @@ with pl.project("pilotlight_examples"):
                 with pl.platform("Darwin"):
                     with pl.compiler("clang"):
                         pl.add_compiler_flags("-std=c99", "-fmodules", "-ObjC", "-fPIC")
+                        pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
+                        pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
+
+    for name in cpp_examples:
+
+        with pl.target(name, pl.TargetType.DYNAMIC_LIBRARY, True):
+
+            pl.add_source_files(name + ".cpp")
+            pl.set_output_binary(name)
+
+            with pl.configuration("debug_experimental"):
+
+                pl.add_static_link_libraries("dearimguid")
+
+                # win32
+                with pl.platform("Windows"):
+                    with pl.compiler("msvc"):
+                        pl.add_linker_flags("-noimplib", "-noexp", "-incremental:no")
+                        pl.add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c++14", "-W4", "-WX", "-wd4201",
+                                              "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
+                                              "-permissive-", "-Od", "-MDd", "-Zi")
+                        
+                # linux
+                with pl.platform("Linux"):
+                    with pl.compiler("gcc"):
+                        pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
+                        pl.add_compiler_flags("-std=c++14", "-fPIC", "--debug", "-g")
+                        pl.add_linker_flags("-ldl", "-lm")
+                
+                # macos
+                with pl.platform("Darwin"):
+                    with pl.compiler("clang"):
+                        pl.add_compiler_flags("-std=c++14", "--debug", "-g", "-fmodules", "-ObjC", "-fPIC")
+                        pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
+                        pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
+
+            with pl.configuration("release_experimental"):
+
+                pl.add_static_link_libraries("dearimgui")
+
+                # win32
+                with pl.platform("Windows"):
+                    with pl.compiler("msvc"):
+                        pl.add_linker_flags("-noimplib", "-noexp", "-incremental:no")
+                        pl.add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c++14", "-W4", "-WX", "-wd4201",
+                                              "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
+                                              "-permissive-", "-O2", "-MD")
+                        
+                # linux
+                with pl.platform("Linux"):
+                    with pl.compiler("gcc"):
+                        pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
+                        pl.add_compiler_flags("-std=c++14", "-fPIC")
+                        pl.add_linker_flags("-ldl", "-lm")
+                
+                # macos
+                with pl.platform("Darwin"):
+                    with pl.compiler("clang"):
+                        pl.add_compiler_flags("-std=c++14", "-fmodules", "-ObjC", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
                         pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
 

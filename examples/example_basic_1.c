@@ -1,11 +1,14 @@
 /*
-   example_1.c
+   example_basic_1.c
      - demonstrates loading APIs
+     - demonstrates creating a window
      - demonstrates hot reloading
+     - demonstrates keyboard input
 */
 
 /*
 Index of this file:
+// [SECTION] quick notes
 // [SECTION] includes
 // [SECTION] structs
 // [SECTION] apis
@@ -16,13 +19,36 @@ Index of this file:
 */
 
 //-----------------------------------------------------------------------------
+// [SECTION] quick notes
+//-----------------------------------------------------------------------------
+
+/*
+    This example building on example 0 but introduces hot reloading and the
+    window extension. To utilize hot reload, simply run the build script again!
+
+    IMPORTANT:
+
+    It is absolutely necessary that you understand concepts related to dll 
+    boundaries to fully utilize hot reloading. Any static/global variables need
+    to be set again between reloads since you are now "in" another dll. For
+    example, its typical to see the APIs used as globals within an app or
+    extension and thus the re-setting of those variables during a reload. It is
+    also important that you do not change the memory layout of data stored in
+    the data registry between reloads (i.e. don't add a new struct member).
+    Reloads should primarily be used for changes in logic.
+
+*/
+
+//-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
 #include <stdlib.h> // malloc, free
-#include <stdio.h>
+#include <stdio.h>  // printf
 #include <string.h> // memset
 #include "pl.h"
+
+// extension
 #include "pl_window_ext.h"
 
 //-----------------------------------------------------------------------------
@@ -51,10 +77,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // NOTE: on first load, "pAppData" will be NULL but on reloads
     //       it will be the value returned from this function
 
-    // retrieve the data registry API, this is the API used for sharing data
-    // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-
     // load required apis
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
@@ -76,7 +98,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
-        .pcTitle = "Example 1",
+        .pcTitle = "Example Basic 1",
         .iXPos   = 200,
         .iYPos   = 200,
         .uWidth  = 600,
@@ -84,7 +106,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
     gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
 
-    // return app memory
+    // return app memory, which will be returned to us as an argument in the other functions
     return ptAppData;
 }
 

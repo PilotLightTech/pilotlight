@@ -8,22 +8,18 @@ Next:
 ### Windows
 Example for running example 0:
 ```bash
-cd scripts
-python gen_build.py
-cd ../src
+cd src
 build.bat
 cd ../examples
 build.bat
 
 cd ../out
-pilot_light.exe -a example_0
+pilot_light.exe -a example_basic_0
 ```
 ### Linux & MacOS
 Example for running example 2:
 ```bash
-cd scripts
-python3 gen_build.py
-cd ../src
+cd src
 chmod +x build.sh
 ./build.sh
 cd ../examples
@@ -31,82 +27,79 @@ chmod +x build.sh
 ./build.sh
 
 cd ../out
-pilot_light -a example_2
+pilot_light -a example_gfx_2
 ```
 
-## Example 0 - Minimal App (example_0.c)
+## Basic Examples
+
+### Example 0 - Minimal App (example_basic_0.c)
 Demonstrates the bare minimum app. This app loads, runs 50 iterations of the update function (printing to console), then exits. Note: this app is not really meant to run. It is for reference.
 
-## Example 1 - API Loading (example_1.c)
+### Example 1 - API Loading (example_basic_1.c)
 Note: this app is not really meant to run. It is for reference.
 Demonstrates:
 * loading APIs
 * hot reloading
 
-## Example 2 - Drawing Extension 2D (example_2.c)
+### Example 2 - Starter & Basic Extensions (example_basic_2.c)
 Demonstrates:
 * loading APIs
-* hot reloading
 * loading extensions
-* minimal use of graphics extension
-* drawing extension (2D)
+* starter extension
+* basic drawing extension (2D)
+* basic screen log extension
+* basic console extension
+* basic UI extension
 
-## Example 3 - UI Extension (example_3.c)
+### Example 3 - Draw Extension (example_basic_3.c)
 Demonstrates:
 * loading APIs
-* hot reloading
 * loading extensions
-* minimal use of graphics extension
 * drawing extension (2D)
-* UI extension
+* drawing backend extension
 
-## Example 4 - Hello Triangle (example_4.c)
+### Example 4 - UI Extension (example_basic_4.c)
 Demonstrates:
 * loading APIs
-* hot reloading
 * loading extensions
+* hot reloading
+* ui extension
+
+### Example 5 - Dear ImGui (example_basic_5.c)
+Demonstrates:
+* Dear ImGui integration
+
+## Low Level Graphics Examples
+
+### Example 0 - Graphics Extension 0 (example_gfx_0.c)
+Demonstrates:
 * vertex buffers
-* graphics shaders
-* non-indexed drawing
+* shaders
+* non-index drawing
 
-## Example 5 - Hello Quad (example_5.c)
+### Example 1 - Graphics Extension 1 (example_gfx_1.c)
 Demonstrates:
-* loading APIs
-* hot reloading
-* loading extensions
 * vertex buffers
 * index buffers
 * staging buffers
-* graphics shaders
+* shaders
 * indexed drawing
 
-## Example 6 - Textured Quad (example_6.c)
+### Example 2 - Graphics Extension 2 (example_gfx_2.c)
 Demonstrates:
-* loading APIs
-* hot reloading
-* loading extensions
+* bind groups
 * vertex, index, staging buffers
-* samplers, textures, bindgroups
-* graphics shaders
+* samplers, textures, bind groups
+* shaders
 * indexed drawing
 * image extension
 
-## Example 7 - Compute (example_7.c)
+### Example 3 - Graphics Extension 3 (example_gfx_3.c)
 Demonstrates:
-* WIP
+* starter extension
+* drawing extension (2D & 3D)
 
-## Example 8 - Drawing Extension 3D MSAA (example_8.c)
+### Example 4 - Graphics Extension 4 (example_gfx_4.c)
 Demonstrates:
-* loading APIs
-* hot reloading
-* loading extensions
-* minimal use of graphics extension
-* drawing extension (3D)
-
-## Example 9 - Drawing Extension 3D (example_9.c)
-Demonstrates:
-* loading APIs
-* hot reloading
-* loading extensions
-* minimal use of graphics extension
-* drawing extension (3D)
+* starter extension
+* render passes
