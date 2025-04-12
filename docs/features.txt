@@ -16,6 +16,7 @@ General:
     * Custom testing library
     * Virtual memory access
     * String interning
+    * BVH
 
 Custom math:
     * vectors
@@ -25,7 +26,8 @@ Custom math:
 
 Custom data structures:
     * stretchy buffer
-    * hashmap
+    * hashmap (32 & 64 bit)
+    * static hashmap (32 & 64 bit)
 
 Custom cpu memory allocators:
     * pool allocator
@@ -55,9 +57,12 @@ Entity-Component System (Data oriented design):
     * Cameras
     * Lights
     * Materials
+    * Rigid body
+    * Environment Probes
+    * Force Fields
 
 Low level graphics:
-    * Metal 2.0 renderer
+    * Metal 3.0 renderer
     * Vulkan renderer
     * Bitmap & SDF font rendering (True Type)
     * 2D/3D debug drawing system
@@ -112,23 +117,21 @@ Wishlist (from Wicked Engine):
     * FXAA
     * TAA (Temporal Antialiasing)
     * Supersampling
-    * Physics: rigid body, soft body, ragdoll
+    * Physics: soft body, ragdoll
     * 3D Audio
-    * Input: keyboard, mouse, controller (rawinput, xinput), touch
+    * Input: controller (rawinput, xinput), touch
     * Controller feedback (vibration, LED)
-    * Backlog: log,input,scripting
     * Gamma correct, HDR rendering
     * Screen Space Ambient Occlusion (SSAO, HBAO, MSAO)
     * Stochastic Screen Space Reflections
     * Color Grading
     * Sharpen filter
     * Eye adaption
-    * Lua Scripting
     * Impostor system
     * Tiled forward (Forward+) rendering (+2.5D culling)
     * Occlusion culling with gpu queries
     * Tiled decals
-    * Frame Profiler
+    * GPU Frame Profiler
     * Voxel Global Illumination
     * Force Fields GPU simulation
     * Particle - Depth Buffer collisions
