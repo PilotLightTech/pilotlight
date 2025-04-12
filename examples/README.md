@@ -9,22 +9,22 @@ Next:
 Example for running example 0:
 ```bash
 cd src
-build.bat
+build_win32.bat
 cd ../examples
-build.bat
+build_win32.bat
 
 cd ../out
 pilot_light.exe -a example_basic_0
 ```
-### Linux & MacOS
+### Linux
 Example for running example 2:
 ```bash
 cd src
-chmod +x build.sh
-./build.sh
+chmod +x build_linux.sh
+./build_linux.sh
 cd ../examples
-chmod +x build.sh
-./build.sh
+chmod +x build_linux.sh
+./build_linux.sh
 
 cd ../out
 pilot_light -a example_gfx_2
