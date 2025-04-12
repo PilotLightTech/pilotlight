@@ -37,9 +37,10 @@ Documentation can be found [here](https://github.com/PilotLightTech/pilotlight/w
 
 ### Real World
 Complete & more advanced examples can be found here:
-* [gen_core.py](https://github.com/PilotLightTech/pilotlight/blob/master/scripts/gen_core.py)
+* [gen_dev.py](https://github.com/PilotLightTech/pilotlight/blob/master/scripts/gen_dev.py)
 * [gen_examples.py](https://github.com/PilotLightTech/pilotlight/blob/master/scripts/gen_examples.py)
 * [gen_tests.py](https://github.com/PilotLightTech/pilotlight/blob/master/scripts/gen_tests.py)
+* [gen_distribute.py](https://github.com/PilotLightTech/pilotlight/blob/master/scripts/gen_distribute.py)
 
 ### Basic Example
 
