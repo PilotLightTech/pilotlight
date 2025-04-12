@@ -34,6 +34,8 @@ static const struct _plProfileI*           gptProfile           = 0;
 static const struct _plLogI*               gptLog               = 0;
 static const struct _plConsoleI*           gptConsole           = 0;
 static const struct _plScreenLogI*         gptScreenLog         = 0;
+static const struct _plStarterI*           gptStarter           = 0;
+static const struct _plToolsI*             gptTools             = 0;
 
 // experimental
 static const struct _plConfigI*    gptConfig = 0;

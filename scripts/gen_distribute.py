@@ -119,6 +119,7 @@ with pl.project("pilotlight deploy"):
         "pl_gizmo_ext",
         "pl_console_ext",
         "pl_screen_log_ext",
+        "pl_starter_ext",
         "pl_physics_ext",
         "pl_collision_ext",
         "pl_bvh_ext",

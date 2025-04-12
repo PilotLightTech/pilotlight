@@ -55,6 +55,7 @@ extension_headers = [
     "pl_collision_ext.h",
     "pl_bvh_ext.h",
     "pl_config_ext.h",
+    "pl_starter_ext.h",
     "pl_window_ext.h"
 ]
 
@@ -86,6 +87,7 @@ extensions = [
     "pl_collision_ext",
     "pl_bvh_ext",
     "pl_config_ext",
+    "pl_starter_ext",
     "pl_ui_ext"
 ]
 

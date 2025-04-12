@@ -43,6 +43,7 @@ Index of this file:
 #include "pl_collision_ext.c"
 #include "pl_bvh_ext.c"
 #include "pl_config_ext.c"
+#include "pl_starter_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -83,6 +84,8 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptCollision         = pl_get_api_latest(ptApiRegistry, plCollisionI);
     gptBvh               = pl_get_api_latest(ptApiRegistry, plBVHI);
     gptConfig            = pl_get_api_latest(ptApiRegistry, plConfigI);
+    gptStarter           = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptTools             = pl_get_api_latest(ptApiRegistry, plToolsI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -113,6 +116,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_collision_ext(ptApiRegistry, bReload);
     pl_load_bvh_ext(ptApiRegistry, bReload);
     pl_load_config_ext(ptApiRegistry, bReload);
+    pl_load_starter_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -143,6 +147,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_physics_ext(ptApiRegistry, bReload);
     pl_unload_collision_ext(ptApiRegistry, bReload);
     pl_unload_bvh_ext(ptApiRegistry, bReload);
+    pl_unload_starter_ext(ptApiRegistry, bReload);
     pl_unload_config_ext(ptApiRegistry, bReload);
 }
 

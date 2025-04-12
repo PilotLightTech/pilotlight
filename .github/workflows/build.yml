@@ -165,6 +165,7 @@ jobs:
         if not exist ../out/pl_renderer_ext.dll exit 1
         if not exist ../out/pl_resource_ext.dll exit 1
         if not exist ../out/pl_shader_ext.dll exit 1
+        if not exist ../out/pl_starter_ext.dll exit 1
         if not exist ../out/pl_stats_ext.dll exit 1
         if not exist ../out/pl_string_intern_ext.dll exit 1
         if not exist ../out/pl_ui_ext.dll exit 1
@@ -358,6 +359,7 @@ jobs:
         test -f ./out/pl_renderer_ext.dylib || exit 1
         test -f ./out/pl_resource_ext.dylib || exit 1
         test -f ./out/pl_shader_ext.dylib || exit 1
+        test -f ./out/pl_starter_ext.dylib || exit 1
         test -f ./out/pl_stats_ext.dylib || exit 1
         test -f ./out/pl_string_intern_ext.dylib || exit 1
         test -f ./out/pl_ui_ext.dylib || exit 1
@@ -561,6 +563,7 @@ jobs:
         test -f ./out/pl_renderer_ext.so || exit 1
         test -f ./out/pl_resource_ext.so || exit 1
         test -f ./out/pl_shader_ext.so || exit 1
+        test -f ./out/pl_starter_ext.so || exit 1
         test -f ./out/pl_stats_ext.so || exit 1
         test -f ./out/pl_string_intern_ext.so || exit 1
         test -f ./out/pl_ui_ext.so || exit 1
