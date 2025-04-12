@@ -57,6 +57,7 @@ Index of this file:
 #include "pl_library_ext.h"
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
+#include "pl_starter_ext.h"
 
 // unstable extensions
 #include "pl_ecs_ext.h"
@@ -101,6 +102,7 @@ const plPhysicsI *     gptPhysics     = NULL;
 const plCollisionI*    gptCollision   = NULL;
 const plBVHI*          gptBvh         = NULL;
 const plConfigI*       gptConfig      = NULL;
+const plStarterI*      gptStarter     = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -123,7 +125,6 @@ typedef struct _plAppData
 
     // graphics
     plDevice*    ptDevice;
-    plDeviceInfo tDeviceInfo;
     plSwapchain* ptSwap;
     plSurface*   ptSurface;
 
@@ -217,6 +218,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
         gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
         gptConfig      = pl_get_api_latest(ptApiRegistry, plConfigI);
+        gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
 
@@ -260,6 +262,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
     gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
     gptConfig      = pl_get_api_latest(ptApiRegistry, plConfigI);
+    gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -319,36 +322,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
 
-    uint32_t uDeviceCount = 16;
-    plDeviceInfo atDeviceInfos[16] = {0};
-    gptGfx->enumerate_devices(atDeviceInfos, &uDeviceCount);
-
-    // we will prefer discrete, then integrated GPUs
-    int iBestDvcIdx = 0;
-    int iDiscreteGPUIdx   = -1;
-    int iIntegratedGPUIdx = -1;
-    for(uint32_t i = 0; i < uDeviceCount; i++)
-    {
-        
-        if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_DISCRETE)
-            iDiscreteGPUIdx = i;
-        else if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_INTEGRATED)
-            iIntegratedGPUIdx = i;
-    }
-
-    if(iDiscreteGPUIdx > -1)
-        iBestDvcIdx = iDiscreteGPUIdx;
-    else if(iIntegratedGPUIdx > -1)
-        iBestDvcIdx = iIntegratedGPUIdx;
-
-    // create device
-    const plDeviceInit tDeviceInit = {
-        .uDeviceIdx = iBestDvcIdx,
-        .ptSurface = ptAppData->ptSurface,
-        .szDynamicBufferBlockSize = 134217728
-    };
-    ptAppData->ptDevice = gptGfx->create_device(&tDeviceInit);
-    ptAppData->tDeviceInfo = atDeviceInfos[iBestDvcIdx];
+    ptAppData->ptDevice = gptStarter->create_device(ptAppData->ptSurface);
 
     // create swapchain
     const plSwapchainInit tSwapInit = {
@@ -356,12 +330,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .tSampleCount = 1
     };
     ptAppData->ptSwap = gptGfx->create_swapchain(ptAppData->ptDevice, ptAppData->ptSurface, &tSwapInit);
-    ptDataRegistry->set_data("device", ptAppData->ptDevice); // used by debug extension
 
     // setup reference renderer
     plRendererSettings tRenderSettings = {
         .ptDevice = ptAppData->ptDevice,
-        .ptDeviceInfo = &ptAppData->tDeviceInfo,
         .ptSwap = ptAppData->ptSwap,
         .uMaxTextureResolution = 1024,
     };
