@@ -42,6 +42,7 @@ typedef int    plDrawFlags;                        // pl_draw_ext.h
 typedef struct _plDevice        plDevice;          // pl_graphics_ext.h
 typedef struct _plRenderEncoder plRenderEncoder;   // pl_graphics_ext.h
 typedef struct _plCommandBuffer plCommandBuffer;   // pl_graphics_ext.h
+typedef struct _plBindGroupPool plBindGroupPool;   // pl_graphics_ext.h
 typedef union plBindGroupHandle plBindGroupHandle; // pl_graphics_ext.h
 typedef union plTextureHandle   plTextureHandle;   // pl_graphics_ext.h
 
