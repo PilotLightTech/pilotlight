@@ -5463,6 +5463,7 @@ pl__garbage_collect(plDevice* ptDevice)
         const uint16_t iResourceIndex = ptGarbage->sbtRenderPassLayouts[i].uIndex;
         plVulkanRenderPassLayout* ptVulkanResource = &ptDevice->sbtRenderPassLayoutsHot[iResourceIndex];
         vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, NULL);
+        ptVulkanResource->tRenderPass = VK_NULL_HANDLE;
         pl_sb_push(ptDevice->sbtRenderPassLayoutFreeIndices, iResourceIndex);
     }
 

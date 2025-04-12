@@ -240,10 +240,11 @@ typedef struct _plGraphicsI
     const char*       (*get_backend_string)(void);
 
     // devices
-    void      (*enumerate_devices)(plDeviceInfo*, uint32_t* deviceCountOut);
-    plDevice* (*create_device)    (const plDeviceInit*);
-    void      (*cleanup_device)   (plDevice*);
-    void      (*flush_device)     (plDevice*);
+    void                (*enumerate_devices)(plDeviceInfo*, uint32_t* deviceCountOut);
+    plDevice*           (*create_device)    (const plDeviceInit*);
+    void                (*cleanup_device)   (plDevice*);
+    void                (*flush_device)     (plDevice*);
+    const plDeviceInfo* (*get_device_info)  (plDevice*);
 
     // surface
     plSurface* (*create_surface) (plWindow*);
@@ -292,6 +293,7 @@ typedef struct _plGraphicsI
     void               (*end_render_pass)           (plRenderEncoder*);
     plRenderPassHandle (*get_encoder_render_pass)   (plRenderEncoder*);
     uint32_t           (*get_render_encoder_subpass)(plRenderEncoder*);
+    plCommandBuffer*   (*get_encoder_command_buffer)(plRenderEncoder*);
 
     // render encoder: draw stream (preferred system)
     //   Notes:
@@ -314,21 +316,23 @@ typedef struct _plGraphicsI
     void (*bind_shader)              (plRenderEncoder*, plShaderHandle);
 
     // compute encoder
-    plComputeEncoder* (*begin_compute_pass)      (plCommandBuffer*, const plPassResources*); // do not store
-    void              (*end_compute_pass)        (plComputeEncoder*);
-    void              (*dispatch)                (plComputeEncoder*, uint32_t dispatchCount, const plDispatch*);
-    void              (*bind_compute_shader)     (plComputeEncoder*, plComputeShaderHandle);
-    void              (*bind_compute_bind_groups)(plComputeEncoder*, plComputeShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
+    plComputeEncoder* (*begin_compute_pass)                (plCommandBuffer*, const plPassResources*); // do not store
+    void              (*end_compute_pass)                  (plComputeEncoder*);
+    void              (*dispatch)                          (plComputeEncoder*, uint32_t dispatchCount, const plDispatch*);
+    void              (*bind_compute_shader)               (plComputeEncoder*, plComputeShaderHandle);
+    void              (*bind_compute_bind_groups)          (plComputeEncoder*, plComputeShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
+    plCommandBuffer*  (*get_compute_encoder_command_buffer)(plComputeEncoder*);
 
     // blit encoder 
-    plBlitEncoder* (*begin_blit_pass)          (plCommandBuffer*); // do not store
-    void           (*end_blit_pass)            (plBlitEncoder*);
-    void           (*set_texture_usage)        (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
-    void           (*copy_buffer_to_texture)   (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
-    void           (*copy_texture_to_buffer)   (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
-    void           (*copy_texture)             (plBlitEncoder*, plTextureHandle, plTextureHandle, uint32_t regionCount, const plImageCopy*);
-    void           (*generate_mipmaps)         (plBlitEncoder*, plTextureHandle);
-    void           (*copy_buffer)              (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint32_t sourceOffset, uint32_t destinationOffset, size_t);
+    plBlitEncoder*   (*begin_blit_pass)                (plCommandBuffer*); // do not store
+    void             (*end_blit_pass)                  (plBlitEncoder*);
+    void             (*set_texture_usage)              (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
+    void             (*copy_buffer_to_texture)         (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
+    void             (*copy_texture_to_buffer)         (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
+    void             (*copy_texture)                   (plBlitEncoder*, plTextureHandle, plTextureHandle, uint32_t regionCount, const plImageCopy*);
+    void             (*generate_mipmaps)               (plBlitEncoder*, plTextureHandle);
+    void             (*copy_buffer)                    (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint32_t sourceOffset, uint32_t destinationOffset, size_t);
+    plCommandBuffer* (*get_blit_encoder_command_buffer)(plBlitEncoder*);
 
     // global barriers
     void (*pipeline_barrier_blit)   (plBlitEncoder*,    plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses);

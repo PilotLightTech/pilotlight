@@ -129,7 +129,6 @@ typedef struct _plViewOptions
 typedef struct _plRendererSettings
 {
     plDevice* ptDevice;
-    plDeviceInfo* ptDeviceInfo;
     plSwapchain* ptSwap;
     uint32_t  uMaxTextureResolution; // default 1024 (should be factor of 2)
 } plRendererSettings;

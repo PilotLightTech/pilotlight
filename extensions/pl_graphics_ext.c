@@ -739,6 +739,30 @@ pl_get_gfx_allocations(plDevice* ptDevice, uint32_t* puSizeOut)
     return ptDevice->sbtMemoryBlocks;
 }
 
+const plDeviceInfo*
+pl_get_device_info(plDevice* ptDevice)
+{
+    return &ptDevice->tInfo;
+}
+
+plCommandBuffer*
+pl_get_encoder_command_buffer(plRenderEncoder* ptEncoder)
+{
+    return ptEncoder->ptCommandBuffer;
+}
+
+plCommandBuffer*
+pl_get_compute_encoder_command_buffer(plComputeEncoder* ptEncoder)
+{
+    return ptEncoder->ptCommandBuffer;
+}
+
+plCommandBuffer*
+pl_get_blit_encoder_command_buffer(plBlitEncoder* ptEncoder)
+{
+    return ptEncoder->ptCommandBuffer;
+}
+
 PL_EXPORT void
 pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
@@ -755,6 +779,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_frames_in_flight                   = pl_get_frames_in_flight,
         .begin_frame                            = pl_begin_frame,
         .create_device                          = pl_create_device,
+        .get_device_info                        = pl_get_device_info,
         .enumerate_devices                      = pl_enumerate_devices,
         .cleanup_device                         = pl_cleanup_device,
         .acquire_swapchain_image                = pl_acquire_swapchain_image,
@@ -861,6 +886,9 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .is_render_pass_layout_valid            = pl_is_render_pass_layout_valid,
         .is_shader_valid                        = pl_is_shader_valid,
         .is_compute_shader_valid                = pl_is_compute_shader_valid,
+        .get_compute_encoder_command_buffer     = pl_get_compute_encoder_command_buffer,
+        .get_blit_encoder_command_buffer        = pl_get_blit_encoder_command_buffer,
+        .get_encoder_command_buffer             = pl_get_encoder_command_buffer,
 
         #if defined(PL_GRAPHICS_EXPOSE_VULKAN) && defined(PL_VULKAN_BACKEND)
         .get_vulkan_instance        = pl_get_vulkan_instance,

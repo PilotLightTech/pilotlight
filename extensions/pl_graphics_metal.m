@@ -916,7 +916,6 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     }
 
     NSUInteger argumentBufferLength = sizeof(uint64_t) * uDescriptorCount;
-    MTLSizeAndAlign tSizeAlign = [ptDevice->tDevice heapBufferSizeAndAlignWithLength:argumentBufferLength options:MTLResourceStorageModeShared];
 
     plMetalBindGroup tMetalBindGroup = {
         .tLayout = *ptLayout,
