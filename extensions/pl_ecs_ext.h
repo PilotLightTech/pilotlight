@@ -25,8 +25,8 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plEcsI_version    {0, 1, 0}
-#define plCameraI_version {0, 1, 0}
+#define plEcsI_version    {0, 2, 0}
+#define plCameraI_version {0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines

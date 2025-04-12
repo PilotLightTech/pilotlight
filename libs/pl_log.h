@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_LOG_VERSION    "1.0.2"
-#define PL_LOG_VERSION_NUM 10002
+#define PL_LOG_VERSION    "1.0.0"
+#define PL_LOG_VERSION_NUM 10000
 
 /*
 Index of this file:

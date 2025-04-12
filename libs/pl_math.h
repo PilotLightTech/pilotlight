@@ -14,8 +14,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_MATH_VERSION    "1.3.0"
-#define PL_MATH_VERSION_NUM 10300
+#define PL_MATH_VERSION    "1.0.0"
+#define PL_MATH_VERSION_NUM 10000
 
 /*
 Index of this file:

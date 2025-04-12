@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_JSON_VERSION    "1.1.0"
-#define PL_JSON_VERSION_NUM 10100
+#define PL_JSON_VERSION    "1.0.0"
+#define PL_JSON_VERSION_NUM 10000
 
 /*
 Index of this file:

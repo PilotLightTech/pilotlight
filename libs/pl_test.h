@@ -17,8 +17,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_TEST_VERSION    "1.0.1"
-#define PL_TEST_VERSION_NUM 10001
+#define PL_TEST_VERSION    "1.0.0"
+#define PL_TEST_VERSION_NUM 10000
 
 /*
 Index of this file:

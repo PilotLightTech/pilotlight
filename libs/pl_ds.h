@@ -4,8 +4,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_DS_VERSION    "1.2.0"
-#define PL_DS_VERSION_NUM 10200
+#define PL_DS_VERSION    "1.0.0"
+#define PL_DS_VERSION_NUM 10000
 
 /*
 Index of this file:
