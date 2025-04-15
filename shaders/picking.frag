@@ -29,9 +29,9 @@ layout(location = 0) out vec4 outColor;
 
 void main() 
 {
-    if(floor(gl_FragCoord.x) == tShaderIn.tMousePos.x)
+    if(floor(gl_FragCoord.x) == floor(tShaderIn.tMousePos.x) )
     {
-        if(floor(gl_FragCoord.y) == tShaderIn.tMousePos.y)
+        if(floor(gl_FragCoord.y) == floor(tShaderIn.tMousePos.y))
         {
             // tResultOut.tPixelColor = tShaderIn.tColor;
             // float CurrentDepth = gl_FragCoord.z;

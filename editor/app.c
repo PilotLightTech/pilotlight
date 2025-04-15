@@ -591,9 +591,11 @@ pl_app_update(plAppData* ptAppData)
         else if(gptIO->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
         {
             plVec2 tReleasePos = tMousePos;
+            plVec2 tHoverOffset = {0};
+            plVec2 tHoverScale = {1.0f, 1.0f};
 
             if(tReleasePos.x == tClickPos.x && tReleasePos.y == tClickPos.y)
-                gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0);
+                gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, tHoverOffset, tHoverScale);
         }
     }
 
@@ -651,12 +653,12 @@ pl_app_update(plAppData* ptAppData)
         }
         if(ptSelectedTransform)
         {
-            gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+            gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, (plVec2){0}, (plVec2){1.0f, 1.0f});
         }
         else if(ptSelectedObject)
         {
             ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSelectedObject->tTransform);
-            gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+            gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, (plVec2){0}, (plVec2){1.0f, 1.0f});
         }
     }
 
@@ -687,7 +689,14 @@ pl_app_update(plAppData* ptAppData)
 
     // add full screen quad for offscreen render
     if(ptAppData->uSceneHandle0 != UINT32_MAX)
-        gptDraw->add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0).uData, pl_create_vec2(0, 0), ptIO->tMainViewportSize);
+    {
+        plVec2 tStartPos = {0};
+        plVec2 tEndPos = ptIO->tMainViewportSize;
+        gptDraw->add_image(ptAppData->ptDrawLayer,
+            gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0).uData,
+            tStartPos,
+            tEndPos);
+    }
 
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
 

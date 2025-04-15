@@ -186,6 +186,8 @@ typedef struct _plAppData
     // scenes/views
     uint32_t uSceneHandle0;
     uint32_t uViewHandle0;
+    plVec2 tView0Offset;
+    plVec2 tView0Scale;
 
     // drawing
     plDrawLayer2D* ptDrawLayer;
@@ -215,6 +217,7 @@ void pl__find_models       (plAppData*);
 void pl__create_scene      (plAppData*);
 void pl__show_editor_window(plAppData*);
 void pl__show_ui_demo_window(plAppData* ptAppData);
+void pl__camera_update_imgui(plCameraComponent*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -521,8 +524,6 @@ PL_EXPORT void
 pl_app_resize(plAppData* ptAppData)
 {
     plIO* ptIO = gptIO->get_io();
-    if(ptAppData->uSceneHandle0 != UINT32_MAX)
-        gptCamera->set_aspect((plCameraComponent*)gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
     ptAppData->bResize = true;
     gptRenderer->resize();
 }
@@ -575,6 +576,9 @@ pl_app_update(plAppData* ptAppData)
 
     if(ptAppData->uSceneHandle0 != UINT32_MAX)
     {
+        if(ptAppData->uSceneHandle0 != UINT32_MAX)
+            gptCamera->set_aspect((plCameraComponent*)gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera), (ptIO->tMainViewportSize.x * ptAppData->tView0Scale.x) / (ptIO->tMainViewportSize.y * ptAppData->tView0Scale.y));
+
         plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
         plCameraComponent*  ptCamera = (plCameraComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
         plCameraComponent*  ptCullCamera = (plCameraComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tCullCamera);
@@ -596,8 +600,13 @@ pl_app_update(plAppData* ptAppData)
                 plVec2 tReleasePos = tMousePos;
 
                 if(tReleasePos.x == tClickPos.x && tReleasePos.y == tClickPos.y)
-                    gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0);
+                    gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, ptAppData->tView0Offset, ptAppData->tView0Scale);
             }
+        }
+
+        if(ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, ptAppData->tView0Offset, ptAppData->tView0Scale);
         }
 
         // run ecs system
@@ -654,12 +663,12 @@ pl_app_update(plAppData* ptAppData)
             }
             if(ptSelectedTransform)
             {
-                gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+                gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, ptAppData->tView0Offset, ptAppData->tView0Scale);
             }
             else if(ptSelectedObject)
             {
                 ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptSelectedObject->tTransform);
-                gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+                gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, ptAppData->tView0Offset, ptAppData->tView0Scale);
             }
         }
 
@@ -698,22 +707,36 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowUiDebug)
         gptUI->show_debug_window(&ptAppData->bShowUiDebug);
 
-
-
-    // add full screen quad for offscreen render
-    if(ptAppData->uSceneHandle0 != UINT32_MAX)
-        gptDraw->add_image(ptAppData->ptDrawLayer, gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0).uData, pl_create_vec2(0, 0), ptIO->tMainViewportSize);
+    ImGui::DockSpaceOverViewport(0, 0, ImGuiDockNodeFlags_PassthruCentralNode);
 
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
 
     if(ptAppData->uSceneHandle0 != UINT32_MAX)
     {
 
+        ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID);
+        ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_Once);
         if(ImGui::Begin("Offscreen", NULL, ImGuiWindowFlags_NoTitleBar))
         {
+
+            plCameraComponent*  ptCamera = (plCameraComponent*)gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
+            if(ImGui::IsWindowHovered())
+                pl__camera_update_imgui(ptCamera);
+
             ImVec2 tContextSize = ImGui::GetContentRegionAvail();
             ImVec2 tCursorStart = ImGui::GetCursorScreenPos();
             ImVec2 tHoverMousePos = ImGui::GetMousePos();
+
+            ptAppData->tView0Offset = {
+                tCursorStart.x - ImGui::GetWindowViewport()->Pos.x,
+                tCursorStart.y - ImGui::GetWindowViewport()->Pos.y
+            };
+
+            ptAppData->tView0Scale = {
+                tContextSize.x / ImGui::GetWindowViewport()->Size.x,
+                tContextSize.y / ImGui::GetWindowViewport()->Size.y,
+            };
+
 
             ImTextureID tTexture = gptDearImGui->get_texture_id_from_bindgroup(gptRenderer->get_device(), gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0));
             ImGui::Image(tTexture, tContextSize);
@@ -733,6 +756,8 @@ pl_app_update(plAppData* ptAppData)
 
     // render ui
     pl_begin_cpu_sample(gptProfile, 0, "render ui");
+
+    gptDearImGui->render(ptRenderEncoder, ptCommandBuffer);
     
     gptUI->end_frame();
 
@@ -742,7 +767,7 @@ pl_app_update(plAppData* ptAppData)
     gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptRenderer->get_swapchain()).tSampleCount);
     pl_end_cpu_sample(gptProfile, 0);
 
-    gptDearImGui->render(ptRenderEncoder, ptCommandBuffer);
+    
 
     plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth, fHeight);
     gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptRenderer->get_swapchain()).tSampleCount);
@@ -1254,7 +1279,6 @@ pl__create_scene(plAppData* ptAppData)
     ptAppData->tMainCamera = gptEcs->create_perspective_camera(ptMainComponentLibrary, "main camera", pl_create_vec3(-4.7f, 4.2f, -3.256f), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
     gptCamera->update(ptMainCamera);
-    gptEcs->attach_script(ptMainComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
 
     // create cull camera
     plCameraComponent* ptCullCamera = NULL;
@@ -1295,6 +1319,100 @@ pl__create_scene(plAppData* ptAppData)
     ptProbe->uResolution = 128;
     ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
 
+}
+
+void
+pl__camera_update_imgui(plCameraComponent* ptCamera)
+{
+    static float gfOriginalFOV = 0.0f;
+    if(gfOriginalFOV == 0.0f)
+        gfOriginalFOV = ptCamera->fFieldOfView;
+
+    if(gptGizmo->active())
+        return;
+
+
+    static const float gfCameraTravelSpeed = 4.0f;
+    static const float fCameraRotationSpeed = 0.005f;
+
+    float fCameraTravelSpeed = gfCameraTravelSpeed;
+
+    bool bOwnKeyboard = gptUI->wants_keyboard_capture();
+    bool bOwnMouse = gptUI->wants_mouse_capture();
+
+    plIO* ptIO = gptIO->get_io();
+
+    if(!bOwnKeyboard && !bOwnMouse)
+    {
+
+        bool bRMB = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+        bool bLMB = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+
+        if(ImGui::IsMouseClicked(ImGuiMouseButton_Right, false))
+        {
+            gfOriginalFOV = ptCamera->fFieldOfView;
+        }
+        else if(ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+        {
+            ptCamera->fFieldOfView = gfOriginalFOV;
+        }
+
+        if(ImGui::IsKeyDown(ImGuiKey_ModShift))
+            fCameraTravelSpeed *= 3.0f;
+
+
+        // camera space
+        
+        if(bRMB)
+        {
+            if(ImGui::IsKeyDown(ImGuiKey_W)) gptCamera->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
+            if(ImGui::IsKeyDown(ImGuiKey_S)) gptCamera->translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
+            if(ImGui::IsKeyDown(ImGuiKey_A)) gptCamera->translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+            if(ImGui::IsKeyDown(ImGuiKey_D)) gptCamera->translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+
+            // world space
+            if(ImGui::IsKeyDown(ImGuiKey_Q)) { gptCamera->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+            if(ImGui::IsKeyDown(ImGuiKey_E)) { gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+
+            if(ImGui::IsKeyDown(ImGuiKey_Z))
+            {
+                ptCamera->fFieldOfView += 0.25f * (PL_PI / 180.0f);
+                ptCamera->fFieldOfView = pl_minf(ptCamera->fFieldOfView, 2.96706f);
+            }
+            if(ImGui::IsKeyDown(ImGuiKey_C))
+            {
+                ptCamera->fFieldOfView -= 0.25f * (PL_PI / 180.0f);
+
+                ptCamera->fFieldOfView = pl_maxf(ptCamera->fFieldOfView, 0.03f);
+            }
+        }
+
+        if(bLMB && ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f))
+        {
+            const ImVec2 tMouseDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right, 1.0f);
+            gptCamera->translate(ptCamera,  tMouseDelta.x * fCameraTravelSpeed * ptIO->fDeltaTime, -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime, 0.0f);
+            ImGui::ResetMouseDragDelta(ImGuiMouseButton_Right);
+            ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+        }
+
+        else if(ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f))
+        {
+            const ImVec2 tMouseDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right, 1.0f);
+            gptCamera->rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
+            ImGui::ResetMouseDragDelta(ImGuiMouseButton_Right);
+        }
+
+        else if(bLMB)
+        {
+            const ImVec2 tMouseDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 1.0f);
+            gptCamera->rotate(ptCamera,  0.0f,  -tMouseDelta.x * fCameraRotationSpeed);
+            ptCamera->tPos.x += -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * sinf(ptCamera->fYaw);
+            ptCamera->tPos.z += -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * cosf(ptCamera->fYaw);
+            ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+        }
+    }
+
+    gptCamera->update(ptCamera);
 }
 
 void

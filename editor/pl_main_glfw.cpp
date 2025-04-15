@@ -1000,8 +1000,8 @@ pl_load_library_function(plSharedLibrary* ptLibrary, const char* name)
 void
 pl_glfw_mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-    if(ImGui::GetIO().WantCaptureMouse)
-        return;
+    // if(ImGui::GetIO().WantCaptureMouse)
+    //     return;
 
     // update key modifiers
     gptIOI->add_key_event(PL_KEY_MOD_CTRL,  (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) || (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS));
@@ -1025,8 +1025,8 @@ pl_glfw_mouse_pos_callback(GLFWwindow* window, double x, double y)
 void
 pl_glfw_cursor_enter_callback(GLFWwindow* window, int entered)
 {
-    if(ImGui::GetIO().WantCaptureMouse)
-        return;
+    // if(ImGui::GetIO().WantCaptureMouse)
+    //     return;
 
     plIO* ptIO = gptIOI->get_io();
     if (entered)
@@ -1055,16 +1055,16 @@ pl_glfw_window_focus_callback(GLFWwindow* window, int focused)
 void
 pl_glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-    if(ImGui::GetIO().WantCaptureMouse)
-        return;
+    // if(ImGui::GetIO().WantCaptureMouse)
+    //     return;
     gptIOI->add_mouse_wheel_event((float)xoffset, (float)yoffset);
 }
 
 void
 pl_glfw_char_callback(GLFWwindow* window, unsigned int c)
 {
-    if(ImGui::GetIO().WantTextInput)
-        return;
+    // if(ImGui::GetIO().WantTextInput)
+    //     return;
     gptIOI->add_text_event(c);
 }
 
@@ -1144,8 +1144,8 @@ pl_glfw_key_callback(GLFWwindow* window, int keycode, int scancode, int action, 
     if (action != GLFW_PRESS && action != GLFW_RELEASE)
         return;
 
-    if(ImGui::GetIO().WantCaptureKeyboard)
-        return;
+    // if(ImGui::GetIO().WantCaptureKeyboard)
+    //     return;
 
     // update key modifiers
     gptIOI->add_key_event(PL_KEY_MOD_CTRL,  (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) || (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS));
