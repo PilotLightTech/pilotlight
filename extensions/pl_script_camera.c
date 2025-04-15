@@ -58,6 +58,11 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
 
     plCameraComponent* ptCamera = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tEntity);
 
+    if(gfOriginalFOV == 0.0f)
+    {
+        gfOriginalFOV = ptCamera->fFieldOfView;
+    }
+
     plIO* ptIO = gptIO->get_io();
 
     static const float gfCameraTravelSpeed = 4.0f;
