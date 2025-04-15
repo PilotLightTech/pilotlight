@@ -57,7 +57,7 @@ Index of this file:
     to different "encoders" which can't be recording simutaneously. So the
     graphics extension introduces the concept of encoder to match the stricter
     API at the cost of some freedom Vulkan would normally allow. There is only
-    a few cases like this but we will not them in these examples.
+    a few cases like this but we will note them in these examples.
 
     EXAMPLE:
     
