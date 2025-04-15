@@ -348,7 +348,6 @@ typedef struct _plIO
     //------------------------------------------------------------------
 
     bool  bRunning;
-    float fHeadlessUpdateRate; // frame rate when headless (FPS)
 
     //------------------------------------------------------------------
     // Output
@@ -407,7 +406,6 @@ typedef struct _plIO
     #ifdef __cplusplus
     _plIO()
     {
-        fHeadlessUpdateRate      = 30.0f;
         fMouseDoubleClickTime    = 0.3f;
         fMouseDoubleClickMaxDist = 6.0f;
         fMouseDragThreshold      = 6.0f;

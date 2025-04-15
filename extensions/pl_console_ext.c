@@ -354,7 +354,6 @@ pl_console_initialize(plConsoleSettings tSettings)
     pl_console_add_float_variable("i.MouseDoubleClickMaxDist", &gptIO->fMouseDoubleClickMaxDist, "mouse double click max distance", PL_CONSOLE_VARIABLE_FLAGS_NONE);
     pl_console_add_float_variable("i.KeyRepeatDelay", &gptIO->fKeyRepeatDelay, "key repeat delay", PL_CONSOLE_VARIABLE_FLAGS_NONE);
     pl_console_add_float_variable("i.KeyRepeatRate", &gptIO->fKeyRepeatRate, "key repeat rate", PL_CONSOLE_VARIABLE_FLAGS_NONE);
-    pl_console_add_float_variable("i.HeadlessUpdateRate", &gptIO->fHeadlessUpdateRate, "frame rate when headless (FPS)", PL_CONSOLE_VARIABLE_FLAGS_NONE);
 
     // console
     pl_console_add_toggle_variable("c.Alpha", &gptConsoleCtx->bConsoleTransparency, "toggles command console transparency", PL_CONSOLE_VARIABLE_FLAGS_NONE);
