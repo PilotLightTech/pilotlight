@@ -24,20 +24,6 @@ Index of this file:
 
 /*
 
-    WARNING:
-
-    The purpose of the graphics extension is NOT to make low level graphics
-    programming easier.
-    
-    The purpose of the graphics extension is NOT to be an abstraction for the
-    sake of abstraction.
-
-    The graphics extension does not hold your hand. You are expected to be
-    familar with either Vulkan or Metal 3.0 concepts.
-
-    This extension mostly assume you understand low level graphics and will
-    not attempt to explain those concepts (i.e. what is a vertex buffer?)
-
     BACKGROUND:
 
     The graphics extension is meant to be an extremely lightweight abstraction
@@ -55,6 +41,30 @@ Index of this file:
     graphics extension introduces the concept of encoder to match the stricter
     API at the cost of some freedom Vulkan would normally allow. There is only
     a few cases like this but you should be aware of them.
+
+    Provided Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plLogI
+        * plThreadsI
+        * plLogI
+        * plProfileI
+
+    WARNING:
+
+    The purpose of the graphics extension is NOT to make low level graphics
+    programming easier.
+    
+    The purpose of the graphics extension is NOT to be an abstraction for the
+    sake of abstraction.
+
+    The graphics extension does not hold your hand. You are expected to be
+    familar with either Vulkan or Metal 3.0 concepts.
+
+    This extension mostly assume you understand low level graphics and will
+    not attempt to explain those concepts (i.e. what is a vertex buffer?)
+
 */
 
 //-----------------------------------------------------------------------------

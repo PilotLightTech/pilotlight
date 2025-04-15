@@ -1,5 +1,6 @@
 /*
    pl_draw_ext.h
+     * a simple 2D & 3D drawing API (mostly for debug drawing)
 */
 
 /*
