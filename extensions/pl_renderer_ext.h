@@ -98,7 +98,7 @@ typedef struct _plRendererI
     void (*end_final_pass)  (plRenderEncoder*, plCommandBuffer*);
 
     // selection & highlighting
-    void (*update_hovered_entity)(uint32_t uSceneHandle, uint32_t uViewHandle);
+    void (*update_hovered_entity)(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tOffset, plVec2 tWindowScale);
     bool (*get_hovered_entity)   (uint32_t uSceneHandle, uint32_t uViewHandle, plEntity*);
     void (*outline_entities)     (uint32_t uSceneHandle, uint32_t uCount, plEntity*);
 

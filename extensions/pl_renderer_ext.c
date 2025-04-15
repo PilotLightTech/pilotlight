@@ -2560,11 +2560,13 @@ pl_refr_run_ecs(uint32_t uSceneHandle)
 }
 
 static void
-pl_refr_update_hovered_entity(uint32_t uSceneHandle, uint32_t uViewHandle)
+pl_refr_update_hovered_entity(uint32_t uSceneHandle, uint32_t uViewHandle, plVec2 tOffset, plVec2 tWindowScale)
 {
     plRefScene* ptScene = &gptData->sbtScenes[uSceneHandle];
     plRefView* ptView = &ptScene->atViews[uViewHandle];
     ptView->bRequestHoverCheck = true;
+    ptView->tHoverOffset = tOffset;
+    ptView->tHoverWindowRatio = tWindowScale;
 }
 
 static bool
@@ -3581,7 +3583,9 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             const uint32_t uVisibleDrawCount = pl_sb_size(ptView->sbtVisibleDrawables);
             *gptData->pdDrawCalls += (double)uVisibleDrawCount;
 
-            const plVec2 tMousePos = gptIOI->get_mouse_pos();
+            plVec2 tMousePos = gptIOI->get_mouse_pos();
+            tMousePos = pl_sub_vec2(tMousePos, ptView->tHoverOffset);
+            tMousePos = pl_div_vec2(tMousePos, ptView->tHoverWindowRatio);
             
             for(uint32_t i = 0; i < uVisibleDrawCount; i++)
             {

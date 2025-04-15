@@ -89,9 +89,9 @@ static plGizmoContext* gptGizmoCtx = NULL;
 //-----------------------------------------------------------------------------
 
 static bool pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1, float fRadius, float fHeight, float* pfDistance);
-static void pl__gizmo_translation           (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform);
-static void pl__gizmo_rotation              (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform);
-static void pl__gizmo_scale                 (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform);
+static void pl__gizmo_translation           (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
+static void pl__gizmo_rotation              (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
+static void pl__gizmo_scale                 (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -116,7 +116,7 @@ pl_gizmo_next_mode(void)
 }
 
 static void
-pl_gizmo(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform)
+pl_gizmo(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
     if(ptSelectedTransform)
@@ -130,13 +130,13 @@ pl_gizmo(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransform
         switch(gptGizmoCtx->tSelectionMode)
         {
             case PL_GIZMO_MODE_TRANSLATION:
-                pl__gizmo_translation(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+                pl__gizmo_translation(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, tViewOffset, tViewScale);
                 break;
             case PL_GIZMO_MODE_ROTATION:
-                pl__gizmo_rotation(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+                pl__gizmo_rotation(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, tViewOffset, tViewScale);
                 break;
             case PL_GIZMO_MODE_SCALE:
-                pl__gizmo_scale(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform);
+                pl__gizmo_scale(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, tViewOffset, tViewScale);
                 break;
             case PL_GIZMO_MODE_NONE:
             default:
@@ -183,12 +183,14 @@ pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1,
 }
 
 static void
-pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform)
+pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
     plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
 
     plVec2 tMousePos = gptIOI->get_mouse_pos();
+    tMousePos = pl_sub_vec2(tMousePos, tViewOffset);
+    tMousePos = pl_div_vec2(tMousePos, tViewScale);
 
     if(gptUI->wants_mouse_capture())
     {
@@ -618,12 +620,14 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
 }
 
 static void
-pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform)
+pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
     plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
 
     plVec2 tMousePos = gptIOI->get_mouse_pos();
+    tMousePos = pl_sub_vec2(tMousePos, tViewOffset);
+    tMousePos = pl_div_vec2(tMousePos, tViewScale);
 
     if(gptUI->wants_mouse_capture())
     {
@@ -932,12 +936,14 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, p
 }
 
 static void
-pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform)
+pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
     plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
 
     plVec2 tMousePos = gptIOI->get_mouse_pos();
+    tMousePos = pl_sub_vec2(tMousePos, tViewOffset);
+    tMousePos = pl_div_vec2(tMousePos, tViewScale);
 
     if(gptUI->wants_mouse_capture())
     {

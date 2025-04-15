@@ -52,7 +52,7 @@ typedef struct _plGizmoI
     void (*set_mode)(plGizmoMode);
     void (*next_mode)(void);
     bool (*active)(void);
-    void (*gizmo)(plDrawList3D*, plCameraComponent*, plTransformComponent* selectedTransform, plTransformComponent* parentTransform);
+    void (*gizmo)(plDrawList3D*, plCameraComponent*, plTransformComponent* selectedTransform, plTransformComponent* parentTransform, plVec2 viewOffset, plVec2 viewScale);
 } plGizmoI;
 
 //-----------------------------------------------------------------------------

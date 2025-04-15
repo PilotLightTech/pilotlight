@@ -351,6 +351,8 @@ typedef struct _plRefView
     bool              auHoverResultProcessing[PL_MAX_FRAMES_IN_FLIGHT];
     bool              auHoverResultReady[PL_MAX_FRAMES_IN_FLIGHT];
     bool              bRequestHoverCheck;
+    plVec2            tHoverOffset;
+    plVec2            tHoverWindowRatio;
     plEntity          tHoveredEntity;
     plTextureHandle   tPickTexture;
     plBufferHandle    atPickBuffer[PL_MAX_FRAMES_IN_FLIGHT];
