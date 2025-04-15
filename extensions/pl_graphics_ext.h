@@ -5,6 +5,7 @@
 
 /*
 Index of this file:
+// [SECTION] quick notes
 // [SECTION] header mess
 // [SECTION] defines
 // [SECTION] apis
@@ -15,6 +16,45 @@ Index of this file:
 // [SECTION] enums
 // [SECTION] internal enums
 // [SECTION] inline API implementations
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] quick notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    WARNING:
+
+    The purpose of the graphics extension is NOT to make low level graphics
+    programming easier.
+    
+    The purpose of the graphics extension is NOT to be an abstraction for the
+    sake of abstraction.
+
+    The graphics extension does not hold your hand. You are expected to be
+    familar with either Vulkan or Metal 3.0 concepts.
+
+    This extension mostly assume you understand low level graphics and will
+    not attempt to explain those concepts (i.e. what is a vertex buffer?)
+
+    BACKGROUND:
+
+    The graphics extension is meant to be an extremely lightweight abstraction
+    over the "modern" explicit graphics APIs (Vulkan/DirectX 12/Metal 3.0).
+    Ideally it should be 1 to 1 when possible. The explicit control provided
+    by these APIs are their power, so the extension tries to preserve that
+    as much as possible while also allowing a graphics programmer the ability
+    to write cross platform graphics code without too much consideration of
+    the differences between the APIs. This is accomplished by careful
+    consideration of the APIs and their common concepts and features. In some
+    cases, the API is required to be stricter than the underlying API. For
+    example, Vulkan makes it easy to issue draw calls and compute dispatches
+    directly to command buffers while Metal requires these to be submitted
+    to different "encoders" which can't be recording simutaneously. So the
+    graphics extension introduces the concept of encoder to match the stricter
+    API at the cost of some freedom Vulkan would normally allow. There is only
+    a few cases like this but you should be aware of them.
 */
 
 //-----------------------------------------------------------------------------

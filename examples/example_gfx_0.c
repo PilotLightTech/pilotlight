@@ -49,7 +49,7 @@ Index of this file:
     by these APIs are their power, so the extension tries to preserve that
     as much as possible while also allowing a graphics programmer the ability
     to write cross platform graphics code without too much consideration of
-    the differences between the APIs. These is accomplished by careful
+    the differences between the APIs. This is accomplished by careful
     consideration of the APIs and their common concepts and features. In some
     cases, the API is required to be stricter than the underlying API. For
     example, Vulkan makes it easy to issue draw calls and compute dispatches
