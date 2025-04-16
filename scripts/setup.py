@@ -131,7 +131,7 @@ with open('../.vscode/settings.json', 'w') as file:
     lines.append('    "pl_*.m": "objective-c",')
     lines.append('    "pl_*.inc": "c"')
     lines.append('   },')
-    lines.append('  "python.analysis.extraPaths": ["./pl_build"]')
+    lines.append('  "python.analysis.extraPaths": ["./build"]')
     lines.append('}')
     
     for i in range(len(lines)):

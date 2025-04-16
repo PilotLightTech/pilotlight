@@ -48,12 +48,12 @@ jobs:
       run: |
         cd %GITHUB_WORKSPACE%
         del README.md
-        echo ${{ github.event.inputs.version }} > version_number.txt
-        move pl_build\deploy_setup.py deploy_setup.py
-        move pl_build\README.md README.md
-        
         del setup.py
-        move deploy_setup.py setup.py
+        echo ${{ github.event.inputs.version }} > version_number.txt
+        move build\deploy_setup.py setup.py
+        move build\README.md README.md
+        rename build pl_build
+        
         echo [build-system] >> pyproject.toml
         echo requires = ["setuptools", "wheel"] >> pyproject.toml
         echo build-backend = "setuptools.build_meta" >> pyproject.toml

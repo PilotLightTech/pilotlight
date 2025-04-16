@@ -1,4 +1,4 @@
-import pl_build.core as pl
+from . import core as pl
 import pathlib
 
 class plWin32Helper:

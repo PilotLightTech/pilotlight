@@ -115,7 +115,7 @@ PL_EXPORT void pl_unload_ext(plApiRegistryI*, bool reload);
 
 ## Build System
 
-The project does not have a typical build system. We prefer to just use plain batch/bash scripts that directly call the compiler. However, this starts to be hard to maintain when supporting multiple platforms and target binaries. It can also be error prone. So I built our own little build system (called pl-build). It is entirely contained in the [pl_build](https://github.com/PilotLightTech/pilotlight/tree/master/pl_build) folder. It is standalone and can also be found on [pypi](https://pypi.org/project/pl-build/). It is python based. It simply outputs the final build scripts for each platform. You can see how we use it in the [scripts](https://github.com/PilotLightTech/pilotlight/tree/master/scripts) folder (gen_*.py files).
+The project does not have a typical build system. We prefer to just use plain batch/bash scripts that directly call the compiler. However, this starts to be hard to maintain when supporting multiple platforms and target binaries. It can also be error prone. So I built our own little build system (called pl-build). It is entirely contained in the [build](https://github.com/PilotLightTech/pilotlight/tree/master/build) folder. It is standalone and can also be found on [pypi](https://pypi.org/project/pl-build/). It is python based. It simply outputs the final build scripts for each platform. You can see how we use it in the [scripts](https://github.com/PilotLightTech/pilotlight/tree/master/scripts) folder (gen_*.py files).
 
 ## Features
 
