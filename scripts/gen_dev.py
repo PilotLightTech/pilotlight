@@ -635,7 +635,7 @@ with pl.project("pilotlight"):
 
     with pl.target("pl_dear_imgui_ext", pl.TargetType.DYNAMIC_LIBRARY, False, True):
 
-        pl.add_source_files("../editor/pl_dear_imgui_ext.cpp")
+        pl.add_source_files("../extensions/pl_dear_imgui_ext.cpp")
         pl.set_output_binary("pl_dear_imgui_ext")
         pl.add_definitions("PL_EXPERIMENTAL")
 
@@ -718,7 +718,7 @@ with pl.project("pilotlight"):
 
     with pl.target("pilot_light_experimental", pl.TargetType.EXECUTABLE, False, True):
     
-        pl.add_source_files("../editor/pl_main_glfw.cpp")
+        pl.add_source_files("pl_main_glfw.cpp")
         pl.set_output_binary("pilot_light")
         pl.add_definitions("PL_EXPERIMENTAL")
 

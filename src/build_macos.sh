@@ -888,7 +888,7 @@ PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 --debug -g -Wno-nullability-complete
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lglfwd -ldearimguid "
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../editor/pl_dear_imgui_ext.cpp "
+PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp "
 PL_LINK_FRAMEWORKS=""
 
 # add flags for specific hardware
@@ -931,7 +931,7 @@ PL_COMPILER_FLAGS="-fPIC -ObjC++ --debug -g -std=c++11 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lglfwd -ldearimguid "
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../editor/pl_main_glfw.cpp "
+PL_SOURCES="pl_main_glfw.cpp "
 PL_LINK_FRAMEWORKS=""
 
 # add flags for specific hardware
@@ -1323,7 +1323,7 @@ PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 -Wno-nullability-completeness "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lglfw -ldearimgui "
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../editor/pl_dear_imgui_ext.cpp "
+PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp "
 PL_LINK_FRAMEWORKS=""
 
 # add flags for specific hardware
@@ -1366,7 +1366,7 @@ PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++11 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lglfw -ldearimgui "
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="../editor/pl_main_glfw.cpp "
+PL_SOURCES="pl_main_glfw.cpp "
 PL_LINK_FRAMEWORKS=""
 
 # add flags for specific hardware
@@ -2000,7 +2000,7 @@ PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lglfwd -ldearimguid "
 PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lpthread -lvulkan "
-PL_SOURCES="../editor/pl_dear_imgui_ext.cpp "
+PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp "
 PL_LINK_FRAMEWORKS=""
 
 # add flags for specific hardware
@@ -2043,7 +2043,7 @@ PL_COMPILER_FLAGS="--debug -g -std=c++11 -fPIC -ObjC++ -fmodules "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ -Wl,-rpath,/usr/local/lib "
 PL_STATIC_LINK_LIBRARIES="-lglfwd -ldearimguid "
 PL_DYNAMIC_LINK_LIBRARIES="-lvulkan -lpthread "
-PL_SOURCES="../editor/pl_main_glfw.cpp "
+PL_SOURCES="pl_main_glfw.cpp "
 PL_LINK_FRAMEWORKS=""
 
 # add flags for specific hardware

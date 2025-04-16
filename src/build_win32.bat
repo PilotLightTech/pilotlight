@@ -844,7 +844,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -Od -MDd -Zi -permissive 
 @set PL_LINKER_FLAGS=-incremental:no -nologo -noimplib -noexp 
 @set PL_STATIC_LINK_LIBRARIES=glfwd.lib dearimguid.lib ucrtd.lib vulkan-1.lib 
-@set PL_SOURCES="../editor/pl_dear_imgui_ext.cpp" 
+@set PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp" 
 
 :: run compiler (and linker)
 @echo.
@@ -882,7 +882,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4996 -Od -MDd -Zi -permissive 
 @set PL_LINKER_FLAGS=-incremental:no -nologo 
 @set PL_STATIC_LINK_LIBRARIES=glfwd.lib dearimguid.lib user32.lib Shell32.lib Ole32.lib gdi32.lib ucrtd.lib 
-@set PL_SOURCES="../editor/pl_main_glfw.cpp" 
+@set PL_SOURCES="pl_main_glfw.cpp" 
 
 :: run compiler (and linker)
 @echo.
@@ -1251,7 +1251,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -O2 -MD -permissive 
 @set PL_LINKER_FLAGS=-incremental:no -nologo -noimplib -noexp 
 @set PL_STATIC_LINK_LIBRARIES=glfw.lib dearimgui.lib ucrtd.lib vulkan-1.lib 
-@set PL_SOURCES="../editor/pl_dear_imgui_ext.cpp" 
+@set PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp" 
 
 :: run compiler (and linker)
 @echo.
@@ -1289,7 +1289,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4996 -O2 -MD -permissive 
 @set PL_LINKER_FLAGS=-incremental:no -nologo 
 @set PL_STATIC_LINK_LIBRARIES=glfw.lib dearimgui.lib user32.lib Shell32.lib Ole32.lib gdi32.lib ucrtd.lib 
-@set PL_SOURCES="../editor/pl_main_glfw.cpp" 
+@set PL_SOURCES="pl_main_glfw.cpp" 
 
 :: run compiler (and linker)
 @echo.

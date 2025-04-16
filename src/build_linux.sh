@@ -741,7 +741,7 @@ PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-l:glfwd.a -l:dearimguid.a "
 PL_DYNAMIC_LINK_LIBRARIES="-lvulkan "
-PL_SOURCES="../editor/pl_dear_imgui_ext.cpp "
+PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp "
 
 # run compiler (and linker)
 echo
@@ -776,7 +776,7 @@ PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-l:glfwd.a -l:dearimguid.a "
 PL_DYNAMIC_LINK_LIBRARIES="-lvulkan -lpthread "
-PL_SOURCES="../editor/pl_main_glfw.cpp "
+PL_SOURCES="pl_main_glfw.cpp "
 
 # run compiler (and linker)
 echo
@@ -1099,7 +1099,7 @@ PL_COMPILER_FLAGS="-fPIC -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-l:glfw.a -l:dearimgui.a "
 PL_DYNAMIC_LINK_LIBRARIES="-lvulkan "
-PL_SOURCES="../editor/pl_dear_imgui_ext.cpp "
+PL_SOURCES="../extensions/pl_dear_imgui_ext.cpp "
 
 # run compiler (and linker)
 echo
@@ -1134,7 +1134,7 @@ PL_COMPILER_FLAGS="-fPIC -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-l:glfw.a -l:dearimgui.a "
 PL_DYNAMIC_LINK_LIBRARIES="-lvulkan -lpthread "
-PL_SOURCES="../editor/pl_main_glfw.cpp "
+PL_SOURCES="pl_main_glfw.cpp "
 
 # run compiler (and linker)
 echo
