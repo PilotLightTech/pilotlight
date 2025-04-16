@@ -287,8 +287,8 @@ enum _plWindowFlags
     PL_WINDOW_FLAG_NONE      = 0,
 
     #ifdef PL_EXPERIMENTAL
-    PL_WINDOW_FLAG_RESIZABLE = 1 << 0,
-    PL_WINDOW_FLAG_DECORATED = 1 << 1,
+    PL_WINDOW_FLAG_NOT_RESIZABLE = 1 << 0,
+    PL_WINDOW_FLAG_UNDECORATED = 1 << 1,
     PL_WINDOW_FLAG_TOP_MOST  = 1 << 2,
     #endif
 };

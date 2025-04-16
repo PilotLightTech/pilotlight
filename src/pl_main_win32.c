@@ -217,6 +217,7 @@ int main(int argc, char *argv[])
                 return 0;
         }
         gpUserData = pl_app_load(gptApiRegistry, NULL);
+        gbFirstRun = false;
         bool bApisFound = pl__check_apis();
         if(!bApisFound)
             return 3;
@@ -257,7 +258,7 @@ int main(int argc, char *argv[])
 
             pl__handle_extension_reloads();
             gpUserData = pl_app_load(gptApiRegistry, gpUserData);
-            gbFirstRun = false;
+            
         }
 
         // render frame

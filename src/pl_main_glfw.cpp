@@ -564,8 +564,8 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     plWindow* ptWindow = (plWindow*)malloc(sizeof(plWindow));
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-    glfwWindowHint(GLFW_RESIZABLE, (tDesc.tFlags & PL_WINDOW_FLAG_RESIZABLE) ? GLFW_TRUE : GLFW_FALSE);
-    glfwWindowHint(GLFW_DECORATED, (tDesc.tFlags & PL_WINDOW_FLAG_DECORATED) ? GLFW_TRUE : GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, (tDesc.tFlags & PL_WINDOW_FLAG_NOT_RESIZABLE) ? GLFW_FALSE : GLFW_TRUE);
+    glfwWindowHint(GLFW_DECORATED, (tDesc.tFlags & PL_WINDOW_FLAG_UNDECORATED) ? GLFW_FALSE : GLFW_TRUE);
     glfwWindowHint(GLFW_FLOATING,  (tDesc.tFlags & PL_WINDOW_FLAG_TOP_MOST) ? GLFW_TRUE : GLFW_FALSE);
     glfwWindowHint(GLFW_POSITION_X,  tDesc.iXPos);
     glfwWindowHint(GLFW_POSITION_Y,  tDesc.iXPos);
