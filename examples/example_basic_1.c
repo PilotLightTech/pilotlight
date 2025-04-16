@@ -48,9 +48,6 @@ Index of this file:
 #include <string.h> // memset
 #include "pl.h"
 
-// extension
-#include "pl_window_ext.h"
-
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -104,7 +101,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uWidth  = 600,
         .uHeight = 600,
     };
-    gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->show(ptAppData->ptWindow);
 
     // return app memory, which will be returned to us as an argument in the other functions
     return ptAppData;
@@ -118,7 +116,7 @@ PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
     // perform any cleanup here
-    gptWindows->destroy_window(ptAppData->ptWindow);
+    gptWindows->destroy(ptAppData->ptWindow);
     
     // free app memory
     free(ptAppData);
@@ -129,7 +127,7 @@ pl_app_shutdown(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(plAppData* ptAppData)
+pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     // perform any operations required during a window resize
     plIO* ptIO = gptIO->get_io();

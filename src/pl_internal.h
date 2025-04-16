@@ -26,8 +26,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl.h"
-#include "pl_window_ext.h"
-#include "pl_library_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] globals
@@ -37,7 +35,20 @@ Index of this file:
 plSharedLibrary* gptAppLibrary = NULL;
 void*            gpUserData    = NULL;
 plIO*            gptIOCtx      = NULL;
-plWindow**       gsbtWindows = NULL;
+
+// windows
+plWindow* gptMainWindow = NULL;
+plWindow** gsbtWindows = NULL;
+
+
+// window callbacks
+plMousePosCallback    gtMousePosCallback    = NULL;
+plMouseEnterCallback  gtMouseEnterCallback  = NULL;
+plMouseButtonCallback gtMouseButtonCallback = NULL;
+plWindowFocusCallback gtWindowFocusCallback = NULL;
+plScrollCallback      gtScrollCallback      = NULL;
+plKeyCallback         gtKeyCallback         = NULL;
+plCharCallback        gtCharCallback        = NULL;
 
 // apis
 const plDataRegistryI*      gptDataRegistry      = NULL;
@@ -50,7 +61,7 @@ bool                        gbApisDirty          = false;
 // app function pointers
 void* (*pl_app_load)    (const plApiRegistryI*, void*);
 void  (*pl_app_shutdown)(void*);
-void  (*pl_app_resize)  (void*);
+void  (*pl_app_resize)  (plWindow*, void*);
 void  (*pl_app_update)  (void*);
 bool  (*pl_app_info)    (const plApiRegistryI*);
 
@@ -61,6 +72,30 @@ bool  (*pl_app_info)    (const plApiRegistryI*);
 // window api
 plWindowResult pl_create_window (plWindowDesc, plWindow** pptWindowOut);
 void           pl_destroy_window(plWindow*);
+void           pl_show_window(plWindow*);
+
+#ifdef PL_EXPERIMENTAL
+void pl_hide_window        (plWindow*);
+void pl_set_window_size    (plWindow*, uint32_t, uint32_t);
+void pl_set_window_pos     (plWindow*, int, int);
+void pl_get_window_size    (plWindow*, uint32_t*, uint32_t*);
+void pl_get_window_pos     (plWindow*, int*, int*);
+void pl_minimize_window    (plWindow*);
+void pl_maximize_window    (plWindow*);
+void pl_restore_window     (plWindow*);
+void pl_focus_window       (plWindow*);
+void pl_hide_cursor        (plWindow*);
+void pl_capture_cursor     (plWindow*);
+void pl_normal_cursor      (plWindow*);
+void pl_set_raw_mouse_input(plWindow*, bool);
+bool pl_is_window_maximized(plWindow*);
+bool pl_is_window_minimized(plWindow*);
+bool pl_is_window_focused  (plWindow*);
+bool pl_is_window_hovered  (plWindow*);
+bool pl_is_window_resizable(plWindow*);
+bool pl_is_window_decorated(plWindow*);
+bool pl_is_window_top_most (plWindow*);
+#endif
 
 // clip board
 const char* pl_get_clipboard_text(void* user_data_ctx);
@@ -86,7 +121,6 @@ void pl_destroy_mutex(plMutex**);
 void pl__handle_extension_reloads(void);
 void pl__unload_all_extensions(void);
 void pl__load_core_apis(void);
-void pl__load_ext_apis(void);
 void pl__unload_core_apis(void);
 void pl__check_for_leaks(void);
 void pl__garbage_collect_data_reg(void);

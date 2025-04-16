@@ -47,10 +47,6 @@ Index of this file:
 #include <X11/XKBlib.h>
 #include <errno.h>
 
-// embedded extensions
-#include "pl_window_ext.h"
-#include "pl_library_ext.h"
-
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
@@ -139,7 +135,7 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[i], "--version") == 0)
         {
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
@@ -153,22 +149,19 @@ int main(int argc, char *argv[])
             plVersion tWindowExtVersion = plWindowI_version;
             plVersion tLibraryVersion = plLibraryI_version;
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
             #ifdef PL_CONFIG_RELEASE
                 printf("Config: release\n\n");
             #endif
-            printf("Embedded Extensions:\n");
-            printf("   pl_window_ext:  %u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uMinor);
-            printf("   pl_library_ext: %u.%u.%u\n", tLibraryVersion.uMajor, tLibraryVersion.uMinor, tLibraryVersion.uMinor);
             return 0;
         }
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("\nPilot Light - light weight game engine\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
@@ -191,7 +184,6 @@ int main(int argc, char *argv[])
 
     // load core apis
     pl__load_core_apis();
-    pl__load_ext_apis();
 
     // add contexts to data registry
     gptIOCtx = gptIOI->get_io();
@@ -257,10 +249,10 @@ int main(int argc, char *argv[])
     if(ptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
     {
         pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-        pl_app_shutdown = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-        pl_app_update   = (void  (__attribute__(()) *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
-        pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
+        pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+        pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+        pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+        pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
 
         if(pl_app_info)
         {
@@ -285,7 +277,7 @@ int main(int argc, char *argv[])
             pl__linux_procedure(event);
 
         if(gptIOCtx->bViewportSizeChanged) //-V547
-            pl_app_resize(gpUserData);
+            pl_app_resize(gptMainWindow, gpUserData);
 
         pl__update_mouse_cursor();
 
@@ -294,9 +286,9 @@ int main(int argc, char *argv[])
         {
             ptLibraryApi->reload(gptAppLibrary);
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__attribute__(()) *)(void*))                     ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+            pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
 
             pl__handle_extension_reloads();
             gpUserData = pl_app_load(gptApiRegistry, gpUserData);
@@ -583,8 +575,8 @@ pl__linux_procedure(xcb_generic_event_t* event)
             // The application layer can decide what to do with this.
             xcb_configure_notify_event_t* configure_event = (xcb_configure_notify_event_t*)event;
 
-                gsbtWindows[0]->tDesc.iXPos = configure_event->x;
-                gsbtWindows[0]->tDesc.iYPos = configure_event->y;
+                // gsbtWindows[0]->tDesc.iXPos = configure_event->x;
+                // gsbtWindows[0]->tDesc.iYPos = configure_event->y;
 
             // Fire the event. The application layer should pick this up, but not handle it
             // as it shouldn be visible to other parts of the application.
@@ -593,8 +585,8 @@ pl__linux_procedure(xcb_generic_event_t* event)
                 gptIOCtx->tMainViewportSize.x = configure_event->width;
                 gptIOCtx->tMainViewportSize.y = configure_event->height;
                 gptIOCtx->bViewportSizeChanged = true;
-                gsbtWindows[0]->tDesc.uWidth = configure_event->width;
-                gsbtWindows[0]->tDesc.uHeight = configure_event->height;
+                // gsbtWindows[0]->tDesc.uWidth = configure_event->width;
+                // gsbtWindows[0]->tDesc.uHeight = configure_event->height;
 
             }
             break;
@@ -635,7 +627,7 @@ pl__update_mouse_cursor(void)
         // IM_ASSERT(cursor && "X cursor not found!");
 
         uint32_t value_list = cursor;
-        plWindowData* ptData = gsbtWindows[0]->_pPlatformData;
+        plWindowData* ptData = gsbtWindows[0]->_pBackendData;
         xcb_change_window_attributes(gptConnection, ptData->tWindow, XCB_CW_CURSOR, &value_list);
         xcb_free_cursor(gptConnection, cursor);
         xcb_close_font_checked(gptConnection, font);
@@ -917,20 +909,28 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     int stream_result = xcb_flush(gptConnection);
 
     plWindow* ptWindow = malloc(sizeof(plWindow));
-    ptWindow->tDesc = tDesc; //-V522
-    ptWindow->_pPlatformData = ptData;
+    ptWindow->_pBackendData = ptData; //-V522
     pl_sb_push(gsbtWindows, ptWindow);
     *pptWindowOut = ptWindow;
+
+    if(gptMainWindow == NULL)
+        gptMainWindow = ptWindow;
     return PL_WINDOW_RESULT_SUCCESS;
 }
 
 void
 pl_destroy_window(plWindow* ptWindow)
 {
-    plWindowData* ptData = ptWindow->_pPlatformData;
+    plWindowData* ptData = ptWindow->_pBackendData;
     xcb_destroy_window(gptConnection, ptData->tWindow);
     free(ptData);
     free(ptWindow);
+}
+
+void
+pl_show_window(plWindow* ptWindow)
+{
+    
 }
 
 //-----------------------------------------------------------------------------

@@ -73,7 +73,7 @@ typedef struct _plStarterInit plStarterInit;
 typedef int plStarterFlags;
 
 // external
-typedef struct _plWindow               plWindow;                 // pl_window_ext.h
+typedef struct _plWindow               plWindow;                 // pl.h
 typedef struct _plFont                 plFont;                   // pl_draw_ext.h
 typedef struct _plDrawLayer2D          plDrawLayer2D;            // pl_draw_ext.h
 typedef struct _plDevice               plDevice;                 // pl_graphics_ext.h

@@ -18,6 +18,7 @@ defines = [
     "PL_TEST_IMPLEMENTATION",
     "PL_CONFIG_DEBUG",
     "PL_INCLUDE_SPIRV_CROSS",
+    "PL_EXPERIMENTAL",
 ]
 
 includes = [

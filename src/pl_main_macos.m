@@ -39,10 +39,6 @@ Index of this file:
 #include <fcntl.h> // O_RDONLY, O_WRONLY ,O_CREAT
 #include <pthread.h>
 
-// embedded extensions
-#include "pl_window_ext.h"
-#include "pl_library_ext.h"
-
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
@@ -162,7 +158,7 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[i], "--version") == 0)
         {
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
@@ -176,22 +172,19 @@ int main(int argc, char *argv[])
             plVersion tWindowExtVersion = plWindowI_version;
             plVersion tLibraryVersion = plLibraryI_version;
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
             #ifdef PL_CONFIG_RELEASE
                 printf("Config: release\n\n");
             #endif
-            printf("Embedded Extensions:\n");
-            printf("   pl_window_ext:  %u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uMinor);
-            printf("   pl_library_ext: %u.%u.%u\n", tLibraryVersion.uMajor, tLibraryVersion.uMinor, tLibraryVersion.uMinor);
             return 0;
         }
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("\nPilot Light - light weight game engine\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
@@ -222,7 +215,6 @@ int main(int argc, char *argv[])
 
     // load core apis
     pl__load_core_apis();
-    pl__load_ext_apis();
 
     // setup & retrieve io context 
     gptIOCtx = gptIOI->get_io();
@@ -265,7 +257,7 @@ int main(int argc, char *argv[])
     {
         pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+        pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
         pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
         
@@ -371,7 +363,7 @@ int main(int argc, char *argv[])
     // gptIOCtx->tMainFramebufferScale.x = self.window.screen.backingScaleFactor;
     // gptIOCtx->tMainFramebufferScale.y = self.window.screen.backingScaleFactor;
     if(gpUserData)
-        pl_app_resize(gpUserData);
+        pl_app_resize(gptMainWindow, gpUserData);
 }
 
 - (BOOL)setupCVDisplayLinkForScreen:(NSScreen*)screen
@@ -555,9 +547,9 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         {
             gptLibraryApi->reload(gptAppLibrary);
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__attribute__(()) *)(void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+            pl_app_shutdown = (void  (__attribute__(()) *)(void*))            gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__attribute__(()) *)(void*))            gptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             pl__handle_extension_reloads();
             gpUserData = pl_app_load(gptApiRegistry, gpUserData);
         }
@@ -597,7 +589,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
             gptIOCtx->tMainViewportSize.y = fCurrentHeight;
             gptIOCtx->tMainFramebufferScale.x = fCurrentScaleX;
             gptIOCtx->tMainFramebufferScale.y = fCurrentScaleY;
-            pl_app_resize(gpUserData);
+            pl_app_resize(gptMainWindow, gpUserData);
             return;
         }
 
@@ -1057,9 +1049,11 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     gptIOCtx->tMainViewportSize.y = (float)contentRect2.size.height;
 
     plWindow* ptWindow = malloc(sizeof(plWindow));
+
+    if(gptMainWindow == NULL)
+        gptMainWindow = ptWindow;
     
-    ptWindow->tDesc = tDesc;
-    ptWindow->_pPlatformData = ptData;
+    ptWindow->_pBackendData = ptData;
     pl_sb_push(gsbtWindows, ptWindow);
     *pptWindowOut = ptWindow;
 
@@ -1069,10 +1063,16 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 void
 pl_destroy_window(plWindow* ptWindow)
 {
-    plWindowData* ptData = ptWindow->_pPlatformData;
+    plWindowData* ptData = ptWindow->_pBackendData;
     [ptData->ptWindow release];
     free(ptData);
     free(ptWindow);
+}
+
+void
+pl_show_window(plWindow* ptWindow)
+{
+    
 }
 
 plKey

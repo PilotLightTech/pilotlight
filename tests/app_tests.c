@@ -123,7 +123,7 @@ pl_app_shutdown(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(plAppData* ptAppData)
+pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     
 }

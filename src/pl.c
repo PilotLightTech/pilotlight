@@ -18,6 +18,7 @@ Index of this file:
 // [SECTION] extension registry implementation
 // [SECTION] io implementation
 // [SECTION] memory api implementation
+// [SECTION] partial window implementation
 // [SECTION] helper implementations
 // [SECTION] unity build
 */
@@ -37,8 +38,6 @@ Index of this file:
 #include "pl_math.h"
 
 // embedded extensions
-#include "pl_window_ext.h"
-#include "pl_library_ext.h"
 #include "pl_profile_ext.h"
 
 //-----------------------------------------------------------------------------
@@ -729,16 +728,16 @@ plVersion
 pl_get_version(void)
 {
     #ifdef __cplusplus
-        return PILOT_LIGHT_VERSION;
+        return PILOT_LIGHT_CORE_VERSION;
     #else
-        return (plVersion)PILOT_LIGHT_VERSION;
+        return (plVersion)PILOT_LIGHT_CORE_VERSION;
     #endif
 }
 
 const char*
 pl_get_version_string(void)
 {
-    return PILOT_LIGHT_VERSION_STRING;
+    return PILOT_LIGHT_CORE_VERSION_STRING;
 }
 
 void
@@ -1402,6 +1401,94 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 }
 
 //-----------------------------------------------------------------------------
+// [SECTION] partial window implementation
+//-----------------------------------------------------------------------------
+
+void
+pl_set_mouse_pos_callback(plMousePosCallback tCallback)
+{
+    gtMousePosCallback = tCallback;
+}
+
+void
+pl_set_mouse_enter_callback(plMouseEnterCallback tCallback)
+{
+    gtMouseEnterCallback = tCallback;
+}
+
+void
+pl_set_mouse_button_callback(plMouseButtonCallback tCallback)
+{
+    gtMouseButtonCallback = tCallback;
+}
+
+void
+pl_set_window_focus_callback(plWindowFocusCallback tCallback)
+{
+    gtWindowFocusCallback = tCallback;
+}
+
+void
+pl_set_scroll_callback(plScrollCallback tCallback)
+{
+    gtScrollCallback = tCallback;
+}
+
+void
+pl_set_key_callback(plKeyCallback tCallback)
+{
+    gtKeyCallback = tCallback;
+}
+
+void
+pl_set_char_callback(plCharCallback tCallback)
+{
+    gtCharCallback = tCallback;
+}
+
+plMousePosCallback
+pl_get_mouse_pos_callback(void)
+{
+    return gtMousePosCallback;
+}
+
+plMouseEnterCallback
+pl_get_mouse_enter_callback(void)
+{
+    return gtMouseEnterCallback;
+}
+
+plMouseButtonCallback
+pl_get_mouse_button_callback(void)
+{
+    return gtMouseButtonCallback;
+}
+
+plWindowFocusCallback
+pl_get_window_focus_callback(void)
+{
+    return gtWindowFocusCallback;
+}
+
+plScrollCallback
+pl_get_scroll_callback(void)
+{
+    return gtScrollCallback;
+}
+
+plKeyCallback
+pl_get_key_callback(void)
+{
+    return gtKeyCallback;
+}
+
+plCharCallback
+pl_get_char_callback(void)
+{
+    return gtCharCallback;
+}
+
+//-----------------------------------------------------------------------------
 // [SECTION] helper implementations
 //-----------------------------------------------------------------------------
 
@@ -1499,6 +1586,57 @@ pl__load_core_apis(void)
     gptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
     gptIOI               = pl_get_api_latest(ptApiRegistry, plIOI);
     gptApiRegistry       = ptApiRegistry;
+
+    plWindowI tWindowApi = PL_ZERO_INIT;
+    tWindowApi.create  = pl_create_window;
+    tWindowApi.destroy = pl_destroy_window;
+    tWindowApi.show    = pl_show_window;
+
+    #ifdef PL_EXPERIMENTAL
+    tWindowApi.hide                      = pl_hide_window;
+    tWindowApi.set_mouse_pos_callback    = pl_set_mouse_pos_callback;
+    tWindowApi.set_mouse_enter_callback  = pl_set_mouse_enter_callback;
+    tWindowApi.set_mouse_button_callback = pl_set_mouse_button_callback;
+    tWindowApi.set_window_focus_callback = pl_set_window_focus_callback;
+    tWindowApi.set_scroll_callback       = pl_set_scroll_callback;
+    tWindowApi.set_key_callback          = pl_set_key_callback;
+    tWindowApi.set_char_callback         = pl_set_char_callback;
+    tWindowApi.get_mouse_pos_callback    = pl_get_mouse_pos_callback;
+    tWindowApi.get_mouse_enter_callback  = pl_get_mouse_enter_callback;
+    tWindowApi.get_mouse_button_callback = pl_get_mouse_button_callback;
+    tWindowApi.get_window_focus_callback = pl_get_window_focus_callback;
+    tWindowApi.get_scroll_callback       = pl_get_scroll_callback;
+    tWindowApi.get_key_callback          = pl_get_key_callback;
+    tWindowApi.get_char_callback         = pl_get_char_callback;
+    tWindowApi.hide_cursor               = pl_hide_cursor;
+    tWindowApi.capture_cursor            = pl_capture_cursor;
+    tWindowApi.normal_cursor             = pl_normal_cursor;
+    tWindowApi.set_raw_mouse_input       = pl_set_raw_mouse_input;
+    tWindowApi.set_pos                   = pl_set_window_pos;
+    tWindowApi.set_size                  = pl_set_window_size;
+    tWindowApi.get_pos                   = pl_get_window_pos;
+    tWindowApi.get_size                  = pl_get_window_size;
+    tWindowApi.minimize                  = pl_minimize_window;
+    tWindowApi.maximize                  = pl_minimize_window;
+    tWindowApi.restore                   = pl_restore_window;
+    tWindowApi.focus                     = pl_focus_window;
+    tWindowApi.is_maximized              = pl_is_window_maximized;
+    tWindowApi.is_minimized              = pl_is_window_minimized;
+    tWindowApi.is_focused                = pl_is_window_focused;
+    tWindowApi.is_hovered                = pl_is_window_hovered;
+    tWindowApi.is_resizable              = pl_is_window_resizable;
+    tWindowApi.is_decorated              = pl_is_window_decorated;
+    tWindowApi.is_top_most               = pl_is_window_top_most;
+    #endif
+
+    plLibraryI tLibraryApi = PL_ZERO_INIT;
+    tLibraryApi.has_changed   = pl_has_library_changed;
+    tLibraryApi.load          = pl_load_library;
+    tLibraryApi.load_function = pl_load_library_function;
+    tLibraryApi.reload        = pl_reload_library;
+
+    pl_set_api(gptApiRegistry, plWindowI, &tWindowApi);
+    pl_set_api(gptApiRegistry, plLibraryI, &tLibraryApi);
 }
 
 void
@@ -1546,24 +1684,6 @@ pl__unload_core_apis(void)
     }
     pl_sb_free(gsbptLibs);
     pl_sb_free(gsbtHotLibs);
-}
-
-void
-pl__load_ext_apis(void)
-{
-
-    plWindowI tWindowApi = PL_ZERO_INIT;
-    tWindowApi.create_window  = pl_create_window;
-    tWindowApi.destroy_window = pl_destroy_window;
-
-    plLibraryI tLibraryApi = PL_ZERO_INIT;
-    tLibraryApi.has_changed   = pl_has_library_changed;
-    tLibraryApi.load          = pl_load_library;
-    tLibraryApi.load_function = pl_load_library_function;
-    tLibraryApi.reload        = pl_reload_library;
-
-    pl_set_api(gptApiRegistry, plWindowI, &tWindowApi);
-    pl_set_api(gptApiRegistry, plLibraryI, &tLibraryApi);
 }
 
 //-----------------------------------------------------------------------------

@@ -40,10 +40,6 @@ Index of this file:
 #include <windows.h>
 #include <windowsx.h>   // GET_X_LPARAM(), GET_Y_LPARAM()
 
-// embedded extensions
-#include "pl_window_ext.h"
-#include "pl_library_ext.h"
-
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
@@ -104,7 +100,7 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[i], "--version") == 0)
         {
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
@@ -118,22 +114,19 @@ int main(int argc, char *argv[])
             plVersion tWindowExtVersion = plWindowI_version;
             plVersion tLibraryVersion = plLibraryI_version;
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
             #ifdef PL_CONFIG_RELEASE
                 printf("Config: release\n\n");
             #endif
-            printf("Embedded Extensions:\n");
-            printf("   pl_window_ext:  %u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uMinor);
-            printf("   pl_library_ext: %u.%u.%u\n", tLibraryVersion.uMajor, tLibraryVersion.uMinor, tLibraryVersion.uMinor);
             return 0;
         }
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("\nPilot Light - light weight game engine\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
@@ -157,7 +150,6 @@ int main(int argc, char *argv[])
 
     // load core apis
     pl__load_core_apis();
-    pl__load_ext_apis();
 
     gptIOCtx = gptIOI->get_io();
 
@@ -215,7 +207,7 @@ int main(int argc, char *argv[])
     {
         pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
         pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-        pl_app_resize   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+        pl_app_resize   = (void  (__cdecl  *)(plWindow*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
         pl_app_update   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
         pl_app_info     = (bool  (__cdecl  *)(const plApiRegistryI*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
 
@@ -260,11 +252,12 @@ int main(int argc, char *argv[])
             ptLibraryApi->reload(gptAppLibrary);
             pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_resize   = (void  (__cdecl  *)(plWindow*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
 
             pl__handle_extension_reloads();
             gpUserData = pl_app_load(gptApiRegistry, gpUserData);
+            gbFirstRun = false;
         }
 
         // render frame
@@ -312,7 +305,7 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
     plWindow* ptWindow = NULL;
     for(uint32_t i = 0; i < pl_sb_size(gsbtWindows); i++)
     {
-        HWND tHandle = gsbtWindows[i]->_pPlatformData;
+        HWND tHandle = gsbtWindows[i]->_pBackendData;
         if(tHandle == tHwnd)
         {
             ptWindow = gsbtWindows[i];
@@ -362,19 +355,10 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
                 gptIOCtx->tMainViewportSize.x = (float)iCWidth;
                 gptIOCtx->tMainViewportSize.y = (float)iCHeight;
 
-                if(ptWindow)
-                {
-                    ptWindow->tDesc.uWidth = (uint32_t)iCWidth;
-                    ptWindow->tDesc.uHeight = (uint32_t)iCHeight;
-                }
-
                 if(gptIOCtx->bViewportSizeChanged && !gptIOCtx->bViewportMinimized && !gbFirstRun)
                 {
-                    pl_app_resize(gpUserData);
-                    gbFirstRun = false;
+                    pl_app_resize(gptMainWindow, gpUserData);
                 }
-                gbFirstRun = false;
-
                 // send paint message
                 InvalidateRect(tHwnd, NULL, TRUE);
             }
@@ -573,9 +557,9 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
 	case WM_MOVING:
 	{
         // TODO: possibly handle horizontal shift? check dpg
-		RECT rect = *(RECT*)(tLParam);
-		ptWindow->tDesc.iXPos = rect.left;
-		ptWindow->tDesc.iYPos = rect.top;
+		// RECT rect = *(RECT*)(tLParam);
+		// ptWindow->tDesc.iXPos = rect.left;
+		// ptWindow->tDesc.iYPos = rect.top;
 		break;
 	}
     #endif
@@ -794,21 +778,28 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     );
 
     plWindow* ptWindow = malloc(sizeof(plWindow));
-    ptWindow->tDesc = tDesc;
-    ptWindow->_pPlatformData = tHandle;
+    ptWindow->_pBackendData = tHandle;
     pl_sb_push(gsbtWindows, ptWindow);
     *pptWindowOut = ptWindow;
 
+    if(gptMainWindow == NULL)
+        gptMainWindow = ptWindow;
+
     // show window
-    ShowWindow(tHandle, SW_SHOWDEFAULT);
     return PL_WINDOW_RESULT_SUCCESS;
 }
 
 void
 pl_destroy_window(plWindow* ptWindow)
 {
-    DestroyWindow(ptWindow->_pPlatformData);
+    DestroyWindow(ptWindow->_pBackendData);
     free(ptWindow);
+}
+
+void
+pl_show_window(plWindow* ptWindow)
+{
+    ShowWindow(ptWindow->_pBackendData, SW_SHOWDEFAULT);
 }
 
 //-----------------------------------------------------------------------------

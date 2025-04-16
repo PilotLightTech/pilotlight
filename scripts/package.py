@@ -40,7 +40,6 @@ extension_headers = [
     "pl_graphics_ext.h",
     "pl_image_ext.h",
     "pl_job_ext.h",
-    "pl_library_ext.h",
     "pl_log_ext.h",
     "pl_model_loader_ext.h",
     "pl_profile_ext.h",
@@ -56,7 +55,6 @@ extension_headers = [
     "pl_bvh_ext.h",
     "pl_config_ext.h",
     "pl_starter_ext.h",
-    "pl_window_ext.h"
 ]
 
 # extension binaries

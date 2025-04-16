@@ -3103,7 +3103,7 @@ pl_create_surface(plWindow* ptWindow)
             .pNext = NULL,
             .flags = 0,
             .hinstance = GetModuleHandle(NULL),
-            .hwnd = (HWND)ptWindow->_pPlatformData};
+            .hwnd = (HWND)ptWindow->_pBackendData};
         PL_VULKAN(vkCreateWin32SurfaceKHR(gptGraphics->tInstance, &tSurfaceCreateInfo, NULL, &ptSurface->tSurface));
     #elif defined(__ANDROID__)
         const VkAndroidSurfaceCreateInfoKHR tSurfaceCreateInfo = {
@@ -3121,10 +3121,10 @@ pl_create_surface(plWindow* ptWindow)
         } plWindowData;
         const VkMetalSurfaceCreateInfoEXT tSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT,
-            .pLayer = ((plWindowData *)ptWindow->_pPlatformData)->ptLayer};
+            .pLayer = ((plWindowData *)ptWindow->_pBackendData)->ptLayer};
         PL_VULKAN(vkCreateMetalSurfaceEXT(gptGraphics->tInstance, &tSurfaceCreateInfo, NULL, &ptSurface->tSurface));
     #else // linux
-        const uint32_t uHeader = *(uint32_t*)ptWindow->_pPlatformData;
+        const uint32_t uHeader = *(uint32_t*)ptWindow->_pBackendData;
 
         if(uHeader == 0)
         {
@@ -3134,7 +3134,7 @@ pl_create_surface(plWindow* ptWindow)
                 xcb_connection_t* ptConnection;
                 xcb_window_t tWindow;
             };
-            struct tPlatformData* ptPlatformData = (struct tPlatformData *)ptWindow->_pPlatformData;
+            struct tPlatformData* ptPlatformData = (struct tPlatformData *)ptWindow->_pBackendData;
             const VkXcbSurfaceCreateInfoKHR tSurfaceCreateInfo = {
                 .sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
                 .pNext = NULL,
@@ -3151,7 +3151,7 @@ pl_create_surface(plWindow* ptWindow)
                 Display* dpy;
                 Window window;
             };
-            struct tPlatformData* ptPlatformData = (struct tPlatformData *)ptWindow->_pPlatformData;
+            struct tPlatformData* ptPlatformData = (struct tPlatformData *)ptWindow->_pBackendData;
             const VkXlibSurfaceCreateInfoKHR tSurfaceCreateInfo = {
                 .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
                 .pNext = NULL,

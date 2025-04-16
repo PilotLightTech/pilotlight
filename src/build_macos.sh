@@ -578,7 +578,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
@@ -615,7 +615,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~~ pl_script_camera | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -655,7 +655,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -695,7 +695,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~ app | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
@@ -841,7 +841,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~ editor | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ --debug -g -std=c++14 "
@@ -881,7 +881,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_METAL_BACKEND "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 --debug -g -Wno-nullability-completeness "
@@ -924,7 +924,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_METAL_BACKEND "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ --debug -g -std=c++11 "
@@ -1013,7 +1013,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~ pl_unity_ext | release_experimental ~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_INCLUDE_SPIRV_CROSS -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
@@ -1050,7 +1050,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 #~~~~~~~~~~~~~~~~~~~ pl_script_camera | release_experimental ~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
@@ -1090,7 +1090,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
@@ -1130,7 +1130,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~ app | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
@@ -1276,7 +1276,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~ editor | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 "
@@ -1316,7 +1316,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_METAL_BACKEND "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 -Wno-nullability-completeness "
@@ -1359,7 +1359,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_METAL_BACKEND "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++11 "
@@ -1953,7 +1953,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~~~~ editor | moltenvk_experimental ~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-fPIC -fmodules --debug -g -std=c++14 "
@@ -1993,7 +1993,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
@@ -2036,7 +2036,7 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND "
 PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out "
 PL_COMPILER_FLAGS="--debug -g -std=c++11 -fPIC -ObjC++ -fmodules "

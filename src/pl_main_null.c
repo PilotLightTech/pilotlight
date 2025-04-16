@@ -24,10 +24,6 @@ Index of this file:
 #include "pl_internal.h"
 #include "pl_ds.h"    // hashmap & stretchy buffer
 
-// embedded extensions
-#include "pl_window_ext.h"
-#include "pl_library_ext.h"
-
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
@@ -111,7 +107,7 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[i], "--version") == 0)
         {
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug (NULL)\n\n");
             #endif
@@ -125,22 +121,19 @@ int main(int argc, char *argv[])
             plVersion tWindowExtVersion = plWindowI_version;
             plVersion tLibraryVersion = plLibraryI_version;
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
             #ifdef PL_CONFIG_RELEASE
                 printf("Config: release\n\n");
             #endif
-            printf("Embedded Extensions:\n");
-            printf("   pl_window_ext:  %u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uMinor);
-            printf("   pl_library_ext: %u.%u.%u\n", tLibraryVersion.uMajor, tLibraryVersion.uMinor, tLibraryVersion.uMinor);
             return 0;
         }
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("\nPilot Light - light weight game engine\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
@@ -161,7 +154,6 @@ int main(int argc, char *argv[])
 
     // load core apis
     pl__load_core_apis();
-    pl__load_ext_apis();
 
     gptIOCtx = gptIOI->get_io();
 
@@ -179,15 +171,15 @@ int main(int argc, char *argv[])
     {
         #ifdef _WIN32
             pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
-            pl_app_info     = (bool  (__cdecl  *)(const plApiRegistryI*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
+            pl_app_shutdown = (void  (__cdecl  *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__cdecl  *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__cdecl  *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+            pl_app_info     = (bool  (__cdecl  *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
 
         #else
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
         #endif
@@ -253,6 +245,11 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 void
 pl_destroy_window(plWindow* ptWindow)
 {
+}
+
+void
+pl_show_window(plWindow* ptWindow)
+{ 
 }
 
 //-----------------------------------------------------------------------------

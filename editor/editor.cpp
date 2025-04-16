@@ -53,8 +53,6 @@ Index of this file:
 #include "pl_shader_ext.h"
 #include "pl_string_intern_ext.h"
 #include "pl_platform_ext.h"
-#include "pl_window_ext.h"
-#include "pl_library_ext.h"
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
 #include "pl_starter_ext.h"
@@ -360,13 +358,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create window (only 1 allowed currently)
     plWindowDesc tWindowDesc = {
+        PL_WINDOW_FLAG_NONE,
         "Pilot Light Editor",
         500,
         500,
         200,
         200
     };
-    gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->show(ptAppData->ptWindow);
 
     // initialize graphics
     plGraphicsInit tGraphicsDesc = PL_ZERO_INIT;
@@ -510,7 +510,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->cleanup_surface(ptAppData->ptSurface);
     gptGfx->cleanup_device(ptAppData->ptDevice);
     gptGfx->cleanup();
-    gptWindows->destroy_window(ptAppData->ptWindow);
+    gptWindows->destroy(ptAppData->ptWindow);
     gptUI->text_filter_cleanup(&ptAppData->tFilter);
     pl_sb_free(ptAppData->sbtTestModels);
     PL_FREE(ptAppData);
@@ -521,7 +521,7 @@ pl_app_shutdown(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(plAppData* ptAppData)
+pl_app_resize(plWindow*, plAppData* ptAppData)
 {
     plIO* ptIO = gptIO->get_io();
     ptAppData->bResize = true;
@@ -991,7 +991,7 @@ pl__show_editor_window(plAppData* ptAppData)
 
         if(gptUI->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
         {
-            gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+            gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
             gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
 
             gptUI->layout_static(0.0f, 200.0f, 1);
@@ -2072,26 +2072,26 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
                 if(gptUI->begin_collapsing_header("Information", 0))
                 {
-                    gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                    gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
                     gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
 
                     gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3, pfRatios3);
                     if(gptUI->begin_collapsing_header("sub0", 0))
                     {
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
                         gptUI->end_collapsing_header();
                     }
                     if(gptUI->begin_collapsing_header("sub1", 0))
                     {
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
                         gptUI->end_collapsing_header();
                     }
                     if(gptUI->begin_collapsing_header("sub2", 0))
                     {
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
                         gptUI->end_collapsing_header();
                     }
 

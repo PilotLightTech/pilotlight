@@ -24,18 +24,24 @@ Index of this file:
 #define PL_H
 
 // framework version XYYZZ
-#define PILOT_LIGHT_VERSION_STRING "1.0.0"
-#define PILOT_LIGHT_VERSION_NUM 10000
+#define PILOT_LIGHT_VERSION_STRING "0.1.0"
+#define PILOT_LIGHT_VERSION_NUM     00100
+
+// core version XYYZZ
+#define PILOT_LIGHT_CORE_VERSION_STRING "1.0.0"
+#define PILOT_LIGHT_CORE_VERSION_NUM 10000
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PILOT_LIGHT_VERSION          {1, 0, 0}
-#define plExtensionRegistryI_version PILOT_LIGHT_VERSION
-#define plMemoryI_version            PILOT_LIGHT_VERSION
-#define plIOI_version                PILOT_LIGHT_VERSION
-#define plDataRegistryI_version      PILOT_LIGHT_VERSION
+#define PILOT_LIGHT_CORE_VERSION     {1, 0, 0}
+#define plExtensionRegistryI_version PILOT_LIGHT_CORE_VERSION
+#define plMemoryI_version            PILOT_LIGHT_CORE_VERSION
+#define plIOI_version                PILOT_LIGHT_CORE_VERSION
+#define plDataRegistryI_version      PILOT_LIGHT_CORE_VERSION
+#define plWindowI_version            PILOT_LIGHT_CORE_VERSION
+#define plLibraryI_version           PILOT_LIGHT_CORE_VERSION
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -50,7 +56,7 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-// types
+// basic types
 typedef struct _plVersion         plVersion;
 typedef struct _plAllocationEntry plAllocationEntry;
 typedef union  _plDataID          plDataID;
@@ -58,6 +64,10 @@ typedef struct _plDataObject      plDataObject;    // opaque type
 typedef struct _plIO              plIO;         // configuration & IO between app & pilotlight ui
 typedef struct _plKeyData         plKeyData;    // individual key status (down, down duration, etc.)
 typedef struct _plInputEvent      plInputEvent; // holds data for input events (opaque structure)
+typedef struct _plWindow          plWindow;
+typedef struct _plWindowDesc      plWindowDesc;
+typedef struct _plLibraryDesc     plLibraryDesc;
+typedef struct _plSharedLibrary   plSharedLibrary; // opaque type
 
 // enums
 typedef int plKey;              // -> enum plKey_              // Enum: A key identifier (PL_KEY_XXX or PL_KEY_MOD_XXX value)
@@ -65,10 +75,22 @@ typedef int plMouseButton;      // -> enum plMouseButton_      // Enum: A mouse 
 typedef int plMouseCursor;      // -> enum plMouseCursor_      // Enum: Mouse cursor shape (PL_MOUSE_CURSOR_XXX)
 typedef int plInputEventType;   // -> enum plInputEventType_   // Enum: An input event type (PL_INPUT_EVENT_TYPE_XXX)
 typedef int plInputEventSource; // -> enum plInputEventSource_ // Enum: An input event source (PL_INPUT_EVENT_SOURCE_XXX)
+typedef int plWindowResult;     // -> enum _plWindowResult     // Enum:
+typedef int plWindowFlags;      // -> enum _plWindowFlags      // Flag:
+typedef int plLibraryResult;    // -> enum _plLibraryResult    // Enum:
 typedef int plKeyChord;
 
 // character types
 typedef uint16_t plUiWChar;
+
+// callbacks
+typedef void (*plMousePosCallback)   (plWindow*, double xPos, double yPos);
+typedef void (*plMouseEnterCallback) (plWindow*, int entered);
+typedef void (*plMouseButtonCallback)(plWindow*, plMouseButton, bool down);
+typedef void (*plWindowFocusCallback)(plWindow*, int focused);
+typedef void (*plScrollCallback)     (plWindow*, double xOffset, double yOffset);
+typedef void (*plKeyCallback)        (plWindow*, plKey, bool down);
+typedef void (*plCharCallback)       (plWindow*, uint32_t c);
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper macros
@@ -191,9 +213,95 @@ typedef struct _plDataRegistryI
     
 } plDataRegistryI;
 
+typedef struct _plWindowI
+{
+    // create/destroy
+    plWindowResult (*create) (plWindowDesc, plWindow** windowPtrOut);
+    void           (*destroy)(plWindow*);
+    void           (*show)   (plWindow*);
+
+    // work in progress
+    #ifdef PL_EXPERIMENTAL
+
+    // set callbacks
+    void (*set_mouse_pos_callback)   (plMousePosCallback);
+    void (*set_mouse_enter_callback) (plMouseEnterCallback);
+    void (*set_mouse_button_callback)(plMouseButtonCallback);
+    void (*set_window_focus_callback)(plWindowFocusCallback);
+    void (*set_scroll_callback)      (plScrollCallback);
+    void (*set_key_callback)         (plKeyCallback);
+    void (*set_char_callback)        (plCharCallback);
+
+    // retrieve callbacks
+    plMousePosCallback    (*get_mouse_pos_callback)   (void);
+    plMouseEnterCallback  (*get_mouse_enter_callback) (void);
+    plMouseButtonCallback (*get_mouse_button_callback)(void);
+    plWindowFocusCallback (*get_window_focus_callback)(void);
+    plScrollCallback      (*get_scroll_callback)      (void);
+    plKeyCallback         (*get_key_callback)         (void);
+    plCharCallback        (*get_char_callback)        (void);
+
+    // attributes
+    void (*hide)               (plWindow*);
+    void (*set_size)           (plWindow*, uint32_t, uint32_t);
+    void (*get_size)           (plWindow*, uint32_t*, uint32_t*);
+    void (*set_pos)            (plWindow*, int, int);
+    void (*get_pos)            (plWindow*, int*, int*);
+    void (*minimize)           (plWindow*);
+    void (*maximize)           (plWindow*);
+    void (*restore)            (plWindow*);
+    void (*focus)              (plWindow*);
+    void (*hide_cursor)        (plWindow*);
+    void (*capture_cursor)     (plWindow*);
+    void (*normal_cursor)      (plWindow*);
+    void (*set_raw_mouse_input)(plWindow*, bool);
+    bool (*is_maximized)       (plWindow*);
+    bool (*is_minimized)       (plWindow*);
+    bool (*is_focused)         (plWindow*);
+    bool (*is_hovered)         (plWindow*);
+    bool (*is_resizable)       (plWindow*);
+    bool (*is_decorated)       (plWindow*);
+    bool (*is_top_most)        (plWindow*);
+    #endif
+    
+} plWindowI;
+
+typedef struct _plLibraryI
+{
+
+    plLibraryResult (*load)         (plLibraryDesc, plSharedLibrary** libraryPtrOut);
+    bool            (*has_changed)  (plSharedLibrary*);
+    void            (*reload)       (plSharedLibrary*);
+    void*           (*load_function)(plSharedLibrary*, const char*);
+    
+} plLibraryI;
+
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plWindowResult
+{
+    PL_WINDOW_RESULT_FAIL    = 0,
+    PL_WINDOW_RESULT_SUCCESS = 1
+};
+
+enum _plWindowFlags
+{
+    PL_WINDOW_FLAG_NONE      = 0,
+
+    #ifdef PL_EXPERIMENTAL
+    PL_WINDOW_FLAG_RESIZABLE = 1 << 0,
+    PL_WINDOW_FLAG_DECORATED = 1 << 1,
+    PL_WINDOW_FLAG_TOP_MOST  = 1 << 2,
+    #endif
+};
+
+enum _plLibraryResult
+{
+    PL_LIBRARY_RESULT_FAIL    = 0,
+    PL_LIBRARY_RESULT_SUCCESS = 1
+};
 
 enum plMouseButton_
 {
@@ -298,6 +406,39 @@ enum plMouseCursor_
 //-----------------------------------------------------------------------------
 // [SECTION] IO struct
 //-----------------------------------------------------------------------------
+
+typedef struct _plLibraryDesc
+{
+    const char* pcName;             // name of library (without extension)
+    const char* pcTransitionalName; // default: pcName + '_'
+    const char* pcLockFile;         // default: "lock.tmp"
+} plLibraryDesc;
+
+typedef struct _plWindowDesc
+{
+    plWindowFlags tFlags;
+    const char*   pcTitle;
+    uint32_t      uWidth;
+    uint32_t      uHeight;
+    int           iXPos;
+    int           iYPos;
+    const void*   pNext;
+
+    #ifdef PL_EXPERIMENTAL
+    uint32_t uMinWidth;
+    uint32_t uMaxWidth;
+    uint32_t uMinHeight;
+    uint32_t uMaxHeight;
+    #endif
+
+} plWindowDesc;
+
+typedef struct _plWindow
+{
+    void* pUserData;
+    void* _pBackendData;
+    void* _pBackendData2;
+} plWindow;
 
 typedef struct _plKeyData
 {

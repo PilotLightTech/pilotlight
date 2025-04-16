@@ -60,7 +60,6 @@ Index of this file:
 #include "pl.h"
 
 // extensions
-#include "pl_window_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_draw_backend_ext.h"
 #include "pl_starter_ext.h"
@@ -170,13 +169,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // use window API to create a window
 
     plWindowDesc tWindowDesc = {
+        PL_WINDOW_FLAG_NONE,
         "Example Basic 5",
         500,
         500,
         200,
         200
     };
-    gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {};
     tStarterInit.tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS;
@@ -209,7 +210,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptDearImGui->cleanup();
 
     gptStarter->cleanup();
-    gptWindows->destroy_window(ptAppData->ptWindow);
+    gptWindows->destroy(ptAppData->ptWindow);
     free(ptAppData);
 }
 
@@ -218,7 +219,7 @@ pl_app_shutdown(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(plAppData* ptAppData)
+pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     gptStarter->resize();
 }

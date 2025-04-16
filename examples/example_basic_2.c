@@ -73,7 +73,6 @@ Index of this file:
 #include "pl_math.h"
 
 // extensions
-#include "pl_window_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_ui_ext.h"
@@ -193,7 +192,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uWidth  = 600,
         .uHeight = 600,
     };
-    gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->show(ptAppData->ptWindow);
 
     // initialize the starter API (handles alot of boilerplate)
     plStarterInit tStarterInit = {
@@ -221,7 +221,7 @@ PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
     gptStarter->cleanup();
-    gptWindows->destroy_window(ptAppData->ptWindow);
+    gptWindows->destroy(ptAppData->ptWindow);
     PL_FREE(ptAppData);
 }
 
@@ -230,7 +230,7 @@ pl_app_shutdown(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(plAppData* ptAppData)
+pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     gptStarter->resize();
 }
@@ -293,7 +293,7 @@ pl_app_update(plAppData* ptAppData)
     // creating another window
     if(gptUI->begin_window("Pilot Light", NULL, PL_UI_WINDOW_FLAGS_NONE))
     {
-        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
 
         if(gptUI->button("Log"))
         {

@@ -36,7 +36,6 @@ Index of this file:
 #include "pl_math.h"
 
 // extensions
-#include "pl_window_ext.h"
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_draw_backend_ext.h"
@@ -175,7 +174,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uWidth  = 600,
         .uHeight = 600,
     };
-    gptWindows->create_window(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->show(ptAppData->ptWindow);
     ptAppData->tOffscreenSize = (plVec2){600.0f, 600.0f};
 
     // setup starter extension
@@ -387,7 +387,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->destroy_texture(ptDevice, ptAppData->tDepthTexture);
 
     gptStarter->cleanup();
-    gptWindows->destroy_window(ptAppData->ptWindow);
+    gptWindows->destroy(ptAppData->ptWindow);
     free(ptAppData);
 }
 
@@ -396,7 +396,7 @@ pl_app_shutdown(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_app_resize(plAppData* ptAppData)
+pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     gptStarter->resize();
 

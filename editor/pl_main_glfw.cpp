@@ -26,10 +26,6 @@ Index of this file:
 #include "pl_internal.h"
 #include "pl_ds.h"
 
-// embedded extensions
-#include "pl_window_ext.h"
-#include "pl_library_ext.h"
-
 // platform specifics
 #if defined(_WIN32)
     #define WIN32_LEAN_AND_MEAN
@@ -53,6 +49,7 @@ Index of this file:
     #include <dlfcn.h> // dlopen, dlsym, dlclose
     #include <fcntl.h> // O_RDONLY, O_WRONLY ,O_CREAT
     #include <time.h> // clock_gettime, clock_getres
+    #include <unistd.h> // usleep()
     #include <pthread.h>
     #define GLFW_EXPOSE_NATIVE_X11
 #endif
@@ -191,7 +188,7 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[i], "--version") == 0)
         {
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug (glfw)\n\n");
             #endif
@@ -205,22 +202,19 @@ int main(int argc, char *argv[])
             plVersion tWindowExtVersion = plWindowI_version;
             plVersion tLibraryVersion = plLibraryI_version;
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
             #ifdef PL_CONFIG_RELEASE
                 printf("Config: release\n\n");
             #endif
-            printf("Embedded Extensions:\n");
-            printf("   pl_window_ext:  %u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uMinor);
-            printf("   pl_library_ext: %u.%u.%u\n", tLibraryVersion.uMajor, tLibraryVersion.uMinor, tLibraryVersion.uMinor);
             return 0;
         }
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("\nPilot Light - light weight game engine\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
@@ -257,7 +251,6 @@ int main(int argc, char *argv[])
 
     // load core apis
     pl__load_core_apis();
-    pl__load_ext_apis();
 
     gptIOCtx = gptIOI->get_io();
 
@@ -395,15 +388,15 @@ int main(int argc, char *argv[])
     {
         #ifdef _WIN32
             pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-            pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-            pl_app_update   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+            pl_app_shutdown = (void  (__cdecl  *)(void*))            ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+            pl_app_resize   = (void  (__cdecl  *)(plWindow*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_update   = (void  (__cdecl  *)(void*))            ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             pl_app_info     = (bool  (__cdecl  *)(const plApiRegistryI*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
 
         #else
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-            pl_app_resize   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+            pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
             pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
             pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
         #endif
@@ -431,15 +424,15 @@ int main(int argc, char *argv[])
             ptLibraryApi->reload(gptAppLibrary);
             #ifdef _WIN32
                 pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
-                pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-                pl_app_resize   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
-                pl_app_update   = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
+                pl_app_shutdown = (void  (__cdecl  *)(void*))            ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
+                pl_app_resize   = (void  (__cdecl  *)(plWindow*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+                pl_app_update   = (void  (__cdecl  *)(void*))            ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
                 pl_app_info     = (bool  (__cdecl  *)(const plApiRegistryI*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
 
             #else
                 pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
                 pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
-                pl_app_resize   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
+                pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
                 pl_app_update   = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_update");
                 pl_app_info     = (bool  (__attribute__(()) *)(const plApiRegistryI*))        ptLibraryApi->load_function(gptAppLibrary, "pl_app_info");
             #endif
@@ -511,7 +504,7 @@ int main(int argc, char *argv[])
                     gptIOCtx->tMainViewportSize.y = h;
                     gptIOCtx->tMainFramebufferScale.x = fCurrentScale;
                     gptIOCtx->tMainFramebufferScale.y = fCurrentScale;
-                    pl_app_resize(gpUserData);
+                    pl_app_resize(gptMainWindow, gpUserData);
                 }
             }
 
@@ -525,7 +518,11 @@ int main(int argc, char *argv[])
 
         if (glfwGetWindowAttrib(ptGlfwWindow, GLFW_ICONIFIED) != 0)
         {
-            ImGui_ImplGlfw_Sleep(10);
+            #ifdef _WIN32
+                ::Sleep(10);
+            #else
+                usleep(10 * 1000);
+            #endif
             continue;
         }
     
@@ -565,10 +562,26 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 {
 
     plWindow* ptWindow = (plWindow*)malloc(sizeof(plWindow));
-    ptWindow->tDesc = tDesc; //-V522
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
+    glfwWindowHint(GLFW_RESIZABLE, (tDesc.tFlags & PL_WINDOW_FLAG_RESIZABLE) ? GLFW_TRUE : GLFW_FALSE);
+    glfwWindowHint(GLFW_DECORATED, (tDesc.tFlags & PL_WINDOW_FLAG_DECORATED) ? GLFW_TRUE : GLFW_FALSE);
+    glfwWindowHint(GLFW_FLOATING,  (tDesc.tFlags & PL_WINDOW_FLAG_TOP_MOST) ? GLFW_TRUE : GLFW_FALSE);
+    glfwWindowHint(GLFW_POSITION_X,  tDesc.iXPos);
+    glfwWindowHint(GLFW_POSITION_Y,  tDesc.iXPos);
+
     ptGlfwWindow = glfwCreateWindow((int)tDesc.uWidth, (int)tDesc.uHeight, tDesc.pcTitle, NULL, NULL);
-    glfwSetWindowPos(ptGlfwWindow, tDesc.iXPos, tDesc.iYPos);
+
+    int iMinWidth = tDesc.uMinWidth > 0 ? (int)tDesc.uMinWidth : GLFW_DONT_CARE;
+    int iMaxWidth = tDesc.uMaxWidth > 0 ? (int)tDesc.uMaxWidth : GLFW_DONT_CARE;
+    int iMinHeight = tDesc.uMinHeight > 0 ? (int)tDesc.uMinHeight : GLFW_DONT_CARE;
+    int iMaxHeight = tDesc.uMaxHeight > 0 ? (int)tDesc.uMaxHeight : GLFW_DONT_CARE;
+    glfwSetWindowSizeLimits(ptGlfwWindow, iMinWidth, iMinHeight, iMaxWidth, iMaxHeight);
+
+    ptWindow->_pBackendData2 = ptGlfwWindow;
+
+    if(gptMainWindow == nullptr)
+        gptMainWindow = ptWindow;
     
     glfwSetMouseButtonCallback(ptGlfwWindow, pl_glfw_mouse_button_callback);
     glfwSetCursorPosCallback(ptGlfwWindow, pl_glfw_mouse_pos_callback);
@@ -583,17 +596,15 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 
     #ifdef PL_METAL_BACKEND
     if(pl_sb_size(gsbtWindows) == 0)
-        ImGui_ImplGlfw_InitForOther(ptGlfwWindow, true);
+        ImGui_ImplGlfw_InitForOther(ptGlfwWindow);
     #else
     if(pl_sb_size(gsbtWindows) == 0)
-        ImGui_ImplGlfw_InitForVulkan(ptGlfwWindow, true);
+        ImGui_ImplGlfw_InitForVulkan(ptGlfwWindow);
     #endif
-
-
 
     #ifdef _WIN32
     HWND tHandle = glfwGetWin32Window(ptGlfwWindow);
-    ptWindow->_pPlatformData = tHandle;
+    ptWindow->_pBackendData = tHandle;
     #elif defined(__APPLE__)
     device = MTLCreateSystemDefaultDevice();
     gptIOCtx->pBackendPlatformData = device;
@@ -614,7 +625,7 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 
     plWindowData* ptData = (plWindowData*)malloc(sizeof(plWindowData));
     ptData->ptLayer = layer;
-    ptWindow->_pPlatformData = ptData;
+    ptWindow->_pBackendData = ptData;
 
     #else // linux
     struct plPlatformData
@@ -626,7 +637,7 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     static plPlatformData tPlatformData = {UINT32_MAX};
     tPlatformData.dpy = glfwGetX11Display();
     tPlatformData.window = glfwGetX11Window(ptGlfwWindow);
-    ptWindow->_pPlatformData = &tPlatformData;
+    ptWindow->_pBackendData = &tPlatformData;
     #endif
     *pptWindowOut = ptWindow;
     pl_sb_push(gsbtWindows, ptWindow);
@@ -637,6 +648,186 @@ void
 pl_destroy_window(plWindow* ptWindow)
 {
     free(ptWindow);
+}
+
+void
+pl_set_window_size(plWindow* ptWindow, uint32_t uWidth, uint32_t uHeight)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwSetWindowSize(ptGlfwWindow, (int)uWidth, (int)uHeight);
+}
+
+void
+pl_set_window_pos(plWindow* ptWindow, int iXPos, int iYPos)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwSetWindowPos(ptGlfwWindow, iXPos, iYPos);
+}
+
+void
+pl_get_window_size(plWindow* ptWindow, uint32_t* uWidth, uint32_t* uHeight)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    int iWidth = 0;
+    int iHeight = 0;
+    glfwGetWindowSize(ptGlfwWindow, &iWidth, &iHeight);
+    *uWidth = (uint32_t)iWidth;
+    *uHeight = (uint32_t)iHeight;
+}
+
+void
+pl_get_window_pos(plWindow* ptWindow, int* iXPos, int* iYPos)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwGetWindowPos(ptGlfwWindow, iXPos, iYPos);
+}
+
+void
+pl_minimize_window(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwIconifyWindow(ptGlfwWindow);
+}
+
+void
+pl_show_window(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwShowWindow(ptGlfwWindow);
+}
+
+void
+pl_hide_window(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwHideWindow(ptGlfwWindow);
+}
+
+void
+pl_maximize_window(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwMaximizeWindow(ptGlfwWindow);
+}
+
+void
+pl_restore_window(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwRestoreWindow(ptGlfwWindow);
+}
+
+void
+pl_focus_window(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwFocusWindow(ptGlfwWindow);
+}
+
+void
+pl_hide_cursor(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwSetInputMode(ptGlfwWindow, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+}
+
+void
+pl_capture_cursor(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwSetInputMode(ptGlfwWindow, GLFW_CURSOR, GLFW_CURSOR_CAPTURED);
+}
+
+void
+pl_normal_cursor(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    glfwSetInputMode(ptGlfwWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+}
+
+void
+pl_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    if (glfwRawMouseMotionSupported())
+        glfwSetInputMode(ptGlfwWindow, GLFW_RAW_MOUSE_MOTION, bValue ? GLFW_TRUE : GLFW_FALSE);
+}
+
+bool
+pl_is_window_maximized(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    if (glfwGetWindowAttrib(ptGlfwWindow, GLFW_MAXIMIZED))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool
+pl_is_window_minimized(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    if (glfwGetWindowAttrib(ptGlfwWindow, GLFW_ICONIFIED))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool
+pl_is_window_focused(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    if (glfwGetWindowAttrib(ptGlfwWindow, GLFW_FOCUSED))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool
+pl_is_window_hovered(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    if (glfwGetWindowAttrib(ptGlfwWindow, GLFW_HOVERED))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool
+pl_is_window_resizable(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    if (glfwGetWindowAttrib(ptGlfwWindow, GLFW_RESIZABLE))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool
+pl_is_window_decorated(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    if (glfwGetWindowAttrib(ptGlfwWindow, GLFW_DECORATED))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool
+pl_is_window_top_most(plWindow* ptWindow)
+{
+    GLFWwindow* ptGlfwWindow = (GLFWwindow*)ptWindow->_pBackendData2;
+    if (glfwGetWindowAttrib(ptGlfwWindow, GLFW_FLOATING))
+    {
+        return true;
+    }
+    return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -1119,10 +1310,10 @@ pl_glfw_size_callback(GLFWwindow* window, int width, int height)
         gptIOCtx->bViewportMinimized = false;
         gptIOCtx->tMainViewportSize.x = (float)width;
         gptIOCtx->tMainViewportSize.y = (float)height;
-        gsbtWindows[0]->tDesc.uWidth = (uint32_t)width;
-        gsbtWindows[0]->tDesc.uHeight = (uint32_t)height;
+        // gsbtWindows[0]->tDesc.uWidth = (uint32_t)width;
+        // gsbtWindows[0]->tDesc.uHeight = (uint32_t)height;
 
-        pl_app_resize(gpUserData);
+        pl_app_resize(gptMainWindow, gpUserData);
     }
 }
 
