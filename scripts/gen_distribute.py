@@ -254,13 +254,13 @@ with pl.project("pilotlight deploy"):
                 with pl.compiler("msvc"):
                     pl.add_include_directories("%VULKAN_SDK%\\Include")
                     pl.add_link_directories('%VULKAN_SDK%\\Lib')
-                    pl.add_static_link_libraries("shaderc_combined")
+                    pl.add_static_link_libraries("spirv-cross-c-shared", "shaderc_combined")
                     pl.add_linker_flags("-nodefaultlib:MSVCRT")
 
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("shaderc_shared")
+                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_link_directories('$VULKAN_SDK/lib')
 
@@ -278,14 +278,14 @@ with pl.project("pilotlight deploy"):
             with pl.platform("Windows"):
 
                 with pl.compiler("msvc"):
-                    pl.add_static_link_libraries("shaderc_combined")
+                    pl.add_static_link_libraries("spirv-cross-c-shared", "shaderc_combined")
                     pl.add_include_directories("%VULKAN_SDK%\\Include")
                     pl.add_link_directories('%VULKAN_SDK%\\Lib')
 
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_dynamic_link_libraries("shaderc_shared")
+                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_link_directories('$VULKAN_SDK/lib')
 
