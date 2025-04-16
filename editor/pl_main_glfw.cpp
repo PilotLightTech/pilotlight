@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[i], "--version") == 0)
         {
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug (glfw)\n\n");
             #endif
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
             plVersion tWindowExtVersion = plWindowI_version;
             plVersion tLibraryVersion = plLibraryI_version;
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("\nPilot Light - light weight game engine\n");
-            printf("Version: %s\n", PILOT_LIGHT_CORE_VERSION_STRING);
+            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif

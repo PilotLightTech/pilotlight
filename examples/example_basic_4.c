@@ -199,7 +199,7 @@ pl_app_update(plAppData* ptAppData)
         if(gptUi->begin_collapsing_header("Information", 0))
         {
             
-            gptUi->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+            gptUi->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
             gptUi->end_collapsing_header();
         }
 

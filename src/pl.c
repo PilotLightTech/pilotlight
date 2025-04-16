@@ -728,16 +728,16 @@ plVersion
 pl_get_version(void)
 {
     #ifdef __cplusplus
-        return PILOT_LIGHT_CORE_VERSION;
+        return PILOT_LIGHT_VERSION;
     #else
-        return (plVersion)PILOT_LIGHT_CORE_VERSION;
+        return (plVersion)PILOT_LIGHT_VERSION;
     #endif
 }
 
 const char*
 pl_get_version_string(void)
 {
-    return PILOT_LIGHT_CORE_VERSION_STRING;
+    return PILOT_LIGHT_VERSION_STRING;
 }
 
 void

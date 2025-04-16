@@ -1,5 +1,6 @@
 /*
     pl_config.h
+      * compile time options
 */
 
 //-----------------------------------------------------------------------------
@@ -29,10 +30,7 @@
 
 // shaders
 // #define PL_OFFLINE_SHADERS_ONLY
-// #define PL_INCLUDE_SPIRV_CROSS
-
-// experimental (don't use yet)
-// #define PL_EXPERIMENTAL_RENDER_WHILE_RESIZE
+#define PL_INCLUDE_SPIRV_CROSS
 
 // experimental (don't use yet)
 #ifdef PL_CPU_BACKEND

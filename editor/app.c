@@ -754,7 +754,7 @@ pl__show_editor_window(plAppData* ptAppData)
 
         if(gptUI->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
         {
-            gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+            gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
             gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
 
             gptUI->layout_static(0.0f, 200.0f, 1);

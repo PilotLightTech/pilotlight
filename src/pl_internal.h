@@ -40,7 +40,6 @@ plIO*            gptIOCtx      = NULL;
 plWindow* gptMainWindow = NULL;
 plWindow** gsbtWindows = NULL;
 
-
 // window callbacks
 plMousePosCallback    gtMousePosCallback    = NULL;
 plMouseEnterCallback  gtMouseEnterCallback  = NULL;

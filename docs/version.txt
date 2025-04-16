@@ -1,16 +1,34 @@
-# Status of Core, Libraries & Extensions
+v0.1.0
+
+-----------------------------------------------------------------------------
+                             Versioning
+-----------------------------------------------------------------------------
+
+Pilot Light follows semantic versioning closely however the nature of the project requires some clarification.
+There are 2 levels of granularity to consider:
+
+* Pilot Light ~~> global version number
+* API         ~~> version number for individual APIs
+
+Most users should only be concerned with the API version numbers, as this will determine whether or not code needs
+to change. However, in some cases it may be useful to consider the global version number if you have vendored the 
+entire repository so that is available as well.
+
+-----------------------------------------------------------------------------
+                  Status of Core, Libraries & Extensions
+-----------------------------------------------------------------------------
 
 Below is the current status on the APIs of all the extensions, libraries, and core APIs. Keep in mind with stability,
 we are refering to whether or not the current API will break; NOT that the implementation is
 bug-free or that the API is complete. It just means we won't break what currently exists.
 
-## Core v1.0.0
-* API Registry       (pl.h)
-* Data Registry      (pl.h)
-* Extension Registry (pl.h)
-* IO                 (pl.h)
-* Window             (pl.h)
-* Library            (pl.h)
+## Core
+* API Registry       v1.0.0 (pl.h)
+* Data Registry      v1.0.0 (pl.h)
+* Extension Registry v1.0.0 (pl.h)
+* IO                 v1.0.0 (pl.h)
+* Window             v1.0.0 (pl.h)
+* Library            v1.0.0 (pl.h)
 
 ## Libraries
 * Data Structures   v1.0.0 (pl_ds.h)

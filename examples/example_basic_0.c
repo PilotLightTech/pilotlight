@@ -26,7 +26,7 @@ Index of this file:
 
     ~~~> void* pl_app_load    (plApiRegistryI*, void*)
     ~~~> void  pl_app_shutdown(void*)
-    ~~~> void  pl_app_resize  (void*)
+    ~~~> void  pl_app_resize  (plWindow*, void*)
     ~~~> void  pl_app_update  (void*)
 
     The primary "components" of Pilot Light are:

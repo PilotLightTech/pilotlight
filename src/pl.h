@@ -23,25 +23,21 @@ Index of this file:
 #ifndef PL_H
 #define PL_H
 
-// framework version XYYZZ
+// global version XYYZZ
 #define PILOT_LIGHT_VERSION_STRING "0.1.0"
 #define PILOT_LIGHT_VERSION_NUM     00100
-
-// core version XYYZZ
-#define PILOT_LIGHT_CORE_VERSION_STRING "1.0.0"
-#define PILOT_LIGHT_CORE_VERSION_NUM 10000
+#define PILOT_LIGHT_VERSION         {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define PILOT_LIGHT_CORE_VERSION     {1, 0, 0}
-#define plExtensionRegistryI_version PILOT_LIGHT_CORE_VERSION
-#define plMemoryI_version            PILOT_LIGHT_CORE_VERSION
-#define plIOI_version                PILOT_LIGHT_CORE_VERSION
-#define plDataRegistryI_version      PILOT_LIGHT_CORE_VERSION
-#define plWindowI_version            PILOT_LIGHT_CORE_VERSION
-#define plLibraryI_version           PILOT_LIGHT_CORE_VERSION
+#define plExtensionRegistryI_version {1, 0, 0}
+#define plMemoryI_version            {1, 0, 0}
+#define plIOI_version                {1, 0, 0}
+#define plDataRegistryI_version      {1, 0, 0}
+#define plWindowI_version            {1, 0, 0}
+#define plLibraryI_version           {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -57,17 +53,17 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plVersion         plVersion;
-typedef struct _plAllocationEntry plAllocationEntry;
-typedef union  _plDataID          plDataID;
-typedef struct _plDataObject      plDataObject;    // opaque type
-typedef struct _plIO              plIO;         // configuration & IO between app & pilotlight ui
-typedef struct _plKeyData         plKeyData;    // individual key status (down, down duration, etc.)
-typedef struct _plInputEvent      plInputEvent; // holds data for input events (opaque structure)
-typedef struct _plWindow          plWindow;
-typedef struct _plWindowDesc      plWindowDesc;
-typedef struct _plLibraryDesc     plLibraryDesc;
-typedef struct _plSharedLibrary   plSharedLibrary; // opaque type
+typedef struct _plVersion         plVersion;         // API version struct
+typedef struct _plAllocationEntry plAllocationEntry; // memory tracking allocation struct
+typedef union  _plDataID          plDataID;          // WIP
+typedef struct _plDataObject      plDataObject;      // opaque type
+typedef struct _plIO              plIO;              // configuration & IO between app & pilotlight ui
+typedef struct _plKeyData         plKeyData;         // individual key status (down, down duration, etc.)
+typedef struct _plInputEvent      plInputEvent;      // holds data for input events (opaque structure)
+typedef struct _plWindow          plWindow;          // mostly opaque type for windows
+typedef struct _plWindowDesc      plWindowDesc;      // description for window creation
+typedef struct _plLibraryDesc     plLibraryDesc;     // description for librarys
+typedef struct _plSharedLibrary   plSharedLibrary;   // opaque type
 
 // enums
 typedef int plKey;              // -> enum plKey_              // Enum: A key identifier (PL_KEY_XXX or PL_KEY_MOD_XXX value)
@@ -75,9 +71,9 @@ typedef int plMouseButton;      // -> enum plMouseButton_      // Enum: A mouse 
 typedef int plMouseCursor;      // -> enum plMouseCursor_      // Enum: Mouse cursor shape (PL_MOUSE_CURSOR_XXX)
 typedef int plInputEventType;   // -> enum plInputEventType_   // Enum: An input event type (PL_INPUT_EVENT_TYPE_XXX)
 typedef int plInputEventSource; // -> enum plInputEventSource_ // Enum: An input event source (PL_INPUT_EVENT_SOURCE_XXX)
-typedef int plWindowResult;     // -> enum _plWindowResult     // Enum:
-typedef int plWindowFlags;      // -> enum _plWindowFlags      // Flag:
-typedef int plLibraryResult;    // -> enum _plLibraryResult    // Enum:
+typedef int plWindowResult;     // -> enum _plWindowResult     // Enum: Result returned from window API (PL_WINDOW_RESULT_XXXX)
+typedef int plWindowFlags;      // -> enum _plWindowFlags      // Flag: Flags for window creation (PL_WINDOW_FLAG_XXXX)
+typedef int plLibraryResult;    // -> enum _plLibraryResult    // Enum: Result returned from library API (PL_LIBRARY_RESULT_XXXX)
 typedef int plKeyChord;
 
 // character types

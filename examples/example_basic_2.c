@@ -293,7 +293,7 @@ pl_app_update(plAppData* ptAppData)
     // creating another window
     if(gptUI->begin_window("Pilot Light", NULL, PL_UI_WINDOW_FLAGS_NONE))
     {
-        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
 
         if(gptUI->button("Log"))
         {

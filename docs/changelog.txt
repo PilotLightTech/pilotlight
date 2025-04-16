@@ -1,0 +1,8 @@
+-----------------------------------------------------------------------------
+                             Change Log
+-----------------------------------------------------------------------------
+
+Below is the change log for typical users. Minor and older changes stripped
+away, please see git history for details.
+
+//  2025-04-15: global v0.1.0 tagged which includes window API refactor

@@ -991,7 +991,7 @@ pl__show_editor_window(plAppData* ptAppData)
 
         if(gptUI->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
         {
-            gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+            gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
             gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
 
             gptUI->layout_static(0.0f, 200.0f, 1);
@@ -2072,26 +2072,26 @@ pl__show_ui_demo_window(plAppData* ptAppData)
                 gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
                 if(gptUI->begin_collapsing_header("Information", 0))
                 {
-                    gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+                    gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
                     gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
 
                     gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3, pfRatios3);
                     if(gptUI->begin_collapsing_header("sub0", 0))
                     {
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
                         gptUI->end_collapsing_header();
                     }
                     if(gptUI->begin_collapsing_header("sub1", 0))
                     {
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
                         gptUI->end_collapsing_header();
                     }
                     if(gptUI->begin_collapsing_header("sub2", 0))
                     {
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_CORE_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
                         gptUI->end_collapsing_header();
                     }
 
