@@ -48,6 +48,9 @@ Index of this file:
     static const plFileI* gptFile = NULL;
 #endif
 
+#define CGLTF_MALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define CGLTF_FREE(x)   gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
 #include "pl_ds.h"
 
 // misc
@@ -350,6 +353,7 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
     pl_hm_free(&tLoadingData.tMaterialHashMap);
     pl_sb_free(tLoadingData.sbtMaterialEntities);
     ptDataOut->uObjectCount = pl_sb_size(ptDataOut->atObjects);
+    cgltf_free(ptGltfData);
     return true;
 }
 
