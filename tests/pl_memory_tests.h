@@ -147,6 +147,76 @@ memory_test_temp_allocator_0(void* pData)
 }
 
 void
+memory_test_general_allocator_0(void* pData)
+{
+    plGeneralAllocator tAllocator = {0};
+
+    uint8_t auBuffer[2048] = {0};
+
+    pl_general_allocator_init(&tAllocator, 1024, auBuffer);
+
+    plTestStruct* ptData0 = pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData1 = pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData2 = pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData3 = pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData4 = pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+
+    ptData0->iAge = 0;
+    ptData1->iAge = 1;
+    ptData2->iAge = 2;
+    ptData3->iAge = 3;
+
+    ptData0->pcName = "John";
+    ptData1->pcName = "James";
+    ptData2->pcName = "Mark";
+    ptData3->pcName = "Matt";
+
+    pl_test_expect_int_equal(ptData0->iAge, 0, NULL);
+    pl_test_expect_int_equal(ptData1->iAge, 1, NULL);
+    pl_test_expect_int_equal(ptData2->iAge, 2, NULL);
+    pl_test_expect_int_equal(ptData3->iAge, 3, NULL);
+
+    pl_test_expect_string_equal(ptData0->pcName, "John", NULL);
+    pl_test_expect_string_equal(ptData1->pcName, "James", NULL);
+    pl_test_expect_string_equal(ptData2->pcName, "Mark", NULL);
+    pl_test_expect_string_equal(ptData3->pcName, "Matt", NULL);
+
+    pl_general_allocator_free(&tAllocator, ptData0);
+    pl_general_allocator_free(&tAllocator, ptData1);
+
+    int* piData0 = pl_general_allocator_alloc(&tAllocator, sizeof(int));
+    float* pfData1 = pl_general_allocator_alloc(&tAllocator, sizeof(float));
+    double* pfData5 = pl_general_allocator_alloc(&tAllocator, sizeof(double) * 10);
+
+    *piData0 = 7;
+    *pfData1 = 45.4f;
+
+    for(uint32_t i = 0; i < 10; i++)
+        pfData5[i] = (double)i;
+
+    pl_test_expect_int_equal(*piData0, 7, NULL);
+    pl_test_expect_float_near_equal(*pfData1, 45.4f, 0.01f, NULL);
+
+    for(uint32_t i = 0; i < 10; i++)
+    {
+        pl_test_expect_double_near_equal(pfData5[i], (double)i, 0.01f, NULL);
+    }
+
+    pl_general_allocator_aligned_free(&tAllocator, piData0);
+    pl_general_allocator_aligned_free(&tAllocator, pfData1);
+    pl_general_allocator_aligned_free(&tAllocator, pfData5);
+   
+    
+    int* iBuffer0 = pl_general_allocator_aligned_alloc(&tAllocator, sizeof(int), 0);
+    pl_test_expect_uint64_equal(((uint64_t)iBuffer0) % 4, 0, NULL);
+    pl_general_allocator_aligned_free(&tAllocator, iBuffer0);
+
+    int* iBuffer1 = pl_general_allocator_aligned_alloc(&tAllocator, sizeof(int), 16);
+    pl_test_expect_uint64_equal(((uint64_t)iBuffer1) % 16, 0, NULL);
+    pl_general_allocator_aligned_free(&tAllocator, iBuffer1);
+}
+
+void
 pl_memory_tests(void* pData)
 {
     pl_test_register_test(memory_test_aligned_alloc, NULL);
@@ -154,4 +224,5 @@ pl_memory_tests(void* pData)
     pl_test_register_test(memory_test_pool_allocator_1, NULL);
     pl_test_register_test(memory_test_stack_allocator_0, NULL);
     pl_test_register_test(memory_test_temp_allocator_0, NULL);
+    pl_test_register_test(memory_test_general_allocator_0, NULL);
 }
