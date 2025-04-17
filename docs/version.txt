@@ -35,7 +35,7 @@ bug-free or that the API is complete. It just means we won't break what currentl
 * Json              v1.0.0 (pl_json.h)
 * Logging           v1.0.0 (pl_log.h)
 * Math              v1.0.0 (pl_math.h)
-* Memory Allocators v1.0.0 (pl_memory.h)
+* Memory Allocators v1.1.0 (pl_memory.h)
 * Profiling         v1.0.0 (pl_profile.h)
 * Stl               v1.0.0 (pl_stl.h)
 * String            v1.0.0 (pl_string.h)

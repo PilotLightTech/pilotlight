@@ -20,8 +20,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_MEMORY_VERSION    "1.0.0"
-#define PL_MEMORY_VERSION_NUM 10000
+#define PL_MEMORY_VERSION    "1.1.0"
+#define PL_MEMORY_VERSION_NUM 10100
 
 /*
 Index of this file:
@@ -32,6 +32,7 @@ Index of this file:
 // [SECTION] public api
 // [SECTION] structs
 // [SECTION] c/c++ file start
+// [SECTION] revision history
 */
 
 //-----------------------------------------------------------------------------
@@ -54,15 +55,17 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <stddef.h>  // size_t
+#include <stdint.h>  // uint*_t
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plTempAllocator  plTempAllocator;
-typedef struct _plStackAllocator plStackAllocator;
-typedef struct _plPoolAllocator  plPoolAllocator;
+typedef struct _plTempAllocator    plTempAllocator;
+typedef struct _plStackAllocator   plStackAllocator;
+typedef struct _plPoolAllocator    plPoolAllocator;
+typedef struct _plGeneralAllocator plGeneralAllocator;
 
 typedef size_t plStackAllocatorMarker;
 
@@ -116,6 +119,15 @@ size_t pl_pool_allocator_init (plPoolAllocator*, size_t szItemCount, size_t szIt
 void*  pl_pool_allocator_alloc(plPoolAllocator*);
 void   pl_pool_allocator_free (plPoolAllocator*, void* pItem);
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~general allocators~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+void  pl_general_allocator_init         (plGeneralAllocator*, size_t, void*);
+void* pl_general_allocator_realloc      (plGeneralAllocator*, void*, size_t);
+void* pl_general_allocator_alloc        (plGeneralAllocator*, size_t);
+void* pl_general_allocator_aligned_alloc(plGeneralAllocator*, size_t, size_t szAlignment);
+void  pl_general_allocator_free         (plGeneralAllocator*, void*);
+void  pl_general_allocator_aligned_free (plGeneralAllocator*, void*);
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -161,10 +173,28 @@ typedef struct _plPoolAllocator
     plPoolAllocatorNode* pFreeList;
 } plPoolAllocator;
 
+typedef struct _plGeneralAllocatorNode plGeneralAllocatorNode;
+typedef struct _plGeneralAllocatorNode
+{
+    plGeneralAllocatorNode* ptPrev;
+    plGeneralAllocatorNode* ptNext;
+    size_t                  szSize;
+    uint8_t*                puBlock;
+} plGeneralAllocatorNode;
+
+typedef struct _plGeneralAllocator
+{
+    uint8_t*               puBuffer;
+    size_t                 szBufferSize;
+    size_t                 szUsed;
+    size_t                 szMaxHit;
+    plGeneralAllocatorNode tFreeList;
+} plGeneralAllocator;
+
 #endif // PL_MEMORY_H
 
 //-----------------------------------------------------------------------------
-// [SECTION] c/c++ file start
+// [SECTION] C/C++ file start
 //-----------------------------------------------------------------------------
 
 /*
@@ -207,6 +237,9 @@ Index of this file:
 #endif
 
 #include <stdarg.h> // varargs
+
+#define PL_MEMORY_ALLOC_HEADER_SZ (sizeof(plGeneralAllocatorNode) - sizeof(void*))
+#define PL_MEMORY_SMALLEST_ALLOC 128
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -700,4 +733,259 @@ pl_pool_allocator_free(plPoolAllocator* ptAllocator, void* pItem)
     ptAllocator->pFreeList->ptNextNode = pOldFreeNode;
 }
 
+void
+pl_general_allocator_init(plGeneralAllocator* ptAllocator, size_t szSize, void* pData)
+{
+    memset(ptAllocator, 0, sizeof(plGeneralAllocator));
+    ptAllocator->puBuffer = (uint8_t*)pData;
+    ptAllocator->szBufferSize = szSize;
+    ptAllocator->szUsed = 0u;
+    ptAllocator->szMaxHit = 0u;
+
+    // align the start addr of our block to the next pointer aligned addr
+    plGeneralAllocatorNode* ptNewBlock = (plGeneralAllocatorNode *)PL__ALIGN_UP((uintptr_t)pData, sizeof(void*));
+    ptNewBlock->ptPrev = &ptAllocator->tFreeList;
+    ptNewBlock->ptNext = NULL;
+
+    // calculate actual size - mgmt overhead
+    ptNewBlock->szSize = (uintptr_t)pData + szSize - (uintptr_t)ptNewBlock - PL_MEMORY_ALLOC_HEADER_SZ;
+
+    ptAllocator->tFreeList.ptPrev = NULL;
+    ptAllocator->tFreeList.ptNext = NULL;
+    ptAllocator->tFreeList.szSize= 0;
+
+    // add node
+    ptNewBlock->ptNext = ptAllocator->tFreeList.ptNext;
+    ptNewBlock->ptPrev = &ptAllocator->tFreeList;
+    ptAllocator->tFreeList.ptNext = ptNewBlock;
+}
+
+void*
+pl_general_allocator_realloc(plGeneralAllocator* ptAllocator, void* pBuffer, size_t szSize)
+{
+    // free memory
+    if(szSize == 0 && pBuffer)
+    {
+        pl_general_allocator_free(ptAllocator, pBuffer);
+        return NULL;
+    }
+
+    // get block information
+    plGeneralAllocatorNode* ptBlock = (plGeneralAllocatorNode*)((uintptr_t)pBuffer - PL_MEMORY_ALLOC_HEADER_SZ);
+
+    // check if block already has enough room
+    if(ptBlock->szSize > szSize)
+        return pBuffer;
+    
+    // get to block to copy into
+    void* pNewBuffer = pl_general_allocator_alloc(ptAllocator, szSize);
+    memcpy(pNewBuffer, pBuffer, ptBlock->szSize);
+
+    // free old block
+    pl_general_allocator_free(ptAllocator, pBuffer);
+    return pNewBuffer;
+}
+
+void*
+pl_general_allocator_alloc(plGeneralAllocator* ptAllocator, size_t szSize)
+{
+    void* pBuffer = NULL;
+
+    szSize = PL__ALIGN_UP(szSize, sizeof(void*));
+    plGeneralAllocatorNode* ptBlock = NULL;
+
+    // find best block
+    size_t szSmallestDiff = ~(size_t)0;
+    plGeneralAllocatorNode* ptCurrentBlock = &ptAllocator->tFreeList;
+    while(ptCurrentBlock)
+    {
+
+        if(ptCurrentBlock->szSize >= szSize && (ptCurrentBlock->szSize - szSize < szSmallestDiff))
+        {
+            ptBlock = ptCurrentBlock;
+            szSmallestDiff = ptCurrentBlock->szSize - szSize;
+        }
+        ptCurrentBlock = ptCurrentBlock->ptNext;
+    }
+
+    if (ptBlock != NULL) 
+    {
+        // split block if big enough
+        if( (ptBlock->szSize - szSize) >= PL_MEMORY_ALLOC_HEADER_SZ + PL_MEMORY_SMALLEST_ALLOC)
+        {
+            plGeneralAllocatorNode* ptNewBlock = NULL;
+            ptNewBlock = (plGeneralAllocatorNode *)((uintptr_t)(&ptBlock->puBlock) + szSize);
+            ptNewBlock->szSize = ptBlock->szSize - szSize - PL_MEMORY_ALLOC_HEADER_SZ;
+            ptBlock->szSize = szSize;
+
+            // add node
+            if(ptBlock->ptNext) {ptBlock->ptNext->ptPrev = ptNewBlock;}
+            ptNewBlock->ptNext = ptBlock->ptNext;
+            ptNewBlock->ptPrev = ptBlock;
+            ptBlock->ptNext = ptNewBlock;
+        }
+
+        // delete node
+        if(ptBlock->ptNext)
+        {
+            ptBlock->ptNext->ptPrev = ptBlock->ptPrev;
+        }
+        ptBlock->ptPrev->ptNext = ptBlock->ptNext;
+        ptBlock->ptNext = NULL;
+        ptBlock->ptPrev = NULL;
+
+        ptAllocator->szUsed += ptBlock->szSize + PL_MEMORY_ALLOC_HEADER_SZ;
+
+        if((uintptr_t)(&ptBlock->puBlock) + ptBlock->szSize  - (uintptr_t)ptAllocator->puBuffer > ptAllocator->szMaxHit)
+        {
+            ptAllocator->szMaxHit = (uintptr_t)(&ptBlock->puBlock) + ptBlock->szSize  - (uintptr_t)ptAllocator->puBuffer;
+        }
+        pBuffer = &ptBlock->puBlock;
+    }
+    return pBuffer;
+}
+
+void*
+pl_general_allocator_aligned_alloc(plGeneralAllocator* ptAllocator, size_t szSize, size_t szAlignment)
+{
+    void* pBuffer = NULL;
+
+    if(szAlignment == 0)
+        szAlignment = pl__get_next_power_of_2(szSize);
+
+    // ensure power of 2
+    PL_ASSERT((szAlignment & (szAlignment -1)) == 0 && "alignment must be a power of 2");
+
+    if(szAlignment && szSize)
+    {
+        // allocate extra bytes for alignment
+        uint64_t ulHeaderSize = sizeof(uint64_t) + (szAlignment - 1);
+        void* pActualBuffer = pl_general_allocator_alloc(ptAllocator, szSize + ulHeaderSize);
+
+        if(pActualBuffer)
+        {
+            // add offset size to pointer & align
+            pBuffer = (void*)PL__ALIGN_UP(((uintptr_t)pActualBuffer + sizeof(uint64_t)), szAlignment);
+
+            // calculate offset & store it behind aligned pointer
+            *((uint64_t*)pBuffer - 1) = (uint64_t)((uintptr_t)pBuffer - (uintptr_t)pActualBuffer);
+        }
+    }
+    return pBuffer;
+}
+
+void
+pl_general_allocator_free(plGeneralAllocator* ptAllocator, void* pData)
+{
+    PL_ASSERT(pData);
+
+    plGeneralAllocatorNode* ptBlock = (plGeneralAllocatorNode*)((uintptr_t)pData - PL_MEMORY_ALLOC_HEADER_SZ);
+    ptAllocator->szUsed -= ptBlock->szSize + PL_MEMORY_ALLOC_HEADER_SZ;
+
+    // If the free list is not empty
+    if(ptAllocator->tFreeList.ptNext != NULL)
+    {
+        // Add node to free list
+        plGeneralAllocatorNode* ptFreeBlock = ptAllocator->tFreeList.ptNext;   
+        while(ptFreeBlock) // GCOVR_EXCL_LINE
+        {
+            // Insert new node to middle
+            if(ptFreeBlock > ptBlock)
+            {
+                plGeneralAllocatorNode *ptNext = ptFreeBlock;
+                plGeneralAllocatorNode *ptPrev = ptFreeBlock->ptPrev;
+
+                ptNext->ptPrev = ptBlock;
+                ptBlock->ptNext = ptNext;
+                ptBlock->ptPrev = ptPrev;
+                ptPrev->ptNext = ptBlock;
+                break;
+                
+            }
+
+            // There isn't a next block so Insert new node to the end
+            if(ptFreeBlock->ptNext == NULL)
+            {                
+                ptBlock->ptNext = NULL;
+                ptBlock->ptPrev = ptFreeBlock;
+                ptFreeBlock->ptNext = ptBlock;
+                break;
+            }
+
+            ptFreeBlock = ptFreeBlock->ptNext;
+        } 
+
+        // Defrag
+        plGeneralAllocatorNode* ptPrevBlock = ptBlock->ptPrev;
+        plGeneralAllocatorNode* ptNextBlock = ptBlock->ptNext;
+
+        if(ptPrevBlock != &ptAllocator->tFreeList)
+        {
+            // if prev block and block are adjacent
+            if(((uintptr_t)ptPrevBlock + PL_MEMORY_ALLOC_HEADER_SZ + ptPrevBlock->szSize) == (uintptr_t)ptBlock)
+            {
+                ptPrevBlock->szSize += PL_MEMORY_ALLOC_HEADER_SZ + ptBlock->szSize;
+                
+                // delete node
+                if(ptNextBlock != NULL) {ptNextBlock->ptPrev = ptPrevBlock; }
+                ptPrevBlock->ptNext = ptNextBlock;
+                ptBlock->ptNext = NULL;
+                ptBlock->ptPrev = NULL;
+
+                // Allows us to defrag with the next block without checking if we defragged with this one
+                ptBlock = ptPrevBlock; 
+            }
+        }
+
+        if(ptNextBlock != NULL)
+        {
+
+            plGeneralAllocatorNode* ptNextNextBlock = ptNextBlock->ptNext;
+
+            // if block and next block are adjacent
+            if(((uintptr_t)ptBlock + PL_MEMORY_ALLOC_HEADER_SZ + ptBlock->szSize) == (uintptr_t)ptNextBlock)
+            {
+                ptBlock->szSize += PL_MEMORY_ALLOC_HEADER_SZ + ptNextBlock->szSize;
+                
+                // delete next node
+                if(ptNextNextBlock != NULL)
+                {
+                    ptNextNextBlock->ptPrev = ptBlock;
+                }
+                ptBlock->ptNext = ptNextNextBlock;
+                ptNextBlock->ptNext = NULL;
+                ptNextBlock->ptPrev = NULL;
+
+            }
+        }
+    }
+    else 
+    {
+        // Add node to the front of the free list if list is empty
+        ptBlock->ptNext = NULL;
+        ptBlock->ptPrev = &ptAllocator->tFreeList;
+        ptAllocator->tFreeList.ptNext = ptBlock;
+    }
+}
+
+void
+pl_general_allocator_aligned_free(plGeneralAllocator* ptAllocator, void* pData)
+{
+    PL_ASSERT(pData);
+
+    // get stored offset
+    uint64_t ulOffset = *((uint64_t*)pData - 1);
+
+    // get original buffer to free
+    void* pActualBuffer = ((uint8_t*)pData - ulOffset);
+    pl_general_allocator_free(ptAllocator, pActualBuffer);
+}
+
 #endif // PL_MEMORY_IMPLEMENTATION
+
+
+//-----------------------------------------------------------------------------
+// [SECTION] revision history
+//-----------------------------------------------------------------------------
+
+// 1.1.0  (2025-04-16) add simple linked list general allocator
