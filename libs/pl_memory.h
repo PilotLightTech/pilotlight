@@ -744,7 +744,6 @@ pl_general_allocator_init(plGeneralAllocator* ptAllocator, size_t szSize, void* 
 
     // align the start addr of our block to the next pointer aligned addr
     plGeneralAllocatorNode* ptNewBlock = (plGeneralAllocatorNode *)PL__ALIGN_UP((uintptr_t)pData, sizeof(void*));
-    ptNewBlock->ptPrev = &ptAllocator->tFreeList;
     ptNewBlock->ptNext = NULL;
 
     // calculate actual size - mgmt overhead
