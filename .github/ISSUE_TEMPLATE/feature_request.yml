@@ -39,37 +39,34 @@ body:
       label: Extension
       options:
         - New
-        - Atomics
+        - BVH
         - Collision
+        - Config
         - Console
         - Draw Backend
         - Draw
         - ECS
         - ECS Tools
-        - File
         - Gizmo
         - GPU Allocators
         - Graphics
         - Image
         - Job
-        - Library
         - Log
         - Model Loader
-        - Network
         - Physics
+        - Platform
         - Profile
         - Rect Pack
         - Renderer
         - Resource Manager
         - Screen Log
         - Shader
+        - Starter
         - Stats
         - String Intern
-        - Threads
         - Tools
         - UI
-        - Virtual Memory
-        - Window
   - type: dropdown
     id: libraries
     attributes:
@@ -95,3 +92,5 @@ body:
         - Build System
         - Scripts
         - Examples
+        - Window API
+        - Library API
