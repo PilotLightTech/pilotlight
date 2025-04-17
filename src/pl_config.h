@@ -42,4 +42,8 @@
 #else
 #endif
 
+// experimental (don't use yet)
+// #define PL_USE_ALLOCATOR
+// #define PL_ALLOCATOR_FIXED_SIZE 2147483648 
+
 #endif // PL_CONFIG_H

@@ -5,4 +5,6 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-//  2025-04-15: global v0.1.0 tagged which includes window API refactor
+* 2025-04-16: global v0.1.1 fixed issue with realloc in memory API clearing resized buffers (memory v1.0.1)
+* 2025-04-15: global v0.1.0 first tag, begin strict versioning
+* 2022-09-14: initial commit

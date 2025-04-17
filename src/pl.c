@@ -243,7 +243,9 @@ size_t             gszActiveAllocations = 0;
 size_t             gszAllocationFrees   = 0;
 size_t             gszMemoryUsage       = 0;
 plAllocationEntry* gsbtAllocations      = NULL;
-plHashMap64        gtMemoryHashMap      = {0};
+plHashMap64        gtMemoryHashMap      = PL_ZERO_INIT;
+plGeneralAllocator gtGeneralAllocator   = PL_ZERO_INIT;
+uint8_t*           gpuMemBuffer         = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] api registry implementation
@@ -1283,6 +1285,15 @@ pl_realloc(void* pBuffer, size_t szSize)
 
     pl_lock_mutex(gptMemoryMutex);
 
+    #ifdef PL_USE_ALLOCATOR
+    if(gpuMemBuffer == NULL)
+    {
+        gpuMemBuffer = (uint8_t*)malloc(PL_ALLOCATOR_FIXED_SIZE);
+        memset(gpuMemBuffer, 0, PL_ALLOCATOR_FIXED_SIZE);
+        pl_general_allocator_init(&gtGeneralAllocator, PL_ALLOCATOR_FIXED_SIZE, gpuMemBuffer);
+    }
+    #endif
+
     void* pNewBuffer = NULL;
 
     if(szSize > 0)
@@ -1294,13 +1305,20 @@ pl_realloc(void* pBuffer, size_t szSize)
         gszActiveAllocations--;
     }
 
+    #ifdef PL_USE_ALLOCATOR
+    pNewBuffer = pl_general_allocator_realloc(&gtGeneralAllocator, pBuffer, szSize);
+    if(szSize > 0)
+    {
+        PL_ASSERT(pNewBuffer);
+    }
+    #else
     if(szSize == 0 && pBuffer)
         free(pBuffer);
     else if(szSize > 0)
     {
         pNewBuffer = realloc(pBuffer, szSize);
-        memset(pNewBuffer, 0, szSize);
     }
+    #endif
 
     pl_unlock_mutex(gptMemoryMutex);
     return pNewBuffer;
@@ -1313,6 +1331,15 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
     pl_lock_mutex(gptMemoryMutex);
 
     void* pNewBuffer = NULL;
+
+    #ifdef PL_USE_ALLOCATOR
+    if(gpuMemBuffer == NULL)
+    {
+        gpuMemBuffer = (uint8_t*)malloc(PL_ALLOCATOR_FIXED_SIZE);
+        memset(gpuMemBuffer, 0, PL_ALLOCATOR_FIXED_SIZE);
+        pl_general_allocator_init(&gtGeneralAllocator, PL_ALLOCATOR_FIXED_SIZE, gpuMemBuffer);
+    }
+    #endif
 
     #ifdef PL_MEMORY_TRACKING_ON
 
@@ -1344,13 +1371,27 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
         
         gszActiveAllocations++;
         gszMemoryUsage += szSize;
+        #ifdef PL_USE_ALLOCATOR
+        pNewBuffer = pl_general_allocator_alloc(&gtGeneralAllocator, szSize);
+        #else
         pNewBuffer = malloc(szSize);
+        #endif
+        PL_ASSERT(pNewBuffer);
         memset(pNewBuffer, 0, szSize);
-
+        
         if(pBuffer)
         {
-            memcpy(pNewBuffer, pBuffer, szOldSize);
+            // crappy realloc
+            if(szOldSize > szSize)
+                memcpy(pNewBuffer, pBuffer, szSize);
+            else
+                memcpy(pNewBuffer, pBuffer, szOldSize);
+
+            #ifdef PL_USE_ALLOCATOR
+            pl_general_allocator_free(&gtGeneralAllocator, pBuffer);
+            #else
             free(pBuffer);
+            #endif
         }
 
         const uint64_t ulHash = pl_hm_hash(&pNewBuffer, sizeof(void*), 1);
@@ -1387,11 +1428,24 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
         }
 
         if(szSize == 0 && pBuffer)
+        {
+            #ifdef PL_USE_ALLOCATOR
+            pl_general_allocator_free(&gtGeneralAllocator, pBuffer);
+            #else
             free(pBuffer);
+            #endif
+        }
         else if(szSize > 0)
         {
+
+
+            #ifdef PL_USE_ALLOCATOR
+            pNewBuffer = pl_general_allocator_alloc(&gtGeneralAllocator, szSize);
+            #else
             pNewBuffer = realloc(pBuffer, szSize);
+            #endif
             memset(pNewBuffer, 0, szSize);
+            PL_ASSERT(pNewBuffer);
         }
     
     #endif // PL_MEMORY_TRACKING_ON

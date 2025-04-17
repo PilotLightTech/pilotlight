@@ -24,16 +24,16 @@ Index of this file:
 #define PL_H
 
 // global version XYYZZ
-#define PILOT_LIGHT_VERSION_STRING "0.1.0"
-#define PILOT_LIGHT_VERSION_NUM     00100
-#define PILOT_LIGHT_VERSION         {0, 1, 0}
+#define PILOT_LIGHT_VERSION_STRING "0.1.1"
+#define PILOT_LIGHT_VERSION_NUM     00101
+#define PILOT_LIGHT_VERSION         {0, 1, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
 #define plExtensionRegistryI_version {1, 0, 0}
-#define plMemoryI_version            {1, 0, 0}
+#define plMemoryI_version            {1, 0, 1}
 #define plIOI_version                {1, 0, 0}
 #define plDataRegistryI_version      {1, 0, 0}
 #define plWindowI_version            {1, 0, 0}
