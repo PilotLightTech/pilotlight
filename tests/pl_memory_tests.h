@@ -202,11 +202,10 @@ memory_test_general_allocator_0(void* pData)
         pl_test_expect_double_near_equal(pfData5[i], (double)i, 0.01f, NULL);
     }
 
-    pl_general_allocator_aligned_free(&tAllocator, piData0);
-    pl_general_allocator_aligned_free(&tAllocator, pfData1);
-    pl_general_allocator_aligned_free(&tAllocator, pfData5);
-   
-    
+    pl_general_allocator_free(&tAllocator, piData0);
+    pl_general_allocator_free(&tAllocator, pfData1);
+    pl_general_allocator_free(&tAllocator, pfData5);
+
     int* iBuffer0 = pl_general_allocator_aligned_alloc(&tAllocator, sizeof(int), 0);
     pl_test_expect_uint64_equal(((uint64_t)iBuffer0) % 4, 0, NULL);
     pl_general_allocator_aligned_free(&tAllocator, iBuffer0);
