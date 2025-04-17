@@ -1,26 +1,34 @@
-v0.1.0
+v0.1.1
 
 -----------------------------------------------------------------------------
                              Versioning
 -----------------------------------------------------------------------------
 
-Pilot Light follows semantic versioning closely however the nature of the project requires some clarification.
-There are 2 levels of granularity to consider:
+Pilot Light follows semantic versioning closely however the nature of the
+project requires some clarification. There are 2 levels of granularity to
+consider:
 
 * Pilot Light ~~> global version number
 * API         ~~> version number for individual APIs
 
-Most users should only be concerned with the API version numbers, as this will determine whether or not code needs
-to change. However, in some cases it may be useful to consider the global version number if you have vendored the 
-entire repository so that is available as well.
+Most users should only be concerned with the API version numbers, as this
+will determine whether or not code needs to change. However, in some cases
+it may be useful to consider the global version number if you have vendored
+the entire repository, so that is available as well. This is recommended if
+you are using unstable APIs. For the global version the major number will
+be bumped if any stable API bumps their major number and we stop supporting
+the previous version. The minor number will be bumped if a stable API's
+minor number is bumped. The patch number will be bumped for bug fixes and
+significant unstable API changes.
 
 -----------------------------------------------------------------------------
                   Status of Core, Libraries & Extensions
 -----------------------------------------------------------------------------
 
-Below is the current status on the APIs of all the extensions, libraries, and core APIs. Keep in mind with stability,
-we are refering to whether or not the current API will break; NOT that the implementation is
-bug-free or that the API is complete. It just means we won't break what currently exists.
+Below is the current status on the APIs of all the extensions, libraries,
+and core APIs. Keep in mind with stability, we are refering to whether or not
+the current API will break; NOT that the implementation is bug-free or that
+the API is complete. It just means we won't break what currently exists.
 
 ## Core
 * API Registry       v1.0.0 (pl.h)
