@@ -135,6 +135,7 @@ typedef struct _plDrawI
     void (*add_rect_rounded)(plDrawLayer2D*, plVec2 pMin, plVec2 pMax, float radius, uint32_t segments, plDrawRectFlags, plDrawLineOptions);
     void (*add_quad)        (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plDrawLineOptions);
     void (*add_circle)      (plDrawLayer2D*, plVec2 p, float radius, uint32_t segments, plDrawLineOptions);
+    void (*add_polygon)     (plDrawLayer2D*, plVec2* points, uint32_t pointsSize, plDrawLineOptions);
     void (*add_bezier_quad) (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, uint32_t segments, plDrawLineOptions);
     void (*add_bezier_cubic)(plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, uint32_t segments, plDrawLineOptions);
 
@@ -145,6 +146,7 @@ typedef struct _plDrawI
     void (*add_rect_rounded_filled)(plDrawLayer2D*, plVec2 minP, plVec2 maxP, float radius, uint32_t segments, plDrawRectFlags, plDrawSolidOptions);
     void (*add_quad_filled)        (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plDrawSolidOptions);
     void (*add_circle_filled)      (plDrawLayer2D*, plVec2 p, float radius, uint32_t segments, plDrawSolidOptions);
+    void (*add_polygon_filled)     (plDrawLayer2D*, plVec2* points, uint32_t pointsSize, plDrawSolidOptions);
     void (*add_image)              (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP);
     void (*add_image_ex)           (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP, plVec2 minUV, plVec2 maxUV, uint32_t color);
 
