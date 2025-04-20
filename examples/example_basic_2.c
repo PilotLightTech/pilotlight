@@ -270,6 +270,16 @@ pl_app_update(plAppData* ptAppData)
         (plVec2){200.0f},
         (plVec2){100.0f, 200.0f}, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 0.5f, 1.0f, 0.5f)});
 
+    plVec2 points[5] = {
+        (plVec2){100.0f, 100.0f},
+        (plVec2){500.0f, 100.0f},
+        (plVec2){500.0f, 300.0f},
+        (plVec2){300.0f, 500.0f},
+        (plVec2){100.0f, 300.0f},
+    };
+    gptDraw->add_polygon_filled(ptBGLayer, points, sizeof(points)/sizeof(points[0]), (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.25f, 0.25f, 0.5f)});
+    gptDraw->add_polygon(ptBGLayer, points, sizeof(points)/sizeof(points[0]), (plDrawLineOptions){.fThickness = 30.0f, .uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 0.5f)});
+
     gptProfile->end_sample(0);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~UI & Screen Log API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

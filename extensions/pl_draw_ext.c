@@ -1189,6 +1189,37 @@ pl_add_circle_filled(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t 
 }
 
 static void
+pl_add_polygon(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawLineOptions tOptions)
+{
+    for(uint32_t i = 0; i < uPointsSize; i++)
+    {
+        pl_sb_push(ptLayer->sbtPath, tPoints[i]);
+    }
+
+    pl_sb_push(ptLayer->sbtPath, tPoints[0]);
+    pl__submit_path(ptLayer, tOptions);
+}
+
+static void
+pl_add_polygon_filled(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawSolidOptions tOptions)
+{
+    pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
+    pl__reserve_triangles(ptLayer, 3 * (uPointsSize - 2), uPointsSize);
+
+    const uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    for(uint32_t i = 0; i < uPointsSize; i++)
+    {
+        pl__add_vertex(ptLayer, tPoints[i], tOptions.uColor, gptDrawCtx->ptAtlas->_tWhiteUv);
+    }
+
+    uint32_t numTriangles = uPointsSize - 2;
+    for(uint32_t i = 0; i < numTriangles; i++)
+    {
+        pl__add_index(ptLayer, uVtxStart, 0, i + 1, i + 2);
+    }
+}
+
+static void
 pl_add_image_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, uint32_t uColor)
 {
     pl__prepare_draw_command(ptLayer, tTexture, false);
@@ -3630,6 +3661,8 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_quad_filled            = pl_add_quad_filled,
         .add_circle                 = pl_add_circle,
         .add_circle_filled          = pl_add_circle_filled,
+        .add_polygon                = pl_add_polygon,
+        .add_polygon_filled         = pl_add_polygon_filled,
         .add_image                  = pl_add_image,
         .add_image_ex               = pl_add_image_ex,
         .add_bezier_quad            = pl_add_bezier_quad,
