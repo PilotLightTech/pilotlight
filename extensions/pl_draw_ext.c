@@ -1189,7 +1189,7 @@ pl_add_circle_filled(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t 
 }
 
 static void
-pl_add_polygon(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawLineOptions tOptions)
+pl_add_convex_polygon(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawLineOptions tOptions)
 {
     for(uint32_t i = 0; i < uPointsSize; i++)
     {
@@ -1201,7 +1201,7 @@ pl_add_polygon(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, pl
 }
 
 static void
-pl_add_polygon_filled(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawSolidOptions tOptions)
+pl_add_convex_polygon_filled(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawSolidOptions tOptions)
 {
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 3 * (uPointsSize - 2), uPointsSize);
@@ -3661,8 +3661,8 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_quad_filled            = pl_add_quad_filled,
         .add_circle                 = pl_add_circle,
         .add_circle_filled          = pl_add_circle_filled,
-        .add_polygon                = pl_add_polygon,
-        .add_polygon_filled         = pl_add_polygon_filled,
+        .add_convex_polygon         = pl_add_convex_polygon,
+        .add_convex_polygon_filled  = pl_add_convex_polygon_filled,
         .add_image                  = pl_add_image,
         .add_image_ex               = pl_add_image_ex,
         .add_bezier_quad            = pl_add_bezier_quad,
