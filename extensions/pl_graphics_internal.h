@@ -44,6 +44,7 @@ typedef struct _plFrameGarbage
     plSamplerHandle*          sbtSamplers;
     plBufferHandle*           sbtBuffers;
     plBindGroupHandle*        sbtBindGroups;
+    plBindGroupLayoutHandle*  sbtBindGroupLayouts;
     plShaderHandle*           sbtShaders;
     plComputeShaderHandle*    sbtComputeShaders;
     plRenderPassLayoutHandle* sbtRenderPassLayouts;
@@ -67,6 +68,7 @@ static plRenderPass*       pl_get_render_pass       (plDevice*, plRenderPassHand
 static plBuffer*           pl__get_buffer           (plDevice*, plBufferHandle);
 static plTexture*          pl__get_texture          (plDevice*, plTextureHandle);
 static plBindGroup*        pl__get_bind_group       (plDevice*, plBindGroupHandle);
+static plBindGroupLayout*  pl__get_bind_group_layout(plDevice*, plBindGroupLayoutHandle);
 static plShader*           pl__get_shader           (plDevice*, plShaderHandle);
 static plComputeShader*    pl__get_compute_shader   (plDevice*, plComputeShaderHandle);
 
@@ -84,6 +86,7 @@ static plBufferHandle           pl__get_new_buffer_handle(plDevice*);
 static plTextureHandle          pl__get_new_texture_handle(plDevice*);
 static plSamplerHandle          pl__get_new_sampler_handle(plDevice*);
 static plBindGroupHandle        pl__get_new_bind_group_handle(plDevice*);
+static plBindGroupLayoutHandle  pl__get_new_bind_group_layout_handle(plDevice*);
 static plShaderHandle           pl__get_new_shader_handle(plDevice*);
 static plComputeShaderHandle    pl__get_new_compute_shader_handle(plDevice*);
 static plRenderPassHandle       pl__get_new_render_pass_handle(plDevice*);
@@ -109,6 +112,7 @@ static void pl_queue_render_pass_layout_for_deletion(plDevice*, plRenderPassLayo
 static void pl_queue_shader_for_deletion(plDevice*, plShaderHandle);
 static void pl_queue_compute_shader_for_deletion(plDevice*, plComputeShaderHandle);
 static void pl_queue_bind_group_for_deletion(plDevice*, plBindGroupHandle);
+static void pl_queue_bind_group_layout_for_deletion(plDevice*, plBindGroupLayoutHandle);
 static void pl_queue_sampler_for_deletion(plDevice*, plSamplerHandle);
 
 // helpers

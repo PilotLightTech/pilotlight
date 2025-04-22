@@ -87,6 +87,10 @@ typedef struct _plDrawBackendContext
     plPipelineEntry*     sbt2dPipelineEntries;
     plBindGroupPool*     ptBindGroupPool;
 
+    // bind group layouts
+    plBindGroupLayoutHandle tSamplerBindGroupLayout;
+    plBindGroupLayoutHandle tTextureBindGroupLayout;
+
     // shared resources
     plBufferHandle atIndexBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     uint32_t       auIndexBufferSize[PL_MAX_FRAMES_IN_FLIGHT];
@@ -174,14 +178,23 @@ pl_initialize_draw_backend(plDevice* ptDevice)
     };
     gptDrawBackendCtx->ptBindGroupPool = gptGfx->create_bind_group_pool(ptDevice, &tPoolDesc);
 
-    const plBindGroupLayout tSamplerBindGroupLayout = {
+    const plBindGroupLayoutDesc tSamplerBindGroupLayout = {
         .atSamplerBindings = {
             {.uSlot =  0, .tStages = PL_SHADER_STAGE_FRAGMENT}
         }
     };
+    gptDrawBackendCtx->tSamplerBindGroupLayout = gptGfx->create_bind_group_layout(ptDevice, &tSamplerBindGroupLayout);
+
+    const plBindGroupLayoutDesc tDrawingBindGroup = {
+        .atTextureBindings = { 
+            {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+        }
+    };
+    gptDrawBackendCtx->tTextureBindGroupLayout = gptGfx->create_bind_group_layout(ptDevice, &tDrawingBindGroup);
+
     const plBindGroupDesc tSamplerBindGroupDesc = {
-        .ptPool = gptDrawBackendCtx->ptBindGroupPool,
-        .ptLayout = &tSamplerBindGroupLayout,
+        .ptPool      = gptDrawBackendCtx->ptBindGroupPool,
+        .tLayout     = gptDrawBackendCtx->tSamplerBindGroupLayout,
         .pcDebugName = "font sampler bind group"
     };
     gptDrawBackendCtx->tFontSamplerBindGroup = gptGfx->create_bind_group(ptDevice, &tSamplerBindGroupDesc);
@@ -618,14 +631,14 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
 static plBindGroupHandle
 pl_create_bind_group_for_texture(plTextureHandle tTexture)
 {
-    const plBindGroupLayout tDrawingBindGroup = {
+    const plBindGroupLayoutDesc tDrawingBindGroup = {
         .atTextureBindings = { 
             {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         }
     };
     const plBindGroupDesc tSamplerBindGroupDesc = {
-        .ptPool = gptDrawBackendCtx->ptBindGroupPool,
-        .ptLayout = &tDrawingBindGroup,
+        .ptPool      = gptDrawBackendCtx->ptBindGroupPool,
+        .tLayout     = gptDrawBackendCtx->tTextureBindGroupLayout,
         .pcDebugName = "draw texture bind group"
     };
     plBindGroupHandle tBindGroup = gptGfx->create_bind_group(gptDrawBackendCtx->ptDevice, &tSamplerBindGroupDesc);

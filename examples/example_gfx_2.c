@@ -66,7 +66,8 @@ typedef struct _plAppData
     plSamplerHandle tSampler;
 
     // bind groups
-    plBindGroupHandle tBindGroup0;
+    plBindGroupHandle       tBindGroup0;
+    plBindGroupLayoutHandle tBindGroupLayout0;
 
     // graphics & sync objects
     plBindGroupPool* ptBindGroupPool;
@@ -366,7 +367,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //       concept but treats bind groups as simple offsets into argument buffers.
 
     // create bind group
-    const plBindGroupLayout tBindGroupLayout = {
+    const plBindGroupLayoutDesc tBindGroupLayout = {
         .atSamplerBindings = {
             { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT}
         },
@@ -374,8 +375,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         }
     };
+    ptAppData->tBindGroupLayout0 = gptGfx->create_bind_group_layout(ptDevice, &tBindGroupLayout);
+
     const plBindGroupDesc tBindGroupDesc = {
-        .ptLayout    = &tBindGroupLayout,
+        .tLayout     = ptAppData->tBindGroupLayout0,
         .pcDebugName = "bind group 0",
         .ptPool      = ptAppData->ptBindGroupPool
     };

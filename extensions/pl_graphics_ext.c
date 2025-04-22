@@ -140,6 +140,14 @@ pl__get_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
     return &ptDevice->sbtBindGroupsCold[tHandle.uIndex];
 }
 
+static plBindGroupLayout*
+pl__get_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
+{
+    if(tHandle.uGeneration != ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration)
+        return NULL;
+    return &ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex];
+}
+
 static plShader*
 pl__get_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
@@ -240,6 +248,14 @@ pl_queue_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
     pl_sb_push(ptGarbage->sbtBindGroups, tHandle);
     ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration++;
+}
+
+static void
+pl_queue_bind_group_layout_for_deletion(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
+{
+    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
+    pl_sb_push(ptGarbage->sbtBindGroupLayouts, tHandle);
+    ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration++;
 }
 
 static void
@@ -362,6 +378,8 @@ pl__cleanup_common_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtComputeShaderFreeIndices);
     pl_sb_free(ptDevice->sbtRenderPassLayoutFreeIndices);
     pl_sb_free(ptDevice->sbtRenderPassFreeIndices);
+    pl_sb_free(ptDevice->sbtBindGroupLayoutsCold);
+    pl_sb_free(ptDevice->sbtBindGroupLayoutFreeIndices);
 
     for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBindGroupsCold); i++)
     {
@@ -397,6 +415,12 @@ pl__cleanup_common_device(plDevice* ptDevice)
 
 static bool
 pl_is_buffer_valid(plDevice* ptDevice, plBufferHandle tHandle)
+{
+    return (tHandle.uGeneration == ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration);
+}
+
+static bool
+pl_is_bind_group_layout_valid(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration);
 }
@@ -526,6 +550,27 @@ pl__get_new_bind_group_handle(plDevice* ptDevice)
     plBindGroupHandle tHandle = {
         .uGeneration = ++ptDevice->sbtBindGroupsCold[uBindGroupIndex]._uGeneration,
         .uIndex = uBindGroupIndex
+    };
+    return tHandle;
+}
+
+static plBindGroupLayoutHandle
+pl__get_new_bind_group_layout_handle(plDevice* ptDevice)
+{
+    uint16_t uBindGroupIndex = 0;
+    if(pl_sb_size(ptDevice->sbtBindGroupLayoutFreeIndices) > 0)
+        uBindGroupIndex = pl_sb_pop(ptDevice->sbtBindGroupLayoutFreeIndices);
+    else
+    {
+        uBindGroupIndex = (uint16_t)pl_sb_size(ptDevice->sbtBindGroupLayoutsCold);
+        pl_sb_add(ptDevice->sbtBindGroupLayoutsCold);
+        pl_sb_back(ptDevice->sbtBindGroupLayoutsCold)._uGeneration = UINT16_MAX;
+        pl_sb_add(ptDevice->sbtBindGroupLayoutsHot);
+    }
+
+    plBindGroupLayoutHandle tHandle = {
+        .uGeneration = ++ptDevice->sbtBindGroupLayoutsCold[uBindGroupIndex]._uGeneration,
+        .uIndex      = uBindGroupIndex
     };
     return tHandle;
 }
@@ -838,6 +883,11 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_texture_view                    = pl_create_texture_view,
         .create_sampler                         = pl_create_sampler,
         .create_bind_group                      = pl_create_bind_group,
+        .create_bind_group_layout               = pl_create_bind_group_layout,
+        .destroy_bind_group_layout              = pl_destroy_bind_group_layout,
+        .queue_bind_group_layout_for_deletion   = pl_queue_bind_group_layout_for_deletion,
+        .get_bind_group_layout                  = pl__get_bind_group_layout,
+        .is_bind_group_layout_valid             = pl_is_bind_group_layout_valid,
         .update_bind_group                      = pl_update_bind_group,
         .allocate_dynamic_data_block            = pl_allocate_dynamic_data_block,
         .queue_buffer_for_deletion              = pl_queue_buffer_for_deletion,

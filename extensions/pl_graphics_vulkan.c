@@ -115,7 +115,7 @@ typedef struct _plVulkanBindGroup
     VkDescriptorPool      tPool; // owning pool
     bool                  bResetable;
     VkDescriptorSet       tDescriptorSet;
-    VkDescriptorSetLayout tDescriptorSetLayout;
+    // VkDescriptorSetLayout tDescriptorSetLayout;
 } plVulkanBindGroup;
 
 typedef struct _plVulkanShader
@@ -267,8 +267,9 @@ typedef struct _plDevice
     uint16_t*          sbtBindGroupFreeIndices;
 
     // bind group layout generation pool
-    plVulkanBindGroupLayout* sbtBindGroupLayouts;
-    uint32_t*                sbtBindGroupLayoutFreeIndices;
+    plVulkanBindGroupLayout* sbtBindGroupLayoutsHot;
+    plBindGroupLayout*       sbtBindGroupLayoutsCold;
+    uint16_t*                sbtBindGroupLayoutFreeIndices;
     VkDescriptorSetLayout    tDynamicDescriptorSetLayout;
 
     // vulkan specifics
@@ -368,31 +369,26 @@ static bool     pl__format_has_stencil          (VkFormat);
 static void     pl__transition_image_layout     (VkCommandBuffer, VkImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask);
 static void     pl__create_swapchain            (uint32_t uWidth, uint32_t uHeight, plSwapchain *);
 static void     pl__fill_common_render_pass_data(plRenderPassLayoutDesc*, plRenderPassLayout*, plRenderPassCommonData* ptDataOut);
-static void     pl__create_bind_group_layout    (plDevice*, plBindGroupLayout*, const char* pcName);
 
 // debug stuff
 static VKAPI_ATTR VkBool32 VKAPI_CALL pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT, const VkDebugUtilsMessengerCallbackDataEXT*, void*);
 static void pl__set_vulkan_object_name(plDevice*, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT, const char* pcName);
 
-// allocation functions
 static void*
 pl__vk_alloc(void* pData, size_t szSize, size_t szAlignment, VkSystemAllocationScope tScode)
 {
-    // return malloc(szSize);
     return gptMemory->tracked_realloc(NULL, szSize, __FILE__, __LINE__);
 }
 
 static void*
 pl__vk_realloc(void* pData, void* pBuffer, size_t szSize, size_t szAlignment, VkSystemAllocationScope tScode)
 {
-    // return realloc(pBuffer, szSize);
     return gptMemory->tracked_realloc(pBuffer, szSize, __FILE__, __LINE__);
 }
 
 static void
 pl__vk_free(void* pData, void* pBuffer)
 {
-    // free(pBuffer);
     gptMemory->tracked_realloc(pBuffer, 0, __FILE__, __LINE__);
 }
 
@@ -906,36 +902,34 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
     return tHandle;
 }
 
-plBindGroupHandle
-pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
+plBindGroupLayoutHandle
+pl_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayoutDesc* ptDesc)
 {
-    plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
-    plBindGroup* ptBindGroup = pl__get_bind_group(ptDevice, tHandle);
-    ptBindGroup->tLayout = *ptDesc->ptLayout;
-
-    plBindGroupLayout* ptLayout = &ptBindGroup->tLayout;
+    plBindGroupLayoutHandle tHandle = pl__get_new_bind_group_layout_handle(ptDevice);
+    plBindGroupLayout* ptLayout = &ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex];
 
     // count bindings
+    ptLayout->tDesc = *ptDesc;
     ptLayout->_uBufferBindingCount = 0;
     ptLayout->_uTextureBindingCount = 0;
     ptLayout->_uSamplerBindingCount = 0;
     for(uint32_t i = 0; i < PL_MAX_TEXTURES_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atTextureBindings[i].tStages == PL_SHADER_STAGE_NONE)
+        if(ptDesc->atTextureBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uTextureBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_BUFFERS_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atBufferBindings[i].tStages == PL_SHADER_STAGE_NONE)
+        if(ptDesc->atBufferBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uBufferBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_SAMPLERS_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atSamplerBindings[i].tStages == PL_SHADER_STAGE_NONE)
+        if(ptDesc->atSamplerBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uSamplerBindingCount++;
     }
@@ -944,18 +938,18 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     const uint32_t uDescriptorBindingCount = ptLayout->_uTextureBindingCount + ptLayout->_uBufferBindingCount + ptLayout->_uSamplerBindingCount;
     VkDescriptorSetLayoutBinding *atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
     VkDescriptorBindingFlagsEXT *atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
-    uint32_t tDescriptorCount = 1;
     bool bHasVariableDescriptors = false;
+    ptLayout->_uDescriptorCount = 1;
 
     // buffer bindings
     uint32_t uCurrentBinding = 0;
     for (uint32_t i = 0; i < ptLayout->_uBufferBindingCount; i++)
     {
         VkDescriptorSetLayoutBinding tBinding = {
-            .binding            = ptLayout->atBufferBindings[i].uSlot,
-            .descriptorType     = ptLayout->atBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .binding            = ptDesc->atBufferBindings[i].uSlot,
+            .descriptorType     = ptDesc->atBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount    = 1,
-            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atBufferBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptDesc->atBufferBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
@@ -966,26 +960,26 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     for (uint32_t i = 0; i < ptLayout->_uTextureBindingCount; i++)
     {
         VkDescriptorSetLayoutBinding tBinding = {
-            .binding            = ptLayout->atTextureBindings[i].uSlot,
-            .descriptorCount    = ptLayout->atTextureBindings[i].uDescriptorCount,
-            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atTextureBindings[i].tStages),
+            .binding            = ptDesc->atTextureBindings[i].uSlot,
+            .descriptorCount    = ptDesc->atTextureBindings[i].uDescriptorCount,
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptDesc->atTextureBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
 
-        if (ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED)
+        if (ptDesc->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED)
             tBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        else if (ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT)
+        else if (ptDesc->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT)
             tBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-        else if (ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_STORAGE)
+        else if (ptDesc->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_STORAGE)
             tBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 
         if (tBinding.descriptorCount > 1)
-            tDescriptorCount = tBinding.descriptorCount;
+            ptLayout->_uDescriptorCount = tBinding.descriptorCount;
         else if (tBinding.descriptorCount == 0)
             tBinding.descriptorCount = 1;
 
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
-        if (ptLayout->atTextureBindings[i].bNonUniformIndexing)
+        if (ptDesc->atTextureBindings[i].bNonUniformIndexing)
         {
             atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
             bHasVariableDescriptors = true;
@@ -997,10 +991,10 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     for (uint32_t i = 0; i < ptLayout->_uSamplerBindingCount; i++)
     {
         VkDescriptorSetLayoutBinding tBinding = {
-            .binding            = ptLayout->atSamplerBindings[i].uSlot,
+            .binding            = ptDesc->atSamplerBindings[i].uSlot,
             .descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLER,
             .descriptorCount    = 1,
-            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atSamplerBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptDesc->atSamplerBindings[i].tStages),
             .pImmutableSamplers = NULL
         };
 
@@ -1027,16 +1021,37 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
     PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, &gptGraphics->tAllocationCallbacks, &tDescriptorSetLayout));
 
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
+
+    plVulkanBindGroupLayout tVulkanLayout = {
+        .tDescriptorSetLayout = tDescriptorSetLayout
+    };
+
+    ptDevice->sbtBindGroupLayoutsHot[tHandle.uIndex] = tVulkanLayout;
+    return tHandle;
+}
+
+plBindGroupHandle
+pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
+{
+    plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
+    plBindGroup* ptBindGroup = pl__get_bind_group(ptDevice, tHandle);
+    ptBindGroup->tDesc = *ptDesc;
+    plBindGroupLayout* ptBindGroupLayout = pl__get_bind_group_layout(ptDevice, ptDesc->tLayout);
+    plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayoutsHot[ptDesc->tLayout.uIndex];
+
+
+    plBindGroupLayoutDesc* ptLayout = &ptBindGroupLayout->tDesc;
+
     plVulkanBindGroup tVulkanBindGroup = {
-        .bResetable           = ptDesc->ptPool->tDesc.tFlags & PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET,
-        .tDescriptorSetLayout = tDescriptorSetLayout,
-        .tPool                = ptDesc->ptPool->tDescriptorPool
+        .bResetable = ptDesc->ptPool->tDesc.tFlags & PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET,
+        .tPool      = ptDesc->ptPool->tDescriptorPool
     };
 
     VkDescriptorSetVariableDescriptorCountAllocateInfoEXT tVariableDescriptorCountAllocInfo = {
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT,
         .descriptorSetCount = 1,
-        .pDescriptorCounts  = &tDescriptorCount,
+        .pDescriptorCounts  = &ptBindGroupLayout->_uDescriptorCount,
     };
 
     // allocate descriptor sets
@@ -1044,7 +1059,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool     = ptDesc->ptPool->tDescriptorPool,
         .descriptorSetCount = 1,
-        .pSetLayouts        = &tDescriptorSetLayout,
+        .pSetLayouts        = &ptVulkanBindGroupLayout->tDescriptorSetLayout,
         // .pNext              = bHasVariableDescriptors ? &tVariableDescriptorCountAllocInfo : NULL
         .pNext              = NULL
     };
@@ -1061,6 +1076,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
 {
     plBindGroup* ptBindGroup = pl__get_bind_group(ptDevice, tHandle);
     plVulkanBindGroup* ptVulkanBindGroup = &ptDevice->sbtBindGroupsHot[tHandle.uIndex];
+    plBindGroupLayout* ptLayout = pl__get_bind_group_layout(ptDevice, ptBindGroup->tDesc.tLayout);
 
     VkWriteDescriptorSet* sbtWrites = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, (ptData->uBufferCount + ptData->uSamplerCount + ptData->uTextureCount) * sizeof(VkWriteDescriptorSet));
 
@@ -1088,7 +1104,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         sbtWrites[uCurrentWrite].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sbtWrites[uCurrentWrite].dstBinding = ptData->atBufferBindings[i].uSlot;
         sbtWrites[uCurrentWrite].dstArrayElement = 0;
-        sbtWrites[uCurrentWrite].descriptorType = atDescriptorTypeLUT[ptBindGroup->tLayout.atBufferBindings[i].tType - 1];
+        sbtWrites[uCurrentWrite].descriptorType = atDescriptorTypeLUT[ptLayout->tDesc.atBufferBindings[i].tType - 1];
         sbtWrites[uCurrentWrite].descriptorCount = 1;
         sbtWrites[uCurrentWrite].dstSet = ptVulkanBindGroup->tDescriptorSet;
         sbtWrites[uCurrentWrite].pBufferInfo = &sbtBufferDescInfos[i];
@@ -1373,8 +1389,8 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
         }
         else
         {
-            pl__create_bind_group_layout(ptDevice, &ptShader->tDesc.atBindGroupLayouts[i], "compute shader template bind group layout");
-            ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->sbtBindGroupLayouts[ptShader->tDesc.atBindGroupLayouts[i]._uHandle].tDescriptorSetLayout;
+            ptShader->tDesc._atBindGroupLayouts[i] = pl_create_bind_group_layout(ptDevice, &ptShader->tDesc.atBindGroupLayouts[i]);
+            ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->sbtBindGroupLayoutsHot[ptShader->tDesc._atBindGroupLayouts[i].uIndex].tDescriptorSetLayout;
             ptShader->tDesc._uBindGroupLayoutCount++;
         }
     }
@@ -1394,7 +1410,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
         .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 4,
         .pSetLayouts    = ptVulkanShader->atDescriptorSetLayouts
-        };
+    };
 
     const VkSpecializationInfo tSpecializationInfo = {
         .mapEntryCount = ptShader->tDesc._uConstantCount,
@@ -1454,8 +1470,8 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         }
         else
         {
-            pl__create_bind_group_layout(ptDevice, &ptShader->tDesc.atBindGroupLayouts[i], "shader template bind group layout");
-            ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->sbtBindGroupLayouts[ptShader->tDesc.atBindGroupLayouts[i]._uHandle].tDescriptorSetLayout;
+            ptShader->tDesc._atBindGroupLayouts[i] = pl_create_bind_group_layout(ptDevice, &ptShader->tDesc.atBindGroupLayouts[i]);
+            ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->sbtBindGroupLayoutsHot[ptShader->tDesc._atBindGroupLayouts[i].uIndex].tDescriptorSetLayout;
             ptShader->tDesc._uBindGroupLayoutCount++;
         }
     }
@@ -2800,6 +2816,7 @@ pl_create_device(const plDeviceInit* ptInit)
     pl_sb_add(ptDevice->sbtTexturesHot);
     pl_sb_add(ptDevice->sbtSamplersHot);
     pl_sb_add(ptDevice->sbtBindGroupsHot);
+    pl_sb_add(ptDevice->sbtBindGroupLayoutsHot);
     
     pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
     pl_sb_add(ptDevice->sbtShadersCold);
@@ -2808,6 +2825,7 @@ pl_create_device(const plDeviceInit* ptInit)
     pl_sb_add(ptDevice->sbtTexturesCold);
     pl_sb_add(ptDevice->sbtSamplersCold);
     pl_sb_add(ptDevice->sbtBindGroupsCold);
+    pl_sb_add(ptDevice->sbtBindGroupLayoutsCold);
 
     pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = 1;
@@ -2816,6 +2834,7 @@ pl_create_device(const plDeviceInit* ptInit)
     pl_sb_back(ptDevice->sbtTexturesCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtSamplersCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBindGroupLayoutsCold)._uGeneration = 1;
 
     uint32_t uDeviceCount = 16;
     VkPhysicalDevice atDevices[16] = {0};
@@ -3445,10 +3464,10 @@ pl_cleanup_device(plDevice* ptDevice)
             vkDestroySampler(ptDevice->tLogicalDevice, ptDevice->sbtSamplersHot[i], &gptGraphics->tAllocationCallbacks);
     }
 
-    for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBindGroupsHot); i++)
-    {
-        vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptDevice->sbtBindGroupsHot[i].tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
-    }
+    // for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBindGroupsHot); i++)
+    // {
+    //     vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptDevice->sbtBindGroupsHot[i].tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
+    // }
 
     // vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->tDummyBuffer, &gptGraphics->tAllocationCallbacks);
     // ptDevice->tDummyBuffer = VK_NULL_HANDLE;
@@ -3485,10 +3504,10 @@ pl_cleanup_device(plDevice* ptDevice)
     vkFreeMemory(ptDevice->tLogicalDevice, ptDevice->tDummyMemory, &gptGraphics->tAllocationCallbacks);
     vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptDevice->tNullDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
 
-    for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBindGroupLayouts); i++)
+    for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBindGroupLayoutsHot); i++)
     {
-        if (ptDevice->sbtBindGroupLayouts[i].tDescriptorSetLayout)
-            vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptDevice->sbtBindGroupLayouts[i].tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
+        if (ptDevice->sbtBindGroupLayoutsHot[i].tDescriptorSetLayout)
+            vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptDevice->sbtBindGroupLayoutsHot[i].tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
     }
 
     for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtRenderPassLayoutsHot); i++)
@@ -3504,7 +3523,7 @@ pl_cleanup_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtBuffersHot);
     pl_sb_free(ptDevice->sbtShadersHot);
     pl_sb_free(ptDevice->sbtComputeShadersHot);
-    pl_sb_free(ptDevice->sbtBindGroupLayouts);
+    pl_sb_free(ptDevice->sbtBindGroupLayoutsHot);
     pl_sb_free(ptDevice->sbtTextureViewsHot);
 
     // cleanup per frame resources
@@ -3865,11 +3884,15 @@ pl_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc* ptDesc)
 
     VkDescriptorPoolCreateInfo tDescriptorPoolInfo = {
         .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .flags         = 0,
         .maxSets       = (uint32_t)szMaxSets,
         .poolSizeCount = uPoolSizeCount,
         .pPoolSizes    = atPoolSizes
     };
+
+    if(ptDesc->tFlags &  PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET)
+        tDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+
     if (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING)
     {
         tDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
@@ -4109,9 +4132,20 @@ pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 
     plVulkanBindGroup* ptVulkanResource = &ptDevice->sbtBindGroupsHot[tHandle.uIndex];
     ptVulkanResource->tDescriptorSet = VK_NULL_HANDLE;
+    // vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
+    // ptVulkanResource->tDescriptorSetLayout = VK_NULL_HANDLE;
+    pl_sb_push(ptDevice->sbtBindGroupFreeIndices, tHandle.uIndex);
+}
+
+void
+pl_destroy_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
+{
+    ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration++;
+
+    plVulkanBindGroupLayout* ptVulkanResource = &ptDevice->sbtBindGroupLayoutsHot[tHandle.uIndex];
     vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
     ptVulkanResource->tDescriptorSetLayout = VK_NULL_HANDLE;
-    pl_sb_push(ptDevice->sbtBindGroupFreeIndices, tHandle.uIndex);
+    pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, tHandle.uIndex);
 }
 
 void
@@ -4160,10 +4194,7 @@ pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
     pl_sb_push(ptDevice->sbtShaderFreeIndices, tHandle.uIndex);
     for (uint32_t k = 0; k < ptResource->tDesc._uBindGroupLayoutCount; k++)
     {
-        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDesc.atBindGroupLayouts[k]._uHandle];
-        vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
-        ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-        pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDesc.atBindGroupLayouts[k]._uHandle);
+        pl_queue_bind_group_layout_for_deletion(ptDevice, ptResource->tDesc._atBindGroupLayouts[k]);
     }
 }
 
@@ -4184,135 +4215,13 @@ pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
 
     for (uint32_t k = 0; k < ptResource->tDesc._uBindGroupLayoutCount + 1; k++)
     {
-        plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDesc.atBindGroupLayouts[k]._uHandle];
-        vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
-        ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-        pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDesc.atBindGroupLayouts[k]._uHandle);
+        pl_queue_bind_group_layout_for_deletion(ptDevice, ptResource->tDesc._atBindGroupLayouts[k]);
     }
 }
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
-
-static void
-pl__create_bind_group_layout(plDevice* ptDevice, plBindGroupLayout* ptLayout, const char* pcName)
-{
-    plVulkanBindGroupLayout tVulkanBindGroupLayout = {0};
-
-    uint32_t uBindGroupLayoutIndex = UINT32_MAX;
-    if (pl_sb_size(ptDevice->sbtBindGroupLayoutFreeIndices) > 0)
-        uBindGroupLayoutIndex = pl_sb_pop(ptDevice->sbtBindGroupLayoutFreeIndices);
-    else
-    {
-        uBindGroupLayoutIndex = pl_sb_size(ptDevice->sbtBindGroupLayouts);
-        pl_sb_add(ptDevice->sbtBindGroupLayouts);
-    }
-    ptLayout->_uHandle = uBindGroupLayoutIndex;
-    ptLayout->_uBufferBindingCount = 0;
-    ptLayout->_uTextureBindingCount = 0;
-    ptLayout->_uSamplerBindingCount = 0;
-
-    // count bindings
-    for(uint32_t i = 0; i < PL_MAX_TEXTURES_PER_BIND_GROUP; i++)
-    {
-        if(ptLayout->atTextureBindings[i].tStages == PL_SHADER_STAGE_NONE)
-            break;
-        ptLayout->_uTextureBindingCount++;
-    }
-
-    for(uint32_t i = 0; i < PL_MAX_BUFFERS_PER_BIND_GROUP; i++)
-    {
-        if(ptLayout->atBufferBindings[i].tStages == PL_SHADER_STAGE_NONE)
-            break;
-        ptLayout->_uBufferBindingCount++;
-    }
-
-    for(uint32_t i = 0; i < PL_MAX_SAMPLERS_PER_BIND_GROUP; i++)
-    {
-        if(ptLayout->atSamplerBindings[i].tStages == PL_SHADER_STAGE_NONE)
-            break;
-        ptLayout->_uSamplerBindingCount++;
-    }
-
-    uint32_t uCurrentBinding = 0;
-    const uint32_t uDescriptorBindingCount = ptLayout->_uTextureBindingCount + ptLayout->_uBufferBindingCount + ptLayout->_uSamplerBindingCount;
-    VkDescriptorSetLayoutBinding *atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
-    VkDescriptorBindingFlagsEXT *atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
-
-    for (uint32_t i = 0; i < ptLayout->_uBufferBindingCount; i++)
-    {
-        VkDescriptorSetLayoutBinding tBinding = {
-            .binding            = ptLayout->atBufferBindings[i].uSlot,
-            .descriptorType     = ptLayout->atBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount    = 1,
-            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atBufferBindings[i].tStages),
-            .pImmutableSamplers = NULL
-        };
-        atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
-        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
-    }
-
-    for (uint32_t i = 0; i < ptLayout->_uTextureBindingCount; i++)
-    {
-        VkDescriptorSetLayoutBinding tBinding = {
-            .binding            = ptLayout->atTextureBindings[i].uSlot,
-            .descriptorCount    = ptLayout->atTextureBindings[i].uDescriptorCount,
-            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atTextureBindings[i].tStages),
-            .pImmutableSamplers = NULL
-        };
-
-        if (ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED)
-            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        else if (ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT)
-            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-        else if (ptLayout->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_STORAGE)
-            tBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-
-        if (tBinding.descriptorCount == 0)
-            tBinding.descriptorCount = 1;
-        atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
-        if (ptLayout->atTextureBindings[i].bNonUniformIndexing)
-            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
-        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
-    }
-
-    for (uint32_t i = 0; i < ptLayout->_uSamplerBindingCount; i++)
-    {
-        VkDescriptorSetLayoutBinding tBinding = {
-            .binding            = ptLayout->atSamplerBindings[i].uSlot,
-            .descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount    = 1,
-            .stageFlags         = pl_vulkan_shader_stage_flags(ptLayout->atSamplerBindings[i].tStages),
-            .pImmutableSamplers = NULL
-        };
-        atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
-        atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
-    }
-
-    VkDescriptorSetLayoutBindingFlagsCreateInfoEXT setLayoutBindingFlags = {
-        .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT,
-        .bindingCount  = uDescriptorBindingCount,
-        .pBindingFlags = atDescriptorSetLayoutFlags,
-        .pNext         = NULL
-    };
-
-    // create descriptor set layout
-    const VkDescriptorSetLayoutCreateInfo tDescriptorSetLayoutInfo = {
-        .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = uDescriptorBindingCount,
-        .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext        = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING) ? &setLayoutBindingFlags : NULL,
-        .flags        = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING) ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
-    };
-    PL_VULKAN(vkCreateDescriptorSetLayout(ptDevice->tLogicalDevice, &tDescriptorSetLayoutInfo, &gptGraphics->tAllocationCallbacks, &tVulkanBindGroupLayout.tDescriptorSetLayout));
-
-    if (pcName)
-        pl__set_vulkan_object_name(ptDevice, (uint64_t)tVulkanBindGroupLayout.tDescriptorSetLayout, VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT, pcName);
-
-    ptDevice->sbtBindGroupLayouts[uBindGroupLayoutIndex] = tVulkanBindGroupLayout;
-    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
-}
 
 static void
 pl__fill_common_render_pass_data(plRenderPassLayoutDesc* ptDesc, plRenderPassLayout* ptLayout, plRenderPassCommonData* ptDataOut)
@@ -5516,10 +5425,7 @@ pl__garbage_collect(plDevice* ptDevice)
         pl_sb_push(ptDevice->sbtShaderFreeIndices, iResourceIndex);
         for (uint32_t k = 0; k < ptResource->tDesc._uBindGroupLayoutCount; k++)
         {
-            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDesc.atBindGroupLayouts[k]._uHandle];
-            vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
-            ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-            pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDesc.atBindGroupLayouts[k]._uHandle);
+            pl_queue_bind_group_layout_for_deletion(ptDevice, ptResource->tDesc._atBindGroupLayouts[k]);
         }
     }
 
@@ -5543,10 +5449,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
         for (uint32_t k = 0; k < ptResource->tDesc._uBindGroupLayoutCount; k++)
         {
-            plVulkanBindGroupLayout* ptVulkanBindGroupLayout = &ptDevice->sbtBindGroupLayouts[ptResource->tDesc.atBindGroupLayouts[k]._uHandle];
-            vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanBindGroupLayout->tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
-            ptVulkanBindGroupLayout->tDescriptorSetLayout = VK_NULL_HANDLE;
-            pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, ptResource->tDesc.atBindGroupLayouts[k]._uHandle);
+            pl_queue_bind_group_layout_for_deletion(ptDevice, ptResource->tDesc._atBindGroupLayouts[k]);
         }
     }
 
@@ -5558,9 +5461,18 @@ pl__garbage_collect(plDevice* ptDevice)
             vkFreeDescriptorSets(ptDevice->tLogicalDevice, ptVulkanResource->tPool, 1, &ptVulkanResource->tDescriptorSet);
         ptVulkanResource->tPool = VK_NULL_HANDLE;
         ptVulkanResource->tDescriptorSet = VK_NULL_HANDLE;
+        // vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
+        // ptVulkanResource->tDescriptorSetLayout = VK_NULL_HANDLE;
+        pl_sb_push(ptDevice->sbtBindGroupFreeIndices, iResourceIndex);
+    }
+
+    for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBindGroupLayouts); i++)
+    {
+        const uint16_t iResourceIndex = ptGarbage->sbtBindGroupLayouts[i].uIndex;
+        plVulkanBindGroupLayout* ptVulkanResource = &ptDevice->sbtBindGroupLayoutsHot[iResourceIndex];
         vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptVulkanResource->tDescriptorSetLayout, &gptGraphics->tAllocationCallbacks);
         ptVulkanResource->tDescriptorSetLayout = VK_NULL_HANDLE;
-        pl_sb_push(ptDevice->sbtBindGroupFreeIndices, iResourceIndex);
+        pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, iResourceIndex);
     }
 
     for (uint32_t i = 0; i < pl_sb_size(ptCurrentFrame->sbtRawFrameBuffers); i++)
@@ -5599,6 +5511,7 @@ pl__garbage_collect(plDevice* ptDevice)
     pl_sb_reset(ptCurrentFrame->sbtRawFrameBuffers);
     pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);
+    pl_sb_reset(ptGarbage->sbtBindGroupLayouts);
     pl_end_cpu_sample(gptProfile, 0);
 }
 

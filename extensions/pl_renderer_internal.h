@@ -529,6 +529,24 @@ typedef struct _plRefRendererData
     plRenderPassLayoutHandle tDepthRenderPassLayout;
     plRenderPassLayoutHandle tPickRenderPassLayout;
 
+    // bind group layouts
+    plBindGroupLayoutHandle tGlobalSceneBindGroupLayout;
+    plBindGroupLayoutHandle tLightingViewBindGroupLayout;
+    plBindGroupLayoutHandle tPickViewBindGroupLayout;
+    plBindGroupLayoutHandle tSkyboxComputeBindGroupLayout;
+    plBindGroupLayoutHandle tSkyboxBindGroupLayout;
+    plBindGroupLayoutHandle tSkyboxBG0Layout;
+    plBindGroupLayoutHandle tSkyboxBG1Layout;
+    plBindGroupLayoutHandle tDeferredBG1Layout;
+    plBindGroupLayoutHandle tSceneBGLayout;
+    plBindGroupLayoutHandle tPickBG0Layout;
+    plBindGroupLayoutHandle tJFABGLayout;
+    plBindGroupLayoutHandle tShadowGlobalBGLayout;
+    plBindGroupLayoutHandle tOutlineBGLayout;
+    plBindGroupLayoutHandle tSkinBGLayout;
+    plBindGroupLayoutHandle tSkin2BGLayout;
+    plBindGroupLayoutHandle tEnvBGLayout;
+
     // shader templates (variants are made from these)
     plShaderHandle        tShadowShader;
     plShaderHandle        tAlphaShadowShader;

@@ -229,8 +229,9 @@ typedef struct _plDevice
     uint16_t*          sbtBindGroupFreeIndices;
 
     // bind group layout generation pool
-    plCpuBindGroupLayout* sbtBindGroupLayouts;
-    uint32_t*                sbtBindGroupLayoutFreeIndices;
+    plCpuBindGroupLayout* sbtBindGroupLayoutsHot;
+    plBindGroupLayout*       sbtBindGroupLayoutsCold;
+    uint16_t*                sbtBindGroupLayoutFreeIndices;
     // VkDescriptorSetLayout    tDynamicDescriptorSetLayout;
 
     // vulkan specifics
@@ -370,6 +371,13 @@ plBindGroupHandle
 pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
 {
     plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
+    return tHandle;
+}
+
+plBindGroupLayoutHandle
+pl_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayoutDesc* ptDesc)
+{
+    plBindGroupLayoutHandle tHandle = pl__get_new_bind_group_layout_handle(ptDevice);
     return tHandle;
 }
 
@@ -832,6 +840,11 @@ pl_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 
 void
 pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
+{
+}
+
+void
+pl_destroy_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
 {
 }
 

@@ -152,7 +152,8 @@ typedef struct _plPassResources       plPassResources;
 
 // bind groups
 typedef struct _plBindGroup                  plBindGroup;                  // bind group resource
-typedef struct _plBindGroupLayout            plBindGroupLayout;            // bind group layout decription
+typedef struct _plBindGroupLayout            plBindGroupLayout;            // bind group layout
+typedef struct _plBindGroupLayoutDesc        plBindGroupLayoutDesc;        // bind group layout decription
 typedef struct _plBindGroupDesc              plBindGroupDesc;              // descriptor for creating bind groups
 typedef struct _plBindGroupPool              plBindGroupPool;              // opaque type for bind group pools
 typedef struct _plBindGroupPoolDesc          plBindGroupPoolDesc;          // descriptor for creating bind group pools
@@ -214,6 +215,7 @@ PL_DEFINE_HANDLE(plBufferHandle);
 PL_DEFINE_HANDLE(plTextureHandle);
 PL_DEFINE_HANDLE(plSamplerHandle);
 PL_DEFINE_HANDLE(plBindGroupHandle);
+PL_DEFINE_HANDLE(plBindGroupLayoutHandle);
 PL_DEFINE_HANDLE(plShaderHandle);
 PL_DEFINE_HANDLE(plComputeShaderHandle);
 PL_DEFINE_HANDLE(plRenderPassHandle);
@@ -425,6 +427,13 @@ typedef struct _plGraphicsI
     void              (*destroy_bind_group)           (plDevice*, plBindGroupHandle);
     plBindGroup*      (*get_bind_group)               (plDevice*, plBindGroupHandle); // do not store
     bool              (*is_bind_group_valid)          (plDevice*, plBindGroupHandle);
+
+    // bind group layouts
+    plBindGroupLayoutHandle (*create_bind_group_layout)            (plDevice*, const plBindGroupLayoutDesc*);
+    void                    (*destroy_bind_group_layout)           (plDevice*, plBindGroupLayoutHandle);
+    void                    (*queue_bind_group_layout_for_deletion)(plDevice*, plBindGroupLayoutHandle);
+    plBindGroupLayout*      (*get_bind_group_layout)               (plDevice*, plBindGroupLayoutHandle); // do not store
+    bool                    (*is_bind_group_layout_valid)          (plDevice*, plBindGroupLayoutHandle);
     
     // render passes
     plRenderPassHandle (*create_render_pass)            (plDevice*, const plRenderPassDesc*, const plRenderPassAttachments*);
@@ -708,19 +717,13 @@ typedef struct _plPassResources
     const plPassTextureResource* atTextures;
 } plPassResources;
 
-typedef struct _plBindGroupLayout
+typedef struct _plBindGroupLayoutDesc
 {
-
     plTextureBinding atTextureBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
     plBufferBinding  atBufferBindings[PL_MAX_BUFFERS_PER_BIND_GROUP];
     plSamplerBinding atSamplerBindings[PL_MAX_SAMPLERS_PER_BIND_GROUP];
-
-    // [INTERNAL]
-    uint32_t _uHandle;
-    uint32_t _uTextureBindingCount;
-    uint32_t _uBufferBindingCount;
-    uint32_t _uSamplerBindingCount;
-} plBindGroupLayout;
+    const char*      pcDebugName; // default: "unnamed bind group"
+} plBindGroupLayoutDesc;
 
 typedef struct _plBindGroupPoolDesc
 {
@@ -735,19 +738,31 @@ typedef struct _plBindGroupPoolDesc
 
 typedef struct _plBindGroupDesc
 {
-    const plBindGroupLayout* ptLayout;
-    plBindGroupPool*         ptPool;     // pool to allocator from
-    const char*              pcDebugName; // default: "unnamed bind group"
+    plBindGroupLayoutHandle tLayout;
+    plBindGroupPool*        ptPool;     // pool to allocator from
+    const char*             pcDebugName; // default: "unnamed bind group"
 } plBindGroupDesc;
 
 typedef struct _plBindGroup
 {
-    plBindGroupLayout tLayout;
+    plBindGroupDesc tDesc;
 
     // [INTERNAL]
     uint16_t _uGeneration;
     plTextureHandle* _sbtTextures;
 } plBindGroup;
+
+typedef struct _plBindGroupLayout
+{
+    plBindGroupLayoutDesc tDesc;
+
+    // [INTERNAL]
+    uint16_t _uGeneration;
+    uint32_t _uTextureBindingCount;
+    uint32_t _uBufferBindingCount;
+    uint32_t _uSamplerBindingCount;
+    uint32_t _uDescriptorCount;
+} plBindGroupLayout; 
 
 //-------------------------------shaders---------------------------------------
 
@@ -768,13 +783,14 @@ typedef struct _plSpecializationConstant
 typedef struct _plComputeShaderDesc
 {
     plShaderModule           tShader;
-    plBindGroupLayout        atBindGroupLayouts[3];
+    plBindGroupLayoutDesc    atBindGroupLayouts[3];
     plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
     const void*              pTempConstantData;
 
     // [INTERNAL]
-    uint32_t _uConstantCount;
-    uint32_t _uBindGroupLayoutCount;
+    uint32_t                _uConstantCount;
+    uint32_t                _uBindGroupLayoutCount;
+    plBindGroupLayoutHandle _atBindGroupLayouts[3];
 } plComputeShaderDesc;
 
 typedef struct _plComputeShader
@@ -843,13 +859,14 @@ typedef struct _plShaderDesc
     plShaderModule           tVertexShader;
     plShaderModule           tPixelShader;
     const void*              pTempConstantData;
-    plBindGroupLayout        atBindGroupLayouts[3];
+    plBindGroupLayoutDesc    atBindGroupLayouts[3];
     plRenderPassLayoutHandle tRenderPassLayout;    
     plSampleCount            tMSAASampleCount;
 
     // [INTERNAL]
-    uint32_t _uConstantCount;
-    uint32_t _uBindGroupLayoutCount;
+    uint32_t                _uConstantCount;
+    uint32_t                _uBindGroupLayoutCount;
+    plBindGroupLayoutHandle _atBindGroupLayouts[3];
 } plShaderDesc;
 
 typedef struct _plShader

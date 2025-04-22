@@ -143,12 +143,12 @@ typedef struct _plTimelineSemaphore
 
 typedef struct _plMetalBindGroup
 {
-    id<MTLBuffer>     tShaderArgumentBuffer;
-    plBindGroupLayout tLayout;
-    plSamplerHandle   atSamplerBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
-    uint64_t          uHeapUsageMask;
-    uint32_t          uOffset;
-    plTextureHandle   tFirstTexture; // for use with imgui for now (temp)
+    id<MTLBuffer>         tShaderArgumentBuffer;
+    plBindGroupLayoutDesc tLayout;
+    plSamplerHandle       atSamplerBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
+    uint64_t              uHeapUsageMask;
+    uint32_t              uOffset;
+    plTextureHandle       tFirstTexture; // for use with imgui for now (temp)
 } plMetalBindGroup;
 
 typedef struct _plMetalShader
@@ -247,6 +247,11 @@ typedef struct _plDevice
     plMetalBindGroup*  sbtBindGroupsHot;
     plBindGroup*       sbtBindGroupsCold;
     uint16_t*          sbtBindGroupFreeIndices;
+
+    // bind group layout generation pool
+    plBindGroupLayout* sbtBindGroupLayoutsHot;
+    plBindGroupLayout* sbtBindGroupLayoutsCold;
+    uint16_t*          sbtBindGroupLayoutFreeIndices;
 
     // metal specifics
     id<MTLDevice> tDevice;
@@ -868,54 +873,68 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
     return tHandle;
 }
 
-static plBindGroupHandle
-pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
+plBindGroupLayoutHandle
+pl_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayoutDesc* ptDesc)
 {
+    plBindGroupLayoutHandle tHandle = pl__get_new_bind_group_layout_handle(ptDevice);
+    plBindGroupLayout* ptLayout = &ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex];
     
-    plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
-    plBindGroup* ptBindGroup = pl__get_bind_group(ptDevice, tHandle);
-
-    ptBindGroup->tLayout = *ptDesc->ptLayout;
-    plBindGroupLayout* ptLayout = &ptBindGroup->tLayout;
-
+    ptLayout->tDesc = *ptDesc;
     ptLayout->_uBufferBindingCount = 0;
     ptLayout->_uTextureBindingCount = 0;
     ptLayout->_uSamplerBindingCount = 0;
-
+    
     // count bindings
     for(uint32_t i = 0; i < PL_MAX_TEXTURES_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atTextureBindings[i].tStages == PL_SHADER_STAGE_NONE)
+        if(ptDesc->atTextureBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uTextureBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_BUFFERS_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atBufferBindings[i].tStages == PL_SHADER_STAGE_NONE)
+        if(ptDesc->atBufferBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uBufferBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_SAMPLERS_PER_BIND_GROUP; i++)
     {
-        if(ptLayout->atSamplerBindings[i].tStages == PL_SHADER_STAGE_NONE)
+        if(ptDesc->atSamplerBindings[i].tStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uSamplerBindingCount++;
     }
-    
+
     uint32_t uDescriptorCount = ptLayout->_uTextureBindingCount + ptLayout->_uBufferBindingCount + ptLayout->_uSamplerBindingCount;
 
     for(uint32_t i = 0; i < ptLayout->_uTextureBindingCount; i++)
     {
-        uint32_t uCurrentDescriptorCount = ptLayout->atTextureBindings[i].uDescriptorCount;
+        uint32_t uCurrentDescriptorCount = ptDesc->atTextureBindings[i].uDescriptorCount;
         if(uCurrentDescriptorCount == 0)
             uCurrentDescriptorCount = 1;
         if(uCurrentDescriptorCount > 1)
-            uDescriptorCount += ptLayout->atTextureBindings[i].uDescriptorCount - 1;
+            uDescriptorCount += ptDesc->atTextureBindings[i].uDescriptorCount - 1;
     }
 
-    NSUInteger argumentBufferLength = sizeof(uint64_t) * uDescriptorCount;
+    ptLayout->_uDescriptorCount = uDescriptorCount;
+
+    return tHandle;
+}
+
+static plBindGroupHandle
+pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
+{
+    
+    plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
+    plBindGroup* ptBindGroup = pl__get_bind_group(ptDevice, tHandle);
+    ptBindGroup->tDesc = *ptDesc;
+    plBindGroupLayout* ptBindGroupLayout = pl__get_bind_group_layout(ptDevice, ptDesc->tLayout);
+
+    plBindGroupLayoutDesc* ptLayout = &ptBindGroupLayout->tDesc;
+
+
+    NSUInteger argumentBufferLength = sizeof(uint64_t) * ptBindGroupLayout->_uDescriptorCount;
 
     plMetalBindGroup tMetalBindGroup = {
         .tLayout = *ptLayout,
@@ -1563,6 +1582,7 @@ pl_create_device(const plDeviceInit* ptInit)
     pl_sb_add(ptDevice->sbtTexturesHot);
     pl_sb_add(ptDevice->sbtSamplersHot);
     pl_sb_add(ptDevice->sbtBindGroupsHot);
+    pl_sb_add(ptDevice->sbtBindGroupLayoutsHot);
     
     pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
     pl_sb_add(ptDevice->sbtShadersCold);
@@ -1571,6 +1591,7 @@ pl_create_device(const plDeviceInit* ptInit)
     pl_sb_add(ptDevice->sbtTexturesCold);
     pl_sb_add(ptDevice->sbtSamplersCold);
     pl_sb_add(ptDevice->sbtBindGroupsCold);
+    pl_sb_add(ptDevice->sbtBindGroupLayoutsCold);
 
     pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = 1;
@@ -1579,6 +1600,7 @@ pl_create_device(const plDeviceInit* ptInit)
     pl_sb_back(ptDevice->sbtTexturesCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtSamplersCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBindGroupLayoutsCold)._uGeneration = 1;
 
     ptDevice->tDevice = (__bridge id)ptIOCtx->pBackendPlatformData;
 
@@ -3415,6 +3437,13 @@ pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
     pl_sb_free(ptResource->_sbtTextures);
     [ptMetalResource->tShaderArgumentBuffer release];
     ptMetalResource->tShaderArgumentBuffer = nil;
+}
+
+void
+pl_destroy_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
+{
+    ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration++;
+    pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, tHandle.uIndex);
 }
 
 static void
