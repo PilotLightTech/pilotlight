@@ -135,7 +135,7 @@ typedef struct _plDrawI
     void (*add_rect_rounded)  (plDrawLayer2D*, plVec2 pMin, plVec2 pMax, float radius, uint32_t segments, plDrawRectFlags, plDrawLineOptions);
     void (*add_quad)          (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plDrawLineOptions);
     void (*add_circle)        (plDrawLayer2D*, plVec2 p, float radius, uint32_t segments, plDrawLineOptions);
-    void (*add_convex_polygon)(plDrawLayer2D*, plVec2* points, uint32_t count, plDrawLineOptions);
+    void (*add_polygon)       (plDrawLayer2D*, plVec2* points, uint32_t count, plDrawLineOptions);
     void (*add_bezier_quad)   (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, uint32_t segments, plDrawLineOptions);
     void (*add_bezier_cubic)  (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, uint32_t segments, plDrawLineOptions);
 
