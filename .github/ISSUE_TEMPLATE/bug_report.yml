@@ -59,6 +59,7 @@ body:
         - Metal
         - Directx 11
         - Directx 12
+        - CPU
   - type: textarea
     id: logs
     attributes:
