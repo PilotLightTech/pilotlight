@@ -133,6 +133,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_draw_ext(ptApiRegistry, bReload);
     pl_unload_draw_backend_ext(ptApiRegistry, bReload);
     pl_unload_ecs_tools_ext(ptApiRegistry, bReload);
+    pl_unload_tools_ext(ptApiRegistry, bReload);
     pl_unload_ui_ext(ptApiRegistry, bReload);
     pl_unload_ecs_ext(ptApiRegistry, bReload);
     pl_unload_resource_ext(ptApiRegistry, bReload);
@@ -140,7 +141,6 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_renderer_ext(ptApiRegistry, bReload);
     pl_unload_gizmo_ext(ptApiRegistry, bReload);
     pl_unload_console_ext(ptApiRegistry, bReload);
-    pl_unload_tools_ext(ptApiRegistry, bReload);
     pl_unload_screen_log_ext(ptApiRegistry, bReload);
     pl_unload_profile_ext(ptApiRegistry, bReload);
     pl_unload_log_ext(ptApiRegistry, bReload);

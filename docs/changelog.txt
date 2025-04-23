@@ -5,7 +5,8 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-* 2025-04-21: global v0.1.2 added new draw command for polygon & exposed bind group layouts
-* 2025-04-16: global v0.1.1 fixed issue with realloc in memory API clearing resized buffers (memory v1.0.1)
-* 2025-04-15: global v0.1.0 first tag, begin strict versioning
-* 2022-09-14: initial commit
+- v0.1.3 (2025-04-23) fixed major memory leak (memory v1.0.2)
+- v0.1.2 (2025-04-21) added new draw command for polygon & exposed bind group layouts
+- v0.1.1 (2025-04-16) fixed issue with realloc in memory API clearing resized buffers (memory v1.0.1)
+- v0.1.0 (2025-04-15) first tag, begin strict versioning
+- v0.0.0 (2022-09-14) initial commit

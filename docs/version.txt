@@ -1,4 +1,4 @@
-v0.1.2
+v0.1.3
 
 -----------------------------------------------------------------------------
                              Versioning
@@ -33,6 +33,7 @@ the API is complete. It just means we won't break what currently exists.
 ## Core
 * API Registry       v1.0.0 (pl.h)
 * Data Registry      v1.0.0 (pl.h)
+* Memory             v1.0.2 (pl.h)
 * Extension Registry v1.0.0 (pl.h)
 * IO                 v1.0.0 (pl.h)
 * Window             v1.0.0 (pl.h)

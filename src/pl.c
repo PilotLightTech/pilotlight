@@ -1359,6 +1359,17 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
                 pl_hm_remove(&gtMemoryHashMap, ulHash);
                 gszAllocationFrees++;
                 gszActiveAllocations--;
+
+                if(szSize == 0)
+                {
+                    #ifdef PL_USE_ALLOCATOR
+                    pl_general_allocator_free(&gtGeneralAllocator, pBuffer);
+                    #else
+                    free(pBuffer);
+                    pBuffer = NULL;
+                    #endif
+                }
+
             }
             else
             {
@@ -1391,6 +1402,7 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
             pl_general_allocator_free(&gtGeneralAllocator, pBuffer);
             #else
             free(pBuffer);
+            pBuffer = NULL;
             #endif
         }
 
