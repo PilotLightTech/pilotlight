@@ -24,7 +24,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plResourceI_version {0, 2, 0}
+#define plResourceI_version {0, 2, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -59,6 +59,7 @@ typedef struct _plResourceI
     void (*initialize)(plResourceManagerInit);
     void (*cleanup)   (void);
     void (*clear)     (void);
+    void (*new_frame) (void);
 
     // typical usage
     //   - file:  file name

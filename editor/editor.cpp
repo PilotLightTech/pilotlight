@@ -106,6 +106,7 @@ const plCollisionI*    gptCollision   = NULL;
 const plBVHI*          gptBvh         = NULL;
 const plConfigI*       gptConfig      = NULL;
 const plDearImGuiI*    gptDearImGui   = NULL;
+const plResourceI*     gptResource    = NULL;
 const plStarterI*      gptStarter     = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
@@ -273,6 +274,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
         gptConfig      = pl_get_api_latest(ptApiRegistry, plConfigI);
         gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
+        gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
@@ -319,6 +321,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
     gptConfig      = pl_get_api_latest(ptApiRegistry, plConfigI);
     gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
+    gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
 
     // this path is taken only during first load, so we
@@ -539,6 +542,7 @@ pl_app_update(plAppData* ptAppData)
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     gptIO->new_frame();
+    gptResource->new_frame();
     
     // for convience
     plIO* ptIO = gptIO->get_io();

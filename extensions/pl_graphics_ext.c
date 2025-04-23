@@ -407,6 +407,7 @@ pl__cleanup_common_device(plDevice* ptDevice)
         pl_sb_free(ptGarbage->sbtRenderPasses);
         pl_sb_free(ptGarbage->sbtRenderPassLayouts);
         pl_sb_free(ptGarbage->sbtBindGroups);
+        pl_sb_free(ptGarbage->sbtBindGroupLayouts);
     }
     pl_sb_free(ptDevice->sbtGarbage);
 

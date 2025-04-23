@@ -74,7 +74,7 @@ the API is complete. It just means we won't break what currently exists.
 
 ## Nearly Stable Extensions
 
-* Resource          v0.2.0 (pl_resource_ext.h)
+* Resource          v0.2.1 (pl_resource_ext.h)
 * ECS               v0.2.0 (pl_ecs_ext.h)
 * Bvh               v0.2.0 (pl_bvh_ext.h)
 * Physics           v0.2.0 (pl_physics_ext.h)

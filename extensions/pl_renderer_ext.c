@@ -378,13 +378,17 @@ pl_refr_initialize(plRendererSettings tSettings)
     gptData->ptStagingCachedAllocator        = gptGpuAllocators->get_staging_cached_allocator(gptData->ptDevice);
 
     // create staging buffers
-    const plBufferDesc tStagingBufferDesc = {
-        .tUsage     = PL_BUFFER_USAGE_STAGING,
-        .szByteSize = 268435456,
-        .pcDebugName = "Renderer Staging Buffer"
-    };
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        gptData->tStagingBufferHandle[i] = pl__refr_create_staging_buffer(&tStagingBufferDesc, "staging", i);
+    // const plBufferDesc tStagingBufferDesc = {
+    //     .tUsage      = PL_BUFFER_USAGE_STAGING,
+    //     .szByteSize  = 268435456,
+    //     .pcDebugName = "Renderer Staging Buffer"
+    // };
+    // for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    // {
+    //     gptData->atStagingBufferHandle[i].tStagingBufferHandle = pl__refr_create_staging_buffer(&tStagingBufferDesc, "staging", i);
+    //     gptData->atStagingBufferHandle[i].szOffset = 0;
+    //     gptData->atStagingBufferHandle[i].szSize = tStagingBufferDesc.szByteSize;
+    // }
 
     // create dummy textures
     const plTextureDesc tDummyTextureDesc = {
@@ -396,7 +400,7 @@ pl_refr_initialize(plRendererSettings tSettings)
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName   = "dummy"
     };
-    
+
     const float afDummyTextureData[] = {
         1.0f, 0.0f, 0.0f, 1.0f,
         0.0f, 1.0f, 0.0f, 1.0f,
@@ -1053,6 +1057,7 @@ pl_refr_cleanup_view(uint32_t uSceneHandle, uint32_t uViewHandle)
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tUVRenderPass);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tFinalTextureHandle);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tLightingBindGroup);
+    
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tPickTexture);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -1060,6 +1065,8 @@ pl_refr_cleanup_view(uint32_t uSceneHandle, uint32_t uViewHandle)
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atGlobalBuffers[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->tDirectionLightShadowData.atDShadowCameraBuffers[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atPickBuffer[i]);
+        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atPickBindGroup[i]);
     }
 
     gptDraw->return_3d_drawlist(ptView->pt3DDrawList);
@@ -4150,6 +4157,24 @@ pl_refr_begin_frame(void)
 
         if(ptScene->uGPUMaterialDirty)
         {
+
+            plBufferHandle tStagingBuffer = gptData->atStagingBufferHandle[uFrameIdx].tStagingBufferHandle;
+
+            if(!gptGfx->is_buffer_valid(ptDevice, tStagingBuffer))
+            {
+                const plBufferDesc tStagingBufferDesc = {
+                    .tUsage      = PL_BUFFER_USAGE_STAGING,
+                    .szByteSize  = 268435456,
+                    .pcDebugName = "Renderer Staging Buffer"
+                };
+    
+                gptData->atStagingBufferHandle[uFrameIdx].tStagingBufferHandle = pl__refr_create_staging_buffer(&tStagingBufferDesc, "staging", uFrameIdx);
+                tStagingBuffer = gptData->atStagingBufferHandle[uFrameIdx].tStagingBufferHandle;
+                gptData->atStagingBufferHandle[uFrameIdx].szOffset = 0;
+                gptData->atStagingBufferHandle[uFrameIdx].szSize = tStagingBufferDesc.szByteSize;
+            }
+            gptData->atStagingBufferHandle[uFrameIdx].dLastTimeActive = gptIO->dTime;
+
             const plBeginCommandInfo tSkinUpdateBeginInfo = {
                 .uWaitSemaphoreCount   = 1,
                 .atWaitSempahores      = {tSemHandle},
@@ -4162,10 +4187,10 @@ pl_refr_begin_frame(void)
             plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
             gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
         
-            plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptData->tStagingBufferHandle[uFrameIdx]);
-            memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[gptData->uStagingOffset], ptScene->sbtMaterialBuffer, sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
-            gptGfx->copy_buffer(ptBlitEncoder, gptData->tStagingBufferHandle[uFrameIdx], ptScene->atMaterialDataBuffer[uFrameIdx], gptData->uStagingOffset, 0, sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
-            gptData->uStagingOffset += sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer);
+            plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
+            memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[gptData->atStagingBufferHandle[uFrameIdx].szOffset], ptScene->sbtMaterialBuffer, sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
+            gptGfx->copy_buffer(ptBlitEncoder, tStagingBuffer, ptScene->atMaterialDataBuffer[uFrameIdx], (uint32_t)gptData->atStagingBufferHandle[uFrameIdx].szOffset, 0, sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
+            gptData->atStagingBufferHandle[uFrameIdx].szOffset += sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer);
 
             gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
             gptGfx->end_blit_pass(ptBlitEncoder);
@@ -4180,6 +4205,13 @@ pl_refr_begin_frame(void)
             
             gptGfx->return_command_buffer(ptCommandBuffer);
             ptScene->uGPUMaterialDirty--;
+        }
+        else if(gptGfx->is_buffer_valid(ptDevice, gptData->atStagingBufferHandle[uFrameIdx].tStagingBufferHandle))
+        {
+            if(gptIO->dTime - gptData->atStagingBufferHandle[uFrameIdx].dLastTimeActive > 30.0)
+            {
+                gptGfx->queue_buffer_for_deletion(ptDevice, gptData->atStagingBufferHandle[uFrameIdx].tStagingBufferHandle);
+            }
         }
 
         for(uint32_t uViewIndex = 0; uViewIndex < ptScene->uViewCount; uViewIndex++)

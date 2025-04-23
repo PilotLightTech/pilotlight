@@ -116,6 +116,14 @@ enum _plDrawableFlags
     PL_DRAWABLE_FLAG_PROBE    = 1 << 2
 };
 
+typedef struct _plRendererStagingBuffer
+{
+    plBufferHandle tStagingBufferHandle;
+    size_t         szSize;
+    size_t         szOffset;
+    double         dLastTimeActive;
+} plRendererStagingBuffer;
+
 typedef struct _plShaderVariant
 {
     plGraphicsState tGraphicsState;
@@ -590,8 +598,9 @@ typedef struct _plRefRendererData
     plDrawStream tDrawStream;
 
     // staging (more robust system should replace this)
-    plBufferHandle tStagingBufferHandle[PL_MAX_FRAMES_IN_FLIGHT];
-    uint32_t uStagingOffset;
+    plRendererStagingBuffer atStagingBufferHandle[PL_MAX_FRAMES_IN_FLIGHT];
+    // plBufferHandle tStagingBufferHandle[PL_MAX_FRAMES_IN_FLIGHT];
+    // uint32_t uStagingOffset;
 
     // sync
     plTimelineSemaphore* aptSemaphores[PL_MAX_FRAMES_IN_FLIGHT];

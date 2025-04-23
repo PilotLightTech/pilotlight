@@ -67,6 +67,10 @@ Index of this file:
 typedef struct _plResource        plResource;
 typedef struct _plResourceManager plResourceManager;
 
+// new
+typedef struct _plResourceStagingBuffer plResourceStagingBuffer;
+typedef struct _plTextureUploadJob plTextureUploadJob;
+
 // enums/flags
 typedef int plResourceDataType;
 
@@ -96,6 +100,19 @@ typedef struct _plResource
     plTextureHandle     tTexture;
 } plResource;
 
+typedef struct _plResourceStagingBuffer
+{
+    plBufferHandle tStagingBufferHandle;
+    size_t         szSize;
+    size_t         szOffset;
+} plResourceStagingBuffer;
+
+typedef struct _plTextureUploadJob
+{
+    plTextureHandle   tTexture;
+    plBufferImageCopy tBufferImageCopy;
+} plTextureUploadJob;
+
 typedef struct _plResourceManager
 {
     plResourceManagerInit tDesc;
@@ -109,7 +126,8 @@ typedef struct _plResourceManager
     plCommandPool* atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
 
     // staging (more robust system should replace this)
-    plBufferHandle tStagingBufferHandle[PL_MAX_FRAMES_IN_FLIGHT];
+    plResourceStagingBuffer tStagingBuffer;
+    plTextureUploadJob*     sbtTextureUploadJobs;
 
     // GPU allocators
     plDeviceMemoryAllocatorI* ptLocalDedicatedAllocator;
@@ -146,34 +164,9 @@ pl_resource_initialize(plResourceManagerInit tDesc)
     gptResourceManager->ptStagingUnCachedBuddyAllocator = gptGpuAllocators->get_staging_uncached_buddy_allocator(ptDevice);
     gptResourceManager->ptStagingCachedAllocator        = gptGpuAllocators->get_staging_cached_allocator(ptDevice);
 
-    // create staging buffers
-    const plBufferDesc tStagingBufferDesc = {
-        .tUsage     = PL_BUFFER_USAGE_STAGING,
-        .szByteSize = 268435456,
-        .pcDebugName = "Resource Staging Buffer"
-    };
-
-    plDeviceMemoryAllocatorI* ptAllocator = gptResourceManager->ptStagingUnCachedAllocator;
-
     // create per frame resources
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-        // command pools
         gptResourceManager->atCmdPools[i] = gptGfx->create_command_pool(ptDevice, NULL);
-
-        plBuffer* ptBuffer = NULL;
-        gptResourceManager->tStagingBufferHandle[i] = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, &ptBuffer);
-
-        // allocate memory
-        const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
-            ptBuffer->tMemoryRequirements.uMemoryTypeBits,
-            ptBuffer->tMemoryRequirements.ulSize,
-            ptBuffer->tMemoryRequirements.ulAlignment,
-            "resource manager staging buffer");
-
-        // bind memory
-        gptGfx->bind_buffer_to_memory(ptDevice, gptResourceManager->tStagingBufferHandle[i], &tAllocation);
-    }
 
     // pushing invalid data so "default-to-zero" should work
     // for resource handles
@@ -186,11 +179,87 @@ pl_resource_cleanup(void)
 {
     pl_sb_free(gptResourceManager->sbtResourceGenerations);
     pl_sb_free(gptResourceManager->sbtResources);
+    pl_sb_free(gptResourceManager->sbtTextureUploadJobs);
     pl_hm_free(&gptResourceManager->tNameHashmap);
     pl_temp_allocator_free(&gptResourceManager->tTempAllocator);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         gptGfx->cleanup_command_pool(gptResourceManager->atCmdPools[i]);
+}
+
+void
+pl__resource_create_staging_buffer(void)
+{
+    plDevice* ptDevice = gptResourceManager->tDesc.ptDevice;
+
+    plDeviceMemoryAllocatorI* ptAllocator = gptResourceManager->ptStagingUnCachedAllocator;
+
+    // create staging buffers
+    const plBufferDesc tStagingBufferDesc = {
+        .tUsage     = PL_BUFFER_USAGE_STAGING,
+        .szByteSize = 268435456,
+        .pcDebugName = "Resource Staging Buffer"
+    };
+
+    plBuffer* ptBuffer = NULL;
+    gptResourceManager->tStagingBuffer.tStagingBufferHandle = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, &ptBuffer);
+
+    // allocate memory
+    const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
+        ptBuffer->tMemoryRequirements.uMemoryTypeBits,
+        ptBuffer->tMemoryRequirements.ulSize,
+        ptBuffer->tMemoryRequirements.ulAlignment,
+        "resource manager staging buffer");
+
+    // bind memory
+    gptGfx->bind_buffer_to_memory(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle, &tAllocation);
+    gptResourceManager->tStagingBuffer.szOffset = 0;
+    gptResourceManager->tStagingBuffer.szSize = tStagingBufferDesc.szByteSize;
+}
+
+void
+pl_resource_new_frame(void)
+{
+    const uint32_t uJobCount = pl_sb_size(gptResourceManager->sbtTextureUploadJobs);
+    plDevice* ptDevice = gptResourceManager->tDesc.ptDevice;
+    
+    if(uJobCount == 0)
+    {
+        if(gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
+        {
+            gptGfx->queue_buffer_for_deletion(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
+            gptResourceManager->tStagingBuffer.szSize = 0;
+            gptResourceManager->tStagingBuffer.szOffset = 0;
+        }
+        return;
+    }
+
+    plCommandPool* ptCmdPool = gptResourceManager->atCmdPools[gptGfx->get_current_frame_index()];
+
+    // update texture data & calculate mips
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+    plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+
+    for(uint32_t i = 0; i < uJobCount; i++)
+    {
+        const plTextureUploadJob* ptJob = &gptResourceManager->sbtTextureUploadJobs[i];
+        
+        gptGfx->set_texture_usage(ptBlitEncoder, ptJob->tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
+        gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, ptJob->tTexture, 1, &ptJob->tBufferImageCopy);
+        gptGfx->generate_mipmaps(ptBlitEncoder, ptJob->tTexture);
+    }
+
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->end_blit_pass(ptBlitEncoder);
+    gptGfx->end_command_recording(ptCommandBuffer);
+    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+
+    pl_sb_reset(gptResourceManager->sbtTextureUploadJobs);
+    gptResourceManager->tStagingBuffer.szOffset = 0;
 }
 
 plResourceHandle
@@ -291,12 +360,12 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
         case PL_RESOURCE_DATA_TYPE_IMAGE:
         {
             plDevice* ptDevice = gptResourceManager->tDesc.ptDevice;
-            plCommandPool* ptCmdPool = gptResourceManager->atCmdPools[gptGfx->get_current_frame_index()];
-            plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBufferHandle[gptGfx->get_current_frame_index()]);
+
             plTexture* ptTexture = NULL;
 
             bool bResizeNeeded = false;
             plImageInfo tImageInfo = {0};
+            size_t szStagingOffset = 0;
             if(gptImage->get_info((unsigned char*)puFileData, (int)szFileByteSize, &tImageInfo))
             {
 
@@ -340,7 +409,18 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                         gptImage->free(pfOldRawBytes);
                     }
 
-                    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pfRawBytes, tImageInfo.iWidth * tImageInfo.iHeight * 4 * sizeof(float));
+                    size_t szRequiredStagingSize = tImageInfo.iWidth * tImageInfo.iHeight * 4 * sizeof(float);
+                    if(!gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
+                        pl__resource_create_staging_buffer();
+                    else if(gptResourceManager->tStagingBuffer.szOffset + szRequiredStagingSize >= gptResourceManager->tStagingBuffer.szSize)
+                    {
+                        pl_resource_new_frame();
+                    }
+
+                    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
+                    memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[gptResourceManager->tStagingBuffer.szOffset], pfRawBytes, szRequiredStagingSize);
+                    szStagingOffset = gptResourceManager->tStagingBuffer.szOffset;
+                    gptResourceManager->tStagingBuffer.szOffset += szRequiredStagingSize;
                     gptImage->free(pfRawBytes);
 
                     tTextureFormat = PL_FORMAT_R32G32B32A32_FLOAT;
@@ -348,7 +428,20 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                 else if(tImageInfo.b16Bit)
                 {
                     unsigned short* puRawBytes = gptImage->load_16bit((unsigned char*)puFileData, (int)szFileByteSize, &iTextureWidth, &iTextureHeight, &iTextureChannels, 4);
-                    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, puRawBytes, iTextureWidth * iTextureHeight * 4 * sizeof(short));
+  
+                    size_t szRequiredStagingSize = tImageInfo.iWidth * tImageInfo.iHeight * 4 * sizeof(short);
+                    if(!gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
+                        pl__resource_create_staging_buffer();
+                    else if(gptResourceManager->tStagingBuffer.szOffset + szRequiredStagingSize >= gptResourceManager->tStagingBuffer.szSize)
+                    {
+                        pl_resource_new_frame();
+                    }
+
+                    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
+                    memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[gptResourceManager->tStagingBuffer.szOffset], puRawBytes, szRequiredStagingSize);
+                    szStagingOffset = gptResourceManager->tStagingBuffer.szOffset;
+                    gptResourceManager->tStagingBuffer.szOffset += szRequiredStagingSize;
+
                     gptImage->free(puRawBytes);
 
                     tTextureFormat = PL_FORMAT_R16G16B16A16_UNORM;
@@ -365,7 +458,19 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                         gptImage->free(puOldRawBytes);
                     }
 
-                    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, puRawBytes, tImageInfo.iWidth * tImageInfo.iHeight * 4);
+                    size_t szRequiredStagingSize = tImageInfo.iWidth * tImageInfo.iHeight * 4;
+                    if(!gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
+                        pl__resource_create_staging_buffer();
+                    else if(gptResourceManager->tStagingBuffer.szOffset + szRequiredStagingSize >= gptResourceManager->tStagingBuffer.szSize)
+                    {
+                        pl_resource_new_frame();
+                    }
+
+                    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
+                    memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[gptResourceManager->tStagingBuffer.szOffset], puRawBytes, szRequiredStagingSize);
+                    szStagingOffset = gptResourceManager->tStagingBuffer.szOffset;
+                    gptResourceManager->tStagingBuffer.szOffset += szRequiredStagingSize;
+
                     gptImage->free(puRawBytes);
 
                     tTextureFormat = PL_FORMAT_R8G8B8A8_UNORM;
@@ -399,29 +504,17 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                 // bind memory
                 gptGfx->bind_texture_to_memory(ptDevice, tResource.tTexture, &tAllocation);
                 
-                // update texture data & calculate mips
-                plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
-                gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-                plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-                gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-                gptGfx->set_texture_usage(ptBlitEncoder, tResource.tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-                    
-                const plBufferImageCopy tBufferImageCopy = {
-                    .uImageWidth = (uint32_t)tTextureDesc.tDimensions.x,
-                    .uImageHeight = (uint32_t)tTextureDesc.tDimensions.y,
-                    .uImageDepth = 1,
-                    .uLayerCount = 1
+                plTextureUploadJob tUpload = {
+                    .tTexture = tResource.tTexture,
+                    .tBufferImageCopy = {
+                        .uImageWidth = (uint32_t)tTextureDesc.tDimensions.x,
+                        .uImageHeight = (uint32_t)tTextureDesc.tDimensions.y,
+                        .uImageDepth = 1,
+                        .uLayerCount = 1,
+                        .szBufferOffset = szStagingOffset
+                    },
                 };
-            
-                gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBufferHandle[gptGfx->get_current_frame_index()], tResource.tTexture, 1, &tBufferImageCopy);
-                gptGfx->generate_mipmaps(ptBlitEncoder, tResource.tTexture);
-            
-                gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-                gptGfx->end_blit_pass(ptBlitEncoder);
-                gptGfx->end_command_recording(ptCommandBuffer);
-                gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-                gptGfx->wait_on_command_buffer(ptCommandBuffer);
-                gptGfx->return_command_buffer(ptCommandBuffer);
+                pl_sb_push(gptResourceManager->sbtTextureUploadJobs, tUpload);
             }
             break;
         }
@@ -522,6 +615,7 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plResourceI tApi = {
         .initialize    = pl_resource_initialize,
         .cleanup       = pl_resource_cleanup,
+        .new_frame     = pl_resource_new_frame,
         .load          = pl_resource_load,
         .load_ex       = pl_resource_load_ex,
         .get_texture   = pl_resource_get_texture_handle,

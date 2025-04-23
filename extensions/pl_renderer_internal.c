@@ -182,12 +182,25 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
     {
         PL_ASSERT(ptDesc->uLayers == 1); // this is for simple textures right now
 
-        // copy data to staging buffer
-        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptData->tStagingBufferHandle[gptGfx->get_current_frame_index()]);
+        // create staging buffer
+        const plBufferDesc tStagingBufferDesc = {
+            .tUsage      = PL_BUFFER_USAGE_STAGING,
+            .szByteSize  = szSize,
+            .pcDebugName = "temp staging buffer"
+        };
+        plBuffer* ptBuffer = NULL;
+        plBufferHandle tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, &ptBuffer);
 
-        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, szSize);
+        // allocate memory for the vertex buffer
+        const plDeviceMemoryAllocation tStagingBufferAllocation = gptGfx->allocate_memory(ptDevice,
+            ptBuffer->tMemoryRequirements.ulSize,
+            PL_MEMORY_GPU_CPU,
+            ptBuffer->tMemoryRequirements.uMemoryTypeBits,
+            "temp staging memory");
 
-
+        gptGfx->bind_buffer_to_memory(ptDevice, tStagingBuffer, &tStagingBufferAllocation);
+        memcpy(ptBuffer->tMemoryAllocation.pHostMapped, pData, szSize);
+        
         const plBufferImageCopy tBufferImageCopy = {
             .uImageWidth = (uint32_t)ptDesc->tDimensions.x,
             .uImageHeight = (uint32_t)ptDesc->tDimensions.y,
@@ -195,8 +208,9 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
             .uLayerCount = 1
         };
 
-        gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptData->tStagingBufferHandle[gptGfx->get_current_frame_index()], tHandle, 1, &tBufferImageCopy);
+        gptGfx->copy_buffer_to_texture(ptBlitEncoder, tStagingBuffer, tHandle, 1, &tBufferImageCopy);
         gptGfx->generate_mipmaps(ptBlitEncoder, tHandle);
+        gptGfx->queue_buffer_for_deletion(ptDevice, tStagingBuffer);
     }
 
     gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
@@ -305,8 +319,26 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
     // if data is presented, upload using staging buffer
     if(pData)
     {
+
+        plBufferHandle tStagingBuffer = gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle;
+
+        if(!gptGfx->is_buffer_valid(ptDevice, tStagingBuffer))
+        {
+            const plBufferDesc tStagingBufferDesc = {
+                .tUsage      = PL_BUFFER_USAGE_STAGING,
+                .szByteSize  = 268435456,
+                .pcDebugName = "Renderer Staging Buffer"
+            };
+
+            gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle = pl__refr_create_staging_buffer(&tStagingBufferDesc, "staging", gptGfx->get_current_frame_index());
+            tStagingBuffer = gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle;
+            gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].szOffset = 0;
+            gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].szSize = tStagingBufferDesc.szByteSize;
+        }
+        gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].dLastTimeActive = gptIO->dTime;
+
         // copy data to staging buffer
-        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptData->tStagingBufferHandle[gptGfx->get_current_frame_index()]);
+        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
         memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, szSize);
 
         // begin recording
@@ -317,7 +349,7 @@ pl__refr_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uin
         plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
         gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
-        gptGfx->copy_buffer(ptEncoder, gptData->tStagingBufferHandle[gptGfx->get_current_frame_index()], tHandle, 0, 0, szSize);
+        gptGfx->copy_buffer(ptEncoder, tStagingBuffer, tHandle, 0, 0, szSize);
         gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptEncoder);
 
