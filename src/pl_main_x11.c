@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
     gptDisplay = XOpenDisplay(NULL);
 
     // turn off auto repeat (we handle this internally)
-    XAutoRepeatOff(gptDisplay);
+    XkbSetDetectableAutoRepeat(gptDisplay, false, NULL);
 
     int screen_p = 0;
     gptConnection = xcb_connect(NULL, &screen_p);
@@ -311,7 +311,6 @@ int main(int argc, char *argv[])
     pl_app_shutdown(gpUserData);
 
     // platform cleanup
-    XAutoRepeatOn(gptDisplay);
     xcb_cursor_context_free(gptCursorContext);
     xcb_key_symbols_free(gptKeySyms);
 
