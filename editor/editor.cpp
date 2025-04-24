@@ -165,7 +165,6 @@ typedef struct _plAppData
     // ui options
     bool  bShowImGuiDemo;
     bool  bShowPlotDemo;
-    bool  bEditorAttached;
     bool  bShowUiDemo;
     bool  bShowUiDebug;
     bool  bShowUiStyle;
@@ -198,7 +197,7 @@ typedef struct _plAppData
     plFont* tDefaultFont;
 
     // test models
-    plUiTextFilter tFilter;
+    ImGuiTextFilter tFilter;
     plTestModel*   sbtTestModels;
 
     // physics
@@ -335,7 +334,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->bShowPilotLightTool = true;
 
     gptConfig->load_from_disk(NULL);
-    ptAppData->bEditorAttached = gptConfig->load_bool("bEditorAttached", true);
     ptAppData->bShowEntityWindow = gptConfig->load_bool("bShowEntityWindow", false);
     ptAppData->bPhysicsDebugDraw = gptConfig->load_bool("bPhysicsDebugDraw", false);
 
@@ -469,7 +467,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptDearImGui->initialize(gptRenderer->get_device(), gptRenderer->get_swapchain(), gptRenderer->get_main_render_pass());
     ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
     ImGuiIO& tImGuiIO = ImGui::GetIO();
-    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf", 14.0f);
+    tImGuiIO.IniFilename = NULL;
+    ImGui::LoadIniSettingsFromDisk("../editor/pl_imgui.ini");
+    tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf", 14.0f);
+    auto tImGuiFontConfig = ImFontConfig();
+    tImGuiFontConfig.MergeMode = true;
+    static ImWchar atFontRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA};
+    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/fa-solid-900.otf", 14.0f, &tImGuiFontConfig, atFontRanges);
     return ptAppData;
 }
 
@@ -488,7 +492,6 @@ pl_app_shutdown(plAppData* ptAppData)
 
     gptDearImGui->cleanup();
 
-    gptConfig->set_bool("bEditorAttached", ptAppData->bEditorAttached);
     gptConfig->set_bool("bShowEntityWindow", ptAppData->bShowEntityWindow);
     gptConfig->set_bool("bPhysicsDebugDraw", ptAppData->bPhysicsDebugDraw);
     gptConfig->set_bool("pbShowLogging", *ptAppData->pbShowLogging);
@@ -514,7 +517,6 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->cleanup_device(ptAppData->ptDevice);
     gptGfx->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
-    gptUI->text_filter_cleanup(&ptAppData->tFilter);
     pl_sb_free(ptAppData->sbtTestModels);
     PL_FREE(ptAppData);
 }
@@ -696,6 +698,8 @@ pl_app_update(plAppData* ptAppData)
 
     gptConsole->update();
 
+    ImGui::DockSpaceOverViewport(0, 0, ImGuiDockNodeFlags_PassthruCentralNode);
+
     // main "editor" debug window
     if(ptAppData->bShowPilotLightTool)
         pl__show_editor_window(ptAppData);
@@ -711,16 +715,15 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowUiDebug)
         gptUI->show_debug_window(&ptAppData->bShowUiDebug);
 
-    ImGui::DockSpaceOverViewport(0, 0, ImGuiDockNodeFlags_PassthruCentralNode);
+    
 
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
 
-    if(ptAppData->uSceneHandle0 != UINT32_MAX)
+    ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID);
+    ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_Once);
+    if(ImGui::Begin("Offscreen", NULL, ImGuiWindowFlags_NoTitleBar))
     {
-
-        ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID);
-        ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_Once);
-        if(ImGui::Begin("Offscreen", NULL, ImGuiWindowFlags_NoTitleBar))
+        if(ptAppData->uSceneHandle0 != UINT32_MAX)
         {
 
             plCameraComponent*  ptCamera = (plCameraComponent*)gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
@@ -744,9 +747,10 @@ pl_app_update(plAppData* ptAppData)
 
             ImTextureID tTexture = gptDearImGui->get_texture_id_from_bindgroup(gptRenderer->get_device(), gptRenderer->get_view_color_texture(ptAppData->uSceneHandle0, ptAppData->uViewHandle0));
             ImGui::Image(tTexture, tContextSize);
+
         }
-        ImGui::End();
     }
+    ImGui::End();
 
     if(ptAppData->bShowPlotDemo)
         ImPlot::ShowDemoWindow(&ptAppData->bShowPlotDemo);
@@ -972,34 +976,14 @@ pl__find_models(plAppData* ptAppData)
 void
 pl__show_editor_window(plAppData* ptAppData)
 {
-    plIO* ptIO = gptIO->get_io();
 
-    plUiWindowFlags tWindowFlags = PL_UI_WINDOW_FLAGS_NONE;
-
-    if(ptAppData->bEditorAttached)
+    if(ImGui::Begin("Pilot Light", NULL, ImGuiWindowFlags_None))
     {
-        tWindowFlags = PL_UI_WINDOW_FLAGS_NO_TITLE_BAR | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR;
-        gptUI->set_next_window_pos(pl_create_vec2(0, 0), PL_UI_COND_ALWAYS);
-        gptUI->set_next_window_size(pl_create_vec2(600.0f, ptIO->tMainViewportSize.y), PL_UI_COND_ALWAYS);
-    }
-
-    if(gptUI->begin_window("Pilot Light", NULL, tWindowFlags))
-    {
-        gptUI->vertical_spacing();
-        // gptUI->vertical_spacing();
-        // gptUI->vertical_spacing();
-
-        const float pfRatios[] = {1.0f};
-        const float pfRatios2[] = {0.5f, 0.5f};
-        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-
-        if(gptUI->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
+        if(ImGui::CollapsingHeader(ICON_FA_CIRCLE_INFO " Information"))
         {
-            gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-            gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
-
-            gptUI->layout_static(0.0f, 200.0f, 1);
-            if(gptUI->button("Show Camera Controls"))
+            ImGui::Text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+            ImGui::Text("Graphics Backend: %s", gptGfx->get_backend_string());
+            if(ImGui::Button("Show Camera Controls"))
             {
                 const char* acMouseInfo = "Camera Controls\n"
                 "_______________\n"
@@ -1018,16 +1002,19 @@ pl__show_editor_window(plAppData* ptAppData)
                 "C    Zooms the camera in (lowers FOV).\n";
                 gptScreenLog->add_message_ex(651984984, 45.0, PL_COLOR_32_GREEN, 1.5f, acMouseInfo);
             }
-            gptUI->end_collapsing_header();
         }
-        if(gptUI->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
+
+        if(ImGui::CollapsingHeader(ICON_FA_SLIDERS " App Options"))
         {
-            gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
-            gptUI->checkbox("Dear ImGui Demo", &ptAppData->bShowImGuiDemo);
-            gptUI->checkbox("Dear ImPlot Demo", &ptAppData->bShowPlotDemo);
+            if(ImGui::Button("Save Layout"))
+            {
+                ImGui::SaveIniSettingsToDisk("../editor/pl_imgui.ini");
+            }
+            ImGui::Checkbox("Dear ImGui Demo", &ptAppData->bShowImGuiDemo);
+            ImGui::Checkbox("Dear ImPlot Demo", &ptAppData->bShowPlotDemo);
             if(ptAppData->uSceneHandle0 != UINT32_MAX)
             {
-                if(gptUI->checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
+                if(ImGui::Checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
                 {
                     plComponentLibrary* ptMainComponentLibrary = gptRenderer->get_component_library(ptAppData->uSceneHandle0);
                     plCameraComponent*  ptCamera = (plCameraComponent*)gptEcs->get_component(ptMainComponentLibrary, PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
@@ -1036,16 +1023,11 @@ pl__show_editor_window(plAppData* ptAppData)
                 }
             }
 
-            gptUI->vertical_spacing();
-
-            const float pfWidths[] = {150.0f, 150.0f};
-            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfWidths);
-
             bool bLoadScene = false;
 
             if(ptAppData->uSceneHandle0 != UINT32_MAX)
             {
-                if(gptUI->button("Unload Scene"))
+                if(ImGui::Button("Unload Scene"))
                 {
                     gptPhysics->reset();
                     gptRenderer->cleanup_scene(ptAppData->uSceneHandle0);
@@ -1054,13 +1036,15 @@ pl__show_editor_window(plAppData* ptAppData)
             }
             else
             {
-                if(gptUI->button("Load Scene"))
+                if(ImGui::Button("Load Scene"))
                 {
                     bLoadScene = true;
                 }
             }
 
-            if(gptUI->button("Reset Selection"))
+            ImGui::SameLine();
+
+            if(ImGui::Button("Reset Selection"))
             {
                 uint32_t uTestModelCount = pl_sb_size(ptAppData->sbtTestModels);
                 for(uint32_t i = 0; i < uTestModelCount; i++)
@@ -1088,51 +1072,46 @@ pl__show_editor_window(plAppData* ptAppData)
                 };
                 bool abCombo[11] = {0};
                 abCombo[uComboSelect] = true;
-                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-                if(gptUI->begin_combo("Environment", apcEnvMaps[uComboSelect], PL_UI_COMBO_FLAGS_NONE))
+                if(ImGui::BeginCombo("Environment", apcEnvMaps[uComboSelect]))
                 {
                     for(uint32_t i = 0; i < 10; i++)
                     {
-                        if(gptUI->selectable(apcEnvMaps[i], &abCombo[i], 0))
+                        if(ImGui::Selectable(apcEnvMaps[i], &abCombo[i], 0))
                         {
                             uComboSelect = i;
-                            gptUI->close_current_popup();
                         }
                     }
-                    gptUI->end_combo();
+                    ImGui::EndCombo();
                 }
 
-                if(gptUI->input_text_hint(ICON_FA_MAGNIFYING_GLASS, "Filter (inc,-exc)", ptAppData->tFilter.acInputBuffer, 256, 0))
+                // if(ImGui::InputTextWithHint(ICON_FA_MAGNIFYING_GLASS, "Filter (inc,-exc)", ptAppData->tFilter.acInputBuffer, 256, 0))
+                // {
+                //     gptUI->text_filter_build(&ptAppData->tFilter);
+                // }
+                static ImGuiTextFilter filter;
+                if (ImGui::IsWindowAppearing())
                 {
-                    gptUI->text_filter_build(&ptAppData->tFilter);
+                    ImGui::SetKeyboardFocusHere();
+                    filter.Clear();
                 }
+                filter.Draw(ICON_FA_MAGNIFYING_GLASS);
 
-                if(gptUI->begin_child("GLTF Models", 0, 0))
+                if(ImGui::BeginListBox("GLTF Models"))
                 {
                     uint32_t uTestModelCount = pl_sb_size(ptAppData->sbtTestModels);
-                    if(gptUI->text_filter_active(&ptAppData->tFilter))
-                    {
-                        for(uint32_t i = 0; i < uTestModelCount; i++)
-                        {
-                            if(gptUI->text_filter_pass(&ptAppData->tFilter, ptAppData->sbtTestModels[i].acName, NULL))
-                                gptUI->selectable(ptAppData->sbtTestModels[i].acName, &ptAppData->sbtTestModels[i].bSelected, 0);
-                        }
-                    }
-                    else
-                    {
-                        plUiClipper tClipper = {(uint32_t)uTestModelCount};
-                        while(gptUI->step_clipper(&tClipper))
-                        {
-                            for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
-                            {
-                                gptUI->selectable(ptAppData->sbtTestModels[i].acName, &ptAppData->sbtTestModels[i].bSelected, 0);
-                            }
-                        }
-                    }
-                    gptUI->end_child();
-                }
+                    // for(uint32_t i = 0; i < uTestModelCount; i++)
+                    //     ImGui::Selectable(ptAppData->sbtTestModels[i].acName, &ptAppData->sbtTestModels[i].bSelected);
 
-                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfWidths);
+
+        
+                    for (uint32_t n = 0; n < uTestModelCount; n++)
+                    {
+                        if (filter.PassFilter(ptAppData->sbtTestModels[n].acName))
+                            ImGui::Selectable(ptAppData->sbtTestModels[n].acName, &ptAppData->sbtTestModels[n].bSelected);
+                    }
+
+                   ImGui::EndListBox();
+                }
 
                 if(bLoadScene)
                 {
@@ -1146,6 +1125,7 @@ pl__show_editor_window(plAppData* ptAppData)
                         gptRenderer->load_skybox_from_panorama(ptAppData->uSceneHandle0, sbcData, 1024);
                         pl_sb_free(sbcData);
                     }
+                    plIO* ptIO = gptIO->get_io();
 
                     ptAppData->uViewHandle0 = gptRenderer->create_view(ptAppData->uSceneHandle0, ptIO->tMainViewportSize);
 
@@ -1168,106 +1148,97 @@ pl__show_editor_window(plAppData* ptAppData)
                 }
 
             }
-
-            gptUI->end_collapsing_header();
         }
-        
-        if(gptUI->begin_collapsing_header(ICON_FA_DICE_D6 " Graphics", 0))
+
+        if(ImGui::CollapsingHeader(ICON_FA_DICE_D6 " Graphics"))
         {
             plRendererRuntimeOptions* ptRuntimeOptions = gptRenderer->get_runtime_options();
-            if(gptUI->checkbox("VSync", &ptRuntimeOptions->bVSync))
+            if(ImGui::Checkbox("VSync", &ptRuntimeOptions->bVSync))
                 ptRuntimeOptions->bReloadSwapchain = true;
-            gptUI->checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
-            gptUI->checkbox("Show BVH", &ptRuntimeOptions->bShowBVH);
+            ImGui::Checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
+            ImGui::Checkbox("Show BVH", &ptRuntimeOptions->bShowBVH);
             bool bReloadShaders = false;
-            if(gptUI->checkbox("Wireframe", &ptRuntimeOptions->bWireframe)) bReloadShaders = true;
-            if(gptUI->checkbox("MultiViewport Shadows", &ptRuntimeOptions->bMultiViewportShadows)) bReloadShaders = true;
-            if(gptUI->checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;
-            if(gptUI->checkbox("Punctual Lighting", &ptRuntimeOptions->bPunctualLighting)) bReloadShaders = true;
-            gptUI->checkbox("Show Probes", &ptRuntimeOptions->bShowProbes);
+            if(ImGui::Checkbox("Wireframe", &ptRuntimeOptions->bWireframe)) bReloadShaders = true;
+            if(ImGui::Checkbox("MultiViewport Shadows", &ptRuntimeOptions->bMultiViewportShadows)) bReloadShaders = true;
+            if(ImGui::Checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;
+            if(ImGui::Checkbox("Punctual Lighting", &ptRuntimeOptions->bPunctualLighting)) bReloadShaders = true;
+            ImGui::Checkbox("Show Probes", &ptRuntimeOptions->bShowProbes);
 
             if(bReloadShaders)
             {
                 gptRenderer->reload_scene_shaders(ptAppData->uSceneHandle0);
             }
-            gptUI->checkbox("Frustum Culling", &ptRuntimeOptions->bFrustumCulling);
-            gptUI->checkbox("All Bounding Boxes", &ptRuntimeOptions->bDrawAllBoundingBoxes);
-            gptUI->checkbox("Visible Bounding Boxes", &ptRuntimeOptions->bDrawVisibleBoundingBoxes);
-            gptUI->checkbox("Selected Bounding Box", &ptRuntimeOptions->bShowSelectedBoundingBox);
+            ImGui::Checkbox("Frustum Culling", &ptRuntimeOptions->bFrustumCulling);
+            ImGui::Checkbox("All Bounding Boxes", &ptRuntimeOptions->bDrawAllBoundingBoxes);
+            ImGui::Checkbox("Visible Bounding Boxes", &ptRuntimeOptions->bDrawVisibleBoundingBoxes);
+            ImGui::Checkbox("Selected Bounding Box", &ptRuntimeOptions->bShowSelectedBoundingBox);
             
-            gptUI->input_float("Depth Bias", &ptRuntimeOptions->fShadowConstantDepthBias, NULL, 0);
-            gptUI->input_float("Slope Depth Bias", &ptRuntimeOptions->fShadowSlopeDepthBias, NULL, 0);
-            gptUI->slider_uint("Outline Width", &ptRuntimeOptions->uOutlineWidth, 2, 50, 0);
+            ImGui::InputFloat("Depth Bias", &ptRuntimeOptions->fShadowConstantDepthBias);
+            ImGui::InputFloat("Slope Depth Bias", &ptRuntimeOptions->fShadowSlopeDepthBias, NULL, 0);
+
+            uint32_t uMinOutline = 2;
+            uint32_t uMaxOutline = 50;
+            ImGui::SliderScalar("Outline Width", ImGuiDataType_U32, &ptRuntimeOptions->uOutlineWidth, &uMinOutline, &uMaxOutline, 0);
             
 
             if(ptAppData->uSceneHandle0 != UINT32_MAX)
             {
-                if(gptUI->tree_node("Scene", 0))
+                if(ImGui::TreeNode("Scene"))
                 {
                     plSceneRuntimeOptions* ptSceneRuntimeOptions = gptRenderer->get_scene_runtime_options(ptAppData->uSceneHandle0);
-                    gptUI->checkbox("Show Skybox", &ptSceneRuntimeOptions->bShowSkybox);
-                    gptUI->checkbox("Dynamic BVH", &ptSceneRuntimeOptions->bContinuousBVH);
-                    if(gptUI->button("Build BVH") || ptSceneRuntimeOptions->bContinuousBVH)
+                    ImGui::Checkbox("Show Skybox", &ptSceneRuntimeOptions->bShowSkybox);
+                    ImGui::Checkbox("Dynamic BVH", &ptSceneRuntimeOptions->bContinuousBVH);
+                    if(ImGui::Button("Build BVH") || ptSceneRuntimeOptions->bContinuousBVH)
                         gptRenderer->rebuild_scene_bvh(ptAppData->uSceneHandle0);
-                    gptUI->tree_pop();
+                    ImGui::TreePop();
                 }
             }
-            gptUI->end_collapsing_header();
         }
 
-        if(gptUI->begin_collapsing_header(ICON_FA_BOXES_STACKED " Physics", 0))
+        if(ImGui::CollapsingHeader(ICON_FA_BOXES_STACKED " Physics", 0))
         {
             plPhysicsEngineSettings tPhysicsSettings = gptPhysics->get_settings();
 
-            gptUI->checkbox("Enabled", &tPhysicsSettings.bEnabled);
-            gptUI->checkbox("Debug Draw", &ptAppData->bPhysicsDebugDraw);
-            gptUI->slider_float("Simulation Speed", &tPhysicsSettings.fSimulationMultiplier, 0.01f, 3.0f, 0);
-            gptUI->input_float("Sleep Epsilon", &tPhysicsSettings.fSleepEpsilon, "%g", 0);
-            gptUI->input_float("Position Epsilon", &tPhysicsSettings.fPositionEpsilon, "%g", 0);
-            gptUI->input_float("Velocity Epsilon", &tPhysicsSettings.fVelocityEpsilon, "%g", 0);
-            gptUI->input_uint("Max Position Its.", &tPhysicsSettings.uMaxPositionIterations, 0);
-            gptUI->input_uint("Max Velocity Its.", &tPhysicsSettings.uMaxVelocityIterations, 0);
-            gptUI->input_float("Frame Rate", &tPhysicsSettings.fSimulationFrameRate, "%g", 0);
-            if(gptUI->button("Wake All")) gptPhysics->wake_up_all();
-            if(gptUI->button("Sleep All")) gptPhysics->sleep_all();
+            ImGui::Checkbox("Enabled", &tPhysicsSettings.bEnabled);
+            ImGui::Checkbox("Debug Draw", &ptAppData->bPhysicsDebugDraw);
+            ImGui::SliderFloat("Simulation Speed", &tPhysicsSettings.fSimulationMultiplier, 0.01f, 3.0f);
+            ImGui::InputFloat("Sleep Epsilon", &tPhysicsSettings.fSleepEpsilon);
+            ImGui::InputFloat("Position Epsilon", &tPhysicsSettings.fPositionEpsilon);
+            ImGui::InputFloat("Velocity Epsilon", &tPhysicsSettings.fVelocityEpsilon);
+            ImGui::InputScalar("Max Position Its.", ImGuiDataType_U32, &tPhysicsSettings.uMaxPositionIterations);
+            ImGui::InputScalar("Max Velocity Its.", ImGuiDataType_U32, &tPhysicsSettings.uMaxVelocityIterations);
+            ImGui::InputFloat("Frame Rate", &tPhysicsSettings.fSimulationFrameRate);
+            if(ImGui::Button("Wake All")) gptPhysics->wake_up_all();
+            if(ImGui::Button("Sleep All")) gptPhysics->sleep_all();
 
             gptPhysics->set_settings(tPhysicsSettings);
 
-            gptUI->end_collapsing_header();
         }
 
-        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
-        if(gptUI->begin_collapsing_header(ICON_FA_SCREWDRIVER_WRENCH " Tools", 0))
+        if(ImGui::CollapsingHeader(ICON_FA_SCREWDRIVER_WRENCH " Tools"))
         {
-            gptUI->checkbox("Device Memory", ptAppData->pbShowDeviceMemoryAnalyzer);
-            gptUI->checkbox("Memory Allocations", ptAppData->pbShowMemoryAllocations);
-            gptUI->checkbox("Profiling", ptAppData->pbShowProfiling);
-            gptUI->checkbox("Statistics", ptAppData->pbShowStats);
-            gptUI->checkbox("Logging", ptAppData->pbShowLogging);
-            gptUI->checkbox("Entities", &ptAppData->bShowEntityWindow);
-            gptUI->end_collapsing_header();
+            ImGui::Checkbox("Device Memory", ptAppData->pbShowDeviceMemoryAnalyzer);
+            ImGui::Checkbox("Memory Allocations", ptAppData->pbShowMemoryAllocations);
+            ImGui::Checkbox("Profiling", ptAppData->pbShowProfiling);
+            ImGui::Checkbox("Statistics", ptAppData->pbShowStats);
+            ImGui::Checkbox("Logging", ptAppData->pbShowLogging);
+            ImGui::Checkbox("Entities", &ptAppData->bShowEntityWindow);
         }
-        if(gptUI->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface", 0))
+        if(ImGui::CollapsingHeader(ICON_FA_USER_GEAR " User Interface"))
         {
-            gptUI->checkbox("UI Demo", &ptAppData->bShowUiDemo);
-            gptUI->checkbox("UI Debug", &ptAppData->bShowUiDebug);
-            gptUI->checkbox("UI Style", &ptAppData->bShowUiStyle);
-            gptUI->end_collapsing_header();
+            ImGui::Checkbox("UI Demo", &ptAppData->bShowUiDemo);
+            ImGui::Checkbox("UI Debug", &ptAppData->bShowUiDebug);
+            ImGui::Checkbox("UI Style", &ptAppData->bShowUiStyle);
         }
 
-        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-
-        if(gptUI->begin_collapsing_header(ICON_FA_PHOTO_FILM " Renderer", 0))
+        if(ImGui::CollapsingHeader(ICON_FA_PHOTO_FILM " Renderer"))
         {
 
-            if(gptUI->button("Reload Shaders"))
-            {
+            if(ImGui::Button("Reload Shaders"))
                 gptRenderer->reload_scene_shaders(ptAppData->uSceneHandle0);
-            }
-            gptUI->end_collapsing_header();
         }
-        gptUI->end_window();
     }
+    ImGui::End();
 }
 
 void
