@@ -78,7 +78,7 @@ with pl.project("pilotlight deploy"):
     pl.add_profile(platform_filter=["Darwin"],
                     link_frameworks=["Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore"])
     pl.add_profile(compiler_filter=["clang"],
-                    linker_flags=["-Wl,-rpath,/usr/local/lib"],
+                    link_directories=["/usr/local/lib"],
                     compiler_flags=["-std=c99", "-fmodules", "-ObjC", "-fPIC"])
     pl.add_profile(compiler_filter=["clang"],
                     configuration_filter=["debug"],

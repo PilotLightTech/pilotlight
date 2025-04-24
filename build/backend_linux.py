@@ -254,7 +254,7 @@ def generate_build(name, user_options = None):
 
             helper.add_raw('PL_LINK_DIRECTORIES="')
             for link in settings.link_directories:
-                helper.add_raw('-L' + link + ' ')
+                helper.add_raw('-L' + link + ' -Wl,-rpath,' + link + ' ')
             helper.add_raw('"\n')
 
             helper.add_raw('PL_COMPILER_FLAGS="')

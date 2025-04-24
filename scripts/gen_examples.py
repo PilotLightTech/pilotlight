@@ -90,7 +90,7 @@ with pl.project("pilotlight_examples"):
                     with pl.compiler("clang"):
                         pl.add_compiler_flags("-std=c99", "--debug", "-g", "-fmodules", "-ObjC", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-                        pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
+                        pl.add_link_directories("/usr/local/lib")
 
             with pl.configuration("release"):
 
@@ -114,7 +114,7 @@ with pl.project("pilotlight_examples"):
                     with pl.compiler("clang"):
                         pl.add_compiler_flags("-std=c99", "-fmodules", "-ObjC", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-                        pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
+                        pl.add_link_directories("/usr/local/lib")
 
     for name in cpp_examples:
 
@@ -147,7 +147,7 @@ with pl.project("pilotlight_examples"):
                     with pl.compiler("clang"):
                         pl.add_compiler_flags("-std=c++14", "--debug", "-g", "-fmodules", "-ObjC", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-                        pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
+                        pl.add_link_directories("/usr/local/lib")
 
             with pl.configuration("release_experimental"):
 
@@ -173,7 +173,7 @@ with pl.project("pilotlight_examples"):
                     with pl.compiler("clang"):
                         pl.add_compiler_flags("-std=c++14", "-fmodules", "-ObjC", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-                        pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
+                        pl.add_link_directories("/usr/local/lib")
 
 #-----------------------------------------------------------------------------
 # [SECTION] generate scripts

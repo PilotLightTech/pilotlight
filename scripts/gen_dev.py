@@ -87,7 +87,7 @@ with pl.project("pilotlight"):
     pl.add_profile(platform_filter=["Darwin"],
                     link_frameworks=["Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore"])
     pl.add_profile(compiler_filter=["clang"],
-                    linker_flags=["-Wl,-rpath,/usr/local/lib"],
+                    link_directories=["/usr/local/lib"],
                     compiler_flags=["-std=c99", "-fmodules", "-ObjC", "-fPIC"])
     pl.add_profile(compiler_filter=["clang"],
                     configuration_filter=["debug", "moltenvk", "debug_experimental", "moltenvk_experimental"],
@@ -442,9 +442,8 @@ with pl.project("pilotlight"):
                     pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_COCOA", "_DEBUG")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan', '/usr/include/vulkan')
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "vulkan")
-                    pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
                     pl.add_compiler_flags("-Wno-deprecated-declarations", "--debug -g", "-std=c99", "-fmodules", "-ObjC", "-fPIC")
-                    pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
                     pl.add_link_frameworks("Cocoa", "IOKit", "CoreFoundation")
 
         with pl.configuration("release_experimental"):
@@ -476,9 +475,9 @@ with pl.project("pilotlight"):
                     pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_COCOA")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan', '/usr/include/vulkan')
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "vulkan")
-                    pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
                     pl.add_compiler_flags("-std=c99", "-fmodules", "-ObjC", "-fPIC", "-Wno-deprecated-declarations")
-                    pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
+
                     pl.add_link_frameworks("Cocoa", "IOKit", "CoreFoundation")
 
         with pl.configuration("moltenvk_experimental"):
@@ -490,9 +489,8 @@ with pl.project("pilotlight"):
                     pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_COCOA", "_DEBUG")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan', '/usr/include/vulkan')
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "vulkan")
-                    pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
                     pl.add_compiler_flags("-Wno-deprecated-declarations", "--debug -g", "-std=c99", "-fmodules", "-ObjC", "-fPIC")
-                    pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
                     pl.add_link_frameworks("Cocoa", "IOKit", "CoreFoundation")
 
     #-----------------------------------------------------------------------------
@@ -625,7 +623,8 @@ with pl.project("pilotlight"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_static_link_libraries("dearimguid")
-                    pl.add_linker_flags("-lstdc++", "-ldl", "-lm", "-Wl,-rpath,/usr/local/lib")
+                    pl.add_link_directories("/usr/local/lib")
+                    pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
                     pl.add_compiler_flags("-fPIC", "-fmodules", "--debug", "-g", "-std=c++14")
                     pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
             
@@ -787,8 +786,9 @@ with pl.project("pilotlight"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_definitions("PL_VULKAN_BACKEND")
+                    pl.add_link_directories("/usr/local/lib")
                     pl.add_compiler_flags("--debug -g", "-std=c++11", "-fPIC", "-ObjC++", "-fmodules")
-                    pl.add_linker_flags("-ldl -lm", "-lstdc++", "-Wl,-rpath,/usr/local/lib")
+                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
                     pl.add_dynamic_link_libraries("vulkan", "pthread")
                     pl.add_static_link_libraries("glfwd", "dearimguid")
 

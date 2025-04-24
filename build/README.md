@@ -78,7 +78,7 @@ with pl.project("tutorial"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_compiler_flags("-g", "--debug")
-                    pl.add_linker_flags("-Wl,-rpath,/usr/local/lib")
+                    pl.add_link_directories("/usr/local/lib")
                     
 win32.generate_build("build_win32.bat")
 linux.generate_build("build_linux.sh")
