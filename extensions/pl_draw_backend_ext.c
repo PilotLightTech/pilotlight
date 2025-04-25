@@ -663,7 +663,7 @@ pl_create_bind_group_for_texture(plTextureHandle tTexture)
 static void
 pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
 {
-
+    gptGfx->set_depth_bias( ptEncoder, 0.0f, 0.0f, 0.0f);
     gptDraw->prepare_2d_drawlist(ptDrawlist);
 
     if(pl_sb_size(ptDrawlist->sbtVertexBuffer) == 0u)

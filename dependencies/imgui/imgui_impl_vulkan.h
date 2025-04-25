@@ -32,6 +32,7 @@ struct ImGui_ImplVulkan_InitInfo
     uint32_t              DescriptorPoolSize;
 
     // (Optional) Allocation, Debugging
+    const VkAllocationCallbacks* Allocator;
     VkDeviceSize MinAllocationSize; // Minimum allocation size. Set to 1024*1024 to satisfy zealous best practices validation layer and waste a little memory.
 };
 

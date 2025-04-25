@@ -955,6 +955,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_vulkan_image_view      = pl_get_vulkan_image_view,
         .get_vulkan_sampler         = pl_get_vulkan_sampler,
         .get_vulkan_descriptor_set  = pl_get_vulkan_descriptor_set,
+        .get_vulkan_allocation_callbacks = pl_get_vulkan_allocation_callbacks,
         #endif
 
         #if defined(PL_GRAPHICS_EXPOSE_METAL) && defined(PL_METAL_BACKEND)

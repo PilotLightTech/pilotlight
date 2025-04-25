@@ -68,6 +68,7 @@ pl_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, plRenderPassHandle 
     // tImguiVulkanInfo.DescriptorPool = gptGfx->get_vulkan_descriptor_pool(gptDrawBackend->get_bind_group_pool());
     tImguiVulkanInfo.DescriptorPoolSize = 100000;
     tImguiVulkanInfo.MinImageCount = 2;
+    tImguiVulkanInfo.Allocator = gptGfx->get_vulkan_allocation_callbacks();
     tImguiVulkanInfo.MSAASamples = (VkSampleCountFlagBits)gptGfx->get_swapchain_info(ptSwap).tSampleCount;
     tImguiVulkanInfo.RenderPass = gptGfx->get_vulkan_render_pass(ptDevice, tMainRenderPass);
     gptGfx->get_swapchain_images(ptSwap, &tImguiVulkanInfo.ImageCount);
