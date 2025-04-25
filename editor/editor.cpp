@@ -10,9 +10,6 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] global apis
-// [SECTION] structs
-// [SECTION] helper forward declarations
 // [SECTION] pl_app_load
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
@@ -25,197 +22,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-// standard
-#include <stdlib.h>
-#include <stdio.h>
-#include <float.h>
-
-// pilot light
-#include "pl.h"
-#include "pl_memory.h"
-#include "pl_string.h"
-#define PL_MATH_INCLUDE_FUNCTIONS
-#include "pl_math.h"
-#include "pl_icons.h"
-#include "pl_json.h"
-
-// stable extensions
-#include "pl_image_ext.h"
-#include "pl_profile_ext.h"
-#include "pl_log_ext.h"
-#include "pl_stats_ext.h"
-#include "pl_graphics_ext.h"
-#include "pl_tools_ext.h"
-#include "pl_job_ext.h"
-#include "pl_draw_ext.h"
-#include "pl_draw_backend_ext.h"
-#include "pl_ui_ext.h"
-#include "pl_shader_ext.h"
-#include "pl_string_intern_ext.h"
-#include "pl_platform_ext.h"
-#include "pl_console_ext.h"
-#include "pl_screen_log_ext.h"
-#include "pl_starter_ext.h"
-
-// unstable extensions
-#include "pl_ecs_ext.h"
-#include "pl_config_ext.h"
-#include "pl_resource_ext.h"
-#include "pl_model_loader_ext.h"
-#include "pl_renderer_ext.h"
-#include "pl_ecs_tools_ext.h"
-#include "pl_gizmo_ext.h"
-#include "pl_physics_ext.h"
-#include "pl_collision_ext.h"
-#include "pl_bvh_ext.h"
-
-// dear imgui
-#include "pl_dear_imgui_ext.h"
-#include "imgui.h"
-#include "implot.h"
-
-//-----------------------------------------------------------------------------
-// [SECTION] global apis
-//-----------------------------------------------------------------------------
-
-const plWindowI*       gptWindows     = NULL;
-const plStatsI*        gptStats       = NULL;
-const plGraphicsI*     gptGfx         = NULL;
-const plToolsI*        gptTools       = NULL;
-const plEcsI*          gptEcs         = NULL;
-const plCameraI*       gptCamera      = NULL;
-const plRendererI*     gptRenderer    = NULL;
-const plModelLoaderI*  gptModelLoader = NULL;
-const plJobI*          gptJobs        = NULL;
-const plDrawI*         gptDraw        = NULL;
-const plDrawBackendI*  gptDrawBackend = NULL;
-const plUiI*           gptUI          = NULL;
-const plIOI*           gptIO          = NULL;
-const plShaderI*       gptShader      = NULL;
-const plMemoryI*       gptMemory      = NULL;
-const plNetworkI*      gptNetwork     = NULL;
-const plStringInternI* gptString      = NULL;
-const plProfileI*      gptProfile     = NULL;
-const plFileI*         gptFile        = NULL;
-const plEcsToolsI*     gptEcsTools    = NULL;
-const plGizmoI*        gptGizmo       = NULL;
-const plConsoleI*      gptConsole     = NULL;
-const plScreenLogI*    gptScreenLog   = NULL;
-const plPhysicsI *     gptPhysics     = NULL;
-const plCollisionI*    gptCollision   = NULL;
-const plBVHI*          gptBvh         = NULL;
-const plConfigI*       gptConfig      = NULL;
-const plDearImGuiI*    gptDearImGui   = NULL;
-const plResourceI*     gptResource    = NULL;
-const plStarterI*      gptStarter     = NULL;
-
-#define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
-#define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
-#define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
-
-#define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
-#define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
-#define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
-#include "pl_ds.h"
-
-#define PL_JSON_ALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
-#define PL_JSON_FREE(x)  gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
-
-//-----------------------------------------------------------------------------
-// [SECTION] structs
-//-----------------------------------------------------------------------------
-
-typedef struct _plTestModelVariant
-{
-    char acType[64];
-    char acName[128];
-    char acFilePath[1024];
-} plTestModelVariant;
-
-typedef struct _plTestModel
-{
-    char acLabel[256];
-    char acName[128];
-    
-    bool bCore;
-    bool bExtension;
-    bool bTesting;
-    bool bSelected;
-
-    uint32_t uVariantCount;
-    plTestModelVariant acVariants[8];
-
-} plTestModel;
-
-typedef struct _plAppData
-{
-
-    // windows
-    plWindow* ptWindow;
-
-    // graphics
-    plDevice*    ptDevice;
-    plDeviceInfo tDeviceInfo;
-    plSwapchain* ptSwap;
-    plSurface*   ptSurface;
-
-    // swapchains
-    bool bResize;
-
-    // ui options
-    bool  bShowImGuiDemo;
-    bool  bShowPlotDemo;
-    bool  bShowUiDemo;
-    bool  bShowUiDebug;
-    bool  bShowUiStyle;
-    bool  bShowEntityWindow;
-    bool  bShowPilotLightTool;
-    bool* pbShowDeviceMemoryAnalyzer;
-    bool* pbShowMemoryAllocations;
-    bool* pbShowProfiling;
-    bool* pbShowStats;
-    bool* pbShowLogging;
-
-    // scene
-    bool     bFreezeCullCamera;
-    plEntity tCullCamera;
-    plEntity tMainCamera;
-
-    // scenes/views
-    uint32_t uSceneHandle0;
-    uint32_t uViewHandle0;
-    plVec2 tView0Offset;
-    plVec2 tView0Scale;
-
-    // drawing
-    plDrawLayer2D* ptDrawLayer;
-
-    // selection stuff
-    plEntity tSelectedEntity;
-    
-    // fonts
-    plFont* tDefaultFont;
-
-    // test models
-    ImGuiTextFilter tFilter;
-    plTestModel*   sbtTestModels;
-
-    // physics
-    bool bPhysicsDebugDraw;
-
-    // misc
-    char* sbcTempBuffer;
-} plAppData;
-
-//-----------------------------------------------------------------------------
-// [SECTION] helper forward declarations
-//-----------------------------------------------------------------------------
-
-void pl__find_models       (plAppData*);
-void pl__create_scene      (plAppData*);
-void pl__show_editor_window(plAppData*);
-void pl__show_ui_demo_window(plAppData* ptAppData);
-void pl__camera_update_imgui(plCameraComponent*);
+#include "editor.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -275,6 +82,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
         gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
+
+        ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
 
@@ -361,10 +170,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plWindowDesc tWindowDesc = {
         PL_WINDOW_FLAG_NONE,
         "Pilot Light Editor",
-        500,
-        500,
-        200,
-        200
+        1500,
+        900,
+        50,
+        50
     };
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
     gptWindows->show(ptAppData->ptWindow);
@@ -422,7 +231,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plFontConfig tFontConfig0 = PL_ZERO_INIT;
     tFontConfig0.bSdf = false;
-    tFontConfig0.fSize = 14.0f;
+    tFontConfig0.fSize = 16.0f;
     tFontConfig0.uHOverSampling = 1;
     tFontConfig0.uVOverSampling = 1;
     tFontConfig0.ptRanges = &tFontRange;
@@ -435,7 +244,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plFontConfig tFontConfig1 = PL_ZERO_INIT;
     tFontConfig1.bSdf           = false;
-    tFontConfig1.fSize          = 14.0f;
+    tFontConfig1.fSize          = 16.0f;
     tFontConfig1.uHOverSampling = 1;
     tFontConfig1.uVOverSampling = 1;
     tFontConfig1.ptMergeFont    = ptAppData->tDefaultFont;
@@ -469,11 +278,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ImGuiIO& tImGuiIO = ImGui::GetIO();
     tImGuiIO.IniFilename = NULL;
     ImGui::LoadIniSettingsFromDisk("../editor/pl_imgui.ini");
-    tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf", 14.0f);
+    tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf", 16.0f);
     auto tImGuiFontConfig = ImFontConfig();
     tImGuiFontConfig.MergeMode = true;
     static ImWchar atFontRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA};
-    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/fa-solid-900.otf", 14.0f, &tImGuiFontConfig, atFontRanges);
+    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/fa-solid-900.otf", 16.0f, &tImGuiFontConfig, atFontRanges);
     return ptAppData;
 }
 
@@ -594,25 +403,20 @@ pl_app_update(plAppData* ptAppData)
 
         plVec2 tMousePos = gptIO->get_mouse_pos();
 
-        if(!gptUI->wants_mouse_capture() && !gptGizmo->active())
+        if(ptAppData->bMainViewHovered && !gptUI->wants_mouse_capture() && !gptGizmo->active())
         {
             static plVec2 tClickPos = {0};
-            if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+            if(ImGui::IsMouseClicked(ImGuiMouseButton_Left))
             {
                 tClickPos = tMousePos;
             }
-            else if(gptIO->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
+            else if(ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             {
                 plVec2 tReleasePos = tMousePos;
 
                 if(tReleasePos.x == tClickPos.x && tReleasePos.y == tClickPos.y)
                     gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, ptAppData->tView0Offset, ptAppData->tView0Scale);
             }
-        }
-
-        if(ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-        {
-            gptRenderer->update_hovered_entity(ptAppData->uSceneHandle0, ptAppData->uViewHandle0, ptAppData->tView0Offset, ptAppData->tView0Scale);
         }
 
         // run ecs system
@@ -700,6 +504,38 @@ pl_app_update(plAppData* ptAppData)
 
     ImGui::DockSpaceOverViewport(0, 0, ImGuiDockNodeFlags_PassthruCentralNode);
 
+    if(ImGui::BeginMainMenuBar())
+    {
+        if(ImGui::BeginMenu("File", true))
+        {
+            if(ImGui::MenuItem("Save Layout"))
+                ImGui::SaveIniSettingsToDisk("../editor/pl_imgui.ini");
+            ImGui::EndMenu();
+        }
+        if(ImGui::BeginMenu("Edit", false))
+        {
+            ImGui::EndMenu();
+        }
+        if(ImGui::BeginMenu("Tools", true))
+        {
+            ImGui::SeparatorText("Pilot Light");
+            ImGui::MenuItem("Log Tool", nullptr, ptAppData->pbShowLogging);
+            ImGui::MenuItem("Stat Tool", nullptr, ptAppData->pbShowStats);
+            ImGui::MenuItem("Profile Tool", nullptr, ptAppData->pbShowProfiling);
+            ImGui::MenuItem("Allocation Tool", nullptr, ptAppData->pbShowMemoryAllocations);
+            ImGui::MenuItem("Device Memory Tool", nullptr, ptAppData->pbShowDeviceMemoryAnalyzer);
+            ImGui::SeparatorText("Dear ImGui");
+            ImGui::MenuItem("Dear ImGui Demo", nullptr, &ptAppData->bShowImGuiDemo);
+            ImGui::MenuItem("Dear ImPlot Demo", nullptr, &ptAppData->bShowPlotDemo);
+            ImGui::EndMenu();
+        }
+        if(ImGui::BeginMenu("Help", false))
+        {
+            ImGui::EndMenu();
+        }
+        ImGui::EndMainMenuBar();
+    }
+
     // main "editor" debug window
     if(ptAppData->bShowPilotLightTool)
         pl__show_editor_window(ptAppData);
@@ -715,19 +551,22 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowUiDebug)
         gptUI->show_debug_window(&ptAppData->bShowUiDebug);
 
-    
-
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
+
+    pl__show_entity_components(ptAppData, ptAppData->uSceneHandle0, ptAppData->tSelectedEntity);
 
     ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID);
     ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_Once);
+    ptAppData->bMainViewHovered = false;
     if(ImGui::Begin("Offscreen", NULL, ImGuiWindowFlags_NoTitleBar))
     {
+        if(ImGui::IsWindowHovered())
+            ptAppData->bMainViewHovered = true;
         if(ptAppData->uSceneHandle0 != UINT32_MAX)
         {
 
             plCameraComponent*  ptCamera = (plCameraComponent*)gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
-            if(ImGui::IsWindowHovered())
+            if(ptAppData->bMainViewHovered)
                 pl__camera_update_imgui(ptCamera);
 
             ImVec2 tContextSize = ImGui::GetContentRegionAvail();
@@ -979,6 +818,7 @@ pl__show_editor_window(plAppData* ptAppData)
 
     if(ImGui::Begin("Pilot Light", NULL, ImGuiWindowFlags_None))
     {
+        ImGui::Dummy({25.0f, 15.0f});
         if(ImGui::CollapsingHeader(ICON_FA_CIRCLE_INFO " Information"))
         {
             ImGui::Text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
@@ -1006,12 +846,6 @@ pl__show_editor_window(plAppData* ptAppData)
 
         if(ImGui::CollapsingHeader(ICON_FA_SLIDERS " App Options"))
         {
-            if(ImGui::Button("Save Layout"))
-            {
-                ImGui::SaveIniSettingsToDisk("../editor/pl_imgui.ini");
-            }
-            ImGui::Checkbox("Dear ImGui Demo", &ptAppData->bShowImGuiDemo);
-            ImGui::Checkbox("Dear ImPlot Demo", &ptAppData->bShowPlotDemo);
             if(ptAppData->uSceneHandle0 != UINT32_MAX)
             {
                 if(ImGui::Checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
@@ -1296,844 +1130,13 @@ pl__create_scene(plAppData* ptAppData)
 
 }
 
-void
-pl__camera_update_imgui(plCameraComponent* ptCamera)
-{
-    static float gfOriginalFOV = 0.0f;
-    if(gfOriginalFOV == 0.0f)
-        gfOriginalFOV = ptCamera->fFieldOfView;
-
-    if(gptGizmo->active())
-        return;
-
-
-    static const float gfCameraTravelSpeed = 4.0f;
-    static const float fCameraRotationSpeed = 0.005f;
-
-    float fCameraTravelSpeed = gfCameraTravelSpeed;
-
-    bool bOwnKeyboard = gptUI->wants_keyboard_capture();
-    bool bOwnMouse = gptUI->wants_mouse_capture();
-
-    plIO* ptIO = gptIO->get_io();
-
-    if(!bOwnKeyboard && !bOwnMouse)
-    {
-
-        bool bRMB = ImGui::IsMouseDown(ImGuiMouseButton_Right);
-        bool bLMB = ImGui::IsMouseDown(ImGuiMouseButton_Left);
-
-        if(ImGui::IsMouseClicked(ImGuiMouseButton_Right, false))
-        {
-            gfOriginalFOV = ptCamera->fFieldOfView;
-        }
-        else if(ImGui::IsMouseReleased(ImGuiMouseButton_Right))
-        {
-            ptCamera->fFieldOfView = gfOriginalFOV;
-        }
-
-        if(ImGui::IsKeyDown(ImGuiKey_ModShift))
-            fCameraTravelSpeed *= 3.0f;
-
-
-        // camera space
-        
-        if(bRMB)
-        {
-            if(ImGui::IsKeyDown(ImGuiKey_W)) gptCamera->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
-            if(ImGui::IsKeyDown(ImGuiKey_S)) gptCamera->translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
-            if(ImGui::IsKeyDown(ImGuiKey_A)) gptCamera->translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-            if(ImGui::IsKeyDown(ImGuiKey_D)) gptCamera->translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-
-            // world space
-            if(ImGui::IsKeyDown(ImGuiKey_Q)) { gptCamera->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
-            if(ImGui::IsKeyDown(ImGuiKey_E)) { gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
-
-            if(ImGui::IsKeyDown(ImGuiKey_Z))
-            {
-                ptCamera->fFieldOfView += 0.25f * (PL_PI / 180.0f);
-                ptCamera->fFieldOfView = pl_minf(ptCamera->fFieldOfView, 2.96706f);
-            }
-            if(ImGui::IsKeyDown(ImGuiKey_C))
-            {
-                ptCamera->fFieldOfView -= 0.25f * (PL_PI / 180.0f);
-
-                ptCamera->fFieldOfView = pl_maxf(ptCamera->fFieldOfView, 0.03f);
-            }
-        }
-
-        if(bLMB && ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f))
-        {
-            const ImVec2 tMouseDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right, 1.0f);
-            gptCamera->translate(ptCamera,  tMouseDelta.x * fCameraTravelSpeed * ptIO->fDeltaTime, -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime, 0.0f);
-            ImGui::ResetMouseDragDelta(ImGuiMouseButton_Right);
-            ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
-        }
-
-        else if(ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f))
-        {
-            const ImVec2 tMouseDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right, 1.0f);
-            gptCamera->rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
-            ImGui::ResetMouseDragDelta(ImGuiMouseButton_Right);
-        }
-
-        else if(bLMB)
-        {
-            const ImVec2 tMouseDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 1.0f);
-            gptCamera->rotate(ptCamera,  0.0f,  -tMouseDelta.x * fCameraRotationSpeed);
-            ptCamera->tPos.x += -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * sinf(ptCamera->fYaw);
-            ptCamera->tPos.z += -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * cosf(ptCamera->fYaw);
-            ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
-        }
-    }
-
-    gptCamera->update(ptCamera);
-}
-
-void
-pl__show_ui_demo_window(plAppData* ptAppData)
-{
-    if(gptUI->begin_window("UI Demo", &ptAppData->bShowUiDemo, PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR))
-    {
-
-        static const float pfRatios0[] = {1.0f};
-        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios0);
-
-        if(gptUI->begin_collapsing_header("Help", 0))
-        {
-            gptUI->text("Under construction");
-            gptUI->end_collapsing_header();
-        }
-    
-        if(gptUI->begin_collapsing_header("Window Options", 0))
-        {
-            gptUI->text("Under construction");
-            gptUI->end_collapsing_header();
-        }
-
-        if(gptUI->begin_collapsing_header("Widgets", 0))
-        {
-            if(gptUI->tree_node("Basic", 0))
-            {
-
-                gptUI->layout_static(0.0f, 100, 2);
-                gptUI->button("Button");
-                gptUI->checkbox("Checkbox", NULL);
-
-                gptUI->layout_dynamic(0.0f, 2);
-                gptUI->button("Button");
-                gptUI->checkbox("Checkbox", NULL);
-
-                gptUI->layout_dynamic(0.0f, 1);
-                static char buff[64] = {'c', 'a', 'a'};
-                gptUI->input_text("label 0", buff, 64, 0);
-                static char buff2[64] = {'c', 'c', 'c'};
-                gptUI->input_text_hint("label 1", "hint", buff2, 64, 0);
-
-                static float fValue = 3.14f;
-                static int iValue117 = 117;
-
-                gptUI->input_float("label 2", &fValue, "%0.3f", 0);
-                gptUI->input_int("label 3", &iValue117, 0);
-
-                static int iValue = 0;
-                gptUI->layout_row_begin(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3);
-
-                gptUI->layout_row_push(0.33f);
-                gptUI->radio_button("Option 1", &iValue, 0);
-
-                gptUI->layout_row_push(0.33f);
-                gptUI->radio_button("Option 2", &iValue, 1);
-
-                gptUI->layout_row_push(0.34f);
-                gptUI->radio_button("Option 3", &iValue, 2);
-
-                gptUI->layout_row_end();
-
-                const float pfRatios[] = {1.0f};
-                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-                gptUI->separator();
-                gptUI->labeled_text("Label", "Value");
-                static int iValue1 = 0;
-                static float fValue1 = 23.0f;
-                static float fValue2 = 100.0f;
-                static int iValue2 = 3;
-                gptUI->slider_float("float slider 1", &fValue1, 0.0f, 100.0f, 0);
-                gptUI->slider_float("float slider 2", &fValue2, -50.0f, 100.0f, 0);
-                gptUI->slider_int("int slider 1", &iValue1, 0, 10, 0);
-                gptUI->slider_int("int slider 2", &iValue2, -5, 10, 0);
-                gptUI->drag_float("float drag", &fValue2, 1.0f, -100.0f, 100.0f, 0);
-                static int aiIntArray[4] = {0};
-                gptUI->input_int2("input int 2", aiIntArray, 0);
-                gptUI->input_int3("input int 3", aiIntArray, 0);
-                gptUI->input_int4("input int 4", aiIntArray, 0);
-
-                static float afFloatArray[4] = {0};
-                gptUI->input_float2("input float 2", afFloatArray, "%0.3f", 0);
-                gptUI->input_float3("input float 3", afFloatArray, "%0.3f", 0);
-                gptUI->input_float4("input float 4", afFloatArray, "%0.3f", 0);
-
-                if(gptUI->menu_item("Menu item 0", NULL, false, true))
-                {
-                    printf("menu item 0\n");
-                }
-
-                if(gptUI->menu_item("Menu item selected", "CTRL+M", true, true))
-                {
-                    printf("menu item selected\n");
-                }
-
-                if(gptUI->menu_item("Menu item disabled", NULL, false, false))
-                {
-                    printf("menu item disabled\n");
-                }
-
-                static bool bMenuSelection = false;
-                if(gptUI->menu_item_toggle("Menu item toggle", NULL, &bMenuSelection, true))
-                {
-                    printf("menu item toggle\n");
-                }
-
-                if(gptUI->begin_menu("menu (not ready)", true))
-                {
-
-                    if(gptUI->menu_item("Menu item 0", NULL, false, true))
-                    {
-                        printf("menu item 0\n");
-                    }
-
-                    if(gptUI->menu_item("Menu item selected", "CTRL+M", true, true))
-                    {
-                        printf("menu item selected\n");
-                    }
-
-                    if(gptUI->menu_item("Menu item disabled", NULL, false, false))
-                    {
-                        printf("menu item disabled\n");
-                    }
-                    if(gptUI->begin_menu("sub menu", true))
-                    {
-
-                        if(gptUI->menu_item("Menu item 0", NULL, false, true))
-                        {
-                            printf("menu item 0\n");
-                        }
-                        gptUI->end_menu();
-                    }
-                    gptUI->end_menu();
-                }
-
-
-                static uint32_t uComboSelect = 0;
-                static const char* apcCombo[] = {
-                    "Tomato",
-                    "Onion",
-                    "Carrot",
-                    "Lettuce",
-                    "Fish"
-                };
-                bool abCombo[5] = {0};
-                abCombo[uComboSelect] = true;
-                if(gptUI->begin_combo("Combo", apcCombo[uComboSelect], PL_UI_COMBO_FLAGS_NONE))
-                {
-                    for(uint32_t i = 0; i < 5; i++)
-                    {
-                        if(gptUI->selectable(apcCombo[i], &abCombo[i], 0))
-                        {
-                            uComboSelect = i;
-                            gptUI->close_current_popup();
-                        }
-                    }
-                    gptUI->end_combo();
-                }
-
-                const float pfRatios22[] = {200.0f, 120.0f};
-                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfRatios22);
-                gptUI->button("Hover me!");
-                if(gptUI->was_last_item_hovered())
-                {
-                    gptUI->begin_tooltip();
-                    gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios22);
-                    gptUI->text("I'm a tooltip!");
-                    gptUI->end_tooltip();
-                }
-                gptUI->button("Just a button");
-
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("Selectables", 0))
-            {
-                static bool bSelectable0 = false;
-                static bool bSelectable1 = false;
-                static bool bSelectable2 = false;
-                gptUI->selectable("Selectable 1", &bSelectable0, 0);
-                gptUI->selectable("Selectable 2", &bSelectable1, 0);
-                gptUI->selectable("Selectable 3", &bSelectable2, 0);
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("Combo", 0))
-            {
-                plUiComboFlags tComboFlags = PL_UI_COMBO_FLAGS_NONE;
-
-                static bool bComboHeightSmall = false;
-                static bool bComboHeightRegular = false;
-                static bool bComboHeightLarge = false;
-                static bool bComboNoArrow = false;
-
-                gptUI->checkbox("PL_UI_COMBO_FLAGS_HEIGHT_SMALL", &bComboHeightSmall);
-                gptUI->checkbox("PL_UI_COMBO_FLAGS_HEIGHT_REGULAR", &bComboHeightRegular);
-                gptUI->checkbox("PL_UI_COMBO_FLAGS_HEIGHT_LARGE", &bComboHeightLarge);
-                gptUI->checkbox("PL_UI_COMBO_FLAGS_NO_ARROW_BUTTON", &bComboNoArrow);
-
-                if(bComboHeightSmall)   tComboFlags |= PL_UI_COMBO_FLAGS_HEIGHT_SMALL;
-                if(bComboHeightRegular) tComboFlags |= PL_UI_COMBO_FLAGS_HEIGHT_REGULAR;
-                if(bComboHeightLarge)   tComboFlags |= PL_UI_COMBO_FLAGS_HEIGHT_LARGE;
-                if(bComboNoArrow)       tComboFlags |= PL_UI_COMBO_FLAGS_NO_ARROW_BUTTON;
-
-                static uint32_t uComboSelect = 0;
-                static const char* apcCombo[] = {
-                    "Tomato",
-                    "Onion",
-                    "Carrot",
-                    "Lettuce",
-                    "Fish",
-                    "Beef",
-                    "Chicken",
-                    "Cereal",
-                    "Wheat",
-                    "Cane",
-                };
-                bool abCombo[10] = {0};
-                abCombo[uComboSelect] = true;
-                if(gptUI->begin_combo("Combo", apcCombo[uComboSelect], tComboFlags))
-                {
-                    for(uint32_t i = 0; i < 10; i++)
-                    {
-                        if(gptUI->selectable(apcCombo[i], &abCombo[i], 0))
-                        {
-                            uComboSelect = i;
-                            gptUI->close_current_popup();
-                        }
-                    }
-                    gptUI->end_combo();
-                }
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("Plotting", 0))
-            {
-                gptUI->progress_bar(0.75f, pl_create_vec2(-1.0f, 0.0f), NULL);
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("Trees", 0))
-            {
-                
-                if(gptUI->tree_node("Root Node", 0))
-                {
-                    if(gptUI->tree_node("Child 1", 0))
-                    {
-                        gptUI->button("Press me");
-                        gptUI->tree_pop();
-                    }
-                    if(gptUI->tree_node("Child 2", 0))
-                    {
-                        gptUI->button("Press me");
-                        gptUI->tree_pop();
-                    }
-                    gptUI->tree_pop();
-                }
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("Tabs", 0))
-            {
-                if(gptUI->begin_tab_bar("Tabs1", 0))
-                {
-                    if(gptUI->begin_tab("Tab 0", 0))
-                    {
-                        static bool bSelectable0 = false;
-                        static bool bSelectable1 = false;
-                        static bool bSelectable2 = false;
-                        gptUI->selectable("Selectable 1", &bSelectable0, 0);
-                        gptUI->selectable("Selectable 2", &bSelectable1, 0);
-                        gptUI->selectable("Selectable 3", &bSelectable2, 0);
-                        gptUI->end_tab();
-                    }
-
-                    if(gptUI->begin_tab("Tab 1", 0))
-                    {
-                        static int iValue = 0;
-                        gptUI->radio_button("Option 1", &iValue, 0);
-                        gptUI->radio_button("Option 2", &iValue, 1);
-                        gptUI->radio_button("Option 3", &iValue, 2);
-                        gptUI->end_tab();
-                    }
-
-                    if(gptUI->begin_tab("Tab 2", 0))
-                    {
-                        if(gptUI->begin_child("CHILD2", 0, 0))
-                        {
-                            const float pfRatios3[] = {600.0f};
-                            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios3);
-
-                            for(uint32_t i = 0; i < 25; i++)
-                                gptUI->text("Long text is happening11111111111111111111111111111111111111111111111111111111123456789");
-                            gptUI->end_child();
-                        }
-                        
-                        gptUI->end_tab();
-                    }
-                    gptUI->end_tab_bar();
-                }
-                gptUI->tree_pop();
-            }
-            gptUI->end_collapsing_header();
-        }
-
-        if(gptUI->begin_collapsing_header("Scrolling", 0))
-        {
-            const float pfRatios2[] = {0.5f, 0.50f};
-            const float pfRatios3[] = {600.0f};
-
-            gptUI->layout_static(0.0f, 200, 1);
-            static bool bUseClipper = true;
-            gptUI->checkbox("Use Clipper", &bUseClipper);
-            
-            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 300.0f, 2, pfRatios2);
-            if(gptUI->begin_child("CHILD", 0, 0))
-            {
-
-                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
-
-
-                if(bUseClipper)
-                {
-                    plUiClipper tClipper = {1000000};
-                    while(gptUI->step_clipper(&tClipper))
-                    {
-                        for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
-                        {
-                            gptUI->text("%u Label", i);
-                            gptUI->text("%u Value", i);
-                        } 
-                    }
-                }
-                else
-                {
-                    for(uint32_t i = 0; i < 1000000; i++)
-                    {
-                            gptUI->text("%u Label", i);
-                            gptUI->text("%u Value", i);
-                    }
-                }
-
-
-                gptUI->end_child();
-            }
-            
-
-            if(gptUI->begin_child("CHILD2", 0, 0))
-            {
-                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios3);
-
-                for(uint32_t i = 0; i < 25; i++)
-                    gptUI->text("Long text is happening11111111111111111111111111111111111111111111111111111111123456789");
-
-                gptUI->end_child();
-            }
-            
-
-            gptUI->end_collapsing_header();
-        }
-
-        if(gptUI->begin_collapsing_header("Layout Systems", 0))
-        {
-            gptUI->text("General Notes");
-            gptUI->text("  - systems ordered by increasing flexibility");
-            gptUI->separator();
-
-            if(gptUI->tree_node("System 1 - simple dynamic", 0))
-            {
-                static int iWidgetCount = 5;
-                static float fWidgetHeight = 0.0f;
-                gptUI->separator_text("Notes");
-                gptUI->text("  - wraps (i.e. will add rows)");
-                gptUI->text("  - evenly spaces widgets based on available space");
-                gptUI->text("  - height of 0.0f sets row height equal to minimum height");
-                gptUI->text("    of maximum height widget");
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Options");
-                gptUI->slider_int("Widget Count", &iWidgetCount, 1, 10, 0);
-                gptUI->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Example");
-                gptUI->layout_dynamic(fWidgetHeight, (uint32_t)iWidgetCount);
-                gptUI->vertical_spacing();
-                for(int i = 0; i < iWidgetCount * 2; i++)
-                {
-                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
-                    gptUI->button(ptAppData->sbcTempBuffer);
-                    pl_sb_reset(ptAppData->sbcTempBuffer);
-                }
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("System 2 - simple static", 0))
-            {
-                static int iWidgetCount = 5;
-                static float fWidgetWidth = 100.0f;
-                static float fWidgetHeight = 0.0f;
-                gptUI->separator_text("Notes");
-                gptUI->text("  - wraps (i.e. will add rows)");
-                gptUI->text("  - provides each widget with the same specified width");
-                gptUI->text("  - height of 0.0f sets row height equal to minimum height");
-                gptUI->text("    of maximum height widget");
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Options");
-                gptUI->slider_int("Widget Count", &iWidgetCount, 1, 10, 0);
-                gptUI->slider_float("Width", &fWidgetWidth, 50.0f, 500.0f, 0);
-                gptUI->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Example");
-                gptUI->layout_static(fWidgetHeight, fWidgetWidth, (uint32_t)iWidgetCount);
-                gptUI->vertical_spacing();
-                for(int i = 0; i < iWidgetCount * 2; i++)
-                {
-                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
-                    gptUI->button(ptAppData->sbcTempBuffer);
-                    pl_sb_reset(ptAppData->sbcTempBuffer);
-                }
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("System 3 - single system row", 0))
-            {
-                static bool bDynamicRow = false;
-                static int iWidgetCount = 2;
-                static float afWidgetStaticWidths[4] = {
-                    100.0f, 100.0f, 100.0f, 100.0f
-                };
-                static float afWidgetDynamicWidths[4] = {
-                    0.25f, 0.25f, 0.25f, 0.25f
-                };
-
-                static float fWidgetHeight = 0.0f;
-
-                gptUI->separator_text("Notes");
-                gptUI->text("  - does not wrap (i.e. will not add rows)");
-                gptUI->text("  - allows user to change widget widths individually");
-                gptUI->text("  - widths interpreted as ratios of available width when");
-                gptUI->text("    using PL_UI_LAYOUT_ROW_TYPE_DYNAMIC");
-                gptUI->text("  - widths interpreted as pixel width when using PL_UI_LAYOUT_ROW_TYPE_STATIC");
-                gptUI->text("  - height of 0.0f sets row height equal to minimum height");
-                gptUI->text("    of maximum height widget");
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Options");
-                gptUI->checkbox("Dynamic", &bDynamicRow);
-                gptUI->slider_int("Widget Count", &iWidgetCount, 1, 4, 0);
-                gptUI->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
-
-                if(bDynamicRow)
-                {
-                    for(int i = 0; i < iWidgetCount; i++)
-                    {
-                        gptUI->push_id_uint((uint32_t)i);
-                        gptUI->slider_float("Widget Width", &afWidgetDynamicWidths[i], 0.05f, 1.2f, 0);
-                        gptUI->pop_id();
-                    }
-                }
-                else
-                {
-                    for(int i = 0; i < iWidgetCount; i++)
-                    {
-                        gptUI->push_id_uint((uint32_t)i);
-                        gptUI->slider_float("Widget Width", &afWidgetStaticWidths[i], 50.0f, 500.0f, 0);
-                        gptUI->pop_id();
-                    }
-                }
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Example");
-                gptUI->layout_row_begin(bDynamicRow ? PL_UI_LAYOUT_ROW_TYPE_DYNAMIC : PL_UI_LAYOUT_ROW_TYPE_STATIC, fWidgetHeight, (uint32_t)iWidgetCount);
-                float* afWidgetWidths = bDynamicRow ? afWidgetDynamicWidths : afWidgetStaticWidths;
-                for(int i = 0; i < iWidgetCount; i++)
-                {
-                    gptUI->layout_row_push(afWidgetWidths[i]);
-                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
-                    gptUI->button(ptAppData->sbcTempBuffer);
-                    pl_sb_reset(ptAppData->sbcTempBuffer);
-                }
-                gptUI->layout_row_end();
-                gptUI->vertical_spacing();
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("System 4 - single system row (array form)", 0))
-            {
-                static bool bDynamicRow = false;
-                static int iWidgetCount = 2;
-                static float afWidgetStaticWidths[4] = {
-                    100.0f, 100.0f, 100.0f, 100.0f
-                };
-                static float afWidgetDynamicWidths[4] = {
-                    0.25f, 0.25f, 0.25f, 0.25f
-                };
-
-                static float fWidgetHeight = 0.0f;
-
-                gptUI->separator_text("Notes");
-                gptUI->text("  - same as System 3 but array form");
-                gptUI->text("  - wraps (i.e. will add rows)");
-                gptUI->text("  - allows user to change widget widths individually");
-                gptUI->text("  - widths interpreted as ratios of available width when");
-                gptUI->text("    using PL_UI_LAYOUT_ROW_TYPE_DYNAMIC");
-                gptUI->text("  - widths interpreted as pixel width when using PL_UI_LAYOUT_ROW_TYPE_STATIC");
-                gptUI->text("  - height of 0.0f sets row height equal to minimum height");
-                gptUI->text("    of maximum height widget");
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Options");
-                gptUI->checkbox("Dynamic", &bDynamicRow);
-                gptUI->slider_int("Widget Count", &iWidgetCount, 1, 4, 0);
-                gptUI->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
-
-                if(bDynamicRow)
-                {
-                    for(int i = 0; i < iWidgetCount; i++)
-                    {
-                        gptUI->push_id_uint((uint32_t)i);
-                        gptUI->slider_float("Widget Width", &afWidgetDynamicWidths[i], 0.05f, 1.2f, 0);
-                        gptUI->pop_id();
-                    }
-                }
-                else
-                {
-                    for(int i = 0; i < iWidgetCount; i++)
-                    {
-                        gptUI->push_id_uint((uint32_t)i);
-                        gptUI->slider_float("Widget Width", &afWidgetStaticWidths[i], 50.0f, 500.0f, 0);
-                        gptUI->pop_id();
-                    }
-                }
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Example");
-                float* afWidgetWidths = bDynamicRow ? afWidgetDynamicWidths : afWidgetStaticWidths;
-                gptUI->layout_row(bDynamicRow ? PL_UI_LAYOUT_ROW_TYPE_DYNAMIC : PL_UI_LAYOUT_ROW_TYPE_STATIC, fWidgetHeight, (uint32_t)iWidgetCount, afWidgetWidths);
-                for(int i = 0; i < iWidgetCount * 2; i++)
-                {
-                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
-                    gptUI->button(ptAppData->sbcTempBuffer);
-                    pl_sb_reset(ptAppData->sbcTempBuffer);
-                }
-                gptUI->vertical_spacing();
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("System 5 - template", 0))
-            {
-                static int iWidgetCount = 6;
-                static float fWidgetHeight = 0.0f;
-
-                gptUI->separator_text("Notes");
-                gptUI->text("  - most complex and second most flexible system");
-                gptUI->text("  - wraps (i.e. will add rows)");
-                gptUI->text("  - allows user to change widget systems individually");
-                gptUI->text("    - dynamic: changes based on available space");
-                gptUI->text("    - variable: same as dynamic but minimum width specified by user");
-                gptUI->text("    - static: pixel width explicitely specified by user");
-                gptUI->text("  - height of 0.0f sets row height equal to minimum height");
-                gptUI->text("    of maximum height widget");
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Options");
-                gptUI->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Example 0");
-
-                gptUI->layout_template_begin(fWidgetHeight);
-                gptUI->layout_template_push_dynamic();
-                gptUI->layout_template_push_variable(150.0f);
-                gptUI->layout_template_push_static(150.0f);
-                gptUI->layout_template_end();
-                gptUI->button("dynamic##0");
-                gptUI->button("variable 150.0f##0");
-                gptUI->button("static 150.0f##0");
-                gptUI->checkbox("dynamic##1", NULL);
-                gptUI->checkbox("variable 150.0f##1", NULL);
-                gptUI->checkbox("static 150.0f##1", NULL);
-                gptUI->vertical_spacing();
-
-                gptUI->layout_dynamic(0.0f, 1);
-                gptUI->separator_text("Example 1");
-                gptUI->layout_template_begin(fWidgetHeight);
-                gptUI->layout_template_push_static(150.0f);
-                gptUI->layout_template_push_variable(150.0f);
-                gptUI->layout_template_push_dynamic();
-                gptUI->layout_template_end();
-                gptUI->button("static 150.0f##2");
-                gptUI->button("variable 150.0f##2");
-                gptUI->button("dynamic##2");
-                gptUI->checkbox("static 150.0f##3", NULL);
-                gptUI->checkbox("variable 150.0f##3", NULL);
-                gptUI->checkbox("dynamic##3", NULL);
-
-                gptUI->layout_dynamic(0.0f, 1);
-                gptUI->separator_text("Example 2");
-                gptUI->layout_template_begin(fWidgetHeight);
-                gptUI->layout_template_push_variable(150.0f);
-                gptUI->layout_template_push_variable(300.0f);
-                gptUI->layout_template_push_dynamic();
-                gptUI->layout_template_end();
-                gptUI->button("variable 150.0f##4");
-                gptUI->button("variable 300.0f##4");
-                gptUI->button("dynamic##4");
-                gptUI->checkbox("static 150.0f##5", NULL);
-                gptUI->button("variable 300.0f##5");
-                gptUI->checkbox("dynamic##5", NULL);
-                
-                gptUI->vertical_spacing();
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("System 6 - space", 0))
-            {
-                gptUI->separator_text("Notes");
-                gptUI->text("  - most flexible system");
-                gptUI->vertical_spacing();
-
-                gptUI->separator_text("Example - static");
-
-                gptUI->layout_space_begin(PL_UI_LAYOUT_ROW_TYPE_STATIC, 500.0f, UINT32_MAX);
-
-                gptUI->layout_space_push(0.0f, 0.0f, 100.0f, 100.0f);
-                gptUI->button("w100 h100");
-
-                gptUI->layout_space_push(105.0f, 105.0f, 300.0f, 100.0f);
-                gptUI->button("x105 y105 w300 h100");
-
-                gptUI->layout_space_end();
-
-                gptUI->layout_dynamic(0.0f, 1);
-                gptUI->separator_text("Example - dynamic");
-
-                gptUI->layout_space_begin(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 300.0f, 2);
-
-                gptUI->layout_space_push(0.0f, 0.0f, 0.5f, 0.5f);
-                gptUI->button("x0 y0 w0.5 h0.5");
-
-                gptUI->layout_space_push(0.5f, 0.5f, 0.5f, 0.5f);
-                gptUI->button("x0.5 y0.5 w0.5 h0.5");
-
-                gptUI->layout_space_end();
-
-                gptUI->tree_pop();
-            }
-
-            if(gptUI->tree_node("Misc. Testing", 0))
-            {
-                const float pfRatios[] = {1.0f};
-                const float pfRatios2[] = {0.5f, 0.5f};
-                const float pfRatios3[] = {0.5f * 0.5f, 0.25f * 0.5f, 0.25f * 0.5f};
-                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
-                if(gptUI->begin_collapsing_header("Information", 0))
-                {
-                    gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                    gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
-
-                    gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3, pfRatios3);
-                    if(gptUI->begin_collapsing_header("sub0", 0))
-                    {
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->end_collapsing_header();
-                    }
-                    if(gptUI->begin_collapsing_header("sub1", 0))
-                    {
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->end_collapsing_header();
-                    }
-                    if(gptUI->begin_collapsing_header("sub2", 0))
-                    {
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-                        gptUI->end_collapsing_header();
-                    }
-
-                    gptUI->end_collapsing_header();
-                }
-                if(gptUI->begin_collapsing_header("App Options", 0))
-                {
-                    gptUI->checkbox("Freeze Culling Camera", NULL);
-                    int iCascadeCount  = 2;
-                    gptUI->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0);
-
-                    gptUI->end_collapsing_header();
-                }
-                
-                if(gptUI->begin_collapsing_header("Graphics", 0))
-                {
-                    gptUI->checkbox("Freeze Culling Camera", NULL);
-                    int iCascadeCount  = 2;
-                    gptUI->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0);
-
-                    gptUI->end_collapsing_header();
-                }
-                if(gptUI->begin_tab_bar("tab bar2", 0))
-                {
-                    if(gptUI->begin_tab("tab0000000000", 0))
-                    {
-                        gptUI->checkbox("Entities", NULL);
-                        gptUI->end_tab();
-                    }
-                    if(gptUI->begin_tab("tab1", 0))
-                    {
-                        gptUI->checkbox("Profiling", NULL);
-                        gptUI->checkbox("Profiling", NULL);
-                        gptUI->checkbox("Profiling", NULL);
-                        gptUI->checkbox("Profiling", NULL);
-                        gptUI->end_tab();
-                    }
-                    gptUI->end_tab_bar();
-                }
-
-                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-                if(gptUI->begin_collapsing_header("Tools", 0))
-                {
-                    gptUI->checkbox("Device Memory Analyzer", NULL);
-                    gptUI->checkbox("Device Memory Analyzer", NULL);
-                    gptUI->end_collapsing_header();
-                }
-
-                if(gptUI->begin_collapsing_header("Debug", 0))
-                {
-                    gptUI->button("resize");
-                    gptUI->checkbox("Always Resize", NULL);
-                    gptUI->end_collapsing_header();
-                }
-
-                gptUI->tree_pop();
-            }
-            gptUI->end_collapsing_header();
-        }
-        gptUI->end_window();
-    }
-}
-
-
 //-----------------------------------------------------------------------------
 // [SECTION] unity build
 //-----------------------------------------------------------------------------
+
+#include "editor_camera.cpp"
+#include "editor_entities.cpp"
+#include "editor_ui_demo.cpp"
 
 #ifdef PL_USE_STB_SPRINTF
     #define STB_SPRINTF_IMPLEMENTATION

@@ -245,7 +245,7 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     ptLibrary->pInternal = PL_ALLOC(sizeof(plComponentLibraryData));
     memset(ptLibrary->pInternal, 0, sizeof(plComponentLibraryData));
 
-    pl_sb_push(ptLibrary->sbtEntityGenerations, UINT32_MAX);
+    pl_sb_push(ptLibrary->sbtEntityGenerations, UINT32_MAX-1);
 
     pl_log_info(gptLog, uLogChannelEcs, "initialized component library");
 }
