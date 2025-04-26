@@ -507,7 +507,31 @@ int main(int argc, char *argv[])
                     pl_app_resize(gptMainWindow, gpUserData);
                 }
             }
+        #else
 
+            int width, height;
+            glfwGetFramebufferSize(ptGlfwWindow, &width, &height);
+
+            // Setup display size (every frame to accommodate for window resizing)
+            int w, h;
+            glfwGetWindowSize(ptGlfwWindow, &w, &h);
+
+            if (w > 0 && h > 0)
+            {
+                bool bResize = false;
+
+                if((float)w != gptIOCtx->tMainViewportSize.x || (float)h != gptIOCtx->tMainViewportSize.y)
+                    bResize = true;
+
+                if(bResize)
+                {
+                    gptIOCtx->tMainViewportSize.x = (float)w;
+                    gptIOCtx->tMainViewportSize.y = (float)h;
+                    gptIOCtx->tMainFramebufferScale.x = 1.0f;
+                    gptIOCtx->tMainFramebufferScale.y = 1.0f;
+                    pl_app_resize(gptMainWindow, gpUserData);
+                }
+            }
         #endif
 
         if(!gptIOCtx->bViewportMinimized)
