@@ -1496,7 +1496,7 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
 }
 
 static void
-pl__object_update_job(plInvocationData tInvoData, void* pData)
+pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
 {
     plComponentLibrary* ptLibrary = pData;
     plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;

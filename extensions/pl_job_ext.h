@@ -1,16 +1,31 @@
 /*
    pl_job_ext.h
-     - simple job system extension
+     - simple job system based on compute shaders
 */
 
 /*
 Index of this file:
+// [SECTION] quick notes
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] APIs
 // [SECTION] forward declarations
 // [SECTION] public api
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] quick notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plAtomicsI (v1.x)
+        * plThreadsI (v1.x)
 */
 
 //-----------------------------------------------------------------------------
@@ -24,19 +39,22 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdint.h>
+#include <stdint.h>  // uint32_t
+#include <stddef.h>  // size_t
+#include <stdbool.h> // bool
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plJobI_version {1, 0, 0}
+#define plJobI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
 // basic types
+typedef struct _plJobSystemInit  plJobSystemInit;
 typedef struct _plJobDesc        plJobDesc;
 typedef struct _plInvocationData plInvocationData;
 
@@ -50,8 +68,8 @@ typedef struct _plAtomicCounter plAtomicCounter; // pl_os.h
 typedef struct _plJobI
 {
     // setup/shutdown
-    void (*initialize)(uint32_t threadCount); // set thread count to 0 to get optimal thread count
-    void (*cleanup)(void);
+    void (*initialize)(plJobSystemInit); 
+    void (*cleanup)   (void);
 
     // typical usage
     //   - submit an array of job descriptions and receive an atomic counter pointer
@@ -69,23 +87,33 @@ typedef struct _plJobI
     
     // waits for counter to reach 0 and returns the counter for reuse by subsequent dispatches
     void (*wait_for_counter)(plAtomicCounter*);
+
+    // long running jobs should check this & exit themselves
+    bool (*is_shutting_down)(void);
 } plJobI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plJobSystemInit
+{
+    uint32_t uThreadCount;       // set thread count to 0 to get optimal thread count
+    size_t   szSharedMemorySize; // default: 0
+} plJobSystemInit;
+
 typedef struct _plInvocationData
 {
     uint32_t uBatchIndex;
-    uint32_t uLocalIndex;
-    uint32_t uGlobalIndex;
-    uint32_t uBatchSize;
+    uint32_t uLocalIndex;        // index within batch
+    uint32_t uGlobalIndex;       // job index (uBatchIndex + uLocalIndex)
+    uint32_t uBatchSize;         // size of current batch
+    size_t   szSharedMemorySize; // size of groupSharedMemory
 } plInvocationData;
 
 typedef struct _plJobDesc
 {
-    void (*task)(plInvocationData, void* data);
+    void (*task)(plInvocationData, void* data, void* groupSharedMemory); // NOTE: groupSharedMemory is not zeroed
     void* pData;
 } plJobDesc;
 

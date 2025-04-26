@@ -23,7 +23,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 static void
-pl__refr_cull_job(plInvocationData tInvoData, void* pData)
+pl__refr_cull_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
 {
     plCullData* ptCullData = pData;
     plRefScene* ptScene = ptCullData->ptScene;

@@ -672,7 +672,7 @@ static plRefRendererData* gptData = NULL;
 //-----------------------------------------------------------------------------
 
 // job system tasks
-static void pl__refr_cull_job(plInvocationData, void*);
+static void pl__refr_cull_job(plInvocationData, void*, void*);
 
 // resource creation helpers
 static plTextureHandle pl__refr_create_texture              (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);

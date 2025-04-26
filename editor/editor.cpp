@@ -164,7 +164,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptShader->initialize(&tDefaultShaderOptions);
 
     // initialize job system
-    gptJobs->initialize(0);
+    gptJobs->initialize({});
 
     // create window (only 1 allowed currently)
     plWindowDesc tWindowDesc = {
