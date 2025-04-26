@@ -643,7 +643,7 @@ pl_starter_end_main_pass(void)
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_SCREEN_LOG_EXT)
     {
-        plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth, fHeight);
+        plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth - fWidth * 0.2f, 0.0f, fWidth * 0.2f, fHeight);
         gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, gptStarterCtx->ptCurrentEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
     }
 

@@ -4,12 +4,26 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api structs
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plDrawI (v1.x)
 */
 
 //-----------------------------------------------------------------------------
@@ -23,7 +37,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plScreenLogI_version {1, 0, 0}
+#define plScreenLogI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -69,7 +83,7 @@ typedef struct _plScreenLogI
     void (*clear)(void);
     
     // drawing
-    plDrawList2D* (*get_drawlist)(float width, float height); // call once per frame
+    plDrawList2D* (*get_drawlist)(float xPos, float yPos, float width, float height); // call once per frame
 } plScreenLogI;
 
 //-----------------------------------------------------------------------------

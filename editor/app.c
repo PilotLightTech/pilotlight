@@ -718,7 +718,7 @@ pl_app_update(plAppData* ptAppData)
     gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptRenderer->get_swapchain()).tSampleCount);
     pl_end_cpu_sample(gptProfile, 0);
 
-    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth, fHeight);
+    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth - fWidth * 0.2f, 0.0f, fWidth * 0.2f, fHeight);
     gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptRenderer->get_swapchain()).tSampleCount);
 
 

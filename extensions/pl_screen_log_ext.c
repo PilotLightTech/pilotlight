@@ -203,7 +203,7 @@ pl_screen_log_add_message(double dTimeToDisplay, const char* pcMessage)
 }
 
 plDrawList2D*
-pl_screen_log_get_drawlist(float fWidth, float fHeight)
+pl_screen_log_get_drawlist(float fXPos, float fYPos, float fWidth, float fHeight)
 {
 
     const double dCurrentTime = gptIO->dTime;
@@ -212,7 +212,7 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
         .fSize = gptScreenLogCtx->ptFont->fSize,
         .ptFont = gptScreenLogCtx->ptFont,
         .uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 1.0f),
-        .fWrap = fWidth * 0.2f
+        .fWrap = fWidth
     };
 
     uint32_t uTimedMessageCount = pl_sb_size(gptScreenLogCtx->sbtMessages);
@@ -243,17 +243,17 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
     pl_sb_reset(gptScreenLogCtx->sbtMessages);
     uTimedMessageCount = pl_sb_size(gptScreenLogCtx->sbtSortMessages);
 
-    float fStartY = 25.0f;
+    float fStartY = 25.0f + fYPos;
     for(uint32_t i = 0; i < uTimedMessageCount; i++)
     {
 
-        plVec2 tStartPoint = {fWidth - fWidth * 0.25f, fStartY};
+        plVec2 tStartPoint = {fXPos, fStartY};
 
         tDrawTextOptions.fSize = gptScreenLogCtx->ptFont->fSize * gptScreenLogCtx->sbtSortMessages[i].fTextScale;
 
         plRect tTextBB = gptDraw->calculate_text_bb(tStartPoint, gptScreenLogCtx->sbtSortMessages[i].acBuffer, tDrawTextOptions);
 
-        if(tTextBB.tMax.y < fHeight)
+        if(tTextBB.tMax.y < fHeight + fYPos)
         {
             if(gptScreenLogCtx->sbtSortMessages[i].dStartTime < 0.0)
             {
@@ -262,14 +262,14 @@ pl_screen_log_get_drawlist(float fWidth, float fHeight)
             tTextBB = pl_rect_expand_vec2(&tTextBB, (plVec2){5.0f, 10.0f});
 
             if(gptScreenLogCtx->sbtSortMessages[i].bEven)        
-                gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.2f, 0.2f, 0.2f, 0.7f)});
+                gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fXPos + fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.2f, 0.2f, 0.2f, 0.7f)});
             else
-                gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.1f, 0.1f, 0.1f, 0.7f)});
+                gptDraw->add_rect_rounded_filled(gptScreenLogCtx->ptDrawLayer, tTextBB.tMin, (plVec2){fXPos + fWidth, tTextBB.tMax.y}, 0.0f, 0, PL_DRAW_RECT_FLAG_NONE, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.1f, 0.1f, 0.1f, 0.7f)});
 
             tDrawTextOptions.uColor = gptScreenLogCtx->sbtSortMessages[i].uColor & ~0xFF000000;
             tDrawTextOptions.uColor |=  PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 1.0f);
             gptDraw->add_text(gptScreenLogCtx->ptDrawLayer,
-                (plVec2){fWidth - fWidth * 0.25f, fStartY},
+                (plVec2){fXPos, fStartY},
                 gptScreenLogCtx->sbtSortMessages[i].acBuffer,
                 tDrawTextOptions);
         }

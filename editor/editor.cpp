@@ -556,27 +556,31 @@ pl_app_update(plAppData* ptAppData)
     pl__show_entity_components(ptAppData, ptAppData->uSceneHandle0, ptAppData->tSelectedEntity);
 
     ImGui::SetNextWindowViewport(ImGui::GetMainViewport()->ID);
-    ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_Once);
     ptAppData->bMainViewHovered = false;
+    ImVec2 tLogOffset = {};
     if(ImGui::Begin("Offscreen", NULL, ImGuiWindowFlags_NoTitleBar))
     {
         if(ImGui::IsWindowHovered())
             ptAppData->bMainViewHovered = true;
+
+        ImVec2 tContextSize = ImGui::GetContentRegionAvail();
+        ImVec2 tCursorStart = ImGui::GetCursorScreenPos();
+        ImVec2 tHoverMousePos = ImGui::GetMousePos();
+        
+        ptAppData->tView0Offset = {
+            tCursorStart.x - ImGui::GetWindowViewport()->Pos.x,
+            tCursorStart.y - ImGui::GetWindowViewport()->Pos.y
+        };
+
+        tLogOffset.x = ptAppData->tView0Offset.x;
+        tLogOffset.y = ptAppData->tView0Offset.y;
+
         if(ptAppData->uSceneHandle0 != UINT32_MAX)
         {
 
             plCameraComponent*  ptCamera = (plCameraComponent*)gptEcs->get_component(gptRenderer->get_component_library(ptAppData->uSceneHandle0), PL_COMPONENT_TYPE_CAMERA, ptAppData->tMainCamera);
             if(ptAppData->bMainViewHovered)
                 pl__camera_update_imgui(ptCamera);
-
-            ImVec2 tContextSize = ImGui::GetContentRegionAvail();
-            ImVec2 tCursorStart = ImGui::GetCursorScreenPos();
-            ImVec2 tHoverMousePos = ImGui::GetMousePos();
-
-            ptAppData->tView0Offset = {
-                tCursorStart.x - ImGui::GetWindowViewport()->Pos.x,
-                tCursorStart.y - ImGui::GetWindowViewport()->Pos.y
-            };
 
             ptAppData->tView0Scale = {
                 tContextSize.x / ImGui::GetWindowViewport()->Size.x,
@@ -614,9 +618,7 @@ pl_app_update(plAppData* ptAppData)
     gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptRenderer->get_swapchain()).tSampleCount);
     pl_end_cpu_sample(gptProfile, 0);
 
-    
-
-    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth, fHeight);
+    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(tLogOffset.x, tLogOffset.y, fWidth * 0.2f, fHeight);
     gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptRenderer->get_swapchain()).tSampleCount);
 
 
