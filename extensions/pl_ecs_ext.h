@@ -4,6 +4,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] defines
@@ -12,6 +13,21 @@ Index of this file:
 // [SECTION] enums
 // [SECTION] structs
 // [SECTION] components
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plJobI     (v2.x)
+        * plProfileI (v1.x)
+        * plLogI     (v1.x)
 */
 
 //-----------------------------------------------------------------------------

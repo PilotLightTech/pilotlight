@@ -4,12 +4,26 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api struct
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plFileI (v1.x)
 */
 
 //-----------------------------------------------------------------------------

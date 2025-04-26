@@ -4,10 +4,43 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] public api structs
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plGraphicsI      (v1.x)
+        * plImageI         (v1.x)
+        * plStatsI         (v1.x)
+        * plGPUAllocatorsI (v1.x)
+        * plJobI           (v2.x)
+        * plDrawI          (v1.x)
+        * plDrawBackendI   (v1.x)
+        * plShaderI        (v1.x)
+        * plFileI          (v1.x)
+        * plLogI           (v1.x)
+        * plRectPackI      (v1.x)
+        * plConsoleI       (v1.x)
+        * plScreenLogI     (v2.x)
+
+        unstable APIs:
+        * plCameraI
+        * plResourceI
+        * plEcsI
+        * plBVHI
+        * plPhysicsI
 */
 
 //-----------------------------------------------------------------------------

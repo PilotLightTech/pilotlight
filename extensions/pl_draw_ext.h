@@ -5,6 +5,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] defines
 // [SECTION] apis
@@ -14,6 +15,19 @@ Index of this file:
 // [SECTION] enums
 // [SECTION] structs
 // [SECTION] structs for backends
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plFileI (v1.x)
 */
 
 //-----------------------------------------------------------------------------

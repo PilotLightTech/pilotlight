@@ -4,12 +4,26 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] APIs
 // [SECTION] public api structs
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plGraphicsI (v1.x)
 */
 
 //-----------------------------------------------------------------------------

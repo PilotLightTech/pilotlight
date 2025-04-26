@@ -4,12 +4,33 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api structs
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plDrawI    (v1.x)
+        * plProfileI (v1.x)
+        * plLogI     (v1.x)
+        * plStatsI   (v1.x)
+
+        unstable APIs:
+        * plCollisionI
+        * plEcsI
 */
 
 //-----------------------------------------------------------------------------

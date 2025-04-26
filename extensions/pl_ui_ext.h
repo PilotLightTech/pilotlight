@@ -5,6 +5,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] api
@@ -12,6 +13,19 @@ Index of this file:
 // [SECTION] public api struct
 // [SECTION] enums & flags
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plDrawI (v1.x)
 */
 
 //-----------------------------------------------------------------------------

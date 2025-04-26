@@ -4,6 +4,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] APIs
@@ -11,6 +12,21 @@ Index of this file:
 // [SECTION] public api structs
 // [SECTION] structs
 // [SECTION] enums
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plFileI      (v1.x)
+        * plLogI       (v1.x)
+        * plScreenLogI (v2.x)
 */
 
 //-----------------------------------------------------------------------------

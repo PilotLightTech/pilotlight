@@ -5,6 +5,7 @@
 
 /*
 Index of this file:
+// [SECTION] implementation notes
 // [SECTION] quick notes
 // [SECTION] header mess
 // [SECTION] defines
@@ -16,6 +17,21 @@ Index of this file:
 // [SECTION] enums
 // [SECTION] internal enums
 // [SECTION] inline API implementations
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] implementation notes
+//-----------------------------------------------------------------------------
+
+/*
+
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plThreadsI (v1.x)
+        * plProfileI (v1.x)
+        * plLogI     (v1.x)
 */
 
 //-----------------------------------------------------------------------------

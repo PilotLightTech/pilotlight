@@ -4,8 +4,9 @@
 
 /*
 Index of this file:
-// [SECTION] header mess
+// [SECTION] implementation notes notes
 // [SECTION] quick notes
+// [SECTION] header mess
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
@@ -15,11 +16,22 @@ Index of this file:
 */
 
 //-----------------------------------------------------------------------------
-// [SECTION] header mess
+// [SECTION] implementation notes
 //-----------------------------------------------------------------------------
 
-#ifndef PL_STARTER_EXT_H
-#define PL_STARTER_EXT_H
+/*
+    Implementation:
+        The provided implementation of this extension depends on the following
+        APIs being available:
+
+        * plGraphicsI    (v1.x)
+        * plScreenLogI   (v2.x)
+        * plUiI          (v1.x)
+        * plDrawBackendI (v1.x)
+        * plShaderI      (v1.x)
+        * plProfileI     (v1.x)
+        * plConsoleI     (v1.x)
+*/
 
 //-----------------------------------------------------------------------------
 // [SECTION] quick notes
@@ -35,19 +47,14 @@ Index of this file:
         in a more isolated manner. It contains helper functions for common
         tasks (i.e. selecting a device). It may not utilize the most optimal
         techniques but should be "decent"
-
-    Implementation:
-        The provided implementation of this extension depends on the following
-        APIs being available:
-
-        * plGraphicsI
-        * plScreenLogI
-        * plUiI
-        * plDrawBackendI
-        * plShaderI
-        * plProfileI
-        * plConsoleI
 */
+
+//-----------------------------------------------------------------------------
+// [SECTION] header mess
+//-----------------------------------------------------------------------------
+
+#ifndef PL_STARTER_EXT_H
+#define PL_STARTER_EXT_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
