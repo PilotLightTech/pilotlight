@@ -144,18 +144,30 @@ int main(int argc, char *argv[])
             #endif
             return 0;
         }
-        else if(strcmp(argv[i], "--extensions") == 0)
+        else if(strcmp(argv[i], "--apis") == 0)
         {
             plVersion tWindowExtVersion = plWindowI_version;
             plVersion tLibraryVersion = plLibraryI_version;
+            plVersion tDataRegistryVersion = plDataRegistryI_version;
+            plVersion tExtensionRegistryVersion = plExtensionRegistryI_version;
+            plVersion tIOIVersion = plIOI_version;
+            plVersion tMemoryIVersion = plMemoryI_version;
             printf("\nPilot Light - light weight game engine\n\n");
-            printf("Version: %s\n", PILOT_LIGHT_VERSION_STRING);
+            printf("Version: v%s\n", PILOT_LIGHT_VERSION_STRING);
             #ifdef PL_CONFIG_DEBUG
                 printf("Config: debug\n\n");
             #endif
             #ifdef PL_CONFIG_RELEASE
                 printf("Config: release\n\n");
             #endif
+            printf("~~~~~~~~API Versions~~~~~~~~~\n\n");
+            printf("plWindowI:            v%u.%u.%u\n", tWindowExtVersion.uMajor, tWindowExtVersion.uMinor, tWindowExtVersion.uPatch);
+            printf("plLibraryI:           v%u.%u.%u\n", tLibraryVersion.uMajor, tLibraryVersion.uMinor, tLibraryVersion.uPatch);
+            printf("plDataRegistryI:      v%u.%u.%u\n", tDataRegistryVersion.uMajor, tDataRegistryVersion.uMinor, tDataRegistryVersion.uPatch);
+            printf("plExtensionRegistryI: v%u.%u.%u\n", tExtensionRegistryVersion.uMajor, tExtensionRegistryVersion.uMinor, tExtensionRegistryVersion.uPatch);
+            printf("plIOI:                v%u.%u.%u\n", tIOIVersion.uMajor, tIOIVersion.uMinor, tIOIVersion.uPatch);
+            printf("plMemoryI:            v%u.%u.%u\n", tMemoryIVersion.uMajor, tMemoryIVersion.uMinor, tMemoryIVersion.uPatch);
+
             return 0;
         }
         else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
@@ -173,7 +185,7 @@ int main(int argc, char *argv[])
             printf("-h              %s\n", "Displays this information.");
             printf("--help          %s\n", "Displays this information.");
             printf("--version       %s\n", "Displays Pilot Light version information.");
-            printf("--extensions    %s\n", "Displays embedded extensions.");
+            printf("--apis          %s\n", "Displays embedded apis.");
             printf("-a <app>        %s\n", "Sets app to load. Default is 'app'.");
             printf("--app <app>     %s\n", "Sets app to load. Default is 'app'.");
 
