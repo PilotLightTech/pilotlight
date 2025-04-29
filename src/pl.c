@@ -1699,7 +1699,7 @@ pl__load_core_apis(void)
     tLibraryApi.has_changed   = pl_has_library_changed;
     tLibraryApi.load          = pl_load_library;
     tLibraryApi.load_function = pl_load_library_function;
-    tLibraryApi.reload        = pl_reload_library;
+    tLibraryApi._reload       = pl_reload_library;
 
     pl_set_api(gptApiRegistry, plWindowI, &tWindowApi);
     pl_set_api(gptApiRegistry, plLibraryI, &tLibraryApi);

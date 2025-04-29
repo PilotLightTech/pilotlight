@@ -1,4 +1,4 @@
-v0.2.0
+v0.2.1
 
 -----------------------------------------------------------------------------
                              Versioning
@@ -37,7 +37,7 @@ the API is complete. It just means we won't break what currently exists.
 * Extension Registry v1.0.0 (pl.h)
 * IO                 v1.0.0 (pl.h)
 * Window             v1.0.0 (pl.h)
-* Library            v1.0.0 (pl.h)
+* Library            v1.0.1 (pl.h)
 
 ## Libraries
 * Data Structures   v1.0.0 (pl_ds.h)

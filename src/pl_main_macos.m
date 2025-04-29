@@ -557,7 +557,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         // reload library
         if(gptLibraryApi->has_changed(gptAppLibrary))
         {
-            gptLibraryApi->reload(gptAppLibrary);
+            gptLibraryApi->_reload(gptAppLibrary);
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__attribute__(()) *)(void*))            gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");

@@ -37,7 +37,7 @@ Index of this file:
 #define plIOI_version                {1, 0, 0}
 #define plDataRegistryI_version      {1, 0, 0}
 #define plWindowI_version            {1, 0, 0}
-#define plLibraryI_version           {1, 0, 0}
+#define plLibraryI_version           {1, 0, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -267,8 +267,10 @@ typedef struct _plLibraryI
 
     plLibraryResult (*load)         (plLibraryDesc, plSharedLibrary** libraryPtrOut);
     bool            (*has_changed)  (plSharedLibrary*);
-    void            (*reload)       (plSharedLibrary*);
     void*           (*load_function)(plSharedLibrary*, const char*);
+
+    // [INTERNAL] 
+    void (*_reload) (plSharedLibrary*); // removing this
     
 } plLibraryI;
 

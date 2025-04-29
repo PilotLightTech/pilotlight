@@ -433,7 +433,7 @@ int main(int argc, char *argv[])
         // reload library
         if(ptLibraryApi->has_changed(gptAppLibrary))
         {
-            ptLibraryApi->reload(gptAppLibrary);
+            ptLibraryApi->_reload(gptAppLibrary);
             #ifdef _WIN32
                 pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
                 pl_app_shutdown = (void  (__cdecl  *)(void*))            ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");

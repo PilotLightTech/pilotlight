@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
         // reload library
         if(ptLibraryApi->has_changed(gptAppLibrary))
         {
-            ptLibraryApi->reload(gptAppLibrary);
+            ptLibraryApi->_reload(gptAppLibrary);
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
