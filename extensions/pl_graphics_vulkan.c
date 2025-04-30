@@ -2474,7 +2474,7 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     gptGraphics->tAllocationCallbacks.pfnFree = pl__vk_free;
 
     // uncomment to track allocations
-    gptGraphics->ptAllocationCallbacks = &gptGraphics->tAllocationCallbacks;
+    // gptGraphics->ptAllocationCallbacks = &gptGraphics->tAllocationCallbacks;
 
     // set frames in flight (if zero, use a default of 2)
     gptGraphics->uFramesInFlight = pl_min(pl_max(ptDesc->uFramesInFlight, 2), PL_MAX_FRAMES_IN_FLIGHT);
