@@ -1,5 +1,7 @@
 from . import core as pl
 from pathlib import PurePath
+import os
+import stat
 
 class plAppleHelper:
 
@@ -13,6 +15,8 @@ class plAppleHelper:
     def write_file(self, file_path):
         with open(file_path, "w") as file:
             file.write(self.buffer)
+        st = os.stat(file_path)
+        os.chmod(file_path, st.st_mode | stat.S_IEXEC)
 
     def add_line(self, line):
         self.buffer += ' ' * self.indent + line + '\n'
@@ -206,6 +210,8 @@ def generate_build(name, user_options = None):
             helper.set_indent(4)
             helper.add_comment('cleanup binaries if not hot reloading')
             helper.add_line('PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS')
+            if data.reload_artifact_directory is not None:
+                helper.add_line('rm -r -f ' + data.reload_artifact_directory)
 
         # delete old binaries & files
         for settings in config_only_settings:

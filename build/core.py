@@ -14,7 +14,7 @@
 # [SECTION] version
 #-----------------------------------------------------------------------------
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 #-----------------------------------------------------------------------------
 # [SECTION] imports
@@ -77,6 +77,7 @@ class ScriptData:
         self.version = __version__
         self.current_settings = []
         self.project_name = None
+        self.reload_artifact_directory = None
         self.reload_target_names = []
         self.registered_configurations = []
         
@@ -644,3 +645,6 @@ def add_profile(*, compiler_filter=None, platform_filter=None, configuration_fil
 
 def get_script_data() -> ScriptData:
     return _context._script_data
+
+def set_hot_reload_artifact_directory(directory: str):
+    _context._script_data.reload_artifact_directory = directory

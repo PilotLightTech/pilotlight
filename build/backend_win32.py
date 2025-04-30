@@ -208,15 +208,14 @@ def generate_build(name, user_options = None):
             helper.add_comment("cleanup binaries if not hot reloading")
             helper.add_line("@if %PL_HOT_RELOAD_STATUS% equ 0 (\n")
             helper.set_indent(4)
+            if data.reload_artifact_directory is not None:
+                helper.add_line('rmdir "' + data.reload_artifact_directory + '" /s /q')
         
         # delete old binaries & files
         for settings in config_only_settings:
             if settings.source_files and settings.always_build:
                 helper.delete_file(settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension)
-                if settings.target_type == pl.TargetType.DYNAMIC_LIBRARY:
-                    helper.delete_file(settings.output_directory + '/' + settings.output_binary + '_*' + settings.output_binary_extension)
-                    helper.delete_file(settings.output_directory + '/' + settings.output_binary + '_*.pdb')
-                elif settings.target_type == pl.TargetType.EXECUTABLE:
+                if settings.target_type == pl.TargetType.DYNAMIC_LIBRARY or settings.target_type == pl.TargetType.EXECUTABLE:
                     helper.delete_file(settings.output_directory + '/' + settings.output_binary + '_*.pdb')
         
         helper.set_indent(0)
