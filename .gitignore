@@ -5,6 +5,7 @@
 .idea/
 data/
 out/
+out-temp/
 user/
 game/
 app/

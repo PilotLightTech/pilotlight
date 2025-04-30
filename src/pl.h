@@ -24,20 +24,20 @@ Index of this file:
 #define PL_H
 
 // global version XYYZZ
-#define PILOT_LIGHT_VERSION_STRING "0.2.0"
-#define PILOT_LIGHT_VERSION_NUM     00200
-#define PILOT_LIGHT_VERSION         {0, 2, 0}
+#define PILOT_LIGHT_VERSION_STRING "0.2.1"
+#define PILOT_LIGHT_VERSION_NUM     00201
+#define PILOT_LIGHT_VERSION         {0, 2, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plExtensionRegistryI_version {1, 0, 0}
+#define plExtensionRegistryI_version {1, 1, 0}
 #define plMemoryI_version            {1, 0, 2}
 #define plIOI_version                {1, 0, 0}
 #define plDataRegistryI_version      {1, 0, 0}
 #define plWindowI_version            {1, 0, 0}
-#define plLibraryI_version           {1, 0, 1}
+#define plLibraryI_version           {1, 0, 2}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -74,6 +74,7 @@ typedef int plInputEventSource; // -> enum plInputEventSource_ // Enum: An input
 typedef int plWindowResult;     // -> enum _plWindowResult     // Enum: Result returned from window API (PL_WINDOW_RESULT_XXXX)
 typedef int plWindowFlags;      // -> enum _plWindowFlags      // Flag: Flags for window creation (PL_WINDOW_FLAG_XXXX)
 typedef int plLibraryResult;    // -> enum _plLibraryResult    // Enum: Result returned from library API (PL_LIBRARY_RESULT_XXXX)
+typedef int plLibraryFlags;     // -> enum _plLibraryFlags      // Enum: Result returned from library API (PL_LIBRARY_FLAGS_XXXX)
 typedef int plKeyChord;
 
 // character types
@@ -119,8 +120,9 @@ typedef struct _plApiRegistryI
 typedef struct _plExtensionRegistryI
 {
 
-    bool (*load)  (const char* name, const char* loadFunc, const char* unloadFunc, bool reloadable);
-    bool (*unload)(const char* name); 
+    bool (*load)    (const char* name, const char* loadFunc, const char* unloadFunc, bool reloadable);
+    bool (*unload)  (const char* name); 
+    void (*add_path)(const char* path); 
     
 } plExtensionRegistryI;
 
@@ -267,11 +269,7 @@ typedef struct _plLibraryI
 
     plLibraryResult (*load)         (plLibraryDesc, plSharedLibrary** libraryPtrOut);
     bool            (*has_changed)  (plSharedLibrary*);
-    void*           (*load_function)(plSharedLibrary*, const char*);
-
-    // [INTERNAL] 
-    void (*_reload) (plSharedLibrary*); // removing this
-    
+    void*           (*load_function)(plSharedLibrary*, const char*);    
 } plLibraryI;
 
 //-----------------------------------------------------------------------------
@@ -299,6 +297,14 @@ enum _plLibraryResult
 {
     PL_LIBRARY_RESULT_FAIL    = 0,
     PL_LIBRARY_RESULT_SUCCESS = 1
+};
+
+enum _plLibraryFlags 
+{
+    PL_LIBRARY_FLAGS_NONE = 0,
+
+    // [INTERNAL]
+    PL_LIBRARY_FLAGS_RELOADABLE = 1 << 0
 };
 
 enum plMouseButton_
@@ -407,9 +413,8 @@ enum plMouseCursor_
 
 typedef struct _plLibraryDesc
 {
-    const char* pcName;             // name of library (without extension)
-    const char* pcTransitionalName; // default: pcName + '_'
-    const char* pcLockFile;         // default: "lock.tmp"
+    plLibraryFlags tFlags;
+    const char*    pcName; // name of library (with or without extension)
 } plLibraryDesc;
 
 typedef struct _plWindowDesc

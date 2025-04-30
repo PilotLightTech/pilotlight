@@ -53,7 +53,6 @@ Index of this file:
 typedef struct _plExtension
 {
     char pcLibName[128];
-    char pcLibPath[128];
     char pcLoadFunc[128];
     char pcUnloadFunc[128];
     bool bReloadable;
@@ -188,6 +187,7 @@ void        pl__remove_api(const void* pInterface);
 // extension registry functions
 bool pl_load_extension  (const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, bool bReloadable);
 bool pl_unload_extension(const char* pcName);
+void pl_add_extension_path(const char* pcName);
 
 // IO helper functions
 static void          pl__update_events(void);
@@ -215,9 +215,10 @@ plMutex*           gptMemoryMutex = {0};
 plApiEntry* gptApiHead = NULL;
 
 // extension registry
-plExtension*      gsbtExtensions = NULL;
-plSharedLibrary** gsbptLibs      = NULL;
-uint32_t*         gsbtHotLibs    = NULL; // index into gsbptLibs
+const char**      gsbpcExtensionPaths = NULL;
+plExtension*      gsbtExtensions      = NULL;
+plSharedLibrary** gsbptLibs           = NULL;
+uint32_t*         gsbtHotLibs         = NULL; // index into gsbptLibs
 
 // IO
 #ifdef __cplusplus
@@ -574,10 +575,24 @@ pl_commit(plDataObject* ptWriter)
 static void
 pl__create_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnloadFunc, plExtension* ptExtensionOut)
 {
-    strncpy(ptExtensionOut->pcLibPath, pcName, 128);
+    // strncpy(ptExtensionOut->pcLibPath, pcName, 128);
     strncpy(ptExtensionOut->pcLibName, pcName, 128);
     strncpy(ptExtensionOut->pcLoadFunc, pcLoadFunc, 128);
     strncpy(ptExtensionOut->pcUnloadFunc, pcUnloadFunc, 128);
+}
+
+void
+pl_add_extension_path(const char* pcName)
+{
+    for(uint32_t i = 0; i < pl_sb_size(gsbpcExtensionPaths); i++)
+    {
+        if(strcmp(pcName, gsbpcExtensionPaths[i]) == 0)
+        {
+            return;
+        }
+    }
+
+    pl_sb_push(gsbpcExtensionPaths, pcName);
 }
 
 bool
@@ -604,6 +619,43 @@ pl_load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnlo
 
     plExtension tExtension = PL_ZERO_INIT;
     tExtension.bReloadable = bReloadable;
+
+    // find path
+    bool bFoundDirectly = false;
+    char acTemporaryName[PL_MAX_PATH_LENGTH] = PL_ZERO_INIT;
+    pl_sprintf(acTemporaryName, "%s.%s", pcName, gpcLibraryExtension);
+
+
+    FILE* ptDataFile = fopen(acTemporaryName, "r");
+    if(ptDataFile)
+    {
+        fclose(ptDataFile);
+        bFoundDirectly = true;
+    }
+
+    
+    if(!bFoundDirectly)
+    {
+        for(uint32_t i = 0; i < pl_sb_size(gsbpcExtensionPaths); i++)
+        {
+            pl_sprintf(acTemporaryName, "%s/%s.%s", gsbpcExtensionPaths[i], pcName, gpcLibraryExtension);
+
+            ptDataFile = fopen(acTemporaryName, "r");
+            if(ptDataFile)
+            {
+                fclose(ptDataFile);
+                bFoundDirectly = true;
+                break;
+            }
+        }
+    }
+
+    if(!bFoundDirectly)
+    {
+        printf("Extension: %s not loaded\n", pcName);
+        return false;
+    }
+
     pl__create_extension(pcName, pcLoadFunc, pcUnloadFunc, &tExtension);
 
     plSharedLibrary* ptLibrary = NULL;
@@ -611,7 +663,12 @@ pl_load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnlo
     const plLibraryI* ptLibraryApi = pl_get_api_latest(ptApiRegistry, plLibraryI);
 
     plLibraryDesc tDesc = PL_ZERO_INIT;
-    tDesc.pcName = tExtension.pcLibPath;
+    tDesc.pcName = acTemporaryName;
+
+    if(bReloadable)
+    {
+        tDesc.tFlags |= PL_LIBRARY_FLAGS_RELOADABLE;
+    }
 
     if(ptLibraryApi->load(tDesc, &ptLibrary))
     {
@@ -1628,8 +1685,9 @@ pl__load_core_apis(void)
     tDataRegistryApi.commit             = pl_commit;
 
     plExtensionRegistryI tExtensionRegistryApi = PL_ZERO_INIT;
-    tExtensionRegistryApi.load   = pl_load_extension;
-    tExtensionRegistryApi.unload = pl_unload_extension;
+    tExtensionRegistryApi.load     = pl_load_extension;
+    tExtensionRegistryApi.unload   = pl_unload_extension;
+    tExtensionRegistryApi.add_path = pl_add_extension_path;
 
     static plMemoryI tMemoryApi = PL_ZERO_INIT;
     tMemoryApi.realloc              = pl_realloc;
@@ -1699,7 +1757,6 @@ pl__load_core_apis(void)
     tLibraryApi.has_changed   = pl_has_library_changed;
     tLibraryApi.load          = pl_load_library;
     tLibraryApi.load_function = pl_load_library_function;
-    tLibraryApi._reload       = pl_reload_library;
 
     pl_set_api(gptApiRegistry, plWindowI, &tWindowApi);
     pl_set_api(gptApiRegistry, plLibraryI, &tLibraryApi);
@@ -1743,6 +1800,7 @@ pl__unload_core_apis(void)
 
     // extension registry
     pl_sb_free(gsbtExtensions);
+    pl_sb_free(gsbpcExtensionPaths);
     const uint32_t uLibCount = pl_sb_size(gsbptLibs);
     for(uint32_t i = 0; i < uLibCount; i++)
     {

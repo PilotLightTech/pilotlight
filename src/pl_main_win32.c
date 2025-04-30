@@ -33,6 +33,7 @@ Index of this file:
 
 #include "pl_internal.h"
 #include "pl_ds.h"    // hashmap & stretchy buffer
+#include "pl_string.h"
 #include <float.h>    // FLT_MAX
 #include <stdlib.h>   // exit
 #include <stdio.h>    // printf
@@ -57,8 +58,11 @@ typedef struct _plSharedLibrary
 {
     bool          bValid;
     uint32_t      uTempIndex;
-    char          acPath[PL_MAX_PATH_LENGTH];
-    char          acTransitionalName[PL_MAX_PATH_LENGTH];
+    char          acFileExtension[16];                   // default: "dll"
+    char          acName[PL_MAX_NAME_LENGTH];            // i.e. "app"
+    char          acPath[PL_MAX_PATH_LENGTH];            // i.e. "app.dll" or "../out/app.dll"
+    char          acDirectory[PL_MAX_PATH_LENGTH];       // i.e. "./" or "../out/"
+    char          acTransitionalPath[PL_MAX_PATH_LENGTH];
     char          acLockFile[PL_MAX_PATH_LENGTH];
     plLibraryDesc tDesc;
     HMODULE       tHandle;
@@ -77,6 +81,7 @@ INT64       ilTicksPerSecond                  = 0;
 HWND        tMouseHandle                      = NULL;
 bool        bMouseTracked                     = true;
 WNDCLASSEXW gtWc                              = {0};
+const char* gpcLibraryExtension               = "dll";
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -213,7 +218,8 @@ int main(int argc, char *argv[])
     // load app library
     const plLibraryI* ptLibraryApi = pl_get_api_latest(gptApiRegistry, plLibraryI);
     plLibraryDesc tLibraryDesc = {
-        .pcName = pcAppName
+        .pcName = pcAppName,
+        .tFlags = PL_LIBRARY_FLAGS_RELOADABLE
     };
     if(ptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
     {
@@ -262,7 +268,7 @@ int main(int argc, char *argv[])
         // reload library
         if(ptLibraryApi->has_changed(gptAppLibrary))
         {
-            ptLibraryApi->_reload(gptAppLibrary);
+            pl_reload_library(gptAppLibrary);
             pl_app_load     = (void* (__cdecl  *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__cdecl  *)(void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__cdecl  *)(plWindow*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
@@ -849,56 +855,98 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 
     plSharedLibrary* ptLibrary = NULL;
 
+    const char* pcLockFile = "lock.tmp";
+    const char* pcCacheDirectory = "../out-temp";
+
     if(*pptLibraryOut == NULL)
     {
+
+        DWORD dwAttrib = GetFileAttributes(pcCacheDirectory);
+
+        if(dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY))
+        {
+            // do nothing
+        }
+        else
+        {
+            CreateDirectoryA(pcCacheDirectory, NULL);
+        }
+
         *pptLibraryOut = PL_ALLOC(sizeof(plSharedLibrary));
         memset((*pptLibraryOut), 0, sizeof(plSharedLibrary));
-
         ptLibrary = *pptLibraryOut;
 
         ptLibrary->bValid = false;
         ptLibrary->tDesc = tDesc;
+        pl_str_get_file_name_only(tDesc.pcName, ptLibrary->acName, PL_MAX_NAME_LENGTH);
+        pl_str_get_directory(tDesc.pcName, ptLibrary->acDirectory, PL_MAX_PATH_LENGTH);
 
-        pl_sprintf(ptLibrary->acPath, "%s.dll", tDesc.pcName);
+        if(pl_str_get_file_extension(tDesc.pcName, ptLibrary->acFileExtension, 16) == NULL)
+            strncpy(ptLibrary->acFileExtension, "dll", 16);
 
-        if(tDesc.pcTransitionalName)
-            strncpy(ptLibrary->acTransitionalName, tDesc.pcTransitionalName, PL_MAX_PATH_LENGTH);
-        else
+        pl_sprintf(ptLibrary->acPath, "%s%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
+        pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
+        pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+
+        if(!(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
         {
-            pl_sprintf(ptLibrary->acTransitionalName, "%s_", tDesc.pcName);
-        }
 
-        if(tDesc.pcLockFile)
-            strncpy(ptLibrary->acLockFile, tDesc.pcLockFile, PL_MAX_PATH_LENGTH);
-        else
-            strncpy(ptLibrary->acLockFile, "lock.tmp", PL_MAX_PATH_LENGTH);
+            char acTemporaryName[PL_MAX_PATH_LENGTH] = {0};
+            ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+            
+            pl_sprintf(acTemporaryName, "%s.%s", ptLibrary->acName, ptLibrary->acFileExtension);
+
+            SetDllDirectoryA(ptLibrary->acDirectory);
+            ptLibrary->tHandle = NULL;
+            ptLibrary->tHandle = LoadLibraryA(acTemporaryName);
+            if(ptLibrary->tHandle)
+                ptLibrary->bValid = true;
+            else
+            {
+                DWORD iLastError = GetLastError();
+                printf("LoadLibaryA() failed with error code : %d\n", iLastError);
+            }
+            SetDllDirectoryA(NULL);
+    }
+        
     }
     else
         ptLibrary = *pptLibraryOut;
 
-    ptLibrary->bValid = false;
 
-    WIN32_FILE_ATTRIBUTE_DATA tIgnored;
-    if(!GetFileAttributesExA(ptLibrary->acLockFile, GetFileExInfoStandard, &tIgnored))  // lock file gone
+    if(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
     {
-        char acTemporaryName[2024] = {0};
-        ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-        
-        pl_sprintf(acTemporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".dll");
-        if(++ptLibrary->uTempIndex >= 1024)
-        {
-            ptLibrary->uTempIndex = 0;
-        }
-        CopyFile(ptLibrary->acPath, acTemporaryName, FALSE);
 
-        ptLibrary->tHandle = NULL;
-        ptLibrary->tHandle = LoadLibraryA(acTemporaryName);
-        if(ptLibrary->tHandle)
-            ptLibrary->bValid = true;
-        else
+        ptLibrary->bValid = false;
+
+        WIN32_FILE_ATTRIBUTE_DATA tIgnored;
+        if(!GetFileAttributesExA(ptLibrary->acLockFile, GetFileExInfoStandard, &tIgnored))  // lock file gone
         {
-            DWORD iLastError = GetLastError();
-            printf("LoadLibaryA() failed with error code : %d\n", iLastError);
+            char acTemporaryPath[PL_MAX_PATH_LENGTH] = {0};
+            char acTemporaryName[PL_MAX_NAME_LENGTH] = {0};
+            ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+            
+            pl_sprintf(acTemporaryPath, "%s%u.%s", ptLibrary->acTransitionalPath, ptLibrary->uTempIndex, ptLibrary->acFileExtension);
+            pl_sprintf(acTemporaryName, "%s_%u.%s", ptLibrary->acName, ptLibrary->uTempIndex, ptLibrary->acFileExtension);
+            if(++ptLibrary->uTempIndex >= 1024)
+            {
+                ptLibrary->uTempIndex = 0;
+            }
+            CopyFile(ptLibrary->acPath, acTemporaryPath, FALSE);
+
+
+            SetDllDirectoryA(pcCacheDirectory);
+
+            ptLibrary->tHandle = NULL;
+            ptLibrary->tHandle = LoadLibraryA(acTemporaryName);
+            if(ptLibrary->tHandle)
+                ptLibrary->bValid = true;
+            else
+            {
+                DWORD iLastError = GetLastError();
+                printf("LoadLibaryA() failed with error code : %d\n", iLastError);
+            }
+            SetDllDirectoryA(NULL);
         }
     }
 
@@ -910,12 +958,16 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 void
 pl_reload_library(plSharedLibrary* ptLibrary)
 {
-    ptLibrary->bValid = false;
-    for(uint32_t i = 0; i < 100; i++)
+    if(ptLibrary->tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
     {
-        if(pl_load_library(ptLibrary->tDesc, &ptLibrary))
-            break;
-        Sleep((long)100);
+        ptLibrary->bValid = false;
+
+        for(uint32_t i = 0; i < 100; i++)
+        {
+            if(pl_load_library(ptLibrary->tDesc, &ptLibrary))
+                break;
+            Sleep((long)100);
+        }
     }
 }
 

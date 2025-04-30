@@ -32,6 +32,7 @@ with pl.project("pilotlight_examples"):
 
     # used to decide hot reloading
     pl.set_hot_reload_target("../out/pilot_light")
+    pl.set_hot_reload_artifact_directory("../out-temp")
 
     # project wide settings
     pl.set_output_directory("../out")

@@ -1010,7 +1010,7 @@ pl__show_editor_window(plAppData* ptAppData)
             ImGui::Checkbox("Selected Bounding Box", &ptRuntimeOptions->bShowSelectedBoundingBox);
             
             ImGui::InputFloat("Depth Bias", &ptRuntimeOptions->fShadowConstantDepthBias);
-            ImGui::InputFloat("Slope Depth Bias", &ptRuntimeOptions->fShadowSlopeDepthBias, NULL, 0);
+            ImGui::InputFloat("Slope Depth Bias", &ptRuntimeOptions->fShadowSlopeDepthBias, 0.0f, 0);
 
             uint32_t uMinOutline = 2;
             uint32_t uMaxOutline = 50;

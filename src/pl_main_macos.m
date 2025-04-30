@@ -24,6 +24,7 @@ Index of this file:
 
 #include "pl_internal.h"
 #include "pl_ds.h"
+#include "pl_string.h"
 #import <Cocoa/Cocoa.h>
 #import <Carbon/Carbon.h>
 #import <QuartzCore/CAMetalLayer.h>
@@ -89,12 +90,15 @@ typedef struct _plSharedLibrary
 {
     bool            bValid;
     uint32_t        uTempIndex;
-    char            acPath[PL_MAX_PATH_LENGTH];
-    char            acTransitionalName[PL_MAX_PATH_LENGTH];
+    char            acFileExtension[16];                   // default: "dylib"
+    char            acName[PL_MAX_NAME_LENGTH];            // i.e. "app"
+    char            acPath[PL_MAX_PATH_LENGTH];            // i.e. "app.dylib" or "../out/app.dylib"
+    char            acDirectory[PL_MAX_PATH_LENGTH];       // i.e. "./" or "../out/"
+    char            acTransitionalPath[PL_MAX_PATH_LENGTH];
     char            acLockFile[PL_MAX_PATH_LENGTH];
     plLibraryDesc   tDesc;
     void*           handle;
-    struct timespec lastWriteTime;
+    struct timespec tLastWriteTime;
 } plSharedLibrary;
 
 typedef struct _plWindowData
@@ -138,6 +142,7 @@ plKeyEventResponder* gKeyEventResponder = NULL;
 NSTextInputContext*  gInputContext = NULL;
 id                   gMonitor;
 NSCursor* aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
+const char* gpcLibraryExtension               = "dylib";
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -263,7 +268,8 @@ int main(int argc, char *argv[])
     const plLibraryI* ptLibraryApi = pl_get_api_latest(gptApiRegistry, plLibraryI);
     gptLibraryApi = ptLibraryApi;
     const plLibraryDesc tLibraryDesc = {
-        .pcName = pcAppName
+        .pcName = pcAppName,
+        .tFlags = PL_LIBRARY_FLAGS_RELOADABLE
     };
     if(ptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
     {
@@ -557,7 +563,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
         // reload library
         if(gptLibraryApi->has_changed(gptAppLibrary))
         {
-            gptLibraryApi->_reload(gptAppLibrary);
+            pl_reload_library(gptAppLibrary);
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__attribute__(()) *)(void*))            gptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*)) gptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
@@ -912,7 +918,7 @@ pl_has_library_changed(plSharedLibrary* library)
     if(library)
     {
         struct timespec newWriteTime = pl__get_last_write_time(library->acPath);
-        return newWriteTime.tv_sec != library->lastWriteTime.tv_sec;
+        return newWriteTime.tv_sec != library->tLastWriteTime.tv_sec;
     }
     return false;
 }
@@ -923,8 +929,16 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 
     plSharedLibrary* ptLibrary = NULL;
 
+    const char* pcLockFile = "lock.tmp";
+    const char* pcCacheDirectory = "../out-temp";
+
     if(*pptLibraryOut == NULL)
     {
+        struct stat st = {0};
+
+        if (stat(pcCacheDirectory, &st) == -1)
+            mkdir(pcCacheDirectory, 0700);
+
         *pptLibraryOut = PL_ALLOC(sizeof(plSharedLibrary));
         memset((*pptLibraryOut), 0, sizeof(plSharedLibrary));
 
@@ -932,49 +946,63 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 
         ptLibrary->bValid = false;
         ptLibrary->tDesc = tDesc;
+        pl_str_get_file_name_only(tDesc.pcName, ptLibrary->acName, PL_MAX_NAME_LENGTH);
+        pl_str_get_directory(tDesc.pcName, ptLibrary->acDirectory, PL_MAX_PATH_LENGTH);
 
-        pl_sprintf(ptLibrary->acPath, "%s.dylib", tDesc.pcName);
+        if(pl_str_get_file_extension(tDesc.pcName, ptLibrary->acFileExtension, 16) == NULL)
+            strncpy(ptLibrary->acFileExtension, "dylib", 16);
 
-        if(tDesc.pcTransitionalName)
-            strncpy(ptLibrary->acTransitionalName, tDesc.pcTransitionalName, PL_MAX_PATH_LENGTH);
-        else
+        pl_sprintf(ptLibrary->acPath, "%s%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
+        pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
+        pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+
+        if(!(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
         {
-            pl_sprintf(ptLibrary->acTransitionalName, "%s_", tDesc.pcName);
+            ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+            ptLibrary->handle = NULL;
+            ptLibrary->handle = dlopen(ptLibrary->acPath, RTLD_NOW);
+            if(ptLibrary->handle)
+                ptLibrary->bValid = true;
+            else
+            {
+                printf("\n\n%s\n\n", dlerror());
+            }
         }
-
-        if(tDesc.pcLockFile)
-            strncpy(ptLibrary->acLockFile, tDesc.pcLockFile, PL_MAX_PATH_LENGTH);
-        else
-            strncpy(ptLibrary->acLockFile, "lock.tmp", PL_MAX_PATH_LENGTH);
     }
     else
         ptLibrary = *pptLibraryOut;
 
-    ptLibrary->bValid = false;
-
-    struct stat attr2;
-    if(stat(ptLibrary->acLockFile, &attr2) == -1)  // lock file gone
+    if(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
     {
-        char temporaryName[2024] = {0};
-        ptLibrary->lastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-        
-        pl_sprintf(temporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".dylib");
-        if(++ptLibrary->uTempIndex >= 1024)
-        {
-            ptLibrary->uTempIndex = 0;
-        }
-        pl_copy_file(ptLibrary->acPath, temporaryName);
+        ptLibrary->bValid = false;
 
-        ptLibrary->handle = NULL;
-        ptLibrary->handle = dlopen(temporaryName, RTLD_NOW);
-        if(ptLibrary->handle)
-            ptLibrary->bValid = true;
-        else
+        if(ptLibrary)
         {
-            printf("\n\n%s\n\n", dlerror());
+            struct stat attr2;
+            if(stat(ptLibrary->acLockFile, &attr2) == -1)  // lock file gone
+            {
+                char acTemporaryPath[PL_MAX_PATH_LENGTH] = {0};
+                ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+                
+                pl_sprintf(acTemporaryPath, "%s%u.%s", ptLibrary->acTransitionalPath, ptLibrary->uTempIndex, ptLibrary->acFileExtension);
+                if(++ptLibrary->uTempIndex >= 1024)
+                {
+                    ptLibrary->uTempIndex = 0;
+                }
+                pl_copy_file(ptLibrary->acPath, acTemporaryPath);
+
+                ptLibrary->handle = NULL;
+                ptLibrary->handle = dlopen(acTemporaryPath, RTLD_NOW);
+                if(ptLibrary->handle)
+                    ptLibrary->bValid = true;
+                else
+                {
+                    printf("\n\n%s\n\n", dlerror());
+                }
+
+            }
         }
     }
-
     if(ptLibrary->bValid)
         return PL_LIBRARY_RESULT_SUCCESS;
     return PL_LIBRARY_RESULT_FAIL;
@@ -983,22 +1011,25 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 void
 pl_reload_library(plSharedLibrary* library)
 {
-    library->bValid = false;
-    for(uint32_t i = 0; i < 100; i++)
+    if(library->tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
     {
-        if(pl_load_library(library->tDesc, &library))
-            break;
-        // pl_sleep(100);
-        struct timespec ts;
-        int res;
+        library->bValid = false;
+        for(uint32_t i = 0; i < 100; i++)
+        {
+            if(pl_load_library(library->tDesc, &library))
+                break;
+            // pl_sleep(100);
+            struct timespec ts;
+            int res;
 
-        ts.tv_sec = 100 / 1000;
-        ts.tv_nsec = (100 % 1000) * 1000000;
+            ts.tv_sec = 100 / 1000;
+            ts.tv_nsec = (100 % 1000) * 1000000;
 
-        do {
-            res = nanosleep(&ts, &ts);
-        } 
-        while (res);
+            do {
+                res = nanosleep(&ts, &ts);
+            } 
+            while (res);
+        }
     }
 }
 

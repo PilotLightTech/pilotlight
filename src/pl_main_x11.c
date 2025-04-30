@@ -27,6 +27,7 @@ Index of this file:
 
 #include "pl_internal.h"
 #include "pl_ds.h"
+#include "pl_string.h"
 #include <time.h>     // clock_gettime, clock_getres
 #include <string.h>   // strlen
 #include <stdlib.h>   // free
@@ -72,12 +73,15 @@ typedef struct _plSharedLibrary
 {
     bool          bValid;
     uint32_t      uTempIndex;
-    char          acPath[PL_MAX_PATH_LENGTH];
-    char          acTransitionalName[PL_MAX_PATH_LENGTH];
+    char          acFileExtension[16];                   // default: "so"
+    char          acName[PL_MAX_NAME_LENGTH];            // i.e. "app"
+    char          acPath[PL_MAX_PATH_LENGTH];            // i.e. "app.so" or "../out/app.so"
+    char          acDirectory[PL_MAX_PATH_LENGTH];       // i.e. "./" or "../out/"
+    char          acTransitionalPath[PL_MAX_PATH_LENGTH];
     char          acLockFile[PL_MAX_PATH_LENGTH];
     plLibraryDesc tDesc;
     void*         handle;
-    time_t        lastWriteTime;
+    time_t        tLastWriteTime;
 } plSharedLibrary;
 
 
@@ -100,6 +104,7 @@ xcb_screen_t*         gptScreen     = NULL;
 xcb_atom_t            gtWmProtocols;
 xcb_atom_t            gtWmDeleteWin;
 xcb_cursor_context_t* gptCursorContext = NULL;
+const char* gpcLibraryExtension        = "so";
 
 // linux stuff
 double gdTime      = 0.0;
@@ -256,7 +261,8 @@ int main(int argc, char *argv[])
     // load library
     const plLibraryI* ptLibraryApi = pl_get_api_latest(gptApiRegistry, plLibraryI);
     const plLibraryDesc tLibraryDesc = {
-        .pcName = pcAppName
+        .pcName = pcAppName,
+        .tFlags = PL_LIBRARY_FLAGS_RELOADABLE
     };
     if(ptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
     {
@@ -296,7 +302,7 @@ int main(int argc, char *argv[])
         // reload library
         if(ptLibraryApi->has_changed(gptAppLibrary))
         {
-            ptLibraryApi->_reload(gptAppLibrary);
+            pl_reload_library(gptAppLibrary);
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
             pl_app_shutdown = (void  (__attribute__(()) *)(void*))                        ptLibraryApi->load_function(gptAppLibrary, "pl_app_shutdown");
             pl_app_resize   = (void  (__attribute__(()) *)(plWindow*, void*))             ptLibraryApi->load_function(gptAppLibrary, "pl_app_resize");
@@ -716,7 +722,7 @@ pl_has_library_changed(plSharedLibrary* library)
     if(library)
     {
         time_t newWriteTime = pl__get_last_write_time(library->acPath);
-        return newWriteTime != library->lastWriteTime;
+        return newWriteTime != library->tLastWriteTime;
     }
     return false;
 }
@@ -726,8 +732,17 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 {
     plSharedLibrary* ptLibrary = NULL;
 
+    const char* pcLockFile = "lock.tmp";
+    const char* pcCacheDirectory = "../out-temp";
+
     if(*pptLibraryOut == NULL)
     {
+
+        struct stat st = {0};
+
+        if (stat(pcCacheDirectory, &st) == -1)
+            mkdir(pcCacheDirectory, 0700);
+
         *pptLibraryOut = PL_ALLOC(sizeof(plSharedLibrary));
         memset((*pptLibraryOut), 0, sizeof(plSharedLibrary));
 
@@ -735,48 +750,60 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 
         ptLibrary->bValid = false;
         ptLibrary->tDesc = tDesc;
+        pl_str_get_file_name_only(tDesc.pcName, ptLibrary->acName, PL_MAX_NAME_LENGTH);
+        pl_str_get_directory(tDesc.pcName, ptLibrary->acDirectory, PL_MAX_PATH_LENGTH);
 
-        pl_sprintf(ptLibrary->acPath, "./%s.so", tDesc.pcName);
+        if(pl_str_get_file_extension(tDesc.pcName, ptLibrary->acFileExtension, 16) == NULL)
+            strncpy(ptLibrary->acFileExtension, "so", 16);
 
-        if(tDesc.pcTransitionalName)
-            strncpy(ptLibrary->acTransitionalName, tDesc.pcTransitionalName, PL_MAX_PATH_LENGTH);
-        else
+        pl_sprintf(ptLibrary->acPath, "%s%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
+        pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
+        pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+
+        if(!(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
         {
-            pl_sprintf(ptLibrary->acTransitionalName, "./%s_", tDesc.pcName);
-        }
-
-        if(tDesc.pcLockFile)
-            strncpy(ptLibrary->acLockFile, tDesc.pcLockFile, PL_MAX_PATH_LENGTH);
-        else
-            strncpy(ptLibrary->acLockFile, "lock.tmp", PL_MAX_PATH_LENGTH);
-    }
-    else
-        ptLibrary = *pptLibraryOut;
-
-    ptLibrary->bValid = false;
-
-    if(ptLibrary)
-    {
-        struct stat attr2;
-        if(stat(ptLibrary->acLockFile, &attr2) == -1)  // lock file gone
-        {
-            char temporaryName[2024] = {0};
-            ptLibrary->lastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
-            
-            pl_sprintf(temporaryName, "%s%u%s", ptLibrary->acTransitionalName, ptLibrary->uTempIndex, ".so");
-            if(++ptLibrary->uTempIndex >= 1024)
-            {
-                ptLibrary->uTempIndex = 0;
-            }
-            pl_copy_file(ptLibrary->acPath, temporaryName);
-
+            ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
             ptLibrary->handle = NULL;
-            ptLibrary->handle = dlopen(temporaryName, RTLD_NOW);
+            ptLibrary->handle = dlopen(ptLibrary->acPath, RTLD_NOW);
             if(ptLibrary->handle)
                 ptLibrary->bValid = true;
             else
             {
                 printf("\n\n%s\n\n", dlerror());
+            }
+        }
+    }
+    else
+        ptLibrary = *pptLibraryOut;
+
+    if(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
+    {
+        ptLibrary->bValid = false;
+
+        if(ptLibrary)
+        {
+            struct stat attr2;
+            if(stat(ptLibrary->acLockFile, &attr2) == -1)  // lock file gone
+            {
+                char acTemporaryPath[PL_MAX_PATH_LENGTH] = {0};
+                ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
+                
+                pl_sprintf(acTemporaryPath, "%s%u.%s", ptLibrary->acTransitionalPath, ptLibrary->uTempIndex, ptLibrary->acFileExtension);
+                if(++ptLibrary->uTempIndex >= 1024)
+                {
+                    ptLibrary->uTempIndex = 0;
+                }
+                pl_copy_file(ptLibrary->acPath, acTemporaryPath);
+
+                ptLibrary->handle = NULL;
+                ptLibrary->handle = dlopen(acTemporaryPath, RTLD_NOW);
+                if(ptLibrary->handle)
+                    ptLibrary->bValid = true;
+                else
+                {
+                    printf("\n\n%s\n\n", dlerror());
+                }
+
             }
         }
     }
@@ -788,26 +815,29 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
 void
 pl_reload_library(plSharedLibrary* library)
 {
-    library->bValid = false;
-    for(uint32_t i = 0; i < 100; i++)
+    if(library->tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
     {
-        if(pl_load_library(library->tDesc, &library))
-            break;
-
-        // pl_sleep(100);
-
-        struct timespec ts = {0};
-        int res;
-    
-        ts.tv_sec = 100 / 1000;
-        ts.tv_nsec = (100 % 1000) * 1000000;
-    
-        do 
+        library->bValid = false;
+        for(uint32_t i = 0; i < 100; i++)
         {
-            res = nanosleep(&ts, &ts);
-        } 
-        while (res);
+            if(pl_load_library(library->tDesc, &library))
+                break;
 
+            // pl_sleep(100);
+
+            struct timespec ts = {0};
+            int res;
+        
+            ts.tv_sec = 100 / 1000;
+            ts.tv_nsec = (100 % 1000) * 1000000;
+        
+            do 
+            {
+                res = nanosleep(&ts, &ts);
+            } 
+            while (res);
+
+        }
     }
 }
 

@@ -36,18 +36,21 @@ import build.backend_macos as apple
 # [SECTION] project
 #-----------------------------------------------------------------------------
 
-# where to output build scripts
-working_directory = os.path.dirname(os.path.abspath(__file__)) + "/../src"
+output_directory = "../out"
+
+if len(sys.argv) > 1:
+    output_directory = sys.argv[1]
 
 with pl.project("pilotlight"):
     
     # used to decide hot reloading
-    pl.add_hot_reload_target("../out/pilot_light")
+    pl.add_hot_reload_target(output_directory + "/pilot_light")
+    pl.set_hot_reload_artifact_directory(output_directory + "/../out-temp")
 
     # project wide settings
-    pl.set_output_directory("../out")
-    pl.add_link_directories("../out")
-    pl.add_include_directories("../editor", "../src", "../libs", "../extensions", "../out", "../dependencies/stb",
+    pl.set_output_directory(output_directory)
+    pl.add_link_directories(output_directory)
+    pl.add_include_directories("../editor", "../src", "../libs", "../extensions", output_directory, "../dependencies/stb",
                                "../dependencies/cgltf", "../dependencies/imgui", '../dependencies/glfw/include')
     pl.add_definitions("PL_UNITY_BUILD")
 
@@ -798,6 +801,9 @@ with pl.project("pilotlight"):
 # [SECTION] generate scripts
 #-----------------------------------------------------------------------------
 
+# where to output build scripts
+working_directory = os.path.dirname(os.path.abspath(__file__)) + "/../src"
+
 if plat.system() == "Windows":
     win32.generate_build(working_directory + '/' + "build.bat")
 elif plat.system() == "Darwin":
@@ -805,6 +811,7 @@ elif plat.system() == "Darwin":
 elif plat.system() == "Linux":
     linux.generate_build(working_directory + '/' + "build.sh")
 
-win32.generate_build(working_directory + '/' + "build_win32.bat")
-apple.generate_build(working_directory + '/' + "build_macos.sh")
-linux.generate_build(working_directory + '/' + "build_linux.sh")
+if len(sys.argv)  == 1:
+    win32.generate_build(working_directory + '/' + "build_win32.bat")
+    apple.generate_build(working_directory + '/' + "build_macos.sh")
+    linux.generate_build(working_directory + '/' + "build_linux.sh")
