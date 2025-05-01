@@ -25,9 +25,10 @@ Index of this file:
 #include <stdlib.h>
 #include <stdio.h>
 #include <float.h>
+#include <string.h>
 
 // pilot light
-#include "pl.h"
+#include "pl.hpp"
 #include "pl_memory.h"
 #include "pl_string.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -143,11 +144,11 @@ typedef struct _plTestModel
 
 } plTestModel;
 
-typedef struct _plAppData
+struct plAppData
 {
 
     // windows
-    plWindow* ptWindow;
+    PilotLight::Window* ptWindow;
 
     // graphics
     plDevice*    ptDevice;
@@ -202,7 +203,12 @@ typedef struct _plAppData
 
     // misc
     char* sbcTempBuffer;
-} plAppData;
+
+    plAppData()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+};
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper forward declarations

@@ -18,7 +18,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl.h"
+#include "pl.hpp"
 #include "pl_dear_imgui_ext.h"
 
 #include "imgui.h"

@@ -100,6 +100,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false);
     ptExtensionRegistry->load("pl_dear_imgui_ext", NULL, NULL, false);
 
+    PilotLight::Window::set_api(ptApiRegistry);
+
     // load apis
     gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
     gptStats       = pl_get_api_latest(ptApiRegistry, plStatsI);
@@ -134,8 +136,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // this path is taken only during first load, so we
     // allocate app memory here
-    ptAppData = (plAppData*)PL_ALLOC(sizeof(plAppData));
-    memset(ptAppData, 0, sizeof(plAppData));
+    ptAppData = new plAppData();
 
     // defaults
     ptAppData->tSelectedEntity.ulData = UINT64_MAX;
@@ -175,15 +176,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         50,
         50
     };
-    gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
-    gptWindows->show(ptAppData->ptWindow);
+    ptAppData->ptWindow = new PilotLight::Window(tWindowDesc);
+    ptAppData->ptWindow->show();
 
     // initialize graphics
     plGraphicsInit tGraphicsDesc = PL_ZERO_INIT;
     tGraphicsDesc.tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
     gptGfx->initialize(&tGraphicsDesc);
 
-    ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
+    ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow->ptWindow);
     ptAppData->ptDevice = gptStarter->create_device(ptAppData->ptSurface);
 
     // create swapchain
@@ -325,9 +326,9 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->cleanup_surface(ptAppData->ptSurface);
     gptGfx->cleanup_device(ptAppData->ptDevice);
     gptGfx->cleanup();
-    gptWindows->destroy(ptAppData->ptWindow);
     pl_sb_free(ptAppData->sbtTestModels);
-    PL_FREE(ptAppData);
+    delete ptAppData->ptWindow;
+    delete ptAppData;
 }
 
 //-----------------------------------------------------------------------------
