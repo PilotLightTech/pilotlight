@@ -411,6 +411,7 @@ int main(int argc, char *argv[])
     const plLibraryI* ptLibraryApi = pl_get_api_latest(gptApiRegistry, plLibraryI);
     plLibraryDesc tLibraryDesc = {};
     tLibraryDesc.pcName = pcAppName;
+    tLibraryDesc.tFlags = PL_LIBRARY_FLAGS_RELOADABLE;
 
     if(ptLibraryApi->load(tLibraryDesc, &gptAppLibrary))
     {
