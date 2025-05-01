@@ -9,7 +9,7 @@
 void
 hashmap_test_0(void* pData)
 {
-    plHashMap tHashMap = {0};
+    plHashMap tHashMap = PL_ZERO_INIT;
 
     int* sbiValues = NULL;
     pl_sb_push(sbiValues, 0);
@@ -49,7 +49,7 @@ hashmap_test_0(void* pData)
 void
 hashmap_test_1(void* pData)
 {
-    plHashMap tHashMap = {0};
+    plHashMap tHashMap = PL_ZERO_INIT;
 
     pl_hm_insert(&tHashMap, pl_hm_hash_str("Dirty Number", 0), 945);
     pl_hm_insert(&tHashMap, pl_hm_hash_str("Spartan Number", 0), 117);
@@ -63,7 +63,7 @@ hashmap_test_1(void* pData)
 void
 hashmap_test_2(void* pData)
 {
-    plHashMap tHashMap = {0};
+    plHashMap tHashMap = PL_ZERO_INIT;
 
     int* sbiValues = NULL;
     pl_sb_push(sbiValues, 0);
@@ -103,7 +103,7 @@ hashmap_test_2(void* pData)
 void
 hashmap_test_3(void* pData)
 {
-    plHashMap tHashMap = {0};
+    plHashMap tHashMap = PL_ZERO_INIT;
 
     // test empty map
     pl_test_expect_uint32_equal(pl_hm_size(&tHashMap), 0, NULL);
@@ -141,13 +141,12 @@ hashmap_test_3(void* pData)
 void
 shashmap_test_0(void* pData)
 {
-    uint64_t auKeys[1024] = {0};
-    uint32_t auValues[1024] = {0};
-    plHashMapStatic32 tHashMap = {
-        .auKeys = auKeys,
-        .auValueBucket = auValues,
-        .uBucketCount = 1024
-    };
+    uint64_t auKeys[1024] = PL_ZERO_INIT;
+    uint32_t auValues[1024] = PL_ZERO_INIT;
+    plHashMapStatic32 tHashMap = PL_ZERO_INIT;
+    tHashMap.auKeys = auKeys;
+    tHashMap.auValueBucket = auValues;
+    tHashMap.uBucketCount = 1024;
 
     pl_hms_clear32(&tHashMap);
 
@@ -171,7 +170,7 @@ shashmap_test_0(void* pData)
 void
 hashmap32_test_0(void* pData)
 {
-    plHashMap32 tHashMap = {0};
+    plHashMap32 tHashMap = PL_ZERO_INIT;
 
     int* sbiValues = NULL;
     pl_sb_push(sbiValues, 0);
@@ -211,7 +210,7 @@ hashmap32_test_0(void* pData)
 void
 hashmap32_test_1(void* pData)
 {
-    plHashMap32 tHashMap = {0};
+    plHashMap32 tHashMap = PL_ZERO_INIT;
 
     pl_hm32_insert(&tHashMap, pl_hm_hash_str("Dirty Number", 0), 945);
     pl_hm32_insert(&tHashMap, pl_hm_hash_str("Spartan Number", 0), 117);
@@ -225,7 +224,7 @@ hashmap32_test_1(void* pData)
 void
 hashmap32_test_2(void* pData)
 {
-    plHashMap32 tHashMap = {0};
+    plHashMap32 tHashMap = PL_ZERO_INIT;
 
     int* sbiValues = NULL;
     pl_sb_push(sbiValues, 0);
@@ -265,7 +264,7 @@ hashmap32_test_2(void* pData)
 void
 hashmap32_test_3(void* pData)
 {
-    plHashMap32 tHashMap = {0};
+    plHashMap32 tHashMap = PL_ZERO_INIT;
 
     // test empty map
     pl_test_expect_uint32_equal(pl_hm32_size(&tHashMap), 0, NULL);

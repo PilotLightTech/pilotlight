@@ -36,7 +36,7 @@ jobs:
         cd scripts
         python gen_build.py
 
-    - name: Run Tests (DEBUG)
+    - name: Run Tests (DEBUG C)
       shell: cmd
       run: |
         cd $GITHUB_WORKSPACE
@@ -44,10 +44,10 @@ jobs:
         call build.bat -c debug
         cd ..
         cd out
-        pilot_light_test.exe
+        pilot_light_c.exe
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
-        pilot_light.exe -a tests
+        pilot_light.exe -a tests_c
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
         cd ..
@@ -57,17 +57,57 @@ jobs:
       run: |
         rmdir /s /q out
 
-    - name: Run Tests (RELEASE)
+    - name: Run Tests (RELEASE C)
       shell: cmd
       run: |
         cd tests
         call build.bat -c release
         cd ..
         cd out
-        pilot_light_test.exe
+        pilot_light_c.exe
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
-        pilot_light.exe -a tests
+        pilot_light.exe -a tests_c
+        @set PL_TEST_STATUS=%ERRORLEVEL%
+        @if %PL_TEST_STATUS% NEQ 0 (exit 1)
+
+    - name: Prep 3
+      shell: cmd
+      run: |
+        rmdir /s /q out
+
+    - name: Run Tests (DEBUG C++)
+      shell: cmd
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd tests
+        call build.bat -c debug
+        cd ..
+        cd out
+        pilot_light_cpp.exe
+        @set PL_TEST_STATUS=%ERRORLEVEL%
+        @if %PL_TEST_STATUS% NEQ 0 (exit 1)
+        pilot_light.exe -a tests_cpp
+        @set PL_TEST_STATUS=%ERRORLEVEL%
+        @if %PL_TEST_STATUS% NEQ 0 (exit 1)
+        cd ..
+
+    - name: Prep 4
+      shell: cmd
+      run: |
+        rmdir /s /q out
+
+    - name: Run Tests (RELEASE C++)
+      shell: cmd
+      run: |
+        cd tests
+        call build.bat -c release
+        cd ..
+        cd out
+        pilot_light_cpp.exe
+        @set PL_TEST_STATUS=%ERRORLEVEL%
+        @if %PL_TEST_STATUS% NEQ 0 (exit 1)
+        pilot_light.exe -a tests_cpp
         @set PL_TEST_STATUS=%ERRORLEVEL%
         @if %PL_TEST_STATUS% NEQ 0 (exit 1)
 
@@ -89,7 +129,7 @@ jobs:
         cd scripts
         python3 gen_build.py
 
-    - name: Run Tests (DEBUG)
+    - name: Run Tests (DEBUG C)
       run: |
         cd $GITHUB_WORKSPACE
         cd tests
@@ -97,9 +137,9 @@ jobs:
         ./build.sh -c debug
         cd ..
         cd out
-        ./pilot_light_test
+        ./pilot_light_c
         ((exit 1) || if [ $? != 1 ]; then exit 1; fi)
-        ./pilot_light -a tests
+        ./pilot_light -a tests_c
         ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
 
     - name: Prep 2
@@ -107,7 +147,7 @@ jobs:
         cd $GITHUB_WORKSPACE
         rm -r out
 
-    - name: Run Tests (RELEASE)
+    - name: Run Tests (RELEASE C)
       run: |
         cd $GITHUB_WORKSPACE
         cd tests
@@ -115,9 +155,45 @@ jobs:
         ./build.sh -c release
         cd ..
         cd out
-        ./pilot_light_test
+        ./pilot_light_c
         ((exit 1) || if [ $? != 1 ]; then exit 1; fi)
-        ./pilot_light -a tests
+        ./pilot_light -a tests_c
+        ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
+
+    - name: Prep 3
+      run: |
+        cd $GITHUB_WORKSPACE
+        rm -r out
+
+    - name: Run Tests (DEBUG C++)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd tests
+        chmod +x build.sh
+        ./build.sh -c debug
+        cd ..
+        cd out
+        ./pilot_light_cpp
+        ((exit 1) || if [ $? != 1 ]; then exit 1; fi)
+        ./pilot_light -a tests_cpp
+        ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
+
+    - name: Prep 4
+      run: |
+        cd $GITHUB_WORKSPACE
+        rm -r out
+
+    - name: Run Tests (RELEASE C++)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd tests
+        chmod +x build.sh
+        ./build.sh -c release
+        cd ..
+        cd out
+        ./pilot_light_cpp
+        ((exit 1) || if [ $? != 1 ]; then exit 1; fi)
+        ./pilot_light -a tests_cpp
         ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
 
   Ubuntu:
@@ -142,7 +218,7 @@ jobs:
         cd scripts
         python3 gen_build.py
 
-    - name: Run Tests (DEBUG)
+    - name: Run Tests (DEBUG C)
       run: |
         cd $GITHUB_WORKSPACE
         cd tests
@@ -150,9 +226,9 @@ jobs:
         ./build.sh -c debug
         cd ..
         cd out
-        ./pilot_light_test
+        ./pilot_light_c
         ((exit 1) || if [ $? != 1 ]; then exit 1; fi)
-        ./pilot_light -a tests
+        ./pilot_light -a tests_c
         ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
 
     - name: Prep 2
@@ -160,7 +236,7 @@ jobs:
         cd $GITHUB_WORKSPACE
         rm -r out
 
-    - name: Run Tests (RELEASE)
+    - name: Run Tests (RELEASE C)
       run: |
         cd $GITHUB_WORKSPACE
         cd tests
@@ -168,7 +244,43 @@ jobs:
         ./build.sh -c release
         cd ..
         cd out
-        ./pilot_light_test
+        ./pilot_light_c
         ((exit 1) || if [ $? != 1 ]; then exit 1; fi)
-        ./pilot_light -a tests
+        ./pilot_light -a tests_c
+        ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
+
+    - name: Prep 3
+      run: |
+        cd $GITHUB_WORKSPACE
+        rm -r out
+
+    - name: Run Tests (DEBUG C++)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd tests
+        chmod +x build.sh
+        ./build.sh -c debug
+        cd ..
+        cd out
+        ./pilot_light_cpp
+        ((exit 1) || if [ $? != 1 ]; then exit 1; fi)
+        ./pilot_light -a tests_cpp
+        ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)
+
+    - name: Prep 4
+      run: |
+        cd $GITHUB_WORKSPACE
+        rm -r out
+
+    - name: Run Tests (RELEASE C++)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd tests
+        chmod +x build.sh
+        ./build.sh -c release
+        cd ..
+        cd out
+        ./pilot_light_cpp
+        ((exit 1) || if [ $? != 1 ]; then exit 1; fi)
+        ./pilot_light -a tests_cpp
         ((exit 1) || if [ $? = 1 ]; then exit 0; else exit 1; fi)

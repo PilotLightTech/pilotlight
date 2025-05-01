@@ -66,7 +66,7 @@ PL_HOT_RELOAD_STATUS=0
 
 # # let user know if hot reloading
 # # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pilot_light_test")
+running_count=$(ps aux | grep -v grep | grep -ci "pilot_light")
 if [ $running_count -gt 0 ]
 then
     PL_HOT_RELOAD_STATUS=1
@@ -77,26 +77,29 @@ else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
     rm -r -f ../out-temp
-    rm -f ../out/pilot_light_test
+    rm -f ../out/pilot_light_c
+    rm -f ../out/pilot_light_cpp
     rm -f ../out/pilot_light
     rm -f ../out/pl_collision_ext.dylib
     rm -f ../out/pl_collision_ext_*.dylib
     rm -f ../out/pl_graphics_ext.dylib
     rm -f ../out/pl_graphics_ext_*.dylib
-    rm -f ../out/tests.dylib
-    rm -f ../out/tests_*.dylib
+    rm -f ../out/tests_c.dylib
+    rm -f ../out/tests_c_*.dylib
+    rm -f ../out/tests_cpp.dylib
+    rm -f ../out/tests_cpp_*.dylib
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test_c | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_DEBUG -DPL_CPU_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
@@ -112,10 +115,53 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pilot_light_test${NC}
+echo ${YELLOW}Step: pilot_light_test_c${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_test"
+clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_c"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test_cpp | debug ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="--debug -g -std=c++14 -fmodules -fPIC "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="main_lib_tests.cpp "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pilot_light_test_cpp${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_cpp"
 
 # check build status
 if [ $? -ne 0 ]
@@ -136,10 +182,10 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_DEBUG -DPL_CPU_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="--debug -g -Wno-deprecated-declarations -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
@@ -179,10 +225,10 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
@@ -222,10 +268,10 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
@@ -259,16 +305,16 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests_c | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
@@ -284,10 +330,53 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: tests${NC}
+echo ${YELLOW}Step: tests_c${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/tests.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/tests_c.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests_cpp | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="--debug -g -std=c++14 -fmodules -fPIC "
+PL_LINKER_FLAGS=""
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="app_tests.cpp "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: tests_cpp${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/tests_cpp.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -326,7 +415,7 @@ PL_HOT_RELOAD_STATUS=0
 
 # # let user know if hot reloading
 # # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pilot_light_test")
+running_count=$(ps aux | grep -v grep | grep -ci "pilot_light")
 if [ $running_count -gt 0 ]
 then
     PL_HOT_RELOAD_STATUS=1
@@ -337,26 +426,29 @@ else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
     rm -r -f ../out-temp
-    rm -f ../out/pilot_light_test
+    rm -f ../out/pilot_light_c
+    rm -f ../out/pilot_light_cpp
     rm -f ../out/pilot_light
     rm -f ../out/pl_collision_ext.dylib
     rm -f ../out/pl_collision_ext_*.dylib
     rm -f ../out/pl_graphics_ext.dylib
     rm -f ../out/pl_graphics_ext_*.dylib
-    rm -f ../out/tests.dylib
-    rm -f ../out/tests_*.dylib
+    rm -f ../out/tests_c.dylib
+    rm -f ../out/tests_c_*.dylib
+    rm -f ../out/tests_cpp.dylib
+    rm -f ../out/tests_cpp_*.dylib
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test_c | release ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_RELEASE -DPL_CPU_BACKEND -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
@@ -372,10 +464,53 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pilot_light_test${NC}
+echo ${YELLOW}Step: pilot_light_test_c${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_test"
+clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_c"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test_cpp | release ~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="-std=c++14 -fmodules -fPIC "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="main_lib_tests.cpp "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pilot_light_test_cpp${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_cpp"
 
 # check build status
 if [ $? -ne 0 ]
@@ -396,10 +531,10 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_RELEASE -DPL_CPU_BACKEND -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="-Wno-deprecated-declarations -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
@@ -439,10 +574,10 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
@@ -482,10 +617,10 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
@@ -519,16 +654,16 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests_c | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
 PL_DYNAMIC_LINK_LIBRARIES=""
@@ -544,10 +679,53 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: tests${NC}
+echo ${YELLOW}Step: tests_c${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/tests.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/tests_c.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests_cpp | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES=""
+PL_COMPILER_FLAGS="-std=c++14 -fmodules -fPIC "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="app_tests.cpp "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: tests_cpp${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/tests_cpp.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -567,88 +745,6 @@ rm -f ../out/lock.tmp
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # end of release
-fi
-
-# ################################################################################
-# #                            configuration | vulkan                            #
-# ################################################################################
-
-if [[ "$PL_CONFIG" == "vulkan" ]]; then
-
-# create output directory(s)
-mkdir -p "../out"
-
-# create lock file(s)
-echo LOCKING > "../out/lock.tmp"
-
-# check if this is a reload
-PL_HOT_RELOAD_STATUS=0
-
-# # let user know if hot reloading
-# # let user know if hot reloading
-running_count=$(ps aux | grep -v grep | grep -ci "pilot_light_test")
-if [ $running_count -gt 0 ]
-then
-    PL_HOT_RELOAD_STATUS=1
-    echo
-    echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
-    echo
-else
-    # cleanup binaries if not hot reloading
-    PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
-    rm -r -f ../out-temp
-    rm -f ../out/tests.dylib
-    rm -f ../out/tests_*.dylib
-
-fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests | vulkan ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# skip during hot reload
-if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES=""
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
-PL_LINKER_FLAGS=""
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="app_tests.c "
-PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: tests${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/tests.dylib"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
-# hot reload skip
-fi
-
-# delete lock file(s)
-rm -f ../out/lock.tmp
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# end of vulkan
 fi
 
 

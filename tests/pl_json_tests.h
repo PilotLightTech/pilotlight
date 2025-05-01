@@ -10,7 +10,7 @@ void
 write_json_test(void* pData)
 {
 
-    char** ppcBuffer = pData;
+    char** ppcBuffer = (char**)pData;
 
     // root object
     plJsonObject* ptRootJsonObject = pl_json_new_root_object("ROOT");
@@ -22,7 +22,7 @@ write_json_test(void* pData)
     int aScores[] = {100, 86, 46};
     pl_json_add_int_array(ptRootJsonObject, "scores", aScores, 3);
 
-    char* aPets[] = {"Riley", "Luna", "Chester"};
+    const char* aPets[] = {"Riley", "Luna", "Chester"};
     pl_json_add_string_array(ptRootJsonObject, "pets", aPets, 3);
 
     // member object
@@ -60,7 +60,7 @@ write_json_test(void* pData)
     uint32_t uBufferSize = 0;
     pl_write_json(ptRootJsonObject, NULL, &uBufferSize);
 
-    *ppcBuffer = malloc(uBufferSize + 1);
+    *ppcBuffer = (char*)malloc(uBufferSize + 1);
     memset(*ppcBuffer, 0, uBufferSize + 1);
     pl_write_json(ptRootJsonObject, *ppcBuffer, &uBufferSize);
 
@@ -71,7 +71,7 @@ void
 read_json_test(void* pData)
 {
 
-    char** ppcBuffer = pData;
+    char** ppcBuffer = (char**)pData;
 
     plJsonObject* ptRootJsonObject = NULL;
     pl_load_json(*ppcBuffer, &ptRootJsonObject);

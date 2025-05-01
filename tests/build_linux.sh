@@ -63,7 +63,7 @@ echo LOCKING > "../out/lock.tmp"
 PL_HOT_RELOAD_STATUS=0
 
 # # let user know if hot reloading
-if pidof -x "pilot_light_test" -o $$ >/dev/null;then
+if pidof -x "pilot_light" -o $$ >/dev/null;then
     PL_HOT_RELOAD_STATUS=1
     echo
     echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
@@ -72,26 +72,29 @@ else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
     rm -r -f ../out-temp
-    rm -f ../out/pilot_light_test
+    rm -f ../out/pilot_light_c
+    rm -f ../out/pilot_light_cpp
     rm -f ../out/pilot_light
     rm -f ../out/pl_collision_ext.so
     rm -f ../out/pl_collision_ext_*.so
     rm -f ../out/pl_graphics_ext.so
     rm -f ../out/pl_graphics_ext_*.so
-    rm -f ../out/tests.so
-    rm -f ../out/tests_*.so
+    rm -f ../out/tests_c.so
+    rm -f ../out/tests_c_*.so
+    rm -f ../out/tests_cpp.so
+    rm -f ../out/tests_cpp_*.so
 
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test_c | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_DEBUG -DPL_CPU_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
@@ -100,10 +103,45 @@ PL_SOURCES="main_lib_tests.c "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pilot_light_test${NC}
+echo ${YELLOW}Step: pilot_light_test_c${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_test"
+gcc $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_c"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test_cpp | debug ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="main_lib_tests.cpp "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pilot_light_test_cpp${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_cpp"
 
 # check build status
 if [ $? -ne 0 ]
@@ -124,9 +162,9 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_DEBUG -DPL_CPU_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
@@ -159,9 +197,9 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
@@ -194,9 +232,9 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
@@ -223,15 +261,15 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests_c | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -D_DEBUG -DPL_CONFIG_DEBUG "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
@@ -240,10 +278,45 @@ PL_SOURCES="app_tests.c "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: tests${NC}
+echo ${YELLOW}Step: tests_c${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/tests.so"
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/tests_c.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests_cpp | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="app_tests.cpp "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: tests_cpp${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/tests_cpp.so"
 
 # check build status
 if [ $? -ne 0 ]
@@ -281,7 +354,7 @@ echo LOCKING > "../out/lock.tmp"
 PL_HOT_RELOAD_STATUS=0
 
 # # let user know if hot reloading
-if pidof -x "pilot_light_test" -o $$ >/dev/null;then
+if pidof -x "pilot_light" -o $$ >/dev/null;then
     PL_HOT_RELOAD_STATUS=1
     echo
     echo ${BOLD}${WHITE}${RED_BG}--------${GREEN_BG} HOT RELOADING ${RED_BG}--------${NC}
@@ -290,26 +363,29 @@ else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=0
     rm -r -f ../out-temp
-    rm -f ../out/pilot_light_test
+    rm -f ../out/pilot_light_c
+    rm -f ../out/pilot_light_cpp
     rm -f ../out/pilot_light
     rm -f ../out/pl_collision_ext.so
     rm -f ../out/pl_collision_ext_*.so
     rm -f ../out/pl_graphics_ext.so
     rm -f ../out/pl_graphics_ext_*.so
-    rm -f ../out/tests.so
-    rm -f ../out/tests_*.so
+    rm -f ../out/tests_c.so
+    rm -f ../out/tests_c_*.so
+    rm -f ../out/tests_cpp.so
+    rm -f ../out/tests_cpp_*.so
 
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test | release ~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test_c | release ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_RELEASE -DPL_CPU_BACKEND -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
@@ -318,10 +394,45 @@ PL_SOURCES="main_lib_tests.c "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: pilot_light_test${NC}
+echo ${YELLOW}Step: pilot_light_test_c${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_test"
+gcc $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_c"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~ pilot_light_test_cpp | release ~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=c++14 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="main_lib_tests.cpp "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pilot_light_test_cpp${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pilot_light_cpp"
 
 # check build status
 if [ $? -ne 0 ]
@@ -342,9 +453,9 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CONFIG_RELEASE -DPL_CPU_BACKEND -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
@@ -377,9 +488,9 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
@@ -412,9 +523,9 @@ fi
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
@@ -441,15 +552,15 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests_c | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_CPU_BACKEND -DNDEBUG -DPL_CONFIG_RELEASE "
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
@@ -458,10 +569,45 @@ PL_SOURCES="app_tests.c "
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: tests${NC}
+echo ${YELLOW}Step: tests_c${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/tests.so"
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/tests_c.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests_cpp | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=c++14 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpthread "
+PL_SOURCES="app_tests.cpp "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: tests_cpp${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/tests_cpp.so"
 
 # check build status
 if [ $? -ne 0 ]

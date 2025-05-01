@@ -1,5 +1,5 @@
 
-#define PL_ZERO_INIT {0}
+#define PL_ZERO_INIT {}
 
 #include "pl_ds_tests.h"
 #include "pl_json_tests.h"
@@ -9,10 +9,9 @@
 int main()
 {
     // create test context
-    plTestOptions tOptions = {
-        .bPrintSuiteResults = true,
-        .bPrintColor = true
-    };
+    plTestOptions tOptions = {};
+    tOptions.bPrintSuiteResults = true;
+    tOptions.bPrintColor = true;
     plTestContext* ptTestContext = pl_create_test_context(tOptions);
 
     // pl_json.h tests

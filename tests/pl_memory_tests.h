@@ -11,11 +11,11 @@ typedef struct _plTestStruct
 void
 memory_test_aligned_alloc(void* pData)
 {
-    int* iBuffer0 = pl_aligned_alloc(0, sizeof(int));
+    int* iBuffer0 = (int*)pl_aligned_alloc(0, sizeof(int));
     pl_test_expect_uint64_equal(((uint64_t)iBuffer0) % 4, 0, NULL);
     pl_aligned_free(iBuffer0);
 
-    int* iBuffer1 = pl_aligned_alloc(16, sizeof(int));
+    int* iBuffer1 = (int*)pl_aligned_alloc(16, sizeof(int));
     pl_test_expect_uint64_equal(((uint64_t)iBuffer1) % 16, 0, NULL);
     pl_aligned_free(iBuffer1);
 }
@@ -25,22 +25,22 @@ memory_test_pool_allocator_0(void* pData)
 {
     // here we are testing standard usage
 
-    plPoolAllocator tAllocator = {0};
+    plPoolAllocator tAllocator = PL_ZERO_INIT;
 
     // let library tell use required buffer size
     size_t szRequiredBufferSize = 0;
     pl_pool_allocator_init(&tAllocator, 5, sizeof(int), 0, &szRequiredBufferSize, NULL);
 
-    int* iBuffer = malloc(szRequiredBufferSize);
+    int* iBuffer = (int*)malloc(szRequiredBufferSize);
     memset(iBuffer, 0, szRequiredBufferSize);
     pl_pool_allocator_init(&tAllocator, 5, sizeof(int), 0, &szRequiredBufferSize, iBuffer);
 
-    int* iItem0 = pl_pool_allocator_alloc(&tAllocator);
-    int* iItem1 = pl_pool_allocator_alloc(&tAllocator);
-    int* iItem2 = pl_pool_allocator_alloc(&tAllocator);
-    int* iItem3 = pl_pool_allocator_alloc(&tAllocator);
-    int* iItem4 = pl_pool_allocator_alloc(&tAllocator);
-    int* iItem5 = pl_pool_allocator_alloc(&tAllocator);
+    int* iItem0 = (int*)pl_pool_allocator_alloc(&tAllocator);
+    int* iItem1 = (int*)pl_pool_allocator_alloc(&tAllocator);
+    int* iItem2 = (int*)pl_pool_allocator_alloc(&tAllocator);
+    int* iItem3 = (int*)pl_pool_allocator_alloc(&tAllocator);
+    int* iItem4 = (int*)pl_pool_allocator_alloc(&tAllocator);
+    int* iItem5 = (int*)pl_pool_allocator_alloc(&tAllocator);
 
     *iItem0 = 0;
     *iItem1 = 1;
@@ -73,11 +73,11 @@ memory_test_pool_allocator_1(void* pData)
 
     pl_test_expect_int_equal((int)szItemCount, 4, NULL);
 
-    plTestStruct* ptData0 = pl_pool_allocator_alloc(&tAllocator);
-    plTestStruct* ptData1 = pl_pool_allocator_alloc(&tAllocator);
-    plTestStruct* ptData2 = pl_pool_allocator_alloc(&tAllocator);
-    plTestStruct* ptData3 = pl_pool_allocator_alloc(&tAllocator);
-    plTestStruct* ptData4 = pl_pool_allocator_alloc(&tAllocator);
+    plTestStruct* ptData0 = (plTestStruct*)pl_pool_allocator_alloc(&tAllocator);
+    plTestStruct* ptData1 = (plTestStruct*)pl_pool_allocator_alloc(&tAllocator);
+    plTestStruct* ptData2 = (plTestStruct*)pl_pool_allocator_alloc(&tAllocator);
+    plTestStruct* ptData3 = (plTestStruct*)pl_pool_allocator_alloc(&tAllocator);
+    plTestStruct* ptData4 = (plTestStruct*)pl_pool_allocator_alloc(&tAllocator);
 
     ptData0->iAge = 0;
     ptData1->iAge = 1;
@@ -101,7 +101,7 @@ memory_test_pool_allocator_1(void* pData)
     pl_test_expect_uint64_equal(((uint64_t)ptData4), 0, NULL);
 
     pl_pool_allocator_free(&tAllocator, ptData1);
-    plTestStruct* ptData5 = pl_pool_allocator_alloc(&tAllocator);
+    plTestStruct* ptData5 = (plTestStruct*)pl_pool_allocator_alloc(&tAllocator);
     pl_test_expect_uint64_not_equal(((uint64_t)ptData5), 0, NULL);
 }
 
@@ -112,19 +112,19 @@ memory_test_stack_allocator_0(void* pData)
     plStackAllocator tAllocator = {0};
     pl_stack_allocator_init(&tAllocator, 1024, acBuffer);
 
-    plTestStruct* ptData0 = pl_stack_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData0 = (plTestStruct*)pl_stack_allocator_alloc(&tAllocator, sizeof(plTestStruct));
     ptData0->pcName = "John";
     ptData0->iAge = 31;
 
     plStackAllocatorMarker tMarker0 = pl_stack_allocator_marker(&tAllocator);
 
-    plTestStruct* ptData1 = pl_stack_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData1 = (plTestStruct*)pl_stack_allocator_alloc(&tAllocator, sizeof(plTestStruct));
     ptData0->pcName = "Rachael";
     ptData0->iAge = 32;
 
     pl_stack_allocator_free_to_marker(&tAllocator, tMarker0);
 
-    plTestStruct* ptData2 = pl_stack_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData2 = (plTestStruct*)pl_stack_allocator_alloc(&tAllocator, sizeof(plTestStruct));
     ptData0->pcName = "Charlie";
     ptData0->iAge = 4;
 
@@ -136,11 +136,11 @@ memory_test_temp_allocator_0(void* pData)
 {
     plTempAllocator tAllocator = {0};
 
-    char* pcBuffer0 = pl_temp_allocator_alloc(&tAllocator, 256);
-    char* pcBuffer1 = pl_temp_allocator_alloc(&tAllocator, 256);
-    char* pcBuffer2 = pl_temp_allocator_alloc(&tAllocator, 256);
-    char* pcBuffer3 = pl_temp_allocator_alloc(&tAllocator, 256);
-    char* pcBuffer4 = pl_temp_allocator_alloc(&tAllocator, 256);
+    char* pcBuffer0 = (char*)pl_temp_allocator_alloc(&tAllocator, 256);
+    char* pcBuffer1 = (char*)pl_temp_allocator_alloc(&tAllocator, 256);
+    char* pcBuffer2 = (char*)pl_temp_allocator_alloc(&tAllocator, 256);
+    char* pcBuffer3 = (char*)pl_temp_allocator_alloc(&tAllocator, 256);
+    char* pcBuffer4 = (char*)pl_temp_allocator_alloc(&tAllocator, 256);
     
     
     pl_temp_allocator_free(&tAllocator);
@@ -155,11 +155,11 @@ memory_test_general_allocator_0(void* pData)
 
     pl_general_allocator_init(&tAllocator, 1024, auBuffer);
 
-    plTestStruct* ptData0 = pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
-    plTestStruct* ptData1 = pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
-    plTestStruct* ptData2 = pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
-    plTestStruct* ptData3 = pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
-    plTestStruct* ptData4 = pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData0 = (plTestStruct*)pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData1 = (plTestStruct*)pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData2 = (plTestStruct*)pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData3 = (plTestStruct*)pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
+    plTestStruct* ptData4 = (plTestStruct*)pl_general_allocator_alloc(&tAllocator, sizeof(plTestStruct));
 
     ptData0->iAge = 0;
     ptData1->iAge = 1;
@@ -184,9 +184,9 @@ memory_test_general_allocator_0(void* pData)
     pl_general_allocator_free(&tAllocator, ptData0);
     pl_general_allocator_free(&tAllocator, ptData1);
 
-    int* piData0 = pl_general_allocator_alloc(&tAllocator, sizeof(int));
-    float* pfData1 = pl_general_allocator_alloc(&tAllocator, sizeof(float));
-    double* pfData5 = pl_general_allocator_alloc(&tAllocator, sizeof(double) * 10);
+    int* piData0 = (int*)pl_general_allocator_alloc(&tAllocator, sizeof(int));
+    float* pfData1 = (float*)pl_general_allocator_alloc(&tAllocator, sizeof(float));
+    double* pfData5 = (double*)pl_general_allocator_alloc(&tAllocator, sizeof(double) * 10);
 
     *piData0 = 7;
     *pfData1 = 45.4f;
@@ -206,11 +206,11 @@ memory_test_general_allocator_0(void* pData)
     pl_general_allocator_free(&tAllocator, pfData1);
     pl_general_allocator_free(&tAllocator, pfData5);
 
-    int* iBuffer0 = pl_general_allocator_aligned_alloc(&tAllocator, sizeof(int), 0);
+    int* iBuffer0 = (int*)pl_general_allocator_aligned_alloc(&tAllocator, sizeof(int), 0);
     pl_test_expect_uint64_equal(((uint64_t)iBuffer0) % 4, 0, NULL);
     pl_general_allocator_aligned_free(&tAllocator, iBuffer0);
 
-    int* iBuffer1 = pl_general_allocator_aligned_alloc(&tAllocator, sizeof(int), 16);
+    int* iBuffer1 = (int*)pl_general_allocator_aligned_alloc(&tAllocator, sizeof(int), 16);
     pl_test_expect_uint64_equal(((uint64_t)iBuffer1) % 16, 0, NULL);
     pl_general_allocator_aligned_free(&tAllocator, iBuffer1);
 }
