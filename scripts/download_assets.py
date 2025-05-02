@@ -27,5 +27,5 @@ def download_zip(url, filename, description):
     zip.close()
     os.remove(filename)
 
-download_zip('https://github.com/KhronosGroup/glTF-Sample-Assets/archive/refs/heads/main.zip', '../data/gltf-sample-assets.zip', "sample gltf assets")
 download_zip('https://github.com/PilotLightTech/pilotlight-assets/archive/refs/heads/master.zip', '../data/pilotlight-assets.zip', "test assets")
+download_zip('https://github.com/KhronosGroup/glTF-Sample-Assets/archive/refs/heads/main.zip', '../data/gltf-sample-assets.zip', "sample gltf assets")

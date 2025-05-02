@@ -905,12 +905,18 @@ pl__show_editor_window(plAppData* ptAppData)
                     "neutral",
                     "papermill",
                     "pisa",
+                    "asteroid_field",
+                    "brown_dwarf",
+                    "galaxy",
+                    "nebulae",
+                    "planet",
+                    "ringed_planet",
                 };
-                bool abCombo[11] = {0};
+                bool abCombo[17] = {0};
                 abCombo[uComboSelect] = true;
                 if(ImGui::BeginCombo("Environment", apcEnvMaps[uComboSelect]))
                 {
-                    for(uint32_t i = 0; i < 10; i++)
+                    for(uint32_t i = 0; i < PL_ARRAYSIZE(apcEnvMaps); i++)
                     {
                         if(ImGui::Selectable(apcEnvMaps[i], &abCombo[i], 0))
                         {
