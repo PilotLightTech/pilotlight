@@ -2737,22 +2737,26 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
     plDrawStream*  ptStream  = &gptData->tDrawStream;
     plRefScene*    ptScene   = &gptData->sbtScenes[uSceneHandle];
 
-    uint64_t ulValue = gptData->aulNextTimelineValue[uFrameIdx];
-    plTimelineSemaphore* tSemHandle = gptData->aptSemaphores[uFrameIdx];
+    //~~~~~~~~~~~~~~~~~~~~~~transform & instance buffer update~~~~~~~~~~~~~~~~~~~~~
 
+    // update transform & instance buffers since we are now using indices
     plBuffer* ptTransformBuffer = gptGfx->get_buffer(ptDevice, ptScene->atTransformBuffer[uFrameIdx]);
     plBuffer* ptInstanceBuffer = gptGfx->get_buffer(ptDevice, ptScene->atInstanceBuffer[uFrameIdx]);
 
-    const uint32_t uObjectCount = pl_sb_size(ptScene->sbtDrawables);
-
     uint32_t uInstanceOffset = 0;
+    const uint32_t uObjectCount = pl_sb_size(ptScene->sbtDrawables);
     for(uint32_t i = 0; i < uObjectCount; i++)
     {
 
         plObjectComponent* ptObject = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_OBJECT, ptScene->sbtDrawables[i].tEntity);
+
+        // copy transform into proper location in CPU side buffer
         plTransformComponent* ptTransform = gptECS->get_component(&ptScene->tComponentLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
         memcpy(&ptTransformBuffer->tMemoryAllocation.pHostMapped[ptScene->sbtDrawables[i].uTransformIndex * sizeof(plMat4)], &ptTransform->tWorld, sizeof(plMat4));
 
+        // if using instancing, set index into instance buffer and
+        // this includes setting the viewport instance data for multiviewport
+        // shadow technique
         if(ptScene->sbtDrawables[i].uInstanceCount != 0)
         {
             ptScene->sbtDrawables[i].uInstanceIndex = uInstanceOffset;
@@ -2780,8 +2784,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
     const plBeginCommandInfo tSkinningBeginInfo = {
         .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {tSemHandle},
-        .auWaitSemaphoreValues = {ulValue},
+        .atWaitSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+        .auWaitSemaphoreValues = {gptData->aulNextTimelineValue[uFrameIdx]},
     };
 
     plCommandBuffer* ptSkinningCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
@@ -2800,8 +2804,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
     const plSubmitInfo tSkinningSubmitInfo = {
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {tSemHandle},
-        .auSignalSemaphoreValues = {++ulValue}
+        .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+        .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]}
     };
     gptGfx->submit_command_buffer(ptSkinningCmdBuffer, &tSkinningSubmitInfo);
     gptGfx->return_command_buffer(ptSkinningCmdBuffer);
@@ -2814,7 +2818,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
     ptScene->uDShadowIndex = 0;
     ptScene->uDShadowOffset = 0;
 
-    // update light CPU side buffers
+    // update CPU side light buffers
     const plLightComponent* sbtLights = ptScene->tComponentLibrary.tLightComponentManager.pComponents;
     const uint32_t uLightCount = pl_sb_size(sbtLights);
     for(uint32_t i = 0; i < uLightCount; i++)
@@ -2888,8 +2892,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
     const plBeginCommandInfo tShadowBeginInfo = {
         .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {tSemHandle},
-        .auWaitSemaphoreValues = {ulValue},
+        .atWaitSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+        .auWaitSemaphoreValues = {gptData->aulNextTimelineValue[uFrameIdx]},
     };
 
     plCommandBuffer* ptShadowCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
@@ -2904,8 +2908,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
     const plSubmitInfo tShadowSubmitInfo = {
         .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {tSemHandle},
-        .auSignalSemaphoreValues = {++ulValue}
+        .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+        .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]}
     };
     gptGfx->submit_command_buffer(ptShadowCmdBuffer, &tShadowSubmitInfo);
     gptGfx->return_command_buffer(ptShadowCmdBuffer);
@@ -2929,8 +2933,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         const plBeginCommandInfo tCSMBeginInfo = {
             .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {tSemHandle},
-            .auWaitSemaphoreValues = {ulValue},
+            .atWaitSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+            .auWaitSemaphoreValues = {gptData->aulNextTimelineValue[uFrameIdx]},
         };
 
         plCommandBuffer* ptCSMCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
@@ -2950,8 +2954,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         const plSubmitInfo tCSMSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
-            .auSignalSemaphoreValues = {++ulValue}
+            .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+            .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]}
         };
         gptGfx->submit_command_buffer(ptCSMCmdBuffer, &tCSMSubmitInfo);
         gptGfx->return_command_buffer(ptCSMCmdBuffer);
@@ -3006,8 +3010,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
             const plBeginCommandInfo tBeginCSMInfo = {
                 .uWaitSemaphoreCount   = 1,
-                .atWaitSempahores      = {tSemHandle},
-                .auWaitSemaphoreValues = {ulValue},
+                .atWaitSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+                .auWaitSemaphoreValues = {gptData->aulNextTimelineValue[uFrameIdx]},
             };
 
             plCommandBuffer* ptCSMCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
@@ -3022,8 +3026,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
             const plSubmitInfo tSubmitCSMInfo = {
                 .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {tSemHandle},
-                .auSignalSemaphoreValues = {++ulValue}
+                .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+                .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]}
             };
             gptGfx->submit_command_buffer(ptCSMCommandBuffer, &tSubmitCSMInfo);
             gptGfx->return_command_buffer(ptCSMCommandBuffer);
@@ -3080,7 +3084,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
     }
 
     // update environment probes
-    ulValue = pl__update_environment_probes(uSceneHandle, ulValue);
+    gptData->aulNextTimelineValue[uFrameIdx] = pl__update_environment_probes(uSceneHandle, gptData->aulNextTimelineValue[uFrameIdx]);
 
     // common
     const plBindGroupUpdateSamplerData tSkyboxSamplerData = {
@@ -3258,8 +3262,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
         
         const plBeginCommandInfo tSceneBeginInfo = {
             .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {tSemHandle},
-            .auWaitSemaphoreValues = {ulValue},
+            .atWaitSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+            .auWaitSemaphoreValues = {gptData->aulNextTimelineValue[uFrameIdx]},
         };
 
         plCommandBuffer* ptSceneCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
@@ -3724,8 +3728,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         const plSubmitInfo tSceneSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
-            .auSignalSemaphoreValues = {++ulValue}
+            .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+            .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]}
         };
         gptGfx->submit_command_buffer(ptSceneCmdBuffer, &tSceneSubmitInfo);
         gptGfx->return_command_buffer(ptSceneCmdBuffer);
@@ -3735,8 +3739,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         const plBeginCommandInfo tPickingDecodeBeginInfo = {
             .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {tSemHandle},
-            .auWaitSemaphoreValues = {ulValue},
+            .atWaitSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+            .auWaitSemaphoreValues = {gptData->aulNextTimelineValue[uFrameIdx]},
         };
         gptGfx->begin_command_recording(ptPickingDecodeCmdBuffer, &tPickingDecodeBeginInfo);
 
@@ -3744,8 +3748,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         const plSubmitInfo tPickingDecodeSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
-            .auSignalSemaphoreValues = {++ulValue}
+            .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+            .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]}
         };
         gptGfx->submit_command_buffer(ptPickingDecodeCmdBuffer, &tPickingDecodeSubmitInfo);
         gptGfx->return_command_buffer(ptPickingDecodeCmdBuffer);
@@ -3754,8 +3758,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         const plBeginCommandInfo tUVBeginInfo = {
             .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {tSemHandle},
-            .auWaitSemaphoreValues = {ulValue},
+            .atWaitSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+            .auWaitSemaphoreValues = {gptData->aulNextTimelineValue[uFrameIdx]},
         };
 
         plCommandBuffer* ptUVCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
@@ -3782,8 +3786,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         const plSubmitInfo tUVSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
-            .auSignalSemaphoreValues = {++ulValue}
+            .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+            .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]}
         };
         gptGfx->submit_command_buffer(ptUVCmdBuffer, &tUVSubmitInfo);
         gptGfx->return_command_buffer(ptUVCmdBuffer);
@@ -3873,8 +3877,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
         {
             const plBeginCommandInfo tJumpBeginInfo = {
                 .uWaitSemaphoreCount   = 1,
-                .atWaitSempahores      = {tSemHandle},
-                .auWaitSemaphoreValues = {ulValue},
+                .atWaitSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+                .auWaitSemaphoreValues = {gptData->aulNextTimelineValue[uFrameIdx]},
             };
 
             plCommandBuffer* ptJumpCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
@@ -3907,8 +3911,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
             const plSubmitInfo tJumpSubmitInfo = {
                 .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {tSemHandle},
-                .auSignalSemaphoreValues = {++ulValue},
+                .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+                .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]},
             };
             gptGfx->submit_command_buffer(ptJumpCmdBuffer, &tJumpSubmitInfo);
             gptGfx->return_command_buffer(ptJumpCmdBuffer);
@@ -3922,8 +3926,8 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         const plBeginCommandInfo tPostBeginInfo = {
             .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {tSemHandle},
-            .auWaitSemaphoreValues = {ulValue},
+            .atWaitSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+            .auWaitSemaphoreValues = {gptData->aulNextTimelineValue[uFrameIdx]},
         };
 
         plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
@@ -3934,13 +3938,11 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
         const plSubmitInfo tPostSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
-            .auSignalSemaphoreValues = {++ulValue}
+            .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
+            .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]}
         };
         gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
         gptGfx->return_command_buffer(ptPostCmdBuffer);
-
-        gptData->aulNextTimelineValue[uFrameIdx] = ulValue;
 
         // update stats
         static double* pdVisibleOpaqueObjects = NULL;
