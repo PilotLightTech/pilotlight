@@ -86,6 +86,7 @@ typedef struct _plDrawBackendContext
     plPipelineEntry*     sbt3dPipelineEntries;
     plPipelineEntry*     sbt2dPipelineEntries;
     plBindGroupPool*     ptBindGroupPool;
+    uint64_t             uNonCoherentAtomSize;
 
     // bind group layouts
     plBindGroupLayoutHandle tSamplerBindGroupLayout;
@@ -128,6 +129,7 @@ static void
 pl_initialize_draw_backend(plDevice* ptDevice)
 {
     gptDrawBackendCtx->ptDevice = ptDevice;
+    gptDrawBackendCtx->uNonCoherentAtomSize = gptGfx->get_device_info(ptDevice)->tLimits.uNonCoherentAtomSize;
 
     pl_sb_reserve(gptDrawBackendCtx->sbt3dPipelineEntries, 32);
     pl_sb_reserve(gptDrawBackendCtx->sbt2dPipelineEntries, 32);
@@ -285,7 +287,7 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     
     const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
         ptTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
         ptTexture->tMemoryRequirements.uMemoryTypeBits,
         "font texture memory");
 
@@ -365,7 +367,7 @@ pl__create_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32
     // allocate memory
     const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
         ptBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU_CPU,
+        PL_MEMORY_FLAGS_HOST_VISIBLE,
         ptBuffer->tMemoryRequirements.uMemoryTypeBits,
         pl_temp_allocator_sprintf(&gptDrawBackendCtx->tTempAllocator, "%s: %u", pcName, uIdentifier));
 
@@ -701,11 +703,17 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         ptBufferInfo->tVertexBuffer = pl__create_staging_buffer(&tBufferDesc, "draw vtx buffer", uFrameIdx);
     }
 
+    plDeviceMemoryRange atRanges[2] = {0};
+
     // vertex GPU data transfer
     plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptBufferInfo->tVertexBuffer);
     char* pucMappedVertexBufferLocation = ptVertexBuffer->tMemoryAllocation.pHostMapped;
     size_t tVertexCopySize = sizeof(plDrawVertex) * pl_sb_size(ptDrawlist->sbtVertexBuffer);
     memcpy(&pucMappedVertexBufferLocation[ptBufferInfo->uVertexBufferOffset], ptDrawlist->sbtVertexBuffer, tVertexCopySize);
+
+    atRanges[0].uHandle = ptVertexBuffer->tMemoryAllocation.uHandle;
+    atRanges[0].uOffset = ptBufferInfo->uVertexBufferOffset + ptVertexBuffer->tMemoryAllocation.ulOffset;
+    atRanges[0].uSize   = ptVertexBuffer->tMemoryAllocation.ulSize - atRanges[0].uOffset;
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -735,6 +743,11 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
     plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, gptDrawBackendCtx->atIndexBuffer[uFrameIdx]);
     char* pucMappedIndexBufferLocation = ptIndexBuffer->tMemoryAllocation.pHostMapped;
     memcpy(&pucMappedIndexBufferLocation[gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx]], ptDrawlist->sbuIndexBuffer, uIdxBufSzNeeded);
+    atRanges[1].uHandle = ptIndexBuffer->tMemoryAllocation.uHandle;
+    atRanges[1].uOffset = gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] + ptIndexBuffer->tMemoryAllocation.ulOffset;
+    atRanges[1].uSize   = ptIndexBuffer->tMemoryAllocation.ulSize - atRanges[1].uOffset;
+
+    gptGfx->flush_memory(ptDevice, 2, atRanges);
 
     const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex);
     const int32_t iIndexOffset = gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] / sizeof(uint32_t);
@@ -852,7 +865,9 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 
     // bump vertex & index buffer offset
     ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
+    ptBufferInfo->uVertexBufferOffset = (uint32_t)pl_align_up((size_t)ptBufferInfo->uVertexBufferOffset, (size_t)gptDrawBackendCtx->uNonCoherentAtomSize);
     gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] += uIdxBufSzNeeded;
+    gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] = (uint32_t)pl_align_up((size_t)gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx], (size_t)gptDrawBackendCtx->uNonCoherentAtomSize);
 }
 
 static void
@@ -953,7 +968,9 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         
         // bump vertex & index buffer offset
         ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
+        ptBufferInfo->uVertexBufferOffset = (uint32_t)pl_align_up((size_t)ptBufferInfo->uVertexBufferOffset, (size_t)gptDrawBackendCtx->uNonCoherentAtomSize);
         gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] += uIdxBufSzNeeded;
+        gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] = (uint32_t)pl_align_up((size_t)gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx], (size_t)gptDrawBackendCtx->uNonCoherentAtomSize);
     }
 
     // 3D lines
@@ -1052,7 +1069,9 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         
         // bump vertex & index buffer offset
         ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
+        ptBufferInfo->uVertexBufferOffset = (uint32_t)pl_align_up((size_t)ptBufferInfo->uVertexBufferOffset, (size_t)gptDrawBackendCtx->uNonCoherentAtomSize);
         gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] += uIdxBufSzNeeded;
+        gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] = (uint32_t)pl_align_up((size_t)gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx], (size_t)gptDrawBackendCtx->uNonCoherentAtomSize);
     }
 
     const uint32_t uTextCount = pl_sb_size(ptDrawlist->sbtTextEntries);

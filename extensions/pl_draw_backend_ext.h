@@ -21,7 +21,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawBackendI_version {1, 0, 0}
+#define plDrawBackendI_version {1, 0, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
