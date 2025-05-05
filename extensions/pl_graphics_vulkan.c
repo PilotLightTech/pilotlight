@@ -2332,17 +2332,16 @@ pl_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
 }
 
 plDeviceMemoryAllocation
-pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
+pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags, uint32_t uTypeFilter, const char* pcName)
 {
     uint32_t uMemoryType = 0u;
     bool bFound = false;
     VkMemoryPropertyFlags tProperties = 0;
-    if (tMemoryMode == PL_MEMORY_GPU_CPU)
-        tProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    else if (tMemoryMode == PL_MEMORY_GPU)
-        tProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    else if (tMemoryMode == PL_MEMORY_CPU)
-        tProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+    if(tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL)  tProperties |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    if(tMemoryFlags & PL_MEMORY_FLAGS_HOST_VISIBLE)  tProperties |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    if(tMemoryFlags & PL_MEMORY_FLAGS_HOST_COHERENT) tProperties |= VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    if(tMemoryFlags & PL_MEMORY_FLAGS_HOST_CACHED)   tProperties |= VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+
     for (uint32_t i = 0; i < ptDevice->tMemProps.memoryTypeCount; i++)
     {
         if ((uTypeFilter & (1 << i)) && (ptDevice->tMemProps.memoryTypes[i].propertyFlags & tProperties) == tProperties)
@@ -2352,7 +2351,6 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
             break;
         }
     }
-    PL_ASSERT(bFound);
 
     if(!bFound)
         return (plDeviceMemoryAllocation){0};
@@ -2366,7 +2364,7 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
         .uHandle      = 0,
         .ulSize       = (uint64_t)szSize,
         .ulMemoryType = (uint64_t)uMemoryType,
-        .tMemoryMode  = tMemoryMode
+        .tMemoryFlags = tMemoryFlags
     };
 
     const VkMemoryAllocateInfo tAllocInfo = {
@@ -2382,7 +2380,7 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
 
     pl__set_vulkan_object_name(ptDevice, tBlock.uHandle, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT, pcName);
 
-    if (tMemoryMode == PL_MEMORY_GPU)
+    if (tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL)
     {
         pl_log_debug_f(gptLog, uLogChannelGraphics, "allocated GPU local memory: %s", pcName);
         gptGraphics->szLocalMemoryInUse += tBlock.ulSize;
@@ -2413,7 +2411,7 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
     }
 
 
-    if (ptBlock->tMemoryMode == PL_MEMORY_GPU)
+    if (ptBlock->tMemoryFlags == PL_MEMORY_FLAGS_DEVICE_LOCAL)
     {
         pl_log_debug_f(gptLog, uLogChannelGraphics, "%llu byte local memory block %llu freed", ptBlock->ulSize, ptBlock->uHandle);
         gptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
@@ -2428,8 +2426,50 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
     ptBlock->uHandle = 0;
     ptBlock->pHostMapped = NULL;
     ptBlock->ulSize = 0;
-    ptBlock->tMemoryMode = 0;
+    ptBlock->tMemoryFlags = 0;
     ptBlock->ulMemoryType = 0;
+}
+
+bool
+pl_gfx_flush_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
+{
+    VkMappedMemoryRange* atVkRanges = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uRangeCount * sizeof(VkMappedMemoryRange));
+
+    for(uint32_t i = 0; i < uRangeCount; i++)
+    {
+        atVkRanges[i].sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+        atVkRanges[i].memory = (VkDeviceMemory)atRanges[i].uHandle;
+        atVkRanges[i].size = atRanges[i].uSize;
+        atVkRanges[i].offset = atRanges[i].uOffset;
+        atVkRanges[i].pNext = NULL;
+    }
+
+    VkResult tResult = vkFlushMappedMemoryRanges(ptDevice->tLogicalDevice, uRangeCount, atVkRanges);
+    PL_VULKAN(tResult);
+
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
+    return tResult == VK_SUCCESS;
+}
+
+bool
+pl_gfx_invalidate_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
+{
+    VkMappedMemoryRange* atVkRanges = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uRangeCount * sizeof(VkMappedMemoryRange));
+
+    for(uint32_t i = 0; i < uRangeCount; i++)
+    {
+        atVkRanges[i].sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+        atVkRanges[i].memory = (VkDeviceMemory)atRanges[i].uHandle;
+        atVkRanges[i].size = atRanges[i].uSize;
+        atVkRanges[i].offset = atRanges[i].uOffset;
+        atVkRanges[i].pNext = NULL;
+    }
+
+    VkResult tResult = vkInvalidateMappedMemoryRanges(ptDevice->tLogicalDevice, uRangeCount, atVkRanges);
+    PL_VULKAN(tResult);
+
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
+    return tResult == VK_SUCCESS;
 }
 
 plGraphicsBackend
@@ -2715,6 +2755,7 @@ pl_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCount)
         strncpy(atDeviceInfo[i].acName, tProps.deviceName, 256);
         atDeviceInfo[i].tLimits.uMaxTextureSize = tProps.limits.maxImageDimension2D;
         atDeviceInfo[i].tLimits.uMinUniformBufferOffsetAlignment = (uint32_t)tProps.limits.minUniformBufferOffsetAlignment;
+        atDeviceInfo[i].tLimits.uNonCoherentAtomSize = (uint64_t)tProps.limits.nonCoherentAtomSize;
 
         switch (tProps.deviceType)
         {
@@ -4345,15 +4386,15 @@ pl__allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t u
     plInternalDeviceAllocatorData* ptData = (plInternalDeviceAllocatorData *)ptInst;
 
     plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = NULL,
-        .uHandle     = 0,
-        .ulOffset    = 0,
-        .ulSize      = ulSize,
-        .ptAllocator = ptData->ptAllocator,
-        .tMemoryMode = PL_MEMORY_GPU_CPU
+        .pHostMapped  = NULL,
+        .uHandle      = 0,
+        .ulOffset     = 0,
+        .ulSize       = ulSize,
+        .ptAllocator  = ptData->ptAllocator,
+        .tMemoryFlags = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT
     };
 
-    plDeviceMemoryAllocation tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, pcName);
+    plDeviceMemoryAllocation tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, tAllocation.tMemoryFlags, uTypeFilter, pcName);
     tAllocation.uHandle = tBlock.uHandle;
     tAllocation.pHostMapped = tBlock.pHostMapped;
     gptGraphics->szHostMemoryInUse += ulSize;

@@ -124,6 +124,15 @@ typedef struct _plRendererStagingBuffer
     double         dLastTimeActive;
 } plRendererStagingBuffer;
 
+typedef struct _SkinDynamicData
+{
+    int iSourceDataOffset;
+    int iDestDataOffset;
+    int iDestVertexOffset;
+    uint32_t uMaxSize;
+    plMat4 tInverseWorld;
+} SkinDynamicData;
+
 typedef struct _plShaderVariant
 {
     plGraphicsState tGraphicsState;

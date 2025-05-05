@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 0, 1}
+#define plGraphicsI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -213,6 +213,7 @@ typedef struct _plRenderPassAttachments plRenderPassAttachments;
 typedef struct _plDeviceMemoryRequirements plDeviceMemoryRequirements; // requirements for a new memory allocations
 typedef struct _plDeviceMemoryAllocation   plDeviceMemoryAllocation;   // single memory allocation or suballocations
 typedef struct _plDeviceMemoryAllocatorI   plDeviceMemoryAllocatorI;   // GPU allocator interface
+typedef struct _plDeviceMemoryRange        plDeviceMemoryRange;
 
 // misc.
 typedef struct _plDraw                   plDraw;                   // data for submitting individual draw command
@@ -255,7 +256,7 @@ typedef int plCullMode;               // -> enum _plCullMode               // Fl
 typedef int plBufferBindingType;      // -> enum _plBufferBindingType      // Enum: buffer binding type for bind groups (PL_BUFFER_BINDING_TYPE_XXXX)
 typedef int plTextureBindingType;     // -> enum _plTextureBindingType     // Enum: image binding type for bind groups (PL_TEXTURE_BINDING_TYPE_XXXX)
 typedef int plBindGroupPoolFlags;     // -> enum _plBindGroupPoolFlags     // Flags: flags for creating bind group pools (PL_BIND_GROUP_POOL_FLAGS_XXXX)
-typedef int plMemoryMode;             // -> enum _plMemoryMode             // Enum: memory modes for allocating memory (PL_MEMORY_XXXX)
+typedef int plMemoryFlags;            // -> enum _plMemoryFlags            // Enum: memory modes for allocating memory (PL_MEMORY_FLAGS_XXXX)
 typedef int plStencilOp;              // -> enum _plStencilOp              // Enum: stencil operations (PL_STENCIL_OP_XXXX)
 typedef int plLoadOp;                 // -> enum _plLoadOp                 // Enum: render pass target load operations (PL_LOAD_OP_XXXX)
 typedef int plStoreOp;                // -> enum _plStoreOp                // Enum: render pass target store operations (PL_STORE_OP_XXXX)
@@ -491,9 +492,13 @@ typedef struct _plGraphicsI
     plDynamicDataBlock (*allocate_dynamic_data_block)(plDevice*); // do not store longer than a single frame (this ar)
     // INLINED -> plDynamicBinding pl_allocate_dynamic_data(const plGraphicsI*,  plDevice*, plDynamicDataBlock*)
 
-    // memory
-    plDeviceMemoryAllocation        (*allocate_memory)(plDevice*, size_t, plMemoryMode, uint32_t typeFilter, const char* debugName);
-    void                            (*free_memory)    (plDevice*, plDeviceMemoryAllocation*);
+    // memory (only guaranteed 64 allocations, so suballocate)
+    //   Notes:
+    //     - if allocation fails, the "ulSize" member will be zero
+    plDeviceMemoryAllocation        (*allocate_memory)  (plDevice*, size_t, plMemoryFlags, uint32_t typeFilter, const char* debugName);
+    void                            (*free_memory)      (plDevice*, plDeviceMemoryAllocation*);
+    bool                            (*flush_memory)     (plDevice*, uint32_t rangeCount, const plDeviceMemoryRange*); // call after writing from host on non-coherent memory
+    bool                            (*invalidate_memory)(plDevice*, uint32_t rangeCount, const plDeviceMemoryRange*); // call after writing from device on non-coherent memory
     const plDeviceMemoryAllocation* (*get_allocations)(plDevice*, uint32_t* sizeOut);
 
     //------------------------------NOT STABLE-------------------------------------
@@ -532,22 +537,29 @@ typedef struct _plGraphicsI
 
 //-----------------------------gpu memory--------------------------------------
 
+typedef struct _plDeviceMemoryRange
+{
+    uint64_t uHandle; // handle from memory allocation
+    uint64_t uOffset;
+    uint64_t uSize;
+} plDeviceMemoryRange;
+
 typedef struct _plDeviceMemoryRequirements
 {
     uint64_t ulSize;
     uint64_t ulAlignment;
-    uint32_t uMemoryTypeBits;
+    uint32_t uMemoryTypeBits; // opaque and used by backends
 } plDeviceMemoryRequirements;
 
 typedef struct _plDeviceMemoryAllocation
 {
-    plMemoryMode              tMemoryMode;
-    uint64_t                  ulMemoryType;
-    uint64_t                  uHandle;
-    uint64_t                  ulOffset;
-    uint64_t                  ulSize;
-    char*                     pHostMapped; // if host visible
-    plDeviceMemoryAllocatorI* ptAllocator; // if allocated from user allocator
+    plMemoryFlags             tMemoryFlags;  // memory mode used to allocate (i.e. PL_MEMORY_XXXX)
+    uint64_t                  ulMemoryType; // opaque but exposed so custom allocators can ensure memory types match
+    uint64_t                  uHandle;      // opaque handle (e.g. VkDeviceMemory, index into metal heap)
+    uint64_t                  ulOffset;     // offset into actual allocation (will be zero here, but allocators are free to use this)
+    uint64_t                  ulSize;       // actual size of allocation
+    char*                     pHostMapped;  // host mapped memory if host visible
+    plDeviceMemoryAllocatorI* ptAllocator;  // if allocated from user allocator, this should be set so cleanup can delegate
 } plDeviceMemoryAllocation;
 
 typedef struct _plDeviceMemoryAllocatorI
@@ -1159,6 +1171,7 @@ typedef struct _plDeviceLimits
 {
     uint32_t uMaxTextureSize; // width or height
     uint32_t uMinUniformBufferOffsetAlignment;
+    uint64_t uNonCoherentAtomSize;
 } plDeviceLimits;
 
 typedef struct _plDeviceInfo
@@ -1446,11 +1459,20 @@ enum _plLoadOp
     PL_LOAD_OP_DONT_CARE
 };
 
-enum _plMemoryMode
+enum _plMemoryFlags
 {
-    PL_MEMORY_GPU,
-    PL_MEMORY_GPU_CPU,
-    PL_MEMORY_CPU
+    PL_MEMORY_FLAGS_NONE          = 0,
+    PL_MEMORY_FLAGS_DEVICE_LOCAL  = 1 << 0, // most efficient for device access
+    PL_MEMORY_FLAGS_HOST_VISIBLE  = 1 << 1, // will be mapped for host access
+    PL_MEMORY_FLAGS_HOST_COHERENT = 1 << 2, // no need to flush or invalidate memory ranges
+    PL_MEMORY_FLAGS_HOST_CACHED   = 1 << 3, // faster access on the host (good for readbacks)
+
+    // [OBSOLETE]
+    #ifndef PL_DISABLE_OBSOLETE
+    PL_MEMORY_GPU     = PL_MEMORY_FLAGS_DEVICE_LOCAL,
+    PL_MEMORY_GPU_CPU = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
+    PL_MEMORY_CPU     = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT | PL_MEMORY_FLAGS_HOST_CACHED,
+    #endif
 };
 
 enum _plDataType

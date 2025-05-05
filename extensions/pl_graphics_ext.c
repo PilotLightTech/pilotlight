@@ -940,6 +940,8 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_compute_encoder_command_buffer     = pl_get_compute_encoder_command_buffer,
         .get_blit_encoder_command_buffer        = pl_get_blit_encoder_command_buffer,
         .get_encoder_command_buffer             = pl_get_encoder_command_buffer,
+        .invalidate_memory                      = pl_gfx_invalidate_memory,
+        .flush_memory                           = pl_gfx_flush_memory,
 
         #if defined(PL_GRAPHICS_EXPOSE_VULKAN) && defined(PL_VULKAN_BACKEND)
         .get_vulkan_instance        = pl_get_vulkan_instance,

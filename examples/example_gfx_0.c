@@ -231,7 +231,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //       be used, with uploads transfered from staging buffers (see later examples)
     const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
         ptVertexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU_CPU,
+        PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
         ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
         "vertex buffer memory");
 

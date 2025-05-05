@@ -264,13 +264,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // allocate memory
     const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(ptDevice, 
         ptColorTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
         ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
         "color texture memory");
 
     const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(ptDevice, 
         ptDepthTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
         ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
         "depth texture memory");
 
@@ -650,13 +650,13 @@ resize_offscreen_resources(plAppData* ptAppData)
 
     const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(ptDevice, 
         ptColorTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
         ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
         "color texture memory");
 
     const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(ptDevice, 
         ptDepthTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
         ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
         "depth texture memory");
 

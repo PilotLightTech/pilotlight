@@ -520,7 +520,7 @@ pl_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
 }
 
 plDeviceMemoryAllocation
-pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
+pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags, uint32_t uTypeFilter, const char* pcName)
 {
     plDeviceMemoryAllocation tBlock = {0};
     return tBlock;
@@ -529,6 +529,18 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
 void
 pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
+}
+
+bool
+pl_gfx_flush_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
+{
+    return true;
+}
+
+bool
+pl_gfx_invalidate_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
+{
+    return true;
 }
 
 plGraphicsBackend

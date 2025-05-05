@@ -1087,19 +1087,19 @@ pl__show_device_memory(bool* bValue)
                 gptUI->layout_row_push(fWidth);
 
 
-                if(sbtAllocations[i].tMemoryMode == PL_MEMORY_GPU)
+                if(sbtAllocations[i].tMemoryFlags == PL_MEMORY_GPU)
                 {
                     gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tGPUColor);
                     gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tGPUColor);
                     gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tGPUColor);
                 }
-                else if(sbtAllocations[i].tMemoryMode == PL_MEMORY_GPU_CPU)
+                else if(sbtAllocations[i].tMemoryFlags == PL_MEMORY_GPU_CPU)
                 {
                     gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tGPUCPUColor);
                     gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tGPUCPUColor);
                     gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tGPUCPUColor);
                 }
-                else if(sbtAllocations[i].tMemoryMode == PL_MEMORY_CPU)
+                else if(sbtAllocations[i].tMemoryFlags == PL_MEMORY_CPU)
                 {
                     gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tCPUColor);
                     gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tCPUColor);
@@ -1111,9 +1111,9 @@ pl__show_device_memory(bool* bValue)
                 gptUI->button(pcTempBuffer0);
                 gptUI->layout_row_push(200.0f);
                 
-                if(sbtAllocations[i].tMemoryMode == PL_MEMORY_GPU)
+                if(sbtAllocations[i].tMemoryFlags == PL_MEMORY_GPU)
                     gptUI->text("Device Local");
-                else if(sbtAllocations[i].tMemoryMode == PL_MEMORY_GPU_CPU)
+                else if(sbtAllocations[i].tMemoryFlags == PL_MEMORY_GPU_CPU)
                     gptUI->text("Host Visible");
                 else
                     gptUI->text("Host Cached");

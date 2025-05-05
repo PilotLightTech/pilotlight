@@ -196,7 +196,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // allocate memory for the vertex buffer
     const plDeviceMemoryAllocation tVertexBufferAllocation = gptGfx->allocate_memory(ptDevice,
         ptVertexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
         ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
         "vertex buffer memory");
 
@@ -225,7 +225,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // allocate memory for the index buffer
     const plDeviceMemoryAllocation tIndexBufferAllocation = gptGfx->allocate_memory(ptDevice,
         ptIndexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
         ptIndexBuffer->tMemoryRequirements.uMemoryTypeBits,
         "index buffer memory");
 
@@ -248,7 +248,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // allocate memory for the vertex buffer
     const plDeviceMemoryAllocation tStagingBufferAllocation = gptGfx->allocate_memory(ptDevice,
         ptStagingBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU_CPU,
+        PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
         ptStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
         "staging buffer memory");
 

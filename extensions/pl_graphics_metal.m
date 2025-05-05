@@ -300,7 +300,7 @@ static bool                   pl__is_stencil_format  (plFormat tFormat);
 static MTLBlendFactor         pl__metal_blend_factor(plBlendFactor tFactor);
 static MTLBlendOperation      pl__metal_blend_op(plBlendOp tOp);
 
-static plDeviceMemoryAllocation pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName);
+static plDeviceMemoryAllocation pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryFlags, uint32_t uTypeFilter, const char* pcName);
 static void pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock);
 
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
@@ -736,7 +736,7 @@ pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDev
     plMetalBuffer* ptMetalBuffer = &ptDevice->sbtBuffersHot[tHandle.uIndex];
 
     MTLResourceOptions tStorageMode = MTLResourceStorageModeShared;
-    if(ptAllocation->tMemoryMode == PL_MEMORY_GPU)
+    if(ptAllocation->tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL)
     {
         tStorageMode = MTLResourceStorageModePrivate;
     }
@@ -744,7 +744,7 @@ pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDev
     ptMetalBuffer->tBuffer = [ptDevice->atHeaps[ptAllocation->uHandle] newBufferWithLength:ptAllocation->ulSize options:tStorageMode offset:ptAllocation->ulOffset];
     ptMetalBuffer->tBuffer.label = [NSString stringWithUTF8String:ptBuffer->tDesc.pcDebugName];
 
-    if(ptAllocation->tMemoryMode != PL_MEMORY_GPU)
+    if(!(ptAllocation->tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL))
     {
         memset(ptMetalBuffer->tBuffer.contents, 0, ptAllocation->ulSize);
         ptBuffer->tMemoryAllocation.pHostMapped = ptMetalBuffer->tBuffer.contents;
@@ -1055,7 +1055,7 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
     plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
 
     MTLStorageMode tStorageMode = MTLStorageModeShared;
-    if(ptAllocation->tMemoryMode == PL_MEMORY_GPU)
+    if(ptAllocation->tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL)
     {
         tStorageMode = MTLStorageModePrivate;
     }
@@ -1453,15 +1453,15 @@ pl_allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uT
     plInternalDeviceAllocatorData* ptData = (plInternalDeviceAllocatorData*)ptInst;
 
     plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = NULL,
-        .uHandle     = UINT64_MAX,
-        .ulOffset    = 0,
-        .ulSize      = ulSize,
-        .ptAllocator = ptData->ptAllocator,
-        .tMemoryMode = PL_MEMORY_GPU_CPU
+        .pHostMapped  = NULL,
+        .uHandle      = UINT64_MAX,
+        .ulOffset     = 0,
+        .ulSize       = ulSize,
+        .ptAllocator  = ptData->ptAllocator,
+        .tMemoryFlags = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT
     };
 
-    plDeviceMemoryAllocation tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU_CPU, uTypeFilter, "Uncached Heap");
+    plDeviceMemoryAllocation tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, tAllocation.tMemoryFlags, uTypeFilter, "Uncached Heap");
     tAllocation.uHandle = tBlock.uHandle;
     tAllocation.pHostMapped = tBlock.pHostMapped;
     gptGraphics->szHostMemoryInUse += ulSize;
@@ -1541,6 +1541,7 @@ pl_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
     // printf("%s\n", [tDevice.architecture.name UTF8String]);
     atDeviceInfo[0].tType = PL_DEVICE_TYPE_INTEGRATED;
     atDeviceInfo[0].tCapabilities = PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING | PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY | PL_DEVICE_CAPABILITY_SWAPCHAIN | PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS;
+    atDeviceInfo[0].tLimits.uNonCoherentAtomSize = 64;
 
     if(tDevice.hasUnifiedMemory)
     {
@@ -2753,6 +2754,7 @@ pl_cleanup_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtShadersHot);
     pl_sb_free(ptDevice->sbtRenderPassesHot);
     pl_sb_free(ptDevice->sbtRenderPassLayoutsHot);
+    pl_sb_free(ptDevice->sbtBindGroupLayoutsHot);
     pl_sb_free(ptDevice->sbtComputeShadersHot);
 
     for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtFrames); i++)
@@ -3307,7 +3309,7 @@ pl__garbage_collect(plDevice* ptDevice)
 //-----------------------------------------------------------------------------
 
 static plDeviceMemoryAllocation
-pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, uint32_t uTypeFilter, const char* pcName)
+pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags, uint32_t uTypeFilter, const char* pcName)
 {
     if(pcName == NULL)
     {
@@ -3317,7 +3319,7 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
     plDeviceMemoryAllocation tBlock = {
         .uHandle = UINT64_MAX,
         .ulSize  = (uint64_t)szSize,
-        .tMemoryMode = tMemoryMode
+        .tMemoryFlags = tMemoryFlags
     };
 
     MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];
@@ -3325,15 +3327,15 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryMode tMemoryMode, 
     ptHeapDescriptor.type = MTLHeapTypePlacement;
     ptHeapDescriptor.hazardTrackingMode = MTLHazardTrackingModeUntracked;
 
-    if(tMemoryMode == PL_MEMORY_GPU_CPU || tMemoryMode == PL_MEMORY_CPU)
-    {
-        ptHeapDescriptor.storageMode = MTLStorageModeShared;
-        gptGraphics->szHostMemoryInUse += tBlock.ulSize;
-    }
-    else if(tMemoryMode == PL_MEMORY_GPU)
+    if(tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL)
     {
         ptHeapDescriptor.storageMode = MTLStorageModePrivate;
         gptGraphics->szLocalMemoryInUse += tBlock.ulSize;
+    }
+    else
+    {
+        ptHeapDescriptor.storageMode = MTLStorageModeShared;
+        gptGraphics->szHostMemoryInUse += tBlock.ulSize;
     }
 
     id<MTLHeap> tNewHeap = [ptDevice->tDevice newHeapWithDescriptor:ptHeapDescriptor];
@@ -3377,7 +3379,7 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
     tHeap = nil;
     ptDevice->atHeaps[ptBlock->uHandle] = nil;
 
-    if(ptBlock->tMemoryMode == PL_MEMORY_GPU)
+    if(ptBlock->tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL)
     {
         gptGraphics->szLocalMemoryInUse -= ptBlock->ulSize;
     }
@@ -3388,8 +3390,20 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
     ptBlock->uHandle = UINT64_MAX;
     ptBlock->pHostMapped = NULL;
     ptBlock->ulSize = 0;
-    ptBlock->tMemoryMode = 0;
+    ptBlock->tMemoryFlags = 0;
     ptBlock->ulMemoryType = 0;
+}
+
+bool
+pl_gfx_flush_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
+{
+    return true;
+}
+
+bool
+pl_gfx_invalidate_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
+{
+    return true;
 }
 
 static void

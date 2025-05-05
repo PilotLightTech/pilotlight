@@ -194,7 +194,7 @@ pl__refr_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcNam
         // allocate memory for the vertex buffer
         const plDeviceMemoryAllocation tStagingBufferAllocation = gptGfx->allocate_memory(ptDevice,
             ptBuffer->tMemoryRequirements.ulSize,
-            PL_MEMORY_GPU_CPU,
+            PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
             ptBuffer->tMemoryRequirements.uMemoryTypeBits,
             "temp staging memory");
 
@@ -638,15 +638,6 @@ pl_refr_perform_skinning(plCommandBuffer* ptCommandBuffer, uint32_t uSceneHandle
 
     // update skin textures
     const uint32_t uSkinCount = pl_sb_size(ptScene->sbtSkinData);
-
-    typedef struct _SkinDynamicData
-    {
-        int iSourceDataOffset;
-        int iDestDataOffset;
-        int iDestVertexOffset;
-        uint32_t uMaxSize;
-        plMat4 tInverseWorld;
-    } SkinDynamicData;
 
     if(uSkinCount)
     {

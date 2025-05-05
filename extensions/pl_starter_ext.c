@@ -225,7 +225,7 @@ pl_starter_initialize(plStarterInit tInit)
 
         const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(ptDevice, 
             ptDepthTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_GPU,
+            PL_MEMORY_FLAGS_DEVICE_LOCAL,
             ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
             "depth texture memory");
 
@@ -255,7 +255,7 @@ pl_starter_initialize(plStarterInit tInit)
 
         const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(ptDevice, 
             ptResolveTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_GPU,
+            PL_MEMORY_FLAGS_DEVICE_LOCAL,
             ptResolveTexture->tMemoryRequirements.uMemoryTypeBits,
             "msaa texture memory");
 
@@ -378,7 +378,7 @@ pl_starter_resize(void)
 
         const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
             ptDepthTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_GPU,
+            PL_MEMORY_FLAGS_DEVICE_LOCAL,
             ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
             "depth texture memory");
 
@@ -406,7 +406,7 @@ pl_starter_resize(void)
 
         const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
             ptResolveTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_GPU,
+            PL_MEMORY_FLAGS_DEVICE_LOCAL,
             ptResolveTexture->tMemoryRequirements.uMemoryTypeBits,
             "msaa texture memory");
 
@@ -953,7 +953,7 @@ pl__starter_activate_msaa(void)
 
         const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
             ptResolveTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_GPU,
+            PL_MEMORY_FLAGS_DEVICE_LOCAL,
             ptResolveTexture->tMemoryRequirements.uMemoryTypeBits,
             "msaa texture memory");
 
@@ -983,7 +983,7 @@ pl__starter_activate_msaa(void)
 
         const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
             ptDepthTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_GPU,
+            PL_MEMORY_FLAGS_DEVICE_LOCAL,
             ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
             "depth texture memory");
 
@@ -1038,7 +1038,7 @@ pl__starter_deactivate_msaa(void)
 
         const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
             ptDepthTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_GPU,
+            PL_MEMORY_FLAGS_DEVICE_LOCAL,
             ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
             "depth texture memory");
 
@@ -1082,7 +1082,7 @@ pl__starter_activate_depth_buffer(void)
 
     const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
         ptDepthTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_GPU,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
         ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
         "depth texture memory");
 

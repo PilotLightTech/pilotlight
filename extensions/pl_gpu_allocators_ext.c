@@ -395,15 +395,15 @@ pl_allocate_dedicated(
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
-    plDeviceMemoryAllocation tBlock = gptGfx->allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_GPU, uTypeFilter, pcName);
+    plDeviceMemoryAllocation tBlock = gptGfx->allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_FLAGS_DEVICE_LOCAL, uTypeFilter, pcName);
 
     plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = NULL,
-        .uHandle     = tBlock.uHandle,
-        .ulOffset    = 0,
-        .ulSize      = ulSize,
-        .ptAllocator = ptData->ptAllocator,
-        .tMemoryMode = PL_MEMORY_GPU
+        .pHostMapped  = NULL,
+        .uHandle      = tBlock.uHandle,
+        .ulOffset     = 0,
+        .ulSize       = ulSize,
+        .ptAllocator  = ptData->ptAllocator,
+        .tMemoryFlags = PL_MEMORY_FLAGS_DEVICE_LOCAL
     };
 
     uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
@@ -494,12 +494,12 @@ pl_allocate_buddy(
     plDeviceMemoryAllocation* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
 
     plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = NULL,
-        .uHandle     = (uint64_t)ptBlock->uHandle,
-        .ulOffset    = ptNode->ulOffset,
-        .ulSize      = ulSize,
-        .ptAllocator = ptData->ptAllocator,
-        .tMemoryMode = PL_MEMORY_GPU
+        .pHostMapped  = NULL,
+        .uHandle      = (uint64_t)ptBlock->uHandle,
+        .ulOffset     = ptNode->ulOffset,
+        .ulSize       = ulSize,
+        .ptAllocator  = ptData->ptAllocator,
+        .tMemoryFlags = PL_MEMORY_FLAGS_DEVICE_LOCAL
     };
 
     if(ulAlignment > 0)
@@ -507,7 +507,7 @@ pl_allocate_buddy(
 
     if(tAllocation.uHandle == 0)
     {
-        ptBlock->uHandle = gptGfx->allocate_memory(ptData->ptDevice, PL_DEVICE_BUDDY_BLOCK_SIZE, PL_MEMORY_GPU, uTypeFilter, "Buddy Heap").uHandle;
+        ptBlock->uHandle = gptGfx->allocate_memory(ptData->ptDevice, PL_DEVICE_BUDDY_BLOCK_SIZE, PL_MEMORY_FLAGS_DEVICE_LOCAL, uTypeFilter, "Buddy Heap").uHandle;
         tAllocation.uHandle = (uint64_t)ptBlock->uHandle;
     }
 
@@ -560,15 +560,15 @@ pl_allocate_staging_uncached(
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
     plDeviceMemoryAllocation tBlock = gptGfx->allocate_memory(ptData->ptDevice, ulSize,
-        PL_MEMORY_GPU_CPU, uTypeFilter, pcName);
+        PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT, uTypeFilter, pcName);
 
     plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = tBlock.pHostMapped,
-        .uHandle     = tBlock.uHandle,
-        .ulOffset    = 0,
-        .ulSize      = ulSize,
-        .ptAllocator = ptData->ptAllocator,
-        .tMemoryMode = PL_MEMORY_GPU_CPU
+        .pHostMapped  = tBlock.pHostMapped,
+        .uHandle      = tBlock.uHandle,
+        .ulOffset     = 0,
+        .ulSize       = ulSize,
+        .ptAllocator  = ptData->ptAllocator,
+        .tMemoryFlags = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT
     };
 
     uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
@@ -643,12 +643,12 @@ pl_allocate_staging_uncached_buddy(
     plDeviceMemoryAllocation* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
 
     plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = NULL,
-        .uHandle     = (uint64_t)ptBlock->uHandle,
-        .ulOffset    = ptNode->ulOffset,
-        .ulSize      = ulSize,
-        .ptAllocator = ptData->ptAllocator,
-        .tMemoryMode = PL_MEMORY_GPU_CPU
+        .pHostMapped  = NULL,
+        .uHandle      = (uint64_t)ptBlock->uHandle,
+        .ulOffset     = ptNode->ulOffset,
+        .ulSize       = ulSize,
+        .ptAllocator  = ptData->ptAllocator,
+        .tMemoryFlags = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT
     };
 
     if(ulAlignment > 0)
@@ -656,7 +656,7 @@ pl_allocate_staging_uncached_buddy(
 
     if(tAllocation.uHandle == 0)
     {
-        plDeviceMemoryAllocation tActualAllocation = gptGfx->allocate_memory(ptData->ptDevice, PL_DEVICE_BUDDY_BLOCK_SIZE, PL_MEMORY_GPU_CPU, uTypeFilter, "Staging Uncached Buddy Heap");
+        plDeviceMemoryAllocation tActualAllocation = gptGfx->allocate_memory(ptData->ptDevice, PL_DEVICE_BUDDY_BLOCK_SIZE, PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT, uTypeFilter, "Staging Uncached Buddy Heap");
         ptBlock->uHandle = tActualAllocation.uHandle;
         ptBlock->pHostMapped = tActualAllocation.pHostMapped;
         tAllocation.uHandle = (uint64_t)ptBlock->uHandle;
@@ -673,15 +673,15 @@ pl_allocate_staging_cached(
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
-    plDeviceMemoryAllocation tBlock = gptGfx->allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_CPU, uTypeFilter, pcName);
+    plDeviceMemoryAllocation tBlock = gptGfx->allocate_memory(ptData->ptDevice, ulSize, PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT | PL_MEMORY_FLAGS_HOST_CACHED, uTypeFilter, pcName);
 
     plDeviceMemoryAllocation tAllocation = {
-        .pHostMapped = tBlock.pHostMapped,
-        .uHandle     = tBlock.uHandle,
-        .ulOffset    = 0,
-        .ulSize      = ulSize,
-        .ptAllocator = ptData->ptAllocator,
-        .tMemoryMode = PL_MEMORY_CPU
+        .pHostMapped  = tBlock.pHostMapped,
+        .uHandle      = tBlock.uHandle,
+        .ulOffset     = 0,
+        .ulSize       = ulSize,
+        .ptAllocator  = ptData->ptAllocator,
+        .tMemoryFlags = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT | PL_MEMORY_FLAGS_HOST_CACHED
     };
 
     uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
