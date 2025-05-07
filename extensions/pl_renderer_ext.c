@@ -1972,11 +1972,11 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         };
 
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
-        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_READ, PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE);
+        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
         gptGfx->bind_compute_bind_groups(ptComputeEncoder, tPanoramaShader, 0, 1, &tComputeBindGroup, 0, NULL);
         gptGfx->bind_compute_shader(ptComputeEncoder, tPanoramaShader);
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
-        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_READ);
+        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
         gptGfx->end_compute_pass(ptComputeEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
         gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
@@ -1997,7 +1997,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
         ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
         gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
         for(uint32_t i = 0; i < 6; i++)
         {
@@ -2014,7 +2014,7 @@ pl_refr_load_skybox_from_panorama(uint32_t uSceneHandle, const char* pcPath, int
 
         gptGfx->generate_mipmaps(ptBlitEncoder, ptScene->tSkyboxTexture);
 
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptBlitEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
         gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
@@ -3886,7 +3886,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
 
             // begin main renderpass (directly to swapchain)
             plComputeEncoder* ptJumpEncoder = gptGfx->begin_compute_pass(ptJumpCmdBuffer, NULL);
-            gptGfx->pipeline_barrier_compute(ptJumpEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_READ, PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE);
+            gptGfx->pipeline_barrier_compute(ptJumpEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
             ptView->tLastUVMask = (i % 2 == 0) ? ptView->atUVMaskTexture1 : ptView->atUVMaskTexture0;
 
@@ -3903,7 +3903,7 @@ pl_refr_render_scene(uint32_t uSceneHandle, const uint32_t* auViewHandles, const
             gptGfx->dispatch(ptJumpEncoder, 1, &tDispach);
 
             // end render pass
-            gptGfx->pipeline_barrier_compute(ptJumpEncoder, PL_SHADER_STAGE_COMPUTE, PL_ACCESS_SHADER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_FRAGMENT, PL_ACCESS_SHADER_READ);
+            gptGfx->pipeline_barrier_compute(ptJumpEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
             gptGfx->end_compute_pass(ptJumpEncoder);
 
             // end recording
@@ -4011,7 +4011,7 @@ pl_refr_begin_frame(void)
     
             // begin blit pass, copy buffer, end pass
             plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-            gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+            gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     
             plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptData->ptSwap);
             const plTextureDesc tColorTextureDesc = {
@@ -4049,7 +4049,7 @@ pl_refr_begin_frame(void)
             // set initial usage
             gptGfx->set_texture_usage(ptEncoder, gptData->tMSAATexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
     
-            gptGfx->pipeline_barrier_blit(ptEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+            gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
             gptGfx->end_blit_pass(ptEncoder);
     
             // finish recording
@@ -4187,14 +4187,14 @@ pl_refr_begin_frame(void)
             gptGfx->begin_command_recording(ptCommandBuffer, &tSkinUpdateBeginInfo);
 
             plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
         
             plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
             memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[gptData->atStagingBufferHandle[uFrameIdx].szOffset], ptScene->sbtMaterialBuffer, sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
             gptGfx->copy_buffer(ptBlitEncoder, tStagingBuffer, ptScene->atMaterialDataBuffer[uFrameIdx], (uint32_t)gptData->atStagingBufferHandle[uFrameIdx].szOffset, 0, sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
             gptData->atStagingBufferHandle[uFrameIdx].szOffset += sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer);
 
-            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_SHADER_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
             gptGfx->end_blit_pass(ptBlitEncoder);
             gptGfx->end_command_recording(ptCommandBuffer);
 

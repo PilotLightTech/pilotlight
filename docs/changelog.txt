@@ -5,6 +5,7 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
+- v0.2.3 (WIP) reworked gfx fix barrier flags (v1.1.1)
 - v0.2.2 (2025-05-05) reworked gfx memory mode flags to be explicit (v1.1.0)
 - v0.2.1 (2025-04-29) added paths to extension registry API (v1.1.0)
                       made library API more robust with paths & removed unused functions (v1.0.2)

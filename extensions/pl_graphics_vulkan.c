@@ -3626,7 +3626,7 @@ pl_cleanup_device(plDevice* ptDevice)
 }
 
 void
-pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -3634,11 +3634,14 @@ pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plShaderStageFlags beforeStag
         .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
     };
 
-    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_shader_stage_flags(beforeStages), pl_vulkan_shader_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    VkPipelineStageFlagBits tSrcStageMask = pl_vulkan_pipeline_stage_flags(beforeStages);
+    VkPipelineStageFlagBits tDstStageMask = pl_vulkan_pipeline_stage_flags(afterStages);
+
+    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, tSrcStageMask, tDstStageMask, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
 }
 
 void
-pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -3646,11 +3649,11 @@ pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plShaderStageFlags befo
         .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
     };
 
-    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_shader_stage_flags(beforeStages), pl_vulkan_shader_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_pipeline_stage_flags(beforeStages), pl_vulkan_pipeline_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
 }
 
 void
-pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_render(plRenderEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
     VkMemoryBarrier tMemoryBarrier = {
         .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
@@ -3658,7 +3661,7 @@ pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plShaderStageFlags befor
         .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
     };
 
-    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_shader_stage_flags(beforeStages), pl_vulkan_shader_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_pipeline_stage_flags(beforeStages), pl_vulkan_pipeline_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
 }
 
 plComputeEncoder*
@@ -5222,8 +5225,6 @@ pl_vulkan_shader_stage_flags(plShaderStageFlags tFlags)
         tResult |= VK_SHADER_STAGE_FRAGMENT_BIT;
     if (tFlags & PL_SHADER_STAGE_COMPUTE)
         tResult |= VK_SHADER_STAGE_COMPUTE_BIT;
-    if(tFlags & PL_SHADER_STAGE_TRANSFER)
-        tResult |= VK_PIPELINE_STAGE_TRANSFER_BIT;
 
     return tResult;
 }

@@ -295,6 +295,7 @@ static MTLLoadAction          pl__metal_load_op   (plLoadOp tOp);
 static MTLStoreAction         pl__metal_store_op  (plStoreOp tOp);
 static MTLDataType            pl__metal_data_type  (plDataType tType);
 static MTLRenderStages        pl__metal_stage_flags(plShaderStageFlags tFlags);
+static MTLRenderStages        pl__metal_pipeline_stage_flags(plPipelineStageFlags tFlags);
 static bool                   pl__is_depth_format  (plFormat tFormat);
 static bool                   pl__is_stencil_format  (plFormat tFormat);
 static MTLBlendFactor         pl__metal_blend_factor(plBlendFactor tFactor);
@@ -2151,21 +2152,21 @@ pl_end_blit_pass(plBlitEncoder* ptEncoder)
 }
 
 void
-pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
 
 }
 
 void
-pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
     [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeBuffers | MTLBarrierScopeTextures];
 }
 
 void
-pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
+pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
-    [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeRenderTargets | MTLBarrierScopeBuffers | MTLBarrierScopeTextures afterStages:pl__metal_stage_flags(beforeStages) beforeStages:pl__metal_stage_flags(afterStages)];
+    [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeRenderTargets | MTLBarrierScopeBuffers | MTLBarrierScopeTextures afterStages:pl__metal_pipeline_stage_flags(beforeStages) beforeStages:pl__metal_pipeline_stage_flags(afterStages)];
 }
 
 static plComputeEncoder*
@@ -3170,6 +3171,17 @@ pl__metal_stage_flags(plShaderStageFlags tFlags)
     if(tFlags & PL_SHADER_STAGE_FRAGMENT)    tResult |= MTLRenderStageFragment;
     // if(tFlags & PL_SHADER_STAGE_COMPUTE)  tResult |= VK_SHADER_STAGE_COMPUTE_BIT; // not needed
 
+    return tResult;
+}
+
+static MTLRenderStages
+pl__metal_pipeline_stage_flags(plPipelineStageFlags tFlags)
+{
+    MTLRenderStages tResult = 0;
+
+    if(tFlags & PL_PIPELINE_STAGE_VERTEX_SHADER)   tResult |= MTLRenderStageVertex;
+    if(tFlags & PL_PIPELINE_STAGE_FRAGMENT_SHADER) tResult |= MTLRenderStageFragment;
+    // if(tFlags & PL_SHADER_STAGE_COMPUTE)  tResult |= VK_SHADER_STAGE_COMPUTE_BIT; // not needed
     return tResult;
 }
 

@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 1, 0}
+#define plGraphicsI_version {1, 1, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -406,9 +406,9 @@ typedef struct _plGraphicsI
     plCommandBuffer* (*get_blit_encoder_command_buffer)(plBlitEncoder*);
 
     // global barriers
-    void (*pipeline_barrier_blit)   (plBlitEncoder*,    plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses);
-    void (*pipeline_barrier_compute)(plComputeEncoder*, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses);
-    void (*pipeline_barrier_render) (plRenderEncoder*,  plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses);
+    void (*pipeline_barrier_blit)   (plBlitEncoder*,    plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses);
+    void (*pipeline_barrier_compute)(plComputeEncoder*, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses);
+    void (*pipeline_barrier_render) (plRenderEncoder*,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses);
 
     //-----------------------------------------------------------------------------
 
@@ -1347,8 +1347,7 @@ enum _plShaderStageFlags
     PL_SHADER_STAGE_VERTEX   = 1 << 0,
     PL_SHADER_STAGE_FRAGMENT = 1 << 1,
     PL_SHADER_STAGE_COMPUTE  = 1 << 2,
-    PL_SHADER_STAGE_TRANSFER = 1 << 3,
-    PL_SHADER_STAGE_ALL      = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_COMPUTE | PL_SHADER_STAGE_TRANSFER
+    PL_SHADER_STAGE_ALL      = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_COMPUTE
 };
 
 enum _plPipelineStageFlags
