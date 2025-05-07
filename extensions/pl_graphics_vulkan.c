@@ -198,7 +198,6 @@ typedef struct _plTimelineSemaphore
 
 typedef struct _plFrameContext
 {
-    VkSemaphore    tRenderFinish;
     VkFence        tInFlight;
     VkFramebuffer* sbtRawFrameBuffers;
 
@@ -330,6 +329,7 @@ typedef struct _plSwapchain
     uint32_t         uImageCount;
     plTextureHandle* sbtSwapchainTextureViews;
     uint32_t         uCurrentImageIndex; // current image to use within the swap chain
+    VkSemaphore*     sbtRenderFinish;
 
     // platform specific
     plSurface*          ptSurface;
@@ -3112,9 +3112,7 @@ pl_create_device(const plDeviceInit* ptInit)
         vkUpdateDescriptorSets(ptDevice->tLogicalDevice, 1, &tNullWrite, 0, NULL);
     }
 
-    const VkSemaphoreCreateInfo tSemaphoreInfo = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-    };
+
 
     const VkFenceCreateInfo tFenceInfo = {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -3126,7 +3124,7 @@ pl_create_device(const plDeviceInit* ptInit)
     for (uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
     {
         plFrameContext tFrame = {0};
-        PL_VULKAN(vkCreateSemaphore(ptDevice->tLogicalDevice, &tSemaphoreInfo, gptGraphics->ptAllocationCallbacks, &tFrame.tRenderFinish));
+        
         PL_VULKAN(vkCreateFence(ptDevice->tLogicalDevice, &tFenceInfo, gptGraphics->ptAllocationCallbacks, &tFrame.tInFlight));
 
         // dynamic buffer stuff
@@ -3267,7 +3265,8 @@ pl_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainI
     ptSwap->tInfo.uHeight = ptInit->uHeight;
     ptSwap->ptSurface = ptSurface;
     ptSwap->ptDevice = ptDevice;
-    ptSwap->uImageCount = gptGraphics->uFramesInFlight;
+    ptSwap->uImageCount = UINT32_MAX;
+    pl_sb_reserve(ptSwap->sbtRenderFinish, 16);
     ptSwap->tInfo.tFormat = PL_FORMAT_B8G8R8A8_UNORM;
     ptSwap->tInfo.tSampleCount = pl_min(ptInit->tSampleCount, ptSwap->ptDevice->tInfo.tMaxSampleCount);
     if(ptSwap->tInfo.tSampleCount == 0)
@@ -3351,7 +3350,7 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
         .commandBufferCount   = 1,
         .pCommandBuffers      = atCmdBuffers,
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores    = &ptCurrentFrame->tRenderFinish
+        .pSignalSemaphores    = &ptSwaps[0]->sbtRenderFinish[ptSwaps[0]->uCurrentImageIndex]
     };
 
     VkTimelineSemaphoreSubmitInfo tTimelineInfo = {
@@ -3389,7 +3388,7 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
             atSignalSemaphores[i] = ptSubmitInfo->atSignalSempahores[i]->tSemaphore;
         }
         
-        atSignalSemaphores[ptSubmitInfo->uSignalSemaphoreCount] = ptCurrentFrame->tRenderFinish;
+        atSignalSemaphores[ptSubmitInfo->uSignalSemaphoreCount] = ptSwaps[0]->sbtRenderFinish[ptSwaps[0]->uCurrentImageIndex];
         tTimelineInfo.signalSemaphoreValueCount = ptSubmitInfo->uSignalSemaphoreCount + 1;
         tTimelineInfo.pSignalSemaphoreValues = ptSubmitInfo->auSignalSemaphoreValues;
 
@@ -3412,7 +3411,7 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
     const VkPresentInfoKHR tPresentInfo = {
         .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores    = &ptCurrentFrame->tRenderFinish,
+        .pWaitSemaphores    = &ptSwaps[0]->sbtRenderFinish[ptSwaps[0]->uCurrentImageIndex],
         .swapchainCount     = uSwapchainCount,
         .pSwapchains        = atSwapchains,
         .pImageIndices      = auImageIndices
@@ -3479,6 +3478,13 @@ pl_cleanup_swapchain(plSwapchain* ptSwap)
     {
         vkDestroySemaphore(ptSwap->ptDevice->tLogicalDevice, ptSwap->atImageAvailable[i], gptGraphics->ptAllocationCallbacks);
     }
+
+    for (uint32_t i = 0; i < pl_sb_size(ptSwap->sbtRenderFinish); i++)
+    {
+        vkDestroySemaphore(ptSwap->ptDevice->tLogicalDevice, ptSwap->sbtRenderFinish[i], gptGraphics->ptAllocationCallbacks);
+    }
+    pl_sb_free(ptSwap->sbtRenderFinish);
+
     pl__cleanup_common_swapchain(ptSwap);
 }
 
@@ -3575,7 +3581,6 @@ pl_cleanup_device(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtFrames); i++)
     {
         plFrameContext* ptFrame = &ptDevice->sbtFrames[i];
-        vkDestroySemaphore(ptDevice->tLogicalDevice, ptFrame->tRenderFinish, gptGraphics->ptAllocationCallbacks);
         vkDestroyFence(ptDevice->tLogicalDevice, ptFrame->tInFlight, gptGraphics->ptAllocationCallbacks);
 
         for (uint32_t j = 0; j < pl_sb_size(ptFrame->sbtDynamicBuffers); j++)
@@ -4763,8 +4768,20 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
 
     PL_VULKAN(vkGetSwapchainImagesKHR(ptDevice->tLogicalDevice, ptSwap->tSwapChain, &ptSwap->uImageCount, ptSwap->atImages));
 
+    const VkSemaphoreCreateInfo tSemaphoreInfo = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+    };
+
+    const uint32_t uNewSemaphoreCount = ptSwap->uImageCount - pl_sb_size(ptSwap->sbtRenderFinish);
+    for (uint32_t i = 0; i < uNewSemaphoreCount; i++)
+    {
+        pl_sb_add(ptSwap->sbtRenderFinish);
+        PL_VULKAN(vkCreateSemaphore(ptDevice->tLogicalDevice, &tSemaphoreInfo, gptGraphics->ptAllocationCallbacks, &pl_sb_top(ptSwap->sbtRenderFinish)));
+    }
+
     for (uint32_t i = 0; i < ptSwap->uImageCount; i++)
     {
+
         plTextureViewDesc tTextureViewDesc = {
             .tFormat     = ptSwap->tInfo.tFormat,
             .uBaseLayer  = 0,
