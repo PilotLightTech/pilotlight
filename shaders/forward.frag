@@ -40,8 +40,8 @@ layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
 layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
-layout(set = 0, binding = 5)  uniform texture2D at2DTextures[4096];
-layout(set = 0, binding = 4101)  uniform textureCube atCubeTextures[4096];
+layout(set = 0, binding = 5)  uniform texture2D at2DTextures[PL_MAX_BINDLESS_TEXTURES];
+layout(set = 0, binding = PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT)  uniform textureCube atCubeTextures[PL_MAX_BINDLESS_TEXTURES];
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 1

@@ -1,4 +1,7 @@
 
+#define PL_MAX_BINDLESS_TEXTURES 4096
+#define PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT 4101
+
 // math
 const float M_PI = 3.141592653589793;
 const float GAMMA = 2.2;
