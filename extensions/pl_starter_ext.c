@@ -855,9 +855,9 @@ pl_starter_create_device(plSurface* ptSurface)
     for(uint32_t i = 0; i < uDeviceCount; i++)
     {
         
-        if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_DISCRETE)
+        if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_DISCRETE && iIntegratedGPUIdx == -1)
             iDiscreteGPUIdx = i;
-        else if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_INTEGRATED)
+        else if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_INTEGRATED && iIntegratedGPUIdx == -1)
             iIntegratedGPUIdx = i;
     }
 
