@@ -481,15 +481,16 @@ pl_starter_cleanup(void)
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_SHADER_EXT)
         gptShader->cleanup();
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DRAW_EXT)
+    {
         gptDrawBackend->cleanup_font_atlas(gptDraw->get_current_font_atlas());
+        gptDrawBackend->cleanup();
+    }
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_UI_EXT)
         gptUI->cleanup();
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_CONSOLE_EXT)
         gptConsole->cleanup();
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_SCREEN_LOG_EXT)
         gptScreenLog->cleanup();
-
-    gptDrawBackend->cleanup();
 
     gptGfx->cleanup_swapchain(gptStarterCtx->ptSwapchain);
     gptGfx->cleanup_surface(gptStarterCtx->ptSurface);
