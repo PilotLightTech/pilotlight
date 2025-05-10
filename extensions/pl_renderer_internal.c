@@ -697,8 +697,8 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
     uint32_t uViewCount = pl_sb_size(ptScene->sbptViews);
     pl_sb_reset(ptScene->sbtShadowRects);
 
-    const plEnvironmentProbeComponent* sbtProbes = ptScene->ptComponentLibrary->tEnvironmentProbeCompManager.pComponents;
-    const plLightComponent* sbtLights = ptScene->ptComponentLibrary->tLightComponentManager.pComponents;
+    const plEnvironmentProbeComponent* sbtProbes = ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_ENVIRONMENT_PROBE].pComponents;
+    const plLightComponent* sbtLights = ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_LIGHT].pComponents;
     const uint32_t uProbeCount = pl_sb_size(sbtProbes);
     const uint32_t uLightCount = pl_sb_size(sbtLights);
 
@@ -791,7 +791,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
     plDrawStream* ptStream   = &gptData->tDrawStream;
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
-    const plLightComponent* sbtLights = ptScene->ptComponentLibrary->tLightComponentManager.pComponents;
+    const plLightComponent* sbtLights = ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_LIGHT].pComponents;
     const uint32_t uLightCount = pl_sb_size(ptScene->sbtShadowRects);
 
     for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
@@ -1386,7 +1386,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
         puOffsetIndex = &ptDShadowData->uOffsetIndex;
     }
 
-    const plLightComponent* sbtLights = ptScene->ptComponentLibrary->tLightComponentManager.pComponents;
+    const plLightComponent* sbtLights = ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_LIGHT].pComponents;
     const uint32_t uInitialOffset = *puOffset;
 
     const float g = 1.0f / tanf(ptSceneCamera->fFieldOfView / 2.0f);

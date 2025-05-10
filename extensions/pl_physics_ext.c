@@ -515,7 +515,7 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
 
     const float fSubstepTime = (1.0f / gptPhysicsCtx->tSettings.fSimulationFrameRate);
 
-    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
+    plEntity* sbtRigidBodyEntities = ptLibrary->atManagers[PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS].sbtEntities;
     const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
 
     // update stats
@@ -597,7 +597,7 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 {
     pl_begin_cpu_sample(gptProfile, 0, "Physics Draw");
 
-    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
+    plEntity* sbtRigidBodyEntities = ptLibrary->atManagers[PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS].sbtEntities;
     const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
@@ -672,7 +672,7 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
     }
 
     // draw force field
-    plEntity* sbtForceFieldEntities = ptLibrary->tForceFieldComponentManager.sbtEntities;
+    plEntity* sbtForceFieldEntities = ptLibrary->atManagers[PL_COMPONENT_TYPE_FORCE_FIELD].sbtEntities;
     const uint32_t uForceFieldCount = pl_sb_size(sbtForceFieldEntities);
     for(uint32_t i = 0; i < uForceFieldCount; i++)
     {
@@ -966,10 +966,10 @@ pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, "Update Force Fields");
 
-    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
+    plEntity* sbtRigidBodyEntities = ptLibrary->atManagers[PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS].sbtEntities;
     const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
 
-    plEntity* sbtForceFieldEntities = ptLibrary->tForceFieldComponentManager.sbtEntities;
+    plEntity* sbtForceFieldEntities = ptLibrary->atManagers[PL_COMPONENT_TYPE_FORCE_FIELD].sbtEntities;
     const uint32_t uForceFieldCount = pl_sb_size(sbtForceFieldEntities);
     for(uint32_t i = 0; i < uForceFieldCount; i++)
     {
@@ -1034,7 +1034,7 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, "Collision Detection");
 
-    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
+    plEntity* sbtRigidBodyEntities = ptLibrary->atManagers[PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS].sbtEntities;
     const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
 
     // plCollisionPrimitive tPrimFloor = {

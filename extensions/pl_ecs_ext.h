@@ -520,28 +520,8 @@ typedef struct _plComponentLibrary
     uint32_t*  sbtEntityFreeIndices;
     plHashMap* atHashmaps; // map entity -> index in sbtEntities/pComponents
 
-    // managers
-    plComponentManager tTagComponentManager;
-    plComponentManager tTransformComponentManager;
-    plComponentManager tMeshComponentManager;
-    plComponentManager tObjectComponentManager;
-    plComponentManager tHierarchyComponentManager;
-    plComponentManager tMaterialComponentManager;
-    plComponentManager tSkinComponentManager;
-    plComponentManager tCameraComponentManager;
-    plComponentManager tAnimationComponentManager;
-    plComponentManager tAnimationDataComponentManager;
-    plComponentManager tInverseKinematicsComponentManager;
-    plComponentManager tLightComponentManager;
-    plComponentManager tScriptComponentManager;
-    plComponentManager tHumanoidComponentManager;
-    plComponentManager tEnvironmentProbeCompManager;
-    plComponentManager tLayerComponentManager;
-    plComponentManager tRigidBodyPhysicsComponentManager;
-    plComponentManager tForceFieldComponentManager;
-
-    plComponentManager* _ptManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
-    void*               pInternal;
+    plComponentManager atManagers[PL_COMPONENT_TYPE_COUNT]; // just for internal convenience
+    void*              pInternal;
 } plComponentLibrary;
 
 //-----------------------------------------------------------------------------

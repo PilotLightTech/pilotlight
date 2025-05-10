@@ -164,82 +164,29 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
     memset(ptLibrary->atHashmaps, 0, sizeof(plHashMap64) * (PL_COMPONENT_TYPE_COUNT + 1));
 
     // initialize component managers
-    ptLibrary->tTagComponentManager.tComponentType = PL_COMPONENT_TYPE_TAG;
-    ptLibrary->tTagComponentManager.szStride = sizeof(plTagComponent);
-
-    ptLibrary->tTransformComponentManager.tComponentType = PL_COMPONENT_TYPE_TRANSFORM;
-    ptLibrary->tTransformComponentManager.szStride = sizeof(plTransformComponent);
-
-    ptLibrary->tObjectComponentManager.tComponentType = PL_COMPONENT_TYPE_OBJECT;
-    ptLibrary->tObjectComponentManager.szStride = sizeof(plObjectComponent);
-
-    ptLibrary->tMeshComponentManager.tComponentType = PL_COMPONENT_TYPE_MESH;
-    ptLibrary->tMeshComponentManager.szStride = sizeof(plMeshComponent);
-    
-    ptLibrary->tHierarchyComponentManager.tComponentType = PL_COMPONENT_TYPE_HIERARCHY;
-    ptLibrary->tHierarchyComponentManager.szStride = sizeof(plHierarchyComponent);
-
-    ptLibrary->tMaterialComponentManager.tComponentType = PL_COMPONENT_TYPE_MATERIAL;
-    ptLibrary->tMaterialComponentManager.szStride = sizeof(plMaterialComponent);
-
-    ptLibrary->tSkinComponentManager.tComponentType = PL_COMPONENT_TYPE_SKIN;
-    ptLibrary->tSkinComponentManager.szStride = sizeof(plSkinComponent);
-
-    ptLibrary->tCameraComponentManager.tComponentType = PL_COMPONENT_TYPE_CAMERA;
-    ptLibrary->tCameraComponentManager.szStride = sizeof(plCameraComponent);
-
-    ptLibrary->tAnimationComponentManager.tComponentType = PL_COMPONENT_TYPE_ANIMATION;
-    ptLibrary->tAnimationComponentManager.szStride = sizeof(plAnimationComponent);
-
-    ptLibrary->tAnimationDataComponentManager.tComponentType = PL_COMPONENT_TYPE_ANIMATION_DATA;
-    ptLibrary->tAnimationDataComponentManager.szStride = sizeof(plAnimationDataComponent);
-
-    ptLibrary->tInverseKinematicsComponentManager.tComponentType = PL_COMPONENT_TYPE_INVERSE_KINEMATICS;
-    ptLibrary->tInverseKinematicsComponentManager.szStride = sizeof(plInverseKinematicsComponent);
-
-    ptLibrary->tLightComponentManager.tComponentType = PL_COMPONENT_TYPE_LIGHT;
-    ptLibrary->tLightComponentManager.szStride = sizeof(plLightComponent);
-
-    ptLibrary->tScriptComponentManager.tComponentType = PL_COMPONENT_TYPE_SCRIPT;
-    ptLibrary->tScriptComponentManager.szStride = sizeof(plScriptComponent);
-
-    ptLibrary->tHumanoidComponentManager.tComponentType = PL_COMPONENT_TYPE_HUMANOID;
-    ptLibrary->tHumanoidComponentManager.szStride = sizeof(plHumanoidComponent);
-
-    ptLibrary->tEnvironmentProbeCompManager.tComponentType = PL_COMPONENT_TYPE_ENVIRONMENT_PROBE;
-    ptLibrary->tEnvironmentProbeCompManager.szStride = sizeof(plEnvironmentProbeComponent);
-
-    ptLibrary->tLayerComponentManager.tComponentType = PL_COMPONENT_TYPE_LAYER;
-    ptLibrary->tLayerComponentManager.szStride = sizeof(plLayerComponent);
-
-    ptLibrary->tRigidBodyPhysicsComponentManager.tComponentType = PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS;
-    ptLibrary->tRigidBodyPhysicsComponentManager.szStride = sizeof(plRigidBodyPhysicsComponent);
-
-    ptLibrary->tForceFieldComponentManager.tComponentType = PL_COMPONENT_TYPE_FORCE_FIELD;
-    ptLibrary->tForceFieldComponentManager.szStride = sizeof(plForceFieldComponent);
-
-    ptLibrary->_ptManagers[0]  = &ptLibrary->tTagComponentManager;
-    ptLibrary->_ptManagers[1]  = &ptLibrary->tTransformComponentManager;
-    ptLibrary->_ptManagers[2]  = &ptLibrary->tMeshComponentManager;
-    ptLibrary->_ptManagers[3]  = &ptLibrary->tObjectComponentManager;
-    ptLibrary->_ptManagers[4]  = &ptLibrary->tHierarchyComponentManager;
-    ptLibrary->_ptManagers[5]  = &ptLibrary->tMaterialComponentManager;
-    ptLibrary->_ptManagers[6]  = &ptLibrary->tSkinComponentManager;
-    ptLibrary->_ptManagers[7]  = &ptLibrary->tCameraComponentManager;
-    ptLibrary->_ptManagers[8]  = &ptLibrary->tAnimationComponentManager;
-    ptLibrary->_ptManagers[9]  = &ptLibrary->tAnimationDataComponentManager;
-    ptLibrary->_ptManagers[10] = &ptLibrary->tInverseKinematicsComponentManager;
-    ptLibrary->_ptManagers[11] = &ptLibrary->tLightComponentManager;
-    ptLibrary->_ptManagers[12] = &ptLibrary->tScriptComponentManager;
-    ptLibrary->_ptManagers[13] = &ptLibrary->tHumanoidComponentManager;
-    ptLibrary->_ptManagers[14] = &ptLibrary->tEnvironmentProbeCompManager;
-    ptLibrary->_ptManagers[15] = &ptLibrary->tLayerComponentManager;
-    ptLibrary->_ptManagers[16] = &ptLibrary->tRigidBodyPhysicsComponentManager;
-    ptLibrary->_ptManagers[17] = &ptLibrary->tForceFieldComponentManager;
+    ptLibrary->atManagers[0].szStride = sizeof(plTagComponent);
+    ptLibrary->atManagers[1].szStride = sizeof(plTransformComponent);
+    ptLibrary->atManagers[2].szStride = sizeof(plMeshComponent);
+    ptLibrary->atManagers[3].szStride = sizeof(plObjectComponent);
+    ptLibrary->atManagers[4].szStride = sizeof(plHierarchyComponent);
+    ptLibrary->atManagers[5].szStride = sizeof(plMaterialComponent);
+    ptLibrary->atManagers[6].szStride = sizeof(plSkinComponent);
+    ptLibrary->atManagers[7].szStride = sizeof(plCameraComponent);
+    ptLibrary->atManagers[8].szStride = sizeof(plAnimationComponent);
+    ptLibrary->atManagers[9].szStride = sizeof(plAnimationDataComponent);
+    ptLibrary->atManagers[10].szStride = sizeof(plInverseKinematicsComponent);
+    ptLibrary->atManagers[11].szStride = sizeof(plLightComponent);
+    ptLibrary->atManagers[12].szStride = sizeof(plScriptComponent);
+    ptLibrary->atManagers[13].szStride = sizeof(plHumanoidComponent);
+    ptLibrary->atManagers[14].szStride = sizeof(plEnvironmentProbeComponent);
+    ptLibrary->atManagers[15].szStride = sizeof(plLayerComponent);
+    ptLibrary->atManagers[16].szStride = sizeof(plRigidBodyPhysicsComponent);
+    ptLibrary->atManagers[17].szStride = sizeof(plForceFieldComponent);
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
     {
-        ptLibrary->_ptManagers[i]->ptParentLibrary = ptLibrary;
+        ptLibrary->atManagers[i].ptParentLibrary = ptLibrary;
+        ptLibrary->atManagers[i].tComponentType = i;
     }
 
     ptLibrary->pInternal = PL_ALLOC(sizeof(plComponentLibraryData));
@@ -253,10 +200,10 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
 static void
 pl_ecs_reset_component_library(plComponentLibrary* ptLibrary)
 {
-    plMeshComponent* sbtMeshes = ptLibrary->tMeshComponentManager.pComponents;
-    plSkinComponent* sbtSkins = ptLibrary->tSkinComponentManager.pComponents;
-    plAnimationComponent* sbtAnimations = ptLibrary->tAnimationComponentManager.pComponents;
-    plAnimationDataComponent* sbtAnimationDatas = ptLibrary->tAnimationDataComponentManager.pComponents;
+    plMeshComponent* sbtMeshes = ptLibrary->atManagers[PL_COMPONENT_TYPE_MESH].pComponents;
+    plSkinComponent* sbtSkins = ptLibrary->atManagers[PL_COMPONENT_TYPE_SKIN].pComponents;
+    plAnimationComponent* sbtAnimations = ptLibrary->atManagers[PL_COMPONENT_TYPE_ANIMATION].pComponents;
+    plAnimationDataComponent* sbtAnimationDatas = ptLibrary->atManagers[PL_COMPONENT_TYPE_ANIMATION_DATA].pComponents;
 
     for(uint32_t i = 0; i < pl_sb_size(sbtAnimations); i++)
     {
@@ -285,8 +232,8 @@ pl_ecs_reset_component_library(plComponentLibrary* ptLibrary)
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
     {
-        pl_sb_reset(ptLibrary->_ptManagers[i]->pComponents);
-        pl_sb_reset(ptLibrary->_ptManagers[i]->sbtEntities);
+        pl_sb_reset(ptLibrary->atManagers[i].pComponents);
+        pl_sb_reset(ptLibrary->atManagers[i].sbtEntities);
         pl_hm_free(&ptLibrary->atHashmaps[i]);
     }
     pl_hm_free(&ptLibrary->atHashmaps[PL_COMPONENT_TYPE_COUNT]);
@@ -303,10 +250,10 @@ pl_ecs_reset_component_library(plComponentLibrary* ptLibrary)
 static void
 pl_ecs_cleanup_component_library(plComponentLibrary* ptLibrary)
 {
-    plMeshComponent* sbtMeshes = ptLibrary->tMeshComponentManager.pComponents;
-    plSkinComponent* sbtSkins = ptLibrary->tSkinComponentManager.pComponents;
-    plAnimationComponent* sbtAnimations = ptLibrary->tAnimationComponentManager.pComponents;
-    plAnimationDataComponent* sbtAnimationDatas = ptLibrary->tAnimationDataComponentManager.pComponents;
+    plMeshComponent* sbtMeshes = ptLibrary->atManagers[PL_COMPONENT_TYPE_MESH].pComponents;
+    plSkinComponent* sbtSkins = ptLibrary->atManagers[PL_COMPONENT_TYPE_SKIN].pComponents;
+    plAnimationComponent* sbtAnimations = ptLibrary->atManagers[PL_COMPONENT_TYPE_ANIMATION].pComponents;
+    plAnimationDataComponent* sbtAnimationDatas = ptLibrary->atManagers[PL_COMPONENT_TYPE_ANIMATION_DATA].pComponents;
 
     for(uint32_t i = 0; i < pl_sb_size(sbtAnimations); i++)
     {
@@ -335,8 +282,8 @@ pl_ecs_cleanup_component_library(plComponentLibrary* ptLibrary)
 
     for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
     {
-        pl_sb_free(ptLibrary->_ptManagers[i]->pComponents);
-        pl_sb_free(ptLibrary->_ptManagers[i]->sbtEntities);
+        pl_sb_free(ptLibrary->atManagers[i].pComponents);
+        pl_sb_free(ptLibrary->atManagers[i].sbtEntities);
         pl_hm_free(&ptLibrary->atHashmaps[i]);
     }
     pl_hm_free(&ptLibrary->atHashmaps[PL_COMPONENT_TYPE_COUNT]);
@@ -394,139 +341,139 @@ pl_ecs_remove_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
             
 
             // must keep valid entities contiguous (move last entity into removed slot)
-            if(pl_sb_size(ptLibrary->_ptManagers[i]->sbtEntities) > 1)
+            if(pl_sb_size(ptLibrary->atManagers[i].sbtEntities) > 1)
             {
-                plEntity tLastEntity = pl_sb_back(ptLibrary->_ptManagers[i]->sbtEntities);
+                plEntity tLastEntity = pl_sb_back(ptLibrary->atManagers[i].sbtEntities);
                 pl_hm_remove(&ptLibrary->atHashmaps[i], tLastEntity.uIndex);
                 uint64_t _unUsed = pl_hm_get_free_index(&ptLibrary->atHashmaps[i]); // burn slot
                 pl_hm_insert(&ptLibrary->atHashmaps[i], tLastEntity.uIndex, uEntityValue);
             }
 
-            pl_sb_del_swap(ptLibrary->_ptManagers[i]->sbtEntities, uEntityValue);
+            pl_sb_del_swap(ptLibrary->atManagers[i].sbtEntities, uEntityValue);
             switch(i)
             {
                 case PL_COMPONENT_TYPE_TAG:
                 {
-                    plTagComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plTagComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_TRANSFORM:
                 {
-                    plTransformComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plTransformComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_MESH:
                 {
-                    plMeshComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plMeshComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_OBJECT:
                 {
-                    plObjectComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plObjectComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_HIERARCHY:
                 {
-                    plHierarchyComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plHierarchyComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_MATERIAL:
                 {
-                    plMaterialComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plMaterialComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_SKIN:
                 {
-                    plSkinComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plSkinComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_CAMERA:
                 {
-                    plCameraComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plCameraComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_ANIMATION:
                 {
-                    plAnimationComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plAnimationComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_ANIMATION_DATA:
                 {
-                    plAnimationDataComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plAnimationDataComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_INVERSE_KINEMATICS:
                 {
-                    plInverseKinematicsComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plInverseKinematicsComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_LIGHT:
                 {
-                    plLightComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plLightComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_SCRIPT:
                 {
-                    plScriptComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plScriptComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_HUMANOID:
                 {
-                    plHumanoidComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plHumanoidComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_ENVIRONMENT_PROBE:
                 {
-                    plEnvironmentProbeComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plEnvironmentProbeComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_LAYER:
                 {
-                    plLayerComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plLayerComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS:
                 {
-                    plRigidBodyPhysicsComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plRigidBodyPhysicsComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
 
                 case PL_COMPONENT_TYPE_FORCE_FIELD:
                 {
-                    plForceFieldComponent* sbComponents = ptLibrary->_ptManagers[i]->pComponents;
+                    plForceFieldComponent* sbComponents = ptLibrary->atManagers[i].pComponents;
                     pl_sb_del_swap(sbComponents, uEntityValue);
                     break;
                 }
@@ -569,7 +516,7 @@ pl_ecs_get_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
     if(tEntity.uIndex == UINT32_MAX)
         return NULL;
 
-    plComponentManager* ptManager = ptLibrary->_ptManagers[tType];
+    plComponentManager* ptManager = &ptLibrary->atManagers[tType];
 
     if(ptManager->ptParentLibrary->sbtEntityGenerations[tEntity.uIndex] != tEntity.uGeneration)
         return NULL;
@@ -589,7 +536,7 @@ pl_ecs_add_component(plComponentLibrary* ptLibrary, plComponentType tType, plEnt
     if(tEntity.uIndex == UINT32_MAX)
         return NULL;
 
-    plComponentManager* ptManager = ptLibrary->_ptManagers[tType];
+    plComponentManager* ptManager = &ptLibrary->atManagers[tType];
 
     if(ptManager->ptParentLibrary->sbtEntityGenerations[tEntity.uIndex] != tEntity.uGeneration)
         return NULL;
@@ -1463,7 +1410,7 @@ pl_ecs_attach_component(plComponentLibrary* ptLibrary, plEntity tEntity, plEntit
     plHierarchyComponent* ptHierarchyComponent = NULL;
 
     // check if entity already has a hierarchy component
-    if(pl_ecs_has_entity(&ptLibrary->tHierarchyComponentManager, tEntity))
+    if(pl_ecs_has_entity(&ptLibrary->atManagers[PL_COMPONENT_TYPE_HIERARCHY], tEntity))
     {
         ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tEntity);
     }
@@ -1480,7 +1427,7 @@ pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity)
     plHierarchyComponent* ptHierarchyComponent = NULL;
 
     // check if entity already has a hierarchy component
-    if(pl_ecs_has_entity(&ptLibrary->tHierarchyComponentManager, tEntity))
+    if(pl_ecs_has_entity(&ptLibrary->atManagers[PL_COMPONENT_TYPE_HIERARCHY], tEntity))
     {
         ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tEntity);
     }
@@ -1495,7 +1442,7 @@ static void
 pl_run_skin_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
-    plSkinComponent* sbtComponents = ptLibrary->tSkinComponentManager.pComponents;
+    plSkinComponent* sbtComponents = ptLibrary->atManagers[PL_COMPONENT_TYPE_SKIN].pComponents;
 
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
     for(uint32_t i = 0; i < uComponentCount; i++)
@@ -1506,7 +1453,7 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
         ptSkinComponent->tAABB.tMax = (plVec3){-FLT_MAX, -FLT_MAX, -FLT_MAX};
         ptSkinComponent->tAABB.tMin = (plVec3){FLT_MAX, FLT_MAX, FLT_MAX};
 
-        plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptLibrary->tSkinComponentManager.sbtEntities[i]);
+        plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptLibrary->atManagers[PL_COMPONENT_TYPE_SKIN].sbtEntities[i]);
         if(ptTransform)
         {
             plMat4 tInverseWorldTransform = pl_mat4_invert(&ptTransform->tWorld);
@@ -1549,7 +1496,7 @@ static void
 pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
 {
     plComponentLibrary* ptLibrary = pData;
-    plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
+    plObjectComponent* sbtComponents = ptLibrary->atManagers[PL_COMPONENT_TYPE_OBJECT].pComponents;
     plObjectComponent* ptObject = &sbtComponents[tInvoData.uGlobalIndex];
     plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptObject->tTransform);
     plMeshComponent* ptMesh = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, ptObject->tMesh);
@@ -1599,7 +1546,7 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     
-    plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
+    plObjectComponent* sbtComponents = ptLibrary->atManagers[PL_COMPONENT_TYPE_OBJECT].pComponents;
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
 
     plAtomicCounter* ptCounter = NULL;
@@ -1617,7 +1564,7 @@ static void
 pl_run_transform_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
-    plTransformComponent* sbtComponents = ptLibrary->tTransformComponentManager.pComponents;
+    plTransformComponent* sbtComponents = ptLibrary->atManagers[PL_COMPONENT_TYPE_TRANSFORM].pComponents;
 
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
     for(uint32_t i = 0; i < uComponentCount; i++)
@@ -1638,10 +1585,10 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
-    const uint32_t uComponentCount = pl_sb_size(ptLibrary->tHierarchyComponentManager.sbtEntities);
+    const uint32_t uComponentCount = pl_sb_size(ptLibrary->atManagers[PL_COMPONENT_TYPE_HIERARCHY].sbtEntities);
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
-        const plEntity tChildEntity = ptLibrary->tHierarchyComponentManager.sbtEntities[i];
+        const plEntity tChildEntity = ptLibrary->atManagers[PL_COMPONENT_TYPE_HIERARCHY].sbtEntities[i];
         plHierarchyComponent* ptHierarchyComponent = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tChildEntity);
         plTransformComponent* ptParentTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptHierarchyComponent->tParent);
         plTransformComponent* ptChildTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tChildEntity);
@@ -1660,12 +1607,12 @@ pl_run_script_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
-    plScriptComponent* sbtComponents = ptLibrary->tScriptComponentManager.pComponents;
+    plScriptComponent* sbtComponents = ptLibrary->atManagers[PL_COMPONENT_TYPE_SCRIPT].pComponents;
 
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
-        const plEntity tEnitity = ptLibrary->tScriptComponentManager.sbtEntities[i];
+        const plEntity tEnitity = ptLibrary->atManagers[PL_COMPONENT_TYPE_SCRIPT].sbtEntities[i];
         if(sbtComponents[i].tFlags == 0)
             continue;
 
@@ -1682,13 +1629,13 @@ pl_run_camera_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
-    plCameraComponent* sbtComponents = ptLibrary->tCameraComponentManager.pComponents;
+    plCameraComponent* sbtComponents = ptLibrary->atManagers[PL_COMPONENT_TYPE_CAMERA].pComponents;
 
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
-        plEntity tEntity = ptLibrary->tCameraComponentManager.sbtEntities[i];
-        if(pl_ecs_has_entity(&ptLibrary->tTransformComponentManager, tEntity))
+        plEntity tEntity = ptLibrary->atManagers[PL_COMPONENT_TYPE_CAMERA].sbtEntities[i];
+        if(pl_ecs_has_entity(&ptLibrary->atManagers[PL_COMPONENT_TYPE_TRANSFORM], tEntity))
         {
             plCameraComponent* ptCamera = &sbtComponents[i];
             plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
@@ -1705,13 +1652,13 @@ pl_run_light_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
-    plLightComponent* sbtComponents = ptLibrary->tLightComponentManager.pComponents;
+    plLightComponent* sbtComponents = ptLibrary->atManagers[PL_COMPONENT_TYPE_LIGHT].pComponents;
 
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
-        plEntity tEntity = ptLibrary->tLightComponentManager.sbtEntities[i];
-        if(pl_ecs_has_entity(&ptLibrary->tTransformComponentManager, tEntity))
+        plEntity tEntity = ptLibrary->atManagers[PL_COMPONENT_TYPE_LIGHT].sbtEntities[i];
+        if(pl_ecs_has_entity(&ptLibrary->atManagers[PL_COMPONENT_TYPE_TRANSFORM], tEntity))
         {
             plLightComponent* ptLight = &sbtComponents[i];
             plTransformComponent* ptTransform = pl_ecs_get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
@@ -1747,7 +1694,7 @@ static void
 pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
-    plAnimationComponent* sbtComponents = ptLibrary->tAnimationComponentManager.pComponents;
+    plAnimationComponent* sbtComponents = ptLibrary->atManagers[PL_COMPONENT_TYPE_ANIMATION].pComponents;
     
     const uint32_t uComponentCount = pl_sb_size(sbtComponents);
     for(uint32_t i = 0; i < uComponentCount; i++)
@@ -1939,8 +1886,8 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
-    plInverseKinematicsComponent* sbtComponents = ptLibrary->tInverseKinematicsComponentManager.pComponents;
-    plTransformComponent* sbtTransforms = ptLibrary->tTransformComponentManager.pComponents;
+    plInverseKinematicsComponent* sbtComponents = ptLibrary->atManagers[PL_COMPONENT_TYPE_INVERSE_KINEMATICS].pComponents;
+    plTransformComponent* sbtTransforms = ptLibrary->atManagers[PL_COMPONENT_TYPE_TRANSFORM].pComponents;
 
     plComponentLibraryData* ptData = ptLibrary->pInternal;
     pl_sb_resize(ptData->sbtTransformsCopy, pl_sb_size(sbtTransforms));
@@ -1951,16 +1898,16 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
 
-        const plEntity tIKEntity = ptLibrary->tInverseKinematicsComponentManager.sbtEntities[i];
-        const size_t uIKIndex = pl_ecs_get_index(&ptLibrary->tInverseKinematicsComponentManager, tIKEntity);
+        const plEntity tIKEntity = ptLibrary->atManagers[PL_COMPONENT_TYPE_INVERSE_KINEMATICS].sbtEntities[i];
+        const size_t uIKIndex = pl_ecs_get_index(&ptLibrary->atManagers[PL_COMPONENT_TYPE_INVERSE_KINEMATICS], tIKEntity);
 
         const plInverseKinematicsComponent* ptInverseKinematicsComponent = &sbtComponents[uIKIndex];
         
         if(!ptInverseKinematicsComponent->bEnabled)
             continue;
 
-        const size_t uTransformIndex = pl_ecs_get_index(&ptLibrary->tTransformComponentManager, tIKEntity);
-        const size_t uTargetIndex = pl_ecs_get_index(&ptLibrary->tTransformComponentManager, ptInverseKinematicsComponent->tTarget);
+        const size_t uTransformIndex = pl_ecs_get_index(&ptLibrary->atManagers[PL_COMPONENT_TYPE_TRANSFORM], tIKEntity);
+        const size_t uTargetIndex = pl_ecs_get_index(&ptLibrary->atManagers[PL_COMPONENT_TYPE_TRANSFORM], ptInverseKinematicsComponent->tTarget);
 
         plTransformComponent* ptTransform = &ptData->sbtTransformsCopy[uTransformIndex];
         plTransformComponent* ptTarget = &ptData->sbtTransformsCopy[uTargetIndex];
@@ -1984,7 +1931,7 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
                 aptStack[uChain] = ptChildTransform;
 
                 // compute required parent rotation that moves ik transform closer to target transform
-                const size_t uParentIndex = pl_ecs_get_index(&ptLibrary->tTransformComponentManager, tParentEntity);
+                const size_t uParentIndex = pl_ecs_get_index(&ptLibrary->atManagers[PL_COMPONENT_TYPE_TRANSFORM], tParentEntity);
                 PL_ASSERT(uParentIndex != UINT64_MAX);
                 plTransformComponent* ptParentTransform =  &ptData->sbtTransformsCopy[uParentIndex];
                 const plVec3 tParentPos = ptParentTransform->tWorld.col[3].xyz;
@@ -2012,7 +1959,7 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
                 if(ptHierParentComp)
                 {
                     plEntity tParentOfParentEntity = ptHierParentComp->tParent;
-                    const size_t uGrandParentIndex = pl_ecs_get_index(&ptLibrary->tTransformComponentManager, tParentOfParentEntity);
+                    const size_t uGrandParentIndex = pl_ecs_get_index(&ptLibrary->atManagers[PL_COMPONENT_TYPE_TRANSFORM], tParentOfParentEntity);
                     PL_ASSERT(uGrandParentIndex != UINT64_MAX);
                     plTransformComponent* ptParentOfParentTransform = &ptData->sbtTransformsCopy[uGrandParentIndex];
                     const plMat4 tParentOfParentInverse = pl_mat4_invert(&ptParentOfParentTransform->tWorld);
@@ -2049,12 +1996,12 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
     if(bRecomputeHierarchy)
     {
 
-        const uint32_t uHierarchyCount = pl_sb_size(ptLibrary->tHierarchyComponentManager.sbtEntities);
+        const uint32_t uHierarchyCount = pl_sb_size(ptLibrary->atManagers[PL_COMPONENT_TYPE_HIERARCHY].sbtEntities);
         for(uint32_t i = 0; i < uHierarchyCount; i++)
         {
-            const plEntity tChildEntity = ptLibrary->tHierarchyComponentManager.sbtEntities[i];
+            const plEntity tChildEntity = ptLibrary->atManagers[PL_COMPONENT_TYPE_HIERARCHY].sbtEntities[i];
             
-            const size_t uChildIndex = pl_ecs_get_index(&ptLibrary->tTransformComponentManager, tChildEntity);
+            const size_t uChildIndex = pl_ecs_get_index(&ptLibrary->atManagers[PL_COMPONENT_TYPE_TRANSFORM], tChildEntity);
             PL_ASSERT(uChildIndex != UINT64_MAX);
 
             const plTransformComponent* ptTransformChild = &ptData->sbtTransformsCopy[uChildIndex];
@@ -2066,7 +2013,7 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
             plEntity tParentID = ptHierarchyComponent->tParent;
             while(tParentID.uIndex != UINT32_MAX)
             {
-                const size_t uParentIndex = pl_ecs_get_index(&ptLibrary->tTransformComponentManager, tParentID);
+                const size_t uParentIndex = pl_ecs_get_index(&ptLibrary->atManagers[PL_COMPONENT_TYPE_TRANSFORM], tParentID);
                 if(uParentIndex == UINT64_MAX)
                     break;
                 plTransformComponent* ptTransformParent = &ptData->sbtTransformsCopy[uParentIndex];

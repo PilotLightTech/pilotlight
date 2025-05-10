@@ -699,7 +699,7 @@ pl_app_update(plAppData* ptAppData)
     // debug rendering
     if(ptAppData->bShowDebugLights)
     {
-        const plLightComponent* sbtLights = ptAppData->tComponentLibrary.tLightComponentManager.pComponents;
+        const plLightComponent* sbtLights = ptAppData->tComponentLibrary.atManagers[PL_COMPONENT_TYPE_LIGHT].pComponents;
         gptRenderer->debug_draw_lights(ptAppData->ptView, sbtLights, pl_sb_size(sbtLights));
     }
 

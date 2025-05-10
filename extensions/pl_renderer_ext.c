@@ -2268,7 +2268,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
 
     // create lighting shader
     {
-        const plLightComponent* sbtLights = ptScene->ptComponentLibrary->tLightComponentManager.pComponents;
+        const plLightComponent* sbtLights = ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_LIGHT].pComponents;
 
         int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
         plShaderDesc tLightingShaderDesc = {
@@ -2415,17 +2415,17 @@ pl_renderer_finalize_scene(plScene* ptScene)
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
 
-    plEntity* sbtProbes = ptScene->ptComponentLibrary->tEnvironmentProbeCompManager.sbtEntities;
+    plEntity* sbtProbes = ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_ENVIRONMENT_PROBE].sbtEntities;
     for(uint32_t i = 0; i < pl_sb_size(sbtProbes); i++)
         pl__renderer_create_probe_data(ptScene, sbtProbes[i]);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    plMaterialComponent* sbtMaterials = ptScene->ptComponentLibrary->tMaterialComponentManager.pComponents;
+    plMaterialComponent* sbtMaterials = ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_MATERIAL].pComponents;
     const uint32_t uMaterialCount = pl_sb_size(sbtMaterials);
-    pl_renderer_add_materials_to_scene(ptScene, uMaterialCount, ptScene->ptComponentLibrary->tMaterialComponentManager.sbtEntities);
+    pl_renderer_add_materials_to_scene(ptScene, uMaterialCount, ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_MATERIAL].sbtEntities);
 
-    const plLightComponent* sbtLights = ptScene->ptComponentLibrary->tLightComponentManager.pComponents;
+    const plLightComponent* sbtLights = ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_LIGHT].pComponents;
     pl_sb_reserve(ptScene->sbtVertexDataBuffer, 40000000);
     pl_sb_reserve(ptScene->sbtVertexPosBuffer, 15000000);
     int iLightCount = (int)pl_sb_size(sbtLights);
@@ -2705,7 +2705,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
     ptScene->uDShadowOffset = 0;
 
     // update CPU side light buffers
-    const plLightComponent* sbtLights = ptScene->ptComponentLibrary->tLightComponentManager.pComponents;
+    const plLightComponent* sbtLights = ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_LIGHT].pComponents;
     const uint32_t uLightCount = pl_sb_size(sbtLights);
     for(uint32_t i = 0; i < uLightCount; i++)
     {
@@ -3843,7 +3843,7 @@ pl_renderer_debug_draw_bvh(plView* ptView)
 {
     plScene* ptScene = ptView->ptParentScene;
     pl_begin_cpu_sample(gptProfile, 0, "draw BVH");
-    plObjectComponent* sbtComponents = ptScene->ptComponentLibrary->tObjectComponentManager.pComponents;
+    plObjectComponent* sbtComponents = ptScene->ptComponentLibrary->atManagers[PL_COMPONENT_TYPE_OBJECT].pComponents;
 
     plBVHNode* ptNode = NULL;
     uint32_t uLeafIndex = UINT32_MAX;
@@ -4517,7 +4517,7 @@ void
 pl_renderer_rebuild_bvh(plScene* ptScene)
 {
     plComponentLibrary* ptLibrary = ptScene->ptComponentLibrary;
-    plObjectComponent* sbtComponents = ptLibrary->tObjectComponentManager.pComponents;
+    plObjectComponent* sbtComponents = ptLibrary->atManagers[PL_COMPONENT_TYPE_OBJECT].pComponents;
     const uint32_t uObjectCount = pl_sb_size(sbtComponents);
     pl_sb_resize(ptScene->sbtBvhAABBs, uObjectCount);
     for(uint32_t j = 0; j < uObjectCount; j++)
