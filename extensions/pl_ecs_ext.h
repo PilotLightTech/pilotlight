@@ -41,7 +41,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plEcsI_version    {0, 2, 0}
+#define plEcsI_version    {0, 2, 1}
 #define plCameraI_version {0, 2, 0}
 
 //-----------------------------------------------------------------------------
@@ -133,6 +133,7 @@ typedef struct _plEcsI
     // setup/shutdown
     void     (*init_component_library)   (plComponentLibrary*);
     void     (*cleanup_component_library)(plComponentLibrary*);
+    void     (*reset_component_library)  (plComponentLibrary*);
 
     // misc
     plEntity (*create_entity)  (plComponentLibrary*); // prefer entity helpers below

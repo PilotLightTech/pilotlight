@@ -159,13 +159,19 @@ typedef struct _plAppData
     bool bResize;
 
     // ui options
+    bool  bShowBVH;
+    bool  bFrustumCulling;
     bool  bShowImGuiDemo;
+    bool  bContinuousBVH;
+    bool  bShowSkybox;
     bool  bShowPlotDemo;
     bool  bShowUiDemo;
     bool  bShowUiDebug;
     bool  bShowUiStyle;
     bool  bShowEntityWindow;
     bool  bShowPilotLightTool;
+    bool  bShowDebugLights;
+    bool  bDrawAllBoundingBoxes;
     bool* pbShowDeviceMemoryAnalyzer;
     bool* pbShowMemoryAllocations;
     bool* pbShowProfiling;
@@ -179,8 +185,9 @@ typedef struct _plAppData
     bool     bMainViewHovered;
 
     // scenes/views
-    uint32_t uSceneHandle0;
-    uint32_t uViewHandle0;
+    plComponentLibrary tCompLibrary;
+    plScene* ptScene;
+    plView*  ptView;
     plVec2 tView0Offset;
     plVec2 tView0Scale;
 
@@ -213,4 +220,4 @@ void pl__create_scene      (plAppData*);
 void pl__show_editor_window(plAppData*);
 void pl__show_ui_demo_window(plAppData* ptAppData);
 void pl__camera_update_imgui(plCameraComponent*);
-void pl__show_entity_components(plAppData*, uint32_t, plEntity);
+void pl__show_entity_components(plAppData*, plScene*, plEntity);

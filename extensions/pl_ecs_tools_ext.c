@@ -81,9 +81,8 @@ static plEcsToolsContext* gptEcsToolsCtx = NULL;
 //-----------------------------------------------------------------------------
 
 static bool
-pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbShowWindow)
+pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, plScene* ptScene, bool* pbShowWindow)
 {
-    plComponentLibrary* ptLibrary = gptRenderer->get_component_library(uSceneHandle);
     bool bResult = false;
 
     if(gptUI->begin_window("Entities", pbShowWindow, false))
@@ -332,8 +331,8 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     gptUI->text("Entity: %u, %u", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
                     if(gptUI->button("Delete"))
                     {
-                        gptRenderer->outline_entities(uSceneHandle, 0, NULL);
-                        gptRenderer->remove_objects_from_scene(uSceneHandle, 1, ptSelectedEntity);
+                        gptRenderer->outline_entities(ptScene, 0, NULL);
+                        gptRenderer->remove_objects_from_scene(ptScene, 1, ptSelectedEntity);
                         ptSelectedEntity->ulData = UINT64_MAX;
                     }
                     
@@ -672,7 +671,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                             ptObjectComp->tFlags &= ~PL_OBJECT_FLAGS_FOREGROUND;
                     }
                     if(bObjectUpdateRequired)
-                        gptRenderer->update_scene_objects(uSceneHandle, 1, ptSelectedEntity);
+                        gptRenderer->update_scene_objects(ptScene, 1, ptSelectedEntity);
                     gptUI->end_collapsing_header();
                 }
 
@@ -788,7 +787,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     if(gptUI->input_float4("Emmissive Factor", ptMaterialComp->tEmissiveColor.d, NULL, 0)) bMaterialModified = true;
 
                     if(bMaterialModified)
-                        gptRenderer->update_scene_materials(uSceneHandle, 1, ptSelectedEntity);
+                        gptRenderer->update_scene_materials(ptScene, 1, ptSelectedEntity);
 
                     static const char* apcBlendModeNames[] = 
                     {

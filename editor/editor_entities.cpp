@@ -19,11 +19,9 @@
 #define PL_ICON_FA_WIND "\xef\x9c\xae"	// U+f72e
 
 void
-pl__show_entity_components(plAppData* ptAppData, uint32_t uSceneHandle, plEntity tEntity)
+pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEntity)
 {
-    plComponentLibrary* ptLibrary = nullptr;
-    if(ptAppData->uSceneHandle0 != UINT32_MAX)
-        ptLibrary = gptRenderer->get_component_library(uSceneHandle);
+    plComponentLibrary* ptLibrary = &ptAppData->tCompLibrary;
     if(ImGui::Begin("Entity Components"))
     {
         if(ptLibrary && gptEcs->is_entity_valid(ptLibrary, tEntity))
@@ -342,7 +340,7 @@ pl__show_entity_components(plAppData* ptAppData, uint32_t uSceneHandle, plEntity
                         ptObjectComp->tFlags &= ~PL_OBJECT_FLAGS_FOREGROUND;
                 }
                 if(bObjectUpdateRequired)
-                    gptRenderer->update_scene_objects(uSceneHandle, 1, &tEntity);
+                    gptRenderer->update_scene_objects(ptScene, 1, &tEntity);
             }
 
             if(ptHierarchyComp && ImGui::CollapsingHeader(PL_ICON_FA_SITEMAP " Hierarchy"))
@@ -457,7 +455,7 @@ pl__show_entity_components(plAppData* ptAppData, uint32_t uSceneHandle, plEntity
                 if(ImGui::InputFloat4("Emmissive Factor", ptMaterialComp->tEmissiveColor.d)) bMaterialModified = true;
 
                 if(bMaterialModified)
-                    gptRenderer->update_scene_materials(uSceneHandle, 1, &tEntity);
+                    gptRenderer->update_scene_materials(ptScene, 1, &tEntity);
 
                 static const char* apcBlendModeNames[] = 
                 {

@@ -251,6 +251,56 @@ pl_ecs_init_component_library(plComponentLibrary* ptLibrary)
 }
 
 static void
+pl_ecs_reset_component_library(plComponentLibrary* ptLibrary)
+{
+    plMeshComponent* sbtMeshes = ptLibrary->tMeshComponentManager.pComponents;
+    plSkinComponent* sbtSkins = ptLibrary->tSkinComponentManager.pComponents;
+    plAnimationComponent* sbtAnimations = ptLibrary->tAnimationComponentManager.pComponents;
+    plAnimationDataComponent* sbtAnimationDatas = ptLibrary->tAnimationDataComponentManager.pComponents;
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtAnimations); i++)
+    {
+        pl_sb_free(sbtAnimations[i].sbtChannels);
+        pl_sb_free(sbtAnimations[i].sbtSamplers);
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtAnimationDatas); i++)
+    {
+        pl_sb_free(sbtAnimationDatas[i].sbfKeyFrameData);
+        pl_sb_free(sbtAnimationDatas[i].sbfKeyFrameTimes);
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtSkins); i++)
+    {
+        pl_sb_free(sbtSkins[i].sbtTextureData);
+        pl_sb_free(sbtSkins[i].sbtJoints);
+        pl_sb_free(sbtSkins[i].sbtInverseBindMatrices);
+    }
+
+    for(uint32_t i = 0; i < pl_sb_size(sbtMeshes); i++)
+    {
+        PL_FREE(sbtMeshes[i].puRawData);
+        sbtMeshes[i].puRawData = NULL;
+    }
+
+    for(uint32_t i = 0; i < PL_COMPONENT_TYPE_COUNT; i++)
+    {
+        pl_sb_reset(ptLibrary->_ptManagers[i]->pComponents);
+        pl_sb_reset(ptLibrary->_ptManagers[i]->sbtEntities);
+        pl_hm_free(&ptLibrary->atHashmaps[i]);
+    }
+    pl_hm_free(&ptLibrary->atHashmaps[PL_COMPONENT_TYPE_COUNT]);
+
+    plComponentLibraryData* ptData = ptLibrary->pInternal;
+    pl_sb_reset(ptData->sbtTransformsCopy);
+
+    // general
+    pl_sb_reset(ptLibrary->sbtEntityFreeIndices);
+    pl_sb_reset(ptLibrary->sbtEntityGenerations);
+    pl_sb_push(ptLibrary->sbtEntityGenerations, UINT32_MAX-1);
+}
+
+static void
 pl_ecs_cleanup_component_library(plComponentLibrary* ptLibrary)
 {
     plMeshComponent* sbtMeshes = ptLibrary->tMeshComponentManager.pComponents;
@@ -2415,6 +2465,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plEcsI tApi0 = {
         .init_component_library               = pl_ecs_init_component_library,
         .cleanup_component_library            = pl_ecs_cleanup_component_library,
+        .reset_component_library              = pl_ecs_reset_component_library,
         .create_entity                        = pl_ecs_create_entity,
         .remove_entity                        = pl_ecs_remove_entity,
         .get_entity                           = pl_ecs_get_entity,
@@ -2426,7 +2477,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_mesh                          = pl_ecs_create_mesh,
         .create_sphere_mesh                   = pl_ecs_create_sphere_mesh,
         .create_cube_mesh                     = pl_ecs_create_cube_mesh,
-        .create_plane_mesh                     = pl_ecs_create_plane_mesh,
+        .create_plane_mesh                    = pl_ecs_create_plane_mesh,
         .create_perspective_camera            = pl_ecs_create_perspective_camera,
         .create_orthographic_camera           = pl_ecs_create_orthographic_camera,
         .create_object                        = pl_ecs_create_object,
