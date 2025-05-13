@@ -733,7 +733,7 @@ plThreadResult
 pl_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
 {
     (*pptSemaphoreOut) = (plSemaphore*)PL_ALLOC(sizeof(plSemaphore));
-    (*pptSemaphoreOut)->tHandle = CreateSemaphore(NULL, uIntialCount, uIntialCount, NULL);
+    (*pptSemaphoreOut)->tHandle = CreateSemaphore(NULL, 0, uIntialCount, NULL);
     return PL_THREAD_RESULT_SUCCESS;
 }
 

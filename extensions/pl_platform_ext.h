@@ -35,7 +35,7 @@ Index of this file:
 #define plAtomicsI_version       {1, 0, 0}
 #define plFileI_version          {1, 0, 0}
 #define plNetworkI_version       {1, 0, 0}
-#define plThreadsI_version       {1, 0, 0}
+#define plThreadsI_version       {1, 0, 1}
 #define plVirtualMemoryI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
@@ -169,11 +169,11 @@ typedef struct _plThreadsI
     void           (*leave_critical_section)  (plCriticalSection*);
 
     // semaphores
-    plThreadResult (*create_semaphore)     (uint32_t intialCount, plSemaphore** semaphorePtrOut);
+    plThreadResult (*create_semaphore)     (uint32_t value, plSemaphore** semaphorePtrOut);
     void           (*destroy_semaphore)    (plSemaphore**);
-    void           (*wait_on_semaphore)    (plSemaphore*);
+    void           (*wait_on_semaphore)    (plSemaphore*); // waits until semaphore value is 0
     bool           (*try_wait_on_semaphore)(plSemaphore*);
-    void           (*release_semaphore)    (plSemaphore*);
+    void           (*release_semaphore)    (plSemaphore*); // decrements semaphore value
 
     // barriers
     plThreadResult (*create_barrier) (uint32_t threadCount, plBarrier** barrierPtrOut);
