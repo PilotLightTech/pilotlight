@@ -19,31 +19,45 @@
 #define PL_ICON_FA_WIND "\xef\x9c\xae"	// U+f72e
 
 void
-pl__show_entity_components(plAppData* ptAppData, uint32_t uSceneHandle, plEntity tEntity)
+pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEntity)
 {
-    plComponentLibrary* ptLibrary = nullptr;
-    if(ptAppData->uSceneHandle0 != UINT32_MAX)
-        ptLibrary = gptRenderer->get_component_library(uSceneHandle);
+    plComponentLibrary* ptLibrary = ptAppData->ptCompLibrary;
+    const plEcsTypeKey tTransformComponentType = gptEcs->get_ecs_type_key_transform();
+    const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
+    const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
+    const plEcsTypeKey tHierarchyComponentType = gptEcs->get_ecs_type_key_hierarchy();
+    const plEcsTypeKey tMaterialComponentType = gptRenderer->get_ecs_type_key_material();
+    const plEcsTypeKey tSkinComponentType = gptRenderer->get_ecs_type_key_skin();
+    const plEcsTypeKey tCameraComponentType = gptCamera->get_ecs_type_key();
+    const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
+    const plEcsTypeKey tInverseKinematicsComponentType = gptAnimation->get_ecs_type_key_inverse_kinematics();
+    const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
+    const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
+    const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
+    const plEcsTypeKey tScriptComponentType = gptEcs->get_ecs_type_key_script();
+    const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
+    const plEcsTypeKey tForceFieldComponentType = gptPhysics->get_ecs_type_key_force_field();
+
     if(ImGui::Begin("Entity Components"))
     {
         if(ptLibrary && gptEcs->is_entity_valid(ptLibrary, tEntity))
         {
-            plTagComponent*               ptTagComp           = (plTagComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, tEntity);
-            plTransformComponent*         ptTransformComp     = (plTransformComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
-            plMeshComponent*              ptMeshComp          = (plMeshComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, tEntity);
-            plObjectComponent*            ptObjectComp        = (plObjectComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, tEntity);
-            plHierarchyComponent*         ptHierarchyComp     = (plHierarchyComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, tEntity);
-            plMaterialComponent*          ptMaterialComp      = (plMaterialComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, tEntity);
-            plSkinComponent*              ptSkinComp          = (plSkinComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, tEntity);
-            plCameraComponent*            ptCameraComp        = (plCameraComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tEntity);
-            plAnimationComponent*         ptAnimationComp     = (plAnimationComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, tEntity);
-            plInverseKinematicsComponent* ptIKComp            = (plInverseKinematicsComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, tEntity);
-            plLightComponent*             ptLightComp         = (plLightComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, tEntity);
-            plEnvironmentProbeComponent*  ptProbeComp         = (plEnvironmentProbeComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, tEntity);
-            plHumanoidComponent*          ptHumanComp         = (plHumanoidComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, tEntity);
-            plScriptComponent*            ptScriptComp        = (plScriptComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, tEntity);
-            plRigidBodyPhysicsComponent*  ptRigidComp         = (plRigidBodyPhysicsComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
-            plForceFieldComponent*        ptForceField        = (plForceFieldComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, tEntity);
+            plTagComponent*               ptTagComp           = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), tEntity);
+            plTransformComponent*         ptTransformComp     = (plTransformComponent*)gptEcs->get_component(ptLibrary, tTransformComponentType, tEntity);
+            plMeshComponent*              ptMeshComp          = (plMeshComponent*)gptEcs->get_component(ptLibrary, tMeshComponentType, tEntity);
+            plObjectComponent*            ptObjectComp        = (plObjectComponent*)gptEcs->get_component(ptLibrary, tObjectComponentType, tEntity);
+            plHierarchyComponent*         ptHierarchyComp     = (plHierarchyComponent*)gptEcs->get_component(ptLibrary, tHierarchyComponentType, tEntity);
+            plMaterialComponent*          ptMaterialComp      = (plMaterialComponent*)gptEcs->get_component(ptLibrary, tMaterialComponentType, tEntity);
+            plSkinComponent*              ptSkinComp          = (plSkinComponent*)gptEcs->get_component(ptLibrary, tSkinComponentType, tEntity);
+            plCamera*            ptCameraComp        = (plCamera*)gptEcs->get_component(ptLibrary, tCameraComponentType, tEntity);
+            plAnimationComponent*         ptAnimationComp     = (plAnimationComponent*)gptEcs->get_component(ptLibrary, tAnimationComponentType, tEntity);
+            plInverseKinematicsComponent* ptIKComp            = (plInverseKinematicsComponent*)gptEcs->get_component(ptLibrary, tInverseKinematicsComponentType, tEntity);
+            plLightComponent*             ptLightComp         = (plLightComponent*)gptEcs->get_component(ptLibrary, tLightComponentType, tEntity);
+            plEnvironmentProbeComponent*  ptProbeComp         = (plEnvironmentProbeComponent*)gptEcs->get_component(ptLibrary, tEnvironmentProbeComponentType, tEntity);
+            plHumanoidComponent*          ptHumanComp         = (plHumanoidComponent*)gptEcs->get_component(ptLibrary, tHumanoidComponentType, tEntity);
+            plScriptComponent*            ptScriptComp        = (plScriptComponent*)gptEcs->get_component(ptLibrary, tScriptComponentType, tEntity);
+            plRigidBodyPhysicsComponent*  ptRigidComp         = (plRigidBodyPhysicsComponent*)gptEcs->get_component(ptLibrary, tRigidBodyComponentType, tEntity);
+            plForceFieldComponent*        ptForceField        = (plForceFieldComponent*)gptEcs->get_component(ptLibrary, tForceFieldComponentType, tEntity);
             
             if(ptTagComp && ImGui::CollapsingHeader("Tag"))
             {
@@ -270,8 +284,8 @@ pl__show_entity_components(plAppData* ptAppData, uint32_t uSceneHandle, plEntity
             if(ptMeshComp && ImGui::CollapsingHeader(PL_ICON_FA_CUBE " Mesh"))
             {
 
-                plTagComponent* ptMaterialTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tMaterial);
-                plTagComponent* ptSkinTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tSkinComponent);
+                plTagComponent* ptMaterialTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptMeshComp->tMaterial);
+                plTagComponent* ptSkinTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptMeshComp->tSkinComponent);
                 ImGui::Text("Material: %s, %u", ptMaterialTagComp->acName, ptMeshComp->tMaterial.uIndex);
                 ImGui::Text("Skin:     %s, %u", ptSkinTagComp ? ptSkinTagComp->acName : " ", ptSkinTagComp ? ptMeshComp->tSkinComponent.uIndex : 0);
 
@@ -294,8 +308,8 @@ pl__show_entity_components(plAppData* ptAppData, uint32_t uSceneHandle, plEntity
 
             if(ptObjectComp && ImGui::CollapsingHeader(PL_ICON_FA_GHOST " Object"))
             {
-                plTagComponent* ptMeshTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tMesh);
-                plTagComponent* ptTransformTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tTransform);
+                plTagComponent* ptMeshTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptObjectComp->tMesh);
+                plTagComponent* ptTransformTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptObjectComp->tTransform);
 
                 ImGui::Text("Mesh Entity:      %s, %u", ptMeshTagComp->acName, ptObjectComp->tMesh.uIndex);
                 ImGui::Text("Transform Entity: %s, %u", ptTransformTagComp->acName, ptObjectComp->tTransform.uIndex);
@@ -342,12 +356,12 @@ pl__show_entity_components(plAppData* ptAppData, uint32_t uSceneHandle, plEntity
                         ptObjectComp->tFlags &= ~PL_OBJECT_FLAGS_FOREGROUND;
                 }
                 if(bObjectUpdateRequired)
-                    gptRenderer->update_scene_objects(uSceneHandle, 1, &tEntity);
+                    gptRenderer->update_scene_objects(ptScene, 1, &tEntity);
             }
 
             if(ptHierarchyComp && ImGui::CollapsingHeader(PL_ICON_FA_SITEMAP " Hierarchy"))
             {
-                plTagComponent* ptParentTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptHierarchyComp->tParent);
+                plTagComponent* ptParentTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptHierarchyComp->tParent);
                 ImGui::Text("Parent Entity: %s , %u", ptParentTagComp->acName, ptHierarchyComp->tParent.uIndex);
             }
 
@@ -457,7 +471,7 @@ pl__show_entity_components(plAppData* ptAppData, uint32_t uSceneHandle, plEntity
                 if(ImGui::InputFloat4("Emmissive Factor", ptMaterialComp->tEmissiveColor.d)) bMaterialModified = true;
 
                 if(bMaterialModified)
-                    gptRenderer->update_scene_materials(uSceneHandle, 1, &tEntity);
+                    gptRenderer->update_scene_materials(ptScene, 1, &tEntity);
 
                 static const char* apcBlendModeNames[] = 
                 {
@@ -517,7 +531,7 @@ pl__show_entity_components(plAppData* ptAppData, uint32_t uSceneHandle, plEntity
                 {
                     for(uint32_t i = 0; i < pl_sb_size(ptSkinComp->sbtJoints); i++)
                     {
-                        plTagComponent* ptJointTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptSkinComp->sbtJoints[i]);
+                        plTagComponent* ptJointTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptSkinComp->sbtJoints[i]);
                         ImGui::Text("%s", ptJointTagComp->acName);  
                     }
                     ImGui::TreePop();
@@ -570,7 +584,7 @@ pl__show_entity_components(plAppData* ptAppData, uint32_t uSceneHandle, plEntity
 
             if(ptIKComp && ImGui::CollapsingHeader(PL_ICON_FA_DRAW_POLYGON " Inverse Kinematics"))
             { 
-                plTagComponent* ptTargetComp = (plTagComponent*)gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptIKComp->tTarget);
+                plTagComponent* ptTargetComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptIKComp->tTarget);
                 ImGui::Text("Target Entity: %s , %u", ptTargetComp->acName, ptIKComp->tTarget.uIndex);
                 static const uint32_t uChainMin = 1;
                 static const uint32_t uChainMax = 5;

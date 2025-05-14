@@ -155,6 +155,9 @@ jobs:
         if not exist ../out/pl_draw_ext.dll exit 1
         if not exist ../out/pl_ecs_ext.dll exit 1
         if not exist ../out/pl_ecs_tools_ext.dll exit 1
+        if not exist ../out/pl_animation_ext.dll exit 1
+        if not exist ../out/pl_mesh_ext.dll exit 1
+        if not exist ../out/pl_camera_ext.dll exit 1
         if not exist ../out/pl_gizmo_ext.dll exit 1
         if not exist ../out/pl_gpu_allocators_ext.dll exit 1
         if not exist ../out/pl_graphics_ext.dll exit 1
@@ -351,6 +354,9 @@ jobs:
         test -f ./out/pl_draw_ext.dylib || exit 1
         test -f ./out/pl_ecs_ext.dylib || exit 1
         test -f ./out/pl_ecs_tools_ext.dylib || exit 1
+        test -f ./out/pl_animation_ext.dylib || exit 1
+        test -f ./out/pl_mesh_ext.dylib || exit 1
+        test -f ./out/pl_camera_ext.dylib || exit 1
         test -f ./out/pl_gizmo_ext.dylib || exit 1
         test -f ./out/pl_gpu_allocators_ext.dylib || exit 1
         test -f ./out/pl_graphics_ext.dylib || exit 1
@@ -557,6 +563,9 @@ jobs:
         test -f ./out/pl_draw_ext.so || exit 1
         test -f ./out/pl_ecs_ext.so || exit 1
         test -f ./out/pl_ecs_tools_ext.so || exit 1
+        test -f ./out/pl_animation_ext.so || exit 1
+        test -f ./out/pl_mesh_ext.so || exit 1
+        test -f ./out/pl_camera_ext.so || exit 1
         test -f ./out/pl_gizmo_ext.so || exit 1
         test -f ./out/pl_gpu_allocators_ext.so || exit 1
         test -f ./out/pl_graphics_ext.so || exit 1

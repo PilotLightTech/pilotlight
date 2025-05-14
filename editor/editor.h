@@ -55,6 +55,9 @@ Index of this file:
 
 // unstable extensions
 #include "pl_ecs_ext.h"
+#include "pl_mesh_ext.h"
+#include "pl_animation_ext.h"
+#include "pl_camera_ext.h"
 #include "pl_config_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_model_loader_ext.h"
@@ -74,47 +77,49 @@ Index of this file:
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-const plWindowI*       gptWindows     = NULL;
-const plStatsI*        gptStats       = NULL;
-const plGraphicsI*     gptGfx         = NULL;
-const plToolsI*        gptTools       = NULL;
-const plEcsI*          gptEcs         = NULL;
-const plCameraI*       gptCamera      = NULL;
-const plRendererI*     gptRenderer    = NULL;
-const plModelLoaderI*  gptModelLoader = NULL;
-const plJobI*          gptJobs        = NULL;
-const plDrawI*         gptDraw        = NULL;
-const plDrawBackendI*  gptDrawBackend = NULL;
-const plUiI*           gptUI          = NULL;
-const plIOI*           gptIO          = NULL;
-const plShaderI*       gptShader      = NULL;
-const plMemoryI*       gptMemory      = NULL;
-const plNetworkI*      gptNetwork     = NULL;
-const plStringInternI* gptString      = NULL;
-const plProfileI*      gptProfile     = NULL;
-const plFileI*         gptFile        = NULL;
-const plEcsToolsI*     gptEcsTools    = NULL;
-const plGizmoI*        gptGizmo       = NULL;
-const plConsoleI*      gptConsole     = NULL;
-const plScreenLogI*    gptScreenLog   = NULL;
-const plPhysicsI *     gptPhysics     = NULL;
-const plCollisionI*    gptCollision   = NULL;
-const plBVHI*          gptBvh         = NULL;
-const plConfigI*       gptConfig      = NULL;
-const plDearImGuiI*    gptDearImGui   = NULL;
-const plResourceI*     gptResource    = NULL;
-const plStarterI*      gptStarter     = NULL;
+const plWindowI*       gptWindows     = nullptr;
+const plStatsI*        gptStats       = nullptr;
+const plGraphicsI*     gptGfx         = nullptr;
+const plToolsI*        gptTools       = nullptr;
+const plEcsI*          gptEcs         = nullptr;
+const plCameraI*       gptCamera      = nullptr;
+const plRendererI*     gptRenderer    = nullptr;
+const plModelLoaderI*  gptModelLoader = nullptr;
+const plJobI*          gptJobs        = nullptr;
+const plDrawI*         gptDraw        = nullptr;
+const plDrawBackendI*  gptDrawBackend = nullptr;
+const plUiI*           gptUI          = nullptr;
+const plIOI*           gptIO          = nullptr;
+const plShaderI*       gptShader      = nullptr;
+const plMemoryI*       gptMemory      = nullptr;
+const plNetworkI*      gptNetwork     = nullptr;
+const plStringInternI* gptString      = nullptr;
+const plProfileI*      gptProfile     = nullptr;
+const plFileI*         gptFile        = nullptr;
+const plEcsToolsI*     gptEcsTools    = nullptr;
+const plGizmoI*        gptGizmo       = nullptr;
+const plConsoleI*      gptConsole     = nullptr;
+const plScreenLogI*    gptScreenLog   = nullptr;
+const plPhysicsI *     gptPhysics     = nullptr;
+const plCollisionI*    gptCollision   = nullptr;
+const plBVHI*          gptBvh         = nullptr;
+const plConfigI*       gptConfig      = nullptr;
+const plDearImGuiI*    gptDearImGui   = nullptr;
+const plResourceI*     gptResource    = nullptr;
+const plStarterI*      gptStarter     = nullptr;
+const plAnimationI*      gptAnimation     = nullptr;
+const plMeshI*         gptMesh        = nullptr;
 
-#define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_ALLOC(x)      gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
 #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
-#define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
-#define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+#define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
+#define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(nullptr, (x), FILE, LINE)
 #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 #include "pl_ds.h"
 
-#define PL_JSON_ALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_JSON_ALLOC(x) gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
 #define PL_JSON_FREE(x)  gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
 //-----------------------------------------------------------------------------
@@ -159,13 +164,19 @@ typedef struct _plAppData
     bool bResize;
 
     // ui options
+    bool  bShowBVH;
+    bool  bFrustumCulling;
     bool  bShowImGuiDemo;
+    bool  bContinuousBVH;
+    bool  bShowSkybox;
     bool  bShowPlotDemo;
     bool  bShowUiDemo;
     bool  bShowUiDebug;
     bool  bShowUiStyle;
     bool  bShowEntityWindow;
     bool  bShowPilotLightTool;
+    bool  bShowDebugLights;
+    bool  bDrawAllBoundingBoxes;
     bool* pbShowDeviceMemoryAnalyzer;
     bool* pbShowMemoryAllocations;
     bool* pbShowProfiling;
@@ -179,8 +190,9 @@ typedef struct _plAppData
     bool     bMainViewHovered;
 
     // scenes/views
-    uint32_t uSceneHandle0;
-    uint32_t uViewHandle0;
+    plComponentLibrary* ptCompLibrary;
+    plScene* ptScene;
+    plView*  ptView;
     plVec2 tView0Offset;
     plVec2 tView0Scale;
 
@@ -212,5 +224,5 @@ void pl__find_models       (plAppData*);
 void pl__create_scene      (plAppData*);
 void pl__show_editor_window(plAppData*);
 void pl__show_ui_demo_window(plAppData* ptAppData);
-void pl__camera_update_imgui(plCameraComponent*);
-void pl__show_entity_components(plAppData*, uint32_t, plEntity);
+void pl__camera_update_imgui(plCamera*);
+void pl__show_entity_components(plAppData*, plScene*, plEntity);

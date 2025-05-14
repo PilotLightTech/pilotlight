@@ -66,6 +66,7 @@ Index of this file:
 
 // unstable extensions
 #include "pl_ecs_ext.h"
+#include "pl_animation_ext.h"
 #include "pl_collision_ext.h"
 
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -209,6 +210,10 @@ typedef struct _plPhysicsContext
     // collision data
     plCollisionPrimitive* sbtPrimitives;
     plContact*            sbtContactArray;
+
+    // ecs
+    plEcsTypeKey tRigidBodyPhysicsComponentType;
+    plEcsTypeKey tForceFieldComponentType;
 } plPhysicsContext;
 
 //-----------------------------------------------------------------------------
@@ -303,6 +308,47 @@ pl__set_awake(plRigidBody* ptBody, bool bAwake)
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
+plEcsTypeKey
+pl_physics_get_ecs_type_key_rigid_body_physics(void)
+{
+    return gptPhysicsCtx->tRigidBodyPhysicsComponentType;
+}
+
+plEcsTypeKey
+pl_physics_get_ecs_type_key_force_field(void)
+{
+    return gptPhysicsCtx->tForceFieldComponentType;
+}
+
+void
+pl_physics_register_system(void)
+{
+    const plComponentDesc tRigidBodyDesc = {
+        .pcName = "Rigid Body Physics",
+        .szSize = sizeof(plRigidBodyPhysicsComponent)
+    };
+    
+    static const plRigidBodyPhysicsComponent tRigidBodyComponentDefault = {
+        .fMass           = 1.0f,
+        .tFlags          = PL_RIGID_BODY_PHYSICS_FLAG_NONE,
+        .fRadius         = 0.5f,
+        .tShape          = PL_COLLISION_SHAPE_SPHERE,
+        .fRestitution    = 0.2f,
+        .fLinearDamping  = 0.05f,
+        .fFriction       = 0.5f,
+        .fAngularDamping = 0.20f,
+        .uPhysicsObject  = UINT64_MAX,
+        .tGravity        = {0.0f, -10.0f, 0.0f}
+    };
+    gptPhysicsCtx->tRigidBodyPhysicsComponentType = gptECS->register_type(tRigidBodyDesc, &tRigidBodyComponentDefault);
+
+    const plComponentDesc tForceFieldDesc = {
+        .pcName = "Force Field",
+        .szSize = sizeof(plForceFieldComponent)
+    };
+    gptPhysicsCtx->tForceFieldComponentType = gptECS->register_type(tForceFieldDesc, NULL);
+}
+
 void
 pl_physics_set_settings(plPhysicsEngineSettings tSettings)
 {
@@ -350,8 +396,8 @@ pl_physics_cleanup(void)
 void
 pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
-    plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+    plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
+    plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_transform(), tEntity);
 
     plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, tEntity);
 
@@ -515,8 +561,8 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
 
     const float fSubstepTime = (1.0f / gptPhysicsCtx->tSettings.fSimulationFrameRate);
 
-    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
-    const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
+    plEntity* ptRigidBodyEntities = NULL;
+    const uint32_t uRigidBodyCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
 
     // update stats
     static double* pdPhysicsObjects = NULL;
@@ -533,7 +579,7 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
         // register rigid bodies or update them if they already exists
-        pl_physics_create_rigid_body(ptLibrary, sbtRigidBodyEntities[i]);
+        pl_physics_create_rigid_body(ptLibrary, ptRigidBodyEntities[i]);
     }
     pl_end_cpu_sample(gptProfile, 0);
 
@@ -566,10 +612,12 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
 
     // update transforms
     pl_begin_cpu_sample(gptProfile, 0, "Update Transforms");
+    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
-        plTransformComponent* ptSphereTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, sbtRigidBodyEntities[i]);
-        plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, sbtRigidBodyEntities[i]);
+        plTransformComponent* ptSphereTransform = gptECS->get_component(ptLibrary, tTransformComponentType, ptRigidBodyEntities[i]);
+        plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, tRigidBodyPhysicsComponentType, ptRigidBodyEntities[i]);
         plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[i];
 
         plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, ptBody->tEntity);
@@ -597,13 +645,16 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 {
     pl_begin_cpu_sample(gptProfile, 0, "Physics Draw");
 
-    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
-    const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
+    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+
+    plEntity* ptRigidBodyEntities = NULL;
+    const uint32_t uRigidBodyCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
+
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
-        plEntity tEntity = sbtRigidBodyEntities[i];
-        plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
-        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+        plEntity tEntity = ptRigidBodyEntities[i];
+        plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
+        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, tTransformComponentType, tEntity);
 
         plMat4 tParentTransform = gptECS->compute_parent_transform(ptLibrary, tEntity);
         plVec3 tWorldTranslation = pl_mul_mat4_vec3(&tParentTransform, ptTransform->tTranslation);
@@ -672,13 +723,15 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
     }
 
     // draw force field
-    plEntity* sbtForceFieldEntities = ptLibrary->tForceFieldComponentManager.sbtEntities;
-    const uint32_t uForceFieldCount = pl_sb_size(sbtForceFieldEntities);
+
+    plEntity* ptForceFieldEntities = NULL;
+    const uint32_t uForceFieldCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tForceFieldComponentType, NULL, &ptForceFieldEntities);
+
     for(uint32_t i = 0; i < uForceFieldCount; i++)
     {
-        plEntity tEntity = sbtForceFieldEntities[i];
-        plForceFieldComponent* ptForceField = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, tEntity);
-        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+        plEntity tEntity = ptForceFieldEntities[i];
+        plForceFieldComponent* ptForceField = gptECS->get_component(ptLibrary, gptPhysicsCtx->tForceFieldComponentType, tEntity);
+        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, tTransformComponentType, tEntity);
 
         if(ptForceField->tType == PL_FORCE_FIELD_TYPE_POINT)
         {
@@ -706,7 +759,7 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 void
 pl_physics_set_linear_velocity(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tVelocity)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -720,7 +773,7 @@ pl_physics_set_linear_velocity(plComponentLibrary* ptLibrary, plEntity tEntity, 
 void
 pl_physics_set_angular_velocity(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tVelocity)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -734,7 +787,7 @@ pl_physics_set_angular_velocity(plComponentLibrary* ptLibrary, plEntity tEntity,
 void
 pl_physics_apply_force(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tForce)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -751,7 +804,7 @@ pl_physics_apply_force(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 t
 void
 pl_physics_apply_force_at_point(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tForce, plVec3 tPoint)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -779,7 +832,7 @@ pl_physics_apply_force_at_point(plComponentLibrary* ptLibrary, plEntity tEntity,
 void
 pl_physics_apply_force_at_body_point(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tForce, plVec3 tPoint)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -808,7 +861,7 @@ pl_physics_apply_force_at_body_point(plComponentLibrary* ptLibrary, plEntity tEn
 void
 pl_physics_apply_impulse(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tForce)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -826,7 +879,7 @@ pl_physics_apply_impulse(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3
 void
 pl_physics_apply_impulse_at_point(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tForce, plVec3 tPoint)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -855,7 +908,7 @@ void
 pl_physics_apply_impulse_at_body_point(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tForce, plVec3 tPoint)
 {
 
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -883,7 +936,7 @@ pl_physics_apply_impulse_at_body_point(plComponentLibrary* ptLibrary, plEntity t
 void
 pl_physics_apply_torque(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tTorque)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -899,7 +952,7 @@ pl_physics_apply_torque(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 
 void
 pl_physics_apply_impulse_torque(plComponentLibrary* ptLibrary, plEntity tEntity, plVec3 tTorque)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -916,7 +969,7 @@ pl_physics_apply_impulse_torque(plComponentLibrary* ptLibrary, plEntity tEntity,
 void
 pl_physics_wake_up_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -928,7 +981,7 @@ pl_physics_wake_up_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 void
 pl_physics_sleep_body(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
+    plRigidBodyPhysicsComponent* ptBody = gptECS->get_component(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, tEntity);
 
     if(ptBody && ptBody->uPhysicsObject != UINT64_MAX)
     {
@@ -966,16 +1019,19 @@ pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, "Update Force Fields");
 
-    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
-    const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
+    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
-    plEntity* sbtForceFieldEntities = ptLibrary->tForceFieldComponentManager.sbtEntities;
-    const uint32_t uForceFieldCount = pl_sb_size(sbtForceFieldEntities);
+    plEntity* ptRigidBodyEntities = NULL;
+    const uint32_t uRigidBodyCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
+
+    plEntity* ptForceFieldEntities = NULL;
+    const uint32_t uForceFieldCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tForceFieldComponentType, NULL, &ptForceFieldEntities);
+
     for(uint32_t i = 0; i < uForceFieldCount; i++)
     {
-        plEntity tEntity = sbtForceFieldEntities[i];
-        plForceFieldComponent* ptForceField = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, tEntity);
-        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+        plEntity tEntity = ptForceFieldEntities[i];
+        plForceFieldComponent* ptForceField = gptECS->get_component(ptLibrary, gptPhysicsCtx->tForceFieldComponentType, tEntity);
+        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, tTransformComponentType, tEntity);
 
         if(ptForceField->tType == PL_FORCE_FIELD_TYPE_POINT)
         {
@@ -1034,8 +1090,11 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, "Collision Detection");
 
-    plEntity* sbtRigidBodyEntities = ptLibrary->tRigidBodyPhysicsComponentManager.sbtEntities;
-    const uint32_t uRigidBodyCount = pl_sb_size(sbtRigidBodyEntities);
+    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
+
+    plEntity* ptRigidBodyEntities = NULL;
+    const uint32_t uRigidBodyCount = gptECS->get_components(ptLibrary, tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
 
     // plCollisionPrimitive tPrimFloor = {
     //     .tType = PL_COLLISION_PRIMITIVE_TYPE_PLANE,
@@ -1051,9 +1110,9 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
     // adding primitives for detection & going ahead and checking collision with the floor
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
-        plEntity tEntity = sbtRigidBodyEntities[i];
-        plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, tEntity);
-        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, tEntity);
+        plEntity tEntity = ptRigidBodyEntities[i];
+        plRigidBodyPhysicsComponent* ptRigidBody = gptECS->get_component(ptLibrary, tRigidBodyPhysicsComponentType, tEntity);
+        plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, tTransformComponentType, tEntity);
 
         if(ptRigidBody->tShape == PL_COLLISION_SHAPE_BOX)
         {
@@ -2007,28 +2066,31 @@ PL_EXPORT void
 pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plPhysicsI tApi = {
-        .initialize                  = pl_physics_initialize,
-        .cleanup                     = pl_physics_cleanup,
-        .reset                       = pl_physics_reset,
-        .set_settings                = pl_physics_set_settings,
-        .get_settings                = pl_physics_get_settings,
-        .update                      = pl_physics_update,
-        .create_rigid_body           = pl_physics_create_rigid_body,
-        .draw                        = pl_physics_draw,
-        .set_linear_velocity         = pl_physics_set_linear_velocity,
-        .set_angular_velocity        = pl_physics_set_angular_velocity,
-        .apply_force                 = pl_physics_apply_force,
-        .apply_force_at_point        = pl_physics_apply_force_at_point,
-        .apply_force_at_body_point   = pl_physics_apply_force_at_body_point,
-        .apply_impulse               = pl_physics_apply_impulse,
-        .apply_impulse_at_point      = pl_physics_apply_impulse_at_point,
-        .apply_impulse_at_body_point = pl_physics_apply_impulse_at_body_point,
-        .apply_torque                = pl_physics_apply_torque,
-        .apply_impulse_torque        = pl_physics_apply_impulse_torque,
-        .wake_up_body                = pl_physics_wake_up_body,
-        .wake_up_all                 = pl_physics_wake_up_all,
-        .sleep_body                  = pl_physics_sleep_body,
-        .sleep_all                   = pl_physics_sleep_all,
+        .initialize                          = pl_physics_initialize,
+        .cleanup                             = pl_physics_cleanup,
+        .reset                               = pl_physics_reset,
+        .set_settings                        = pl_physics_set_settings,
+        .get_settings                        = pl_physics_get_settings,
+        .update                              = pl_physics_update,
+        .create_rigid_body                   = pl_physics_create_rigid_body,
+        .draw                                = pl_physics_draw,
+        .set_linear_velocity                 = pl_physics_set_linear_velocity,
+        .set_angular_velocity                = pl_physics_set_angular_velocity,
+        .apply_force                         = pl_physics_apply_force,
+        .apply_force_at_point                = pl_physics_apply_force_at_point,
+        .apply_force_at_body_point           = pl_physics_apply_force_at_body_point,
+        .apply_impulse                       = pl_physics_apply_impulse,
+        .apply_impulse_at_point              = pl_physics_apply_impulse_at_point,
+        .apply_impulse_at_body_point         = pl_physics_apply_impulse_at_body_point,
+        .apply_torque                        = pl_physics_apply_torque,
+        .apply_impulse_torque                = pl_physics_apply_impulse_torque,
+        .wake_up_body                        = pl_physics_wake_up_body,
+        .wake_up_all                         = pl_physics_wake_up_all,
+        .sleep_body                          = pl_physics_sleep_body,
+        .sleep_all                           = pl_physics_sleep_all,
+        .register_ecs_system                 = pl_physics_register_system,
+        .get_ecs_type_key_force_field        = pl_physics_get_ecs_type_key_force_field,
+        .get_ecs_type_key_rigid_body_physics = pl_physics_get_ecs_type_key_rigid_body_physics,
     };
     pl_set_api(ptApiRegistry, plPhysicsI, &tApi);
 

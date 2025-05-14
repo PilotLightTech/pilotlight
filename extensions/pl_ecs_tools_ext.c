@@ -19,9 +19,12 @@ Index of this file:
 #include "pl.h"
 #include "pl_ecs_tools_ext.h"
 #include "pl_ecs_ext.h"
+#include "pl_animation_ext.h"
+#include "pl_camera_ext.h"
 #include "pl_renderer_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_physics_ext.h"
+#include "pl_mesh_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -29,9 +32,12 @@ Index of this file:
 
 static const plMemoryI*   gptMemory = NULL;
 static const plEcsI*      gptECS      = NULL;
+static const plAnimationI*  gptAnimation = NULL;
 static const plUiI*       gptUI       = NULL;
 static const plRendererI* gptRenderer = NULL;
 static const plPhysicsI*  gptPhysics = NULL;
+static const plCameraI*   gptCamera = NULL;
+static const plMeshI*     gptMesh = NULL;
 
 #ifndef PL_DS_ALLOC
     
@@ -81,9 +87,8 @@ static plEcsToolsContext* gptEcsToolsCtx = NULL;
 //-----------------------------------------------------------------------------
 
 static bool
-pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbShowWindow)
+pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, plScene* ptScene, bool* pbShowWindow)
 {
-    plComponentLibrary* ptLibrary = gptRenderer->get_component_library(uSceneHandle);
     bool bResult = false;
 
     if(gptUI->begin_window("Entities", pbShowWindow, false))
@@ -121,23 +126,41 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
             PL_ICON_FA_WIND " Force Field",
         };
 
-        static plComponentType atComponentTypes[] = {
-            PL_COMPONENT_TYPE_COUNT,
-            PL_COMPONENT_TYPE_TRANSFORM,
-            PL_COMPONENT_TYPE_MESH,
-            PL_COMPONENT_TYPE_OBJECT,
-            PL_COMPONENT_TYPE_HIERARCHY,
-            PL_COMPONENT_TYPE_MATERIAL,
-            PL_COMPONENT_TYPE_SKIN,
-            PL_COMPONENT_TYPE_CAMERA,
-            PL_COMPONENT_TYPE_ANIMATION,
-            PL_COMPONENT_TYPE_INVERSE_KINEMATICS,
-            PL_COMPONENT_TYPE_LIGHT,
-            PL_COMPONENT_TYPE_ENVIRONMENT_PROBE,
-            PL_COMPONENT_TYPE_HUMANOID,
-            PL_COMPONENT_TYPE_SCRIPT,
-            PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS,
-            PL_COMPONENT_TYPE_FORCE_FIELD,
+        // const plEcsTypeKey tTransformComponentType = gptAnimation->get_ecs_type_key_transform();
+
+        const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+        const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
+        const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
+        const plEcsTypeKey tHierarchyComponentType = gptECS->get_ecs_type_key_hierarchy();
+        const plEcsTypeKey tMaterialComponentType = gptRenderer->get_ecs_type_key_material();
+        const plEcsTypeKey tSkinComponentType = gptRenderer->get_ecs_type_key_skin();
+        const plEcsTypeKey tCameraComponentType = gptCamera->get_ecs_type_key();
+        const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
+        const plEcsTypeKey tInverseKinematicsComponentType = gptAnimation->get_ecs_type_key_inverse_kinematics();
+        const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
+        const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
+        const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
+        const plEcsTypeKey tScriptComponentType = gptECS->get_ecs_type_key_script();
+        const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
+        const plEcsTypeKey tForceFieldComponentType = gptPhysics->get_ecs_type_key_force_field();
+
+        plEcsTypeKey atComponentTypes[] = {
+            INT32_MAX,
+            tTransformComponentType,
+            tMeshComponentType,
+            tObjectComponentType,
+            tHierarchyComponentType,
+            tMaterialComponentType,
+            tSkinComponentType,
+            tCameraComponentType,
+            tAnimationComponentType,
+            tInverseKinematicsComponentType,
+            tLightComponentType,
+            tEnvironmentProbeComponentType,
+            tHumanoidComponentType,
+            tScriptComponentType,
+            tRigidBodyComponentType,
+            tForceFieldComponentType
         };
 
         bool abCombo[16] = {0};
@@ -150,7 +173,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                 {
                     uComponentFilter = i;
                     gptUI->close_current_popup();
-                }
+                } 
             }
             gptUI->end_combo();
         }
@@ -162,37 +185,38 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
             const float pfRatiosInner[] = {1.0f};
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
 
-            const uint32_t uEntityCount = pl_sb_size(ptLibrary->tTagComponentManager.sbtEntities);
-            plTagComponent* sbtTags = ptLibrary->tTagComponentManager.pComponents;
+            plTagComponent* ptTags = NULL;
+            plEntity* ptEntities = NULL;
+            const uint32_t uEntityCount = gptECS->get_components(ptLibrary, gptECS->get_ecs_type_key_tag(), &ptTags, &ptEntities);
 
             if(uComponentFilter != 0 || gptUI->text_filter_active(&gptEcsToolsCtx->tFilter))
             {
                 for(uint32_t i = 0; i < uEntityCount; i++)
                 {
-                    if(gptUI->text_filter_pass(&gptEcsToolsCtx->tFilter, sbtTags[i].acName, NULL))
+                    if(gptUI->text_filter_pass(&gptEcsToolsCtx->tFilter, ptTags[i].acName, NULL))
                     {
-                        bool bSelected = ptSelectedEntity->ulData == ptLibrary->tTagComponentManager.sbtEntities[i].ulData;
+                        bool bSelected = ptSelectedEntity->uData == ptEntities[i].uData;
 
-                        plTagComponent*               ptTagComp           = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plTransformComponent*         ptTransformComp     = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plMeshComponent*              ptMeshComp          = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plObjectComponent*            ptObjectComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plHierarchyComponent*         ptHierarchyComp     = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plMaterialComponent*          ptMaterialComp      = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plSkinComponent*              ptSkinComp          = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plCameraComponent*            ptCameraComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plAnimationComponent*         ptAnimationComp     = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plInverseKinematicsComponent* ptIKComp            = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plLightComponent*             ptLightComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plEnvironmentProbeComponent*  ptProbeComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plRigidBodyPhysicsComponent*  ptRigidComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plForceFieldComponent*        ptForceField        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, ptLibrary->tTagComponentManager.sbtEntities[i]);
+                        plTagComponent*               ptTagComp           = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptEntities[i]);
+                        plTransformComponent*         ptTransformComp     = gptECS->get_component(ptLibrary, tTransformComponentType, ptEntities[i]);
+                        plMeshComponent*              ptMeshComp          = gptECS->get_component(ptLibrary, tMeshComponentType, ptEntities[i]);
+                        plObjectComponent*            ptObjectComp        = gptECS->get_component(ptLibrary, tObjectComponentType, ptEntities[i]);
+                        plHierarchyComponent*         ptHierarchyComp     = gptECS->get_component(ptLibrary, tHierarchyComponentType, ptEntities[i]);
+                        plMaterialComponent*          ptMaterialComp      = gptECS->get_component(ptLibrary, tMaterialComponentType, ptEntities[i]);
+                        plSkinComponent*              ptSkinComp          = gptECS->get_component(ptLibrary, tSkinComponentType, ptEntities[i]);
+                        plCamera*            ptCameraComp        = gptECS->get_component(ptLibrary, tCameraComponentType, ptEntities[i]);
+                        plAnimationComponent*         ptAnimationComp     = gptECS->get_component(ptLibrary, tAnimationComponentType, ptEntities[i]);
+                        plInverseKinematicsComponent* ptIKComp            = gptECS->get_component(ptLibrary, tInverseKinematicsComponentType, ptEntities[i]);
+                        plLightComponent*             ptLightComp         = gptECS->get_component(ptLibrary, tLightComponentType, ptEntities[i]);
+                        plEnvironmentProbeComponent*  ptProbeComp         = gptECS->get_component(ptLibrary, tEnvironmentProbeComponentType, ptEntities[i]);
+                        plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, tHumanoidComponentType, ptEntities[i]);
+                        plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, tScriptComponentType, ptEntities[i]);
+                        plRigidBodyPhysicsComponent*  ptRigidComp         = gptECS->get_component(ptLibrary, tRigidBodyComponentType, ptEntities[i]);
+                        plForceFieldComponent*        ptForceField        = gptECS->get_component(ptLibrary, tForceFieldComponentType, ptEntities[i]);
 
                         if(uComponentFilter != 0)
                         {
-                            void* pComponent = gptECS->get_component(ptLibrary, atComponentTypes[uComponentFilter], ptLibrary->tTagComponentManager.sbtEntities[i]);
+                            void* pComponent = gptECS->get_component(ptLibrary, atComponentTypes[uComponentFilter], ptEntities[i]);
                             if(pComponent == NULL)
                                 continue;
                         }
@@ -214,13 +238,13 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                             ptScriptComp ? PL_ICON_FA_CODE : "",
                             ptRigidComp ? PL_ICON_FA_BOXES_STACKED : "",
                             ptForceField ? PL_ICON_FA_WIND : "",
-                            sbtTags[i].acName,
-                            ptLibrary->tTagComponentManager.sbtEntities[i].uIndex);
+                            ptTags[i].acName,
+                            ptEntities[i].uIndex);
                         if(gptUI->selectable(atBuffer, &bSelected, 0))
                         {
                             if(bSelected)
                             {
-                                *ptSelectedEntity = ptLibrary->tTagComponentManager.sbtEntities[i];
+                                *ptSelectedEntity = ptEntities[i];
                                 if(ptSelectedEntity->uIndex != UINT32_MAX)
                                     bResult = true;
                             }
@@ -241,24 +265,24 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                 {
                     for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
                     {
-                        bool bSelected = ptSelectedEntity->ulData == ptLibrary->tTagComponentManager.sbtEntities[i].ulData;
+                        bool bSelected = ptSelectedEntity->uData == ptEntities[i].uData;
 
-                        plTagComponent*               ptTagComp           = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plTransformComponent*         ptTransformComp     = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plMeshComponent*              ptMeshComp          = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plObjectComponent*            ptObjectComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plHierarchyComponent*         ptHierarchyComp     = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plMaterialComponent*          ptMaterialComp      = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plSkinComponent*              ptSkinComp          = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plCameraComponent*            ptCameraComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plAnimationComponent*         ptAnimationComp     = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plInverseKinematicsComponent* ptIKComp            = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plLightComponent*             ptLightComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plEnvironmentProbeComponent*  ptProbeComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plRigidBodyPhysicsComponent*  ptRigidComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, ptLibrary->tTagComponentManager.sbtEntities[i]);
-                        plForceFieldComponent*        ptForceField        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, ptLibrary->tTagComponentManager.sbtEntities[i]);
+                        plTagComponent*               ptTagComp           = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptEntities[i]);
+                        plTransformComponent*         ptTransformComp     = gptECS->get_component(ptLibrary, tTransformComponentType, ptEntities[i]);
+                        plMeshComponent*              ptMeshComp          = gptECS->get_component(ptLibrary, tMeshComponentType, ptEntities[i]);
+                        plObjectComponent*            ptObjectComp        = gptECS->get_component(ptLibrary, tObjectComponentType, ptEntities[i]);
+                        plHierarchyComponent*         ptHierarchyComp     = gptECS->get_component(ptLibrary, tHierarchyComponentType, ptEntities[i]);
+                        plMaterialComponent*          ptMaterialComp      = gptECS->get_component(ptLibrary, tMaterialComponentType, ptEntities[i]);
+                        plSkinComponent*              ptSkinComp          = gptECS->get_component(ptLibrary, tSkinComponentType, ptEntities[i]);
+                        plCamera*            ptCameraComp        = gptECS->get_component(ptLibrary, tCameraComponentType, ptEntities[i]);
+                        plAnimationComponent*         ptAnimationComp     = gptECS->get_component(ptLibrary, tAnimationComponentType, ptEntities[i]);
+                        plInverseKinematicsComponent* ptIKComp            = gptECS->get_component(ptLibrary, tInverseKinematicsComponentType, ptEntities[i]);
+                        plLightComponent*             ptLightComp         = gptECS->get_component(ptLibrary, tLightComponentType, ptEntities[i]);
+                        plEnvironmentProbeComponent*  ptProbeComp         = gptECS->get_component(ptLibrary, tEnvironmentProbeComponentType, ptEntities[i]);
+                        plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, tHumanoidComponentType, ptEntities[i]);
+                        plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, tScriptComponentType, ptEntities[i]);
+                        plRigidBodyPhysicsComponent*  ptRigidComp         = gptECS->get_component(ptLibrary, tRigidBodyComponentType, ptEntities[i]);
+                        plForceFieldComponent*        ptForceField        = gptECS->get_component(ptLibrary, tForceFieldComponentType, ptEntities[i]);
 
                         char atBuffer[1024] = {0};
                         pl_sprintf(atBuffer, "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s %s, %u",
@@ -277,13 +301,13 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                             ptScriptComp ? PL_ICON_FA_CODE : "",
                             ptRigidComp ? PL_ICON_FA_BOXES_STACKED : "",
                             ptForceField ? PL_ICON_FA_WIND : "",
-                            sbtTags[i].acName,
-                            ptLibrary->tTagComponentManager.sbtEntities[i].uIndex);
+                            ptTags[i].acName,
+                            ptEntities[i].uIndex);
                         if(gptUI->selectable(atBuffer, &bSelected, 0))
                         {
                             if(bSelected)
                             {
-                                *ptSelectedEntity = ptLibrary->tTagComponentManager.sbtEntities[i];
+                                *ptSelectedEntity = ptEntities[i];
                                 if(ptSelectedEntity->uIndex != UINT32_MAX)
                                     bResult = true;
                             }
@@ -306,25 +330,26 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
             const float pfRatiosInner[] = {1.0f};
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
 
-            if(ptSelectedEntity->ulData != UINT64_MAX)
+            if(ptSelectedEntity->uData != UINT64_MAX)
             {
                 gptUI->push_id_uint(ptSelectedEntity->uIndex);
-                plTagComponent*               ptTagComp           = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, *ptSelectedEntity);
-                plTransformComponent*         ptTransformComp     = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TRANSFORM, *ptSelectedEntity);
-                plMeshComponent*              ptMeshComp          = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MESH, *ptSelectedEntity);
-                plObjectComponent*            ptObjectComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_OBJECT, *ptSelectedEntity);
-                plHierarchyComponent*         ptHierarchyComp     = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HIERARCHY, *ptSelectedEntity);
-                plMaterialComponent*          ptMaterialComp      = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_MATERIAL, *ptSelectedEntity);
-                plSkinComponent*              ptSkinComp          = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SKIN, *ptSelectedEntity);
-                plCameraComponent*            ptCameraComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, *ptSelectedEntity);
-                plAnimationComponent*         ptAnimationComp     = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ANIMATION, *ptSelectedEntity);
-                plInverseKinematicsComponent* ptIKComp            = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_INVERSE_KINEMATICS, *ptSelectedEntity);
-                plLightComponent*             ptLightComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_LIGHT, *ptSelectedEntity);
-                plEnvironmentProbeComponent*  ptProbeComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_ENVIRONMENT_PROBE, *ptSelectedEntity);
-                plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_HUMANOID, *ptSelectedEntity);
-                plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_SCRIPT, *ptSelectedEntity);
-                plRigidBodyPhysicsComponent*  ptRigidComp         = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, *ptSelectedEntity);
-                plForceFieldComponent*        ptForceField        = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_FORCE_FIELD, *ptSelectedEntity);
+
+                plTagComponent*               ptTagComp           = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), *ptSelectedEntity);
+                plTransformComponent*         ptTransformComp     = gptECS->get_component(ptLibrary, tTransformComponentType, *ptSelectedEntity);
+                plMeshComponent*              ptMeshComp          = gptECS->get_component(ptLibrary, tMeshComponentType, *ptSelectedEntity);
+                plObjectComponent*            ptObjectComp        = gptECS->get_component(ptLibrary, tObjectComponentType, *ptSelectedEntity);
+                plHierarchyComponent*         ptHierarchyComp     = gptECS->get_component(ptLibrary, tHierarchyComponentType, *ptSelectedEntity);
+                plMaterialComponent*          ptMaterialComp      = gptECS->get_component(ptLibrary, tMaterialComponentType, *ptSelectedEntity);
+                plSkinComponent*              ptSkinComp          = gptECS->get_component(ptLibrary, tSkinComponentType, *ptSelectedEntity);
+                plCamera*            ptCameraComp        = gptECS->get_component(ptLibrary, tCameraComponentType, *ptSelectedEntity);
+                plAnimationComponent*         ptAnimationComp     = gptECS->get_component(ptLibrary, tAnimationComponentType, *ptSelectedEntity);
+                plInverseKinematicsComponent* ptIKComp            = gptECS->get_component(ptLibrary, tInverseKinematicsComponentType, *ptSelectedEntity);
+                plLightComponent*             ptLightComp         = gptECS->get_component(ptLibrary, tLightComponentType, *ptSelectedEntity);
+                plEnvironmentProbeComponent*  ptProbeComp         = gptECS->get_component(ptLibrary, tEnvironmentProbeComponentType, *ptSelectedEntity);
+                plHumanoidComponent*          ptHumanComp         = gptECS->get_component(ptLibrary, tHumanoidComponentType, *ptSelectedEntity);
+                plScriptComponent*            ptScriptComp        = gptECS->get_component(ptLibrary, tScriptComponentType, *ptSelectedEntity);
+                plRigidBodyPhysicsComponent*  ptRigidComp         = gptECS->get_component(ptLibrary, tRigidBodyComponentType, *ptSelectedEntity);
+                plForceFieldComponent*        ptForceField        = gptECS->get_component(ptLibrary, tForceFieldComponentType, *ptSelectedEntity);
 
                 if(ptObjectComp)
                 {
@@ -332,9 +357,9 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     gptUI->text("Entity: %u, %u", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
                     if(gptUI->button("Delete"))
                     {
-                        gptRenderer->outline_entities(uSceneHandle, 0, NULL);
-                        gptRenderer->remove_objects_from_scene(uSceneHandle, 1, ptSelectedEntity);
-                        ptSelectedEntity->ulData = UINT64_MAX;
+                        gptRenderer->outline_entities(ptScene, 0, NULL);
+                        gptRenderer->remove_objects_from_scene(ptScene, 1, ptSelectedEntity);
+                        ptSelectedEntity->uData = UINT64_MAX;
                     }
                     
                 }
@@ -348,7 +373,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     gptUI->layout_dynamic(0.0f, 1);
                     if(gptUI->button("Add Rigid Body Component"))
                     {
-                        plRigidBodyPhysicsComponent* ptRigid = gptECS->add_component(ptLibrary, PL_COMPONENT_TYPE_RIGID_BODY_PHYSICS, *ptSelectedEntity);
+                        plRigidBodyPhysicsComponent* ptRigid = gptECS->add_component(ptLibrary, tRigidBodyComponentType, *ptSelectedEntity);
                         ptRigid->tFlags |= PL_RIGID_BODY_PHYSICS_FLAG_START_SLEEPING;
                         ptRigid->fMass = 10.0f;
                         ptRigid->tShape = PL_COLLISION_SHAPE_SPHERE;
@@ -599,8 +624,8 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                 if(ptMeshComp && gptUI->begin_collapsing_header("Mesh", 0))
                 {
 
-                    plTagComponent* ptMaterialTagComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tMaterial);
-                    plTagComponent* ptSkinTagComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptMeshComp->tSkinComponent);
+                    plTagComponent* ptMaterialTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptMeshComp->tMaterial);
+                    plTagComponent* ptSkinTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptMeshComp->tSkinComponent);
                     gptUI->text("Material: %s, %u", ptMaterialTagComp->acName, ptMeshComp->tMaterial.uIndex);
                     gptUI->text("Skin:     %s, %u", ptSkinTagComp ? ptSkinTagComp->acName : " ", ptSkinTagComp ? ptMeshComp->tSkinComponent.uIndex : 0);
 
@@ -624,8 +649,8 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
 
                 if(ptObjectComp && gptUI->begin_collapsing_header("Object", 0))
                 {
-                    plTagComponent* ptMeshTagComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tMesh);
-                    plTagComponent* ptTransformTagComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptObjectComp->tTransform);
+                    plTagComponent* ptMeshTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptObjectComp->tMesh);
+                    plTagComponent* ptTransformTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptObjectComp->tTransform);
 
                     gptUI->text("Mesh Entity:      %s, %u", ptMeshTagComp->acName, ptObjectComp->tMesh.uIndex);
                     gptUI->text("Transform Entity: %s, %u", ptTransformTagComp->acName, ptObjectComp->tTransform.uIndex);
@@ -672,13 +697,13 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                             ptObjectComp->tFlags &= ~PL_OBJECT_FLAGS_FOREGROUND;
                     }
                     if(bObjectUpdateRequired)
-                        gptRenderer->update_scene_objects(uSceneHandle, 1, ptSelectedEntity);
+                        gptRenderer->update_scene_objects(ptScene, 1, ptSelectedEntity);
                     gptUI->end_collapsing_header();
                 }
 
                 if(ptHierarchyComp && gptUI->begin_collapsing_header("Hierarchy", 0))
                 {
-                    plTagComponent* ptParentTagComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptHierarchyComp->tParent);
+                    plTagComponent* ptParentTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptHierarchyComp->tParent);
                     gptUI->text("Parent Entity: %s , %u", ptParentTagComp->acName, ptHierarchyComp->tParent.uIndex);
                     gptUI->end_collapsing_header();
                 }
@@ -788,7 +813,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     if(gptUI->input_float4("Emmissive Factor", ptMaterialComp->tEmissiveColor.d, NULL, 0)) bMaterialModified = true;
 
                     if(bMaterialModified)
-                        gptRenderer->update_scene_materials(uSceneHandle, 1, ptSelectedEntity);
+                        gptRenderer->update_scene_materials(ptScene, 1, ptSelectedEntity);
 
                     static const char* apcBlendModeNames[] = 
                     {
@@ -849,7 +874,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
                     {
                         for(uint32_t i = 0; i < pl_sb_size(ptSkinComp->sbtJoints); i++)
                         {
-                            plTagComponent* ptJointTagComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptSkinComp->sbtJoints[i]);
+                            plTagComponent* ptJointTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptSkinComp->sbtJoints[i]);
                             gptUI->text("%s", ptJointTagComp->acName);  
                         }
                         gptUI->tree_pop();
@@ -905,7 +930,7 @@ pl_show_ecs_window(plEntity* ptSelectedEntity, uint32_t uSceneHandle, bool* pbSh
 
                 if(ptIKComp && gptUI->begin_collapsing_header("Inverse Kinematics", 0))
                 { 
-                    plTagComponent* ptTargetComp = gptECS->get_component(ptLibrary, PL_COMPONENT_TYPE_TAG, ptIKComp->tTarget);
+                    plTagComponent* ptTargetComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptIKComp->tTarget);
                     gptUI->text("Target Entity: %s , %u", ptTargetComp->acName, ptIKComp->tTarget.uIndex);
                     gptUI->slider_uint("Chain Length", &ptIKComp->uChainLength, 1, 5, 0);
                     gptUI->text("Iterations: %u", ptIKComp->uIterationCount);
@@ -957,6 +982,9 @@ pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptUI       = pl_get_api_latest(ptApiRegistry, plUiI);
     gptECS      = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptPhysics  = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+    gptCamera   = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptAnimation  = pl_get_api_latest(ptApiRegistry, plAnimationI);
+    gptMesh     = pl_get_api_latest(ptApiRegistry, plMeshI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 

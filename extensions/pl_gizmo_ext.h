@@ -40,7 +40,7 @@ typedef int plGizmoMode;
 
 // external
 typedef struct _plTransformComponent plTransformComponent; // pl_ecs_ext.h
-typedef struct _plCameraComponent    plCameraComponent;    // pl_ecs_ext.h
+typedef struct _plCamera             plCamera;             // pl_ecs_ext.h
 typedef struct _plDrawList3D         plDrawList3D;         // pl_draw_ext.h
 
 //-----------------------------------------------------------------------------
@@ -52,7 +52,7 @@ typedef struct _plGizmoI
     void (*set_mode)(plGizmoMode);
     void (*next_mode)(void);
     bool (*active)(void);
-    void (*gizmo)(plDrawList3D*, plCameraComponent*, plTransformComponent* selectedTransform, plTransformComponent* parentTransform, plVec2 viewOffset, plVec2 viewScale);
+    void (*gizmo)(plDrawList3D*, plCamera*, plTransformComponent* selectedTransform, plTransformComponent* parentTransform, plVec2 viewOffset, plVec2 viewScale);
 } plGizmoI;
 
 //-----------------------------------------------------------------------------

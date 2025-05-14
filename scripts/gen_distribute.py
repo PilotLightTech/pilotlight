@@ -116,6 +116,8 @@ with pl.project("pilotlight deploy"):
         "pl_model_loader_ext",
         "pl_ui_ext",
         "pl_ecs_tools_ext",
+        "pl_camera_ext",
+        "pl_animation_ext",
         "pl_gizmo_ext",
         "pl_console_ext",
         "pl_screen_log_ext",
@@ -124,6 +126,7 @@ with pl.project("pilotlight deploy"):
         "pl_collision_ext",
         "pl_bvh_ext",
         "pl_config_ext",
+        "pl_mesh_ext",
     ]
 
     for extension in extensions:

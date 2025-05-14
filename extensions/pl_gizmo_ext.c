@@ -24,6 +24,8 @@ Index of this file:
 #include "pl_gizmo_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_ecs_ext.h"
+#include "pl_camera_ext.h"
+#include "pl_animation_ext.h"
 #include "pl_collision_ext.h"
 #include "pl_ui_ext.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -89,9 +91,9 @@ static plGizmoContext* gptGizmoCtx = NULL;
 //-----------------------------------------------------------------------------
 
 static bool pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1, float fRadius, float fHeight, float* pfDistance);
-static void pl__gizmo_translation           (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
-static void pl__gizmo_rotation              (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
-static void pl__gizmo_scale                 (plDrawList3D*, plCameraComponent*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
+static void pl__gizmo_translation           (plDrawList3D*, plCamera*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
+static void pl__gizmo_rotation              (plDrawList3D*, plCamera*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
+static void pl__gizmo_scale                 (plDrawList3D*, plCamera*, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -116,7 +118,7 @@ pl_gizmo_next_mode(void)
 }
 
 static void
-pl_gizmo(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
+pl_gizmo(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
     if(ptSelectedTransform)
@@ -183,7 +185,7 @@ pl__does_line_intersect_cylinder(plVec3 tP0, plVec3 tV0, plVec3 tP1, plVec3 tV1,
 }
 
 static void
-pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
+pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
     plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
@@ -620,7 +622,7 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera
 }
 
 static void
-pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
+pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
     plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
@@ -936,7 +938,7 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, p
 }
 
 static void
-pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCameraComponent* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
+pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
     plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;

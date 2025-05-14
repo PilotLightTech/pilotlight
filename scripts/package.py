@@ -34,7 +34,10 @@ extension_headers = [
     "pl_draw_backend_ext.h",
     "pl_draw_ext.h",
     "pl_ecs_ext.h",
+    "pl_ecs_ext.inl",
     "pl_ecs_tools_ext.h",
+    "pl_camera_ext.h",
+    "pl_animation_ext.h",
     "pl_gizmo_ext.h",
     "pl_gpu_allocators_ext.h",
     "pl_graphics_ext.h",
@@ -55,6 +58,7 @@ extension_headers = [
     "pl_bvh_ext.h",
     "pl_config_ext.h",
     "pl_starter_ext.h",
+    "pl_mesh_ext.h",
 ]
 
 # extension binaries
@@ -66,6 +70,8 @@ extensions = [
     "pl_draw_backend_ext",
     "pl_draw_ext",
     "pl_ecs_ext",
+    "pl_animation_ext",
+    "pl_camera_ext",
     "pl_ecs_tools_ext",
     "pl_gizmo_ext",
     "pl_gpu_allocators_ext",
@@ -86,6 +92,7 @@ extensions = [
     "pl_bvh_ext",
     "pl_config_ext",
     "pl_starter_ext",
+    "pl_mesh_ext",
     "pl_ui_ext"
 ]
 

@@ -47,9 +47,9 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stddef.h>  // size_t
-#include <stdbool.h> // bool
-#include <stdint.h>  // uint*_t
+#include <stddef.h>            // size_t
+#include <stdbool.h>           // bool
+#include "pl_resource_ext.inl" // plResourceHandle
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -57,7 +57,6 @@ Index of this file:
 
 // basic types
 typedef struct _plResourceManagerInit plResourceManagerInit;
-typedef union _plResourceHandle plResourceHandle;
 
 // enums/falgs
 typedef int plResourceLoadFlags; // -> enum _plResourceLoadFlags // Flag: resource load flags (PL_RESOURCE_LOAD_FLAG_XXXX)
@@ -123,18 +122,5 @@ typedef struct _plResourceManagerInit
     plDevice* ptDevice;
     uint32_t  uMaxTextureResolution; // default: 1024
 } plResourceManagerInit;
-
-#ifndef PL_RESOURCE_HANDLE_DEFINED
-#define PL_RESOURCE_HANDLE_DEFINED
-typedef union _plResourceHandle
-{
-    struct
-    {
-        uint32_t uIndex;
-        uint32_t uGeneration;
-    };
-    uint64_t ulData;
-} plResourceHandle;
-#endif // PL_RESOURCE_HANDLE_DEFINED
 
 #endif // PL_RESOURCE_EXT_H

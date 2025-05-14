@@ -28,6 +28,7 @@ Index of this file:
 #include "pl_ui_ext.c"
 #include "pl_graphics_ext.c"
 #include "pl_ecs_ext.c"
+#include "pl_camera_ext.c"
 #include "pl_platform_ext.h"
 #include "pl_resource_ext.c"
 #include "pl_model_loader_ext.c"
@@ -44,6 +45,8 @@ Index of this file:
 #include "pl_bvh_ext.c"
 #include "pl_config_ext.c"
 #include "pl_starter_ext.c"
+#include "pl_animation_ext.c"
+#include "pl_mesh_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -86,6 +89,8 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptConfig            = pl_get_api_latest(ptApiRegistry, plConfigI);
     gptStarter           = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptTools             = pl_get_api_latest(ptApiRegistry, plToolsI);
+    gptAnimation           = pl_get_api_latest(ptApiRegistry, plAnimationI);
+    gptMesh              = pl_get_api_latest(ptApiRegistry, plMeshI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -103,9 +108,11 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
 
     pl_load_ecs_ext(ptApiRegistry, bReload);
+    pl_load_camera_ecs_ext(ptApiRegistry, bReload);
     pl_load_resource_ext(ptApiRegistry, bReload);
     pl_load_model_loader_ext(ptApiRegistry, bReload);
     pl_load_renderer_ext(ptApiRegistry, bReload);
+    pl_load_animation_ext(ptApiRegistry, bReload);
     pl_load_ecs_tools_ext(ptApiRegistry, bReload);
     pl_load_gizmo_ext(ptApiRegistry, bReload);
     pl_load_console_ext(ptApiRegistry, bReload);
@@ -115,6 +122,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_physics_ext(ptApiRegistry, bReload);
     pl_load_collision_ext(ptApiRegistry, bReload);
     pl_load_bvh_ext(ptApiRegistry, bReload);
+    pl_load_mesh_ext(ptApiRegistry, bReload);
     pl_load_config_ext(ptApiRegistry, bReload);
     pl_load_starter_ext(ptApiRegistry, bReload);
 }
@@ -132,10 +140,13 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_gpu_allocators_ext(ptApiRegistry, bReload);
     pl_unload_draw_ext(ptApiRegistry, bReload);
     pl_unload_draw_backend_ext(ptApiRegistry, bReload);
+    pl_unload_animation_ext(ptApiRegistry, bReload);
     pl_unload_ecs_tools_ext(ptApiRegistry, bReload);
     pl_unload_tools_ext(ptApiRegistry, bReload);
     pl_unload_ui_ext(ptApiRegistry, bReload);
     pl_unload_ecs_ext(ptApiRegistry, bReload);
+    pl_unload_mesh_ext(ptApiRegistry, bReload);
+    pl_unload_camera_ecs_ext(ptApiRegistry, bReload);
     pl_unload_resource_ext(ptApiRegistry, bReload);
     pl_unload_model_loader_ext(ptApiRegistry, bReload);
     pl_unload_renderer_ext(ptApiRegistry, bReload);

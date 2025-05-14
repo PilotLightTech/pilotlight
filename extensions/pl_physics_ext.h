@@ -60,9 +60,19 @@ Index of this file:
 // basic types
 typedef struct _plPhysicsEngineSettings plPhysicsEngineSettings;
 
+// ecs components
+typedef struct _plRigidBodyPhysicsComponent plRigidBodyPhysicsComponent;
+typedef struct _plForceFieldComponent       plForceFieldComponent;
+
+// enums & flags
+typedef int plCollisionShape;
+typedef int plRigidBodyPhysicsFlags;
+typedef int plForceFieldType;
+
 // external
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
+typedef uint32_t                   plEcsTypeKey;       // pl_ecs_ext.h
 typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
 typedef union  _plVec3             plVec3;             // pl_math.h
 
@@ -107,6 +117,16 @@ typedef struct _plPhysicsI
 
     // misc.
     void (*create_rigid_body)(plComponentLibrary*, plEntity);
+
+    //----------------------------ECS INTEGRATION----------------------------------
+
+    // system setup/shutdown/etc
+    void (*register_ecs_system)(void);
+
+    // ecs types
+    plEcsTypeKey (*get_ecs_type_key_rigid_body_physics)(void);
+    plEcsTypeKey (*get_ecs_type_key_force_field)       (void);
+
 } plPhysicsI;
 
 //-----------------------------------------------------------------------------
@@ -124,5 +144,61 @@ typedef struct _plPhysicsEngineSettings
     float    fSimulationMultiplier;  // default: 1.0f
     float    fSimulationFrameRate;   // default: 60.0f;
 } plPhysicsEngineSettings;
+
+typedef struct _plRigidBodyPhysicsComponent
+{
+    plRigidBodyPhysicsFlags tFlags;
+    plCollisionShape        tShape;
+    float                   fMass;
+    float                   fRestitution;
+    float                   fLinearDamping;
+    float                   fAngularDamping;
+    float                   fFriction;
+    plVec3                  tGravity;
+    plVec3                  tLocalOffset;
+
+    // sphere
+    float fRadius;
+
+    // box
+    plVec3 tExtents;
+
+    uint64_t uPhysicsObject;
+} plRigidBodyPhysicsComponent;
+
+typedef struct _plForceFieldComponent
+{
+    plForceFieldType tType;
+    float            fGravity;
+    float            fRange;
+} plForceFieldComponent;
+
+//-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+enum _plCollisionShape
+{
+    PL_COLLISION_SHAPE_BOX,
+    PL_COLLISION_SHAPE_SPHERE,
+    // PL_COLLISION_SHAPE_CAPSULE,
+    // PL_COLLISION_SHAPE_CONVEX_HULL,
+    // PL_COLLISION_SHAPE_TRIANGULAR_MESH,
+    // PL_COLLISION_SHAPE_CYLINDER
+};
+
+enum _plRigidBodyPhysicsFlags
+{
+    PL_RIGID_BODY_PHYSICS_FLAG_NONE           = 0,
+    PL_RIGID_BODY_PHYSICS_FLAG_START_SLEEPING = 1 << 0,
+    PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING    = 1 << 1,
+    PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC      = 1 << 2,
+};
+
+enum _plForceFieldType
+{
+    PL_FORCE_FIELD_TYPE_POINT,
+    PL_FORCE_FIELD_TYPE_PLANE
+};
 
 #endif // PL_PHYSICS_EXT_H

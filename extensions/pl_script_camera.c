@@ -22,6 +22,8 @@ Index of this file:
 
 // extensions
 #include "pl_ecs_ext.h"
+#include "pl_camera_ext.h"
+#include "pl_animation_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_gizmo_ext.h"
 
@@ -31,8 +33,8 @@ Index of this file:
 
 // required APIs
 const plIOI*     gptIO     = NULL;
+const plEcsI*    gptEcs = NULL;
 const plCameraI* gptCamera = NULL;
-const plEcsI*    gptEcs    = NULL;
 const plUiI*     gptUi     = NULL;
 const plGizmoI*  gptGizmo  = NULL;
 
@@ -45,7 +47,7 @@ static float gfOriginalFOV = 0.0f;
 static void
 pl_script_setup(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    plCameraComponent* ptCamera = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tEntity);
+    plCamera* ptCamera = gptEcs->get_component(ptLibrary, gptCamera->get_ecs_type_key(), tEntity);
     gfOriginalFOV = ptCamera->fFieldOfView;
 }
 
@@ -56,7 +58,7 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
     if(gptGizmo->active())
         return;
 
-    plCameraComponent* ptCamera = gptEcs->get_component(ptLibrary, PL_COMPONENT_TYPE_CAMERA, tEntity);
+    plCamera* ptCamera = gptEcs->get_component(ptLibrary, gptCamera->get_ecs_type_key(), tEntity);
 
     if(gfOriginalFOV == 0.0f)
     {

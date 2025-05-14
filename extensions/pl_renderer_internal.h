@@ -37,7 +37,10 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #include "pl_profile_ext.h"
 #include "pl_log_ext.h"
+#include "pl_animation_ext.h"
 #include "pl_ecs_ext.h"
+#include "pl_mesh_ext.h"
+#include "pl_camera_ext.h"
 #include "pl_resource_ext.h"
 #include "pl_image_ext.h"
 #include "pl_stats_ext.h"
@@ -51,10 +54,8 @@ Index of this file:
 #include "pl_rect_pack_ext.h"
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
-#include "pl_physics_ext.h"
 #include "pl_bvh_ext.h"
 
-#define PL_MAX_VIEWS_PER_SCENE 4
 #define PL_MAX_LIGHTS 100
 
 #define PL_MAX_BINDLESS_TEXTURES 4096
@@ -90,12 +91,13 @@ Index of this file:
     static const plConsoleI*       gptConsole       = NULL;
 
     // experimental
-    static const plPhysicsI*   gptPhysics    = NULL;
     static const plScreenLogI* gptScreenLog  = NULL;
     static const plCameraI*    gptCamera     = NULL;
     static const plResourceI*  gptResource   = NULL;
     static const plEcsI*       gptECS        = NULL;
     static const plBVHI*       gptBvh        = NULL;
+    static const plAnimationI* gptAnimation  = NULL;
+    static const plMeshI*      gptMesh       = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
@@ -348,8 +350,12 @@ typedef struct _plEnvironmentProbeData
     uint32_t uCurrentFace;
 } plEnvironmentProbeData;
 
-typedef struct _plRefView
+typedef struct _plView
 {
+    plScene* ptParentScene;
+
+    bool bShowSkybox;
+
     // renderpasses
     plRenderPassHandle tRenderPass;
     plRenderPassHandle tPostProcessRenderPass;
@@ -402,10 +408,11 @@ typedef struct _plRefView
 
     // shadows
     plDirectionLightShadowData tDirectionLightShadowData;
-} plRefView;
+} plView;
 
-typedef struct _plRefScene
+typedef struct _plScene
 {
+    const char* pcName;
     bool           bActive;
     plShaderHandle tLightingShader;
     plShaderHandle tEnvLightingShader;
@@ -442,8 +449,7 @@ typedef struct _plRefScene
     plBufferHandle atMaterialDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
 
     // views
-    uint32_t    uViewCount;
-    plRefView   atViews[PL_MAX_VIEWS_PER_SCENE];
+    plView**    sbptViews;
     plSkinData* sbtSkinData;
 
     // shadow atlas
@@ -455,7 +461,7 @@ typedef struct _plRefScene
     uint32_t           atShadowTextureBindlessIndices;
 
     // ECS component library
-    plComponentLibrary tComponentLibrary;
+    plComponentLibrary* ptComponentLibrary;
 
     // drawables (per scene, will be culled by views)
 
@@ -510,9 +516,7 @@ typedef struct _plRefScene
     plBVH tBvh;
     plAABB* sbtBvhAABBs;
     plBVHNode** sbtNodeStack;
-
-    plSceneRuntimeOptions tRuntimeOptions;
-} plRefScene;
+} plScene;
 
 typedef struct _plRefRendererData
 {
@@ -599,9 +603,7 @@ typedef struct _plRefRendererData
     plTextureHandle tDummyTexture;
     plTextureHandle tDummyTextureCube;
 
-    // scenes
-    plRefScene* sbtScenes;
-    uint32_t*   sbuSceneFreeIndices;
+    plScene** sbptScenes;
 
     // draw stream data
     plDrawStream tDrawStream;
@@ -628,12 +630,19 @@ typedef struct _plRefRendererData
 
     // stats
     double* pdDrawCalls;
+
+    // ecs
+    plEcsTypeKey tMaterialComponentType;
+    plEcsTypeKey tSkinComponentType;
+    plEcsTypeKey tLightComponentType;
+    plEcsTypeKey tEnvironmentProbeComponentType;
+    plEcsTypeKey tObjectComponentType;
 } plRefRendererData;
 
 typedef struct _plCullData
 {
-    plRefScene* ptScene;
-    plCameraComponent* ptCullCamera;
+    plScene* ptScene;
+    plCamera* ptCullCamera;
     plDrawable* atDrawables;
 } plCullData;
 
@@ -681,49 +690,49 @@ static plRefRendererData* gptData = NULL;
 //-----------------------------------------------------------------------------
 
 // job system tasks
-static void pl__refr_cull_job(plInvocationData, void*, void*);
+static void pl__renderer_cull_job(plInvocationData, void*, void*);
 
 // resource creation helpers
-static plTextureHandle pl__refr_create_texture              (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
-static plTextureHandle pl__refr_create_local_texture        (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
-static plTextureHandle pl__refr_create_texture_with_data    (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);
-static plBufferHandle  pl__refr_create_staging_buffer       (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
-static plBufferHandle  pl__refr_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
-static plBufferHandle  pl__refr_create_local_buffer         (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);
+static plTextureHandle pl__renderer_create_texture              (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
+static plTextureHandle pl__renderer_create_local_texture        (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
+static plTextureHandle pl__renderer_create_texture_with_data    (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);
+static plBufferHandle  pl__renderer_create_staging_buffer       (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
+static plBufferHandle  pl__renderer_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
+static plBufferHandle  pl__renderer_create_local_buffer         (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);
 
 // culling
-static bool pl__sat_visibility_test(plCameraComponent*, const plAABB*);
+static bool pl__renderer_sat_visibility_test(plCamera*, const plAABB*);
 
 // scene render helpers
-static void pl_refr_perform_skinning(plCommandBuffer*, uint32_t);
-static bool pl_refr_pack_shadow_atlas(uint32_t uSceneHandle, const uint32_t* auViewHandles, uint32_t uViewCount);
-static void pl_refr_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, uint32_t, uint32_t, uint32_t, int, plDirectionLightShadowData*, plCameraComponent*);
-static void pl_refr_generate_shadow_maps(plRenderEncoder*, plCommandBuffer*, uint32_t);
-static void pl_refr_post_process_scene(plCommandBuffer*, uint32_t, uint32_t, const plMat4*);
+static void pl__renderer_perform_skinning(plCommandBuffer*, plScene*);
+static bool pl__renderer_pack_shadow_atlas(plScene*);
+static void pl__renderer_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, plScene*, uint32_t, uint32_t, int, plDirectionLightShadowData*, plCamera*);
+static void pl__renderer_generate_shadow_maps(plRenderEncoder*, plCommandBuffer*, plScene*);
+static void pl__renderer_post_process_scene(plCommandBuffer*, plView*, const plMat4*);
 
 // shader variant system
-static plShaderHandle pl__get_shader_variant(uint32_t, plShaderHandle, const plShaderVariant*);
+static plShaderHandle pl__renderer_get_shader_variant(plScene*, plShaderHandle, const plShaderVariant*);
 
 // misc
 static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock);}
-static void                    pl__add_drawable_skin_data_to_global_buffer(plRefScene*, uint32_t uDrawableIndex, plDrawable* atDrawables);
-static void                    pl__add_drawable_data_to_global_buffer(plRefScene*, uint32_t uDrawableIndex, plDrawable* atDrawables);
-static void                    pl_refr_create_global_shaders(void);
-static size_t                  pl__get_data_type_size2(plDataType tType);
-static plBlendState            pl__get_blend_state(plBlendMode tBlendMode);
-static uint32_t                pl__get_bindless_texture_index(uint32_t uSceneHandle, plTextureHandle);
-static uint32_t                pl__get_bindless_cube_texture_index(uint32_t uSceneHandle, plTextureHandle);
+static void                    pl__renderer_add_drawable_skin_data_to_global_buffers(plScene*, uint32_t uDrawableIndex, plDrawable* atDrawables);
+static void                    pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex, plDrawable* atDrawables);
+static void                    pl__renderer_create_global_shaders(void);
+static size_t                  pl__renderer_get_data_type_size2(plDataType tType);
+static plBlendState            pl__renderer_get_blend_state(plBlendMode tBlendMode);
+static uint32_t                pl__renderer_get_bindless_texture_index(plScene*, plTextureHandle);
+static uint32_t                pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);
 
 // drawable ops
-static void pl__refr_add_skybox_drawable (uint32_t uSceneHandle);
-static void pl__refr_unstage_drawables   (uint32_t uSceneHandle);
-static void pl__refr_set_drawable_shaders(uint32_t uSceneHandle);
-static void pl__refr_sort_drawables      (uint32_t uSceneHandle);
+static void pl__renderer_add_skybox_drawable (plScene*);
+static void pl__renderer_unstage_drawables   (plScene*);
+static void pl__renderer_set_drawable_shaders(plScene*);
+static void pl__renderer_sort_drawables      (plScene*);
 
 // environment probes
-static void pl__create_probe_data(uint32_t uSceneHandle, plEntity tProbeHandle);
-static uint64_t pl__update_environment_probes(uint32_t uSceneHandle, uint64_t ulValue);
-static uint64_t pl_create_environment_map_from_texture(uint32_t uSceneHandle, plEnvironmentProbeData* ptProbe, uint64_t ulValue);
+static void pl__renderer_create_probe_data(plScene*, plEntity tProbeHandle);
+static uint64_t pl__renderer_update_probes(plScene*, uint64_t ulValue);
+static uint64_t pl__renderer_create_environment_map_from_texture(plScene*, plEnvironmentProbeData* ptProbe, uint64_t ulValue);
 
 
 #endif // PL_RENDERER_INTERNAL_EXT_H

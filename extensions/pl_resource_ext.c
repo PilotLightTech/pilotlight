@@ -170,7 +170,7 @@ pl_resource_initialize(plResourceManagerInit tDesc)
 
     // pushing invalid data so "default-to-zero" should work
     // for resource handles
-    pl_sb_push(gptResourceManager->sbtResourceGenerations, UINT32_MAX);
+    pl_sb_push(gptResourceManager->sbtResourceGenerations, 4194303);
     pl_sb_add(gptResourceManager->sbtResources);
 }
 
@@ -270,10 +270,9 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
     uint64_t ulExistingSlot = 0;
     if(pl_hm_has_key_ex(&gptResourceManager->tNameHashmap, ulHash, &ulExistingSlot))
     {
-        plResourceHandle tResource = {
-            .uIndex      = (uint32_t)ulExistingSlot,
-            .uGeneration = gptResourceManager->sbtResourceGenerations[ulExistingSlot]
-        };
+        plResourceHandle tResource = {0};
+        tResource.uIndex      = (uint32_t)ulExistingSlot;
+        tResource.uGeneration = gptResourceManager->sbtResourceGenerations[ulExistingSlot];
         return tResource;
     }
 
@@ -520,10 +519,9 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
         }
     }
     
-    plResourceHandle tNewResource = {
-        .uIndex      = (uint32_t)uIndex,
-        .uGeneration = gptResourceManager->sbtResourceGenerations[uIndex]
-    };
+    plResourceHandle tNewResource = {0};
+    tNewResource.uIndex      = (uint32_t)uIndex;
+    tNewResource.uGeneration = gptResourceManager->sbtResourceGenerations[uIndex];
 
     gptResourceManager->sbtResources[uIndex] = tResource;
 

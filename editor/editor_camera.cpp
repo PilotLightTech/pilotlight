@@ -1,7 +1,7 @@
 #include "editor.h"
 
 void
-pl__camera_update_imgui(plCameraComponent* ptCamera)
+pl__camera_update_imgui(plCamera* ptCamera)
 {
     static float gfOriginalFOV = 0.0f;
     if(gfOriginalFOV == 0.0f)
