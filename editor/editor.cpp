@@ -985,13 +985,12 @@ pl__show_editor_window(plAppData* ptAppData)
                 // {
                 //     gptUI->text_filter_build(&ptAppData->tFilter);
                 // }
-                static ImGuiTextFilter filter;
                 if (ImGui::IsWindowAppearing())
                 {
                     ImGui::SetKeyboardFocusHere();
-                    filter.Clear();
+                    ptAppData->filter.Clear();
                 }
-                filter.Draw(ICON_FA_MAGNIFYING_GLASS);
+                ptAppData->filter.Draw(ICON_FA_MAGNIFYING_GLASS);
 
                 if(ImGui::BeginListBox("GLTF Models"))
                 {
@@ -1003,7 +1002,7 @@ pl__show_editor_window(plAppData* ptAppData)
         
                     for (uint32_t n = 0; n < uTestModelCount; n++)
                     {
-                        if (filter.PassFilter(ptAppData->sbtTestModels[n].acName))
+                        if (ptAppData->filter.PassFilter(ptAppData->sbtTestModels[n].acName))
                             ImGui::Selectable(ptAppData->sbtTestModels[n].acName, &ptAppData->sbtTestModels[n].bSelected);
                     }
 

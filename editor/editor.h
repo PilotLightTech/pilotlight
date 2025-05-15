@@ -107,7 +107,7 @@ const plConfigI*       gptConfig      = nullptr;
 const plDearImGuiI*    gptDearImGui   = nullptr;
 const plResourceI*     gptResource    = nullptr;
 const plStarterI*      gptStarter     = nullptr;
-const plAnimationI*      gptAnimation     = nullptr;
+const plAnimationI*    gptAnimation   = nullptr;
 const plMeshI*         gptMesh        = nullptr;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
@@ -214,6 +214,7 @@ typedef struct _plAppData
 
     // misc
     char* sbcTempBuffer;
+    ImGuiTextFilter filter;
 } plAppData;
 
 //-----------------------------------------------------------------------------
