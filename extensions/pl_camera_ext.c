@@ -147,7 +147,7 @@ pl_camera_update(plCamera* ptCamera)
 }
 
 plEntity
-pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera** pptCompOut)
+pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
@@ -173,7 +173,7 @@ pl_ecs_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcNa
 }
 
 plEntity
-pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera** pptCompOut)
+pl_camera_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
@@ -184,8 +184,8 @@ pl_ecs_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcN
         .tPos    = tPos,
         .fNearZ  = fNearZ,
         .fFarZ   = fFarZ,
-        .fWidth   = fWidth,
-        .fHeight  = fHeight
+        .fWidth  = fWidth,
+        .fHeight = fHeight
     };
 
     plCamera* ptCamera = gptECS->add_component(ptLibrary, gptCameraCtx->uManagerIndex, tNewEntity);
@@ -309,11 +309,11 @@ static void
 pl_load_camera_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plCameraI tApi = {
-        .register_ecs_system     = pl_camera_register_system,
-        .run_ecs          = pl_run_camera_update_system,
+        .register_ecs_system = pl_camera_register_system,
+        .run_ecs             = pl_run_camera_update_system,
         .get_ecs_type_key    = pl_camera_get_ecs_type_key,
-        .create_perspective  = pl_ecs_create_perspective_camera,
-        .create_orthographic = pl_ecs_create_orthographic_camera,
+        .create_perspective  = pl_camera_create_perspective_camera,
+        .create_orthographic = pl_camera_create_orthographic_camera,
         .set_fov             = pl_camera_set_fov,
         .set_clip_planes     = pl_camera_set_clip_planes,
         .set_aspect          = pl_camera_set_aspect,
