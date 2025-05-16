@@ -39,7 +39,9 @@ body:
       label: Extension
       options:
         - New
+        - Animation
         - BVH
+        - Camera
         - Collision
         - Config
         - Console
@@ -53,6 +55,7 @@ body:
         - Image
         - Job
         - Log
+        - Mesh
         - Model Loader
         - Physics
         - Platform
