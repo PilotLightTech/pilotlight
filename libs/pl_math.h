@@ -266,6 +266,10 @@ typedef struct _plRay
     #include <immintrin.h>
 #endif
 
+#ifdef PL_MATH_USE_NEON
+    #include <arm_neon.h>
+#endif
+
 #ifndef PL_ASSERT
     #include <assert.h>
     #define PL_ASSERT(x) assert((x))
@@ -682,12 +686,24 @@ pl_add_vec3(plVec3 tVec1, plVec3 tVec2)
 
 #ifdef PL_MATH_USE_SSE
 static inline plVec4
-pl_add_vec4(plVec4 tVec1, plVec4 tVec2) {
+pl_add_vec4(plVec4 tVec1, plVec4 tVec2)
+{
     __m128 tOperand0 = _mm_load_ps(tVec1.d);
     __m128 tOperand1 = _mm_load_ps(tVec2.d);
     __m128 tSum = _mm_add_ps(tOperand0, tOperand1);
     plVec4 tResult = {0};
     _mm_store_ps(tResult.d, tSum);
+    return tResult;
+}
+#elif defined(PL_MATH_USE_NEON)
+static inline plVec4
+pl_add_vec4(plVec4 tVec1, plVec4 tVec2)
+{
+    float32x4_t tOperand0 = vld1q_f32(tVec1.d);
+    float32x4_t tOperand1 = vld1q_f32(tVec2.d);
+    float32x4_t tSum = vaddq_f32(tOperand0, tOperand1);
+    plVec4 tResult = {0};
+    vst1q_f32(tResult.d, tSum);
     return tResult;
 }
 #else
@@ -738,6 +754,17 @@ pl_mul_vec4(plVec4 tVec1, plVec4 tVec2)
     __m128 tSum = _mm_mul_ps(tOperand0, tOperand1);
     plVec4 tResult = {0};
     _mm_store_ps(tResult.d, tSum);
+    return tResult;
+}
+#elif defined(PL_MATH_USE_NEON)
+static inline plVec4
+pl_mul_vec4(plVec4 tVec1, plVec4 tVec2)
+{
+    float32x4_t tOperand0 = vld1q_f32(tVec1.d);
+    float32x4_t tOperand1 = vld1q_f32(tVec2.d);
+    float32x4_t tSum = vmulq_f32(tOperand0, tOperand1);
+    plVec4 tResult = {0};
+    vst1q_f32(tResult.d, tSum);
     return tResult;
 }
 #else
