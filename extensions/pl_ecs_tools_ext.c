@@ -186,8 +186,8 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatiosInner);
 
             plTagComponent* ptTags = NULL;
-            plEntity* ptEntities = NULL;
-            const uint32_t uEntityCount = gptECS->get_components(ptLibrary, gptECS->get_ecs_type_key_tag(), &ptTags, &ptEntities);
+            const plEntity* ptEntities = NULL;
+            const uint32_t uEntityCount = gptECS->get_components(ptLibrary, gptECS->get_ecs_type_key_tag(), (void**)&ptTags, &ptEntities);
 
             if(uComponentFilter != 0 || gptUI->text_filter_active(&gptEcsToolsCtx->tFilter))
             {

@@ -45,7 +45,7 @@ static void
 pl__renderer_skin_cleanup(plComponentLibrary* ptLibrary)
 {
     plSkinComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tSkinComponentType, &ptComponents, NULL);
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tSkinComponentType, (void**)&ptComponents, NULL);
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
         pl_sb_free(ptComponents[i].sbtTextureData);
@@ -2450,7 +2450,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     // create lighting shader
     {
         plLightComponent* ptLights = NULL;
-        const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, &ptLights, NULL);
+        const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
 
         int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
         plShaderDesc tLightingShaderDesc = {
@@ -2597,7 +2597,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
 
-    plEntity* ptProbes = NULL;
+    const plEntity* ptProbes = NULL;
     const uint32_t uProbeCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, NULL, &ptProbes);
 
     for(uint32_t i = 0; i < uProbeCount; i++)
@@ -2606,12 +2606,12 @@ pl_renderer_finalize_scene(plScene* ptScene)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     plMaterialComponent* ptMaterials = NULL;
-    plEntity* ptMaterialEntities = NULL;
-    const uint32_t uMaterialCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, &ptMaterials, &ptMaterialEntities);
+    const plEntity* ptMaterialEntities = NULL;
+    const uint32_t uMaterialCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, (void**)&ptMaterials, &ptMaterialEntities);
     pl_renderer_add_materials_to_scene(ptScene, uMaterialCount, ptMaterialEntities);
 
     plLightComponent* ptLights = NULL;
-    const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, &ptLights, NULL);
+    const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
 
     pl_sb_reserve(ptScene->sbtVertexDataBuffer, 40000000);
     pl_sb_reserve(ptScene->sbtVertexPosBuffer, 15000000);
@@ -2894,7 +2894,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
 
     // update CPU side light buffers
     plLightComponent* ptLights = NULL;
-    const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, &ptLights, NULL);
+    const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
     for(uint32_t i = 0; i < uLightCount; i++)
     {
         const plLightComponent* ptLight = &ptLights[i];
@@ -4033,7 +4033,7 @@ pl_renderer_debug_draw_bvh(plView* ptView)
     pl_begin_cpu_sample(gptProfile, 0, "draw BVH");
 
     plObjectComponent* ptComponents = NULL;
-    gptECS->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, &ptComponents, NULL);
+    gptECS->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
 
     plBVHNode* ptNode = NULL;
     uint32_t uLeafIndex = UINT32_MAX;
@@ -4707,7 +4707,7 @@ pl_renderer_rebuild_bvh(plScene* ptScene)
     plComponentLibrary* ptLibrary = ptScene->ptComponentLibrary;
 
     plObjectComponent* ptComponents = NULL;
-    const uint32_t uObjectCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, &ptComponents, NULL);
+    const uint32_t uObjectCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
 
     pl_sb_resize(ptScene->sbtBvhAABBs, uObjectCount);
     for(uint32_t j = 0; j < uObjectCount; j++)
@@ -4740,7 +4740,7 @@ pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupShare
     plComponentLibrary* ptLibrary = pData;
 
     plObjectComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tObjectComponentType, &ptComponents, NULL);
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
 
     plObjectComponent* ptObject = &ptComponents[tInvoData.uGlobalIndex];
     plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_transform(), ptObject->tTransform);
@@ -4791,8 +4791,8 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plSkinComponent* ptComponents = NULL;
-    plEntity* ptEntities = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tSkinComponentType, &ptComponents, &ptEntities);
+    const plEntity* ptEntities = NULL;
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tSkinComponentType, (void**)&ptComponents, &ptEntities);
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
@@ -4849,7 +4849,7 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     
     plObjectComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tObjectComponentType, &ptComponents, NULL);
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
 
     plAtomicCounter* ptCounter = NULL;
     plJobDesc tJobDesc = {
@@ -4949,8 +4949,8 @@ pl_run_light_update_system(plComponentLibrary* ptLibrary)
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plLightComponent* ptComponents = NULL;
-    plEntity* ptEntities = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tLightComponentType, &ptComponents, &ptEntities);
+    const plEntity* ptEntities = NULL;
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tLightComponentType, (void**)&ptComponents, &ptEntities);
 
     const plEcsTypeKey tTransformKey = gptECS->get_ecs_type_key_transform();
     for(uint32_t i = 0; i < uComponentCount; i++)

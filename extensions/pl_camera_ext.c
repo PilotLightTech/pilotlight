@@ -204,9 +204,9 @@ pl_run_camera_update_system(plComponentLibrary* ptLibrary)
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plCamera* ptComponents = NULL;
-    plEntity* ptEntities = NULL;
+    const plEntity* ptEntities = NULL;
 
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptCameraCtx->uManagerIndex, &ptComponents, &ptEntities);
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptCameraCtx->uManagerIndex, (void**)&ptComponents, &ptEntities);
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
     for(uint32_t i = 0; i < uComponentCount; i++)

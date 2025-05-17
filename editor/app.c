@@ -717,7 +717,7 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowDebugLights)
     {
         plLightComponent* ptLights = NULL;
-        const uint32_t uLightCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptRenderer->get_ecs_type_key_light(), &ptLights, NULL);
+        const uint32_t uLightCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptRenderer->get_ecs_type_key_light(), (void**)&ptLights, NULL);
         gptRenderer->debug_draw_lights(ptAppData->ptView, ptLights, uLightCount);
     }
 

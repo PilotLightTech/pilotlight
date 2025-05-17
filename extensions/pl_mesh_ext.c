@@ -292,7 +292,7 @@ static void
 pl__mesh_cleanup(plComponentLibrary* ptLibrary)
 {
     plMeshComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptMeshCtx->tMeshComponentType, &ptComponents, NULL);
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptMeshCtx->tMeshComponentType, (void**)&ptComponents, NULL);
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
         PL_FREE(ptComponents[i].puRawData);

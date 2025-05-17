@@ -698,7 +698,7 @@ pl_run_transform_update_system(plComponentLibrary* ptLibrary)
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plTransformComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = pl_ecs_get_components(ptLibrary, gptEcsCtx->tTransformComponentType, &ptComponents, NULL);
+    const uint32_t uComponentCount = pl_ecs_get_components(ptLibrary, gptEcsCtx->tTransformComponentType, (void**)&ptComponents, NULL);
 
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
@@ -719,8 +719,8 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plHierarchyComponent* ptComponents = NULL;
-    plEntity* ptEntities = NULL;
-    const uint32_t uComponentCount = pl_ecs_get_components(ptLibrary, gptEcsCtx->tHierarchyComponentType, &ptComponents, &ptEntities);
+    const plEntity* ptEntities = NULL;
+    const uint32_t uComponentCount = pl_ecs_get_components(ptLibrary, gptEcsCtx->tHierarchyComponentType, (void**)&ptComponents, &ptEntities);
 
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
@@ -744,8 +744,8 @@ pl_run_script_update_system(plComponentLibrary* ptLibrary)
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plScriptComponent* ptComponents = NULL;
-    plEntity* ptEntities = NULL;
-    const uint32_t uComponentCount = pl_ecs_get_components(ptLibrary, gptEcsCtx->tScriptComponentType, &ptComponents, &ptEntities);
+    const plEntity* ptEntities = NULL;
+    const uint32_t uComponentCount = pl_ecs_get_components(ptLibrary, gptEcsCtx->tScriptComponentType, (void**)&ptComponents, &ptEntities);
 
     for(uint32_t i = 0; i < uComponentCount; i++)
     {

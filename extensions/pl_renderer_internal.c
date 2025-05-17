@@ -701,8 +701,8 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
     plEnvironmentProbeComponent* ptProbes = NULL;
     plLightComponent* ptLights = NULL;
 
-    const uint32_t uProbeCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, &ptProbes, NULL);
-    const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, &ptLights, NULL);
+    const uint32_t uProbeCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, (void**)&ptProbes, NULL);
+    const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
 
     // for packing, using rect id as (16 bits) + (3 bits) + (11 bits) + (2bit) for light, view, probe, mode
 
@@ -794,7 +794,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
     plLightComponent* ptLights = NULL;
-    gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, &ptLights, NULL);
+    gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
     const uint32_t uLightCount = pl_sb_size(ptScene->sbtShadowRects);
     for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
     {
@@ -1391,7 +1391,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
     const uint32_t uInitialOffset = *puOffset;
 
     plLightComponent* ptLights = NULL;
-    const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, &ptLights, NULL);
+    const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
 
     const float g = 1.0f / tanf(ptSceneCamera->fFieldOfView / 2.0f);
     const float s = ptSceneCamera->fAspectRatio;

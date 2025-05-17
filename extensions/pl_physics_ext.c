@@ -561,7 +561,7 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
 
     const float fSubstepTime = (1.0f / gptPhysicsCtx->tSettings.fSimulationFrameRate);
 
-    plEntity* ptRigidBodyEntities = NULL;
+    const plEntity* ptRigidBodyEntities = NULL;
     const uint32_t uRigidBodyCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
 
     // update stats
@@ -647,7 +647,7 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
-    plEntity* ptRigidBodyEntities = NULL;
+    const plEntity* ptRigidBodyEntities = NULL;
     const uint32_t uRigidBodyCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
 
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
@@ -724,7 +724,7 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 
     // draw force field
 
-    plEntity* ptForceFieldEntities = NULL;
+    const plEntity* ptForceFieldEntities = NULL;
     const uint32_t uForceFieldCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tForceFieldComponentType, NULL, &ptForceFieldEntities);
 
     for(uint32_t i = 0; i < uForceFieldCount; i++)
@@ -1021,10 +1021,10 @@ pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
-    plEntity* ptRigidBodyEntities = NULL;
+    const plEntity* ptRigidBodyEntities = NULL;
     const uint32_t uRigidBodyCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
 
-    plEntity* ptForceFieldEntities = NULL;
+    const plEntity* ptForceFieldEntities = NULL;
     const uint32_t uForceFieldCount = gptECS->get_components(ptLibrary, gptPhysicsCtx->tForceFieldComponentType, NULL, &ptForceFieldEntities);
 
     for(uint32_t i = 0; i < uForceFieldCount; i++)
@@ -1093,7 +1093,7 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
     const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
 
-    plEntity* ptRigidBodyEntities = NULL;
+    const plEntity* ptRigidBodyEntities = NULL;
     const uint32_t uRigidBodyCount = gptECS->get_components(ptLibrary, tRigidBodyPhysicsComponentType, NULL, &ptRigidBodyEntities);
 
     // plCollisionPrimitive tPrimFloor = {
