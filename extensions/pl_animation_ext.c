@@ -116,11 +116,13 @@ static void
 pl__ecs_animation_cleanup(plComponentLibrary* ptLibrary)
 {
     plAnimationComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, &ptComponents, NULL);
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, (void**)&ptComponents, NULL);
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
-        pl_sb_free(ptComponents[i].sbtChannels);
-        pl_sb_free(ptComponents[i].sbtSamplers);
+        PL_FREE(ptComponents[i].atChannels);
+        ptComponents[i].atChannels = NULL;
+        ptComponents[i].atSamplers = NULL;
+        ptComponents[i].uChannelCount = 0;
     }
 }
 
@@ -128,12 +130,12 @@ static void
 pl__ecs_animation_data_cleanup(plComponentLibrary* ptLibrary)
 {
     plAnimationDataComponent* ptComponents = NULL;
-    plEntity* sbtEntities = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tAnimationDataComponentType, &ptComponents, NULL);
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tAnimationDataComponentType, (void**)&ptComponents, NULL);
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
-        pl_sb_free(ptComponents[i].sbfKeyFrameData);
-        pl_sb_free(ptComponents[i].sbfKeyFrameTimes);
+        PL_FREE(ptComponents[i].afKeyFrameTimes);
+        ptComponents[i].afKeyFrameTimes = NULL;
+        ptComponents[i].pKeyFrameData = NULL;
     }
 }
 
@@ -154,13 +156,19 @@ pl__ecs_ik_reset(plComponentLibrary* ptLibrary)
 }
 
 plEntity
-pl_ecs_create_animation(plComponentLibrary* ptLibrary, const char* pcName, plAnimationComponent** pptCompOut)
+pl_ecs_create_animation(plComponentLibrary* ptLibrary, const char* pcName, uint32_t uChannelCount, plAnimationComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation";
     pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created animation: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plAnimationComponent* ptCompOut = gptECS->add_component(ptLibrary, gptAnimationCtx->tAnimationComponentType, tNewEntity);
+
+    size_t szAllocationSize = (sizeof(plAnimationChannel) + sizeof(plAnimationSampler)) * uChannelCount;
+    ptCompOut->uChannelCount = uChannelCount;
+    ptCompOut->atChannels = PL_ALLOC(szAllocationSize);
+    memset(ptCompOut->atChannels, 0, szAllocationSize);
+    ptCompOut->atSamplers = (plAnimationSampler*)&ptCompOut->atChannels[uChannelCount];
 
     if(pptCompOut)
         *pptCompOut = ptCompOut;
@@ -169,13 +177,20 @@ pl_ecs_create_animation(plComponentLibrary* ptLibrary, const char* pcName, plAni
 }
 
 plEntity
-pl_ecs_create_animation_data(plComponentLibrary* ptLibrary, const char* pcName, plAnimationDataComponent** pptCompOut)
+pl_ecs_create_animation_data(plComponentLibrary* ptLibrary, const char* pcName, uint32_t uKeyFrameCount, size_t szDataSize, plAnimationDataComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation data";
     pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created animation data: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plAnimationDataComponent* ptCompOut = gptECS->add_component(ptLibrary, gptAnimationCtx->tAnimationDataComponentType, tNewEntity);
+
+    ptCompOut->uKeyFrameCount = uKeyFrameCount;
+    ptCompOut->szDataSize = szDataSize;
+
+    ptCompOut->afKeyFrameTimes = PL_ALLOC(sizeof(float) * uKeyFrameCount + szDataSize);
+    memset(ptCompOut->afKeyFrameTimes, 0, sizeof(float) * uKeyFrameCount + szDataSize);
+    ptCompOut->pKeyFrameData = (void*)&ptCompOut->afKeyFrameTimes[uKeyFrameCount];
 
     if(pptCompOut)
         *pptCompOut = ptCompOut;
@@ -189,7 +204,7 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plAnimationComponent* ptComponents = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, &ptComponents, NULL);
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, (void**)&ptComponents, NULL);
 
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
@@ -212,43 +227,42 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
             continue;
         }
 
-        const uint32_t uChannelCount = pl_sb_size(ptAnimationComponent->sbtChannels);
-        for(uint32_t j = 0; j < uChannelCount; j++)
+        for(uint32_t j = 0; j < ptAnimationComponent->uChannelCount; j++)
         {
             
-            const plAnimationChannel* ptChannel = &ptAnimationComponent->sbtChannels[j];
-            const plAnimationSampler* ptSampler = &ptAnimationComponent->sbtSamplers[ptChannel->uSamplerIndex];
+            const plAnimationChannel* ptChannel = &ptAnimationComponent->atChannels[j];
+            const plAnimationSampler* ptSampler = &ptAnimationComponent->atSamplers[ptChannel->uSamplerIndex];
             const plAnimationDataComponent* ptData = gptECS->get_component(ptLibrary, gptAnimationCtx->tAnimationDataComponentType, ptSampler->tData);
             plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, gptAnimationCtx->tTransformComponentType, ptChannel->tTarget);
             ptTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
 
             // wrap t around, so the animation loops.
             // make sure that t is never earlier than the first keyframe and never later then the last keyframe.
-            const float fModTime = pl_clampf(ptData->sbfKeyFrameTimes[0], ptAnimationComponent->fTimer, pl_sb_top(ptData->sbfKeyFrameTimes));
+            const float fModTime = pl_clampf(ptData->afKeyFrameTimes[0], ptAnimationComponent->fTimer, ptData->afKeyFrameTimes[ptData->uKeyFrameCount - 1]);
             int iNextKey = 0;
 
-            const uint32_t uInputDataCount = pl_sb_size(ptData->sbfKeyFrameTimes);
-
-            for(uint32_t k = 0; k < uInputDataCount; k++)
+            for(uint32_t k = 0; k < ptData->uKeyFrameCount; k++)
             {
                 
-                if(fModTime <= ptData->sbfKeyFrameTimes[k])
+                if(fModTime <= ptData->afKeyFrameTimes[k])
                 {
-                    iNextKey = pl_clampi(1, k, uInputDataCount - 1);
+                    iNextKey = pl_clampi(1, k, ptData->uKeyFrameCount - 1);
                     break;
                 }
             }
-            const int iPrevKey = pl_clampi(0, iNextKey - 1, uInputDataCount - 1);
+            const int iPrevKey = pl_clampi(0, iNextKey - 1, ptData->uKeyFrameCount - 1);
 
-            const float fKeyDelta = ptData->sbfKeyFrameTimes[iNextKey] - ptData->sbfKeyFrameTimes[iPrevKey];
+            const float fKeyDelta = ptData->afKeyFrameTimes[iNextKey] - ptData->afKeyFrameTimes[iPrevKey];
 
             // normalize t: [t0, t1] -> [0, 1]
-            const float fTn = (fModTime - ptData->sbfKeyFrameTimes[iPrevKey]) / fKeyDelta;
+            const float fTn = (fModTime - ptData->afKeyFrameTimes[iPrevKey]) / fKeyDelta;
 
             const float fTSq = fTn * fTn;
             const float fTCub = fTSq * fTn;
 
             const int iA = 0;
+
+            float* afKeyFrameData = (float*)ptData->pKeyFrameData;
 
             switch(ptChannel->tPath)
             {
@@ -257,8 +271,8 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 
                     if(ptSampler->tMode == PL_ANIMATION_MODE_LINEAR)
                     {
-                        const plVec3 tPrev = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
-                        const plVec3 tNext = *(plVec3*)&ptData->sbfKeyFrameData[iNextKey * 3];
+                        const plVec3 tPrev = *(plVec3*)&afKeyFrameData[iPrevKey * 3];
+                        const plVec3 tNext = *(plVec3*)&afKeyFrameData[iNextKey * 3];
                         const plVec3 tTranslation = (plVec3){
                             .x = tPrev.x * (1.0f - fTn) + tNext.x * fTn,
                             .y = tPrev.y * (1.0f - fTn) + tNext.y * fTn,
@@ -269,7 +283,7 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 
                     else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
                     {
-                        const plVec3 tTranslation = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
+                        const plVec3 tTranslation = *(plVec3*)&afKeyFrameData[iPrevKey * 3];
                         ptTransform->tTranslation = pl_lerp_vec3(ptTransform->tTranslation, tTranslation, ptAnimationComponent->fBlendAmount);
                     }
 
@@ -283,10 +297,10 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
                         plVec3 tTranslation = {0};
                         for(uint32_t k = 0; k < 3; k++)
                         {
-                            const float iV0 = *(float*)&ptData->sbfKeyFrameData[iPrevIndex + k + iV];
-                            const float a = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[iNextIndex + k + iA];
-                            const float b = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[iPrevIndex + k + iB];
-                            const float v1 = *(float*)&ptData->sbfKeyFrameData[iNextIndex + k + iV];
+                            const float iV0 = afKeyFrameData[iPrevIndex + k + iV];
+                            const float a = fKeyDelta * afKeyFrameData[iNextIndex + k + iA];
+                            const float b = fKeyDelta * afKeyFrameData[iPrevIndex + k + iB];
+                            const float v1 = afKeyFrameData[iNextIndex + k + iV];
                             tTranslation.d[k] = ((2 * fTCub - 3 * fTSq + 1) * iV0) + ((fTCub - 2 * fTSq + fTn) * b) + ((-2 * fTCub + 3 * fTSq) * v1) + ((fTCub - fTSq) * a);
                         }
                         ptTransform->tTranslation = pl_lerp_vec3(ptTransform->tTranslation, tTranslation, ptAnimationComponent->fBlendAmount);
@@ -299,8 +313,8 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 
                     if(ptSampler->tMode == PL_ANIMATION_MODE_LINEAR)
                     {
-                        const plVec3 tPrev = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
-                        const plVec3 tNext = *(plVec3*)&ptData->sbfKeyFrameData[iNextKey * 3];
+                        const plVec3 tPrev = *(plVec3*)&afKeyFrameData[iPrevKey * 3];
+                        const plVec3 tNext = *(plVec3*)&afKeyFrameData[iNextKey * 3];
                         ptTransform->tScale = (plVec3){
                             .x = tPrev.x * (1.0f - fTn) + tNext.x * fTn,
                             .y = tPrev.y * (1.0f - fTn) + tNext.y * fTn,
@@ -310,7 +324,7 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 
                     else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
                     {
-                        ptTransform->tScale = *(plVec3*)&ptData->sbfKeyFrameData[iPrevKey * 3];
+                        ptTransform->tScale = *(plVec3*)&afKeyFrameData[iPrevKey * 3];
                     }
 
                     else if(ptSampler->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
@@ -322,10 +336,10 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 
                         for(uint32_t k = 0; k < 3; k++)
                         {
-                            float v0 = *(float*)&ptData->sbfKeyFrameData[iPrevIndex + k + iV];
-                            float a = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[iNextIndex + k + iA];
-                            float b = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[iPrevIndex + k + iB];
-                            float v1 = *(float*)&ptData->sbfKeyFrameData[iNextIndex + k + iV];
+                            float v0 = afKeyFrameData[iPrevIndex + k + iV];
+                            float a = fKeyDelta * afKeyFrameData[iNextIndex + k + iA];
+                            float b = fKeyDelta * afKeyFrameData[iPrevIndex + k + iB];
+                            float v1 = afKeyFrameData[iNextIndex + k + iV];
                             ptTransform->tScale.d[k] = ((2 * fTCub - 3 * fTSq + 1) * v0) + ((fTCub - 2 * fTSq + fTn) * b) + ((-2 * fTCub + 3 * fTSq) * v1) + ((fTCub - fTSq) * a);
                         }
                     }
@@ -337,14 +351,14 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 
                     if(ptSampler->tMode == PL_ANIMATION_MODE_LINEAR)
                     {
-                        const plVec4 tQ0 = *(plVec4*)&ptData->sbfKeyFrameData[iPrevKey * 4];
-                        const plVec4 tQ1 = *(plVec4*)&ptData->sbfKeyFrameData[iNextKey * 4];
+                        const plVec4 tQ0 = *(plVec4*)&afKeyFrameData[iPrevKey * 4];
+                        const plVec4 tQ1 = *(plVec4*)&afKeyFrameData[iNextKey * 4];
                         const plVec4 tRotation = pl_quat_slerp(tQ0, tQ1, fTn);
                         ptTransform->tRotation = pl_quat_slerp(ptTransform->tRotation, tRotation, ptAnimationComponent->fBlendAmount);
                     }
                     else if(ptSampler->tMode == PL_ANIMATION_MODE_STEP)
                     {
-                        const plVec4 tRotation = *(plVec4*)&ptData->sbfKeyFrameData[iPrevKey * 4];
+                        const plVec4 tRotation = *(plVec4*)&afKeyFrameData[iPrevKey * 4];
                         ptTransform->tRotation = pl_quat_slerp(ptTransform->tRotation, tRotation, ptAnimationComponent->fBlendAmount);
                     }
                     else if(ptSampler->tMode == PL_ANIMATION_MODE_CUBIC_SPLINE)
@@ -357,10 +371,10 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
                         plVec4 tResult = {0};
                         for(uint32_t k = 0; k < 4; k++)
                         {
-                            const float iV0 = *(float*)&ptData->sbfKeyFrameData[iPrevIndex + k + iV];
-                            const float a = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[iNextIndex + k + iA];
-                            const float b = fKeyDelta * *(float*)&ptData->sbfKeyFrameData[iPrevIndex + k + iB];
-                            const float iV1 = *(float*)&ptData->sbfKeyFrameData[iNextIndex + k + iV];
+                            const float iV0 = afKeyFrameData[iPrevIndex + k + iV];
+                            const float a = fKeyDelta * afKeyFrameData[iNextIndex + k + iA];
+                            const float b = fKeyDelta * afKeyFrameData[iPrevIndex + k + iB];
+                            const float iV1 = afKeyFrameData[iNextIndex + k + iV];
 
                             tResult.d[k] = ((2 * fTCub - 3 * fTSq + 1) * iV0) + ((fTCub - 2 * fTSq + fTn) * b) + ((-2 * fTCub + 3 * fTSq) * iV1) + ((fTCub - fTSq) * a);
                         }
@@ -381,12 +395,12 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     plInverseKinematicsComponent* ptComponents = NULL;
-    plEntity* ptEntities = NULL;
-    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType, &ptComponents, &ptEntities);
+    const plEntity* ptEntities = NULL;
+    const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType, (void**)&ptComponents, &ptEntities);
 
 
     plTransformComponent* ptTransforms = NULL;
-    const uint32_t uTransformCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tTransformComponentType, &ptTransforms, NULL);
+    const uint32_t uTransformCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tTransformComponentType, (void**)&ptTransforms, NULL);
 
     plComponentLibraryData* ptData = gptECS->get_library_type_data(ptLibrary, gptAnimationCtx->tInverseKinematicsComponentType);
     pl_sb_resize(ptData->sbtTransformsCopy, uTransformCount);
@@ -494,7 +508,7 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
 
     if(bRecomputeHierarchy)
     {
-        plEntity* ptHierarchyEntities = NULL;
+        const plEntity* ptHierarchyEntities = NULL;
         const uint32_t uHierarchyCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tHierarchyComponentType, NULL, &ptHierarchyEntities);
         for(uint32_t i = 0; i < uHierarchyCount; i++)
         {

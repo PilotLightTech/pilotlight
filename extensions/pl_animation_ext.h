@@ -8,6 +8,7 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] defines
+// [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api structs
 // [SECTION] enums
@@ -55,9 +56,9 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdbool.h> // bool
+#include <stddef.h>       // size_t
+#include <stdbool.h>      // bool
 #include "pl_ecs_ext.inl" // plEntity
-#include "pl_math.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -95,8 +96,8 @@ typedef struct _plAnimationI
 
     // entity helpers (creates entity and necessary components)
     //   - do NOT store out parameter; use it immediately
-    plEntity (*create_animation)     (plComponentLibrary*, const char* pcName, plAnimationComponent**);
-    plEntity (*create_animation_data)(plComponentLibrary*, const char* pcName, plAnimationDataComponent**);
+    plEntity (*create_animation)     (plComponentLibrary*, const char* pcName, uint32_t channelCount, plAnimationComponent**);
+    plEntity (*create_animation_data)(plComponentLibrary*, const char* pcName, uint32_t keyFrameCount, size_t dataSize, plAnimationDataComponent**);
 
     // systems
     void (*run_animation_update_system)         (plComponentLibrary*, float fDeltaTime);
@@ -236,8 +237,10 @@ typedef struct _plHumanoidComponent
 
 typedef struct _plAnimationDataComponent
 {
-    float* sbfKeyFrameTimes;
-    float* sbfKeyFrameData;
+    uint32_t uKeyFrameCount;
+    size_t   szDataSize;
+    float*   afKeyFrameTimes;
+    void*    pKeyFrameData;
 } plAnimationDataComponent;
 
 typedef struct _plAnimationComponent
@@ -248,8 +251,9 @@ typedef struct _plAnimationComponent
     float               fTimer;
     float               fSpeed;
     float               fBlendAmount;
-    plAnimationChannel* sbtChannels;
-    plAnimationSampler* sbtSamplers;
+    uint32_t            uChannelCount;
+    plAnimationChannel* atChannels;
+    plAnimationSampler* atSamplers;
 } plAnimationComponent;
 
 typedef struct _plInverseKinematicsComponent

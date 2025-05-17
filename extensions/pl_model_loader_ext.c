@@ -859,15 +859,13 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
     plComponentLibrary* ptLibrary = ptSceneData->ptLibrary;
 
     plAnimationComponent* ptAnimationComp = NULL;
-    gptAnimation->create_animation(ptLibrary, ptAnimation->name, &ptAnimationComp);
+    plEntity tAnimationEntity = gptAnimation->create_animation(ptLibrary, ptAnimation->name, (uint32_t)ptAnimation->channels_count, &ptAnimationComp);
 
     // load channels
-    pl_sb_reserve(ptAnimationComp->sbtSamplers, ptAnimation->channels_count);
-    pl_sb_reserve(ptAnimationComp->sbtChannels, ptAnimation->channels_count);
     for(size_t i = 0; i < ptAnimation->channels_count; i++)
     {
         const cgltf_animation_channel* ptChannel = &ptAnimation->channels[i];
-        plAnimationChannel tChannel = {.uSamplerIndex = pl_sb_size(ptAnimationComp->sbtSamplers)};
+        plAnimationChannel tChannel = {.uSamplerIndex = (uint32_t)i};
         switch(ptChannel->target_path)
         {
             case cgltf_animation_path_type_translation:
@@ -905,9 +903,22 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
                 tSampler.tMode = PL_ANIMATION_MODE_UNKNOWN;
         }
 
-        plAnimationDataComponent* ptAnimationDataComp = NULL;
-        tSampler.tData = gptAnimation->create_animation_data(ptLibrary, ptSampler->input->name, &ptAnimationDataComp);
+        const uint32_t uKeyFrameCount = (uint32_t)ptSampler->input->count;
+        uint32_t uKeyFrameDataComponents = 1;
 
+        if(ptSampler->output->type == cgltf_type_vec3)
+        {
+            uKeyFrameDataComponents = 3;
+        }
+        else if(ptSampler->output->type == cgltf_type_vec4)
+        {
+            uKeyFrameDataComponents = 4;
+        }
+
+        plAnimationDataComponent* ptAnimationDataComp = NULL;
+        tSampler.tData = gptAnimation->create_animation_data(ptLibrary, ptSampler->input->name, uKeyFrameCount, sizeof(float) * uKeyFrameDataComponents * ptSampler->output->count, &ptAnimationDataComp);
+
+        ptAnimationComp = gptECS->get_component(ptLibrary, gptAnimation->get_ecs_type_key_animation(), tAnimationEntity);
         ptAnimationComp->fEnd = pl_maxf(ptAnimationComp->fEnd, ptSampler->input->max[0]);
 
         const cgltf_buffer* ptInputBuffer = ptSampler->input->buffer_view->buffer;
@@ -915,62 +926,50 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
         unsigned char* pucInputBufferStart = &((unsigned char*)ptInputBuffer->data)[ptSampler->input->buffer_view->offset + ptSampler->input->offset];
         unsigned char* pucOutputBufferStart = &((unsigned char*)ptOutputBuffer->data)[ptSampler->output->buffer_view->offset + ptSampler->output->offset];
 
-        pl_sb_resize(ptAnimationDataComp->sbfKeyFrameTimes, (uint32_t)ptSampler->input->count);
         for(size_t j = 0; j < ptSampler->input->count; j++)
         {
             const float fValue = *(float*)&pucInputBufferStart[ptSampler->input->stride * j];
-            ptAnimationDataComp->sbfKeyFrameTimes[j] = fValue;
+            ptAnimationDataComp->afKeyFrameTimes[j] = fValue;
         }
 
         if(ptSampler->output->type == cgltf_type_scalar)
         {
-            pl_sb_resize(ptAnimationDataComp->sbfKeyFrameData, (uint32_t)ptSampler->input->count);
+            float* afKeyFrameData = (float*)ptAnimationDataComp->pKeyFrameData;
+            for(size_t j = 0; j < ptSampler->output->count; j++)
+            {
+                const float fValue0 = *(float*)&pucOutputBufferStart[ptSampler->output->stride * j];
+                afKeyFrameData[j] =  fValue0;
+            }
         }
         else if(ptSampler->output->type == cgltf_type_vec3)
         {
-            pl_sb_reserve(ptAnimationDataComp->sbfKeyFrameData, (uint32_t)ptSampler->input->count * 3);
+            plVec3* atKeyFrameData = (plVec3*)ptAnimationDataComp->pKeyFrameData;
+            for(size_t j = 0; j < ptSampler->output->count; j++)
+            {
+                float* fFloatData = (float*)&pucOutputBufferStart[ptSampler->output->stride * j];
+                atKeyFrameData[j].x = fFloatData[0];
+                atKeyFrameData[j].y = fFloatData[1];
+                atKeyFrameData[j].z = fFloatData[2];
+            }
         }
         else if(ptSampler->output->type == cgltf_type_vec4)
         {
-            pl_sb_reserve(ptAnimationDataComp->sbfKeyFrameData, (uint32_t)ptSampler->input->count * 4);
-        }
-
-        for(size_t j = 0; j < ptSampler->output->count; j++)
-        {
-            if(ptSampler->output->type == cgltf_type_scalar)
-            {
-                const float fValue0 = *(float*)&pucOutputBufferStart[ptSampler->output->stride * j];
-                ptAnimationDataComp->sbfKeyFrameData[j] =  fValue0;
-            }
-            else if(ptSampler->output->type == cgltf_type_vec3)
+            plVec4* atKeyFrameData = (plVec4*)ptAnimationDataComp->pKeyFrameData;
+            for(size_t j = 0; j < ptSampler->output->count; j++)
             {
                 float* fFloatData = (float*)&pucOutputBufferStart[ptSampler->output->stride * j];
-                const float fValue0 = fFloatData[0];
-                const float fValue1 = fFloatData[1];
-                const float fValue2 = fFloatData[2];
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue0);
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue1);
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue2);
-            }
-            else if(ptSampler->output->type == cgltf_type_vec4)
-            {
-                float* fFloatData = (float*)&pucOutputBufferStart[ptSampler->output->stride * j];
-                const float fValue0 = fFloatData[0];
-                const float fValue1 = fFloatData[1];
-                const float fValue2 = fFloatData[2];
-                const float fValue3 = fFloatData[3];
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue0);
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue1);
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue2);
-                pl_sb_push(ptAnimationDataComp->sbfKeyFrameData, fValue3);
+                atKeyFrameData[j].x = fFloatData[0];
+                atKeyFrameData[j].y = fFloatData[1];
+                atKeyFrameData[j].z = fFloatData[2];
+                atKeyFrameData[j].w = fFloatData[3];
             }
         }
 
         const uint64_t ulTargetEntity = pl_hm_lookup(&ptSceneData->tNodeHashmap, (uint64_t)ptChannel->target_node);
         tChannel.tTarget = *(plEntity*)&ulTargetEntity;
 
-        pl_sb_push(ptAnimationComp->sbtSamplers, tSampler);
-        pl_sb_push(ptAnimationComp->sbtChannels, tChannel);
+        ptAnimationComp->atSamplers[i] = tSampler;
+        ptAnimationComp->atChannels[i] = tChannel;
     }
 }
 

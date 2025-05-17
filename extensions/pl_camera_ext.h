@@ -118,6 +118,8 @@ typedef struct _plCamera
     float        fYaw;   // rotation about up vector
     float        fRoll;  // rotation about forward vector
 
+    // [INTERNAL]
+    
     // direction vectors
     plVec3       _tUpVec;
     plVec3       _tForwardVec;
