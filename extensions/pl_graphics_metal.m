@@ -3399,7 +3399,7 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
     {
         gptGraphics->szHostMemoryInUse -= ptBlock->ulSize;
     }
-    ptBlock->uHandle = UINT64_MAX;
+    ptBlock->uHandle = 0;
     ptBlock->pHostMapped = NULL;
     ptBlock->ulSize = 0;
     ptBlock->tMemoryFlags = 0;
