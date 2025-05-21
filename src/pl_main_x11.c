@@ -205,6 +205,10 @@ int main(int argc, char *argv[])
     // add contexts to data registry
     gptIOCtx = gptIOI->get_io();
 
+    // command line args
+    gptIOCtx->iArgc = argc;
+    gptIOCtx->apArgv = argv;
+
     #ifndef PL_HEADLESS_APP
 
     // connect to x
