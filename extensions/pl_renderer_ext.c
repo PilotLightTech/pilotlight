@@ -280,7 +280,7 @@ pl_renderer_initialize(plRendererSettings tSettings)
 
     // create main bind group pool
     const plBindGroupPoolDesc tBindGroupPoolDesc = {
-        .tFlags                      = PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET | PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING,
+        .tFlags                      = PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET,
         .szSamplerBindings           = 100000,
         .szUniformBufferBindings     = 100000,
         .szStorageBufferBindings     = 100000,
