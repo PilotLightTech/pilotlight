@@ -3442,11 +3442,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->update_bind_group(gptData->ptDevice, tSceneBG, &tSceneBGData);
     gptGfx->queue_bind_group_for_deletion(ptDevice, tSceneBG);
 
-    typedef struct _plLightingDynamicData {
-        uint32_t uGlobalIndex;
-        uint32_t uUnused[3];
-    } plLightingDynamicData;
-
     plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
     plLightingDynamicData* ptLightingDynamicData = (plLightingDynamicData*)tLightingDynamicData.pcData;
     ptLightingDynamicData->uGlobalIndex = 0;
@@ -3642,15 +3637,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         plBindGroupHandle tPickBG0 = gptGfx->create_bind_group(ptDevice, &tPickBGDesc);
         gptGfx->update_bind_group(gptData->ptDevice, tPickBG0, &tPickBGData0);
         gptGfx->queue_bind_group_for_deletion(ptDevice, tPickBG0);
-
-        typedef struct _plPickDynamicData
-        {
-            uint32_t uID;
-            uint32_t _unused[3];
-            plVec4 tMousePos;
-            plMat4 tModel;
-            
-        } plPickDynamicData;
 
         plRenderEncoder* ptPickEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tPickRenderPass, NULL);
         gptGfx->set_depth_bias(ptPickEncoder, 0.0f, 0.0f, 0.0f);

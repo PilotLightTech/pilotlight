@@ -397,13 +397,6 @@ pl__renderer_sat_visibility_test(plCamera* ptCamera, const plAABB* ptAABB)
 
     // Use transformed atCorners to calculate center, axes and extents
 
-    typedef struct _plOBB
-    {
-        plVec3 tCenter;
-        plVec3 tExtents;
-        plVec3 atAxes[3]; // Orthonormal basis
-    } plOBB;
-
     plOBB tObb = {
         .atAxes = {
             pl_sub_vec3(atCorners[1], atCorners[0]),
@@ -1955,14 +1948,6 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
     gptGfx->update_bind_group(gptData->ptDevice, tJFABindGroup0, &tJFABGData);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tJFABindGroup0);
 
-    typedef struct _plPostProcessOptions
-    {
-        float fTargetWidth;
-        int   _padding[3];
-        plVec4 tOutlineColor;
-    } plPostProcessOptions;
-
-
     plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
     plPostProcessOptions* ptDynamicData = (plPostProcessOptions*)tDynamicBinding.pcData;
@@ -2425,9 +2410,9 @@ pl__renderer_create_global_shaders(void)
 }
 
 static void
-pl__renderer_add_drawable_skin_data_to_global_buffers(plScene* ptScene, uint32_t uDrawableIndex, plDrawable* atDrawables)
+pl__renderer_add_drawable_skin_data_to_global_buffers(plScene* ptScene, uint32_t uDrawableIndex)
 {
-    plEntity tEntity = atDrawables[uDrawableIndex].tEntity;
+    plEntity tEntity = ptScene->sbtDrawables[uDrawableIndex].tEntity;
 
     // get actual components
     plObjectComponent* ptObject   = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
@@ -2548,8 +2533,8 @@ pl__renderer_add_drawable_skin_data_to_global_buffers(plScene* ptScene, uint32_t
         .tEntity = ptMesh->tSkinComponent,
         .uVertexCount = uVertexCount,
         .iSourceDataOffset = uVertexDataStartIndex,
-        .iDestDataOffset = atDrawables[uDrawableIndex].uDataOffset,
-        .iDestVertexOffset = atDrawables[uDrawableIndex].uVertexOffset,
+        .iDestDataOffset = ptScene->sbtDrawables[uDrawableIndex].uDataOffset,
+        .iDestVertexOffset = ptScene->sbtDrawables[uDrawableIndex].uVertexOffset,
     };
 
     plSkinComponent* ptSkinComponent = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tSkinComponentType, ptMesh->tSkinComponent);
@@ -2615,15 +2600,15 @@ pl__renderer_add_drawable_skin_data_to_global_buffers(plScene* ptScene, uint32_t
     tSkinData.tShader = gptGfx->create_compute_shader(gptData->ptDevice, &tComputeShaderDesc);
     tSkinData.tObjectEntity = tEntity;
     pl_temp_allocator_reset(&gptData->tTempAllocator);
-    atDrawables[uDrawableIndex].uSkinIndex = pl_sb_size(ptScene->sbtSkinData);
+    ptScene->sbtDrawables[uDrawableIndex].uSkinIndex = pl_sb_size(ptScene->sbtSkinData);
     pl_sb_push(ptScene->sbtSkinData, tSkinData);
 }
 
 static void
-pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDrawableIndex, plDrawable* atDrawables)
+pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDrawableIndex)
 {
 
-    plEntity tEntity = atDrawables[uDrawableIndex].tEntity;
+    plEntity tEntity = ptScene->sbtDrawables[uDrawableIndex].tEntity;
 
     // get actual components
     plObjectComponent* ptObject   = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
@@ -2759,11 +2744,11 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
 
     PL_ASSERT(uOffset == uStride && "sanity check");
 
-    atDrawables[uDrawableIndex].uIndexCount      = uIndexCount;
-    atDrawables[uDrawableIndex].uVertexCount     = uVertexCount;
-    atDrawables[uDrawableIndex].uIndexOffset     = uIndexBufferStart;
-    atDrawables[uDrawableIndex].uVertexOffset    = uVertexPosStartIndex;
-    atDrawables[uDrawableIndex].uDataOffset      = uVertexDataStartIndex;
+    ptScene->sbtDrawables[uDrawableIndex].uIndexCount      = uIndexCount;
+    ptScene->sbtDrawables[uDrawableIndex].uVertexCount     = uVertexCount;
+    ptScene->sbtDrawables[uDrawableIndex].uIndexOffset     = uIndexBufferStart;
+    ptScene->sbtDrawables[uDrawableIndex].uVertexOffset    = uVertexPosStartIndex;
+    ptScene->sbtDrawables[uDrawableIndex].uDataOffset      = uVertexDataStartIndex;
 }
 
 static plBlendState
@@ -3555,12 +3540,6 @@ pl__renderer_update_probes(plScene* ptScene, uint64_t ulValue)
 
             // create lighting dynamic bind group
 
-            typedef struct _plLightingDynamicData
-            {
-                uint32_t uGlobalIndex;
-                uint32_t _auUnused[3];
-            } plLightingDynamicData;
-
             plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
             plLightingDynamicData* ptLightingDynamicData = (plLightingDynamicData*)tLightingDynamicData.pcData;
             ptLightingDynamicData->uGlobalIndex = uFace;
@@ -3739,17 +3718,6 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
         gptGfx->return_command_buffer(ptCommandBuffer);
     }
-
-    typedef struct _FilterShaderSpecData{
-        int   iResolution;
-        float fRoughness;
-        int   iSampleCount;
-        int   iWidth;
-        float fLodBias;
-        int   iDistribution;
-        int   iIsGeneratingLut;
-        int   iCurrentMipLevel;
-    } FilterShaderSpecData;
 
     // create lut
     
@@ -4376,8 +4344,8 @@ pl__renderer_unstage_drawables(plScene* ptScene)
         ptScene->sbtDrawables[i].uSkinIndex = UINT32_MAX;
         pl_hm_insert(&ptScene->tDrawableHashmap, ptScene->sbtStagedEntities[i].uData, i);
         
-        pl__renderer_add_drawable_data_to_global_buffer(ptScene, i, ptScene->sbtDrawables);
-        pl__renderer_add_drawable_skin_data_to_global_buffers(ptScene, i, ptScene->sbtDrawables);
+        pl__renderer_add_drawable_data_to_global_buffer(ptScene, i);
+        pl__renderer_add_drawable_skin_data_to_global_buffers(ptScene, i);
         ptScene->sbtDrawables[i].uTriangleCount = ptScene->sbtDrawables[i].uIndexCount == 0 ? ptScene->sbtDrawables[i].uVertexCount / 3 : ptScene->sbtDrawables[i].uIndexCount / 3;
         ptScene->sbtDrawables[i].uStaticVertexOffset = ptScene->sbtDrawables[i].uIndexCount == 0 ? ptScene->sbtDrawables[i].uVertexOffset : 0;
         ptScene->sbtDrawables[i].uDynamicVertexOffset = ptScene->sbtDrawables[i].uIndexCount == 0 ? 0 : ptScene->sbtDrawables[i].uVertexOffset;

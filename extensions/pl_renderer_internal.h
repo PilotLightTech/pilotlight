@@ -1,25 +1,27 @@
 /*
-   pl_renderer_internal_ext.h
+   pl_renderer_internal.h
 */
 
 /*
 Index of this file:
+// [SECTION] header mess
 // [SECTION] includes
-// [SECTION] internal structs
-// [SECTION] internal enums
+// [SECTION] defines
+// [SECTION] global APIs
+// [SECTION] forward declarations
+// [SECTION] enums
+// [SECTION] structs
 // [SECTION] global data
 // [SECTION] internal API
 // [SECTION] implementation
-// [SECTION] internal API implementation
-// [SECTION] extension loading
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_RENDERER_INTERNAL_EXT_H
-#define PL_RENDERER_INTERNAL_EXT_H
+#ifndef PL_RENDERER_INTERNAL_H
+#define PL_RENDERER_INTERNAL_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -56,9 +58,16 @@ Index of this file:
 #include "pl_screen_log_ext.h"
 #include "pl_bvh_ext.h"
 
-#define PL_MAX_LIGHTS 100
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
 
+#define PL_MAX_LIGHTS 100
 #define PL_MAX_BINDLESS_TEXTURES 4096
+
+//-----------------------------------------------------------------------------
+// [SECTION] global APIs
+//-----------------------------------------------------------------------------
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -105,10 +114,53 @@ Index of this file:
 #include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal structs
+// [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
+// basic types
+typedef struct _plView                  plView;
+typedef struct _plScene                 plScene;
+typedef struct _plRefRendererData       plRefRendererData;
+typedef struct _plSkinData              plSkinData;
+typedef struct _plDrawable              plDrawable;
+typedef struct _plRendererStagingBuffer plRendererStagingBuffer;
+typedef struct _plCullData              plCullData;
+typedef struct _plMemCpyJobData         plMemCpyJobData;
+typedef struct _plOBB                   plOBB;
+
+// shader variants
+typedef struct _plShaderVariant plShaderVariant;
+typedef struct _plComputeShaderVariant plComputeShaderVariant;
+
+// gpu buffers
+typedef struct _plGPUProbeData             plGPUProbeData;
+typedef struct _plGPUMaterial              plGPUMaterial;
+typedef struct _plGPULight                 plGPULight;
+typedef struct _plGPULightShadowData       plGPULightShadowData;
+typedef struct _plShadowInstanceBufferData plShadowInstanceBufferData;
+typedef struct _plEnvironmentProbeData     plEnvironmentProbeData;
+
+// gpu dynamic data types
+typedef struct _SkinDynamicData            SkinDynamicData;
+typedef struct _BindGroup_0                BindGroup_0;
+typedef struct _DynamicData                DynamicData;
+typedef struct _plShadowDynamicData        plShadowDynamicData;
+typedef struct _plSkyboxDynamicData        plSkyboxDynamicData;
+typedef struct _plDirectionLightShadowData plDirectionLightShadowData;
+typedef struct _plLightingDynamicData      plLightingDynamicData;
+typedef struct _plPickDynamicData          plPickDynamicData;
+typedef struct _plPostProcessOptions       plPostProcessOptions;
+typedef struct _FilterShaderSpecData       FilterShaderSpecData;
+
+// enums & flags
 typedef int plDrawableFlags;
+typedef int plTextureMappingFlags;
+typedef int plMaterialInfoFlags;
+typedef int plRenderingFlags;
+
+//-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
 
 enum _plDrawableFlags
 {
@@ -117,6 +169,70 @@ enum _plDrawableFlags
     PL_DRAWABLE_FLAG_DEFERRED = 1 << 1,
     PL_DRAWABLE_FLAG_PROBE    = 1 << 2
 };
+
+enum _plTextureMappingFlags
+{
+    PL_HAS_BASE_COLOR_MAP         = 1 << 0,
+    PL_HAS_NORMAL_MAP             = 1 << 1,
+    PL_HAS_EMISSIVE_MAP           = 1 << 2,
+    PL_HAS_OCCLUSION_MAP          = 1 << 3,
+    PL_HAS_METALLIC_ROUGHNESS_MAP = 1 << 4
+};
+
+enum _plMaterialInfoFlags
+{
+    PL_INFO_MATERIAL_METALLICROUGHNESS = 1 << 0,
+};
+
+enum _plRenderingFlags
+{
+    PL_RENDERING_FLAG_USE_PUNCTUAL = 1 << 0,
+    PL_RENDERING_FLAG_USE_IBL      = 1 << 1,
+    PL_RENDERING_FLAG_SHADOWS      = 1 << 2
+};
+
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
+
+typedef struct _FilterShaderSpecData{
+    int   iResolution;
+    float fRoughness;
+    int   iSampleCount;
+    int   iWidth;
+    float fLodBias;
+    int   iDistribution;
+    int   iIsGeneratingLut;
+    int   iCurrentMipLevel;
+} FilterShaderSpecData;
+
+typedef struct _plPostProcessOptions
+{
+    float fTargetWidth;
+    int   _padding[3];
+    plVec4 tOutlineColor;
+} plPostProcessOptions;
+
+typedef struct _plOBB
+{
+    plVec3 tCenter;
+    plVec3 tExtents;
+    plVec3 atAxes[3]; // Orthonormal basis
+} plOBB;
+
+typedef struct _plLightingDynamicData
+{
+    uint32_t uGlobalIndex;
+    uint32_t uUnused[3];
+} plLightingDynamicData;
+
+typedef struct _plPickDynamicData
+{
+    uint32_t uID;
+    uint32_t _unused[3];
+    plVec4 tMousePos;
+    plMat4 tModel;
+} plPickDynamicData;
 
 typedef struct _plRendererStagingBuffer
 {
@@ -282,10 +398,10 @@ typedef struct _plShadowInstanceBufferData
 
 typedef struct _plShadowDynamicData
 {
-    int    iIndex;
-    int    iDataOffset;
-    int    iVertexOffset;
-    int    iMaterialIndex;
+    int iIndex;
+    int iDataOffset;
+    int iVertexOffset;
+    int iMaterialIndex;
 } plShadowDynamicData;
 
 typedef struct _plSkyboxDynamicData
@@ -339,12 +455,12 @@ typedef struct _plEnvironmentProbeData
     plDirectionLightShadowData tDirectionLightShadowData;
 
     // textures
-    plTextureHandle   tGGXLUTTexture;
-    uint32_t          uGGXLUT;
-    plTextureHandle   tLambertianEnvTexture;
-    uint32_t          uLambertianEnvSampler;
-    plTextureHandle   tGGXEnvTexture;
-    uint32_t          uGGXEnvSampler;
+    plTextureHandle tGGXLUTTexture;
+    uint32_t        uGGXLUT;
+    plTextureHandle tLambertianEnvTexture;
+    uint32_t        uLambertianEnvSampler;
+    plTextureHandle tGGXEnvTexture;
+    uint32_t        uGGXEnvSampler;
 
     // intervals
     uint32_t uCurrentFace;
@@ -654,31 +770,6 @@ typedef struct _plMemCpyJobData
 } plMemCpyJobData;
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal enums
-//-----------------------------------------------------------------------------
-
-enum _plTextureMappingFlags
-{
-    PL_HAS_BASE_COLOR_MAP         = 1 << 0,
-    PL_HAS_NORMAL_MAP             = 1 << 1,
-    PL_HAS_EMISSIVE_MAP           = 1 << 2,
-    PL_HAS_OCCLUSION_MAP          = 1 << 3,
-    PL_HAS_METALLIC_ROUGHNESS_MAP = 1 << 4
-};
-
-enum _plMaterialInfoFlags
-{
-    PL_INFO_MATERIAL_METALLICROUGHNESS = 1 << 0,
-};
-
-enum _plRenderingFlags
-{
-    PL_RENDERING_FLAG_USE_PUNCTUAL = 1 << 0,
-    PL_RENDERING_FLAG_USE_IBL      = 1 << 1,
-    PL_RENDERING_FLAG_SHADOWS      = 1 << 2
-};
-
-//-----------------------------------------------------------------------------
 // [SECTION] global data
 //-----------------------------------------------------------------------------
 
@@ -693,12 +784,12 @@ static plRefRendererData* gptData = NULL;
 static void pl__renderer_cull_job(plInvocationData, void*, void*);
 
 // resource creation helpers
-static plTextureHandle pl__renderer_create_texture              (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
-static plTextureHandle pl__renderer_create_local_texture        (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
-static plTextureHandle pl__renderer_create_texture_with_data    (const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);
-static plBufferHandle  pl__renderer_create_staging_buffer       (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
-static plBufferHandle  pl__renderer_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier);
-static plBufferHandle  pl__renderer_create_local_buffer         (const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize);
+static plTextureHandle pl__renderer_create_texture              (const plTextureDesc*, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
+static plTextureHandle pl__renderer_create_local_texture        (const plTextureDesc*, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
+static plTextureHandle pl__renderer_create_texture_with_data    (const plTextureDesc*, const char* pcName, uint32_t uIdentifier, const void*, size_t);
+static plBufferHandle  pl__renderer_create_staging_buffer       (const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
+static plBufferHandle  pl__renderer_create_cached_staging_buffer(const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
+static plBufferHandle  pl__renderer_create_local_buffer         (const plBufferDesc*, const char* pcName, uint32_t uIdentifier, const void*, size_t);
 
 // culling
 static bool pl__renderer_sat_visibility_test(plCamera*, const plAABB*);
@@ -715,8 +806,8 @@ static plShaderHandle pl__renderer_get_shader_variant(plScene*, plShaderHandle, 
 
 // misc
 static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock);}
-static void                    pl__renderer_add_drawable_skin_data_to_global_buffers(plScene*, uint32_t uDrawableIndex, plDrawable* atDrawables);
-static void                    pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex, plDrawable* atDrawables);
+static void                    pl__renderer_add_drawable_skin_data_to_global_buffers(plScene*, uint32_t uDrawableIndex);
+static void                    pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex);
 static void                    pl__renderer_create_global_shaders(void);
 static size_t                  pl__renderer_get_data_type_size2(plDataType tType);
 static plBlendState            pl__renderer_get_blend_state(plBlendMode tBlendMode);
@@ -734,5 +825,4 @@ static void pl__renderer_create_probe_data(plScene*, plEntity tProbeHandle);
 static uint64_t pl__renderer_update_probes(plScene*, uint64_t ulValue);
 static uint64_t pl__renderer_create_environment_map_from_texture(plScene*, plEnvironmentProbeData* ptProbe, uint64_t ulValue);
 
-
-#endif // PL_RENDERER_INTERNAL_EXT_H
+#endif // PL_RENDERER_INTERNAL_H
