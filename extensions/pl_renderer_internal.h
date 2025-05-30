@@ -332,8 +332,8 @@ typedef struct _plEnvironmentProbeData
     plBufferHandle atGlobalBuffers[PL_MAX_FRAMES_IN_FLIGHT];
 
     // submitted drawables
-    plDrawable* sbtVisibleOpaqueDrawables[6];
-    plDrawable* sbtVisibleTransparentDrawables[6];
+    uint32_t* sbuVisibleDeferredEntities[6];
+    uint32_t* sbuVisibleForwardEntities[6];
 
     // shadows
     plDirectionLightShadowData tDirectionLightShadowData;
@@ -398,8 +398,8 @@ typedef struct _plView
 
     // submitted drawables
     uint32_t* sbtVisibleDrawables;
-    uint32_t* sbtVisibleOpaqueDrawables;
-    uint32_t* sbtVisibleTransparentDrawables;
+    uint32_t* sbuVisibleDeferredEntities;
+    uint32_t* sbuVisibleForwardEntities;
 
     // drawing api
     plDrawList3D* pt3DGizmoDrawList;
@@ -465,7 +465,7 @@ typedef struct _plScene
 
     // drawables (per scene, will be culled by views)
 
-    plDrawable* sbtStagedDrawables; // unprocessed
+    plEntity* sbtStagedEntities; // unprocessed
 
     plDrawable* sbtDrawables; // regular rendering
 
@@ -474,7 +474,7 @@ typedef struct _plScene
     uint32_t* sbuShadowDeferredDrawables; // shadow rendering (index into regular drawables)
     uint32_t* sbuShadowForwardDrawables;  // shadow rendering (index into regular drawables)
 
-    plDrawable* sbtOutlineDrawables;
+    plEntity*       sbtOutlinedEntities;
     plShaderHandle* sbtOutlineDrawablesOldShaders;
     plShaderHandle* sbtOutlineDrawablesOldEnvShaders;
 

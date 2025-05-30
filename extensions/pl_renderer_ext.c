@@ -1167,8 +1167,8 @@ pl_renderer_cleanup_view(plView* ptView)
 {
 
     pl_sb_free(ptView->sbtVisibleDrawables);
-    pl_sb_free(ptView->sbtVisibleOpaqueDrawables);
-    pl_sb_free(ptView->sbtVisibleTransparentDrawables);
+    pl_sb_free(ptView->sbuVisibleDeferredEntities);
+    pl_sb_free(ptView->sbuVisibleForwardEntities);
     pl_sb_free(ptView->tDirectionLightShadowData.sbtDLightShadowData);
 
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAlbedoTexture);
@@ -1252,8 +1252,8 @@ pl_renderer_cleanup_scene(plScene* ptScene)
 
         for(uint32_t k = 0; k < 6; k++)
         {
-            pl_sb_free(ptProbe->sbtVisibleOpaqueDrawables[k]);
-            pl_sb_free(ptProbe->sbtVisibleTransparentDrawables[k]);
+            pl_sb_free(ptProbe->sbuVisibleDeferredEntities[k]);
+            pl_sb_free(ptProbe->sbuVisibleForwardEntities[k]);
         }
         pl_sb_free(ptProbe->tDirectionLightShadowData.sbtDLightShadowData);
     }
@@ -1317,10 +1317,10 @@ pl_renderer_cleanup_scene(plScene* ptScene)
     pl_sb_free(ptScene->sbuIndexBuffer);
     pl_sb_free(ptScene->sbtMaterialBuffer);
     pl_sb_free(ptScene->sbtDrawables);
-    pl_sb_free(ptScene->sbtStagedDrawables);
+    pl_sb_free(ptScene->sbtStagedEntities);
     pl_sb_free(ptScene->sbtSkinData);
     pl_sb_free(ptScene->sbtSkinVertexDataBuffer);
-    pl_sb_free(ptScene->sbtOutlineDrawables);
+    pl_sb_free(ptScene->sbtOutlinedEntities);
     pl_sb_free(ptScene->sbtOutlineDrawablesOldShaders);
     pl_sb_free(ptScene->sbtOutlineDrawablesOldEnvShaders);
     pl_hm_free(&ptScene->tDrawableHashmap);
@@ -2159,12 +2159,11 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
     // reset old entities
-    const uint32_t uOldSelectedEntityCount = pl_sb_size(ptScene->sbtOutlineDrawables);
+    const uint32_t uOldSelectedEntityCount = pl_sb_size(ptScene->sbtOutlinedEntities);
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
     for(uint32_t i = 0; i < uOldSelectedEntityCount; i++)
     {
-        plEntity tEntity = ptScene->sbtOutlineDrawables[i].tEntity;
-        plShader* ptOutlineShader = gptGfx->get_shader(ptDevice, ptScene->sbtOutlineDrawables[i].tShader);
+        plEntity tEntity = ptScene->sbtOutlinedEntities[i];
 
         plObjectComponent*   ptObject   = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
         plMeshComponent*     ptMesh     = gptECS->get_component(ptScene->ptComponentLibrary, tMeshComponentType, ptObject->tMesh);
@@ -2256,9 +2255,9 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
             }
         }
 
-        // gptGfx->queue_shader_for_deletion(ptDevice, ptScene->sbtOutlineDrawables[i].tShader);
+        // gptGfx->queue_shader_for_deletion(ptDevice, ptScene->sbtOutlinedEntities[i].tShader);
     }
-    pl_sb_reset(ptScene->sbtOutlineDrawables);
+    pl_sb_reset(ptScene->sbtOutlinedEntities);
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldShaders);
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldEnvShaders);
 
@@ -2343,7 +2342,7 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
                 .tGraphicsState    = tOutlineVariantTemp
             };
 
-            pl_sb_push(ptScene->sbtOutlineDrawables, *ptDrawable);
+            pl_sb_push(ptScene->sbtOutlinedEntities, ptDrawable->tEntity);
 
             const plShaderVariant tVariant = {
                 .pTempConstantData = aiConstantData0,
@@ -2433,7 +2432,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     };
     gptShader->set_options(&tNewDefaultShaderOptions);
 
-    pl_sb_reset(ptScene->sbtOutlineDrawables);
+    pl_sb_reset(ptScene->sbtOutlinedEntities);
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldShaders);
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldEnvShaders);
 
@@ -3304,8 +3303,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     pl_end_cpu_sample(gptProfile, 0); // prep scene
     if(ptCullCamera)
     {
-        pl_sb_reset(ptView->sbtVisibleOpaqueDrawables);
-        pl_sb_reset(ptView->sbtVisibleTransparentDrawables);
+        pl_sb_reset(ptView->sbuVisibleDeferredEntities);
+        pl_sb_reset(ptView->sbuVisibleForwardEntities);
         pl_sb_reset(ptView->sbtVisibleDrawables);
 
         for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
@@ -3315,20 +3314,20 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             {
                 if(tDrawable.tFlags & PL_DRAWABLE_FLAG_DEFERRED)
                 {
-                    pl_sb_push(ptView->sbtVisibleOpaqueDrawables, uDrawableIndex);
+                    pl_sb_push(ptView->sbuVisibleDeferredEntities, uDrawableIndex);
                     pl_sb_push(ptView->sbtVisibleDrawables, uDrawableIndex);
                 }
                 else if(tDrawable.tFlags & PL_DRAWABLE_FLAG_PROBE)
                 {
                     if(gptData->tRuntimeOptions.bShowProbes)
                     {
-                        pl_sb_push(ptView->sbtVisibleTransparentDrawables, uDrawableIndex);
+                        pl_sb_push(ptView->sbuVisibleForwardEntities, uDrawableIndex);
                         pl_sb_push(ptView->sbtVisibleDrawables, uDrawableIndex);
                     }
                 }
                 else if(tDrawable.tFlags & PL_DRAWABLE_FLAG_FORWARD)
                 {
-                    pl_sb_push(ptView->sbtVisibleTransparentDrawables, uDrawableIndex);
+                    pl_sb_push(ptView->sbuVisibleForwardEntities, uDrawableIndex);
                     pl_sb_push(ptView->sbtVisibleDrawables, uDrawableIndex);
                 }
                 
@@ -3336,7 +3335,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         }
     }
 
-    *gptData->pdDrawCalls += (double)(pl_sb_size(ptView->sbtVisibleOpaqueDrawables) + pl_sb_size(ptView->sbtVisibleTransparentDrawables) + 1);
+    *gptData->pdDrawCalls += (double)(pl_sb_size(ptView->sbuVisibleDeferredEntities) + pl_sb_size(ptView->sbuVisibleForwardEntities) + 1);
 
     const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tRenderPass)->tDesc.tDimensions;
 
@@ -3344,18 +3343,18 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .ptDrawStream = ptStream,
         .atScissors = 
         {
-                {
-                    .uWidth  = (uint32_t)tDimensions.x,
-                    .uHeight = (uint32_t)tDimensions.y,
-                }
+            {
+                .uWidth  = (uint32_t)tDimensions.x,
+                .uHeight = (uint32_t)tDimensions.y,
+            }
         },
         .atViewports =
         {
-                {
-                    .fWidth  = tDimensions.x,
-                    .fHeight = tDimensions.y,
-                    .fMaxDepth = 1.0f
-                }
+            {
+                .fWidth  = tDimensions.x,
+                .fHeight = tDimensions.y,
+                .fMaxDepth = 1.0f
+            }
         }
     };
     
@@ -3373,11 +3372,11 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     plRenderEncoder* ptSceneEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tRenderPass, NULL);
     gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
 
-    const uint32_t uVisibleDeferredDrawCount = pl_sb_size(ptView->sbtVisibleOpaqueDrawables);
+    const uint32_t uVisibleDeferredDrawCount = pl_sb_size(ptView->sbuVisibleDeferredEntities);
     gptGfx->reset_draw_stream(ptStream, uVisibleDeferredDrawCount);
     for(uint32_t i = 0; i < uVisibleDeferredDrawCount; i++)
     {
-        const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbtVisibleOpaqueDrawables[i]];
+        const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbuVisibleDeferredEntities[i]];
 
         if(tDrawable.uInstanceCount != 0)
         {
@@ -3534,11 +3533,11 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
     }
     
-    const uint32_t uVisibleForwardDrawCount = pl_sb_size(ptView->sbtVisibleTransparentDrawables);
+    const uint32_t uVisibleForwardDrawCount = pl_sb_size(ptView->sbuVisibleForwardEntities);
     gptGfx->reset_draw_stream(ptStream, uVisibleForwardDrawCount);
     for(uint32_t i = 0; i < uVisibleForwardDrawCount; i++)
     {
-        const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbtVisibleTransparentDrawables[i]];
+        const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbuVisibleForwardEntities[i]];
 
         if(tDrawable.uInstanceCount != 0)
         {
@@ -3583,14 +3582,13 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~debug drawing~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // bounding boxes
-    const uint32_t uOutlineDrawableCount = pl_sb_size(ptScene->sbtOutlineDrawables);
+    const uint32_t uOutlineDrawableCount = pl_sb_size(ptScene->sbtOutlinedEntities);
     if(uOutlineDrawableCount > 0 && gptData->tRuntimeOptions.bShowSelectedBoundingBox)
     {
         const plVec4 tOutlineColor = (plVec4){0.0f, (float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 1.0f};
         for(uint32_t i = 0; i < uOutlineDrawableCount; i++)
         {
-            const plDrawable tDrawable = ptScene->sbtOutlineDrawables[i];
-            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
+            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtOutlinedEntities[i]);
             gptDraw->add_3d_aabb(ptView->pt3DSelectionDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tOutlineColor), .fThickness = 0.01f});
             
         }
@@ -3944,8 +3942,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     // only record stats for first scene
     if(ptScene == gptData->sbptScenes[0])
     {
-        *pdVisibleOpaqueObjects = (double)(pl_sb_size(ptView->sbtVisibleOpaqueDrawables));
-        *pdVisibleTransparentObjects = (double)(pl_sb_size(ptView->sbtVisibleTransparentDrawables));
+        *pdVisibleOpaqueObjects = (double)(pl_sb_size(ptView->sbuVisibleDeferredEntities));
+        *pdVisibleTransparentObjects = (double)(pl_sb_size(ptView->sbuVisibleForwardEntities));
     }
 
     pl_end_cpu_sample(gptProfile, 0);
@@ -4411,35 +4409,14 @@ pl_renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCoun
 
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
-    uint32_t uStart = pl_sb_size(ptScene->sbtStagedDrawables);
-    pl_sb_add_n(ptScene->sbtStagedDrawables, uObjectCount);
+    uint32_t uStart = pl_sb_size(ptScene->sbtStagedEntities);
+    pl_sb_add_n(ptScene->sbtStagedEntities, uObjectCount);
 
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
 
     for(uint32_t i = 0; i < uObjectCount; i++)
     {
-        ptScene->sbtStagedDrawables[uStart + i].tEntity = atObjects[i];
-        
-        plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, atObjects[i]);
-        plMeshComponent* ptMesh = gptECS->get_component(ptScene->ptComponentLibrary, tMeshComponentType, ptObject->tMesh);
-        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, ptMesh->tMaterial);
-
-        bool bForward = false;
-
-        if(ptMaterial->tBaseColor.a != 1.0f || ptMaterial->tEmissiveColor.a > 0.0f)
-            bForward = true;
-
-        if(ptMaterial->tBlendMode == PL_BLEND_MODE_ALPHA)
-            bForward = true;
-
-        if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
-            bForward = true;
-
-        if(bForward)
-            ptScene->sbtStagedDrawables[uStart + i].tFlags = PL_DRAWABLE_FLAG_FORWARD;
-        else
-            ptScene->sbtStagedDrawables[uStart + i].tFlags = PL_DRAWABLE_FLAG_DEFERRED;
-        
+        ptScene->sbtStagedEntities[uStart + i] = atObjects[i];
     }
 
     // sort to group entities for instances (slow bubble sort, improve later)
@@ -4449,14 +4426,14 @@ pl_renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCoun
         bSwapped = false;
         for (uint32_t j = 0; j < uObjectCount - i - 1; j++)
         {
-            plObjectComponent* ptObjectA = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtStagedDrawables[uStart + j].tEntity);
-            plObjectComponent* ptObjectB = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtStagedDrawables[uStart + j + 1].tEntity);
+            plObjectComponent* ptObjectA = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtStagedEntities[uStart + j]);
+            plObjectComponent* ptObjectB = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtStagedEntities[uStart + j + 1]);
             if (ptObjectA->tMesh.uIndex > ptObjectB->tMesh.uIndex)
             {
-                plEntity tA = ptScene->sbtStagedDrawables[uStart + j].tEntity;
-                plEntity tB = ptScene->sbtStagedDrawables[uStart + j + 1].tEntity;
-                ptScene->sbtStagedDrawables[uStart + j].tEntity = tB;
-                ptScene->sbtStagedDrawables[uStart + j + 1].tEntity = tA;
+                plEntity tA = ptScene->sbtStagedEntities[uStart + j];
+                plEntity tB = ptScene->sbtStagedEntities[uStart + j + 1];
+                ptScene->sbtStagedEntities[uStart + j] = tB;
+                ptScene->sbtStagedEntities[uStart + j + 1] = tA;
                 bSwapped = true;
             }
         }
@@ -4464,32 +4441,6 @@ pl_renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCoun
         // If no two elements were swapped, then break
         if (!bSwapped)
             break;
-    }
-
-    for (uint32_t i = 0; i < uObjectCount; i++)
-    {
-        ptScene->sbtStagedDrawables[uStart + i].uInstanceCount = 1;
-        ptScene->sbtStagedDrawables[uStart + i].uTransformIndex = ptScene->uNextTransformIndex++;
-        plObjectComponent* ptObjectA = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtStagedDrawables[uStart + i].tEntity);
-        for (uint32_t j = i; j < uObjectCount - 1; j++)
-        {
-            plObjectComponent* ptObjectB = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtStagedDrawables[uStart + j + 1].tEntity);
-            if(ptObjectA->tMesh.uIndex == ptObjectB->tMesh.uIndex)
-            {
-                ptScene->sbtStagedDrawables[uStart + i].uInstanceCount++;
-
-                ptScene->sbtStagedDrawables[uStart + j + 1].uInstanceCount = 0;
-                ptScene->sbtStagedDrawables[uStart + j + 1].uTransformIndex = ptScene->uNextTransformIndex++;
-            }
-            else
-            {
-                break;
-            }
-            
-        }
-        i += ptScene->sbtStagedDrawables[uStart + i].uInstanceCount;
-        i--;
-
     }
 
     pl_end_cpu_sample(gptProfile, 0);
@@ -4574,13 +4525,13 @@ pl_renderer_remove_objects_from_scene(plScene* ptScene, uint32_t uObjectCount, c
     {
         const plEntity tObject = atObjects[i];
 
-        uint32_t uDrawableCount = pl_sb_size(ptScene->sbtStagedDrawables);
+        uint32_t uDrawableCount = pl_sb_size(ptScene->sbtStagedEntities);
         for(uint32_t j = 0; j < uDrawableCount; j++)
         {
-            if(ptScene->sbtStagedDrawables[j].tEntity.uData == tObject.uData)
+            if(ptScene->sbtStagedEntities[j].uData == tObject.uData)
             {
                 pl_hm_remove(&ptScene->tDrawableHashmap, tObject.uData);
-                pl_sb_del_swap(ptScene->sbtStagedDrawables, j);
+                pl_sb_del_swap(ptScene->sbtStagedEntities, j);
                 j--;
                 uDrawableCount--;
             }
