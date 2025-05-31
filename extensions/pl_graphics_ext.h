@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 1, 1}
+#define plGraphicsI_version {1, 1, 2}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -481,6 +481,7 @@ typedef struct _plGraphicsI
     void                  (*queue_compute_shader_for_deletion)(plDevice*, plComputeShaderHandle);
     void                  (*destroy_compute_shader)           (plDevice*, plComputeShaderHandle);
     bool                  (*is_compute_shader_valid)          (plDevice*, plComputeShaderHandle);
+    plComputeShader*      (*get_compute_shader)               (plDevice*, plComputeShaderHandle); // do not store
 
     // dynamic data system
     //   Notes:

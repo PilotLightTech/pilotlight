@@ -910,6 +910,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_texture                            = pl__get_texture,
         .get_bind_group                         = pl__get_bind_group,
         .get_shader                             = pl__get_shader,
+        .get_compute_shader                     = pl__get_compute_shader,
         .allocate_memory                        = pl_allocate_memory,
         .free_memory                            = pl_free_memory,
         .get_allocations                        = pl_get_gfx_allocations,
