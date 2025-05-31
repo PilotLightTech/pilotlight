@@ -52,38 +52,39 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
-        gptStats       = pl_get_api_latest(ptApiRegistry, plStatsI);
-        gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-        gptTools       = pl_get_api_latest(ptApiRegistry, plToolsI);
-        gptEcs         = pl_get_api_latest(ptApiRegistry, plEcsI);
-        gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
-        gptRenderer    = pl_get_api_latest(ptApiRegistry, plRendererI);
-        gptJobs        = pl_get_api_latest(ptApiRegistry, plJobI);
-        gptModelLoader = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
-        gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-        gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
-        gptUI          = pl_get_api_latest(ptApiRegistry, plUiI);
-        gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
-        gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
-        gptMemory      = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptNetwork     = pl_get_api_latest(ptApiRegistry, plNetworkI);
-        gptString      = pl_get_api_latest(ptApiRegistry, plStringInternI);
-        gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
-        gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
-        gptEcsTools    = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
-        gptGizmo       = pl_get_api_latest(ptApiRegistry, plGizmoI);
-        gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
-        gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
-        gptPhysics     = pl_get_api_latest(ptApiRegistry, plPhysicsI);
-        gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
-        gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
-        gptConfig      = pl_get_api_latest(ptApiRegistry, plConfigI);
-        gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
-        gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
-        gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptWindows       = pl_get_api_latest(ptApiRegistry, plWindowI);
+        gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
+        gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptTools         = pl_get_api_latest(ptApiRegistry, plToolsI);
+        gptEcs           = pl_get_api_latest(ptApiRegistry, plEcsI);
+        gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
+        gptRenderer      = pl_get_api_latest(ptApiRegistry, plRendererI);
+        gptJobs          = pl_get_api_latest(ptApiRegistry, plJobI);
+        gptModelLoader   = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
+        gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptDrawBackend   = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
+        gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
+        gptIO            = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
+        gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptNetwork       = pl_get_api_latest(ptApiRegistry, plNetworkI);
+        gptString        = pl_get_api_latest(ptApiRegistry, plStringInternI);
+        gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
+        gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
+        gptEcsTools      = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+        gptGizmo         = pl_get_api_latest(ptApiRegistry, plGizmoI);
+        gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
+        gptScreenLog     = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+        gptPhysics       = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+        gptCollision     = pl_get_api_latest(ptApiRegistry, plCollisionI);
+        gptBvh           = pl_get_api_latest(ptApiRegistry, plBVHI);
+        gptConfig        = pl_get_api_latest(ptApiRegistry, plConfigI);
+        gptDearImGui     = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
+        gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
+        gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
-        gptMesh        = pl_get_api_latest(ptApiRegistry, plMeshI);
+        gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
+        gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
 
         ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
 
@@ -103,38 +104,39 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_dear_imgui_ext", nullptr, nullptr, false);
 
     // load apis
-    gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
-    gptStats       = pl_get_api_latest(ptApiRegistry, plStatsI);
-    gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-    gptTools       = pl_get_api_latest(ptApiRegistry, plToolsI);
-    gptEcs         = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
-    gptRenderer    = pl_get_api_latest(ptApiRegistry, plRendererI);
-    gptJobs        = pl_get_api_latest(ptApiRegistry, plJobI);
-    gptModelLoader = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
-    gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
-    gptUI          = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
-    gptMemory      = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptNetwork     = pl_get_api_latest(ptApiRegistry, plNetworkI);
-    gptString      = pl_get_api_latest(ptApiRegistry, plStringInternI);
-    gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
-    gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
-    gptEcsTools    = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
-    gptGizmo       = pl_get_api_latest(ptApiRegistry, plGizmoI);
-    gptConsole     = pl_get_api_latest(ptApiRegistry, plConsoleI);
-    gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
-    gptPhysics     = pl_get_api_latest(ptApiRegistry, plPhysicsI);
-    gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
-    gptBvh         = pl_get_api_latest(ptApiRegistry, plBVHI);
-    gptConfig      = pl_get_api_latest(ptApiRegistry, plConfigI);
-    gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
-    gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
-    gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptWindows       = pl_get_api_latest(ptApiRegistry, plWindowI);
+    gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
+    gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptTools         = pl_get_api_latest(ptApiRegistry, plToolsI);
+    gptEcs           = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptRenderer      = pl_get_api_latest(ptApiRegistry, plRendererI);
+    gptJobs          = pl_get_api_latest(ptApiRegistry, plJobI);
+    gptModelLoader   = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
+    gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptDrawBackend   = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
+    gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptIO            = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptNetwork       = pl_get_api_latest(ptApiRegistry, plNetworkI);
+    gptString        = pl_get_api_latest(ptApiRegistry, plStringInternI);
+    gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptEcsTools      = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+    gptGizmo         = pl_get_api_latest(ptApiRegistry, plGizmoI);
+    gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
+    gptScreenLog     = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+    gptPhysics       = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+    gptCollision     = pl_get_api_latest(ptApiRegistry, plCollisionI);
+    gptBvh           = pl_get_api_latest(ptApiRegistry, plBVHI);
+    gptConfig        = pl_get_api_latest(ptApiRegistry, plConfigI);
+    gptDearImGui     = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
+    gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
+    gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
-    gptMesh        = pl_get_api_latest(ptApiRegistry, plMeshI);
+    gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
+    gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -190,6 +192,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
     ptAppData->ptDevice = gptStarter->create_device(ptAppData->ptSurface);
+
+    const plShaderVariantInit tShaderVariantInit = {
+        ptAppData->ptDevice
+    };
+    gptShaderVariant->initialize(tShaderVariantInit);
 
     // create swapchain
     plSwapchainInit tSwapInit = PL_ZERO_INIT;
@@ -341,6 +348,7 @@ pl_app_shutdown(plAppData* ptAppData)
         gptRenderer->cleanup_scene(ptAppData->ptScene);
     gptEcs->cleanup();
     gptRenderer->cleanup();
+    gptShaderVariant->cleanup();
     gptGfx->cleanup_swapchain(ptAppData->ptSwap);
     gptGfx->cleanup_surface(ptAppData->ptSurface);
     gptGfx->cleanup_device(ptAppData->ptDevice);
@@ -408,6 +416,7 @@ pl_app_update(plAppData* ptAppData)
         pdMemoryCounter = gptStats->get_counter("CPU memory");
     *pdFrameTimeCounter = (double)ptIO->fDeltaTime * 1000.0;
     *pdMemoryCounter = (double)gptMemory->get_memory_usage();
+    gptShaderVariant->update_stats();
 
     if(ptAppData->ptScene)
     {

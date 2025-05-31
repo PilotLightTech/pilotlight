@@ -76,8 +76,6 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plShaderVariant          plShaderVariant;
-typedef struct _plComputeShaderVariant   plComputeShaderVariant;
 typedef struct _plRendererSettings       plRendererSettings;
 typedef struct _plSceneInit              plSceneInit;
 typedef struct _plRendererRuntimeOptions plRendererRuntimeOptions;

@@ -57,6 +57,7 @@ Index of this file:
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
 #include "pl_bvh_ext.h"
+#include "pl_shader_variant_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -100,13 +101,14 @@ Index of this file:
     static const plConsoleI*       gptConsole       = NULL;
 
     // experimental
-    static const plScreenLogI* gptScreenLog  = NULL;
-    static const plCameraI*    gptCamera     = NULL;
-    static const plResourceI*  gptResource   = NULL;
-    static const plEcsI*       gptECS        = NULL;
-    static const plBVHI*       gptBvh        = NULL;
-    static const plAnimationI* gptAnimation  = NULL;
-    static const plMeshI*      gptMesh       = NULL;
+    static const plScreenLogI*     gptScreenLog     = NULL;
+    static const plCameraI*        gptCamera        = NULL;
+    static const plResourceI*      gptResource      = NULL;
+    static const plEcsI*           gptECS           = NULL;
+    static const plBVHI*           gptBvh           = NULL;
+    static const plAnimationI*     gptAnimation     = NULL;
+    static const plMeshI*          gptMesh          = NULL;
+    static const plShaderVariantI* gptShaderVariant = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
@@ -250,17 +252,6 @@ typedef struct _SkinDynamicData
     uint32_t uMaxSize;
     plMat4 tInverseWorld;
 } SkinDynamicData;
-
-typedef struct _plShaderVariant
-{
-    plGraphicsState tGraphicsState;
-    const void*     pTempConstantData;
-} plShaderVariant;
-
-typedef struct _plComputeShaderVariant
-{
-    const void* pTempConstantData;
-} plComputeShaderVariant;
 
 typedef struct _plSkinData
 {
@@ -697,10 +688,6 @@ typedef struct _plRefRendererData
     plShaderHandle        tUVShader;
     plComputeShaderHandle tJFAShader;
 
-    // graphics shader variant system
-    plHashMap64     tVariantHashmap;
-    plShaderHandle* _sbtVariantHandles; // needed for cleanup
-
     // renderer specific log channel
     uint64_t uLogChannel;
 
@@ -800,9 +787,6 @@ static bool pl__renderer_pack_shadow_atlas(plScene*);
 static void pl__renderer_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, plScene*, uint32_t, uint32_t, int, plDirectionLightShadowData*, plCamera*);
 static void pl__renderer_generate_shadow_maps(plRenderEncoder*, plCommandBuffer*, plScene*);
 static void pl__renderer_post_process_scene(plCommandBuffer*, plView*, const plMat4*);
-
-// shader variant system
-static plShaderHandle pl__renderer_get_shader_variant(plScene*, plShaderHandle, const plShaderVariant*);
 
 // misc
 static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock);}

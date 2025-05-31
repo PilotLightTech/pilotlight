@@ -1864,15 +1864,7 @@ pl_renderer_cleanup(void)
     pl_temp_allocator_free(&gptData->tTempAllocator);
     gptGfx->cleanup_draw_stream(&gptData->tDrawStream);
 
-    for(uint32_t i = 0; i < pl_sb_size(gptData->_sbtVariantHandles); i++)
-    {
-        plShader* ptShader = gptGfx->get_shader(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
-        gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
-    }
-
     pl_sb_free(gptData->sbptScenes);
-    pl_sb_free(gptData->_sbtVariantHandles);
-    pl_hm_free(&gptData->tVariantHashmap);
     gptResource->cleanup();
     gptGfx->flush_device(gptData->ptDevice);
 
@@ -2215,21 +2207,6 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP
         };
 
-        const plShaderVariant tOutlineVariant = {
-            .pTempConstantData = aiConstantData0,
-            .tGraphicsState    = tOutlineVariantTemp
-        };
-
-        // size_t szSpecializationSize = 0;
-        // for(uint32_t j = 0; j < ptOutlineShader->tDesc._uConstantCount; j++)
-        // {
-        //     const plSpecializationConstant* ptConstant = &ptOutlineShader->tDesc.atConstants[j];
-        //     szSpecializationSize += pl__renderer_get_data_type_size2(ptConstant->tType);
-        // }
-
-        // const uint64_t ulVariantHash = pl_hm_hash(tOutlineVariant.pTempConstantData, szSpecializationSize, tOutlineVariant.tGraphicsState.ulValue);
-        // pl_hm_remove(&gptData->ptVariantHashmap, ulVariantHash);
-
         uint64_t ulIndex = 0;
         if(pl_hm_has_key_ex(&ptScene->tDrawableHashmap, tEntity.uData, &ulIndex))
         {
@@ -2337,25 +2314,14 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             };
 
-            const plShaderVariant tOutlineVariant = {
-                .pTempConstantData = aiConstantData0,
-                .tGraphicsState    = tOutlineVariantTemp
-            };
-
             pl_sb_push(ptScene->sbtOutlinedEntities, ptDrawable->tEntity);
-
-            const plShaderVariant tVariant = {
-                .pTempConstantData = aiConstantData0,
-                .tGraphicsState    = tVariantTemp
-            };
-
             pl_sb_push(ptScene->sbtOutlineDrawablesOldShaders, ptDrawable->tShader);
             pl_sb_push(ptScene->sbtOutlineDrawablesOldEnvShaders, ptDrawable->tEnvShader);
 
             if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_FORWARD)
-                ptDrawable->tShader = pl__renderer_get_shader_variant(ptScene, gptData->tForwardShader, &tVariant);
+                ptDrawable->tShader = gptShaderVariant->get_variant(gptData->tForwardShader, tVariantTemp, aiConstantData0);
             else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_DEFERRED)
-                ptDrawable->tShader = pl__renderer_get_shader_variant(ptScene, gptData->tDeferredShader, &tVariant);
+                ptDrawable->tShader = gptShaderVariant->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
 
             if(ptDrawable->uInstanceCount == 0)
             {
@@ -2388,14 +2354,13 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
 
     gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_CYAN, 1.0f, "%s", "reloaded shaders");
 
-    // old cleanup
-    for(uint32_t i = 0; i < pl_sb_size(gptData->_sbtVariantHandles); i++)
-    {
-        plShader* ptShader = gptGfx->get_shader(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
-        gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->_sbtVariantHandles[i]);
-    }
-    pl_sb_free(gptData->_sbtVariantHandles);
-    pl_hm_free(&gptData->tVariantHashmap);
+    gptShaderVariant->clear_variants(gptData->tDeferredShader);
+    gptShaderVariant->clear_variants(gptData->tForwardShader);
+    gptShaderVariant->clear_variants(gptData->tAlphaShadowShader);
+    gptShaderVariant->clear_variants(gptData->tShadowShader);
+    gptShaderVariant->clear_variants(gptData->tPickShader);
+    gptShaderVariant->clear_variants(gptData->tUVShader);
+    gptShaderVariant->clear_variants(gptData->tSkyboxShader);
 
     gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tDeferredShader);
     gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tForwardShader);
@@ -3921,8 +3886,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     static double* pdVisibleTransparentObjects = NULL;
     if(!pdVisibleOpaqueObjects)
     {
-        pdVisibleOpaqueObjects = gptStats->get_counter("visible opaque objects");
-        pdVisibleTransparentObjects = gptStats->get_counter("visible transparent objects");
+        pdVisibleOpaqueObjects = gptStats->get_counter("visible deferred objects");
+        pdVisibleTransparentObjects = gptStats->get_counter("visible forward objects");
     }
 
     // only record stats for first scene
@@ -4990,31 +4955,34 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plRendererI, &tApi);
 
     // core apis
-    gptDataRegistry  = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-    gptIOI           = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
-    gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
-    gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
-    gptIO            = gptIOI->get_io();
-    gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
-    gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
-    gptJob           = pl_get_api_latest(ptApiRegistry, plJobI);
-    gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
-    gptLog           = pl_get_api_latest(ptApiRegistry, plLogI);
-    gptRect          = pl_get_api_latest(ptApiRegistry, plRectPackI);
-    gptECS           = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
-    gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptDrawBackend   = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
-    gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-    gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
-    gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
-    gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
-    gptScreenLog     = pl_get_api_latest(ptApiRegistry, plScreenLogI);
-    gptBvh           = pl_get_api_latest(ptApiRegistry, plBVHI);
-    gptAnimation       = pl_get_api_latest(ptApiRegistry, plAnimationI);
-    gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
+    #ifndef PL_UNITY_BUILD
+        gptDataRegistry  = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+        gptIOI           = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
+        gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
+        gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
+        gptIO            = gptIOI->get_io();
+        gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
+        gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
+        gptJob           = pl_get_api_latest(ptApiRegistry, plJobI);
+        gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
+        gptLog           = pl_get_api_latest(ptApiRegistry, plLogI);
+        gptRect          = pl_get_api_latest(ptApiRegistry, plRectPackI);
+        gptECS           = pl_get_api_latest(ptApiRegistry, plEcsI);
+        gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
+        gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptDrawBackend   = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
+        gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
+        gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
+        gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
+        gptScreenLog     = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+        gptBvh           = pl_get_api_latest(ptApiRegistry, plBVHI);
+        gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
+        gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
+        gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+    #endif
 
     if(bReload)
     {

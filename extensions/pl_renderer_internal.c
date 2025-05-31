@@ -9,7 +9,6 @@ Index of this file:
 // [SECTION] resource creation helpers
 // [SECTION] culling
 // [SECTION] scene render helpers
-// [SECTION] shader variant system
 */
 
 //-----------------------------------------------------------------------------
@@ -1965,41 +1964,6 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
 
     gptGfx->end_render_pass(ptEncoder);
     pl_end_cpu_sample(gptProfile, 0);
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] shader variant system
-//-----------------------------------------------------------------------------
-
-static plShaderHandle
-pl__renderer_get_shader_variant(plScene* ptScene, plShaderHandle tHandle, const plShaderVariant* ptVariant)
-{
-    plDevice* ptDevice = gptData->ptDevice;
-
-    plShader* ptShader = gptGfx->get_shader(ptDevice, tHandle);
-
-    size_t szSpecializationSize = 0;
-    for(uint32_t i = 0; i < ptShader->tDesc._uConstantCount; i++)
-    {
-        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
-        szSpecializationSize += pl__renderer_get_data_type_size2(ptConstant->tType);
-    }
-
-    const uint64_t ulVariantHash = pl_hm_hash(ptVariant->pTempConstantData, szSpecializationSize, ptVariant->tGraphicsState.ulValue);
-    const uint64_t ulIndex = pl_hm_lookup(&gptData->tVariantHashmap, ulVariantHash);
-
-    if(ulIndex != UINT64_MAX)
-        return gptData->_sbtVariantHandles[ulIndex];
-
-    plShaderDesc tDesc = ptShader->tDesc;
-    tDesc.tGraphicsState = ptVariant->tGraphicsState;
-    tDesc.pTempConstantData = ptVariant->pTempConstantData;
-
-    plShaderHandle tShader = gptGfx->create_shader(ptDevice, &tDesc);
-
-    pl_hm_insert(&gptData->tVariantHashmap, ulVariantHash, pl_sb_size(gptData->_sbtVariantHandles));
-    pl_sb_push(gptData->_sbtVariantHandles, tShader);
-    return tShader;
 }
 
 //-----------------------------------------------------------------------------
@@ -4115,14 +4079,10 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.ulCullMode = PL_CULL_MODE_NONE;
 
-            const plShaderVariant tVariant = {
-                .pTempConstantData = aiConstantData0,
-                .tGraphicsState    = tVariantTemp
-            };
-
-            ptScene->sbtDrawables[i].tShader = pl__renderer_get_shader_variant(ptScene, gptData->tDeferredShader, &tVariant);
+            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
+            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
             aiConstantData0[4] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-            ptScene->sbtDrawables[i].tEnvShader = pl__renderer_get_shader_variant(ptScene, gptData->tDeferredShader, &tVariant);
+            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
         }
 
         else if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
@@ -4144,34 +4104,26 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.ulCullMode = PL_CULL_MODE_NONE;
 
-            const plShaderVariant tVariant = {
-                .pTempConstantData = aiConstantData0,
-                .tGraphicsState    = tVariantTemp
-            };
-
-            ptScene->sbtDrawables[i].tShader = pl__renderer_get_shader_variant(ptScene, gptData->tForwardShader, &tVariant);
+            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_variant(gptData->tForwardShader, tVariantTemp, aiConstantData0);
             aiConstantData0[4] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-            ptScene->sbtDrawables[i].tEnvShader = pl__renderer_get_shader_variant(ptScene, gptData->tForwardShader, &tVariant);
+            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_variant(gptData->tForwardShader, tVariantTemp, aiConstantData0);
   
         }
         if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
         {
-            const plShaderVariant tShadowVariant = {
-                .pTempConstantData =  aiConstantData0,
-                .tGraphicsState    = {
-                    .ulDepthWriteEnabled  = 1,
-                    .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
-                    .ulCullMode           = PL_CULL_MODE_NONE,
-                    .ulWireframe          = 0,
-                    .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-                    .ulStencilRef         = 0xff,
-                    .ulStencilMask        = 0xff,
-                    .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                    .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                    .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-                }
+            plGraphicsState tShadowVariant = {
+                .ulDepthWriteEnabled  = 1,
+                .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+                .ulCullMode           = PL_CULL_MODE_NONE,
+                .ulWireframe          = 0,
+                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .ulStencilRef         = 0xff,
+                .ulStencilMask        = 0xff,
+                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             };
-            ptScene->sbtDrawables[i].tShadowShader = pl__renderer_get_shader_variant(ptScene, gptData->tAlphaShadowShader, &tShadowVariant);
+            ptScene->sbtDrawables[i].tShadowShader = gptShaderVariant->get_variant(gptData->tAlphaShadowShader, tShadowVariant, aiConstantData0);
         }
     }
 }

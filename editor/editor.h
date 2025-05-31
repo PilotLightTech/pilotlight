@@ -67,6 +67,7 @@ Index of this file:
 #include "pl_physics_ext.h"
 #include "pl_collision_ext.h"
 #include "pl_bvh_ext.h"
+#include "pl_shader_variant_ext.h"
 
 // dear imgui
 #include "pl_dear_imgui_ext.h"
@@ -77,38 +78,39 @@ Index of this file:
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-const plWindowI*       gptWindows     = nullptr;
-const plStatsI*        gptStats       = nullptr;
-const plGraphicsI*     gptGfx         = nullptr;
-const plToolsI*        gptTools       = nullptr;
-const plEcsI*          gptEcs         = nullptr;
-const plCameraI*       gptCamera      = nullptr;
-const plRendererI*     gptRenderer    = nullptr;
-const plModelLoaderI*  gptModelLoader = nullptr;
-const plJobI*          gptJobs        = nullptr;
-const plDrawI*         gptDraw        = nullptr;
-const plDrawBackendI*  gptDrawBackend = nullptr;
-const plUiI*           gptUI          = nullptr;
-const plIOI*           gptIO          = nullptr;
-const plShaderI*       gptShader      = nullptr;
-const plMemoryI*       gptMemory      = nullptr;
-const plNetworkI*      gptNetwork     = nullptr;
-const plStringInternI* gptString      = nullptr;
-const plProfileI*      gptProfile     = nullptr;
-const plFileI*         gptFile        = nullptr;
-const plEcsToolsI*     gptEcsTools    = nullptr;
-const plGizmoI*        gptGizmo       = nullptr;
-const plConsoleI*      gptConsole     = nullptr;
-const plScreenLogI*    gptScreenLog   = nullptr;
-const plPhysicsI *     gptPhysics     = nullptr;
-const plCollisionI*    gptCollision   = nullptr;
-const plBVHI*          gptBvh         = nullptr;
-const plConfigI*       gptConfig      = nullptr;
-const plDearImGuiI*    gptDearImGui   = nullptr;
-const plResourceI*     gptResource    = nullptr;
-const plStarterI*      gptStarter     = nullptr;
-const plAnimationI*    gptAnimation   = nullptr;
-const plMeshI*         gptMesh        = nullptr;
+const plWindowI*        gptWindows       = nullptr;
+const plStatsI*         gptStats         = nullptr;
+const plGraphicsI*      gptGfx           = nullptr;
+const plToolsI*         gptTools         = nullptr;
+const plEcsI*           gptEcs           = nullptr;
+const plCameraI*        gptCamera        = nullptr;
+const plRendererI*      gptRenderer      = nullptr;
+const plModelLoaderI*   gptModelLoader   = nullptr;
+const plJobI*           gptJobs          = nullptr;
+const plDrawI*          gptDraw          = nullptr;
+const plDrawBackendI*   gptDrawBackend   = nullptr;
+const plUiI*            gptUI            = nullptr;
+const plIOI*            gptIO            = nullptr;
+const plShaderI*        gptShader        = nullptr;
+const plMemoryI*        gptMemory        = nullptr;
+const plNetworkI*       gptNetwork       = nullptr;
+const plStringInternI*  gptString        = nullptr;
+const plProfileI*       gptProfile       = nullptr;
+const plFileI*          gptFile          = nullptr;
+const plEcsToolsI*      gptEcsTools      = nullptr;
+const plGizmoI*         gptGizmo         = nullptr;
+const plConsoleI*       gptConsole       = nullptr;
+const plScreenLogI*     gptScreenLog     = nullptr;
+const plPhysicsI *      gptPhysics       = nullptr;
+const plCollisionI*     gptCollision     = nullptr;
+const plBVHI*           gptBvh           = nullptr;
+const plConfigI*        gptConfig        = nullptr;
+const plDearImGuiI*     gptDearImGui     = nullptr;
+const plResourceI*      gptResource      = nullptr;
+const plStarterI*       gptStarter       = nullptr;
+const plAnimationI*     gptAnimation     = nullptr;
+const plMeshI*          gptMesh          = nullptr;
+const plShaderVariantI* gptShaderVariant = nullptr;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
