@@ -38,18 +38,19 @@ static const struct _plStarterI*           gptStarter           = 0;
 static const struct _plToolsI*             gptTools             = 0;
 
 // experimental
-static const struct _plConfigI*    gptConfig = 0;
-static const struct _plCollisionI* gptCollision = 0;
-static const struct _plBVHI*       gptBvh       = 0;
-static const struct _plCameraI*    gptCamera    = 0;
-static const struct _plResourceI*  gptResource  = 0;
-static const struct _plEcsI*       gptECS       = 0;
-static const struct _plRendererI*  gptRenderer  = 0;
-static const struct _plEcsToolsI*  gptEcsTools  = 0;
-static const struct _plGizmoI*     gptGizmo     = 0;
-static const struct _plPhysicsI*   gptPhysics   = 0;
-static const struct _plAnimationI* gptAnimation = 0;
-static const struct _plMeshI*      gptMesh      = 0;
+static const struct _plConfigI*        gptConfig        = 0;
+static const struct _plCollisionI*     gptCollision     = 0;
+static const struct _plBVHI*           gptBvh           = 0;
+static const struct _plCameraI*        gptCamera        = 0;
+static const struct _plResourceI*      gptResource      = 0;
+static const struct _plEcsI*           gptECS           = 0;
+static const struct _plRendererI*      gptRenderer      = 0;
+static const struct _plEcsToolsI*      gptEcsTools      = 0;
+static const struct _plGizmoI*         gptGizmo         = 0;
+static const struct _plPhysicsI*       gptPhysics       = 0;
+static const struct _plAnimationI*     gptAnimation     = 0;
+static const struct _plMeshI*          gptMesh          = 0;
+static const struct _plShaderVariantI* gptShaderVariant = 0;
 
 // context
 static struct _plIO* gptIO = 0;

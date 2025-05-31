@@ -127,6 +127,7 @@ with pl.project("pilotlight deploy"):
         "pl_bvh_ext",
         "pl_config_ext",
         "pl_mesh_ext",
+        "pl_shader_variant_ext",
     ]
 
     for extension in extensions:

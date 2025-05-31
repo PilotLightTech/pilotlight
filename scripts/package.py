@@ -59,6 +59,7 @@ extension_headers = [
     "pl_config_ext.h",
     "pl_starter_ext.h",
     "pl_mesh_ext.h",
+    "pl_shader_variant_ext.h",
 ]
 
 # extension binaries
@@ -93,6 +94,7 @@ extensions = [
     "pl_config_ext",
     "pl_starter_ext",
     "pl_mesh_ext",
+    "pl_shader_variant_ext",
     "pl_ui_ext"
 ]
 

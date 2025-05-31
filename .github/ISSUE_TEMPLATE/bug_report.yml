@@ -97,6 +97,7 @@ body:
         - Resource Manager
         - Screen Log
         - Shader
+        - Shader Variant
         - Starter
         - Stats
         - String Intern
