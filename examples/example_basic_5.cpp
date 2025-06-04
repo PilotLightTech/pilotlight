@@ -136,6 +136,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
         gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
 
+        ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
+
         return ptAppData;
     }
 
