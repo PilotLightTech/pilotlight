@@ -824,8 +824,8 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     if(bReload)
     {
-        gptEcsCtx->uLogChannel = gptLog->get_channel_id("ECS");
         gptEcsCtx = ptDataRegistry->get_data("plEcsContext");
+        gptEcsCtx->uLogChannel = gptLog->get_channel_id("ECS");
     }
     else // first load
     {
