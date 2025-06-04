@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_JSON_VERSION    "1.0.0"
-#define PL_JSON_VERSION_NUM 10000
+#define PL_JSON_VERSION    "1.0.1"
+#define PL_JSON_VERSION_NUM 10001
 
 /*
 Index of this file:
@@ -1441,10 +1441,10 @@ pl_json_add_float_member(plJsonObject* ptJson, const char* pcName, float fValue)
     snprintf(tNewJsonObject.acName, PL_JSON_MAX_NAME_LENGTH, "%s", pcName);
     tNewJsonObject.sbcBuffer = NULL;
     tNewJsonObject.uValueOffset = pl_sb_json_size(ptJson->ptRootObject->sbcBuffer);
-    tNewJsonObject.uValueLength = snprintf(NULL, 0, "%0.7f", fValue);
-    pl_sb_json_resize(ptJson->ptRootObject->sbcBuffer, tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength);
-    snprintf(&ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset], tNewJsonObject.uValueLength, "%0.7f", fValue);
-
+    tNewJsonObject.uValueLength = snprintf(NULL, 0, "%0.7f", fValue) - 1;
+    pl_sb_json_resize(ptJson->ptRootObject->sbcBuffer, tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength + 1);
+    snprintf(&ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset], tNewJsonObject.uValueLength + 1, "%0.7f", fValue);
+    ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength] = ' ';
     pl_sb_json_push(ptJson->sbtChildren, tNewJsonObject);
 }
 
@@ -1461,10 +1461,10 @@ pl_json_add_double_member(plJsonObject* ptJson, const char* pcName, double dValu
     snprintf(tNewJsonObject.acName, PL_JSON_MAX_NAME_LENGTH, "%s", pcName);
     tNewJsonObject.sbcBuffer = NULL;
     tNewJsonObject.uValueOffset = pl_sb_json_size(ptJson->ptRootObject->sbcBuffer);
-    tNewJsonObject.uValueLength = snprintf(NULL, 0, "%0.15f", dValue);
-    pl_sb_json_resize(ptJson->ptRootObject->sbcBuffer, tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength);
-    snprintf(&ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset], tNewJsonObject.uValueLength, "%0.15f", dValue);
-
+    tNewJsonObject.uValueLength = snprintf(NULL, 0, "%0.15f", dValue) - 1;
+    pl_sb_json_resize(ptJson->ptRootObject->sbcBuffer, tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength + 1);
+    snprintf(&ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset], tNewJsonObject.uValueLength + 1, "%0.15f", dValue);
+    ptJson->ptRootObject->sbcBuffer[tNewJsonObject.uValueOffset + tNewJsonObject.uValueLength] = ' ';
     pl_sb_json_push(ptJson->sbtChildren, tNewJsonObject);
 }
 
