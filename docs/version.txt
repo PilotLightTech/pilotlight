@@ -31,7 +31,7 @@ the current API will break; NOT that the implementation is bug-free or that
 the API is complete. It just means we won't break what currently exists.
 
 ## Core
-* PL Build           v1.2.0
+* PL Build           v1.2.1
 * API Registry       v1.0.0 (pl.h)
 * Data Registry      v1.0.0 (pl.h)
 * Memory             v1.0.2 (pl.h)

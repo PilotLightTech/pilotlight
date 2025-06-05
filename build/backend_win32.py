@@ -209,7 +209,7 @@ def generate_build(name, user_options = None):
             helper.add_line("@if %PL_HOT_RELOAD_STATUS% equ 0 (\n")
             helper.set_indent(4)
             if data.reload_artifact_directory is not None:
-                helper.add_line('rmdir "' + data.reload_artifact_directory + '" /s /q')
+                helper.add_line('@if exist "' + data.reload_artifact_directory + '" rmdir "' + data.reload_artifact_directory + '" /s /q')
         
         # delete old binaries & files
         for settings in config_only_settings:
