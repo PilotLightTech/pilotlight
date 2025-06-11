@@ -5,6 +5,13 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
+- v0.4.0 (2025-06-10) add shader variant extension (v0.2.0)
+                      fix command line args for x11 backend plIOI (v1.0.1)
+                      internal improvements to renderer ext
+                      expose compute shader query in graphics ext (v1.1.2)
+                      fix pl_json.h float/double output (v1.0.1)
+                      fix ecs ext hot reload
+                      fix pl_build hot reload warning (v1.2.1)
 - v0.3.0 (2025-05-14) complete refactor of ecs ext (v0.3.0)
                       fix win32 thread API issue for semaphores (v1.0.1)
                       add animation extension
