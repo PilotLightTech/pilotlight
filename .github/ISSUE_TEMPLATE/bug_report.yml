@@ -75,8 +75,10 @@ body:
         - BVH
         - Camera
         - Collision
+        - Compression
         - Config
         - Console
+        - Date Time
         - Draw Backend
         - Draw
         - ECS
@@ -89,6 +91,7 @@ body:
         - Log
         - Mesh
         - Model Loader
+        - Pak
         - Physics
         - Platform
         - Profile
@@ -103,6 +106,7 @@ body:
         - String Intern
         - Tools
         - UI
+        - Virtual File System
   - type: dropdown
     id: libraries
     attributes:
