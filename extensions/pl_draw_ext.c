@@ -3185,7 +3185,7 @@ pl__add_3d_bezier_cubic(
 //-----------------------------------------------------------------------------
 
 static uint32_t
-pl__decompress_length(const unsigned char* pucInput)
+pl__draw_decompress_length(const unsigned char* pucInput)
 {
     if(pucInput)
         return (pucInput[8] << 24) + (pucInput[9] << 16) + (pucInput[10] << 8) + pucInput[11];
@@ -3214,7 +3214,7 @@ pl__decode85(const unsigned char* pucSrc, unsigned char* pucDst)
 }
 
 static void 
-pl__match(const unsigned char* pucData, uint32_t uLength)
+pl__draw_match(const unsigned char* pucData, uint32_t uLength)
 {
     PL_ASSERT(ptrDOut_ + uLength <= ptrBarrierOutE_);
     if (ptrDOut_ + uLength > ptrBarrierOutE_)
@@ -3229,7 +3229,7 @@ pl__match(const unsigned char* pucData, uint32_t uLength)
 }
 
 static void 
-pl__lit(const unsigned char* pucData, uint32_t uLength)
+pl__draw_lit(const unsigned char* pucData, uint32_t uLength)
 {
     PL_ASSERT(ptrDOut_ + uLength <= ptrBarrierOutE_);
     if (ptrDOut_ + uLength > ptrBarrierOutE_)
@@ -3244,37 +3244,37 @@ pl__lit(const unsigned char* pucData, uint32_t uLength)
 #define MV_IN4_(x) ((pucI[x] << 24) + MV_IN3_((x) + 1))
 
 static const unsigned char*
-pl__decompress_token(const unsigned char* pucI)
+pl__draw_decompress_token(const unsigned char* pucI)
 {
     if (*pucI >= 0x20) 
     {
         if(*pucI >= 0x80)
-            pl__match(ptrDOut_ - pucI[1] - 1, pucI[0] - 0x80 + 1), pucI += 2;
+            pl__draw_match(ptrDOut_ - pucI[1] - 1, pucI[0] - 0x80 + 1), pucI += 2;
         else if (*pucI >= 0x40)
-            pl__match(ptrDOut_ - (MV_IN2_(0) - 0x4000 + 1), pucI[2] + 1), pucI += 3;
+            pl__draw_match(ptrDOut_ - (MV_IN2_(0) - 0x4000 + 1), pucI[2] + 1), pucI += 3;
         else /* *pucI >= 0x20 */
-            pl__lit(pucI + 1, pucI[0] - 0x20 + 1), pucI += 1 + (pucI[0] - 0x20 + 1);
+            pl__draw_lit(pucI + 1, pucI[0] - 0x20 + 1), pucI += 1 + (pucI[0] - 0x20 + 1);
     } 
     else 
     {
         if(*pucI >= 0x18)
-            pl__match(ptrDOut_ - (MV_IN3_(0) - 0x180000 + 1), pucI[3] + 1), pucI += 4;
+            pl__draw_match(ptrDOut_ - (MV_IN3_(0) - 0x180000 + 1), pucI[3] + 1), pucI += 4;
         else if (*pucI >= 0x10)
-            pl__match(ptrDOut_ - (MV_IN3_(0) - 0x100000 + 1), MV_IN2_(3) + 1), pucI += 5;
+            pl__draw_match(ptrDOut_ - (MV_IN3_(0) - 0x100000 + 1), MV_IN2_(3) + 1), pucI += 5;
         else if (*pucI >= 0x08)
-            pl__lit(pucI + 2, MV_IN2_(0) - 0x0800 + 1), pucI += 2 + (MV_IN2_(0) - 0x0800 + 1);
+            pl__draw_lit(pucI + 2, MV_IN2_(0) - 0x0800 + 1), pucI += 2 + (MV_IN2_(0) - 0x0800 + 1);
         else if (*pucI == 0x07)
-            pl__lit(pucI + 3, MV_IN2_(1) + 1), pucI += 3 + (MV_IN2_(1) + 1);
+            pl__draw_lit(pucI + 3, MV_IN2_(1) + 1), pucI += 3 + (MV_IN2_(1) + 1);
         else if (*pucI == 0x06)
-            pl__match(ptrDOut_ - (MV_IN3_(1) + 1), pucI[4] + 1), pucI += 5;
+            pl__draw_match(ptrDOut_ - (MV_IN3_(1) + 1), pucI[4] + 1), pucI += 5;
         else if (*pucI == 0x04)
-            pl__match(ptrDOut_ - (MV_IN3_(1) + 1), MV_IN2_(4) + 1), pucI += 6;
+            pl__draw_match(ptrDOut_ - (MV_IN3_(1) + 1), MV_IN2_(4) + 1), pucI += 6;
     }
     return pucI;
 }
 
 static uint32_t 
-pl__adler32(uint32_t uAdler32, unsigned char* pucBuf, uint32_t uBufLen)
+pl__draw_adler32(uint32_t uAdler32, unsigned char* pucBuf, uint32_t uBufLen)
 {
     const uint32_t uAdlerMod = 65521;
     uint32_t s1 = uAdler32 & 0xffff;
@@ -3309,7 +3309,7 @@ pl__adler32(uint32_t uAdler32, unsigned char* pucBuf, uint32_t uBufLen)
 }
 
 static uint32_t 
-pl__decompress(unsigned char* pucOut, const unsigned char* pucI, uint32_t uLength)
+pl__draw_decompress(unsigned char* pucOut, const unsigned char* pucI, uint32_t uLength)
 {
     if(pucI == NULL)
         return 0;
@@ -3318,7 +3318,7 @@ pl__decompress(unsigned char* pucOut, const unsigned char* pucI, uint32_t uLengt
     if (MV_IN4_(4) != 0)
         return 0;
 
-    const uint32_t uOLen = pl__decompress_length(pucI);
+    const uint32_t uOLen = pl__draw_decompress_length(pucI);
     ptrBarrierInB_ = pucI;
     ptrBarrierOutE_ = pucOut + uOLen;
     ptrBarrierOutB_ = pucOut;
@@ -3328,14 +3328,14 @@ pl__decompress(unsigned char* pucOut, const unsigned char* pucI, uint32_t uLengt
     for (;;) 
     {
         const unsigned char* ptrOldI = pucI;
-        pucI = pl__decompress_token(pucI);
+        pucI = pl__draw_decompress_token(pucI);
         if (pucI == ptrOldI) 
         {
             if (*pucI == 0x05 && pucI[1] == 0xfa) 
             {
                 PL_ASSERT(ptrDOut_ == pucOut + uOLen);
                 if (ptrDOut_ != pucOut + uOLen) break;
-                if (pl__adler32(1, pucOut, uOLen) != (uint32_t) MV_IN4_(2))break;
+                if (pl__draw_adler32(1, pucOut, uOLen) != (uint32_t) MV_IN4_(2))break;
                 return uOLen;
             } 
         }
@@ -3445,9 +3445,9 @@ pl_add_default_font(plFontAtlas* ptAtlas)
     void* pCompressedTTF = PL_ALLOC((size_t)iCompressedTTFSize);
     pl__decode85((const unsigned char*)gcPtrDefaultFontCompressed, (unsigned char*)pCompressedTTF);
 
-    const uint32_t uDecompressedSize = pl__decompress_length((const unsigned char*)pCompressedTTF);
+    const uint32_t uDecompressedSize = pl__draw_decompress_length((const unsigned char*)pCompressedTTF);
     pData = (unsigned char*)PL_ALLOC(uDecompressedSize);
-    pl__decompress((unsigned char*)pData, (const unsigned char*)pCompressedTTF, (int)iCompressedTTFSize);
+    pl__draw_decompress((unsigned char*)pData, (const unsigned char*)pCompressedTTF, (int)iCompressedTTFSize);
 
     PL_FREE(pCompressedTTF);
 
