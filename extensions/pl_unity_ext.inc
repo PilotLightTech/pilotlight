@@ -52,6 +52,7 @@ static const struct _plPhysicsI*       gptPhysics       = 0;
 static const struct _plAnimationI*     gptAnimation     = 0;
 static const struct _plMeshI*          gptMesh          = 0;
 static const struct _plShaderVariantI* gptShaderVariant = 0;
+static const struct _plCompressI*          gptCompress      = 0;
 
 // context
 static struct _plIO* gptIO = 0;

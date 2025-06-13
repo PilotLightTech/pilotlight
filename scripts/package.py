@@ -60,6 +60,7 @@ extension_headers = [
     "pl_starter_ext.h",
     "pl_mesh_ext.h",
     "pl_shader_variant_ext.h",
+    "pl_compress_ext.h",
     "pl_datetime_ext.h",
 ]
 
@@ -97,6 +98,7 @@ extensions = [
     "pl_mesh_ext",
     "pl_shader_variant_ext",
     "pl_datetime_ext",
+    "pl_compress_ext",
     "pl_ui_ext"
 ]
 

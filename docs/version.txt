@@ -77,6 +77,7 @@ the API is complete. It just means we won't break what currently exists.
 * UI Tools          v1.0.0 (pl_tools_ext.h)
 * UI                v1.0.0 (pl_ui_ext.h)
 * Date & Time       v1.0.0 (pl_datetime_ext.h)
+* Compression       v1.0.0 (pl_compress_ext.h)
 
 ## Nearly Stable Extensions
 
