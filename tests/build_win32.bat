@@ -83,6 +83,8 @@
     @if exist "../out/pl_collision_ext_*.pdb" del "..\out\pl_collision_ext_*.pdb"
     @if exist "../out/pl_graphics_ext.dll" del "..\out\pl_graphics_ext.dll"
     @if exist "../out/pl_graphics_ext_*.pdb" del "..\out\pl_graphics_ext_*.pdb"
+    @if exist "../out/pl_datetime_ext.dll" del "..\out\pl_datetime_ext.dll"
+    @if exist "../out/pl_datetime_ext_*.pdb" del "..\out\pl_datetime_ext_*.pdb"
     @if exist "../out/tests_c.dll" del "..\out\tests_c.dll"
     @if exist "../out/tests_c_*.pdb" del "..\out\tests_c_*.pdb"
     @if exist "../out/tests_cpp.dll" del "..\out\tests_cpp.dll"
@@ -286,6 +288,42 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 
 @del "..\out\*.obj"  > nul 2> nul
 
+::~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_datetime_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: skip during hot reload
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_datetime_ext
+
+@set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
+@set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
+@set PL_SOURCES="../extensions/pl_datetime_ext.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: pl_datetime_ext[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_datetime_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_datetime_ext_%random%.pdb"
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanupdebug
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+:Exit_pl_datetime_ext
+
+@del "..\out\*.obj"  > nul 2> nul
+
 ::~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests_c | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :: skip during hot reload
@@ -410,6 +448,8 @@ goto ExitLabel
     @if exist "../out/pl_collision_ext_*.pdb" del "..\out\pl_collision_ext_*.pdb"
     @if exist "../out/pl_graphics_ext.dll" del "..\out\pl_graphics_ext.dll"
     @if exist "../out/pl_graphics_ext_*.pdb" del "..\out\pl_graphics_ext_*.pdb"
+    @if exist "../out/pl_datetime_ext.dll" del "..\out\pl_datetime_ext.dll"
+    @if exist "../out/pl_datetime_ext_*.pdb" del "..\out\pl_datetime_ext_*.pdb"
     @if exist "../out/tests_c.dll" del "..\out\tests_c.dll"
     @if exist "../out/tests_c_*.pdb" del "..\out\tests_c_*.pdb"
     @if exist "../out/tests_cpp.dll" del "..\out\tests_cpp.dll"
@@ -610,6 +650,42 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
 
 :Exit_pl_graphics_ext
+
+@del "..\out\*.obj"  > nul 2> nul
+
+::~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_datetime_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:: skip during hot reload
+@if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_datetime_ext
+
+@set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
+@set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
+@set PL_SOURCES="../extensions/pl_datetime_ext.c" 
+
+:: run compiler (and linker)
+@echo.
+@echo [1m[93mStep: pl_datetime_ext[0m
+@echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
+@echo [1m[36mCompiling and Linking...[0m
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/pl_datetime_ext.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/pl_datetime_ext_%random%.pdb"
+
+:: check build status
+@set PL_BUILD_STATUS=%ERRORLEVEL%
+
+:: failed
+@if %PL_BUILD_STATUS% NEQ 0 (
+    @echo [1m[91mCompilation Failed with error code[0m: %PL_BUILD_STATUS%
+    @set PL_RESULT=[1m[91mFailed.[0m
+    goto Cleanuprelease
+)
+
+:: print results
+@echo [36mResult: [0m %PL_RESULT%
+@echo [36m~~~~~~~~~~~~~~~~~~~~~~[0m
+
+:Exit_pl_datetime_ext
 
 @del "..\out\*.obj"  > nul 2> nul
 

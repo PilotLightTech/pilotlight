@@ -216,6 +216,7 @@ with pl.project("pilotlight_lib_tests"):
     extensions = [
         "pl_collision_ext",
         "pl_graphics_ext",
+        "pl_datetime_ext",
     ]
 
     for extension in extensions:

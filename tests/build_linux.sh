@@ -79,6 +79,8 @@ else
     rm -f ../out/pl_collision_ext_*.so
     rm -f ../out/pl_graphics_ext.so
     rm -f ../out/pl_graphics_ext_*.so
+    rm -f ../out/pl_datetime_ext.so
+    rm -f ../out/pl_datetime_ext_*.so
     rm -f ../out/tests_c.so
     rm -f ../out/tests_c_*.so
     rm -f ../out/tests_cpp.so
@@ -261,6 +263,41 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 # hot reload skip
 fi
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_datetime_ext | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_datetime_ext.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_datetime_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_datetime_ext.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ tests_c | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # skip during hot reload
@@ -370,6 +407,8 @@ else
     rm -f ../out/pl_collision_ext_*.so
     rm -f ../out/pl_graphics_ext.so
     rm -f ../out/pl_graphics_ext_*.so
+    rm -f ../out/pl_datetime_ext.so
+    rm -f ../out/pl_datetime_ext_*.so
     rm -f ../out/tests_c.so
     rm -f ../out/tests_c_*.so
     rm -f ../out/tests_cpp.so
@@ -538,6 +577,41 @@ echo ${YELLOW}Step: pl_graphics_ext${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
 gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_graphics_ext.so"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+# hot reload skip
+fi
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ pl_datetime_ext | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# skip during hot reload
+if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
+PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
+PL_LINKER_FLAGS="-ldl -lm "
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES=""
+PL_SOURCES="../extensions/pl_datetime_ext.c "
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: pl_datetime_ext${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./../out/pl_datetime_ext.so"
 
 # check build status
 if [ $? -ne 0 ]

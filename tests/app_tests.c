@@ -27,6 +27,7 @@ Index of this file:
 
 // unstable extensions
 #include "pl_collision_ext.h"
+#include "pl_datetime_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
@@ -35,6 +36,7 @@ Index of this file:
 const plIOI*        gptIO        = NULL;
 const plMemoryI*    gptMemory    = NULL;
 const plCollisionI* gptCollision = NULL;
+const plDateTimeI*  gptDateTime  = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -59,6 +61,7 @@ typedef struct _plAppData
 //-----------------------------------------------------------------------------
 
 void collision_only_tests_0(void*);
+void datetime_tests_0(void*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -77,11 +80,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // load extensions
     ptExtensionRegistry->load("pl_collision_ext", "pl_load_collision_ext", "pl_unload_collision_ext", false);
+    ptExtensionRegistry->load("pl_datetime_ext", "pl_load_datetime_ext", "pl_unload_datetime_ext", false);
 
     // retrieve the IO API required to use plIO for "talking" with runtime)
     gptIO        = pl_get_api_latest(ptApiRegistry, plIOI);
     gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptCollision = pl_get_api_latest(ptApiRegistry, plCollisionI);
+    gptDateTime  = pl_get_api_latest(ptApiRegistry, plDateTimeI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -97,6 +102,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     pl_test_register_test(collision_only_tests_0, ptAppData);
     pl_test_run_suite("pl_collision_ext.h");
+
+    pl_test_register_test(datetime_tests_0, ptAppData);
+    pl_test_run_suite("pl_datetime_ext.h");
 
     return ptAppData;
 }
@@ -213,6 +221,37 @@ collision_only_tests_0(void* pAppData)
     pl_test_expect_true(gptCollision->box_half_space(&tBox0, &tPlane0), "10: Box + Half Space");
     pl_test_expect_false(gptCollision->box_half_space(&tBox0, &tPlane1), "11: Box + Half Space");
     pl_test_expect_false(gptCollision->box_half_space(&tBox0, &tPlane2), "12: Box + Half Space");
+}
+
+void
+datetime_tests_0(void* pAppData)
+{
+    {
+        plDay tDay = gptDateTime->day_of_week(PL_JUNE, 1, 2025);
+        pl_test_expect_true(tDay == PL_SUNDAY, "0: day of week check");
+    }
+
+    {
+        plDay tDay = gptDateTime->day_of_week(PL_APRIL, 9, 2024);
+        pl_test_expect_true(tDay == PL_TUESDAY, "1: day of week check");
+    }
+
+    {
+        plDay tDay = gptDateTime->day_of_week(PL_APRIL, 11, 2024);
+        pl_test_expect_true(tDay == PL_THURSDAY, "2: day of week check");
+    }
+
+    pl_test_expect_true(gptDateTime->month_from_string("JANUARY")   == PL_JANUARY,   " 0: month from string");
+    pl_test_expect_true(gptDateTime->month_from_string("FEBRUARY")  == PL_FEBRUARY,  " 1: month from string");
+    pl_test_expect_true(gptDateTime->month_from_string("MARCH")     == PL_MARCH,     " 2: month from string");
+    pl_test_expect_true(gptDateTime->month_from_string("APRIL")     == PL_APRIL,     " 3: month from string");
+    pl_test_expect_true(gptDateTime->month_from_string("MAY")       == PL_MAY,       " 4: month from string");
+    pl_test_expect_true(gptDateTime->month_from_string("JUNE")      == PL_JUNE,      " 5: month from string");
+    pl_test_expect_true(gptDateTime->month_from_string("JULY")      == PL_JULY,      " 6: month from string");
+    pl_test_expect_true(gptDateTime->month_from_string("AUGUST")    == PL_AUGUST,    " 7: month from string");
+    pl_test_expect_true(gptDateTime->month_from_string("SEPTEMBER") == PL_SEPTEMBER, " 8: month from string");
+    pl_test_expect_true(gptDateTime->month_from_string("OCTOBER")   == PL_OCTOBER,   " 9: month from string");
+    pl_test_expect_true(gptDateTime->month_from_string("DECEMBER")  == PL_DECEMBER,  "10: month from string");
 }
 
 //-----------------------------------------------------------------------------

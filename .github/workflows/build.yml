@@ -177,6 +177,7 @@ jobs:
         if not exist ../out/pl_physics_ext.dll exit 1
         if not exist ../out/pl_collision_ext.dll exit 1
         if not exist ../out/pl_bvh_ext.dll exit 1
+        if not exist ../out/pl_datetime_ext.dll exit 1
         if not exist ../out/pl_config_ext.dll exit 1
         if not exist ../out/pl_platform_ext.dll exit 1
         if not exist ../out/pilot_light.exe exit 1
@@ -377,6 +378,7 @@ jobs:
         test -f ./out/pl_physics_ext.dylib || exit 1
         test -f ./out/pl_collision_ext.dylib || exit 1
         test -f ./out/pl_bvh_ext.dylib || exit 1
+        test -f ./out/pl_datetime_ext.dylib || exit 1
         test -f ./out/pl_config_ext.dylib || exit 1
         test -f ./out/pl_platform_ext.dylib || exit 1
         test -f ./out/pl_script_camera.dylib || exit 1
@@ -587,6 +589,7 @@ jobs:
         test -f ./out/pl_physics_ext.so || exit 1
         test -f ./out/pl_collision_ext.so || exit 1
         test -f ./out/pl_bvh_ext.so || exit 1
+        test -f ./out/pl_datetime_ext.so || exit 1
         test -f ./out/pl_config_ext.so || exit 1
         test -f ./out/pl_platform_ext.so || exit 1
         test -f ./out/pl_script_camera.so || exit 1

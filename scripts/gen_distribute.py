@@ -128,6 +128,7 @@ with pl.project("pilotlight deploy"):
         "pl_config_ext",
         "pl_mesh_ext",
         "pl_shader_variant_ext",
+        "pl_datetime_ext",
     ]
 
     for extension in extensions:

@@ -76,6 +76,7 @@ the API is complete. It just means we won't break what currently exists.
 * String Interning  v1.0.0 (pl_string_intern_ext.h)
 * UI Tools          v1.0.0 (pl_tools_ext.h)
 * UI                v1.0.0 (pl_ui_ext.h)
+* Date & Time       v1.0.0 (pl_datetime_ext.h)
 
 ## Nearly Stable Extensions
 
