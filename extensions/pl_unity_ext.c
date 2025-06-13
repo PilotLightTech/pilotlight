@@ -48,6 +48,7 @@ Index of this file:
 #include "pl_animation_ext.c"
 #include "pl_mesh_ext.c"
 #include "pl_shader_variant_ext.c"
+#include "pl_vfs_ext.c"
 #include "pl_pak_ext.c"
 #include "pl_datetime_ext.c"
 #include "pl_compress_ext.c"
@@ -96,6 +97,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptAnimation         = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh              = pl_get_api_latest(ptApiRegistry, plMeshI);
     gptShaderVariant     = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+    gptVfs               = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptPak               = pl_get_api_latest(ptApiRegistry, plPakI);
     gptDateTime          = pl_get_api_latest(ptApiRegistry, plDateTimeI);
     gptCompress          = pl_get_api_latest(ptApiRegistry, plCompressI);
@@ -112,6 +114,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_draw_ext(ptApiRegistry, bReload);
     pl_load_draw_backend_ext(ptApiRegistry, bReload);
     pl_load_ui_ext(ptApiRegistry, bReload);
+    pl_load_vfs_ext(ptApiRegistry, bReload);
     pl_load_shader_ext(ptApiRegistry, bReload);
     gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
 
@@ -172,6 +175,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_bvh_ext(ptApiRegistry, bReload);
     pl_unload_starter_ext(ptApiRegistry, bReload);
     pl_unload_config_ext(ptApiRegistry, bReload);
+    pl_unload_vfs_ext(ptApiRegistry, bReload);
     pl_unload_pak_ext(ptApiRegistry, bReload);
     pl_unload_datetime_ext(ptApiRegistry, bReload);
     pl_unload_shader_variant_ext(ptApiRegistry, bReload);

@@ -82,20 +82,21 @@ the API is complete. It just means we won't break what currently exists.
 
 ## Nearly Stable Extensions
 
-* Resource          v0.2.1 (pl_resource_ext.h)
-* ECS               v0.3.0 (pl_ecs_ext.h)
-* Bvh               v0.2.0 (pl_bvh_ext.h)
-* Physics           v0.2.0 (pl_physics_ext.h)
-* Collision         v0.2.0 (pl_collision_ext.h)
-* Mesh              v0.1.0 (pl_mesh_ext.h)
-* Shader Variant    v0.2.0 (pl_shader_variant_ext.h)
+* Resource            v0.2.1 (pl_resource_ext.h)
+* ECS                 v0.3.0 (pl_ecs_ext.h)
+* Bvh                 v0.2.0 (pl_bvh_ext.h)
+* Physics             v0.2.0 (pl_physics_ext.h)
+* Collision           v0.2.0 (pl_collision_ext.h)
+* Mesh                v0.1.0 (pl_mesh_ext.h)
+* Shader Variant      v0.2.0 (pl_shader_variant_ext.h)
+* Virtual File System v0.2.0 (pl_vfs_ext.h)
 
 ## Unstable Extensions
 
-* ECS Tools         v0.1.0 (pl_ecs_tools_ext.h)
-* Camera            v0.2.0 (pl_camera_ext.h)
-* Gizmo             v0.1.0 (pl_gizmo_ext.h)
-* Model Loader      v0.1.0 (pl_model_loader_ext.h)
-* Renderer          v0.1.0 (pl_renderer_ext.h)
-* Dear ImGui        v0.1.0 (pl_dear_imgui_ext.h)
-* Animation         v0.1.0 (pl_animation_ext.h)
+* ECS Tools           v0.1.0 (pl_ecs_tools_ext.h)
+* Camera              v0.2.0 (pl_camera_ext.h)
+* Gizmo               v0.1.0 (pl_gizmo_ext.h)
+* Model Loader        v0.1.0 (pl_model_loader_ext.h)
+* Renderer            v0.1.0 (pl_renderer_ext.h)
+* Dear ImGui          v0.1.0 (pl_dear_imgui_ext.h)
+* Animation           v0.1.0 (pl_animation_ext.h)

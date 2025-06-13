@@ -129,6 +129,7 @@ with pl.project("pilotlight deploy"):
         "pl_mesh_ext",
         "pl_shader_variant_ext",
         "pl_datetime_ext",
+        "pl_vfs_ext",
         "pl_compress_ext",
         "pl_pak_ext",
     ]
