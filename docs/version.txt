@@ -48,7 +48,7 @@ the API is complete. It just means we won't break what currently exists.
 * Memory Allocators v1.1.0 (pl_memory.h)
 * Profiling         v1.0.0 (pl_profile.h)
 * Stl               v1.0.0 (pl_stl.h)
-* String            v1.0.0 (pl_string.h)
+* String            v1.1.0 (pl_string.h)
 * Testing           v1.0.0 (pl_test.h)
 
 ## Stable Extensions

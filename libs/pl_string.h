@@ -15,8 +15,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_STRING_VERSION    "1.0.0"
-#define PL_STRING_VERSION_NUM 10000
+#define PL_STRING_VERSION    "1.1.0"
+#define PL_STRING_VERSION_NUM 10100
 
 /*
 Index of this file:
@@ -54,6 +54,7 @@ const char* pl_str_get_file_extension(const char* pcFilePath, char* pcExtensionO
 const char* pl_str_get_file_name     (const char* pcFilePath, char* pcFileOut, size_t szOutSize);
 bool        pl_str_get_file_name_only(const char* pcFilePath, char* pcFileOut, size_t szOutSize);
 bool        pl_str_get_directory     (const char* pcFilePath, char* pcDirectoryOut, size_t szOutSize);
+bool        pl_str_get_root_directory(const char* pcFilePath, char* pcDirectoryOut, size_t szOutSize);
 
 // misc. opts
 bool               pl_str_concatenate    (const char* pcStr0, const char* pcStr1, char* pcStringOut, size_t szDataSize);
@@ -342,6 +343,42 @@ pl_str_get_directory(const char* pcFilePath, char* pcDirectoryOut, size_t szOutS
     {
         pcDirectoryOut[0] = '.';
         pcDirectoryOut[1] = '/';
+    }
+    return true;
+}
+
+bool
+pl_str_get_root_directory(const char* pcFilePath, char* pcDirectoryOut, size_t szOutSize)
+{
+    size_t szLen = strlen(pcFilePath);
+    strncpy(pcDirectoryOut, pcFilePath, szOutSize);
+
+    if(szLen > szOutSize || szOutSize < 2)
+        return false;
+
+    size_t szCurrentLocation = 0;
+    int iHits = 2;
+    while(szCurrentLocation < szLen)
+    {
+        if(pcDirectoryOut[szCurrentLocation] == '/' || pcDirectoryOut[szCurrentLocation] == '\\')
+        {
+            iHits--;
+        }
+
+        if(iHits == 0)
+        {
+            pcDirectoryOut[szCurrentLocation + 1] = 0;
+            break; 
+        }
+
+        szCurrentLocation++;
+    }
+
+    if(szCurrentLocation == szLen)
+    {
+        pcDirectoryOut[0] = '.';
+        pcDirectoryOut[1] = '/';
+        pcDirectoryOut[2] = 0;
     }
     return true;
 }
