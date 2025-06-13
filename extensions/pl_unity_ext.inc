@@ -36,6 +36,7 @@ static const struct _plConsoleI*           gptConsole           = 0;
 static const struct _plScreenLogI*         gptScreenLog         = 0;
 static const struct _plStarterI*           gptStarter           = 0;
 static const struct _plToolsI*             gptTools             = 0;
+static const struct _plPakI*               gptPak               = 0;
 static const struct _plDateTimeI*          gptDateTime          = 0;
 
 // experimental
