@@ -16,6 +16,7 @@ away, please see git history for details.
                       add vfs support to resource ext (v0.2.2)
                       add vfs support to shader ext (v1.1.0)
                       fix various issues with pl_string.h (v1.1.1)
+                      fix potention issue with ecs ext selection (v0.3.1)
 - v0.4.0 (2025-06-10) add shader variant extension (v0.2.0)
                       fix command line args for x11 backend plIOI (v1.0.1)
                       internal improvements to renderer ext

@@ -362,6 +362,8 @@ pl_ecs_get_current_entity(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
     if(ptLibrary == NULL)
         ptLibrary = gptEcsCtx->ptDefaultLibrary;
+    if(tEntity.uIndex >= pl_sb_size(ptLibrary->_sbtEntityGenerations))
+        return (plEntity){UINT32_MAX, UINT32_MAX};
     tEntity.uGeneration = ptLibrary->_sbtEntityGenerations[tEntity.uIndex];
     return tEntity;
 }
