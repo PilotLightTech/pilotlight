@@ -56,6 +56,8 @@ Index of this file:
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
 #include "pl_starter_ext.h"
+#include "pl_pak_ext.h"
+#include "pl_datetime_ext.h"
 
 // unstable extensions
 #include "pl_ecs_ext.h"
@@ -72,43 +74,49 @@ Index of this file:
 #include "pl_collision_ext.h"
 #include "pl_bvh_ext.h"
 #include "pl_shader_variant_ext.h"
+#include "pl_vfs_ext.h"
+#include "pl_compress_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-const plWindowI*        gptWindows       = NULL;
-const plStatsI*         gptStats         = NULL;
-const plGraphicsI*      gptGfx           = NULL;
-const plToolsI*         gptTools         = NULL;
-const plEcsI*           gptEcs           = NULL;
-const plCameraI*        gptCamera        = NULL;
-const plRendererI*      gptRenderer      = NULL;
-const plModelLoaderI*   gptModelLoader   = NULL;
-const plJobI*           gptJobs          = NULL;
-const plDrawI*          gptDraw          = NULL;
-const plDrawBackendI*   gptDrawBackend   = NULL;
-const plUiI*            gptUI            = NULL;
-const plIOI*            gptIO            = NULL;
-const plShaderI*        gptShader        = NULL;
-const plMemoryI*        gptMemory        = NULL;
-const plNetworkI*       gptNetwork       = NULL;
-const plStringInternI*  gptString        = NULL;
-const plProfileI*       gptProfile       = NULL;
-const plFileI*          gptFile          = NULL;
-const plEcsToolsI*      gptEcsTools      = NULL;
-const plGizmoI*         gptGizmo         = NULL;
-const plConsoleI*       gptConsole       = NULL;
-const plScreenLogI*     gptScreenLog     = NULL;
-const plPhysicsI *      gptPhysics       = NULL;
-const plCollisionI*     gptCollision     = NULL;
-const plBVHI*           gptBvh           = NULL;
-const plConfigI*        gptConfig        = NULL;
-const plResourceI*      gptResource      = NULL;
-const plStarterI*       gptStarter       = NULL;
-const plAnimationI*     gptAnimation     = NULL;
-const plMeshI*          gptMesh          = NULL;
-const plShaderVariantI* gptShaderVariant = NULL;
+const plWindowI*            gptWindows       = NULL;
+const plStatsI*             gptStats         = NULL;
+const plGraphicsI*          gptGfx           = NULL;
+const plToolsI*             gptTools         = NULL;
+const plEcsI*               gptEcs           = NULL;
+const plCameraI*            gptCamera        = NULL;
+const plRendererI*          gptRenderer      = NULL;
+const plModelLoaderI*       gptModelLoader   = NULL;
+const plJobI*               gptJobs          = NULL;
+const plDrawI*              gptDraw          = NULL;
+const plDrawBackendI*       gptDrawBackend   = NULL;
+const plUiI*                gptUI            = NULL;
+const plIOI*                gptIO            = NULL;
+const plShaderI*            gptShader        = NULL;
+const plMemoryI*            gptMemory        = NULL;
+const plNetworkI*           gptNetwork       = NULL;
+const plStringInternI*      gptString        = NULL;
+const plProfileI*           gptProfile       = NULL;
+const plFileI*              gptFile          = NULL;
+const plEcsToolsI*          gptEcsTools      = NULL;
+const plGizmoI*             gptGizmo         = NULL;
+const plConsoleI*           gptConsole       = NULL;
+const plScreenLogI*         gptScreenLog     = NULL;
+const plPhysicsI *          gptPhysics       = NULL;
+const plCollisionI*         gptCollision     = NULL;
+const plBVHI*               gptBvh           = NULL;
+const plConfigI*            gptConfig        = NULL;
+const plResourceI*          gptResource      = NULL;
+const plStarterI*           gptStarter       = NULL;
+const plAnimationI*         gptAnimation     = NULL;
+const plMeshI*              gptMesh          = NULL;
+const plShaderVariantI*     gptShaderVariant = NULL;
+const plVfsI*               gptVfs           = NULL;
+const plPakI*               gptPak           = NULL;
+const plDateTimeI*          gptDateTime      = NULL;
+const plCompressI*          gptCompress      = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -237,6 +245,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
         gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
 
+
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
 
         return ptAppData;
@@ -284,11 +293,21 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
     gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+    gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
+    gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
+    gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
     ptAppData = (plAppData*)PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+
+    gptVfs->mount_directory("/models", "../data/pilotlight-assets-master/models", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/fonts", "../data/pilotlight-assets-master/fonts", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/environments", "../data/pilotlight-assets-master/environments", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/shaders", "../shaders", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/shaders-temp", "../out-temp", PL_VFS_MOUNT_FLAGS_NONE);
 
     // defaults
     ptAppData->tSelectedEntity.uData = UINT64_MAX;
@@ -313,12 +332,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // initialize shader compiler
     static plShaderOptions tDefaultShaderOptions = {
         .apcIncludeDirectories = {
-            "../shaders/"
+            "/shaders/"
         },
         .apcDirectories = {
-            "../shaders/"
+            "/shaders/",
+            "/shaders-temp/",
         },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+        .pcCacheOutputDirectory = "/shaders-temp/",
+        // .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG
 
     };
     gptShader->initialize(&tDefaultShaderOptions);
@@ -406,7 +428,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .ptRanges = &tFontRange,
         .uRangeCount = 1
     };
-    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
+    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig0, "/fonts/Cousine-Regular.ttf");
 
     const plFontRange tIconRange = {
         .iFirstCodePoint = ICON_MIN_FA,
@@ -422,7 +444,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .ptRanges       = &tIconRange,
         .uRangeCount    = 1
     };
-    gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig1, "../data/pilotlight-assets-master/fonts/fa-solid-900.otf");
+    gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig1, "/fonts/fa-solid-900.otf");
 
     // build font atlas
     plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(gptRenderer->get_command_pool());
@@ -499,14 +521,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptProbe->uResolution = 128;
     ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
 
-    gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "../data/pilotlight-assets-master/environments/helipad.hdr", 1024);
+    gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/helipad.hdr", 1024);
 
     plModelLoaderData tLoaderData0 = {0};
-    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
+    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
     gptModelLoader->free_data(&tLoaderData0);
     gptRenderer->finalize_scene(ptAppData->ptScene);
+
     return ptAppData;
 }
 
@@ -522,6 +545,36 @@ pl_app_shutdown(plAppData* ptAppData)
 
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
+
+    // plPakFile* ptPak = NULL;
+    // gptPak->begin_packing("../data/shaders.pak", 4, &ptPak);
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "deferred_lighting.frag.spv", "../out-temp/deferred_lighting.frag.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "deferred_lighting.vert.spv", "../out-temp/deferred_lighting.vert.spv",false));
+    // // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_2d_sdf.frag.spv", "../out-temp/draw_2d_sdf.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_2d.frag.spv", "../out-temp/draw_2d.frag.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_2d.vert.spv", "../out-temp/draw_2d.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_3d_line.vert.spv", "../out-temp/draw_3d_line.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_3d.frag.spv", "../out-temp/draw_3d.frag.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_3d.vert.spv", "../out-temp/draw_3d.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "filter_environment.comp.spv", "../out-temp/filter_environment.comp.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "forward.frag.spv", "../out-temp/forward.frag.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "forward.vert.spv", "../out-temp/forward.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "full_quad.vert.spv", "../out-temp/full_quad.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "gbuffer_fill.frag.spv", "../out-temp/gbuffer_fill.frag.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "gbuffer_fill.vert.spv", "../out-temp/gbuffer_fill.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "jumpfloodalgo.comp.spv", "../out-temp/jumpfloodalgo.comp.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "panorama_to_cubemap.comp.spv", "../out-temp/panorama_to_cubemap.comp.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "picking.frag.spv", "../out-temp/picking.frag.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "picking.vert.spv", "../out-temp/picking.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "shadow.frag.spv", "../out-temp/shadow.frag.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "shadow.vert.spv", "../out-temp/shadow.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "skinning.comp.spv", "../out-temp/skinning.comp.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "skybox.frag.spv", "../out-temp/skybox.frag.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "skybox.vert.spv", "../out-temp/skybox.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "tonemap.frag.spv", "../out-temp/tonemap.frag.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "uvmap.frag.spv", "../out-temp/uvmap.frag.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "uvmap.vert.spv", "../out-temp/uvmap.vert.spv",false));
+    // gptPak->end_packing(&ptPak);
 
     gptConfig->set_bool("bEditorAttached", ptAppData->bEditorAttached);
     gptConfig->set_bool("bShowEntityWindow", ptAppData->bShowEntityWindow);
@@ -556,6 +609,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->cleanup_device(ptAppData->ptDevice);
     gptGfx->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
+
     PL_FREE(ptAppData);
 }
 

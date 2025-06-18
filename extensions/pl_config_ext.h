@@ -23,7 +23,7 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plFileI (v1.x)
+        * plVfsI (v1.x)
 */
 
 //-----------------------------------------------------------------------------
@@ -37,7 +37,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plConfigI_version {1, 0, 0}
+#define plConfigI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

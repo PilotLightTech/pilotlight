@@ -41,6 +41,7 @@ Index of this file:
 #include "pl_image_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_starter_ext.h"
+#include "pl_vfs_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -85,6 +86,7 @@ const plImageI*    gptImage   = NULL;
 const plShaderI*   gptShader  = NULL;
 const plFileI*     gptFile    = NULL;
 const plStarterI*  gptStarter = NULL;
+const plVfsI*      gptVfs     = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -113,6 +115,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
         gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
         gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
 
         return ptAppData;
     }
@@ -139,6 +142,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
     gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
     gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
+
+    gptVfs->mount_directory("/assets", "../data/pilotlight-assets-master", PL_VFS_MOUNT_FLAGS_NONE);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -278,10 +284,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // load image file from disk
-    size_t szImageFileSize = 0;
-    gptFile->binary_read("../data/pilotlight-assets-master/textures/SpriteMapExample.png", &szImageFileSize, NULL);
+    size_t szImageFileSize = gptVfs->get_file_size_str("/assets/textures/SpriteMapExample.png");
+    plVfsFileHandle tSpriteSheet = gptVfs->open_file("/assets/textures/SpriteMapExample.png", PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tSpriteSheet, NULL, &szImageFileSize);
     unsigned char* pucBuffer = malloc(szImageFileSize);
-    gptFile->binary_read("../data/pilotlight-assets-master/textures/SpriteMapExample.png", &szImageFileSize, pucBuffer);
+    gptVfs->read_file(tSpriteSheet, pucBuffer, &szImageFileSize);
+    gptVfs->close_file(tSpriteSheet);
 
     // load actual data from file data
     int iImageWidth = 0;

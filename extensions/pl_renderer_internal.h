@@ -52,12 +52,12 @@ Index of this file:
 #include "pl_draw_backend_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
-#include "pl_platform_ext.h" // file
 #include "pl_rect_pack_ext.h"
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
 #include "pl_bvh_ext.h"
 #include "pl_shader_variant_ext.h"
+#include "pl_vfs_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -94,11 +94,11 @@ Index of this file:
     static const plDrawBackendI*   gptDrawBackend   = NULL;
     static const plIOI*            gptIOI           = NULL;
     static const plShaderI*        gptShader        = NULL;
-    static const plFileI*          gptFile          = NULL;
     static const plProfileI*       gptProfile       = NULL;
     static const plLogI*           gptLog           = NULL;
     static const plRectPackI*      gptRect          = NULL;
     static const plConsoleI*       gptConsole       = NULL;
+    static const plVfsI*           gptVfs           = NULL;
 
     // experimental
     static const plScreenLogI*     gptScreenLog     = NULL;

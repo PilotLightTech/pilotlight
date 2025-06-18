@@ -31,7 +31,7 @@ Index of this file:
         * plDrawI          (v1.x)
         * plDrawBackendI   (v1.x)
         * plShaderI        (v1.x)
-        * plFileI          (v1.x)
+        * plVfsI           (v1.x)
         * plLogI           (v1.x)
         * plRectPackI      (v1.x)
         * plConsoleI       (v1.x)
@@ -55,7 +55,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plRendererI_version {0, 2, 0}
+#define plRendererI_version {0, 2, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines

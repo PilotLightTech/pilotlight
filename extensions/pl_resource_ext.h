@@ -26,7 +26,7 @@ Index of this file:
 
         * plGraphicsI      (v1.x)
         * plGPUAllocatorsI (v1.x)
-        * plFileI          (v1.x)
+        * plVfsI           (v1.x)
         * plImageI         (v1.x)
 */
 
@@ -41,7 +41,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plResourceI_version {0, 2, 1}
+#define plResourceI_version {0, 2, 2}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

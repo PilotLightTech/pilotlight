@@ -47,7 +47,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plModelLoaderI_version {0, 2, 0}
+#define plModelLoaderI_version {0, 2, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

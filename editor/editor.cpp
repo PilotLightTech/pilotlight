@@ -85,6 +85,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
         gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
         gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+        gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
+        gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
+        gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
 
         ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
 
@@ -137,11 +141,22 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
     gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+    gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
+    gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
+    gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
     ptAppData = (plAppData*)PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+
+    gptVfs->mount_directory("/models", "../data/pilotlight-assets-master/models", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/gltf-models", "../data/glTF-Sample-Assets-main/Models", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/fonts", "../data/pilotlight-assets-master/fonts", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/environments", "../data/pilotlight-assets-master/environments", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/shaders", "../shaders", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/shaders-temp", "../out-temp", PL_VFS_MOUNT_FLAGS_NONE);
 
     // defaults
     ptAppData->tSelectedEntity.uData = UINT64_MAX;
@@ -165,8 +180,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     
     // initialize shader compiler
     static plShaderOptions tDefaultShaderOptions = PL_ZERO_INIT;
-    tDefaultShaderOptions.apcIncludeDirectories[0] = "../shaders/";
-    tDefaultShaderOptions.apcDirectories[0] = "../shaders/";
+    tDefaultShaderOptions.apcIncludeDirectories[0] = "/shaders/";
+    tDefaultShaderOptions.apcDirectories[0] = "/shaders/";
+    tDefaultShaderOptions.apcDirectories[1] = "/shaders-temp/";
+    tDefaultShaderOptions.pcCacheOutputDirectory = "/shaders-temp/";
     tDefaultShaderOptions.tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE;
     gptShader->initialize(&tDefaultShaderOptions);
 
@@ -258,7 +275,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tFontConfig0.uVOverSampling = 1;
     tFontConfig0.ptRanges = &tFontRange;
     tFontConfig0.uRangeCount = 1;
-    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig0, "../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf");
+    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig0, "/fonts/Cousine-Regular.ttf");
 
     plFontRange tIconRange = PL_ZERO_INIT;
     tIconRange.iFirstCodePoint = ICON_MIN_FA;
@@ -272,7 +289,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tFontConfig1.ptMergeFont    = ptAppData->tDefaultFont;
     tFontConfig1.ptRanges       = &tIconRange;
     tFontConfig1.uRangeCount    = 1;
-    gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig1, "../data/pilotlight-assets-master/fonts/fa-solid-900.otf");
+    gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig1, "/fonts/fa-solid-900.otf");
 
     // build font atlas
     plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(gptRenderer->get_command_pool());
@@ -693,36 +710,37 @@ pl_app_update(plAppData* ptAppData)
 void
 pl__find_models(plAppData* ptAppData)
 {
-    if(gptFile->exists("../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf"))
+    if(gptVfs->does_file_exist("/models/gltf/humanoid/model.gltf"))
     {
         plTestModel tModel = PL_ZERO_INIT;
         tModel.uVariantCount = 1;
         tModel.bSelected = true;
         strcpy(tModel.acName, "Fembot");
         strcpy(tModel.acVariants[0].acType, "glTF");
-        strcpy(tModel.acVariants[0].acFilePath, "../data/pilotlight-assets-master/models/gltf/humanoid/model.gltf");
+        strcpy(tModel.acVariants[0].acFilePath, "/models/gltf/humanoid/model.gltf");
         pl_sb_push(ptAppData->sbtTestModels, tModel);
     }
 
-    if(gptFile->exists("../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf"))
+    if(gptVfs->does_file_exist("/models/gltf/humanoid/floor.gltf"))
     {
         plTestModel tModel = PL_ZERO_INIT;
         tModel.uVariantCount = 1;
         tModel.bSelected = true;
         strcpy(tModel.acName, "Floor");
         strcpy(tModel.acVariants[0].acType, "glTF");
-        strcpy(tModel.acVariants[0].acFilePath, "../data/pilotlight-assets-master/models/gltf/humanoid/floor.gltf");
+        strcpy(tModel.acVariants[0].acFilePath, "/models/gltf/humanoid/floor.gltf");
         pl_sb_push(ptAppData->sbtTestModels, tModel);
     }
 
-    if(gptFile->exists("../editor/model-index.json"))
+    if(gptVfs->does_file_exist("../editor/model-index.json"))
     {
-        size_t szJsonFileSize = 0;
-        gptFile->binary_read("../editor/model-index.json", &szJsonFileSize, nullptr);
+        size_t szJsonFileSize = gptVfs->get_file_size_str("../editor/model-index.json");
         uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
         memset(puFileBuffer, 0, szJsonFileSize + 1);
 
-        gptFile->binary_read("../editor/model-index.json", &szJsonFileSize, puFileBuffer);
+        plVfsFileHandle tHandle = gptVfs->open_file("../editor/model-index.json", PL_VFS_FILE_MODE_READ);
+        gptVfs->read_file(tHandle, puFileBuffer, &szJsonFileSize);
+        gptVfs->close_file(tHandle);
 
         plJsonObject* ptRootJsonObject = nullptr;
         pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
@@ -793,14 +811,15 @@ pl__find_models(plAppData* ptAppData)
         PL_FREE(puFileBuffer);
     }
 
-    if(gptFile->exists("../data/glTF-Sample-Assets-main/Models/model-index.json"))
+    if(gptVfs->does_file_exist("/gltf-models/model-index.json"))
     {
-        size_t szJsonFileSize = 0;
-        gptFile->binary_read("../data/glTF-Sample-Assets-main/Models/model-index.json", &szJsonFileSize, nullptr);
+        size_t szJsonFileSize = gptVfs->get_file_size_str("/gltf-models/model-index.json");
         uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
         memset(puFileBuffer, 0, szJsonFileSize + 1);
 
-        gptFile->binary_read("../data/glTF-Sample-Assets-main/Models/model-index.json", &szJsonFileSize, puFileBuffer);
+        plVfsFileHandle tHandle = gptVfs->open_file("/gltf-models/model-index.json", PL_VFS_FILE_MODE_READ);
+        gptVfs->read_file(tHandle, puFileBuffer, &szJsonFileSize);
+        gptVfs->close_file(tHandle);
 
         plJsonObject* ptRootJsonObject = nullptr;
         pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
@@ -833,7 +852,7 @@ pl__find_models(plAppData* ptAppData)
             for(uint32_t j = 0; j < tTestModel.uVariantCount; j++)
             {
                 pl_json_string_member(ptVariantsObject, tTestModel.acVariants[j].acType, tTestModel.acVariants[j].acName, 128);
-                pl_sprintf(tTestModel.acVariants[j].acFilePath, "../data/glTF-Sample-Assets-main/Models/%s/%s/%s", tTestModel.acName, tTestModel.acVariants[j].acType, tTestModel.acVariants[j].acName);
+                pl_sprintf(tTestModel.acVariants[j].acFilePath, "/gltf-models/%s/%s/%s", tTestModel.acName, tTestModel.acVariants[j].acType, tTestModel.acVariants[j].acName);
             }
 
             char acTag0[64] = {0};
@@ -1026,7 +1045,7 @@ pl__show_editor_window(plAppData* ptAppData)
                     if(uComboSelect > 0)
                     {
                         char* sbcData = nullptr;
-                        pl_sb_sprintf(sbcData, "../data/pilotlight-assets-master/environments/%s.hdr", apcEnvMaps[uComboSelect]);
+                        pl_sb_sprintf(sbcData, "/environments/%s.hdr", apcEnvMaps[uComboSelect]);
                         gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, sbcData, 1024);
                         pl_sb_free(sbcData);
                     }

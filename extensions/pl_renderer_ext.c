@@ -1953,10 +1953,11 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
     int iPanoramaHeight = 0;
     int iUnused = 0;
     pl_begin_cpu_sample(gptProfile, 0, "load image");
-    size_t szImageFileSize = 0;
-    gptFile->binary_read(pcPath, &szImageFileSize, NULL);
+    size_t szImageFileSize = gptVfs->get_file_size_str(pcPath);
     unsigned char* pucBuffer = PL_ALLOC(szImageFileSize);
-    gptFile->binary_read(pcPath, &szImageFileSize, pucBuffer);
+    plVfsFileHandle tEnvMapHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tEnvMapHandle, pucBuffer, &szImageFileSize);
+    gptVfs->close_file(tEnvMapHandle);
     float* pfPanoramaData = gptImage->load_hdr(pucBuffer, (int)szImageFileSize, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
     PL_FREE(pucBuffer);
     pl_end_cpu_sample(gptProfile, 0);
@@ -4961,7 +4962,6 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
         gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
         gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
-        gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
         gptIO            = gptIOI->get_io();
         gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
         gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
@@ -4982,6 +4982,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
         gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
         gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+        gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
     #endif
 
     if(bReload)

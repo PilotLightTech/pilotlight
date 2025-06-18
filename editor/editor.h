@@ -52,6 +52,10 @@ Index of this file:
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
 #include "pl_starter_ext.h"
+#include "pl_vfs_ext.h"
+#include "pl_compress_ext.h"
+#include "pl_pak_ext.h"
+#include "pl_datetime_ext.h"
 
 // unstable extensions
 #include "pl_ecs_ext.h"
@@ -111,6 +115,10 @@ const plStarterI*       gptStarter       = nullptr;
 const plAnimationI*     gptAnimation     = nullptr;
 const plMeshI*          gptMesh          = nullptr;
 const plShaderVariantI* gptShaderVariant = nullptr;
+const plVfsI*           gptVfs           = nullptr;
+const plPakI*           gptPak           = nullptr;
+const plDateTimeI*      gptDateTime      = nullptr;
+const plCompressI*      gptCompress      = nullptr;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)

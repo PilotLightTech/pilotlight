@@ -30,7 +30,7 @@ Index of this file:
 #include "pl_animation_ext.h"
 #include "pl_mesh_ext.h"
 #include "pl_renderer_ext.h"
-#include "pl_platform_ext.h" // file
+#include "pl_vfs_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -46,12 +46,12 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static const plResourceI* gptResource = NULL;
-    static const plEcsI*  gptECS = NULL;
-    static const plAnimationI*  gptAnimation = NULL;
-    static const plFileI* gptFile = NULL;
-    static const plRendererI* gptRenderer = NULL;
-    static const plMeshI* gptMesh = NULL;
+    static const plResourceI*  gptResource  = NULL;
+    static const plEcsI*       gptECS       = NULL;
+    static const plAnimationI* gptAnimation = NULL;
+    static const plRendererI*  gptRenderer  = NULL;
+    static const plMeshI*      gptMesh      = NULL;
+    static const plVfsI*       gptVfs       = NULL;
 #endif
 
 #define CGLTF_MALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
@@ -104,11 +104,12 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
 {
 
     // read in STL file
-    size_t szFileSize = 0;
-    gptFile->binary_read(pcPath, &szFileSize, NULL);
+    size_t szFileSize = gptVfs->get_file_size_str(pcPath);
     uint8_t* pcBuffer = PL_ALLOC(szFileSize);
     memset(pcBuffer, 0, szFileSize);
-    gptFile->binary_read(pcPath, &szFileSize, pcBuffer);
+    plVfsFileHandle tHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tHandle, pcBuffer, &szFileSize);
+    gptVfs->close_file(tHandle);
 
     // create ECS object component
     plEntity tEntity = gptRenderer->create_object(ptLibrary, pcPath, NULL);
@@ -277,13 +278,21 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
     cgltf_options tGltfOptions = {0};
     cgltf_data* ptGltfData = NULL;
 
+    // read in file
+    size_t szFileSize = gptVfs->get_file_size_str(pcPath);
+    uint8_t* pcBuffer = PL_ALLOC(szFileSize);
+    memset(pcBuffer, 0, szFileSize);
+    plVfsFileHandle tHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tHandle, pcBuffer, &szFileSize);
+    gptVfs->close_file(tHandle);
+
     char acDirectory[1024] = {0};
     pl_str_get_directory(pcPath, acDirectory, 1024);
 
-    cgltf_result tGltfResult = cgltf_parse_file(&tGltfOptions, pcPath, &ptGltfData);
+    cgltf_result tGltfResult = cgltf_parse(&tGltfOptions, pcBuffer, szFileSize, &ptGltfData);
     PL_ASSERT(tGltfResult == cgltf_result_success);
 
-    tGltfResult = cgltf_load_buffers(&tGltfOptions, ptGltfData, pcPath);
+    tGltfResult = cgltf_load_buffers(&tGltfOptions, ptGltfData, gptVfs->get_real_path(tHandle));
     PL_ASSERT(tGltfResult == cgltf_result_success);
 
     for(size_t szSkinIndex = 0; szSkinIndex < ptGltfData->skins_count; szSkinIndex++)
@@ -360,6 +369,7 @@ pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* p
     pl_sb_free(tLoadingData.sbtMaterialEntities);
     ptDataOut->uObjectCount = pl_sb_size(ptDataOut->atObjects);
     cgltf_free(ptGltfData);
+    PL_FREE(pcBuffer);
     return true;
 }
 
@@ -1122,13 +1132,13 @@ pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plModelLoaderI, &tApi);
 
-    gptMemory   = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptFile     = pl_get_api_latest(ptApiRegistry, plFileI);
-    gptECS      = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptResource = pl_get_api_latest(ptApiRegistry, plResourceI);
-    gptAnimation  = pl_get_api_latest(ptApiRegistry, plAnimationI);
-    gptRenderer = pl_get_api_latest(ptApiRegistry, plRendererI);
-    gptMesh     = pl_get_api_latest(ptApiRegistry, plMeshI);
+    gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptECS       = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptResource  = pl_get_api_latest(ptApiRegistry, plResourceI);
+    gptAnimation = pl_get_api_latest(ptApiRegistry, plAnimationI);
+    gptRenderer  = pl_get_api_latest(ptApiRegistry, plRendererI);
+    gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
+    gptVfs       = pl_get_api_latest(ptApiRegistry, plVfsI);
 }
 
 PL_EXPORT void

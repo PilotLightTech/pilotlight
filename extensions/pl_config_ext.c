@@ -23,7 +23,7 @@ Index of this file:
 #include "pl_config_ext.h"
 
 // extensions
-#include "pl_platform_ext.h" // file
+#include "pl_vfs_ext.h"
 
 // libs
 #include "pl_json.h"
@@ -46,7 +46,7 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static const plFileI* gptFile = NULL;
+    static const plVfsI* gptVfs = NULL;
 
 #endif
 
@@ -466,15 +466,17 @@ pl_config_load_from_disk(const char* pcFileName)
     if(pcFileName == NULL)
         pcFileName = "pl_config.json";
 
-    if(!gptFile->exists(pcFileName))
+    if(!gptVfs->does_file_exist(pcFileName))
         return;
 
-    size_t szJsonFileSize = 0;
-    gptFile->binary_read(pcFileName, &szJsonFileSize, NULL);
+
+    size_t szJsonFileSize = gptVfs->get_file_size_str(pcFileName);
+    plVfsFileHandle tHandle = gptVfs->open_file(pcFileName, PL_VFS_FILE_MODE_READ);
 
     uint8_t* puFileBuffer = pl_temp_allocator_alloc(&gptConfigCtx->tTempAllocator, szJsonFileSize + 1);
     memset(puFileBuffer, 0, szJsonFileSize + 1);
-    gptFile->binary_read(pcFileName, &szJsonFileSize, puFileBuffer);
+    gptVfs->read_file(tHandle, puFileBuffer, &szJsonFileSize);
+    gptVfs->close_file(tHandle);
 
     plJsonObject* ptRootJsonObject = NULL;
     pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
@@ -586,7 +588,10 @@ pl_config_save_to_disk(const char* pcFileName)
     memset(pcBuffer, 0, uBufferSize + 1);
     pl_write_json(ptRootJsonObject, pcBuffer, &uBufferSize);
 
-    gptFile->binary_write(pcFileName, uBufferSize, (uint8_t*)pcBuffer);
+    plVfsFileHandle tHandle = gptVfs->open_file(pcFileName, PL_VFS_FILE_MODE_WRITE);
+    gptVfs->write_file(tHandle, (uint8_t*)pcBuffer, uBufferSize);
+    gptVfs->close_file(tHandle);
+    
 
     pl_unload_json(&ptRootJsonObject);
 
@@ -619,7 +624,7 @@ pl_load_config_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plConfigI, &tApi);
 
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptFile   = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptVfs   = pl_get_api_latest(ptApiRegistry, plVfsI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 

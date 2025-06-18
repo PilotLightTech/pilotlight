@@ -28,6 +28,7 @@ Index of this file:
 #include "pl_platform_ext.h" // file api
 #include "pl_log_ext.h"
 #include "pl_screen_log_ext.h"
+#include "pl_vfs_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -43,9 +44,9 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static const plFileI*    gptFile = NULL;
-    static const plLogI*     gptLog = NULL;
+    static const plLogI*       gptLog       = NULL;
     static const plScreenLogI* gptScreenLog = NULL;
+    static const plVfsI*       gptVfs       = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -105,14 +106,13 @@ pl_shaderc_include_resolve_fn(void* pUserData, const char* pcRequestedSource, in
     {
         char* pcFullSourcePath = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator, "%s%s", apcIncludeDirectories[i], pcRequestedSource);
 
-        if(gptFile->exists(pcFullSourcePath))
+        if(gptVfs->does_file_exist(pcFullSourcePath))
         {
-            size_t szShaderSize = 0;
-            gptFile->binary_read(pcFullSourcePath, &szShaderSize, NULL);
+            size_t szShaderSize = gptVfs->get_file_size_str(pcFullSourcePath);
             uint8_t* puVertexShaderCode = pl_temp_allocator_alloc(&gptShaderCtx->tTempAllocator, szShaderSize);
-            gptFile->binary_read(pcFullSourcePath, &szShaderSize, puVertexShaderCode);
-            
-
+            plVfsFileHandle tHandle = gptVfs->open_file(pcFullSourcePath, PL_VFS_FILE_MODE_READ);
+            gptVfs->read_file(tHandle, puVertexShaderCode, &szShaderSize);
+            gptVfs->close_file(tHandle);
             ptResult->content = (const char*)puVertexShaderCode;
             ptResult->content_length = szShaderSize;
             bFound = true;
@@ -158,6 +158,10 @@ pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
     gptShaderCtx->uLogChannel = gptLog->add_channel("Shader", tLogInit);
     gptShaderCtx->bInitialized = true;
 
+    if(ptShaderOptions->pcCacheOutputDirectory == NULL)
+        gptShaderCtx->tDefaultShaderOptions.pcCacheOutputDirectory = "./";
+    else
+        gptShaderCtx->tDefaultShaderOptions.pcCacheOutputDirectory = ptShaderOptions->pcCacheOutputDirectory;
     gptShaderCtx->tDefaultShaderOptions.tFlags = ptShaderOptions->tFlags;
     if(ptShaderOptions->tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
@@ -337,7 +341,9 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
 static void
 pl_write_to_disk(const char* pcShader, const plShaderModule* ptModule)
 {
-    gptFile->binary_write(pcShader, (uint32_t)ptModule->szCodeSize, ptModule->puCode);
+    plVfsFileHandle tHandle = gptVfs->open_file(pcShader, PL_VFS_FILE_MODE_WRITE);
+    gptVfs->write_file(tHandle, ptModule->puCode, ptModule->szCodeSize);
+    gptVfs->close_file(tHandle);
     pl_log_info_f(gptLog, gptShaderCtx->uLogChannel, "write shader to disk \"%s\"", pcShader);
 }
 
@@ -345,12 +351,14 @@ static plShaderModule
 pl_read_from_disk(const char* pcShader, const char* pcEntryFunc)
 {
     plShaderModule tModule = {0};
-    if(pcShader && gptFile->exists(pcShader))
+    if(pcShader && gptVfs->does_file_exist(pcShader))
     {
-        gptFile->binary_read(pcShader, &tModule.szCodeSize, NULL);
+        tModule.szCodeSize = gptVfs->get_file_size_str(pcShader);
+        plVfsFileHandle tHandle = gptVfs->open_file(pcShader, PL_VFS_FILE_MODE_READ);
         tModule.puCode = PL_ALLOC(tModule.szCodeSize + 1);
         memset(tModule.puCode, 0, tModule.szCodeSize + 1);
-        gptFile->binary_read(pcShader, &tModule.szCodeSize, tModule.puCode);
+        gptVfs->read_file(tHandle, tModule.puCode, &tModule.szCodeSize);
+        gptVfs->close_file(tHandle);
         pl_sb_push(gptShaderCtx->sbptShaderBytecodeCache, tModule.puCode);
         tModule.pcEntryFunc = pcEntryFunc;
     }
@@ -400,7 +408,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     for(uint32_t i = 0; i < ptOptions->_uDirectoriesCount; i++)
     {
         pcLocatedShader = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s", ptOptions->apcDirectories[i], pcShader);
-        if(gptFile->exists(pcLocatedShader))
+        if(gptVfs->does_file_exist(pcLocatedShader))
         {
             pl_log_debug_f(gptLog, gptShaderCtx->uLogChannel, "found shader: \"%s\"", pcLocatedShader);
             break;
@@ -411,7 +419,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     if(pcLocatedShader == NULL)
         pcLocatedShader = pcShader;
 
-    if(!gptFile->exists(pcLocatedShader))
+    if(!gptVfs->does_file_exist(pcLocatedShader))
     {
         pl_log_warn_f(gptLog, gptShaderCtx->uLogChannel, "shader not found: \"%s\"", pcLocatedShader);
         pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator2);
@@ -447,12 +455,12 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     }
 
     // shaderc_compile_options_set_forced_version_profile(tOptions, 450, shaderc_profile_core);
-
-    size_t szShaderSize = 0;
-    gptFile->binary_read(pcLocatedShader, &szShaderSize, NULL);
+    
+    size_t szShaderSize = gptVfs->get_file_size_str(pcLocatedShader);
     uint8_t* puShaderCode = PL_ALLOC(szShaderSize);
     memset(puShaderCode, 0, szShaderSize);
-    gptFile->binary_read(pcLocatedShader, &szShaderSize, puShaderCode);
+    plVfsFileHandle tHandle = gptVfs->open_file(pcLocatedShader, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tHandle, puShaderCode, &szShaderSize);
     pl_sb_push(gptShaderCtx->sbptShaderBytecodeCache, puShaderCode);
 
     char acExtension[64] = {0};
@@ -652,6 +660,8 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
                 ptOptions->tFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
             #endif
         }
+        if(ptOptions->pcCacheOutputDirectory == NULL)
+            ptOptions->pcCacheOutputDirectory = gptShaderCtx->tDefaultShaderOptions.pcCacheOutputDirectory;
     }
 
     if(ptOptions == NULL)
@@ -669,7 +679,7 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
                 pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.metal", ptOptions->apcDirectories[i], pcFileNameOnly);
             else
                 pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->apcDirectories[i], pcFileNameOnly);
-            if(gptFile->exists(pcCacheFile))
+            if(gptVfs->does_file_exist(pcCacheFile))
             {
                 pl_log_debug_f(gptLog, gptShaderCtx->uLogChannel, "cached shader found: \"%s\"", pcCacheFile);
                 gptScreenLog->add_message_ex(0, 3.0, PL_COLOR_32_CYAN, 1.0f, "cached shader found: \"%s\"", pcCacheFile);
@@ -684,15 +694,10 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
         {
             pl_log_debug_f(gptLog, gptShaderCtx->uLogChannel, "no cached shader found for: \"%s\"", pcFileNameOnly);
             if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
-                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.metal", pcFileNameOnly);
+                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.metal", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
             else
-                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.spv", pcFileNameOnly);
+                pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
         }
-
-        // if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
-        //     pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.metal", pcFileNameOnly);
-        // else
-        //     pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.spv", pcFileNameOnly);
     }
 
     plShaderModule tModule = {0};
@@ -706,9 +711,9 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
     {
         const char* pcFileNameOnly = pl_str_get_file_name(pcShader, NULL, 0);
         if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
-            pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.metal", pcFileNameOnly);
+            pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.metal", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
         else
-            pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s.spv", pcFileNameOnly);
+            pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
 
         tModule = pl_compile_glsl(pcShader, pcEntryFunc, ptOptions);
         if(!(ptOptions->tFlags & PL_SHADER_FLAGS_NEVER_CACHE) && tModule.szCodeSize > 0)
@@ -738,9 +743,9 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plShaderI, &tApi);
 
     gptLog = pl_get_api_latest(ptApiRegistry, plLogI);
-    gptFile = pl_get_api_latest(ptApiRegistry, plFileI);
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptScreenLog = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+    gptVfs = pl_get_api_latest(ptApiRegistry, plVfsI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     if(bReload)

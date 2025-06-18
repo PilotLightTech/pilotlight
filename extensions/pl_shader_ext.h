@@ -24,7 +24,7 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plFileI      (v1.x)
+        * plVfsI       (v1.x)
         * plLogI       (v1.x)
         * plScreenLogI (v2.x)
 */
@@ -57,7 +57,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plShaderI_version {1, 0, 0}
+#define plShaderI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -119,6 +119,7 @@ typedef struct _plShaderOptions
     uint32_t                       uMacroDefinitionCount;
     const char*                    apcIncludeDirectories[PL_MAX_SHADER_INCLUDE_DIRECTORIES + 1];
     const char*                    apcDirectories[PL_MAX_SHADER_DIRECTORIES + 1];
+    const char*                    pcCacheOutputDirectory;
 
     // [INTERNAL]
     uint32_t _uDirectoriesCount;

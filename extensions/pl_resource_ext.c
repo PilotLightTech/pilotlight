@@ -24,8 +24,8 @@ Index of this file:
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_gpu_allocators_ext.h"
-#include "pl_platform_ext.h" // file
 #include "pl_image_ext.h"
+#include "pl_vfs_ext.h"
 
 // libs
 #include "pl_string.h"
@@ -52,8 +52,8 @@ Index of this file:
 
     static const plGraphicsI*      gptGfx           = NULL;
     static const plGPUAllocatorsI* gptGpuAllocators = NULL;
-    static const plFileI*          gptFile          = NULL;
     static const plImageI*         gptImage         = NULL;
+    static const plVfsI*           gptVfs           = NULL;
 #endif
 
 // libs
@@ -312,10 +312,12 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
     // load file data
     if(puFileData == NULL)
     {
-        gptFile->binary_read(pcContainerFileName, &szFileByteSize, NULL);
+        szFileByteSize = gptVfs->get_file_size_str(pcContainerFileName); //-V763
         puFileData = PL_ALLOC(szFileByteSize);
         memset(puFileData, 0, szFileByteSize);
-        gptFile->binary_read(pcContainerFileName, &szFileByteSize, puFileData);
+        plVfsFileHandle tHandle = gptVfs->open_file(pcContainerFileName, PL_VFS_FILE_MODE_READ);
+        gptVfs->read_file(tHandle, puFileData, &szFileByteSize);
+        gptVfs->close_file(tHandle);
     }
 
     plResource tResource = {
@@ -627,8 +629,8 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #ifndef PL_UNITY_BUILD
         gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
-        gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
         gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
+        gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

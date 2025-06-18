@@ -36,7 +36,7 @@ Index of this file:
 #include "stb_truetype.h"
 
 // extensions
-#include "pl_platform_ext.h" // file
+#include "pl_vfs_ext.h" // file
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -137,7 +137,7 @@ static unsigned char*        ptrDOut_ = NULL;
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static const plFileI* gptFile = NULL;
+    static const plVfsI* gptVfs = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -1534,24 +1534,20 @@ pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pD
 static plFont*
 pl_add_font_from_file_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile)
 {
-    size_t szFileSize = 0;
-    plFileResult tResult = gptFile->binary_read(pcFile, &szFileSize, NULL);
-    if(tResult !=  PL_FILE_RESULT_SUCCESS)
-        return NULL;
-
-    uint8_t* puData = PL_ALLOC(szFileSize);
-    memset(puData, 0, szFileSize);
-
-    tResult = gptFile->binary_read(pcFile, &szFileSize, puData);
-
-    if(tResult !=  PL_FILE_RESULT_SUCCESS)
+    size_t szFileSize = gptVfs->get_file_size_str(pcFile);
+    plVfsFileHandle tHandle = gptVfs->open_file(pcFile, PL_VFS_FILE_MODE_READ);
+    if(szFileSize)
     {
-        PL_FREE(puData);
-        return NULL;
+        
+        uint8_t* puData = PL_ALLOC(szFileSize);
+        memset(puData, 0, szFileSize);
+        gptVfs->read_file(tHandle, puData, &szFileSize);
+        gptVfs->close_file(tHandle);
+
+        plFont* ptFont = pl_add_font_from_memory_ttf(ptAtlas, tConfig, puData);
+        return ptFont;
     }
-    
-    plFont* ptFont = pl_add_font_from_memory_ttf(ptAtlas, tConfig, puData);
-    return ptFont;
+    return NULL;
 }
 
 static plVec2
@@ -3671,7 +3667,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     #ifndef PL_UNITY_BUILD
         gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptFile   = pl_get_api_latest(ptApiRegistry, plFileI);
+        gptVfs    = pl_get_api_latest(ptApiRegistry, plVfsI);
     #endif
 
 
