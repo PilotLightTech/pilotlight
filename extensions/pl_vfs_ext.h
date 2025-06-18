@@ -129,7 +129,7 @@ enum _plVfsFileMode
     PL_VFS_FILE_MODE_READ_APPEND, // doesn't work with pak files currently
 };
 
-enum __plVfsMountFlags
+enum _plVfsMountFlags
 {
     PL_VFS_MOUNT_FLAGS_NONE = 0
 };

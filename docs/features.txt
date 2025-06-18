@@ -17,6 +17,9 @@ General:
     * Virtual memory access
     * String interning
     * BVH
+    * custom archieve format (pak file)
+    * compression
+    * virtual file system
 
 Custom math:
     * vectors
@@ -95,7 +98,7 @@ Reference Renderer:
     * gltf model loading
     * stl model loading
 
-Wishlist (from Wicked Engine):
+Wishlist:
     * Morph target animation (with sparse accessor)
     * Animated texturing
     * Displacement mapping

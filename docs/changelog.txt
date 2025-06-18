@@ -5,6 +5,17 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
+- v0.5.0 (2025-xx-xx) new datatime extension (v1.0.0)
+                      new compression extension (v1.0.0)
+                      new pak file extension (v1.0.0)
+                      new virtual file system extension (v1.0.0)
+                      add vfs support to config ext (v1.1.0)
+                      add vfs support to draw ext (v1.2.0)
+                      add vfs support to model loader ext (v0.2.1)
+                      add vfs support to renderer ext (v0.2.1)
+                      add vfs support to resource ext (v0.2.2)
+                      add vfs support to shader ext (v1.1.0)
+                      fix various issues with pl_string.h (v1.1.1)
 - v0.4.0 (2025-06-10) add shader variant extension (v0.2.0)
                       fix command line args for x11 backend plIOI (v1.0.1)
                       internal improvements to renderer ext
