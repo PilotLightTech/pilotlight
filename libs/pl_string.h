@@ -15,8 +15,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_STRING_VERSION    "1.1.0"
-#define PL_STRING_VERSION_NUM 10100
+#define PL_STRING_VERSION    "1.1.1"
+#define PL_STRING_VERSION_NUM 10101
 
 /*
 Index of this file:
@@ -374,7 +374,13 @@ pl_str_get_root_directory(const char* pcFilePath, char* pcDirectoryOut, size_t s
         szCurrentLocation++;
     }
 
-    if(szCurrentLocation == szLen)
+    if(iHits == 1)
+    {
+        pcDirectoryOut[0] = '/';
+        pcDirectoryOut[1] = 0;
+        pcDirectoryOut[2] = 0;
+    }
+    else if(szCurrentLocation == szLen)
     {
         pcDirectoryOut[0] = '.';
         pcDirectoryOut[1] = '/';
