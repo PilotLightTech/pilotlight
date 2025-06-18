@@ -11,6 +11,7 @@ string_test_0(void* pData)
     const char* pcFilePath4 = "file1";
     const char* pcFilePath5 = "/tmp/dir2/file1.txt";
     const char* pcFilePath6 = "/tmp/file1.txt";
+    const char* pcFilePath7 = "/file1.txt";
 
     const char* pcExt0 = pl_str_get_file_extension(pcFilePath0, NULL, 0);
     const char* pcExt1 = pl_str_get_file_extension(pcFilePath1, NULL, 0);
@@ -60,6 +61,7 @@ string_test_0(void* pData)
     char acDirectory4[128] = {0};
     char acDirectory5[128] = {0};
     char acDirectory6[128] = {0};
+    char acDirectory7[128] = {0};
 
     pl_str_get_directory(pcFilePath0, acDirectory0, 128);
     pl_str_get_directory(pcFilePath1, acDirectory1, 128);
@@ -76,23 +78,6 @@ string_test_0(void* pData)
     pl_test_expect_string_equal(acDirectory4, "./", NULL);
     pl_test_expect_string_equal(acDirectory5, "/tmp/dir2/", NULL);
     pl_test_expect_string_equal(acDirectory6, "/tmp/", NULL);
-
-    pl_str_get_root_directory(pcFilePath0, acDirectory0, 128);
-    pl_str_get_root_directory(pcFilePath1, acDirectory1, 128);
-    pl_str_get_root_directory(pcFilePath2, acDirectory2, 128);
-    pl_str_get_root_directory(pcFilePath3, acDirectory3, 128);
-    pl_str_get_root_directory(pcFilePath4, acDirectory4, 128);
-    pl_str_get_root_directory(pcFilePath5, acDirectory5, 128);
-    pl_str_get_root_directory(pcFilePath6, acDirectory6, 128);
-
-    pl_test_expect_string_equal(acDirectory0, "C:/Users/", NULL);
-    pl_test_expect_string_equal(acDirectory1, "C:\\Users\\", NULL);
-    pl_test_expect_string_equal(acDirectory2, "C:\\Users/", NULL);
-    pl_test_expect_string_equal(acDirectory3, "./", NULL);
-    pl_test_expect_string_equal(acDirectory4, "./", NULL);
-    pl_test_expect_string_equal(acDirectory5, "/tmp/", NULL);
-    pl_test_expect_string_equal(acDirectory6, "/tmp/", NULL);
-
 }
 
 void

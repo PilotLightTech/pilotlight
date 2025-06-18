@@ -25,6 +25,10 @@ Index of this file:
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 #include "pl_json.h"
+#include "pl_string.h"
+
+// stable extensions
+#include "pl_platform_ext.h"
 
 // unstable extensions
 #include "pl_collision_ext.h"
@@ -44,6 +48,7 @@ const plDateTimeI*  gptDateTime  = NULL;
 const plVfsI*       gptVfs       = NULL;
 const plPakI*       gptPak       = NULL;
 const plCompressI*  gptCompress  = NULL;
+const plFileI*      gptFile      = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -70,6 +75,7 @@ typedef struct _plAppData
 void collision_only_tests_0(void*);
 void datetime_tests_0(void*);
 void vfs_tests_0(void*);
+void file_tests_0(void*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_info
@@ -170,6 +176,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptVfs       = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptPak       = pl_get_api_latest(ptApiRegistry, plPakI);
     gptCompress  = pl_get_api_latest(ptApiRegistry, plCompressI);
+    gptFile      = pl_get_api_latest(ptApiRegistry, plFileI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -179,6 +186,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // mount some directories
     gptVfs->mount_directory("/testing", "../out", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_memory("/ram", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_memory("/", PL_VFS_MOUNT_FLAGS_NONE);
 
     plPakFile* ptPak = NULL;
     gptPak->begin_packing("../out/testing.pak", 1, &ptPak);
@@ -200,6 +208,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptVfs->close_file(tHandle);
     tHandle = gptVfs->open_file("/ram/testing_compressed.json", PL_VFS_FILE_MODE_WRITE);
     szFileSize = gptVfs->write_file(tHandle, puBuffer, szFileSize);
+    tHandle = gptVfs->open_file("/testing_compressed.json", PL_VFS_FILE_MODE_WRITE);
+    szFileSize = gptVfs->write_file(tHandle, puBuffer, szFileSize);
     free(puBuffer);
 
     // create 
@@ -219,6 +229,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     pl_test_register_test(vfs_tests_0, ptAppData);
     pl_test_run_suite("pl_vfs_ext.h");
+
+    pl_test_register_test(file_tests_0, ptAppData);
+    pl_test_run_suite("pl_platform_ext.h (plFileI)");
 
     return ptAppData;
 }
@@ -379,16 +392,22 @@ vfs_tests_0(void* pAppData)
     gptVfs->close_file(tHandle);
 
 
-    const char* acFiles[3] = {
+    const char* acFiles[] = {
         "/ram/testing_compressed.json",
         "/data/testing_compressed.json",
         "/data/testing_uncompressed.json",
+        "/testing_compressed.json",
     };
 
-    for(uint32_t i = 0; i < 3; i++)
+    for(uint32_t i = 0; i < 4; i++)
     {
 
         size_t szFileSize = gptVfs->get_file_size_str(acFiles[i]);
+        if(szFileSize == 0)
+        {
+            pl_test_expect_true(false, NULL);
+            continue;
+        }
         tHandle = gptVfs->open_file(acFiles[i], PL_VFS_FILE_MODE_READ);
         char* pucBuffer = PL_ALLOC(szFileSize + 1);
         memset(pucBuffer, 0, szFileSize + 1);
@@ -492,6 +511,48 @@ vfs_tests_0(void* pAppData)
     }
 }
 
+void
+file_tests_0(void* pAppData)
+{
+
+    const char** sbcFiles = NULL;
+    pl_sb_push(sbcFiles, "pl_ds.h");
+    pl_sb_push(sbcFiles, "pl_json.h");
+    pl_sb_push(sbcFiles, "pl_log.h");
+    pl_sb_push(sbcFiles, "pl_math.h");
+    pl_sb_push(sbcFiles, "pl_memory.h");
+    pl_sb_push(sbcFiles, "pl_profile.h");
+    pl_sb_push(sbcFiles, "pl_stl.h");
+    pl_sb_push(sbcFiles, "pl_string.h");
+    pl_sb_push(sbcFiles, "pl_test.h");
+
+    plDirectoryInfo tInfo = {0};
+    gptFile->get_directory_info("../libs", &tInfo);
+
+    pl_test_expect_uint32_equal(tInfo.uEntryCount, pl_sb_size(sbcFiles), NULL); 
+
+    bool bFindMath = false;
+    uint32_t uMathIndex = 0;
+    for(uint32_t i = 0; i < tInfo.uEntryCount; i++)
+    {
+
+        if(pl_str_equal(tInfo.sbtEntries[i].acName, "pl_math.h"))
+        {
+            bFindMath = true;
+            uMathIndex = i;
+            break;
+        }
+    }
+    pl_test_expect_true(bFindMath, NULL);
+    pl_test_expect_true(tInfo.sbtEntries[uMathIndex].tType == PL_DIRECTORY_ENTRY_TYPE_FILE, NULL);
+
+    gptFile->cleanup_directory_info(&tInfo);
+    pl_sb_free(sbcFiles);
+
+    pl_test_expect_true(gptFile->directory_exists("../libs"), NULL);
+    pl_test_expect_false(gptFile->directory_exists("../libs-offset"), NULL);
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] unity build
 //-----------------------------------------------------------------------------
@@ -502,3 +563,6 @@ vfs_tests_0(void* pAppData)
 
 #define PL_JSON_IMPLEMENTATION
 #include "pl_json.h"
+
+#define PL_STRING_IMPLEMENTATION
+#include "pl_string.h"

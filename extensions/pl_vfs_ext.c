@@ -147,6 +147,60 @@ plVfsResult     pl_vfs_mount_memory   (const char* directory, plVfsMountFlags);
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
+static bool
+pl__str_get_root_directory(const char* pcFilePath, char* pcDirectoryOut, size_t szOutSize)
+{
+    size_t szLen = strlen(pcFilePath);
+    strncpy(pcDirectoryOut, pcFilePath, szOutSize);
+
+    if(szLen > szOutSize || szOutSize < 2)
+        return false;
+
+    if(pcDirectoryOut[0] == '/' || pcDirectoryOut[0] == '\\')
+    {
+        size_t szCurrentLocation = 1;
+        bool bHit = false;
+        while(szCurrentLocation < szLen)
+        {
+            if(pcDirectoryOut[szCurrentLocation] == '/' || pcDirectoryOut[szCurrentLocation] == '\\')
+            {
+                pcDirectoryOut[szCurrentLocation + 1] = 0;
+                bHit = true;
+                break;
+            }
+
+            szCurrentLocation++;
+        }
+        if(!bHit)
+        {
+            pcDirectoryOut[1] = 0;
+        }
+        return true;
+    }
+    else if(pcDirectoryOut[1] == ':')
+    {
+        size_t szCurrentLocation = 3;
+        while(szCurrentLocation < szLen)
+        {
+            if(pcDirectoryOut[szCurrentLocation] == '/' || pcDirectoryOut[szCurrentLocation] == '\\')
+            {
+                pcDirectoryOut[szCurrentLocation + 1] = 0;
+                break;
+            }
+
+            szCurrentLocation++;
+        }
+        return true;  
+    }
+    else
+    {
+        pcDirectoryOut[0] = '.';
+        pcDirectoryOut[1] = '/';
+        pcDirectoryOut[2] = 0;
+    }
+    return true;
+}
+
 static inline plVfsMemoryFile*
 pl__vfs_get_memory_file(plVfsFileSystem* ptSystem, const char* pcFile)
 {
@@ -176,6 +230,8 @@ pl__vfs_get_memory_file_index(plVfsFileSystem* ptSystem, const char* pcFile)
 static inline plVfsFile*
 pl__vfs_get_file(plVfsFileHandle tHandle)
 {
+    if(tHandle.uData == UINT64_MAX)
+        return NULL;
     if(gptVfsCtx->sbtFiles[tHandle.uIndex].uGeneration != tHandle.uGeneration)
         return NULL;
     return &gptVfsCtx->sbtFiles[tHandle.uIndex];
@@ -186,7 +242,7 @@ pl__vfs_get_system(const char* pcFile)
 {
     // retrieve root directory in order to find expected file system
     char acDirectory[PL_VFS_MAX_PATH_LENGTH] = {0};
-    pl_str_get_root_directory(pcFile, acDirectory, PL_VFS_MAX_PATH_LENGTH);
+    pl__str_get_root_directory(pcFile, acDirectory, PL_VFS_MAX_PATH_LENGTH);
 
     // find file system
     const uint32_t uFileSystemIndexCount = pl_sb_size(gptVfsCtx->sbtFileSystems);
@@ -226,7 +282,7 @@ pl__vfs_register_file(const char* pcFile, bool bMustExist)
     if(ptTargetFileSystem->tType != PL_FILE_SYSTEM_TYPE_PHYSICAL)
     {
         char acDirectory[PL_VFS_MAX_PATH_LENGTH] = {0};
-        pl_str_get_root_directory(pcFile, acDirectory, PL_VFS_MAX_PATH_LENGTH);
+        pl__str_get_root_directory(pcFile, acDirectory, PL_VFS_MAX_PATH_LENGTH);
         szRootLength = strnlen(acDirectory, PL_VFS_MAX_PATH_LENGTH);
     }
 
@@ -490,7 +546,7 @@ pl_vfs_does_file_exist(const char* pcFile)
 
     // retrieve root directory in order to find expected file system
     char acDirectory[PL_VFS_MAX_PATH_LENGTH] = {0};
-    pl_str_get_root_directory(pcFile, acDirectory, PL_VFS_MAX_PATH_LENGTH);
+    pl__str_get_root_directory(pcFile, acDirectory, PL_VFS_MAX_PATH_LENGTH);
     size_t szRootLength = strnlen(acDirectory, PL_VFS_MAX_PATH_LENGTH);
 
     // find file system
@@ -770,7 +826,6 @@ pl_vfs_file_size(const char* pcFile)
     plVfsFile* ptFile = pl__vfs_get_file(tHandle);
     if(ptFile == NULL)
     {
-        PL_ASSERT(false && "file doesn't exist");
         return 0;
     }
     size_t szFileSize = 0;
