@@ -24,7 +24,7 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plFileI     (v1.x)
+        * plVfsI      (v1.x)
         * plCompressI (v1.x)
 */
 

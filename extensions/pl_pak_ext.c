@@ -34,8 +34,8 @@ Index of this file:
 #include "pl_pak_ext.h"
 
 // extensions
-#include "pl_platform_ext.h"
 #include "pl_compress_ext.h"
+#include "pl_vfs_ext.h"
 
 // libs
 #include "pl_string.h"
@@ -46,8 +46,8 @@ Index of this file:
 
     // apis
     static const plMemoryI* gptMemory = NULL;
-    static const plFileI*   gptFile = NULL;
     static const plCompressI* gptCompress = NULL;
+    static const plVfsI* gptVfs = NULL;
 
     #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
     #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -95,8 +95,8 @@ typedef struct _plPakFile
     plPakFileEntry* sbtEntries;
     plPakFileHeader tHeader;
     plPakEntryInfo* atEntries;
-    uint8_t*        puCompressedBuffer;
-    uint32_t        uCompressedBufferSize;
+    uint8_t*        puCompressionBuffer;
+    uint32_t        uCompressionBufferSize;
 } plPakFile;
 
 //-----------------------------------------------------------------------------
@@ -130,7 +130,7 @@ bool
 pl_pak_add_from_disk(plPakFile* ptPak, const char* pcPakPath, const char* pcFilePath, bool bCompress)
 {
 
-    if(!gptFile->exists(pcFilePath))
+    if(!gptVfs->does_file_exist(pcFilePath))
         return false;
 
     pl_sb_add(ptPak->sbtEntries);
@@ -139,11 +139,12 @@ pl_pak_add_from_disk(plPakFile* ptPak, const char* pcPakPath, const char* pcFile
     strncpy(ptEntry->acFilePath, pcPakPath, PL_PAK_MAX_PATH_LENGTH);
 
     // load file frome disk temporarily
-    size_t szFileSize = 0;
-    gptFile->binary_read(pcFilePath, &szFileSize, NULL);
+    size_t szFileSize = gptVfs->get_file_size_str(pcFilePath);
     uint8_t* puBuffer = PL_ALLOC(szFileSize);
     memset(puBuffer, 0, szFileSize);
-    gptFile->binary_read(pcFilePath, &szFileSize, puBuffer);
+    plVfsFileHandle tHandle = gptVfs->open_file(pcFilePath, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tHandle, puBuffer, &szFileSize);
+    gptVfs->close_file(tHandle);
 
     // mark offset in file, then write
     ptEntry->uOffset = (uint32_t)ftell(ptPak->ptFile);
@@ -153,24 +154,24 @@ pl_pak_add_from_disk(plPakFile* ptPak, const char* pcPakPath, const char* pcFile
     {
 
 
-        if(szFileSize * 2 > ptPak->uCompressedBufferSize)
+        if(szFileSize * 2 > ptPak->uCompressionBufferSize)
         {
 
-            if(ptPak->puCompressedBuffer) // first allocation
+            if(ptPak->puCompressionBuffer) // first allocation
             {
-                PL_FREE(ptPak->puCompressedBuffer);
-                ptPak->puCompressedBuffer = NULL;
+                PL_FREE(ptPak->puCompressionBuffer);
+                ptPak->puCompressionBuffer = NULL;
             }
             
-            ptPak->uCompressedBufferSize = (uint32_t)szFileSize * 2;
-            ptPak->puCompressedBuffer = PL_ALLOC(ptPak->uCompressedBufferSize);
-            memset(ptPak->puCompressedBuffer, 0, ptPak->uCompressedBufferSize);
+            ptPak->uCompressionBufferSize = (uint32_t)szFileSize * 2;
+            ptPak->puCompressionBuffer = PL_ALLOC(ptPak->uCompressionBufferSize);
+            memset(ptPak->puCompressionBuffer, 0, ptPak->uCompressionBufferSize);
         }
 
-        uint32_t uCompressedSize = gptCompress->compress(puBuffer, (uint32_t)szFileSize, ptPak->puCompressedBuffer, ptPak->uCompressedBufferSize);
-        PL_ASSERT(uCompressedSize < ptPak->uCompressedBufferSize);
+        uint32_t uCompressedSize = gptCompress->compress(puBuffer, (uint32_t)szFileSize, ptPak->puCompressionBuffer, ptPak->uCompressionBufferSize);
+        PL_ASSERT(uCompressedSize < ptPak->uCompressionBufferSize);
         ptEntry->uCompressedSize = uCompressedSize;
-        fwrite(ptPak->puCompressedBuffer, 1, (size_t)uCompressedSize, ptPak->ptFile);
+        fwrite(ptPak->puCompressionBuffer, 1, (size_t)uCompressedSize, ptPak->ptFile);
     }
     else
     {
@@ -199,24 +200,24 @@ pl_pak_add_from_memory(plPakFile* ptPak, const char* pcPakPath, uint8_t* puFileD
     if(bCompress)
     {
 
-        if(szFileByteSize * 2 > ptPak->uCompressedBufferSize)
+        if(szFileByteSize * 2 > ptPak->uCompressionBufferSize)
         {
 
-            if(ptPak->puCompressedBuffer) // first allocation
+            if(ptPak->puCompressionBuffer) // first allocation
             {
-                PL_FREE(ptPak->puCompressedBuffer);
-                ptPak->puCompressedBuffer = NULL;
+                PL_FREE(ptPak->puCompressionBuffer);
+                ptPak->puCompressionBuffer = NULL;
             }
             
-            ptPak->uCompressedBufferSize = (uint32_t)szFileByteSize * 2;
-            ptPak->puCompressedBuffer = PL_ALLOC(ptPak->uCompressedBufferSize);
-            memset(ptPak->puCompressedBuffer, 0, ptPak->uCompressedBufferSize);
+            ptPak->uCompressionBufferSize = (uint32_t)szFileByteSize * 2;
+            ptPak->puCompressionBuffer = PL_ALLOC(ptPak->uCompressionBufferSize);
+            memset(ptPak->puCompressionBuffer, 0, ptPak->uCompressionBufferSize);
         }
 
-        uint32_t uCompressedSize = gptCompress->compress(puFileData, (uint32_t)szFileByteSize, ptPak->puCompressedBuffer, ptPak->uCompressedBufferSize);
+        uint32_t uCompressedSize = gptCompress->compress(puFileData, (uint32_t)szFileByteSize, ptPak->puCompressionBuffer, ptPak->uCompressionBufferSize);
         PL_ASSERT(uCompressedSize < szFileByteSize * 2);
         ptEntry->uCompressedSize = uCompressedSize;
-        fwrite(ptPak->puCompressedBuffer, 1, (size_t)uCompressedSize, ptPak->ptFile);
+        fwrite(ptPak->puCompressionBuffer, 1, (size_t)uCompressedSize, ptPak->ptFile);
     }
     else
     {
@@ -236,9 +237,9 @@ pl_pak_unload(plPakFile** pptPak)
         ptPak->atEntries = NULL;
     }
 
-    if(ptPak->puCompressedBuffer)
+    if(ptPak->puCompressionBuffer)
     {
-        PL_FREE(ptPak->puCompressedBuffer);
+        PL_FREE(ptPak->puCompressionBuffer);
     }
     
     PL_FREE(ptPak);
@@ -269,13 +270,15 @@ bool
 pl_pak_load(const char* pcFile, plPakInfo* ptInfoOut, plPakFile** pptPak)
 {
     // ensure file exists
-    if(!gptFile->exists(pcFile))
+    if(!gptVfs->does_file_exist(pcFile))
     {
         if(ptInfoOut)
             memset(ptInfoOut, 0, sizeof(plPakInfo));
         return false;
     }
 
+    plVfsFileHandle tHandle = gptVfs->register_file(pcFile);
+    pcFile = gptVfs->get_real_path(tHandle);
     plPakFile* ptPak = NULL;
     FILE* ptFile = fopen(pcFile, "rb");
     if(ptFile)
@@ -333,21 +336,21 @@ pl_pak_get_file(plPakFile* ptPak, const char* pcFile, uint8_t* puBufferOut, size
                 if(ptPak->sbtEntries[i].bCompressed)
                 {
 
-                    if(ptPak->sbtEntries[i].uCompressedSize > ptPak->uCompressedBufferSize)
+                    if(ptPak->sbtEntries[i].uUncompressedSize > ptPak->uCompressionBufferSize)
                     {
 
-                        if(ptPak->puCompressedBuffer) // first allocation
+                        if(ptPak->puCompressionBuffer) // first allocation
                         {
-                            PL_FREE(ptPak->puCompressedBuffer);
-                            ptPak->puCompressedBuffer = NULL;
+                            PL_FREE(ptPak->puCompressionBuffer);
+                            ptPak->puCompressionBuffer = NULL;
                         }
                         
-                        ptPak->uCompressedBufferSize = ptPak->sbtEntries[i].uCompressedSize;
-                        ptPak->puCompressedBuffer = PL_ALLOC(ptPak->uCompressedBufferSize);
-                        memset(ptPak->puCompressedBuffer, 0, ptPak->uCompressedBufferSize);
+                        ptPak->uCompressionBufferSize = ptPak->sbtEntries[i].uUncompressedSize;
+                        ptPak->puCompressionBuffer = PL_ALLOC(ptPak->uCompressionBufferSize);
+                        memset(ptPak->puCompressionBuffer, 0, ptPak->uCompressionBufferSize);
                     }
-                    fread(ptPak->puCompressedBuffer, 1, ptPak->sbtEntries[i].uCompressedSize, ptPak->ptFile);
-                    uint32_t uDecompressedSize = gptCompress->decompress(ptPak->puCompressedBuffer, ptPak->sbtEntries[i].uCompressedSize, puBufferOut, ptPak->uCompressedBufferSize);
+                    fread(ptPak->puCompressionBuffer, 1, ptPak->sbtEntries[i].uCompressedSize, ptPak->ptFile);
+                    uint32_t uDecompressedSize = gptCompress->decompress(ptPak->puCompressionBuffer, ptPak->sbtEntries[i].uCompressedSize, puBufferOut, ptPak->uCompressionBufferSize);
                     return uDecompressedSize == ptPak->sbtEntries[i].uUncompressedSize;
                 }
                 else
@@ -382,7 +385,7 @@ pl_load_pak_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     #ifndef PL_UNITY_BUILD
         gptMemory   = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptFile     = pl_get_api_latest(ptApiRegistry, plFileI);
+        gptVfs      = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptCompress = pl_get_api_latest(ptApiRegistry, plCompressI);
     #endif
 }
