@@ -28,7 +28,7 @@ Index of this file:
 #include <sys/types.h>
 #include <fcntl.h>    // O_RDONLY, O_WRONLY ,O_CREAT
 #include <pthread.h>
-#include <unistd.h>
+#include <unistd.h> // rmdir
 #include <sys/sendfile.h> // sendfile
 #include <stdatomic.h>
 #include <sys/socket.h>
@@ -37,6 +37,7 @@ Index of this file:
 #include <errno.h>
 #include <semaphore.h>
 #include <sys/mman.h> // virtual memory
+#include <dirent.h> // directory operations
 
 plThread** gsbtThreads;
 
@@ -148,6 +149,99 @@ pl_copy_file(const char* source, const char* destination)
     int n = 1;
     while (n > 0)
         n = sendfile(tofd, fromfd, 0, bufferSize * 2);
+    return PL_FILE_RESULT_SUCCESS;
+}
+
+bool
+pl_file_directory_exists(const char* pcPath)
+{
+    struct stat st = {0};
+
+    if (stat(pcPath, &st) == -1)
+        return false;
+    return true;
+}
+
+plFileResult
+pl_file_create_directory(const char* pcPath)
+{
+    struct stat st = {0};
+
+    if (stat(pcPath, &st) == -1)
+    {
+        mkdir(pcPath, 0700);
+        return PL_FILE_RESULT_SUCCESS;
+    }
+    return PL_FILE_DIRECTORY_ALREADY_EXIST;
+}
+
+plFileResult
+pl_file_remove_directory(const char* pcPath)
+{
+    if(pl_file_directory_exists(pcPath))
+    {
+        rmdir(pcPath);
+        return PL_FILE_RESULT_SUCCESS;
+    }
+    return PL_FILE_RESULT_FAIL;
+}
+
+void
+pl_file_cleanup_directory_info(plDirectoryInfo* ptInfoOut)
+{
+    pl_sb_free(ptInfoOut->sbtEntries);
+    ptInfoOut->uEntryCount = 0;
+}
+
+plFileResult
+pl_file_get_directory_info(const char* pcPath, plDirectoryInfo* ptInfoOut)
+{
+    DIR* ptDirectoryPath = opendir(pcPath);
+    struct dirent* ptEntry = NULL;
+
+    if (ptDirectoryPath == NULL)
+    {
+        perror("Error opening directory");
+        return PL_FILE_RESULT_FAIL;
+    }
+
+    // Read directory entries
+    while ((ptEntry = readdir(ptDirectoryPath)) != NULL)
+    {
+        // Skip "." and ".." entries (current and parent directory)
+        if (strcmp(ptEntry->d_name, ".") == 0 || strcmp(ptEntry->d_name, "..") == 0)
+        {
+            continue;
+        }
+
+        pl_sb_add(ptInfoOut->sbtEntries);
+        plDirectoryEntry* ptNewEntry = &pl_sb_top(ptInfoOut->sbtEntries);
+
+        switch(ptEntry->d_type)
+        {
+            case DT_REG: ptInfoOut->uFileCount++; ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_FILE; break;
+            case DT_DIR: ptInfoOut->uDirectoryCount++; ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_DIRECTORY; break;
+            case DT_LNK: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_LINK; break;
+            case DT_FIFO: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_PIPE; break;
+            case DT_SOCK: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_SOCKET; break;
+            case DT_BLK: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_BLOCK_DEVICE; break;
+            case DT_CHR: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_CHARACTER_DEVICE; break;
+            case DT_UNKNOWN: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_UNKNOWN; break;
+            default:
+                PL_ASSERT(false && "unknown dirent file type");
+                break;
+        }
+
+        strncpy(ptNewEntry->acName, ptEntry->d_name, PL_MAX_PATH_LENGTH);
+    }
+
+    if (closedir(ptDirectoryPath) == -1)
+    {
+        perror("Error closing directory");
+        return PL_FILE_RESULT_FAIL;
+    }
+
+    ptInfoOut->uEntryCount = pl_sb_size(ptInfoOut->sbtEntries);
     return PL_FILE_RESULT_SUCCESS;
 }
 
@@ -908,11 +1002,16 @@ PL_EXPORT void
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plFileI tFileApi = {
-        .copy         = pl_copy_file,
-        .exists       = pl_file_exists,
-        .remove       = pl_file_delete,
-        .binary_read  = pl_binary_read_file,
-        .binary_write = pl_binary_write_file
+        .copy                   = pl_copy_file,
+        .exists                 = pl_file_exists,
+        .remove                 = pl_file_delete,
+        .binary_read            = pl_binary_read_file,
+        .binary_write           = pl_binary_write_file,
+        .directory_exists       = pl_file_directory_exists,
+        .create_directory       = pl_file_create_directory,
+        .remove_directory       = pl_file_remove_directory,
+        .get_directory_info     = pl_file_get_directory_info,
+        .cleanup_directory_info = pl_file_cleanup_directory_info,
     };
 
     const plNetworkI tNetworkApi = {

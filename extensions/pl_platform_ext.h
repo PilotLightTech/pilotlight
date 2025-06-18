@@ -7,6 +7,7 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] includes
 // [SECTION] APIs
+// [SECTION] defines
 // [SECTION] forward declarations
 // [SECTION] public apis
 // [SECTION] enums
@@ -33,24 +34,36 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #define plAtomicsI_version       {1, 0, 0}
-#define plFileI_version          {1, 0, 0}
+#define plFileI_version          {1, 1, 0}
 #define plNetworkI_version       {1, 0, 0}
 #define plThreadsI_version       {1, 0, 1}
 #define plVirtualMemoryI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#ifndef PL_MAX_PATH_LENGTH
+    #define PL_MAX_PATH_LENGTH 1024
+#endif
+
+//-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
-// basic types (atomics ext)
+// basic types (atomics)
 typedef struct _plAtomicCounter plAtomicCounter; // opaque type
 
-// basic types (network ext)
+// basic types (file)
+typedef struct _plDirectoryEntry plDirectoryEntry;
+typedef struct _plDirectoryInfo  plDirectoryInfo;
+
+// basic types (network)
 typedef struct _plSocket             plSocket;         // opaque type (used by platform backends)
 typedef struct _plNetworkAddress     plNetworkAddress; // opaque type (used by platform backends)
 typedef struct _plSocketReceiverInfo plSocketReceiverInfo;
 
-// basic types (threads ext)
+// basic types (threads)
 typedef struct _plThread            plThread;            // opaque type (used by platform backends)
 typedef struct _plMutex             plMutex;             // opaque type (used by platform backends)
 typedef struct _plCriticalSection   plCriticalSection;   // opaque type (used by platform backends)
@@ -61,18 +74,19 @@ typedef struct _plThreadKey         plThreadKey;         // opaque type (used by
 
 typedef void* (*plThreadProcedure)(void*); // thread procedure signature
 
-// enums (atomics ext)
+// enums (atomics)
 typedef int plAtomicsResult; // -> enum _plAtomicsResult // Enum:
 
-// enums (file ext)
-typedef int plFileResult; // -> enum _plFileResult // Enum:
+// enums (file)
+typedef int plFileResult;         // -> enum _plFileResult // Enum:
+typedef int plDirectoryEntryType; // -> enum _plDirectoryEntryType // Enum:
 
-// enums (network ext)
+// enums (network)
 typedef int plNetworkAddressFlags; // -> enum _plNetworkAddressFlags // Flags:
 typedef int plSocketFlags;         // -> enum _plSocketFlags         // Flags:
 typedef int plNetworkResult;       // -> enum _plNetworkResult       // Enum:
 
-// enums (thread ext)
+// enums (thread)
 typedef int plThreadResult; // -> enum _plThreadResult // Enum:
 
 //-----------------------------------------------------------------------------
@@ -103,6 +117,15 @@ typedef struct _plFileI
     // binary files
     plFileResult (*binary_read) (const char* file, size_t* sizeOut, uint8_t* buffer); // pass NULL for buffer to get size
     plFileResult (*binary_write)(const char* file, size_t, uint8_t* buffer);
+
+    // simple directory ops
+    bool         (*directory_exists)(const char* path);
+    plFileResult (*create_directory)(const char* path);
+    plFileResult (*remove_directory)(const char* path);
+
+    // directory info
+    plFileResult (*get_directory_info)    (const char* path, plDirectoryInfo* infoOut);
+    void         (*cleanup_directory_info)(plDirectoryInfo* infoOut);
 
 } plFileI;
 
@@ -221,7 +244,24 @@ enum _plAtomicsResult
 enum _plFileResult
 {
     PL_FILE_RESULT_FAIL    = 0,
-    PL_FILE_RESULT_SUCCESS = 1
+    PL_FILE_RESULT_SUCCESS = 1,
+    
+    PL_FILE_DIRECTORY_NOT_EMPTY     = 2,
+    PL_FILE_DIRECTORY_ALREADY_EXIST = 3
+};
+
+enum _plDirectoryEntryType
+{
+    PL_DIRECTORY_ENTRY_TYPE_UNKNOWN = 0,
+    PL_DIRECTORY_ENTRY_TYPE_DIRECTORY,
+    PL_DIRECTORY_ENTRY_TYPE_FILE,
+    
+    // Linux/MacOS only
+    PL_DIRECTORY_ENTRY_TYPE_PIPE,
+    PL_DIRECTORY_ENTRY_TYPE_LINK,
+    PL_DIRECTORY_ENTRY_TYPE_SOCKET,
+    PL_DIRECTORY_ENTRY_TYPE_BLOCK_DEVICE,
+    PL_DIRECTORY_ENTRY_TYPE_CHARACTER_DEVICE,
 };
 
 enum _plNetworkAddressFlags
@@ -260,5 +300,19 @@ typedef struct _plSocketReceiverInfo
     char acAddressBuffer[100];
     char acServiceBuffer[100];
 } plSocketReceiverInfo;
+
+typedef struct _plDirectoryEntry
+{
+    plDirectoryEntryType tType;
+    char                 acName[PL_MAX_PATH_LENGTH];
+} plDirectoryEntry;
+
+typedef struct _plDirectoryInfo
+{
+    uint32_t          uFileCount;
+    uint32_t          uDirectoryCount;
+    uint32_t          uEntryCount;
+    plDirectoryEntry* sbtEntries;
+} plDirectoryInfo;
 
 #endif // PL_PLATFORM_EXT_H

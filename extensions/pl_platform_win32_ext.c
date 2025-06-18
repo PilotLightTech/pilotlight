@@ -34,6 +34,14 @@ static const plMemoryI*  gptMemory = NULL;
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
 #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
+#ifndef PL_DS_ALLOC
+    #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+    #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+#endif
+
+#include "pl_ds.h"
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] file ext
@@ -125,6 +133,85 @@ pl_copy_file(const char* pcSource, const char* pcDestination)
     if(bResult)
         return PL_FILE_RESULT_SUCCESS;
     return PL_FILE_RESULT_FAIL;
+}
+
+bool
+pl_file_directory_exists(const char* pcPath)
+{
+  DWORD dwAttrib = GetFileAttributes(pcPath);
+
+  return (dwAttrib != INVALID_FILE_ATTRIBUTES && 
+         (dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+}
+
+plFileResult
+pl_file_create_directory(const char* pcPath)
+{
+    if(pl_file_directory_exists(pcPath))
+        return PL_FILE_DIRECTORY_ALREADY_EXIST;
+    BOOL bResult = CreateDirectoryA(pcPath, NULL);
+    if(bResult != 0)
+        return PL_FILE_RESULT_SUCCESS;
+    return PL_FILE_RESULT_FAIL;
+}
+
+plFileResult
+pl_file_remove_directory(const char* pcPath)
+{
+    BOOL bResult = RemoveDirectoryA(pcPath);
+    if(bResult != 0)
+        return PL_FILE_RESULT_SUCCESS;
+    return PL_FILE_RESULT_FAIL;
+}
+
+void
+pl_file_cleanup_directory_info(plDirectoryInfo* ptInfoOut)
+{
+    pl_sb_free(ptInfoOut->sbtEntries);
+    ptInfoOut->uEntryCount = 0;
+}
+
+plFileResult
+pl_file_get_directory_info(const char* pcPath, plDirectoryInfo* ptInfoOut)
+{
+    char acFixedName[PL_MAX_PATH_LENGTH] = {0};
+    size_t szLen = strnlen(pcPath, PL_MAX_PATH_LENGTH);
+    if(pcPath[szLen - 1] == '/')
+        sprintf(acFixedName, "%s*", pcPath);
+    else
+        sprintf(acFixedName, "%s/*", pcPath);
+    WIN32_FIND_DATAA tFindData = {0};
+    HANDLE tFoundHandle = FindFirstFileA(acFixedName, &tFindData); // should be "."
+
+    BOOL bResult = FindNextFileA(tFoundHandle, &tFindData); // should be ".."
+    bResult = FindNextFileA(tFoundHandle, &tFindData);
+
+    while(bResult != 0)
+    {
+        
+
+        pl_sb_add(ptInfoOut->sbtEntries);
+        plDirectoryEntry* ptNewEntry = &pl_sb_top(ptInfoOut->sbtEntries);
+
+        if(tFindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        {
+            ptInfoOut->uDirectoryCount++;
+            ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_DIRECTORY;
+        }
+        else
+        {
+            ptInfoOut->uFileCount++;
+            ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_FILE;
+        }
+        strncpy(ptNewEntry->acName, tFindData.cFileName, PL_MAX_PATH_LENGTH);
+
+        // (nFileSizeHigh * (MAXDWORD+1)) + nFileSizeLow
+
+        bResult = FindNextFileA(tFoundHandle, &tFindData);
+    }
+    ptInfoOut->uEntryCount = pl_sb_size(ptInfoOut->sbtEntries);
+    FindClose(tFoundHandle);
+    return PL_FILE_RESULT_SUCCESS;
 }
 
 //-----------------------------------------------------------------------------
@@ -930,11 +1017,16 @@ PL_EXPORT void
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plFileI tFileApi = {
-        .copy         = pl_copy_file,
-        .exists       = pl_file_exists,
-        .remove       = pl_file_delete,
-        .binary_read  = pl_binary_read_file,
-        .binary_write = pl_binary_write_file
+        .copy                   = pl_copy_file,
+        .exists                 = pl_file_exists,
+        .remove                 = pl_file_delete,
+        .binary_read            = pl_binary_read_file,
+        .binary_write           = pl_binary_write_file,
+        .directory_exists       = pl_file_directory_exists,
+        .create_directory       = pl_file_create_directory,
+        .remove_directory       = pl_file_remove_directory,
+        .get_directory_info     = pl_file_get_directory_info,
+        .cleanup_directory_info = pl_file_cleanup_directory_info,
     };
 
     const plNetworkI tNetworkApi = {
