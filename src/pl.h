@@ -24,9 +24,9 @@ Index of this file:
 #define PL_H
 
 // global version XYYZZ
-#define PILOT_LIGHT_VERSION_STRING "0.5.0"
-#define PILOT_LIGHT_VERSION_NUM     00500
-#define PILOT_LIGHT_VERSION         {0, 5, 0}
+#define PILOT_LIGHT_VERSION_STRING "0.5.1 WIP"
+#define PILOT_LIGHT_VERSION_NUM     00501
+#define PILOT_LIGHT_VERSION         {0, 5, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
