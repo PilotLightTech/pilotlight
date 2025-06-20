@@ -192,7 +192,7 @@ plKey pl_glfw_key_translate            (int keycode, int scancode);
 
 int main(int argc, char *argv[])
 {
-    const char* pcAppName = "editor";
+    const char* pcAppName = "app";
 
     for(int i = 1; i < argc; i++)
     { 
