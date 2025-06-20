@@ -30,25 +30,29 @@ Index of this file:
 // stable extensions
 #include "pl_platform_ext.h"
 
-// unstable extensions
-#include "pl_collision_ext.h"
+// stable extensions
 #include "pl_datetime_ext.h"
 #include "pl_compress_ext.h"
 #include "pl_pak_ext.h"
 #include "pl_vfs_ext.h"
+#include "pl_string_intern_ext.h"
+
+// unstable extensions
+#include "pl_collision_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-const plIOI*        gptIO        = NULL;
-const plMemoryI*    gptMemory    = NULL;
-const plCollisionI* gptCollision = NULL;
-const plDateTimeI*  gptDateTime  = NULL;
-const plVfsI*       gptVfs       = NULL;
-const plPakI*       gptPak       = NULL;
-const plCompressI*  gptCompress  = NULL;
-const plFileI*      gptFile      = NULL;
+const plIOI*           gptIO        = NULL;
+const plMemoryI*       gptMemory    = NULL;
+const plCollisionI*    gptCollision = NULL;
+const plDateTimeI*     gptDateTime  = NULL;
+const plVfsI*          gptVfs       = NULL;
+const plPakI*          gptPak       = NULL;
+const plCompressI*     gptCompress  = NULL;
+const plFileI*         gptFile      = NULL;
+const plStringInternI* gptString    = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -65,7 +69,7 @@ const plFileI*      gptFile      = NULL;
 
 typedef struct _plAppData
 {
-    int a;
+    plStringRepository* ptStringRepo;
 } plAppData;
 
 //-----------------------------------------------------------------------------
@@ -76,6 +80,7 @@ void collision_only_tests_0(void*);
 void datetime_tests_0(void*);
 void vfs_tests_0(void*);
 void file_tests_0(void*);
+void string_intern_tests_0(void*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_info
@@ -166,6 +171,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_compress_ext", "pl_load_compress_ext", "pl_unload_compress_ext", false);
     ptExtensionRegistry->load("pl_vfs_ext", "pl_load_vfs_ext", "pl_unload_vfs_ext", false);
     ptExtensionRegistry->load("pl_pak_ext", "pl_load_pak_ext", "pl_unload_pak_ext", false);
+    ptExtensionRegistry->load("pl_string_intern_ext", "pl_load_string_intern_ext", "pl_unload_string_intern_ext", false);
     ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false);
 
     // retrieve the IO API required to use plIO for "talking" with runtime)
@@ -177,11 +183,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptPak       = pl_get_api_latest(ptApiRegistry, plPakI);
     gptCompress  = pl_get_api_latest(ptApiRegistry, plCompressI);
     gptFile      = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptString    = pl_get_api_latest(ptApiRegistry, plStringInternI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
     ptAppData = PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+
+    ptAppData->ptStringRepo = gptString->create_string_repository();
 
     // mount some directories
     gptVfs->mount_directory("/testing", "../out", PL_VFS_MOUNT_FLAGS_NONE);
@@ -198,7 +207,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     gptVfs->mount_pak("/data", "/testing/testing.pak", PL_VFS_MOUNT_FLAGS_NONE);
 
-
     // copy file to memory file
     size_t szFileSize = gptVfs->get_file_size_str("/data/testing_compressed.json");
     plVfsFileHandle tHandle = gptVfs->open_file("/data/testing_compressed.json", PL_VFS_FILE_MODE_READ);
@@ -211,8 +219,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tHandle = gptVfs->open_file("/testing_compressed.json", PL_VFS_FILE_MODE_WRITE);
     szFileSize = gptVfs->write_file(tHandle, puBuffer, szFileSize);
     free(puBuffer);
-
-    // create 
 
     // create test context
     plTestOptions tOptions = {
@@ -231,7 +237,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     pl_test_run_suite("pl_vfs_ext.h");
 
     pl_test_register_test(file_tests_0, ptAppData);
-    pl_test_run_suite("pl_platform_ext.h (plFileI)");
+    pl_test_run_suite("pl_platform_ext.h (plFileI)"); 
+
+    pl_test_register_test(string_intern_tests_0, ptAppData);
+    pl_test_run_suite("pl_string_intern.h");
 
     return ptAppData;
 }
@@ -243,6 +252,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
+    gptString->destroy_string_repository(ptAppData->ptStringRepo);
+
     PL_FREE(ptAppData);
 
     bool bResult = pl_test_finish();
@@ -509,6 +520,23 @@ vfs_tests_0(void* pAppData)
 
         PL_FREE(pucBuffer);
     }
+}
+
+void
+string_intern_tests_0(void* pAppData)
+{
+    plAppData* ptAppData = (plAppData*)pAppData;
+
+    const char* pcName0 = gptString->intern(ptAppData->ptStringRepo, "Jonathan");
+    const char* pcName1 = gptString->intern(ptAppData->ptStringRepo, "Jonathan");
+    const char* pcName2 = gptString->intern(ptAppData->ptStringRepo, "Jonathan");
+
+    pl_test_expect_true(pcName0 == pcName1, NULL);
+    pl_test_expect_true(pcName1 == pcName2, NULL);
+
+    gptString->remove(ptAppData->ptStringRepo, pcName0);
+    gptString->remove(ptAppData->ptStringRepo, pcName1);
+    gptString->remove(ptAppData->ptStringRepo, pcName2);
 }
 
 void

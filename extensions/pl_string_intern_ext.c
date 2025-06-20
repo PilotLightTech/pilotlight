@@ -209,7 +209,7 @@ pl_remove_intern(plStringRepository* ptRepo, const char* pcString)
 
         if(ptRepo->sbtEntries[uKey].uRefCount == 0)
         {
-            pl_hm_remove(&ptRepo->tEntryLookup, uKey);
+            pl_hm_remove(&ptRepo->tEntryLookup, uHash);
 
             // add hole
             plStringInternEntry tHole = {

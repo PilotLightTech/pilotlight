@@ -15,14 +15,14 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_STRING_INTERN_EXT_H
+#ifndef PL_STRING_INTERN_EXT_Hfs
 #define PL_STRING_INTERN_EXT_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plStringInternI_version {1, 0, 0}
+#define plStringInternI_version {1, 0, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

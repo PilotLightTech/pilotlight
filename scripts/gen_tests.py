@@ -220,6 +220,7 @@ with pl.project("pilotlight_lib_tests"):
         "pl_compress_ext",
         "pl_pak_ext",
         "pl_vfs_ext",
+        "pl_string_intern_ext",
     ]
 
     for extension in extensions:
