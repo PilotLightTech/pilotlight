@@ -1061,7 +1061,14 @@ pl__show_editor_window(plAppData* ptAppData)
                     {
                         if(ptAppData->sbtTestModels[i].bSelected)
                         {
-                            gptModelLoader->load_gltf(ptAppData->ptCompLibrary, ptAppData->sbtTestModels[i].acVariants[0].acFilePath, nullptr, &tLoaderData0);
+                            for(uint32_t j = 0; j < ptAppData->sbtTestModels[i].uVariantCount; j++)
+                            {
+                                if(ptAppData->sbtTestModels[i].acVariants[j].acType[4] != '-')
+                                {
+                                    gptModelLoader->load_gltf(ptAppData->ptCompLibrary, ptAppData->sbtTestModels[i].acVariants[j].acFilePath, nullptr, &tLoaderData0);
+                                    break;
+                                }
+                            }
                         }
                     }
 
