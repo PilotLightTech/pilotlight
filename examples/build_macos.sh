@@ -938,7 +938,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~~ example_basic_5 | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c++14 --debug -g -fmodules -ObjC -fPIC "
@@ -1014,7 +1014,7 @@ fi
 #~~~~~~~~~~~~~~~~~~~~ example_basic_5 | release_experimental ~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG -DPL_EXPERIMENTAL "
 PL_INCLUDE_DIRECTORIES="-I../examples -I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c++14 -fmodules -ObjC -fPIC "
