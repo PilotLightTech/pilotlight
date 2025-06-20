@@ -244,7 +244,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
         gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
         gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
-
+        gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
+        gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
+        gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
 
         gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
 
