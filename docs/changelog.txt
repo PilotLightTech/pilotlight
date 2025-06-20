@@ -7,6 +7,7 @@ away, please see git history for details.
 
 - v0.5.1 (2025-XX-XX) add directory ops to FILE ext (v1.1.0)
                       fix string interning cleanup issue (v1.0.1)
+                      add "bHotReloadActive" to IO context (v1.1.0)
 - v0.5.0 (2025-06-17) new datatime extension (v1.0.0)
                       new compression extension (v1.0.0)
                       new pak file extension (v1.0.0)

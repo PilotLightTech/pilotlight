@@ -137,6 +137,10 @@ int main(int argc, char *argv[])
             pcAppName = argv[i + 1];
             i++;
         }
+        else if(strcmp(argv[i], "-hr") == 0 || strcmp(argv[i], "--hot-reload") == 0)
+        {
+            gbHotReloadActive = true;
+        }
         else if(strcmp(argv[i], "--version") == 0)
         {
             printf("\nPilot Light - light weight game engine\n\n");
@@ -193,7 +197,8 @@ int main(int argc, char *argv[])
             printf("--apis          %s\n", "Displays embedded apis.");
             printf("-a <app>        %s\n", "Sets app to load. Default is 'app'.");
             printf("--app <app>     %s\n", "Sets app to load. Default is 'app'.");
-
+            printf("-hr             %s\n", "Activates hot reloading.");
+            printf("--hot-reload    %s\n", "Activates hot reloading.");
             return 0;
         }
 
@@ -204,6 +209,7 @@ int main(int argc, char *argv[])
 
     // add contexts to data registry
     gptIOCtx = gptIOI->get_io();
+    gptIOCtx->bHotReloadActive = gbHotReloadActive;
 
     // command line args
     gptIOCtx->iArgc = argc;
@@ -304,7 +310,7 @@ int main(int argc, char *argv[])
         pl__update_mouse_cursor();
 
         // reload library
-        if(ptLibraryApi->has_changed(gptAppLibrary))
+        if(gbHotReloadActive && ptLibraryApi->has_changed(gptAppLibrary))
         {
             pl_reload_library(gptAppLibrary);
             pl_app_load     = (void* (__attribute__(()) *)(const plApiRegistryI*, void*)) ptLibraryApi->load_function(gptAppLibrary, "pl_app_load");
@@ -761,10 +767,14 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
             strncpy(ptLibrary->acFileExtension, "so", 16);
 
         pl_sprintf(ptLibrary->acPath, "%s%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
-        pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
-        pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+        
+        if(gbHotReloadActive)
+        {
+            pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
+            pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+        }
 
-        if(!(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
+        if(!gbHotReloadActive || !(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
         {
             ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
             ptLibrary->handle = NULL;
@@ -780,7 +790,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
     else
         ptLibrary = *pptLibraryOut;
 
-    if(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
+    if(gbHotReloadActive && tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
     {
         ptLibrary->bValid = false;
 

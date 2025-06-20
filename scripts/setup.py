@@ -69,7 +69,7 @@ with open('../.vscode/launch.json', 'w') as file:
         lines.append('      "program": "${workspaceFolder}/out/pilot_light",')
 
     lines.append('      "request": "launch",')
-    lines.append('      "args": ["-a", "app"],')
+    lines.append('      "args": ["-a", "app", "-hr"],')
     lines.append('      "stopAtEntry": false,')
     lines.append('      "cwd": "${workspaceFolder}/out/",')
     lines.append('      "environment": []')

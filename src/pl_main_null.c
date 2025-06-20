@@ -120,6 +120,10 @@ int main(int argc, char *argv[])
             pcAppName = argv[i + 1];
             i++;
         }
+        else if(strcmp(argv[i], "-hr") == 0 || strcmp(argv[i], "--hot-reload") == 0)
+        {
+            gbHotReloadActive = true;
+        }
         else if(strcmp(argv[i], "--version") == 0)
         {
             printf("\nPilot Light - light weight game engine\n\n");
@@ -176,6 +180,8 @@ int main(int argc, char *argv[])
             printf("--extensions    %s\n", "Displays embedded extensions.");
             printf("-a <app>        %s\n", "Sets app to load. Default is 'app'.");
             printf("--app <app>     %s\n", "Sets app to load. Default is 'app'.");
+            printf("-hr             %s\n", "Activates hot reloading.");
+            printf("--hot-reload    %s\n", "Activates hot reloading.");
             return 0;
         }
     }
@@ -184,6 +190,7 @@ int main(int argc, char *argv[])
     pl__load_core_apis();
 
     gptIOCtx = gptIOI->get_io();
+    gptIOCtx->bHotReloadActive = gbHotReloadActive;
 
     // command line args
     gptIOCtx->iArgc = argc;
@@ -418,15 +425,18 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
     if(*pptLibraryOut == NULL)
     {
 
-        DWORD dwAttrib = GetFileAttributes(pcCacheDirectory);
+        if(gbHotReloadActive)
+        {
+            DWORD dwAttrib = GetFileAttributes(pcCacheDirectory);
 
-        if(dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY))
-        {
-            // do nothing
-        }
-        else
-        {
-            CreateDirectoryA(pcCacheDirectory, NULL);
+            if(dwAttrib != INVALID_FILE_ATTRIBUTES && (dwAttrib & FILE_ATTRIBUTE_DIRECTORY))
+            {
+                // do nothing
+            }
+            else
+            {
+                CreateDirectoryA(pcCacheDirectory, NULL);
+            }
         }
 
         *pptLibraryOut = PL_ALLOC(sizeof(plSharedLibrary));
@@ -439,13 +449,17 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
         pl_str_get_directory(tDesc.pcName, ptLibrary->acDirectory, PL_MAX_PATH_LENGTH);
 
         if(pl_str_get_file_extension(tDesc.pcName, ptLibrary->acFileExtension, 16) == NULL)
-            strncpy(ptLibrary->acFileExtension, gpcLibraryExtension, 16);
+            strncpy(ptLibrary->acFileExtension, "dll", 16);
 
         pl_sprintf(ptLibrary->acPath, "%s%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
-        pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
-        pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+        
+        if(gbHotReloadActive)
+        {
+            pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
+            pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+        }
 
-        if(!(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
+        if(!gbHotReloadActive || !(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
         {
 
             char acTemporaryName[PL_MAX_PATH_LENGTH] = {0};
@@ -471,7 +485,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
         ptLibrary = *pptLibraryOut;
 
 
-    if(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
+    if(gbHotReloadActive && tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
     {
 
         ptLibrary->bValid = false;
@@ -542,10 +556,13 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
             strncpy(ptLibrary->acFileExtension, gpcLibraryExtension, 16);
 
         pl_sprintf(ptLibrary->acPath, "%s%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
-        pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
-        pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+        if(gbHotReloadActive)
+        {
+            pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
+            pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+        }
 
-        if(!(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
+        if(!gbHotReloadActive || !(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
         {
             ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
             ptLibrary->handle = NULL;
@@ -561,7 +578,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
     else
         ptLibrary = *pptLibraryOut;
 
-    if(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
+    if(gbHotReloadActive && tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
     {
         ptLibrary->bValid = false;
 
@@ -627,10 +644,13 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
             strncpy(ptLibrary->acFileExtension, gpcLibraryExtension, 16);
 
         pl_sprintf(ptLibrary->acPath, "%s%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
-        pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
-        pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+        if(gbHotReloadActive)
+        {
+            pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
+            pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+        }
 
-        if(!(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
+        if(!gbHotReloadActive || !(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))
         {
             ptLibrary->tLastWriteTime = pl__get_last_write_time(ptLibrary->acPath);
             ptLibrary->handle = NULL;
@@ -646,7 +666,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
     else
         ptLibrary = *pptLibraryOut;
 
-    if(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
+    if(gbHotReloadActive && tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE)
     {
         ptLibrary->bValid = false;
 

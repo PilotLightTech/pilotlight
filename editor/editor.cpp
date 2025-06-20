@@ -156,7 +156,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptVfs->mount_directory("/fonts", "../data/pilotlight-assets-master/fonts", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/environments", "../data/pilotlight-assets-master/environments", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/shaders", "../shaders", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/shaders-temp", "../out-temp", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/shader-temp", "../shader-temp", PL_VFS_MOUNT_FLAGS_NONE);
+    gptFile->create_directory("../shader-temp");
 
     // defaults
     ptAppData->tSelectedEntity.uData = UINT64_MAX;
@@ -182,8 +183,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     static plShaderOptions tDefaultShaderOptions = PL_ZERO_INIT;
     tDefaultShaderOptions.apcIncludeDirectories[0] = "/shaders/";
     tDefaultShaderOptions.apcDirectories[0] = "/shaders/";
-    tDefaultShaderOptions.apcDirectories[1] = "/shaders-temp/";
-    tDefaultShaderOptions.pcCacheOutputDirectory = "/shaders-temp/";
+    tDefaultShaderOptions.apcDirectories[1] = "/shader-temp/";
+    tDefaultShaderOptions.pcCacheOutputDirectory = "/shader-temp/";
     tDefaultShaderOptions.tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE;
     gptShader->initialize(&tDefaultShaderOptions);
 

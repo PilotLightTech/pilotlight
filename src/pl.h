@@ -34,7 +34,7 @@ Index of this file:
 
 #define plExtensionRegistryI_version {1, 1, 0}
 #define plMemoryI_version            {1, 0, 2}
-#define plIOI_version                {1, 0, 1}
+#define plIOI_version                {1, 1, 0}
 #define plDataRegistryI_version      {1, 0, 0}
 #define plWindowI_version            {1, 0, 0}
 #define plLibraryI_version           {1, 0, 2}
@@ -491,12 +491,13 @@ typedef struct _plIO
     // Input/Output
     //------------------------------------------------------------------
 
-    bool  bRunning;
+    bool bRunning;
 
     //------------------------------------------------------------------
     // Output
     //------------------------------------------------------------------
 
+    bool     bHotReloadActive;
     double   dTime;
     float    fFrameRate; // rough estimate(rolling average of fDeltaTime over 120 frames)
     bool     bViewportSizeChanged;

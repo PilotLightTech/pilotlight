@@ -31,6 +31,9 @@ Index of this file:
 // [SECTION] globals
 //-----------------------------------------------------------------------------
 
+// options
+bool gbHotReloadActive = false;
+
 // general
 plSharedLibrary* gptAppLibrary = NULL;
 void*            gpUserData    = NULL;

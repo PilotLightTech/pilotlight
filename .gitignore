@@ -6,6 +6,7 @@
 data/
 out/
 out-temp/
+shader-temp/
 user/
 game/
 app/
