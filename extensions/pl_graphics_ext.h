@@ -400,7 +400,7 @@ typedef struct _plGraphicsI
     void             (*set_texture_usage)              (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
     void             (*copy_buffer_to_texture)         (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
     void             (*copy_texture_to_buffer)         (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
-    void             (*copy_texture)                   (plBlitEncoder*, plTextureHandle, plTextureHandle, uint32_t regionCount, const plImageCopy*);
+    void             (*copy_texture)                   (plBlitEncoder*, plTextureHandle src, plTextureHandle dst, uint32_t regionCount, const plImageCopy*);
     void             (*generate_mipmaps)               (plBlitEncoder*, plTextureHandle);
     void             (*copy_buffer)                    (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint32_t sourceOffset, uint32_t destinationOffset, size_t);
     plCommandBuffer* (*get_blit_encoder_command_buffer)(plBlitEncoder*);
