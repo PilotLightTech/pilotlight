@@ -15,7 +15,7 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_STRING_INTERN_EXT_Hfs
+#ifndef PL_STRING_INTERN_EXT_H
 #define PL_STRING_INTERN_EXT_H
 
 //-----------------------------------------------------------------------------
