@@ -147,7 +147,8 @@ with pl.project("pilotlight_examples"):
                 # macos
                 with pl.platform("Darwin"):
                     with pl.compiler("clang"):
-                        pl.add_compiler_flags("-std=c++14", "--debug", "-g", "-fmodules", "-ObjC", "-fPIC")
+                        pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
+                        pl.add_compiler_flags("-std=c++14", "--debug", "-g", "-fmodules", "-ObjC++", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
                         pl.add_link_directories("/usr/local/lib")
 
@@ -173,7 +174,7 @@ with pl.project("pilotlight_examples"):
                 # macos
                 with pl.platform("Darwin"):
                     with pl.compiler("clang"):
-                        pl.add_compiler_flags("-std=c++14", "-fmodules", "-ObjC", "-fPIC")
+                        pl.add_compiler_flags("-std=c++14", "-fmodules", "-ObjC++", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
                         pl.add_link_directories("/usr/local/lib")
 
