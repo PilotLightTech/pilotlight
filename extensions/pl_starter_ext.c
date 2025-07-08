@@ -338,8 +338,8 @@ pl_starter_resize(void)
     plIO* ptIO = gptIOI->get_io();
     plSwapchainInit tDesc = {
         .bVSync  = true,
-        .uWidth  = (uint32_t)ptIO->tMainViewportSize.x,
-        .uHeight = (uint32_t)ptIO->tMainViewportSize.y,
+        .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
+        .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
         .tSampleCount = (gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount : 1
     };
     gptGfx->recreate_swapchain(gptStarterCtx->ptSwapchain, &tDesc);
@@ -363,7 +363,10 @@ pl_starter_resize(void)
         gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
 
         const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {gptIOI->get_io()->tMainViewportSize.x, gptIOI->get_io()->tMainViewportSize.y, 1},
+            .tDimensions   = {
+                gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x,
+                gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y,
+                1},
             .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
             .uMips         = 1,
@@ -391,7 +394,10 @@ pl_starter_resize(void)
         gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
         const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
+            .tDimensions   = {
+                (float)tInfo.uWidth,
+                (float)tInfo.uHeight,
+                1},
             .tFormat       = tInfo.tFormat,
             .uLayers       = 1,
             .uMips         = 1,
@@ -424,8 +430,8 @@ pl_starter_resize(void)
         if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER && gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
         {
             atMainAttachmentSets[i].atViewAttachments[0] = gptStarterCtx->tDepthTexture;
-            atMainAttachmentSets[i].atViewAttachments[1] = gptStarterCtx->tResolveTexture;
-            atMainAttachmentSets[i].atViewAttachments[2] = atSwapchainImages[i];
+            atMainAttachmentSets[i].atViewAttachments[1] = atSwapchainImages[i];
+            atMainAttachmentSets[i].atViewAttachments[2] = gptStarterCtx->tResolveTexture;
         }
         else if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
         {
@@ -925,8 +931,8 @@ pl__starter_activate_msaa(void)
     plIO* ptIO = gptIOI->get_io();
     plSwapchainInit tDesc = {
         .bVSync  = true,
-        .uWidth  = (uint32_t)ptIO->tMainViewportSize.x,
-        .uHeight = (uint32_t)ptIO->tMainViewportSize.y,
+        .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
+        .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
         .tSampleCount = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount
     };
     gptGfx->recreate_swapchain(gptStarterCtx->ptSwapchain, &tDesc);
@@ -969,7 +975,10 @@ pl__starter_activate_msaa(void)
         gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {gptIOI->get_io()->tMainViewportSize.x, gptIOI->get_io()->tMainViewportSize.y, 1},
+            .tDimensions   = {
+                gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x,
+                gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y,
+                1},
             .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
             .uMips         = 1,
@@ -1009,8 +1018,8 @@ pl__starter_deactivate_msaa(void)
     plIO* ptIO = gptIOI->get_io();
     plSwapchainInit tDesc = {
         .bVSync  = true,
-        .uWidth  = (uint32_t)ptIO->tMainViewportSize.x,
-        .uHeight = (uint32_t)ptIO->tMainViewportSize.y,
+        .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
+        .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
         .tSampleCount = 1
     };
     gptGfx->recreate_swapchain(gptStarterCtx->ptSwapchain, &tDesc);
@@ -1024,7 +1033,10 @@ pl__starter_deactivate_msaa(void)
         gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {gptIOI->get_io()->tMainViewportSize.x, gptIOI->get_io()->tMainViewportSize.y, 1},
+            .tDimensions   = {
+                gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x,
+                gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y,
+                1},
             .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
             .uMips         = 1,
@@ -1068,7 +1080,10 @@ pl__starter_activate_depth_buffer(void)
 
     plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
     const plTextureDesc tDepthTextureDesc = {
-        .tDimensions   = {gptIOI->get_io()->tMainViewportSize.x, gptIOI->get_io()->tMainViewportSize.y, 1},
+        .tDimensions   = {
+            gptIOI->get_io()->tMainViewportSize.x * gptIOI->get_io()->tMainFramebufferScale.x,
+            gptIOI->get_io()->tMainViewportSize.y * gptIOI->get_io()->tMainFramebufferScale.y,
+            1},
         .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
         .uLayers       = 1,
         .uMips         = 1,
@@ -1342,8 +1357,9 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
     const plRenderPassLayoutDesc tMainRenderPassLayoutDesc = {
         .atRenderTargets = {
             { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true, .tSamples = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount }, // depth buffer
-            { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat, .tSamples = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount}, // msaa
             { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat, .bResolve = true }, // swapchain
+            { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat, .tSamples = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount}, // msaa
+            
 
         },
         .atSubpasses = {
@@ -1395,7 +1411,7 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
         .atColorTargets = {
             {
                 .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
+                .tStoreOp      = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
                 .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
                 .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
@@ -1418,8 +1434,9 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
     for(uint32_t i = 0; i < uImageCount; i++)
     {
         atMainAttachmentSets[i].atViewAttachments[0] = gptStarterCtx->tDepthTexture;
-        atMainAttachmentSets[i].atViewAttachments[1] = gptStarterCtx->tResolveTexture;
-        atMainAttachmentSets[i].atViewAttachments[2] = atSwapchainImages[i];
+        atMainAttachmentSets[i].atViewAttachments[1] = atSwapchainImages[i];
+        atMainAttachmentSets[i].atViewAttachments[2] = gptStarterCtx->tResolveTexture;
+        
     }
     gptStarterCtx->tRenderPass = gptGfx->create_render_pass(gptStarterCtx->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
 
