@@ -80,7 +80,7 @@ typedef struct _plMetalRenderPassLayout
 
 typedef struct _plMetalFrameBuffer
 {
-    MTLRenderPassDescriptor** sbptRenderPassDescriptor;
+    MTLRenderPassDescriptor** sbptRenderPassDescriptor; // one per subpass
 } plMetalFrameBuffer;
 
 typedef struct _plMetalRenderPass
@@ -3511,6 +3511,16 @@ pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
     ptVariantMetalResource->tRenderPipelineState = nil;
     pl_sb_push(ptDevice->sbtShaderFreeIndices, tHandle.uIndex);
 
+}
+
+void
+pl_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
+{
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy sampler %u immediately", tHandle.uIndex);
+    [ptDevice->sbtSamplersHot[tHandle.uIndex].tSampler release];
+    ptDevice->sbtSamplersHot[tHandle.uIndex].tSampler = nil;
+    ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration++;
+    pl_sb_push(ptDevice->sbtSamplerFreeIndices, tHandle.uIndex);
 }
 
 static void
