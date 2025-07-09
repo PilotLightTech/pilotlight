@@ -89,6 +89,7 @@ the API is complete. It just means we won't break what currently exists.
 * Physics             v0.2.0 (pl_physics_ext.h)
 * Collision           v0.2.0 (pl_collision_ext.h)
 * Mesh                v0.1.0 (pl_mesh_ext.h)
+* Mesh Builder        v0.1.0 (pl_mesh_ext.h)
 * Shader Variant      v0.2.0 (pl_shader_variant_ext.h)
 
 ## Unstable Extensions

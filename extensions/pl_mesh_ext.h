@@ -9,7 +9,7 @@ Index of this file:
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
-// [SECTION] public api struct
+// [SECTION] public api structs
 // [SECTION] structs
 // [SECTION] enums
 */
@@ -40,6 +40,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #define plMeshI_version {0, 1, 0}
+#define plMeshBuilderI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -52,17 +53,22 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
+// basic types
+typedef struct _plMeshBuilder        plMeshBuilder; // opaque
+typedef struct _plMeshBuilderOptions plMeshBuilderOptions;
+
 // ecs components
 typedef struct _plMeshComponent plMeshComponent;
 
 // enums & flags
 typedef int plMeshFormatFlags;
+typedef int plMeshBuilderFlags;
 
 // external
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api struct
+// [SECTION] public api structs
 //-----------------------------------------------------------------------------
 
 typedef struct _plMeshI
@@ -87,9 +93,29 @@ typedef struct _plMeshI
     plEcsTypeKey (*get_ecs_type_key_mesh)(void);
 } plMeshI;
 
+typedef struct _plMeshBuilderI
+{
+    // setup/shutdown
+    plMeshBuilder* (*create)(plMeshBuilderOptions);
+    void           (*cleanup)(plMeshBuilder*);
+
+    // adding
+    void (*add_triangle)(plMeshBuilder*, plVec3, plVec3, plVec3);
+
+    // commit
+    void (*commit)(plMeshBuilder*, uint32_t* indexBuffer, plVec3* vertexBuffer, uint32_t* indexBufferCountOut, uint32_t* vertexBufferCountOut);
+
+} plMeshBuilderI;
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plMeshBuilderOptions
+{
+    plMeshBuilderFlags tFlags;
+    float              fWeldRadius;
+} plMeshBuilderOptions;
 
 typedef struct _plMeshComponent
 {
@@ -130,6 +156,12 @@ enum _plMeshFormatFlags
     PL_MESH_FORMAT_FLAG_HAS_JOINTS_1   = 1 << 10,
     PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0  = 1 << 11,
     PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1  = 1 << 12
+};
+
+enum _plMeshBuilderFlags
+{
+    PL_MESH_BUILDER_FLAGS_NONE         = 0,
+    // PL_MESH_BUILDER_FLAGS_DOUBLE_SIDED = 1 << 0,
 };
 
 #endif // PL_MESH_EXT_H

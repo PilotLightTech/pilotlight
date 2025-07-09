@@ -36,9 +36,17 @@ Index of this file:
     #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
     #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
+    #ifndef PL_DS_ALLOC
+        #define PL_DS_ALLOC(x)                      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+        #define PL_DS_ALLOC_INDIRECT(x, FILE, LINE) gptMemory->tracked_realloc(NULL, (x), FILE, LINE)
+        #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+    #endif
+
     static const plLogI* gptLog = NULL;
     static const plEcsI* gptECS = NULL;
 #endif
+
+#include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -48,6 +56,20 @@ typedef struct _plMeshContext
 {
     plEcsTypeKey tMeshComponentType;
 } plMeshContext;
+
+typedef struct _plMeshBuilderTriangle
+{
+    uint32_t uIndex0;
+    uint32_t uIndex1;
+    uint32_t uIndex2;
+} plMeshBuilderTriangle;
+
+typedef struct _plMeshBuilder
+{
+    plMeshBuilderOptions   tOptions;
+    plVec3*                sbtVertices;
+    plMeshBuilderTriangle* sbtTriangles;
+} plMeshBuilder;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
@@ -561,8 +583,121 @@ pl_mesh_register_system(void)
         .tSkinComponent = {UINT32_MAX, UINT32_MAX}
     };
     gptMeshCtx->tMeshComponentType = gptECS->register_type(tMeshDesc, &tMeshComponentDefault);
-
 }
+
+plMeshBuilder*
+pl_mesh_builder_create(plMeshBuilderOptions tOptions)
+{
+    if(tOptions.fWeldRadius == 0.0f)
+        tOptions.fWeldRadius = 0.001f;
+
+    plMeshBuilder* ptBuilder = PL_ALLOC(sizeof(plMeshBuilder));
+    memset(ptBuilder, 0, sizeof(plMeshBuilder));
+    ptBuilder->tOptions = tOptions;
+    return ptBuilder;
+}
+
+void
+pl_mesh_builder_cleanup(plMeshBuilder* ptBuilder)
+{
+    pl_sb_free(ptBuilder->sbtTriangles);
+    pl_sb_free(ptBuilder->sbtVertices);
+    PL_FREE(ptBuilder);
+}
+
+void
+pl_mesh_builder_add_triangle(plMeshBuilder* ptBuilder, plVec3 tA, plVec3 tB, plVec3 tC)
+{
+    plMeshBuilderTriangle tTriangle;
+    tTriangle.uIndex0 = UINT32_MAX;
+    tTriangle.uIndex1 = UINT32_MAX;
+    tTriangle.uIndex2 = UINT32_MAX;
+
+    const float fWeldRadiusSqr = ptBuilder->tOptions.fWeldRadius * ptBuilder->tOptions.fWeldRadius;
+
+    const uint32_t uVertexCount = pl_sb_size(ptBuilder->sbtVertices);
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        const plVec3* ptVertex = &ptBuilder->sbtVertices[i];
+
+        float fDist = pl_length_sqr_vec3(pl_sub_vec3(*ptVertex, tA));
+
+        if(fDist < fWeldRadiusSqr)
+        {
+            tTriangle.uIndex0 = i;
+            break;
+        }
+    }
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        const plVec3* ptVertex = &ptBuilder->sbtVertices[i];
+
+        float fDist = pl_length_sqr_vec3(pl_sub_vec3(*ptVertex, tB));
+
+        if(fDist < fWeldRadiusSqr)
+        {
+            tTriangle.uIndex1 = i;
+            break;
+        }
+    }
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        const plVec3* ptVertex = &ptBuilder->sbtVertices[i];
+
+        float fDist = pl_length_sqr_vec3(pl_sub_vec3(*ptVertex, tC));
+
+        if(fDist < fWeldRadiusSqr)
+        {
+            tTriangle.uIndex2 = i;
+            break;
+        }
+    }
+
+    if(tTriangle.uIndex0 == UINT32_MAX)
+    {
+        tTriangle.uIndex0 = pl_sb_size(ptBuilder->sbtVertices);
+        pl_sb_push(ptBuilder->sbtVertices, tA);
+    }
+
+    if(tTriangle.uIndex1 == UINT32_MAX)
+    {
+        tTriangle.uIndex1 = pl_sb_size(ptBuilder->sbtVertices);
+        pl_sb_push(ptBuilder->sbtVertices, tB);
+    }
+
+    if(tTriangle.uIndex2 == UINT32_MAX)
+    {
+        tTriangle.uIndex2 = pl_sb_size(ptBuilder->sbtVertices);
+        pl_sb_push(ptBuilder->sbtVertices, tC);
+    }
+
+    pl_sb_push(ptBuilder->sbtTriangles, tTriangle);
+}
+
+void
+pl_mesh_builder_commit(plMeshBuilder* ptBuilder, uint32_t* puIndexBuffer, plVec3* ptVertexBuffer, uint32_t* puIndexBufferCountOut, uint32_t* puVertexBufferCountOut)
+{
+    const uint32_t uVertexCount = pl_sb_size(ptBuilder->sbtVertices);
+    const uint32_t uTriangleCount = pl_sb_size(ptBuilder->sbtTriangles);
+    
+    if(puVertexBufferCountOut)
+        *puVertexBufferCountOut = uVertexCount;
+
+    if(puIndexBufferCountOut)
+        *puIndexBufferCountOut = uTriangleCount * 3;
+
+    if(puIndexBuffer && ptVertexBuffer)
+    {
+        memcpy(puIndexBuffer, ptBuilder->sbtTriangles, uTriangleCount * 3 * sizeof(uint32_t));
+        memcpy(ptVertexBuffer, ptBuilder->sbtVertices, uVertexCount * sizeof(plVec3));
+        pl_sb_reset(ptBuilder->sbtTriangles);
+        pl_sb_reset(ptBuilder->sbtVertices);
+    }
+}
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -583,6 +718,14 @@ pl_load_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_ecs_type_key_mesh = pl_mesh_get_ecs_type_key_mesh,
     };
     pl_set_api(ptApiRegistry, plMeshI, &tApi);
+
+    const plMeshBuilderI tApi2 = {
+        .create       = pl_mesh_builder_create,
+        .cleanup      = pl_mesh_builder_cleanup,
+        .add_triangle = pl_mesh_builder_add_triangle,
+        .commit       = pl_mesh_builder_commit,
+    };
+    pl_set_api(ptApiRegistry, plMeshBuilderI, &tApi2);
 
     gptECS    = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
@@ -610,4 +753,7 @@ pl_unload_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     const plMeshI* ptApi = pl_get_api_latest(ptApiRegistry, plMeshI);
     ptApiRegistry->remove_api(ptApi);
+
+    const plMeshBuilderI* ptApi2 = pl_get_api_latest(ptApiRegistry, plMeshBuilderI);
+    ptApiRegistry->remove_api(ptApi2);
 }
