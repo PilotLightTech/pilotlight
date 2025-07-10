@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 1, 2}
+#define plGraphicsI_version {1, 1, 3}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

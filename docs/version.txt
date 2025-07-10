@@ -1,4 +1,4 @@
-v0.5.1
+v0.5.2
 
 -----------------------------------------------------------------------------
                              Versioning
@@ -42,7 +42,7 @@ the API is complete. It just means we won't break what currently exists.
 
 ## Libraries
 * Data Structures   v1.0.0 (pl_ds.h)
-* Json              v1.0.0 (pl_json.h)
+* Json              v1.0.2 (pl_json.h)
 * Logging           v1.0.1 (pl_log.h)
 * Math              v1.0.0 (pl_math.h)
 * Memory Allocators v1.1.0 (pl_memory.h)
@@ -59,7 +59,7 @@ the API is complete. It just means we won't break what currently exists.
 * Draw                v1.2.0 (pl_draw_ext.h)
 * Draw Backend        v1.0.1 (pl_draw_backend_ext.h)
 * GPU Allocators      v1.0.0 (pl_gpu_allocators_ext.h)
-* Graphics            v1.1.2 (pl_graphics_ext.h)
+* Graphics            v1.1.3 (pl_graphics_ext.h)
 * Image               v1.0.0 (pl_image_ext.h)
 * Job                 v2.0.0 (pl_job_ext.h)
 * Atomics             v1.0.0 (pl_platform_ext.h)
@@ -71,7 +71,7 @@ the API is complete. It just means we won't break what currently exists.
 * Rectangle Packing   v1.0.0 (pl_rect_pack_ext.h)
 * Screen Log          v2.0.0 (pl_screen_log_ext.h)
 * Shader              v1.1.0 (pl_shader_ext.h)
-* Starter             v1.0.1 (pl_starter_ext.h)
+* Starter             v1.0.2 (pl_starter_ext.h)
 * Stats               v1.0.0 (pl_stats_ext.h)
 * String Interning    v1.0.1 (pl_string_intern_ext.h)
 * UI Tools            v1.0.0 (pl_tools_ext.h)
