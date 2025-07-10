@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_JSON_VERSION    "1.0.1"
-#define PL_JSON_VERSION_NUM 10001
+#define PL_JSON_VERSION    "1.0.2"
+#define PL_JSON_VERSION_NUM 10002
 
 /*
 Index of this file:
@@ -64,7 +64,7 @@ char*         pl_write_json          (plJsonObject*, char* pcBuffer, uint32_t* p
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~reading~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 // members
-plJsonObject* pl_json_member_by_index(plJsonObject*, uint32_t uIndex);
+plJsonObject* pl_json_member_by_index(plJsonObject*, uint32_t uIndex); // used in writing too
 void          pl_json_member_list    (plJsonObject*, char** pcListOut, uint32_t* puSizeOut, uint32_t* puLength);
 bool          pl_json_member_exist   (plJsonObject*, const char* pcName);
 plJsonType    pl_json_get_type       (plJsonObject*);
@@ -1130,14 +1130,7 @@ plJsonObject*
 pl_json_member(plJsonObject* ptJson, const char* pcName)
 {
     plJsonObject* ptMember = pl_json_member_by_name(ptJson, pcName);
-
-    if(ptMember)
-    {
-        PL_ASSERT(ptMember->tType == PL_JSON_TYPE_OBJECT);
-        if(ptMember->tType == PL_JSON_TYPE_OBJECT)
-            return ptMember;
-    }
-    return NULL;    
+    return ptMember;
 }
 
 plJsonObject*
