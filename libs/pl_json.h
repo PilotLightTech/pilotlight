@@ -93,7 +93,7 @@ int         pl_json_as_int   (plJsonObject*);
 uint32_t    pl_json_as_uint  (plJsonObject*);
 float       pl_json_as_float (plJsonObject*);
 double      pl_json_as_double(plJsonObject*);
-const char* pl_json_as_string(plJsonObject*);
+const char* pl_json_as_string(plJsonObject*); // do not store
 bool        pl_json_as_bool  (plJsonObject*);
 
 // cast array values
