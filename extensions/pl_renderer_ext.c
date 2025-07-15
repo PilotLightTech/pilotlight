@@ -517,19 +517,6 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->ptStagingUnCachedBuddyAllocator = gptGpuAllocators->get_staging_uncached_buddy_allocator(gptData->ptDevice);
     gptData->ptStagingCachedAllocator        = gptGpuAllocators->get_staging_cached_allocator(gptData->ptDevice);
 
-    // create staging buffers
-    // const plBufferDesc tStagingBufferDesc = {
-    //     .tUsage      = PL_BUFFER_USAGE_STAGING,
-    //     .szByteSize  = 268435456,
-    //     .pcDebugName = "Renderer Staging Buffer"
-    // };
-    // for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    // {
-    //     gptData->atStagingBufferHandle[i].tStagingBufferHandle = pl__renderer_create_staging_buffer(&tStagingBufferDesc, "staging", i);
-    //     gptData->atStagingBufferHandle[i].szOffset = 0;
-    //     gptData->atStagingBufferHandle[i].szSize = tStagingBufferDesc.szByteSize;
-    // }
-
     // create dummy textures
     const plTextureDesc tDummyTextureDesc = {
         .tDimensions   = {2, 2, 1},
@@ -984,9 +971,9 @@ pl_renderer_create_scene(plSceneInit tInit)
     // create global bindgroup
     ptScene->uTextureIndexCount = 0;
 
-
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
+        // create global bindgroup
         const plBindGroupDesc tGlobalBindGroupDesc = {
             .ptPool      = gptData->ptBindGroupPool,
             .tLayout     = gptData->tGlobalSceneBindGroupLayout,
@@ -994,6 +981,7 @@ pl_renderer_create_scene(plSceneInit tInit)
         };
         ptScene->atGlobalBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBindGroupDesc);
 
+        // partially update global bindgroup (just samplers)
         plBindGroupUpdateSamplerData tGlobalSamplerData[] = {
             {
                 .tSampler = gptData->tDefaultSampler,
@@ -1006,16 +994,15 @@ pl_renderer_create_scene(plSceneInit tInit)
         };
 
         plBindGroupUpdateData tGlobalBindGroupData = {
-            .uSamplerCount = 2,
+            .uSamplerCount     = 2,
             .atSamplerBindings = tGlobalSamplerData,
         };
-
         gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
     }
 
+    // pre-create some global buffers, later we should defer this
     const plBufferDesc atLightShadowDataBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
-        // .szByteSize = 134217728,
         .szByteSize = PL_MAX_LIGHTS * sizeof(plGPULightShadowData),
         .pcDebugName = "shadow data buffer"
     };
@@ -1034,14 +1021,12 @@ pl_renderer_create_scene(plSceneInit tInit)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-
         ptScene->atLightShadowDataBuffer[i] = pl__renderer_create_staging_buffer(&atLightShadowDataBufferDesc, "shadow buffer", i);
-        ptScene->atShadowCameraBuffers[i] = pl__renderer_create_staging_buffer(&atCameraBuffersDesc, "shadow camera buffer", i);
-
-        ptScene->atGPUProbeDataBuffers[i] = pl__renderer_create_staging_buffer(&atProbeDataBufferDesc, "probe buffer", i);
-
+        ptScene->atShadowCameraBuffers[i]   = pl__renderer_create_staging_buffer(&atCameraBuffersDesc, "shadow camera buffer", i);
+        ptScene->atGPUProbeDataBuffers[i]   = pl__renderer_create_staging_buffer(&atProbeDataBufferDesc, "probe buffer", i);
     }
 
+    // pre-create working buffers for environment filtering, later we should defer this
     for(uint32_t i = 0; i < 7; i++)
     {
         const size_t uMaxFaceSize = ((size_t)1024 * (size_t)1024) * 4 * sizeof(float);
@@ -1054,6 +1039,7 @@ pl_renderer_create_scene(plSceneInit tInit)
         ptScene->atFilterWorkingBuffers[i] = pl__renderer_create_local_buffer(&tInputBufferDesc, "filter buffer", i, NULL, 0);
     }
 
+    // create probe material & mesh
     plMaterialComponent* ptMaterial = NULL;
     plEntity tMaterial = pl_renderer_create_material(ptScene->ptComponentLibrary, "environment probe material", &ptMaterial);
     ptMaterial->tBlendMode = PL_BLEND_MODE_OPAQUE;
@@ -1067,8 +1053,8 @@ pl_renderer_create_scene(plSceneInit tInit)
     ptScene->tProbeMesh = gptMesh->create_sphere_mesh(ptScene->ptComponentLibrary, "environment probe mesh", 0.25f, 32, 32, &ptMesh);
     ptMesh->tMaterial = tMaterial;
 
+    // create shadow atlas
     ptScene->uShadowAtlasResolution = 1024 * 8;
-
     const plTextureDesc tShadowDepthTextureDesc = {
         .tDimensions   = {(float)ptScene->uShadowAtlasResolution, (float)ptScene->uShadowAtlasResolution, 1},
         .tFormat       = PL_FORMAT_D16_UNORM,
@@ -1078,7 +1064,9 @@ pl_renderer_create_scene(plSceneInit tInit)
         .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName   = "shadow map"
     };
+    ptScene->tShadowTexture = pl__renderer_create_local_texture(&tShadowDepthTextureDesc, "shadow map", 0, PL_TEXTURE_USAGE_SAMPLED);
 
+    // create shadow map render passes
     const plRenderPassDesc tDepthRenderPassDesc = {
         .tLayout = gptData->tDepthRenderPassLayout,
         .tDepthTarget = {
@@ -1108,16 +1096,15 @@ pl_renderer_create_scene(plSceneInit tInit)
     };
 
     plRenderPassAttachments atShadowAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
-    ptScene->tShadowTexture = pl__renderer_create_local_texture(&tShadowDepthTextureDesc, "shadow map", 0, PL_TEXTURE_USAGE_SAMPLED);
     ptScene->atShadowTextureBindlessIndices = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tShadowTexture);
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
         atShadowAttachmentSets[i].atViewAttachments[0] = ptScene->tShadowTexture;
     }
-
     ptScene->tShadowRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tDepthRenderPassDesc, atShadowAttachmentSets);
     ptScene->tFirstShadowRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tFirstDepthRenderPassDesc, atShadowAttachmentSets);
 
+    // create tonemap shader
     const plShaderDesc tTonemapShaderDesc = {
         .tPixelShader = gptShader->load_glsl("tonemap.frag", "main", NULL, NULL),
         .tVertexShader = gptShader->load_glsl("full_quad.vert", "main", NULL, NULL),
@@ -2158,56 +2145,6 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
     {
         plEntity tEntity = ptScene->sbtOutlinedEntities[i];
 
-        plObjectComponent*   ptObject   = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
-        plMeshComponent*     ptMesh     = gptECS->get_component(ptScene->ptComponentLibrary, tMeshComponentType, ptObject->tMesh);
-        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, ptMesh->tMaterial);
-
-        int iDataStride = 0;
-        int iFlagCopy0 = (int)ptMesh->ulVertexStreamMask;
-        while(iFlagCopy0)
-        {
-            iDataStride += iFlagCopy0 & 1;
-            iFlagCopy0 >>= 1;
-        }
-
-        int iTextureMappingFlags = 0;
-        for(uint32_t j = 0; j < PL_TEXTURE_SLOT_COUNT; j++)
-        {
-            if((ptMaterial->atTextureMaps[j].acName[0] != 0))
-                iTextureMappingFlags |= 1 << j; 
-        }
-
-        int iObjectRenderingFlags = iSceneWideRenderingFlags;
-
-        if(ptMaterial->tFlags & PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW)
-        {
-            iObjectRenderingFlags |= PL_RENDERING_FLAG_SHADOWS;
-        }
-
-        // choose shader variant
-        int aiConstantData0[5] = {
-            (int)ptMesh->ulVertexStreamMask,
-            iDataStride,
-            iTextureMappingFlags,
-            PL_INFO_MATERIAL_METALLICROUGHNESS,
-            iObjectRenderingFlags
-        };
-
-        // use stencil buffer
-        const plGraphicsState tOutlineVariantTemp = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = PL_CULL_MODE_CULL_FRONT,
-            .ulWireframe          = 0,
-            .ulStencilTestEnabled = 1,
-            .ulStencilMode        = PL_COMPARE_MODE_LESS,
-            .ulStencilRef         = 128,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-        };
-
         uint64_t ulIndex = 0;
         if(pl_hm_has_key_ex(&ptScene->tDrawableHashmap, tEntity.uData, &ulIndex))
         {
@@ -2232,8 +2169,6 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
                 }
             }
         }
-
-        // gptGfx->queue_shader_for_deletion(ptDevice, ptScene->sbtOutlinedEntities[i].tShader);
     }
     pl_sb_reset(ptScene->sbtOutlinedEntities);
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldShaders);
@@ -2299,21 +2234,6 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
             tVariantTemp.ulStencilOpFail      = PL_STENCIL_OP_REPLACE;
             tVariantTemp.ulStencilOpDepthFail = PL_STENCIL_OP_REPLACE;
             tVariantTemp.ulStencilOpPass      = PL_STENCIL_OP_REPLACE;
-
-            // use stencil buffer
-            const plGraphicsState tOutlineVariantTemp = {
-                .ulDepthWriteEnabled  = 0,
-                .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-                .ulCullMode           = PL_CULL_MODE_CULL_FRONT,
-                .ulWireframe          = 0,
-                .ulStencilTestEnabled = 1,
-                .ulStencilMode        = PL_COMPARE_MODE_LESS,
-                .ulStencilRef         = 128,
-                .ulStencilMask        = 0xff,
-                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-            };
 
             pl_sb_push(ptScene->sbtOutlinedEntities, ptDrawable->tEntity);
             pl_sb_push(ptScene->sbtOutlineDrawablesOldShaders, ptDrawable->tShader);
@@ -2956,7 +2876,6 @@ pl_renderer_prepare_scene(plScene* ptScene)
     plBuffer* ptShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->atLightShadowDataBuffer[uFrameIdx]);
     memcpy(ptShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtLightShadowData, sizeof(plGPULightShadowData) * pl_sb_size(ptScene->sbtLightShadowData));
     
-
     const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
     for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
     {
@@ -3671,26 +3590,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     };
     gptGfx->submit_command_buffer(ptSceneCmdBuffer, &tSceneSubmitInfo);
     gptGfx->return_command_buffer(ptSceneCmdBuffer);
-
-
-    plCommandBuffer* ptPickingDecodeCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
-
-    const plBeginCommandInfo tPickingDecodeBeginInfo = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {gptData->aptSemaphores[uFrameIdx]},
-        .auWaitSemaphoreValues = {gptData->aulNextTimelineValue[uFrameIdx]},
-    };
-    gptGfx->begin_command_recording(ptPickingDecodeCmdBuffer, &tPickingDecodeBeginInfo);
-
-    gptGfx->end_command_recording(ptPickingDecodeCmdBuffer);
-
-    const plSubmitInfo tPickingDecodeSubmitInfo = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptData->aptSemaphores[uFrameIdx]},
-        .auSignalSemaphoreValues = {++gptData->aulNextTimelineValue[uFrameIdx]}
-    };
-    gptGfx->submit_command_buffer(ptPickingDecodeCmdBuffer, &tPickingDecodeSubmitInfo);
-    gptGfx->return_command_buffer(ptPickingDecodeCmdBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~uv map pass for JFA~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

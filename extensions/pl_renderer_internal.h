@@ -197,7 +197,8 @@ enum _plRenderingFlags
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _FilterShaderSpecData{
+typedef struct _FilterShaderSpecData
+{
     int   iResolution;
     float fRoughness;
     int   iSampleCount;
@@ -613,7 +614,7 @@ typedef struct _plScene
     plEnvironmentProbeData* sbtProbeData;
     plGPUProbeData* sbtGPUProbeData;
     plBufferHandle atGPUProbeDataBuffers[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferHandle atFilterWorkingBuffers[7];
+    plBufferHandle atFilterWorkingBuffers[7]; // used for runtime filtering
 
     // transforms
     uint32_t uNextTransformIndex;
@@ -799,10 +800,26 @@ static uint32_t                pl__renderer_get_bindless_texture_index(plScene*,
 static uint32_t                pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);
 
 // drawable ops
-static void pl__renderer_add_skybox_drawable (plScene*);
-static void pl__renderer_unstage_drawables   (plScene*);
+static void pl__renderer_add_skybox_drawable(plScene*);
+
+// accomplishes:
+//   * fills CPU side vertex/index/data buffers
+//   * marks probes
+//   * marks deferred & forward
+//   * assigns transform buffer indices & instancing stuff
+//   * creates skybox drawable
+//   * creates GPU buffers
+//   * setups up skinning stuff
+static void pl__renderer_unstage_drawables(plScene*);
+
+// accomplishes:
+//   * assigns correct shaders & shader variants
 static void pl__renderer_set_drawable_shaders(plScene*);
-static void pl__renderer_sort_drawables      (plScene*);
+
+// accomplishes:
+//   * assigns to correct shadow drawables
+//   * checks if index buffer is used
+static void pl__renderer_sort_drawables(plScene*);
 
 // environment probes
 static void pl__renderer_create_probe_data(plScene*, plEntity tProbeHandle);
