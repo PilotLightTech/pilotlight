@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_JSON_VERSION    "1.0.2"
-#define PL_JSON_VERSION_NUM 10002
+#define PL_JSON_VERSION    "1.0.3"
+#define PL_JSON_VERSION_NUM 10003
 
 /*
 Index of this file:
@@ -1350,7 +1350,7 @@ pl_json_as_string_array(plJsonObject* ptJson, char** pcOut, uint32_t* puSizeOut,
             strncpy(pcOut[i],&ptJson->ptRootObject->sbcBuffer[ptJson->sbuValueOffsets[i]], ptJson->sbuValueLength[i]);
         }
     }
-    else if(puSizeOut)
+    if(puSizeOut)
         *puSizeOut = ptJson->uChildCount;
 
     if(puLength)

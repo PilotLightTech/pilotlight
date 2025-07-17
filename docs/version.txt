@@ -42,7 +42,7 @@ the API is complete. It just means we won't break what currently exists.
 
 ## Libraries
 * Data Structures   v1.0.0 (pl_ds.h)
-* Json              v1.0.2 (pl_json.h)
+* Json              v1.0.3 (pl_json.h)
 * Logging           v1.0.1 (pl_log.h)
 * Math              v1.0.0 (pl_math.h)
 * Memory Allocators v1.1.0 (pl_memory.h)
