@@ -131,6 +131,7 @@ with pl.project("pilotlight deploy"):
         "pl_datetime_ext",
         "pl_vfs_ext",
         "pl_compress_ext",
+        "pl_dds_ext",
         "pl_pak_ext",
     ]
 

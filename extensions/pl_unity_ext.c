@@ -52,6 +52,7 @@ Index of this file:
 #include "pl_pak_ext.c"
 #include "pl_datetime_ext.c"
 #include "pl_compress_ext.c"
+#include "pl_dds_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -101,6 +102,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptPak               = pl_get_api_latest(ptApiRegistry, plPakI);
     gptDateTime          = pl_get_api_latest(ptApiRegistry, plDateTimeI);
     gptCompress          = pl_get_api_latest(ptApiRegistry, plCompressI);
+    gptDds               = pl_get_api_latest(ptApiRegistry, plDdsI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -140,6 +142,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_datetime_ext(ptApiRegistry, bReload);
     pl_load_shader_variant_ext(ptApiRegistry, bReload);
     pl_load_compress_ext(ptApiRegistry, bReload);
+    pl_load_dds_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -180,6 +183,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_datetime_ext(ptApiRegistry, bReload);
     pl_unload_shader_variant_ext(ptApiRegistry, bReload);
     pl_unload_compress_ext(ptApiRegistry, bReload);
+    pl_unload_dds_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------

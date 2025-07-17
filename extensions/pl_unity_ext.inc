@@ -55,6 +55,7 @@ static const struct _plMeshI*              gptMesh          = 0;
 static const struct _plShaderVariantI*     gptShaderVariant = 0;
 static const struct _plVfsI*               gptVfs           = 0;
 static const struct _plCompressI*          gptCompress      = 0;
+static const struct _plDdsI*               gptDds           = 0;
 
 
 

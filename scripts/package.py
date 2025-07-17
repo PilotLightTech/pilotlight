@@ -63,6 +63,7 @@ extension_headers = [
     "pl_vfs_ext.h",
     "pl_pak_ext.h",
     "pl_compress_ext.h",
+    "pl_dds_ext.h",
     "pl_datetime_ext.h",
 ]
 
@@ -103,6 +104,7 @@ extensions = [
     "pl_pak_ext",
     "pl_datetime_ext",
     "pl_compress_ext",
+    "pl_dds_ext",
     "pl_ui_ext"
 ]
 
