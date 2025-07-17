@@ -55,7 +55,7 @@ pl__renderer_create_local_texture(const plTextureDesc* ptDesc, const char* pcNam
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
-    plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
+    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
  
     // create texture
     plTempAllocator tTempAllocator = {0};
@@ -99,7 +99,7 @@ pl__renderer_create_texture(const plTextureDesc* ptDesc, const char* pcName, uin
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
-    plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
+    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
  
     // create texture
     plTempAllocator tTempAllocator = {0};
@@ -145,7 +145,7 @@ pl__renderer_create_texture_with_data(const plTextureDesc* ptDesc, const char* p
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
-    plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
+    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
  
     // create texture
     plTempAllocator tTempAllocator = {0};
@@ -291,7 +291,7 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
-    plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
+    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     
     // create buffer
     plTempAllocator tTempAllocator = {0};
@@ -3238,8 +3238,8 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
     ptScene->sbtStagedEntities[uTransparentStart] = tProbeHandle;
 };
 
-static uint64_t
-pl__renderer_update_probes(plScene* ptScene, uint64_t ulValue)
+static void
+pl__renderer_update_probes(plScene* ptScene)
 {
 
     // for convience
@@ -3247,8 +3247,8 @@ pl__renderer_update_probes(plScene* ptScene, uint64_t ulValue)
     plDrawStream* ptStream = &gptData->tDrawStream;
 
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
-    plCommandPool* ptCmdPool = gptData->atCmdPools[uFrameIdx];
-    plTimelineSemaphore* tSemHandle = gptData->aptSemaphores[uFrameIdx];
+    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
+    plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~common data~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -3407,7 +3407,7 @@ pl__renderer_update_probes(plScene* ptScene, uint64_t ulValue)
         const plBeginCommandInfo tProbeBeginInfo = {
             .uWaitSemaphoreCount   = 1,
             .atWaitSempahores      = {tSemHandle},
-            .auWaitSemaphoreValues = {ulValue},
+            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
         };
 
         plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
@@ -3630,28 +3630,26 @@ pl__renderer_update_probes(plScene* ptScene, uint64_t ulValue)
         const plSubmitInfo tProbeSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {tSemHandle},
-            .auSignalSemaphoreValues = {++ulValue}
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptCmdBuffer, &tProbeSubmitInfo);
         gptGfx->return_command_buffer(ptCmdBuffer);
-        ulValue = pl__renderer_create_environment_map_from_texture(ptScene, ptProbe, ulValue);
+        pl__renderer_create_environment_map_from_texture(ptScene, ptProbe);
 
         ptProbe->uCurrentFace = (ptProbe->uCurrentFace + ptProbeComp->uInterval) % 6;
 
         if(ptProbe->uCurrentFace == 0)
             ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
     }
-
-    return ulValue;
 }
 
-static uint64_t
-pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironmentProbeData* ptProbe, uint64_t ulValue)
+static void
+pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironmentProbeData* ptProbe)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
-    plCommandPool* ptCmdPool = gptData->atCmdPools[gptGfx->get_current_frame_index()];
-    plTimelineSemaphore* tSemHandle = gptData->aptSemaphores[gptGfx->get_current_frame_index()];
+    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
+    plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
 
     plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptProbe->tRawOutputTexture);
     const int iResolution = (int)(ptTexture->tDesc.tDimensions.x);
@@ -3665,7 +3663,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         const plBeginCommandInfo tBeginInfo1 = {
             .uWaitSemaphoreCount   = 1,
             .atWaitSempahores      = {tSemHandle},
-            .auWaitSemaphoreValues = {ulValue},
+            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
         };
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo1);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
@@ -3677,7 +3675,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         const plSubmitInfo tSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {tSemHandle},
-            .auSignalSemaphoreValues = {++ulValue}
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
         gptGfx->return_command_buffer(ptCommandBuffer);
@@ -3736,7 +3734,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         const plBeginCommandInfo tBeginInfo0 = {
             .uWaitSemaphoreCount   = 1,
             .atWaitSempahores      = {tSemHandle},
-            .auWaitSemaphoreValues = {ulValue},
+            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
         };
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo0);
 
@@ -3793,7 +3791,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         const plSubmitInfo tSubmitInfo0 = {
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {tSemHandle},
-            .auSignalSemaphoreValues = {++ulValue}
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
         gptGfx->return_command_buffer(ptCommandBuffer);
@@ -3802,7 +3800,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         const plBeginCommandInfo tBeginInfo1 = {
             .uWaitSemaphoreCount   = 1,
             .atWaitSempahores      = {tSemHandle},
-            .auWaitSemaphoreValues = {ulValue},
+            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
         };
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo1);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
@@ -3836,7 +3834,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         const plSubmitInfo tSubmitInfo = {
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {tSemHandle},
-            .auSignalSemaphoreValues = {++ulValue}
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
         gptGfx->return_command_buffer(ptCommandBuffer);
@@ -3922,7 +3920,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             const plBeginCommandInfo tBeginInfo = {
                 .uWaitSemaphoreCount   = 1,
                 .atWaitSempahores      = {tSemHandle},
-                .auWaitSemaphoreValues = {ulValue},
+                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
             };
             gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
@@ -3948,7 +3946,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             const plSubmitInfo tSubmitInfo = {
                 .uSignalSemaphoreCount   = 1,
                 .atSignalSempahores      = {tSemHandle},
-                .auSignalSemaphoreValues = {++ulValue}
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
             gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
             gptGfx->return_command_buffer(ptCommandBuffer);
@@ -3957,7 +3955,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             const plBeginCommandInfo tBeginInfo2 = {
                 .uWaitSemaphoreCount   = 1,
                 .atWaitSempahores      = {tSemHandle},
-                .auWaitSemaphoreValues = {ulValue},
+                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
             };
             gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo2);
             plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
@@ -3982,7 +3980,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             const plSubmitInfo tSubmitInfo0 = {
                 .uSignalSemaphoreCount   = 1,
                 .atSignalSempahores      = {tSemHandle},
-                .auSignalSemaphoreValues = {++ulValue}
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
             gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
             // gptGfx->wait_on_command_buffer(ptCommandBuffer);
@@ -3992,7 +3990,6 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
     }
 
     pl_end_cpu_sample(gptProfile, 0);
-    return ulValue;
 }
 
 static void
@@ -4079,10 +4076,10 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.ulCullMode = PL_CULL_MODE_NONE;
 
-            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
-            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
+            ptScene->sbtDrawables[i].tShader = gptShaderTools->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
+            ptScene->sbtDrawables[i].tShader = gptShaderTools->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
             aiConstantData0[4] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
+            ptScene->sbtDrawables[i].tEnvShader = gptShaderTools->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
         }
 
         else if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
@@ -4104,9 +4101,9 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.ulCullMode = PL_CULL_MODE_NONE;
 
-            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_variant(gptData->tForwardShader, tVariantTemp, aiConstantData0);
+            ptScene->sbtDrawables[i].tShader = gptShaderTools->get_variant(gptData->tForwardShader, tVariantTemp, aiConstantData0);
             aiConstantData0[4] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_variant(gptData->tForwardShader, tVariantTemp, aiConstantData0);
+            ptScene->sbtDrawables[i].tEnvShader = gptShaderTools->get_variant(gptData->tForwardShader, tVariantTemp, aiConstantData0);
   
         }
         if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
@@ -4123,7 +4120,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             };
-            ptScene->sbtDrawables[i].tShadowShader = gptShaderVariant->get_variant(gptData->tAlphaShadowShader, tShadowVariant, aiConstantData0);
+            ptScene->sbtDrawables[i].tShadowShader = gptShaderTools->get_variant(gptData->tAlphaShadowShader, tShadowVariant, aiConstantData0);
         }
     }
 }

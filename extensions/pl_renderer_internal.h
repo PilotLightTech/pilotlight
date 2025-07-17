@@ -56,8 +56,9 @@ Index of this file:
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
 #include "pl_bvh_ext.h"
-#include "pl_shader_variant_ext.h"
+#include "pl_shader_tools_ext.h"
 #include "pl_vfs_ext.h"
+#include "pl_starter_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -99,6 +100,7 @@ Index of this file:
     static const plRectPackI*      gptRect          = NULL;
     static const plConsoleI*       gptConsole       = NULL;
     static const plVfsI*           gptVfs           = NULL;
+    static const plStarterI*       gptStarter       = NULL;
 
     // experimental
     static const plScreenLogI*     gptScreenLog     = NULL;
@@ -108,7 +110,7 @@ Index of this file:
     static const plBVHI*           gptBvh           = NULL;
     static const plAnimationI*     gptAnimation     = NULL;
     static const plMeshI*          gptMesh          = NULL;
-    static const plShaderVariantI* gptShaderVariant = NULL;
+    static const plShaderToolsI*   gptShaderTools   = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
@@ -635,14 +637,6 @@ typedef struct _plRefRendererData
     plTempAllocator tTempAllocator;
     uint32_t uMaxTextureResolution;
 
-    // main render pass stuff
-    plRenderPassHandle       tCurrentMainRenderPass;
-    plRenderPassHandle       tMainRenderPass;
-    plRenderPassLayoutHandle tMainRenderPassLayout;
-    plRenderPassHandle       tMainMSAARenderPass;
-    plRenderPassLayoutHandle tMainMSAARenderPassLayout;
-    plTextureHandle          tMSAATexture;
-
     // bind groups
     plBindGroupPool* ptBindGroupPool;
     plBindGroupPool* aptTempGroupPools[PL_MAX_FRAMES_IN_FLIGHT];
@@ -718,13 +712,8 @@ typedef struct _plRefRendererData
     // uint32_t uStagingOffset;
 
     // sync
-    plTimelineSemaphore* aptSemaphores[PL_MAX_FRAMES_IN_FLIGHT];
-    uint64_t aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
     plTimelineSemaphore* ptClickSemaphore;
     uint64_t ulSemClickNextValue;
-
-    // command pools
-    plCommandPool* atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
 
     // dynamic buffer system
     plDynamicDataBlock tCurrentDynamicDataBlock;
@@ -823,7 +812,7 @@ static void pl__renderer_sort_drawables(plScene*);
 
 // environment probes
 static void pl__renderer_create_probe_data(plScene*, plEntity tProbeHandle);
-static uint64_t pl__renderer_update_probes(plScene*, uint64_t ulValue);
-static uint64_t pl__renderer_create_environment_map_from_texture(plScene*, plEnvironmentProbeData* ptProbe, uint64_t ulValue);
+static void pl__renderer_update_probes(plScene*);
+static void pl__renderer_create_environment_map_from_texture(plScene*, plEnvironmentProbeData* ptProbe);
 
 #endif // PL_RENDERER_INTERNAL_H

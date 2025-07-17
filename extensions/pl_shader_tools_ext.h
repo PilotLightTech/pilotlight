@@ -1,5 +1,5 @@
 /*
-   pl_shader_variant_ext.h
+   pl_shader_tools_ext.h
 */
 
 /*
@@ -24,27 +24,34 @@ Index of this file:
         
         * plGraphicsI (v1.x)
         * plStatsI    (v1.x)
+        * plShaderI   (v1.x)
 */
 
 //-----------------------------------------------------------------------------
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_SHADER_VARIANT_EXT_H
-#define PL_SHADER_VARIANT_EXT_H
+#ifndef PL_SHADER_TOOLS_EXT_H
+#define PL_SHADER_TOOLS_EXT_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plShaderVariantI_version {0, 2, 0}
+#define plShaderToolsI_version {0, 2, 0}
+
+//-----------------------------------------------------------------------------
+// [SECTION] include
+//-----------------------------------------------------------------------------
+
+#include <stdint.h>
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plShaderVariantInit plShaderVariantInit;
+typedef struct _plShaderToolsInit plShaderToolsInit;
 
 // external
 typedef union plShaderHandle        plShaderHandle;        // pl_graphics_ext.h
@@ -56,21 +63,21 @@ typedef struct _plDevice            plDevice;              // pl_graphics_ext.h
 // [SECTION] public api structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plShaderVariantI
+typedef struct _plShaderToolsI
 {
     //----------------------------setup/shutdown-----------------------------------
 
-    void (*initialize)(plShaderVariantInit);
+    void (*initialize)(plShaderToolsInit);
     void (*cleanup)   (void);
 
-    //---------------------------graphics shaders----------------------------------
+    //-----------------------graphics shader variants------------------------------
 
     // creates or retrieves variant of shader
     plShaderHandle (*get_variant)   (plShaderHandle, plGraphicsState, const void* tempConstantData);
     void           (*reset_variants)(plShaderHandle); // queues variants for deletion
     void           (*clear_variants)(plShaderHandle); // queues variants for deletion & unregisters parent shader
 
-    //---------------------------compute shaders-----------------------------------
+    //-----------------------compute shader variants-------------------------------
 
     // creates or retrieves variant of shader
     plComputeShaderHandle (*get_compute_variant)   (plComputeShaderHandle, const void* tempConstantData);
@@ -81,15 +88,15 @@ typedef struct _plShaderVariantI
 
     void (*update_stats)(void);
 
-} plShaderVariantI;
+} plShaderToolsI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plShaderVariantInit
+typedef struct _plShaderToolsInit
 {
     plDevice* ptDevice;
-} plShaderVariantInit;
+} plShaderToolsInit;
 
-#endif // PL_SHADER_VARIANT_EXT_H
+#endif // PL_SHADER_TOOLS_EXT_H

@@ -47,7 +47,7 @@ Index of this file:
 #include "pl_starter_ext.c"
 #include "pl_animation_ext.c"
 #include "pl_mesh_ext.c"
-#include "pl_shader_variant_ext.c"
+#include "pl_shader_tools_ext.c"
 #include "pl_vfs_ext.c"
 #include "pl_pak_ext.c"
 #include "pl_datetime_ext.c"
@@ -97,7 +97,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptTools             = pl_get_api_latest(ptApiRegistry, plToolsI);
     gptAnimation         = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh              = pl_get_api_latest(ptApiRegistry, plMeshI);
-    gptShaderVariant     = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+    gptShaderTools       = pl_get_api_latest(ptApiRegistry, plShaderToolsI);
     gptVfs               = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptPak               = pl_get_api_latest(ptApiRegistry, plPakI);
     gptDateTime          = pl_get_api_latest(ptApiRegistry, plDateTimeI);

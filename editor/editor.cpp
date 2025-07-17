@@ -84,7 +84,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
         gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
-        gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+        gptShaderTools = pl_get_api_latest(ptApiRegistry, plShaderToolsI);
         gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
         gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
@@ -140,7 +140,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
-    gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+    gptShaderTools = pl_get_api_latest(ptApiRegistry, plShaderToolsI);
     gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
     gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
@@ -164,6 +164,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->bShowPilotLightTool = true;
     ptAppData->bShowSkybox = true;
     ptAppData->bFrustumCulling = true;
+    ptAppData->bVSync = true;
 
     gptConfig->load_from_disk(nullptr);
     ptAppData->bShowEntityWindow = gptConfig->load_bool("bShowEntityWindow", false);
@@ -178,18 +179,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // initialize APIs that require it
     gptEcsTools->initialize();
     gptPhysics->initialize({});
-    
-    // initialize shader compiler
-    static plShaderOptions tDefaultShaderOptions = PL_ZERO_INIT;
-    tDefaultShaderOptions.apcIncludeDirectories[0] = "/shaders/";
-    tDefaultShaderOptions.apcDirectories[0] = "/shaders/";
-    tDefaultShaderOptions.apcDirectories[1] = "/shader-temp/";
-    tDefaultShaderOptions.pcCacheOutputDirectory = "/shader-temp/";
-    tDefaultShaderOptions.tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE;
-    gptShader->initialize(&tDefaultShaderOptions);
-
-    // initialize job system
-    gptJobs->initialize({});
 
     // create window (only 1 allowed currently)
     plWindowDesc tWindowDesc = {
@@ -203,30 +192,51 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
     gptWindows->show(ptAppData->ptWindow);
 
-    // initialize graphics
-    plGraphicsInit tGraphicsDesc = PL_ZERO_INIT;
-    tGraphicsDesc.tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
-    gptGfx->initialize(&tGraphicsDesc);
+    plStarterInit tStarterInit = {};
+    tStarterInit.tFlags   = PL_STARTER_FLAGS_NONE;
+    tStarterInit.ptWindow = ptAppData->ptWindow;
 
-    ptAppData->ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
-    ptAppData->ptDevice = gptStarter->create_device(ptAppData->ptSurface);
+    // extensions handled by starter
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_GRAPHICS_EXT;
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_PROFILE_EXT;
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_STATS_EXT;
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_CONSOLE_EXT;
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_DRAW_EXT;
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_UI_EXT;
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
 
-    const plShaderVariantInit tShaderVariantInit = {
+    // initial flags
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
+
+    // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
+    // etc. which we will get to in later examples
+    gptStarter->initialize(tStarterInit);
+    
+    // initialize shader compiler
+    static plShaderOptions tDefaultShaderOptions = PL_ZERO_INIT;
+    tDefaultShaderOptions.apcIncludeDirectories[0] = "/shaders/";
+    tDefaultShaderOptions.apcDirectories[0] = "/shaders/";
+    tDefaultShaderOptions.apcDirectories[1] = "/shader-temp/";
+    tDefaultShaderOptions.pcCacheOutputDirectory = "/shader-temp/";
+    tDefaultShaderOptions.tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE;
+    gptShader->initialize(&tDefaultShaderOptions);
+
+    ptAppData->ptDevice = gptStarter->get_device();
+
+    // initialize job system
+    gptJobs->initialize({});
+
+    const plShaderToolsInit tShaderVariantInit = {
         ptAppData->ptDevice
     };
-    gptShaderVariant->initialize(tShaderVariantInit);
-
-    // create swapchain
-    plSwapchainInit tSwapInit = PL_ZERO_INIT;
-    tSwapInit.bVSync = true;
-    tSwapInit.tSampleCount = 1;
-    ptAppData->ptSwap = gptGfx->create_swapchain(ptAppData->ptDevice, ptAppData->ptSurface, &tSwapInit);
+    gptShaderTools->initialize(tShaderVariantInit);
 
     // setup reference renderer
     plRendererSettings tRenderSettings = PL_ZERO_INIT;
     tRenderSettings.ptDevice              = ptAppData->ptDevice;
     tRenderSettings.uMaxTextureResolution = 1024;
-    tRenderSettings.ptSwap                = ptAppData->ptSwap;
+    tRenderSettings.ptSwap                = gptStarter->get_swapchain();
     gptRenderer->initialize(tRenderSettings);
 
     // initialize ecs component library
@@ -256,14 +266,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~setup draw extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    // initialize
-    gptDraw->initialize(nullptr);
-    gptDrawBackend->initialize(ptAppData->ptDevice);
-
-    // create font atlas
-    plFontAtlas* ptAtlas = gptDraw->create_font_atlas();
-    gptDraw->set_font_atlas(ptAtlas);
-
     // create fonts
     plFontRange tFontRange = PL_ZERO_INIT;
     tFontRange.iFirstCodePoint = 0x0020;
@@ -276,7 +278,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tFontConfig0.uVOverSampling = 1;
     tFontConfig0.ptRanges = &tFontRange;
     tFontConfig0.uRangeCount = 1;
-    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig0, "/fonts/Cousine-Regular.ttf");
+    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "/fonts/Cousine-Regular.ttf");
 
     plFontRange tIconRange = PL_ZERO_INIT;
     tIconRange.iFirstCodePoint = ICON_MIN_FA;
@@ -290,21 +292,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tFontConfig1.ptMergeFont    = ptAppData->tDefaultFont;
     tFontConfig1.ptRanges       = &tIconRange;
     tFontConfig1.uRangeCount    = 1;
-    gptDraw->add_font_from_file_ttf(ptAtlas, tFontConfig1, "/fonts/fa-solid-900.otf");
-
-    // build font atlas
-    plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(gptRenderer->get_command_pool());
-    gptDrawBackend->build_font_atlas(ptCmdBuffer, ptAtlas);
-    gptGfx->return_command_buffer(ptCmdBuffer);
-    
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~message extension~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    
-    gptScreenLog->initialize({ptAppData->tDefaultFont});
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ui extension~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    gptUI->initialize();
+    gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "/fonts/fa-solid-900.otf");
+    gptStarter->set_default_font(ptAppData->tDefaultFont);
     gptUI->set_default_font(ptAppData->tDefaultFont);
+
+    gptStarter->finalize();
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~app stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -313,7 +305,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     pl__find_models(ptAppData);
 
-    gptDearImGui->initialize(ptAppData->ptDevice, ptAppData->ptSwap, gptRenderer->get_main_render_pass());
+    gptDearImGui->initialize(ptAppData->ptDevice, gptStarter->get_swapchain(), gptStarter->get_render_pass());
+    // ImGui::GetIO().ConfigFlags &= ~ImGuiBackendFlags_PlatformHasViewports;
     ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
     ImGuiIO& tImGuiIO = ImGui::GetIO();
     tImGuiIO.IniFilename = nullptr;
@@ -351,26 +344,18 @@ pl_app_shutdown(plAppData* ptAppData)
 
     gptConfig->save_to_disk(nullptr);
     gptConfig->cleanup();
-
-    gptDrawBackend->cleanup_font_atlas(gptDraw->get_current_font_atlas());
-    gptUI->cleanup();
     gptEcsTools->cleanup();
     gptPhysics->cleanup();
     gptShader->cleanup();
-    gptConsole->cleanup();
     gptScreenLog->cleanup();
-    gptDrawBackend->cleanup();
     if(ptAppData->ptView)
         gptRenderer->cleanup_view(ptAppData->ptView);
     if(ptAppData->ptScene)
         gptRenderer->cleanup_scene(ptAppData->ptScene);
     gptEcs->cleanup();
     gptRenderer->cleanup();
-    gptShaderVariant->cleanup();
-    gptGfx->cleanup_swapchain(ptAppData->ptSwap);
-    gptGfx->cleanup_surface(ptAppData->ptSurface);
-    gptGfx->cleanup_device(ptAppData->ptDevice);
-    gptGfx->cleanup();
+    gptShaderTools->cleanup();
+    gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
     pl_sb_free(ptAppData->sbtTestModels);
     PL_FREE(ptAppData);
@@ -385,7 +370,7 @@ pl_app_resize(plWindow*, plAppData* ptAppData)
 {
     plIO* ptIO = gptIO->get_io();
     ptAppData->bResize = true;
-    gptRenderer->resize();
+    gptStarter->resize();
 }
 
 //-----------------------------------------------------------------------------
@@ -395,23 +380,19 @@ pl_app_resize(plWindow*, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
-    gptProfile->begin_frame();
+    if(!gptStarter->begin_frame())
+        return;
+        
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
-    gptIO->new_frame();
     gptResource->new_frame();
     
     // for convience
     plIO* ptIO = gptIO->get_io();
 
-    if(!gptRenderer->begin_frame())
-    {
-        pl_end_cpu_sample(gptProfile, 0);
-        gptProfile->end_frame();
-        return;
-    }
+    gptRenderer->begin_frame();
 
-    gptDearImGui->new_frame(ptAppData->ptDevice, gptRenderer->get_main_render_pass());
+    gptDearImGui->new_frame(ptAppData->ptDevice, gptStarter->get_render_pass());
 
     if(ptAppData->bResize)
     {
@@ -421,20 +402,8 @@ pl_app_update(plAppData* ptAppData)
         ptAppData->bResize = false;
     }
 
-    gptDrawBackend->new_frame();
-    gptUI->new_frame();
-
     // update statistics
-    gptStats->new_frame();
-    static double* pdFrameTimeCounter = nullptr;
-    static double* pdMemoryCounter = nullptr;
-    if(!pdFrameTimeCounter)
-        pdFrameTimeCounter = gptStats->get_counter("frametime (ms)");
-    if(!pdMemoryCounter)
-        pdMemoryCounter = gptStats->get_counter("CPU memory");
-    *pdFrameTimeCounter = (double)ptIO->fDeltaTime * 1000.0;
-    *pdMemoryCounter = (double)gptMemory->get_memory_usage();
-    gptShaderVariant->update_stats();
+    gptShaderTools->update_stats();
 
     if(ptAppData->ptScene)
     {
@@ -571,13 +540,6 @@ pl_app_update(plAppData* ptAppData)
         gptRenderer->render_view(ptAppData->ptView, ptCamera, ptAppData->bFrustumCulling ? ptActiveCullCamera : nullptr);
     }
 
-    if(gptIO->is_key_pressed(PL_KEY_F1, false))
-    {
-        gptConsole->open();
-    }
-
-    gptConsole->update();
-
     ImGui::DockSpaceOverViewport(0, 0, ImGuiDockNodeFlags_PassthruCentralNode);
 
     if(ImGui::BeginMainMenuBar())
@@ -619,8 +581,6 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowUiDemo)
         pl__show_ui_demo_window(ptAppData);
 
-    gptTools->update();
-        
     if(ptAppData->bShowUiStyle)
         gptUI->show_style_editor_window(&ptAppData->bShowUiStyle);
 
@@ -677,31 +637,11 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowImGuiDemo)
         ImGui::ShowDemoWindow(&ptAppData->bShowImGuiDemo);
 
-    plRenderEncoder* ptRenderEncoder = nullptr;
-    plCommandBuffer* ptCommandBuffer = nullptr;
-    gptRenderer->begin_final_pass(&ptRenderEncoder, &ptCommandBuffer);
-
-    // render ui
-    pl_begin_cpu_sample(gptProfile, 0, "render ui");
-
-    gptDearImGui->render(ptRenderEncoder, ptCommandBuffer);
-    
-    gptUI->end_frame();
-
-    float fWidth = ptIO->tMainViewportSize.x;
-    float fHeight = ptIO->tMainViewportSize.y;
-    gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(ptAppData->ptSwap).tSampleCount);
-    gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(ptAppData->ptSwap).tSampleCount);
+    plRenderEncoder* ptRenderEncoder = gptStarter->begin_main_pass();
+    gptDearImGui->render(ptRenderEncoder, gptGfx->get_encoder_command_buffer(ptRenderEncoder));
+    gptStarter->end_main_pass();
     pl_end_cpu_sample(gptProfile, 0);
-
-    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(tLogOffset.x, tLogOffset.y, fWidth * 0.2f, fHeight);
-    gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(ptAppData->ptSwap).tSampleCount);
-
-
-    gptRenderer->end_final_pass(ptRenderEncoder, ptCommandBuffer);
-
-    pl_end_cpu_sample(gptProfile, 0);
-    gptProfile->end_frame();
+    gptStarter->end_frame();
 }
 
 //-----------------------------------------------------------------------------
@@ -1084,8 +1024,13 @@ pl__show_editor_window(plAppData* ptAppData)
         if(ImGui::CollapsingHeader(ICON_FA_DICE_D6 " Graphics"))
         {
             plRendererRuntimeOptions* ptRuntimeOptions = gptRenderer->get_runtime_options();
-            if(ImGui::Checkbox("VSync", &ptRuntimeOptions->bVSync))
-                ptRuntimeOptions->bReloadSwapchain = true;
+            if(ImGui::Checkbox("VSync", &ptAppData->bVSync))
+            {
+                if(ptAppData->bVSync)
+                    gptStarter->activate_vsync();
+                else
+                    gptStarter->deactivate_vsync();
+            }
             ImGui::Checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
             ImGui::Checkbox("Show BVH", &ptAppData->bShowBVH);
             ImGui::Checkbox("Show Skybox", &ptAppData->bShowSkybox);

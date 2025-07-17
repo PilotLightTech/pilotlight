@@ -151,15 +151,12 @@ typedef struct _plRendererI
     void              (*cleanup_view)(plView*);
     plBindGroupHandle (*get_view_color_texture)(plView*);
     void              (*resize_view)(plView*, plVec2 tDimensions);
-    void              (*resize)(void);
 
     // per frame
     void (*prepare_scene)(plScene*);
     void (*prepare_view) (plView*, plCamera*);
     void (*render_view) (plView*, plCamera*, plCamera* cullCamera);
     bool (*begin_frame)     (void);
-    void (*begin_final_pass)(plRenderEncoder**, plCommandBuffer**);
-    void (*end_final_pass)  (plRenderEncoder*, plCommandBuffer*);
     
     // per frame options
     void (*show_skybox)               (plView*);
@@ -175,8 +172,6 @@ typedef struct _plRendererI
     // misc
     plDrawList3D*       (*get_debug_drawlist)(plView*);
     plDrawList3D*       (*get_gizmo_drawlist)(plView*);
-    plCommandPool*      (*get_command_pool)(void);
-    plRenderPassHandle  (*get_main_render_pass)(void);
     plRendererRuntimeOptions* (*get_runtime_options)(void);
     void (*rebuild_scene_bvh)(plScene*);
 
@@ -231,12 +226,8 @@ typedef struct _plRendererSettings
 
 typedef struct _plRendererRuntimeOptions
 {
-    bool     bMSAA;
     bool     bShowProbes;
     bool     bWireframe;
-    bool     bReloadSwapchain;
-    bool     bReloadMSAA;
-    bool     bVSync;
     bool     bShowOrigin;
     bool     bShowSelectedBoundingBox;
     bool     bMultiViewportShadows;
