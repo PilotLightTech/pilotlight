@@ -306,15 +306,139 @@ pl__format_stride(plFormat tFormat)
 {
     switch(tFormat)
     {
-        case PL_FORMAT_D32_FLOAT_S8_UINT:  return 5;
-        case PL_FORMAT_R32G32B32A32_FLOAT: return 16;
-        case PL_FORMAT_R32G32_FLOAT:       return 8;
+        case PL_FORMAT_BC1_RGBA_UNORM:
+        case PL_FORMAT_BC1_RGBA_SRGB:
+        case PL_FORMAT_BC4_UNORM:
+        case PL_FORMAT_BC4_SNORM:
+        case PL_FORMAT_ETC2_R8G8B8_UNORM:
+        case PL_FORMAT_ETC2_R8G8B8_SRGB:
+        case PL_FORMAT_ETC2_R8G8B8A1_UNORM:
+        case PL_FORMAT_ETC2_R8G8B8A1_SRGB:
+        case PL_FORMAT_EAC_R11_UNORM:
+        case PL_FORMAT_EAC_R11_SNORM:
+        case PL_FORMAT_EAC_R11G11_UNORM:
+        case PL_FORMAT_EAC_R11G11_SNORM:
+            return 64 / (4 * 8);
+
+        case PL_FORMAT_BC2_SRGB:
+        case PL_FORMAT_BC2_UNORM:
+        case PL_FORMAT_BC3_UNORM:
+        case PL_FORMAT_BC3_SRGB:
+        case PL_FORMAT_BC5_UNORM:
+        case PL_FORMAT_BC5_SNORM:
+        case PL_FORMAT_BC6H_UFLOAT:
+        case PL_FORMAT_BC6H_FLOAT:
+        case PL_FORMAT_BC7_UNORM:
+        case PL_FORMAT_BC7_SRGB:
+        case PL_FORMAT_ASTC_4x4_UNORM:
+        case PL_FORMAT_ASTC_4x4_SRGB:
+            return 128 / (4 * 8);
+
+
+        case PL_FORMAT_ASTC_5x4_UNORM:
+        case PL_FORMAT_ASTC_5x4_SRGB:
+        case PL_FORMAT_ASTC_5x5_UNORM:
+        case PL_FORMAT_ASTC_5x5_SRGB:
+            return 128 / (5 * 8);
+
+        case PL_FORMAT_ASTC_6x5_UNORM:
+        case PL_FORMAT_ASTC_6x5_SRGB:
+        case PL_FORMAT_ASTC_6x6_UNORM:
+        case PL_FORMAT_ASTC_6x6_SRGB:
+            return 128 / (6 * 8);
+
+        case PL_FORMAT_ASTC_8x5_UNORM:
+        case PL_FORMAT_ASTC_8x5_SRGB:
+        case PL_FORMAT_ASTC_8x6_UNORM:
+        case PL_FORMAT_ASTC_8x6_SRGB:
+        case PL_FORMAT_ASTC_8x8_UNORM:
+        case PL_FORMAT_ASTC_8x8_SRGB:
+            return 128 / (8 * 8);
+
+        case PL_FORMAT_ASTC_10x5_UNORM:
+        case PL_FORMAT_ASTC_10x5_SRGB:
+        case PL_FORMAT_ASTC_10x6_UNORM:
+        case PL_FORMAT_ASTC_10x6_SRGB:
+        case PL_FORMAT_ASTC_10x8_UNORM:
+        case PL_FORMAT_ASTC_10x8_SRGB:
+        case PL_FORMAT_ASTC_10x10_UNORM:
+        case PL_FORMAT_ASTC_10x10_SRGB:
+            return 128 / (10 * 8);
+            
+        case PL_FORMAT_ASTC_12x10_UNORM:
+        case PL_FORMAT_ASTC_12x10_SRGB:
+        case PL_FORMAT_ASTC_12x12_UNORM:
+        case PL_FORMAT_ASTC_12x12_SRGB:
+            return 128 / (12 * 8);
+
+        case PL_FORMAT_R32G32B32A32_UINT:
+        case PL_FORMAT_R32G32B32A32_SINT:
+        case PL_FORMAT_R32G32B32A32_FLOAT:
+            return 16;
+
+        case PL_FORMAT_R32G32_UINT:
+        case PL_FORMAT_R32G32_SINT:
+        case PL_FORMAT_R16G16B16A16_UNORM:
+        case PL_FORMAT_R16G16B16A16_SNORM:
+        case PL_FORMAT_R16G16B16A16_UINT:
+        case PL_FORMAT_R16G16B16A16_SINT:
+        case PL_FORMAT_R16G16B16A16_FLOAT:
+        case PL_FORMAT_R32G32_FLOAT:
+            return 8;
+
+        case PL_FORMAT_D32_FLOAT_S8_UINT:
+            return 5;
+
         case PL_FORMAT_R8G8B8A8_SRGB:
         case PL_FORMAT_B8G8R8A8_SRGB:
         case PL_FORMAT_B8G8R8A8_UNORM:
-        case PL_FORMAT_R8G8B8A8_UNORM:     return 4;
+        case PL_FORMAT_R8G8B8A8_UNORM:
+        case PL_FORMAT_R32_UINT:
+        case PL_FORMAT_R32_SINT:
+        case PL_FORMAT_R32_FLOAT:
+        case PL_FORMAT_R16G16_UNORM:
+        case PL_FORMAT_R16G16_SNORM:
+        case PL_FORMAT_R16G16_UINT:
+        case PL_FORMAT_R16G16_SINT:
+        case PL_FORMAT_R16G16_FLOAT:
+        case PL_FORMAT_R8G8B8A8_SNORM:
+        case PL_FORMAT_R8G8B8A8_UINT:
+        case PL_FORMAT_R8G8B8A8_SINT:
+        case PL_FORMAT_B10G10R10A2_UNORM:
+        case PL_FORMAT_R10G10B10A2_UNORM:
+        case PL_FORMAT_R10G10B10A2_UINT:
+        case PL_FORMAT_R11G11B10_FLOAT:
+        case PL_FORMAT_R9G9B9E5_FLOAT:
         case PL_FORMAT_D24_UNORM_S8_UINT:
-        case PL_FORMAT_D32_FLOAT:          return 1;
+        case PL_FORMAT_D32_FLOAT:
+            return 4;
+ 
+        case PL_FORMAT_D16_UNORM_S8_UINT:
+            return 3;
+            
+        case PL_FORMAT_R8G8_UNORM:
+        case PL_FORMAT_R16_UNORM:
+        case PL_FORMAT_R16_SNORM:
+        case PL_FORMAT_R16_UINT:
+        case PL_FORMAT_R16_SINT:
+        case PL_FORMAT_R16_FLOAT:
+        case PL_FORMAT_R8G8_SNORM:
+        case PL_FORMAT_R8G8_UINT:
+        case PL_FORMAT_R8G8_SINT:
+        case PL_FORMAT_R8G8_SRGB:
+        case PL_FORMAT_B5G6R5_UNORM:
+        case PL_FORMAT_A1R5G5B5_UNORM:
+        case PL_FORMAT_B5G5R5A1_UNORM:
+        case PL_FORMAT_D16_UNORM:
+            return 2;
+
+        case PL_FORMAT_R8_UNORM:
+        case PL_FORMAT_R8_SNORM:
+        case PL_FORMAT_R8_UINT:
+        case PL_FORMAT_R8_SINT:
+        case PL_FORMAT_R8_SRGB:
+        case PL_FORMAT_S8_UINT:
+            return 1;
         
     }
 
