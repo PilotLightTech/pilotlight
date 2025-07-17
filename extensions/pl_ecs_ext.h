@@ -24,6 +24,7 @@ Index of this file:
         APIs being available:
 
         * plLogI (v1.x)
+        * plProfileI (v1.x)
 */
 
 //-----------------------------------------------------------------------------

@@ -24,7 +24,6 @@ Index of this file:
 #include "pl_math.h"
 
 // extensions
-#include "pl_job_ext.h"
 #include "pl_script_ext.h"
 #include "pl_profile_ext.h"
 #include "pl_log_ext.h"
@@ -45,7 +44,6 @@ Index of this file:
 
     static plApiRegistryI*             gptApiRegistry       = NULL;
     static const plExtensionRegistryI* gptExtensionRegistry = NULL;
-    static const plJobI*               gptJob               = NULL;
     static const plProfileI*           gptProfile           = NULL;
     static const plLogI*               gptLog               = NULL;
 #endif
@@ -818,7 +816,6 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptApiRegistry       = ptApiRegistry;
     gptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
     gptMemory            = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptJob               = pl_get_api_latest(ptApiRegistry, plJobI);
     gptProfile           = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog               = pl_get_api_latest(ptApiRegistry, plLogI);
 
