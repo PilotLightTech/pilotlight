@@ -125,6 +125,7 @@ typedef struct _plStarterContext
     bool                     bMSAADeactivateRequested;
     bool                     bDepthBufferActivateRequested;
     bool                     bDepthBufferDeactivateRequested;
+    bool                     bVSyncChangeRequested;
 
     // drawing
     plDrawList2D*  ptFGDrawlist;
@@ -200,7 +201,7 @@ pl_starter_initialize(plStarterInit tInit)
 
     // create swapchain
     const plSwapchainInit tSwapInit = {
-        .bVSync = true,
+        .bVSync = !(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF),
         .tSampleCount = (gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount : 1
     };
     plSwapchain* ptSwapchain = gptGfx->create_swapchain(ptDevice, gptStarterCtx->ptSurface, &tSwapInit);
@@ -294,7 +295,8 @@ pl_starter_finalize(void)
 {
 
     plFontAtlas* ptCurrentAtlas = gptDraw->get_current_font_atlas();
-    gptStarterCtx->ptDefaultFont = gptDraw->get_first_font(ptCurrentAtlas);
+    if(gptStarterCtx->ptDefaultFont == NULL)
+        gptStarterCtx->ptDefaultFont = gptDraw->get_first_font(ptCurrentAtlas);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~message extension~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
@@ -337,7 +339,7 @@ pl_starter_resize(void)
     // perform any operations required during a window resize
     plIO* ptIO = gptIOI->get_io();
     plSwapchainInit tDesc = {
-        .bVSync  = true,
+        .bVSync  = !(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF),
         .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
         .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
         .tSampleCount = (gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount : 1
@@ -544,6 +546,15 @@ pl_starter_begin_frame(void)
     plCommandPool* ptCmdPool = gptStarterCtx->atCmdPools[uCurrentFrameIndex];
     gptGfx->reset_command_pool(ptCmdPool, 0);
 
+    if(gptStarterCtx->bVSyncChangeRequested)
+    {
+        pl_starter_resize();
+        gptStarterCtx->bVSyncChangeRequested = false;
+        if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
+            gptProfile->end_frame();
+        return false; 
+    }
+
     if(gptStarterCtx->bMSAAActivateRequested)
     {
         pl__starter_activate_msaa();
@@ -615,6 +626,9 @@ pl_starter_begin_main_pass(void)
 
     gptStarterCtx->bMainPassExplicit = true;
 
+    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_TOOLS_EXT)
+        gptTools->update();
+
     return gptStarterCtx->ptCurrentEncoder;
 }
 
@@ -634,9 +648,6 @@ pl_starter_end_main_pass(void)
     gptDraw->submit_2d_layer(gptStarterCtx->ptFGLayer);
 
     gptDrawBackend->submit_2d_drawlist(gptStarterCtx->ptBGDrawlist, gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
-
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_TOOLS_EXT)
-        gptTools->update();
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_UI_EXT)
     {
@@ -779,10 +790,40 @@ pl_starter_get_render_pass_layout(void)
     return gptStarterCtx->tRenderPassLayout;
 }
 
+plCommandPool*
+pl_starter_get_current_command_pool(void)
+{
+    return gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()];
+}
+
+plTimelineSemaphore*
+pl_starter_get_current_timeline_semaphore(void)
+{
+    return gptStarterCtx->aptSemaphores[gptGfx->get_current_frame_index()];
+}
+
+uint64_t            
+pl_starter_get_current_timeline_value(void)
+{
+    return gptStarterCtx->aulNextTimelineValue[gptGfx->get_current_frame_index()];
+}
+
+uint64_t            
+pl_starter_increment_current_timeline_value(void)
+{
+    return ++(gptStarterCtx->aulNextTimelineValue[gptGfx->get_current_frame_index()]);
+}
+
 plFont*
 pl_starter_get_default_font(void)
 {
     return gptStarterCtx->ptDefaultFont;
+}
+
+void
+pl_starter_set_default_font(plFont* ptFont)
+{
+    gptStarterCtx->ptDefaultFont = ptFont;
 }
 
 plCommandBuffer*
@@ -885,6 +926,22 @@ pl_starter_create_device(plSurface* ptSurface)
 }
 
 void
+pl_starter_activate_vsync(void)
+{
+    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF)
+        gptStarterCtx->bVSyncChangeRequested = true;
+    gptStarterCtx->tFlags &= ~PL_STARTER_FLAGS_VSYNC_OFF;
+}
+
+void
+pl_starter_deactivate_vsync(void)
+{
+    if(!(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF))
+        gptStarterCtx->bVSyncChangeRequested = true;
+    gptStarterCtx->tFlags |= PL_STARTER_FLAGS_VSYNC_OFF;
+}
+
+void
 pl_starter_activate_msaa(void)
 {
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
@@ -930,7 +987,7 @@ pl__starter_activate_msaa(void)
 
     plIO* ptIO = gptIOI->get_io();
     plSwapchainInit tDesc = {
-        .bVSync  = true,
+        .bVSync  = !(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF),
         .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
         .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
         .tSampleCount = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount
@@ -1017,7 +1074,7 @@ pl__starter_deactivate_msaa(void)
 
     plIO* ptIO = gptIOI->get_io();
     plSwapchainInit tDesc = {
-        .bVSync  = true,
+        .bVSync  = !(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF),
         .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
         .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
         .tSampleCount = 1
@@ -1460,35 +1517,42 @@ PL_EXPORT void
 pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plStarterI tApi = {
-        .initialize                      = pl_starter_initialize,
-        .finalize                        = pl_starter_finalize,
-        .cleanup                         = pl_starter_cleanup,
-        .begin_frame                     = pl_starter_begin_frame,
-        .end_frame                       = pl_starter_end_frame,
-        .begin_main_pass                 = pl_starter_begin_main_pass,
-        .end_main_pass                   = pl_starter_end_main_pass,
-        .resize                          = pl_starter_resize,
-        .create_device                   = pl_starter_create_device,
-        .get_device                      = pl_starter_get_device,
-        .get_swapchain                   = pl_starter_get_swapchain,
-        .get_surface                     = pl_starter_get_surface,
-        .get_render_pass                 = pl_starter_get_render_pass,
-        .get_render_pass_layout          = pl_starter_get_render_pass_layout,
-        .get_default_font                = pl_starter_get_default_font,
-        .get_temporary_command_buffer    = pl_starter_get_temporary_command_buffer,
-        .get_raw_command_buffer          = pl_starter_get_raw_command_buffer,
-        .submit_temporary_command_buffer = pl_starter_submit_temporary_command_buffer,
-        .return_raw_command_buffer       = pl_starter_return_raw_command_buffer,
-        .get_blit_encoder                = pl_starter_get_blit_encoder,
-        .get_command_buffer              = pl_starter_get_command_buffer,
-        .submit_command_buffer           = pl_starter_submit_command_buffer,
-        .return_blit_encoder             = pl_starter_return_blit_encoder,
-        .get_background_layer            = pl_starter_get_background_layer,
-        .get_foreground_layer            = pl_starter_get_foreground_layer,
-        .activate_msaa                   = pl_starter_activate_msaa,
-        .deactivate_msaa                 = pl_starter_deactivate_msaa,
-        .activate_depth_buffer           = pl_starter_activate_depth_buffer,
-        .deactivate_depth_buffer         = pl_starter_deactivate_depth_buffer,
+        .initialize                           = pl_starter_initialize,
+        .finalize                             = pl_starter_finalize,
+        .cleanup                              = pl_starter_cleanup,
+        .begin_frame                          = pl_starter_begin_frame,
+        .end_frame                            = pl_starter_end_frame,
+        .begin_main_pass                      = pl_starter_begin_main_pass,
+        .end_main_pass                        = pl_starter_end_main_pass,
+        .resize                               = pl_starter_resize,
+        .create_device                        = pl_starter_create_device,
+        .get_device                           = pl_starter_get_device,
+        .get_swapchain                        = pl_starter_get_swapchain,
+        .get_surface                          = pl_starter_get_surface,
+        .get_render_pass                      = pl_starter_get_render_pass,
+        .get_render_pass_layout               = pl_starter_get_render_pass_layout,
+        .get_current_command_pool             = pl_starter_get_current_command_pool,
+        .get_current_timeline_semaphore       = pl_starter_get_current_timeline_semaphore,
+        .get_current_timeline_value           = pl_starter_get_current_timeline_value,
+        .increment_current_timeline_value     = pl_starter_increment_current_timeline_value,
+        .get_default_font                     = pl_starter_get_default_font,
+        .set_default_font                     = pl_starter_set_default_font,
+        .get_temporary_command_buffer         = pl_starter_get_temporary_command_buffer,
+        .get_raw_command_buffer               = pl_starter_get_raw_command_buffer,
+        .submit_temporary_command_buffer      = pl_starter_submit_temporary_command_buffer,
+        .return_raw_command_buffer            = pl_starter_return_raw_command_buffer,
+        .get_blit_encoder                     = pl_starter_get_blit_encoder,
+        .get_command_buffer                   = pl_starter_get_command_buffer,
+        .submit_command_buffer                = pl_starter_submit_command_buffer,
+        .return_blit_encoder                  = pl_starter_return_blit_encoder,
+        .get_background_layer                 = pl_starter_get_background_layer,
+        .get_foreground_layer                 = pl_starter_get_foreground_layer,
+        .activate_msaa                        = pl_starter_activate_msaa,
+        .deactivate_msaa                      = pl_starter_deactivate_msaa,
+        .activate_depth_buffer                = pl_starter_activate_depth_buffer,
+        .deactivate_depth_buffer              = pl_starter_deactivate_depth_buffer,
+        .activate_vsync                       = pl_starter_activate_vsync,
+        .deactivate_vsync                     = pl_starter_deactivate_vsync,
     };
     pl_set_api(ptApiRegistry, plStarterI, &tApi);
 

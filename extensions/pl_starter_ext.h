@@ -60,7 +60,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plStarterI_version {1, 0, 2}
+#define plStarterI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -84,6 +84,8 @@ typedef struct _plWindow               plWindow;                 // pl.h
 typedef struct _plFont                 plFont;                   // pl_draw_ext.h
 typedef struct _plDrawLayer2D          plDrawLayer2D;            // pl_draw_ext.h
 typedef struct _plDevice               plDevice;                 // pl_graphics_ext.h
+typedef struct _plCommandPool          plCommandPool;            // pl_graphics_ext.h
+typedef struct _plTimelineSemaphore    plTimelineSemaphore;      // pl_graphics_ext.h
 typedef struct _plSurface              plSurface;                // pl_graphics_ext.h
 typedef struct _plRenderEncoder        plRenderEncoder;          // pl_graphics_ext.h
 typedef struct _plSwapchain            plSwapchain;              // pl_graphics_ext.h
@@ -168,8 +170,8 @@ typedef struct _plStarterI
     plBlitEncoder* (*get_blit_encoder)(void);
     void           (*return_blit_encoder)(plBlitEncoder*);
 
-    // MSAA/Depth Buffering
-    //    - active/deactive MSAA & depth buffers
+    // VSync/MSAA/Depth Buffering
+    //    - active/deactive MSAA & depth buffers & vsync
     //    - this will recreate the swapchain, render pass layouts
     //      and render passes, so be sure to recreate any shaders
     //      you created using these.
@@ -177,17 +179,24 @@ typedef struct _plStarterI
     void (*deactivate_msaa)        (void);
     void (*activate_depth_buffer)  (void);
     void (*deactivate_depth_buffer)(void);
+    void (*activate_vsync)         (void);
+    void (*deactivate_vsync)       (void);
 
     // resource retrieval
-    plDevice*                (*get_device)            (void);
-    plSwapchain*             (*get_swapchain)         (void);
-    plSurface*               (*get_surface)           (void);
-    plRenderPassHandle       (*get_render_pass)       (void);
-    plRenderPassLayoutHandle (*get_render_pass_layout)(void);
+    plDevice*                (*get_device)                      (void);
+    plSwapchain*             (*get_swapchain)                   (void);
+    plSurface*               (*get_surface)                     (void);
+    plRenderPassHandle       (*get_render_pass)                 (void);
+    plRenderPassLayoutHandle (*get_render_pass_layout)          (void);
+    plCommandPool*           (*get_current_command_pool)        (void);
+    plTimelineSemaphore*     (*get_current_timeline_semaphore)  (void);
+    uint64_t                 (*get_current_timeline_value)      (void);
+    uint64_t                 (*increment_current_timeline_value)(void);
 
     // drawing resources
     //    - this extension maintains some draw layers you use
     //      and the default font
+    void           (*set_default_font)    (plFont*);
     plFont*        (*get_default_font)    (void);
     plDrawLayer2D* (*get_foreground_layer)(void);
     plDrawLayer2D* (*get_background_layer)(void);
@@ -222,6 +231,7 @@ enum _plStarterFlags
     // main render pass options
     PL_STARTER_FLAGS_DEPTH_BUFFER = 1 << 9,
     PL_STARTER_FLAGS_MSAA         = 1 << 10,
+    PL_STARTER_FLAGS_VSYNC_OFF    = 1 << 11,
 
     PL_STARTER_FLAGS_ALL_EXTENSIONS = PL_STARTER_FLAGS_SHADER_EXT | PL_STARTER_FLAGS_DRAW_EXT | PL_STARTER_FLAGS_UI_EXT |
                             PL_STARTER_FLAGS_CONSOLE_EXT | PL_STARTER_FLAGS_PROFILE_EXT | PL_STARTER_FLAGS_STATS_EXT |
