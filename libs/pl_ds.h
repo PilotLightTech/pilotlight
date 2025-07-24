@@ -4,8 +4,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_DS_VERSION    "1.0.0"
-#define PL_DS_VERSION_NUM 10000
+#define PL_DS_VERSION    "1.0.1"
+#define PL_DS_VERSION_NUM 10001
 
 /*
 Index of this file:
@@ -872,6 +872,7 @@ pl__hm_resize32(plHashMap32* ptHashMap, uint32_t uBucketCount, const char* pcFil
         ptHashMap->_auKeys = NULL;
         pl_sb_free(ptHashMap->_sbuFreeIndices);
         ptHashMap->_uItemCount = 0;
+        ptHashMap->_uBucketCapacity = 0;
     }
 
     if(sbuOldBucket)
