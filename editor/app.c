@@ -73,7 +73,7 @@ Index of this file:
 #include "pl_physics_ext.h"
 #include "pl_collision_ext.h"
 #include "pl_bvh_ext.h"
-#include "pl_shader_tools_ext.h"
+#include "pl_shader_variant_ext.h"
 #include "pl_vfs_ext.h"
 #include "pl_compress_ext.h"
 
@@ -112,7 +112,7 @@ const plResourceI*          gptResource      = NULL;
 const plStarterI*           gptStarter       = NULL;
 const plAnimationI*         gptAnimation     = NULL;
 const plMeshI*              gptMesh          = NULL;
-const plShaderToolsI*       gptShaderTools   = NULL;
+const plShaderVariantI*     gptShaderVariant = NULL;
 const plVfsI*               gptVfs           = NULL;
 const plPakI*               gptPak           = NULL;
 const plDateTimeI*          gptDateTime      = NULL;
@@ -312,10 +312,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // initialize job system
     gptJobs->initialize((plJobSystemInit){0});
 
-    const plShaderToolsInit tShaderVariantInit = {
+    const plShaderVariantInit tShaderVariantInit = {
         .ptDevice = ptAppData->ptDevice
     };
-    gptShaderTools->initialize(tShaderVariantInit);
+    gptShaderVariant->initialize(tShaderVariantInit);
 
     // setup reference renderer
     plRendererSettings tRenderSettings = {
@@ -517,7 +517,7 @@ pl_app_shutdown(plAppData* ptAppData)
     
     gptEcs->cleanup();
     gptRenderer->cleanup();
-    gptShaderTools->cleanup();
+    gptShaderVariant->cleanup();
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
 
@@ -566,7 +566,7 @@ pl_app_update(plAppData* ptAppData)
     }
 
     // update statistics
-    gptShaderTools->update_stats();
+    gptShaderVariant->update_stats();
 
     plCamera* ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCamera->get_ecs_type_key(), ptAppData->tMainCamera);
 
@@ -925,7 +925,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
-    gptShaderTools = pl_get_api_latest(ptApiRegistry, plShaderToolsI);
+    gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
     gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
     gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);

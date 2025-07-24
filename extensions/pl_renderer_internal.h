@@ -56,7 +56,7 @@ Index of this file:
 #include "pl_console_ext.h"
 #include "pl_screen_log_ext.h"
 #include "pl_bvh_ext.h"
-#include "pl_shader_tools_ext.h"
+#include "pl_shader_variant_ext.h"
 #include "pl_vfs_ext.h"
 #include "pl_starter_ext.h"
 
@@ -110,7 +110,7 @@ Index of this file:
     static const plBVHI*           gptBvh           = NULL;
     static const plAnimationI*     gptAnimation     = NULL;
     static const plMeshI*          gptMesh          = NULL;
-    static const plShaderToolsI*   gptShaderTools   = NULL;
+    static const plShaderVariantI*   gptShaderVariant   = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
@@ -526,7 +526,6 @@ typedef struct _plScene
     bool           bActive;
     plShaderHandle tLightingShader;
     plShaderHandle tEnvLightingShader;
-    plShaderHandle tTonemapShader;
 
     // skybox resources (optional)
     plDrawable        tSkyboxDrawable;
@@ -653,35 +652,8 @@ typedef struct _plRefRendererData
     plRenderPassLayoutHandle tPickRenderPassLayout;
 
     // bind group layouts
-    plBindGroupLayoutHandle tGlobalSceneBindGroupLayout;
-    plBindGroupLayoutHandle tLightingViewBindGroupLayout;
-    plBindGroupLayoutHandle tPickViewBindGroupLayout;
-    plBindGroupLayoutHandle tSkyboxComputeBindGroupLayout;
-    plBindGroupLayoutHandle tSkyboxBindGroupLayout;
-    plBindGroupLayoutHandle tSkyboxBG0Layout;
-    plBindGroupLayoutHandle tSkyboxBG1Layout;
-    plBindGroupLayoutHandle tDeferredBG1Layout;
     plBindGroupLayoutHandle tSceneBGLayout;
-    plBindGroupLayoutHandle tPickBG0Layout;
-    plBindGroupLayoutHandle tJFABGLayout;
     plBindGroupLayoutHandle tShadowGlobalBGLayout;
-    plBindGroupLayoutHandle tOutlineBGLayout;
-    plBindGroupLayoutHandle tSkinBGLayout;
-    plBindGroupLayoutHandle tSkin2BGLayout;
-    plBindGroupLayoutHandle tEnvBGLayout;
-
-    // shader templates (variants are made from these)
-    plShaderHandle        tShadowShader;
-    plShaderHandle        tAlphaShadowShader;
-    plShaderHandle        tDeferredShader;
-    plShaderHandle        tForwardShader;
-    plShaderHandle        tSkyboxShader;
-    plShaderHandle        tPickShader;
-    plComputeShaderHandle tEnvFilterShader;
-
-    // outline shaders
-    plShaderHandle        tUVShader;
-    plComputeShaderHandle tJFAShader;
 
     // renderer specific log channel
     uint64_t uLogChannel;
@@ -782,7 +754,6 @@ static void pl__renderer_post_process_scene(plCommandBuffer*, plView*, const plM
 static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock);}
 static void                    pl__renderer_add_drawable_skin_data_to_global_buffers(plScene*, uint32_t uDrawableIndex);
 static void                    pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex);
-static void                    pl__renderer_create_global_shaders(void);
 static size_t                  pl__renderer_get_data_type_size2(plDataType tType);
 static plBlendState            pl__renderer_get_blend_state(plBlendMode tBlendMode);
 static uint32_t                pl__renderer_get_bindless_texture_index(plScene*, plTextureHandle);

@@ -84,7 +84,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
         gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
-        gptShaderTools = pl_get_api_latest(ptApiRegistry, plShaderToolsI);
+        gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
         gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
         gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
@@ -140,7 +140,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
-    gptShaderTools = pl_get_api_latest(ptApiRegistry, plShaderToolsI);
+    gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
     gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
     gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
@@ -227,10 +227,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // initialize job system
     gptJobs->initialize({});
 
-    const plShaderToolsInit tShaderVariantInit = {
+    const plShaderVariantInit tShaderVariantInit = {
         ptAppData->ptDevice
     };
-    gptShaderTools->initialize(tShaderVariantInit);
+    gptShaderVariant->initialize(tShaderVariantInit);
 
     // setup reference renderer
     plRendererSettings tRenderSettings = PL_ZERO_INIT;
@@ -354,7 +354,7 @@ pl_app_shutdown(plAppData* ptAppData)
         gptRenderer->cleanup_scene(ptAppData->ptScene);
     gptEcs->cleanup();
     gptRenderer->cleanup();
-    gptShaderTools->cleanup();
+    gptShaderVariant->cleanup();
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
     pl_sb_free(ptAppData->sbtTestModels);
@@ -403,7 +403,7 @@ pl_app_update(plAppData* ptAppData)
     }
 
     // update statistics
-    gptShaderTools->update_stats();
+    gptShaderVariant->update_stats();
 
     if(ptAppData->ptScene)
     {

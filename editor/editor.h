@@ -71,7 +71,7 @@ Index of this file:
 #include "pl_physics_ext.h"
 #include "pl_collision_ext.h"
 #include "pl_bvh_ext.h"
-#include "pl_shader_tools_ext.h"
+#include "pl_shader_variant_ext.h"
 
 // dear imgui
 #include "pl_dear_imgui_ext.h"
@@ -114,7 +114,7 @@ const plResourceI*      gptResource      = nullptr;
 const plStarterI*       gptStarter       = nullptr;
 const plAnimationI*     gptAnimation     = nullptr;
 const plMeshI*          gptMesh          = nullptr;
-const plShaderToolsI*   gptShaderTools   = nullptr;
+const plShaderVariantI* gptShaderVariant = nullptr;
 const plVfsI*           gptVfs           = nullptr;
 const plPakI*           gptPak           = nullptr;
 const plDateTimeI*      gptDateTime      = nullptr;
