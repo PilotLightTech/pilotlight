@@ -258,9 +258,6 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tRuntimeOptions.fShadowConstantDepthBias = -1.25f;
     gptData->tRuntimeOptions.fShadowSlopeDepthBias = -10.75f;
 
-    // shader default values
-    gptData->tSkyboxShader = (plShaderHandle){0}; // is this needed still?
-
     gptResource->initialize((plResourceManagerInit){.ptDevice = gptData->ptDevice, .uMaxTextureResolution = tSettings.uMaxTextureResolution});
 
     if(gptData->tDeviceInfo.tCapabilities & PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS)
@@ -278,209 +275,11 @@ pl_renderer_initialize(plRendererSettings tSettings)
     };
     gptData->ptBindGroupPool = gptGfx->create_bind_group_pool(gptData->ptDevice, &tBindGroupPoolDesc);
 
-    plBindGroupLayoutDesc tGlobalBindGroupLayout = {
-        .atBufferBindings = {
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 0,
-                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-            },
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 1,
-                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-            },
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 2,
-                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-            },
-            },
-            .atSamplerBindings = {
-                {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-            },
-            .atTextureBindings = {
-                {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                {.uSlot = PL_MAX_BINDLESS_TEXTURES + 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
-            }
-    };
+    bool bManifestResult = gptShaderVariant->load_manifest("/shaders/shaders.pls");
+    PL_ASSERT(bManifestResult);
 
-    gptData->tGlobalSceneBindGroupLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tGlobalBindGroupLayout);
-
-    const plBindGroupLayoutDesc tLightingBindGroupLayout = {
-        .atTextureBindings = { 
-            {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-            {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-            {.uSlot = 2, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-            {.uSlot = 3, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
-        }
-    };
-    gptData->tLightingViewBindGroupLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tLightingBindGroupLayout);
-
-    const plBindGroupLayoutDesc tPickBindGroupLayout = {
-        .atBufferBindings = { 
-            {.uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-        }
-    };
-    gptData->tPickViewBindGroupLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tPickBindGroupLayout);
-
-    plBindGroupLayoutDesc tComputeBindGroupLayout = {
-        .atBufferBindings = {
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_SHADER_STAGE_COMPUTE},
-        },
-    };
-    gptData->tSkyboxComputeBindGroupLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tComputeBindGroupLayout);
-
-
-    plBindGroupLayoutDesc tSkyboxBindGroupLayout = {
-        .atTextureBindings = { {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}}
-    };
-    gptData->tSkyboxBindGroupLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tSkyboxBindGroupLayout);
-
-    const plBindGroupLayoutDesc tSkyboxBG0Layout = {
-        .atBufferBindings = {
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 0,
-                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-            }
-        },
-        .atSamplerBindings = {
-            {.uSlot = 1, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-        }
-    };
-    gptData->tSkyboxBG0Layout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tSkyboxBG0Layout);
-
-    plBindGroupLayoutDesc tSkyboxBG1Layout = {
-        .atBufferBindings = {
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 0,
-                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-            }
-        },
-        .atSamplerBindings = {
-            {.uSlot = 1, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-        }
-    };
-    gptData->tSkyboxBG1Layout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tSkyboxBG1Layout);
-
-
-    const plBindGroupLayoutDesc tDeferredBG1Layout = {
-        .atBufferBindings = {
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 0,
-                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-            }
-        }
-    };
-    gptData->tDeferredBG1Layout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tDeferredBG1Layout);
-
-    const plBindGroupLayoutDesc tSceneBGLayout = {
-        .atBufferBindings = {
-            { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
-            { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
-            { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
-            { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
-            { .uSlot = 4, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_VERTEX},
-        },
-        .atSamplerBindings = {
-            {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-        },
-    };
-    gptData->tSceneBGLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tSceneBGLayout);
-
-    const plBindGroupLayoutDesc tPickBG0Layout = {
-        .atBufferBindings = {
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_UNIFORM,
-                .uSlot = 0,
-                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-            }
-        }
-    };
-    gptData->tPickBG0Layout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tPickBG0Layout);
-
-    const plBindGroupLayoutDesc tJFABindGroupLayout = {
-        .atTextureBindings = {
-            {.uSlot = 0, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_STORAGE},
-            {.uSlot = 1, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_STORAGE}
-        }
-    };
-    gptData->tJFABGLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tJFABindGroupLayout);
-
-    const plBindGroupLayoutDesc tSkinBindGroupLayout0 = {
-        .atSamplerBindings = {
-            {.uSlot =  3, .tStages = PL_SHADER_STAGE_COMPUTE}
-        },
-        .atBufferBindings = {
-            { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_COMPUTE},
-        }
-    };
-    gptData->tSkin2BGLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tSkinBindGroupLayout0);
-
-
-    plBindGroupLayoutDesc tBindGroupLayout0 = {
-        .atBufferBindings = {
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 0,
-                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-            },
-            {
-                .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                .uSlot = 1,
-                .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-            }
-        }
-    };
-    gptData->tShadowGlobalBGLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tBindGroupLayout0);
-
-    const plBindGroupLayoutDesc tOutlineBindGroupLayout = {
-        .atSamplerBindings = {
-            { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT}
-        },
-        .atTextureBindings = {
-            {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-            {.uSlot = 2, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-        }
-    };
-    gptData->tOutlineBGLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tOutlineBindGroupLayout);
-
-    plBindGroupLayoutDesc tSkinBindGroupLayout = {
-        .atBufferBindings = {
-            {.uSlot =  0, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_BUFFER_BINDING_TYPE_STORAGE}
-        }
-    };
-    gptData->tSkinBGLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tSkinBindGroupLayout);
-
-    plBindGroupLayoutDesc tEnvBindgroupLayout = {
-        .atTextureBindings = {
-            {.uSlot = 1, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-        },
-        .atBufferBindings = {
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 7, .tStages = PL_SHADER_STAGE_COMPUTE},
-            { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 8, .tStages = PL_SHADER_STAGE_COMPUTE},
-        },
-        .atSamplerBindings = { {.uSlot = 0, .tStages = PL_SHADER_STAGE_COMPUTE}}
-    };
-    gptData->tEnvBGLayout = gptGfx->create_bind_group_layout(gptData->ptDevice, &tEnvBindgroupLayout);
-
+    gptData->tSceneBGLayout = gptShaderVariant->get_bind_group_layout("scene");
+    gptData->tShadowGlobalBGLayout = gptShaderVariant->get_bind_group_layout("shadow");
 
     // create pools
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -781,22 +580,6 @@ pl_renderer_initialize(plRendererSettings tSettings)
     };
     gptData->tUVRenderPassLayout = gptGfx->create_render_pass_layout(gptData->ptDevice, &tUVRenderPassLayoutDesc);
 
-    // create template shaders
-
-    pl__renderer_create_global_shaders();
-
-    const plComputeShaderDesc tComputeShaderDesc = {
-        .tShader = gptShader->load_glsl("jumpfloodalgo.comp", "main", NULL, NULL),
-        .atBindGroupLayouts = {
-            {
-                .atTextureBindings = {
-                    {.uSlot = 0, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_STORAGE},
-                    {.uSlot = 1, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_STORAGE}
-                }
-            }
-        }
-    };
-    gptData->tJFAShader = gptGfx->create_compute_shader(gptData->ptDevice, &tComputeShaderDesc);
     pl_temp_allocator_reset(&gptData->tTempAllocator);
 
     // create full quad
@@ -823,28 +606,6 @@ pl_renderer_initialize(plRendererSettings tSettings)
 
     // create semaphores
     gptData->ptClickSemaphore = gptGfx->create_semaphore(gptData->ptDevice, false);
-
-    plComputeShaderDesc tFilterComputeShaderDesc = {
-        .tShader = gptShader->load_glsl("filter_environment.comp", "main", NULL, NULL),
-        .atBindGroupLayouts = {
-            {
-                .atTextureBindings = {
-                    {.uSlot = 1, .tStages = PL_SHADER_STAGE_COMPUTE, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                },
-                .atBufferBindings = {
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_SHADER_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_SHADER_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_SHADER_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_SHADER_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_SHADER_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 7, .tStages = PL_SHADER_STAGE_COMPUTE},
-                    { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 8, .tStages = PL_SHADER_STAGE_COMPUTE},
-                },
-                .atSamplerBindings = { {.uSlot = 0, .tStages = PL_SHADER_STAGE_COMPUTE}}
-            }
-        }
-    };
-    gptData->tEnvFilterShader = gptGfx->create_compute_shader(gptData->ptDevice, &tFilterComputeShaderDesc);
 };
 
 plScene*
@@ -867,12 +628,14 @@ pl_renderer_create_scene(plSceneInit tInit)
     // create global bindgroup
     ptScene->uTextureIndexCount = 0;
 
+    plBindGroupLayoutHandle tGlobalSceneBindGroupLayout = gptShaderVariant->get_bind_group_layout("global");
+
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
         // create global bindgroup
         const plBindGroupDesc tGlobalBindGroupDesc = {
             .ptPool      = gptData->ptBindGroupPool,
-            .tLayout     = gptData->tGlobalSceneBindGroupLayout,
+            .tLayout     = tGlobalSceneBindGroupLayout,
             .pcDebugName = "global bind group"
         };
         ptScene->atGlobalBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBindGroupDesc);
@@ -999,49 +762,6 @@ pl_renderer_create_scene(plSceneInit tInit)
     }
     ptScene->tShadowRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tDepthRenderPassDesc, atShadowAttachmentSets);
     ptScene->tFirstShadowRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tFirstDepthRenderPassDesc, atShadowAttachmentSets);
-
-    // create tonemap shader
-    const plShaderDesc tTonemapShaderDesc = {
-        .tPixelShader = gptShader->load_glsl("tonemap.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("full_quad.vert", "main", NULL, NULL),
-        .tGraphicsState = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-        },
-        .atVertexBufferLayouts = {
-            {
-                .uByteStride = sizeof(float) * 4,
-                .atAttributes = {
-                    {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2}
-                }
-            }
-        },
-        .atBlendStates = {
-            pl__renderer_get_blend_state(PL_BLEND_MODE_OPAQUE)
-        },
-        .tRenderPassLayout = gptData->tPostProcessRenderPassLayout,
-        .atBindGroupLayouts = {
-            {
-                .atSamplerBindings = {
-                    { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT}
-                },
-                .atTextureBindings = {
-                    {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                    {.uSlot = 2, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                }
-            }
-        }
-    };
-    ptScene->tTonemapShader = gptGfx->create_shader(gptData->ptDevice, &tTonemapShaderDesc);
-
     return ptScene;
 }
 
@@ -1173,9 +893,7 @@ pl_renderer_cleanup_scene(plScene* ptScene)
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tShadowTexture);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tShadowRenderPass);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tFirstShadowRenderPass);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tTonemapShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tLightingShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tEnvLightingShader);
+    gptShaderVariant->unload_manifest("/shaders/shaders.pls");
 
     if(ptScene->tSkyboxTexture.uIndex != 0)
     {
@@ -1353,7 +1071,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     // lighting bind group
     const plBindGroupDesc tLightingBindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptData->tLightingViewBindGroupLayout,
+        .tLayout     = gptShaderVariant->get_bind_group_layout("deferred lighting 1"),
         .pcDebugName = "lighting bind group"
     };
     ptView->tLightingBindGroup = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
@@ -1400,7 +1118,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
 
         const plBindGroupDesc tPickBindGroupDesc = {
             .ptPool = gptData->ptBindGroupPool,
-            .tLayout = gptData->tPickViewBindGroupLayout,
+            .tLayout = gptShaderVariant->get_graphics_bind_group_layout("picking", 1),
             .pcDebugName = "pick bind group"
         };
         
@@ -1685,7 +1403,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     // lighting bind group
     const plBindGroupDesc tLightingBindGroupDesc = {
         .ptPool = gptData->ptBindGroupPool,
-        .tLayout = gptData->tLightingViewBindGroupLayout,
+        .tLayout = gptShaderVariant->get_graphics_bind_group_layout("deferred_lighting", 1),
         .pcDebugName = "lighting bind group"
     };
     ptView->tLightingBindGroup = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
@@ -1771,62 +1489,6 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
     plDevice* ptDevice = gptData->ptDevice;
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
 
-    // create skybox shader if we haven't
-    if(gptData->tSkyboxShader.uIndex == 0)
-    {
-        // create skybox shader
-        plShaderDesc tSkyboxShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("skybox.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("skybox.vert", "main", NULL, NULL),
-            .tGraphicsState = {
-                .ulDepthWriteEnabled  = 0,
-                .ulDepthMode          = PL_COMPARE_MODE_EQUAL,
-                .ulCullMode           = PL_CULL_MODE_NONE,
-                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-                .ulStencilRef         = 0xff,
-                .ulStencilMask        = 0xff,
-                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-            },
-            .atVertexBufferLayouts = {
-                {
-                    .uByteStride = sizeof(float) * 3,
-                    .atAttributes = { {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT3}}
-                }
-            },
-            .atBlendStates = {
-                pl__renderer_get_blend_state(PL_BLEND_MODE_OPAQUE)
-            },
-            .tRenderPassLayout = gptData->tRenderPassLayout,
-            .uSubpassIndex = 2,
-            .atBindGroupLayouts = {
-                {
-                    .atBufferBindings = {
-                        { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE,  .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-                    },
-                    .atSamplerBindings = {
-                        {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                    },
-                    .atTextureBindings = {
-                        {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot = 6, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1},
-                        {.uSlot = 7, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = 1}
-                    }
-                },
-                {
-                    .atTextureBindings = {
-                        { .uSlot = 0, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-                    },
-                }
-            }
-        };
-        gptData->tSkyboxShader = gptGfx->create_shader(gptData->ptDevice, &tSkyboxShaderDesc);
-    }
-
     int iPanoramaWidth = 0;
     int iPanoramaHeight = 0;
     int iUnused = 0;
@@ -1844,29 +1506,7 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
     {
         int aiSkyboxSpecializationData[] = {iResolution, iPanoramaWidth, iPanoramaHeight};
-        const plComputeShaderDesc tSkyboxComputeShaderDesc = {
-            .tShader = gptShader->load_glsl("panorama_to_cubemap.comp", "main", NULL, NULL),
-            .pTempConstantData = aiSkyboxSpecializationData,
-            .atConstants = {
-                { .uID = 0, .uOffset = 0,               .tType = PL_DATA_TYPE_INT},
-                { .uID = 1, .uOffset = sizeof(int),     .tType = PL_DATA_TYPE_INT},
-                { .uID = 2, .uOffset = 2 * sizeof(int), .tType = PL_DATA_TYPE_INT}
-            },
-            .atBindGroupLayouts = {
-                {
-                    .atBufferBindings = {
-                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 0, .tStages = PL_SHADER_STAGE_COMPUTE},
-                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 1, .tStages = PL_SHADER_STAGE_COMPUTE},
-                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 2, .tStages = PL_SHADER_STAGE_COMPUTE},
-                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 3, .tStages = PL_SHADER_STAGE_COMPUTE},
-                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 4, .tStages = PL_SHADER_STAGE_COMPUTE},
-                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 5, .tStages = PL_SHADER_STAGE_COMPUTE},
-                        { .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .uSlot = 6, .tStages = PL_SHADER_STAGE_COMPUTE},
-                    }
-                }
-            }
-        };
-        plComputeShaderHandle tPanoramaShader = gptGfx->create_compute_shader(ptDevice, &tSkyboxComputeShaderDesc);
+        plComputeShaderHandle tPanoramaShader = gptShaderVariant->get_compute_shader("panorama_to_cubemap", aiSkyboxSpecializationData);
         pl_temp_allocator_reset(&gptData->tTempAllocator);
 
         plBufferHandle atComputeBuffers[7] = {0};
@@ -1893,11 +1533,11 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
 
         const plBindGroupDesc tComputeBindGroupDesc = {
             .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-            .tLayout     = gptData->tSkyboxComputeBindGroupLayout,
+            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("panorama_to_cubemap", 0),
             .pcDebugName = "compute bind group"
         };
         plBindGroupHandle tComputeBindGroup = gptGfx->create_bind_group(ptDevice, &tComputeBindGroupDesc);
-        const plBindGroupUpdateBufferData atBGBufferData[] = {
+        const plBindGroupUpdateBufferData atBGBufferData[] = { 
             { .uSlot = 0, .tBuffer = atComputeBuffers[0], .szBufferRange = uPanoramaSize},
             { .uSlot = 1, .tBuffer = atComputeBuffers[1], .szBufferRange = uFaceSize},
             { .uSlot = 2, .tBuffer = atComputeBuffers[2], .szBufferRange = uFaceSize},
@@ -1997,7 +1637,7 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
     
         const plBindGroupDesc tSkyboxBindGroupDesc = {
             .ptPool = gptData->ptBindGroupPool,
-            .tLayout = gptData->tSkyboxBindGroupLayout,
+            .tLayout = gptShaderVariant->get_graphics_bind_group_layout("skybox", 1),
             .pcDebugName = "skybox bind group"
         };
         ptScene->tSkyboxBindGroup = gptGfx->create_bind_group(ptDevice, &tSkyboxBindGroupDesc);
@@ -2131,9 +1771,9 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
             pl_sb_push(ptScene->sbtOutlineDrawablesOldEnvShaders, ptDrawable->tEnvShader);
 
             if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_FORWARD)
-                ptDrawable->tShader = gptShaderTools->get_variant(gptData->tForwardShader, tVariantTemp, aiConstantData0);
+                ptDrawable->tShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiConstantData0, NULL);
             else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_DEFERRED)
-                ptDrawable->tShader = gptShaderTools->get_variant(gptData->tDeferredShader, tVariantTemp, aiConstantData0);
+                ptDrawable->tShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiConstantData0, NULL);
 
             if(ptDrawable->uInstanceCount == 0)
             {
@@ -2166,24 +1806,10 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
 
     gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_CYAN, 1.0f, "%s", "reloaded shaders");
 
-    gptShaderTools->clear_variants(gptData->tDeferredShader);
-    gptShaderTools->clear_variants(gptData->tForwardShader);
-    gptShaderTools->clear_variants(gptData->tAlphaShadowShader);
-    gptShaderTools->clear_variants(gptData->tShadowShader);
-    gptShaderTools->clear_variants(gptData->tPickShader);
-    gptShaderTools->clear_variants(gptData->tUVShader);
-    gptShaderTools->clear_variants(gptData->tSkyboxShader);
-
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tDeferredShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tForwardShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tAlphaShadowShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tShadowShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tPickShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tUVShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, gptData->tSkyboxShader);
-    gptGfx->queue_compute_shader_for_deletion(gptData->ptDevice, gptData->tEnvFilterShader);
-
-    pl__renderer_create_global_shaders();
+    gptShaderVariant->unload_manifest("/shaders/shaders.pls");
+    gptShaderVariant->load_manifest("/shaders/shaders.pls");
+    gptData->tSceneBGLayout = gptShaderVariant->get_bind_group_layout("scene");
+    gptData->tShadowGlobalBGLayout = gptShaderVariant->get_bind_group_layout("shadow");
 
     if(!ptScene->bActive)
     {
@@ -2213,153 +1839,20 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldShaders);
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldEnvShaders);
 
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tLightingShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tTonemapShader);
-    gptGfx->queue_shader_for_deletion(gptData->ptDevice, ptScene->tEnvLightingShader);
-
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
     if(gptData->tRuntimeOptions.bPunctualLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
     if(gptData->tRuntimeOptions.bImageBasedLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
-    // create lighting shader
-    {
-        plLightComponent* ptLights = NULL;
-        const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
+    plLightComponent* ptLights = NULL;
+    const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
+    ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+    ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
 
-        int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
-        plShaderDesc tLightingShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("deferred_lighting.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("deferred_lighting.vert", "main", NULL, NULL),
-            .tGraphicsState = {
-                .ulDepthWriteEnabled  = 0,
-                .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-                .ulCullMode           = PL_CULL_MODE_NONE,
-                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-                .ulStencilRef         = 0xff,
-                .ulStencilMask        = 0xff,
-                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
-            },
-            .atVertexBufferLayouts = {
-                {
-                    .uByteStride = sizeof(float) * 4,
-                    .atAttributes = {
-                        {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
-                        {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2}
-                    }
-                }
-            },
-            .atBlendStates = {
-                pl__renderer_get_blend_state(PL_BLEND_MODE_OPAQUE)
-            },
-            .pTempConstantData = aiLightingConstantData,
-            .uSubpassIndex = 1,
-            .tRenderPassLayout = gptData->tRenderPassLayout,
-            .atBindGroupLayouts = {
-                {
-                    .atBufferBindings = {
-                        {
-                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                            .uSlot = 0,
-                            .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-                        },
-                        {
-                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                            .uSlot = 1,
-                            .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-                        },
-                        {
-                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                            .uSlot = 2,
-                            .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-                        }
-                    },
-                    .atSamplerBindings = {
-                        {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-                    },
-                    .atTextureBindings = {
-                        {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                        {.uSlot = PL_MAX_BINDLESS_TEXTURES + 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
-                    }
-                },
-                {
-                    .atTextureBindings = {
-                        { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-                        { .uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-                        { .uSlot = 2, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-                        { .uSlot = 3, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
-                    },
-                },
-                {
-                    .atBufferBindings = {
-                        { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        { .uSlot = 4, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-                    },
-                    .atSamplerBindings = {
-                        {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-                    },
-                }
-            }
-        };
-        for(uint32_t i = 0; i < 3; i++)
-        {
-            tLightingShaderDesc.atConstants[i].uID = i;
-            tLightingShaderDesc.atConstants[i].uOffset = i * sizeof(int);
-            tLightingShaderDesc.atConstants[i].tType = PL_DATA_TYPE_INT;
-        }
-        ptScene->tLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
-        aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-        ptScene->tEnvLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
-    }
-
-    const plShaderDesc tTonemapShaderDesc = {
-        .tPixelShader = gptShader->load_glsl("tonemap.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("full_quad.vert", "main", NULL, NULL),
-        .tGraphicsState = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-        },
-        .atVertexBufferLayouts = {
-            {
-                .uByteStride = sizeof(float) * 4,
-                .atAttributes = {
-                    {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2}
-                }
-            }
-        },
-        .atBlendStates = {
-            pl__renderer_get_blend_state(PL_BLEND_MODE_OPAQUE)
-        },
-        .tRenderPassLayout = gptData->tPostProcessRenderPassLayout,
-        .atBindGroupLayouts = {
-            {
-                .atSamplerBindings = {
-                    { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT}
-                },
-                .atTextureBindings = {
-                    {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED},
-                    {.uSlot = 2, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
-                }
-            }
-        }
-    };
-    ptScene->tTonemapShader = gptGfx->create_shader(gptData->ptDevice, &tTonemapShaderDesc);
-
+    pl__renderer_unstage_drawables(ptScene);
     pl__renderer_set_drawable_shaders(ptScene);
     pl__renderer_sort_drawables(ptScene);
 
@@ -2440,97 +1933,11 @@ pl_renderer_finalize_scene(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
     // create lighting shader
-    {
-        int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
-        plShaderDesc tLightingShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("deferred_lighting.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("deferred_lighting.vert", "main", NULL, NULL),
-            .tGraphicsState = {
-                .ulDepthWriteEnabled  = 0,
-                .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-                .ulCullMode           = PL_CULL_MODE_NONE,
-                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-                .ulStencilRef         = 0xff,
-                .ulStencilMask        = 0xff,
-                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-            },
-            .atVertexBufferLayouts = {
-                {
-                    .uByteStride = sizeof(float) * 4,
-                    .atAttributes = {
-                        {.uByteOffset = 0, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
-                        {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2}
-                    }
-                }
-            },
-            .atBlendStates = {
-                pl__renderer_get_blend_state(PL_BLEND_MODE_OPAQUE)
-            },
-            .pTempConstantData = aiLightingConstantData,
-            .uSubpassIndex = 1,
-            .tRenderPassLayout = gptData->tRenderPassLayout,
-            .atBindGroupLayouts = {
-                {
-                    .atBufferBindings = {
-                        {
-                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                            .uSlot = 0,
-                            .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-                        },
-                        {
-                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                            .uSlot = 1,
-                            .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-                        },
-                        {
-                            .tType = PL_BUFFER_BINDING_TYPE_STORAGE,
-                            .uSlot = 2,
-                            .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT
-                        },
-                    },
-                    .atSamplerBindings = {
-                        {.uSlot = 3, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        {.uSlot = 4, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-                    },
-                    .atTextureBindings = {
-                        {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true},
-                        {.uSlot = PL_MAX_BINDLESS_TEXTURES + 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .uDescriptorCount = PL_MAX_BINDLESS_TEXTURES, .bNonUniformIndexing = true}
-                    }
-                },
-                {
-                    .atTextureBindings = {
-                        { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-                        { .uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-                        { .uSlot = 2, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT},
-                        { .uSlot = 3, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT}
-                    },
-                },
-                {
-                    .atBufferBindings = {
-                        { .uSlot = 0, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        { .uSlot = 1, .tType = PL_BUFFER_BINDING_TYPE_UNIFORM, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        { .uSlot = 2, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        { .uSlot = 3, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                        { .uSlot = 4, .tType = PL_BUFFER_BINDING_TYPE_STORAGE, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT},
-                    },
-                    .atSamplerBindings = {
-                        {.uSlot = 5, .tStages = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT}
-                    },
-                }
-            }
-        };
-        for(uint32_t i = 0; i < 3; i++)
-        {
-            tLightingShaderDesc.atConstants[i].uID = i;
-            tLightingShaderDesc.atConstants[i].uOffset = i * sizeof(int);
-            tLightingShaderDesc.atConstants[i].tType = PL_DATA_TYPE_INT;
-        }
-        ptScene->tLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
-        aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-        ptScene->tEnvLightingShader = gptGfx->create_shader(gptData->ptDevice, &tLightingShaderDesc);
-    }
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
+    ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+    ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -2978,13 +2385,13 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     const plBindGroupDesc tSkyboxBG0Desc = {
         .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
-        .tLayout     = gptData->tSkyboxBG0Layout,
+        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("skybox", 0),
         .pcDebugName = "skybox view specific bindgroup"
     };
 
     const plBindGroupDesc tDeferredBG1Desc = {
         .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
-        .tLayout     = gptData->tDeferredBG1Layout,
+        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("gbuffer_fill", 1),
         .pcDebugName = "view specific bindgroup"
     };
 
@@ -3001,13 +2408,13 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     const plBindGroupDesc tPickBGDesc = {
         .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
-        .tLayout     = gptData->tPickBG0Layout,
+        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("picking", 0),
         .pcDebugName = "temp pick bind group"
     };
 
     const plBindGroupDesc tJFABindGroupDesc = {
         .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
-        .tLayout     = gptData->tJFABGLayout,
+        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("jumpfloodalgo", 0),
         .pcDebugName = "temp jfa bind group"
     };
 
@@ -3281,7 +2688,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         gptGfx->reset_draw_stream(ptStream, 1);
         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
         {
-            .tShader        = gptData->tSkyboxShader,
+            .tShader        = gptShaderVariant->get_shader("skybox", NULL, NULL, &gptData->tRenderPassLayout),
             .auDynamicBuffers = {
                 tSkyboxDynamicData.uBufferHandle
             },
@@ -3392,6 +2799,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     {
         pl_begin_cpu_sample(gptProfile, 0, "Picking Submission");
 
+        plShaderHandle tPickShader = gptShaderVariant->get_shader("picking", NULL, NULL, &gptData->tPickRenderPassLayout);
+
         plBuffer* ptPickBuffer = gptGfx->get_buffer(ptDevice, ptView->atPickBuffer[uFrameIdx]);
         // memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
 
@@ -3416,11 +2825,11 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
         plRenderEncoder* ptPickEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tPickRenderPass, NULL);
         gptGfx->set_depth_bias(ptPickEncoder, 0.0f, 0.0f, 0.0f);
-        gptGfx->bind_shader(ptPickEncoder, gptData->tPickShader);
+        gptGfx->bind_shader(ptPickEncoder, tPickShader);
         gptGfx->bind_vertex_buffer(ptPickEncoder, ptScene->tVertexBuffer);
 
         plBindGroupHandle atBindGroups[2] = {tPickBG0, ptView->atPickBindGroup[uFrameIdx]};
-        gptGfx->bind_graphics_bind_groups(ptPickEncoder, gptData->tPickShader, 0, 2, atBindGroups, 0, NULL);
+        gptGfx->bind_graphics_bind_groups(ptPickEncoder, tPickShader, 0, 2, atBindGroups, 0, NULL);
 
         const uint32_t uVisibleDrawCount = pl_sb_size(ptView->sbtVisibleDrawables);
         *gptData->pdDrawCalls += (double)uVisibleDrawCount;
@@ -3445,7 +2854,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             ptDynamicData->tModel = ptTransform->tWorld;
             ptDynamicData->tMousePos.xy = tMousePos;
             
-            gptGfx->bind_graphics_bind_groups(ptPickEncoder, gptData->tPickShader, 0, 0, NULL, 1, &tDynamicBinding);
+            gptGfx->bind_graphics_bind_groups(ptPickEncoder, tPickShader, 0, 0, NULL, 1, &tDynamicBinding);
 
             if(tDrawable.uIndexCount > 0)
             {
@@ -3496,7 +2905,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     plRenderEncoder* ptUVEncoder = gptGfx->begin_render_pass(ptUVCmdBuffer, ptView->tUVRenderPass, NULL);
 
     // submit nonindexed draw using basic API
-    gptGfx->bind_shader(ptUVEncoder, gptData->tUVShader);
+    plShaderHandle tUVShader = gptShaderVariant->get_shader("uvmap", NULL, NULL, &gptData->tUVRenderPassLayout);
+    gptGfx->bind_shader(ptUVEncoder, tUVShader);
     gptGfx->bind_vertex_buffer(ptUVEncoder, gptData->tFullQuadVertexBuffer);
 
     plDrawIndex tDraw = {
@@ -3601,6 +3011,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, atJFABindGroups[0]);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, atJFABindGroups[1]);
 
+    plComputeShaderHandle tJFAShader = gptShaderVariant->get_compute_shader("jumpfloodalgo", NULL);
     for(uint32_t i = 0; i < uJumpSteps; i++)
     {
         const plBeginCommandInfo tJumpBeginInfo = {
@@ -3619,7 +3030,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         ptView->tLastUVMask = (i % 2 == 0) ? ptView->atUVMaskTexture1 : ptView->atUVMaskTexture0;
 
         // submit nonindexed draw using basic API
-        gptGfx->bind_compute_shader(ptJumpEncoder, gptData->tJFAShader);
+        gptGfx->bind_compute_shader(ptJumpEncoder, tJFAShader);
 
         plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
         plVec4* ptJumpDistance = (plVec4*)tDynamicBinding.pcData;
@@ -3627,7 +3038,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         ptJumpDistance->y = tDimensions.y;
         ptJumpDistance->z = fJumpDistance;
 
-        gptGfx->bind_compute_bind_groups(ptJumpEncoder, gptData->tJFAShader, 0, 1, &atJFABindGroups[i % 2], 1, &tDynamicBinding);
+        gptGfx->bind_compute_bind_groups(ptJumpEncoder, tJFAShader, 0, 1, &atJFABindGroups[i % 2], 1, &tDynamicBinding);
         gptGfx->dispatch(ptJumpEncoder, 1, &tDispach);
 
         // end render pass
@@ -4534,7 +3945,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptBvh           = pl_get_api_latest(ptApiRegistry, plBVHI);
         gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
         gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
-        gptShaderTools   = pl_get_api_latest(ptApiRegistry, plShaderToolsI);
+        gptShaderVariant   = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
         gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
     #endif
