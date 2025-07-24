@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 1, 4}
+#define plGraphicsI_version {1, 1, 5}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -818,6 +818,7 @@ typedef struct _plComputeShaderDesc
     plBindGroupLayoutDesc    atBindGroupLayouts[3];
     plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
     const void*              pTempConstantData;
+    const char*              pcDebugName; // default: "unnamed compute shader"
 
     // [INTERNAL]
     uint32_t                _uConstantCount;
@@ -894,6 +895,7 @@ typedef struct _plShaderDesc
     plBindGroupLayoutDesc    atBindGroupLayouts[3];
     plRenderPassLayoutHandle tRenderPassLayout;    
     plSampleCount            tMSAASampleCount;
+    const char*              pcDebugName; // default: "unnamed shader"
 
     // [INTERNAL]
     uint32_t                _uConstantCount;

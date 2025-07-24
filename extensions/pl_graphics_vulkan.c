@@ -1356,6 +1356,9 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
     plComputeShaderHandle tHandle = pl__get_new_compute_shader_handle(ptDevice);
     plComputeShader* ptShader = pl__get_compute_shader(ptDevice, tHandle);
     ptShader->tDesc = *ptDescription;
+
+    if(ptShader->tDesc.pcDebugName == NULL)
+        ptShader->tDesc.pcDebugName = "unnamed compute shader";
     
     plVulkanComputeShader* ptVulkanShader = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
 
@@ -1437,7 +1440,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
         .stage  = tShaderStage
     };
     PL_VULKAN(vkCreateComputePipelines(ptDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineCreateInfo, gptGraphics->ptAllocationCallbacks, &ptVulkanShader->tPipeline));
-
+    pl__set_vulkan_object_name(ptDevice, (uint64_t)ptVulkanShader->tPipeline, VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, ptShader->tDesc.pcDebugName);
     return tHandle;
 }
 
@@ -1448,6 +1451,9 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     plShader* ptShader = pl__get_shader(ptDevice, tHandle);
     ptShader->tDesc = *ptDescription;
     uint32_t uStageCount = 1;
+
+    if(ptShader->tDesc.pcDebugName == NULL)
+        ptShader->tDesc.pcDebugName = "unnamed shader";
 
     plVulkanShader* ptVulkanShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
 
@@ -1705,6 +1711,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     };
 
     PL_VULKAN(vkCreateGraphicsPipelines(ptDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineInfo, gptGraphics->ptAllocationCallbacks, &tVulkanShader.tPipeline));
+    pl__set_vulkan_object_name(ptDevice, (uint64_t)tVulkanShader.tPipeline, VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT, ptShader->tDesc.pcDebugName);
     ptVulkanShader->tPipeline       = tVulkanShader.tPipeline;
     ptVulkanShader->tPipelineLayout = tVulkanShader.tPipelineLayout;
     return tHandle;
