@@ -127,13 +127,14 @@ static plShaderToolsContext* gptShaderVariantCtx = NULL;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static size_t               pl__shader_tools_get_data_type_size  (plDataType);
-static plCompareMode        pl__shader_tools_get_compare_mode    (const char*);
-static plBlendFactor        pl__shader_tools_get_blend_factor    (const char*);
-static plBlendOp            pl__shader_tools_get_blend_op        (const char*);
-static plShaderStageFlags   pl__shader_tools_get_shader_stage    (const char*);
-static plBufferBindingType  pl__shader_tools_buffer_binding_type (const char*);
-static plTextureBindingType pl__shader_tools_texture_binding_type(const char*);
+static size_t                pl__shader_tools_get_data_type_size  (plDataType);
+static plCompareMode         pl__shader_tools_get_compare_mode    (const char*);
+static plBlendFactor         pl__shader_tools_get_blend_factor    (const char*);
+static plBlendOp             pl__shader_tools_get_blend_op        (const char*);
+static plShaderStageFlags    pl__shader_tools_get_shader_stage    (const char*);
+static plBufferBindingType   pl__shader_tools_buffer_binding_type (const char*);
+static plTextureBindingType  pl__shader_tools_texture_binding_type(const char*);
+static plBindGroupLayoutDesc pl__shader_tools_bind_group_layout_desc(plJsonObject*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public implementation
@@ -391,72 +392,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
         }
         pl_hm32_insert_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer, uVariantIndex);
 
-        plBindGroupLayoutDesc tLayout = {0};
-
-        uint32_t uBufferBindingCount = 0;
-        plJsonObject* ptBufferBindings = pl_json_array_member(ptBindGroupLayout, "atBufferBindings", &uBufferBindingCount);
-        for(uint32_t j = 0; j < uBufferBindingCount; j++)
-        {
-            plJsonObject* ptBinding = pl_json_member_by_index(ptBufferBindings, j);
-            tLayout.atBufferBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
-
-            char acTypeBuffer[64] = {0};
-            pl_json_string_member(ptBinding, "tType", acTypeBuffer, 64);
-            tLayout.atBufferBindings[j].tType = pl__shader_tools_buffer_binding_type(acTypeBuffer);
-
-            char acStage0[64] = {0};
-            char acStage1[64] = {0};
-            char acStage2[64] = {0};
-            char* aacStages[3] = {acStage0, acStage1, acStage2};
-            uint32_t auLengths[3] = {64, 64, 64};
-            uint32_t uStageCount = 0;
-            pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
-            for(uint32_t k = 0; k < uStageCount; k++)
-                tLayout.atBufferBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
-        }
-
-        uint32_t uTextureBindingCount = 0;
-        plJsonObject* ptTextureBindings = pl_json_array_member(ptBindGroupLayout, "atTextureBindings", &uTextureBindingCount);
-        for(uint32_t j = 0; j < uTextureBindingCount; j++)
-        {
-            plJsonObject* ptBinding = pl_json_member_by_index(ptTextureBindings, j);
-            tLayout.atTextureBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
-            tLayout.atTextureBindings[j].bNonUniformIndexing = pl_json_bool_member(ptBinding, "bNonUniformIndexing", false);
-            tLayout.atTextureBindings[j].uDescriptorCount = pl_json_uint_member(ptBinding, "uDescriptorCount", 0);
-
-            char acTypeBuffer[64] = {0};
-            pl_json_string_member(ptBinding, "tType", acTypeBuffer, 64);
-            tLayout.atTextureBindings[j].tType = pl__shader_tools_texture_binding_type(acTypeBuffer);
-
-            char acStage0[64] = {0};
-            char acStage1[64] = {0};
-            char acStage2[64] = {0};
-            char* aacStages[3] = {acStage0, acStage1, acStage2};
-            uint32_t auLengths[3] = {64, 64, 64};
-            uint32_t uStageCount = 0;
-            pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
-            for(uint32_t k = 0; k < uStageCount; k++)
-                tLayout.atTextureBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
-        }
-
-        uint32_t uSamplerBindingCount = 0;
-        plJsonObject* ptSamplerBindings = pl_json_array_member(ptBindGroupLayout, "atSamplerBindings", &uSamplerBindingCount);
-        for(uint32_t j = 0; j < uSamplerBindingCount; j++)
-        {
-            plJsonObject* ptBinding = pl_json_member_by_index(ptSamplerBindings, j);
-            tLayout.atSamplerBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
-
-            char acStage0[64] = {0};
-            char acStage1[64] = {0};
-            char acStage2[64] = {0};
-            char* aacStages[3] = {acStage0, acStage1, acStage2};
-            uint32_t auLengths[3] = {64, 64, 64};
-            uint32_t uStageCount = 0;
-            pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
-            for(uint32_t k = 0; k < uStageCount; k++)
-                tLayout.atSamplerBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
-        }
-
+        plBindGroupLayoutDesc tLayout = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
         plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tLayout);
         gptShaderVariantCtx->sbtBindGroupLayouts[uVariantIndex] = tHandle;
     }
@@ -491,6 +427,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
         pl_json_string_member(ptShaderMember, "file", acFileBuffer, 256);
         pl_json_string_member(ptShaderMember, "entry", acEntryBuffer, 64);
 
+        plMetaShaderInfo tInfo = {0};
         plComputeShaderDesc tComputeShaderDesc = {0};
         tComputeShaderDesc.pcDebugName = acNameBuffer;
         tComputeShaderDesc.tShader = gptShader->load_glsl(acFileBuffer, acEntryBuffer, NULL, NULL);
@@ -531,76 +468,48 @@ pl_shader_tool_load_manifest(const char* pcPath)
         for(uint32_t uBindGroupIndex = 0; uBindGroupIndex < uBindGroupLayoutCount; uBindGroupIndex++)
         {
             plJsonObject* ptBindGroupLayout = pl_json_member_by_index(ptBindGroupLayouts, uBindGroupIndex);
+            tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex] = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
 
-            uint32_t uBufferBindingCount = 0;
-            plJsonObject* ptBufferBindings = pl_json_array_member(ptBindGroupLayout, "atBufferBindings", &uBufferBindingCount);
-            for(uint32_t j = 0; j < uBufferBindingCount; j++)
+            if(pl_json_member_exist(ptBindGroupLayout, "pcName"))
             {
-                plJsonObject* ptBinding = pl_json_member_by_index(ptBufferBindings, j);
-                tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex].atBufferBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
+                char acBGNameBuffer[256] = {0};
+                pl_json_string_member(ptBindGroupLayout, "pcName", acBGNameBuffer, 256);
 
-                char acTypeBuffer[64] = {0};
-                pl_json_string_member(ptBinding, "tType", acTypeBuffer, 64);
-                tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex].atBufferBindings[j].tType = pl__shader_tools_buffer_binding_type(acTypeBuffer);
+                if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer))
+                {
+                    uint32_t uBGIndex = pl_hm32_lookup_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer);
+                    tInfo.atBindGroupLayouts[uBindGroupIndex] = gptShaderVariantCtx->sbtBindGroupLayouts[uBGIndex];
+                    tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex] = gptGfx->get_bind_group_layout(gptShaderVariantCtx->ptDevice, tInfo.atBindGroupLayouts[uBindGroupIndex])->tDesc;
+                }
+                else
+                {
+                    tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex] = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
+                    tInfo.atBindGroupLayouts[uBindGroupIndex] = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex]);
 
-                char acStage0[64] = {0};
-                char acStage1[64] = {0};
-                char acStage2[64] = {0};
-                char* aacStages[3] = {acStage0, acStage1, acStage2};
-                uint32_t auLengths[3] = {64, 64, 64};
-                uint32_t uStageCount = 0;
-                pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
-                for(uint32_t k = 0; k < uStageCount; k++)
-                    tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex].atBufferBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
+                    uint32_t uBGIndex = pl_hm32_get_free_index(&gptShaderVariantCtx->tBindGroupLayoutsHashmap);
+                    if(uBGIndex == PL_DS_HASH32_INVALID)
+                    {
+                        uBGIndex = pl_sb_size(gptShaderVariantCtx->sbtBindGroupLayouts);
+                        pl_sb_add(gptShaderVariantCtx->sbtBindGroupLayouts);
+                    }
+                    pl_hm32_insert_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer, uBGIndex);
+
+                    plBindGroupLayoutDesc tLayout = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
+                    plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tLayout);
+                    gptShaderVariantCtx->sbtBindGroupLayouts[uBGIndex] = tHandle;
+                }
+            }
+            else
+            {
+                tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex] = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
+                tInfo.atBindGroupLayouts[uBindGroupIndex] = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex]);
             }
 
-            uint32_t uTextureBindingCount = 0;
-            plJsonObject* ptTextureBindings = pl_json_array_member(ptBindGroupLayout, "atTextureBindings", &uTextureBindingCount);
-            for(uint32_t j = 0; j < uTextureBindingCount; j++)
-            {
-                plJsonObject* ptBinding = pl_json_member_by_index(ptTextureBindings, j);
-                tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex].atTextureBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
-                tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex].atTextureBindings[j].bNonUniformIndexing = pl_json_bool_member(ptBinding, "bNonUniformIndexing", false);
-                tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex].atTextureBindings[j].uDescriptorCount = pl_json_uint_member(ptBinding, "uDescriptorCount", 0);
-
-                char acTypeBuffer[64] = {0};
-                pl_json_string_member(ptBinding, "tType", acTypeBuffer, 64);
-                tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex].atTextureBindings[j].tType = pl__shader_tools_texture_binding_type(acTypeBuffer);
-
-                char acStage0[64] = {0};
-                char acStage1[64] = {0};
-                char acStage2[64] = {0};
-                char* aacStages[3] = {acStage0, acStage1, acStage2};
-                uint32_t auLengths[3] = {64, 64, 64};
-                uint32_t uStageCount = 0;
-                pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
-                for(uint32_t k = 0; k < uStageCount; k++)
-                    tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex].atTextureBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
-            }
-
-            uint32_t uSamplerBindingCount = 0;
-            plJsonObject* ptSamplerBindings = pl_json_array_member(ptBindGroupLayout, "atSamplerBindings", &uSamplerBindingCount);
-            for(uint32_t j = 0; j < uSamplerBindingCount; j++)
-            {
-                plJsonObject* ptBinding = pl_json_member_by_index(ptSamplerBindings, j);
-                tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex].atSamplerBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
-
-                char acStage0[64] = {0};
-                char acStage1[64] = {0};
-                char acStage2[64] = {0};
-                char* aacStages[3] = {acStage0, acStage1, acStage2};
-                uint32_t auLengths[3] = {64, 64, 64};
-                uint32_t uStageCount = 0;
-                pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
-                for(uint32_t k = 0; k < uStageCount; k++)
-                    tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex].atSamplerBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
-            }
         }
 
         plComputeShaderHandle tShader = gptGfx->create_compute_shader(gptShaderVariantCtx->ptDevice, &tComputeShaderDesc);
         pl_temp_allocator_reset(&tTempAllocator);
 
-        plMetaShaderInfo tInfo = {0};
         for(uint32_t i = 0; i < uBindGroupLayoutCount; i++)
         {
             tInfo.atBindGroupLayouts[i] = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tComputeShaderDesc.atBindGroupLayouts[i]);
@@ -651,6 +560,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
         }
 
         plShaderDesc tShaderDesc = {0};
+        plMetaShaderInfo tInfo = {0};
         tShaderDesc.tVertexShader = gptShader->load_glsl(acFileBuffer, acEntryBuffer, NULL, NULL);
 
         if(ptPixelShaderMember)
@@ -705,7 +615,6 @@ pl_shader_tool_load_manifest(const char* pcPath)
             pcEnumValue = pl_json_string_member(ptGraphicsMember, "ulStencilMode", acEntryBuffer, 64);
             if(pcEnumValue)
                 tShaderDesc.tGraphicsState.ulStencilMode = pl__shader_tools_get_compare_mode(pcEnumValue);
-
 
             pcEnumValue = pl_json_string_member(ptGraphicsMember, "ulDepthMode", acEntryBuffer, 64);
             if(pcEnumValue)
@@ -809,78 +718,41 @@ pl_shader_tool_load_manifest(const char* pcPath)
         {
             plJsonObject* ptBindGroupLayout = pl_json_member_by_index(ptBindGroupLayouts, i);
 
-            uint32_t uBufferBindingCount = 0;
-            plJsonObject* ptBufferBindings = pl_json_array_member(ptBindGroupLayout, "atBufferBindings", &uBufferBindingCount);
-            for(uint32_t j = 0; j < uBufferBindingCount; j++)
+            if(pl_json_member_exist(ptBindGroupLayout, "pcName"))
             {
-                plJsonObject* ptBinding = pl_json_member_by_index(ptBufferBindings, j);
-                tShaderDesc.atBindGroupLayouts[i].atBufferBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
+                char acBGNameBuffer[256] = {0};
+                pl_json_string_member(ptBindGroupLayout, "pcName", acBGNameBuffer, 256);
 
-                char acTypeBuffer[64] = {0};
-                pl_json_string_member(ptBinding, "tType", acTypeBuffer, 64);
-                tShaderDesc.atBindGroupLayouts[i].atBufferBindings[j].tType = pl__shader_tools_buffer_binding_type(acTypeBuffer);
+                if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer))
+                {
+                    uint32_t uBGIndex = pl_hm32_lookup_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer);
+                    tInfo.atBindGroupLayouts[i] = gptShaderVariantCtx->sbtBindGroupLayouts[uBGIndex];
+                    tShaderDesc.atBindGroupLayouts[i] = gptGfx->get_bind_group_layout(gptShaderVariantCtx->ptDevice, tInfo.atBindGroupLayouts[i])->tDesc;
+                }
+                else
+                {
+                    tShaderDesc.atBindGroupLayouts[i] = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
+                    tInfo.atBindGroupLayouts[i] = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tShaderDesc.atBindGroupLayouts[i]);
 
-                char acStage0[64] = {0};
-                char acStage1[64] = {0};
-                char acStage2[64] = {0};
-                char* aacStages[3] = {acStage0, acStage1, acStage2};
-                uint32_t auLengths[3] = {64, 64, 64};
-                uint32_t uStageCount = 0;
-                pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
-                for(uint32_t k = 0; k < uStageCount; k++)
-                    tShaderDesc.atBindGroupLayouts[i].atBufferBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
+                    uint32_t uBGIndex = pl_hm32_get_free_index(&gptShaderVariantCtx->tBindGroupLayoutsHashmap);
+                    if(uBGIndex == PL_DS_HASH32_INVALID)
+                    {
+                        uBGIndex = pl_sb_size(gptShaderVariantCtx->sbtBindGroupLayouts);
+                        pl_sb_add(gptShaderVariantCtx->sbtBindGroupLayouts);
+                    }
+                    pl_hm32_insert_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer, uBGIndex);
+
+                    plBindGroupLayoutDesc tLayout = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
+                    plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tLayout);
+                    gptShaderVariantCtx->sbtBindGroupLayouts[uBGIndex] = tHandle;
+                }
             }
-
-            uint32_t uTextureBindingCount = 0;
-            plJsonObject* ptTextureBindings = pl_json_array_member(ptBindGroupLayout, "atTextureBindings", &uTextureBindingCount);
-            for(uint32_t j = 0; j < uTextureBindingCount; j++)
+            else
             {
-                plJsonObject* ptBinding = pl_json_member_by_index(ptTextureBindings, j);
-                tShaderDesc.atBindGroupLayouts[i].atTextureBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
-                tShaderDesc.atBindGroupLayouts[i].atTextureBindings[j].bNonUniformIndexing = pl_json_bool_member(ptBinding, "bNonUniformIndexing", false);
-                tShaderDesc.atBindGroupLayouts[i].atTextureBindings[j].uDescriptorCount = pl_json_uint_member(ptBinding, "uDescriptorCount", 0);
-
-                char acTypeBuffer[64] = {0};
-                pl_json_string_member(ptBinding, "tType", acTypeBuffer, 64);
-                tShaderDesc.atBindGroupLayouts[i].atTextureBindings[j].tType = pl__shader_tools_texture_binding_type(acTypeBuffer);
-
-                char acStage0[64] = {0};
-                char acStage1[64] = {0};
-                char acStage2[64] = {0};
-                char* aacStages[3] = {acStage0, acStage1, acStage2};
-                uint32_t auLengths[3] = {64, 64, 64};
-                uint32_t uStageCount = 0;
-                pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
-                for(uint32_t k = 0; k < uStageCount; k++)
-                    tShaderDesc.atBindGroupLayouts[i].atTextureBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
-            }
-
-            uint32_t uSamplerBindingCount = 0;
-            plJsonObject* ptSamplerBindings = pl_json_array_member(ptBindGroupLayout, "atSamplerBindings", &uSamplerBindingCount);
-            for(uint32_t j = 0; j < uSamplerBindingCount; j++)
-            {
-                plJsonObject* ptBinding = pl_json_member_by_index(ptSamplerBindings, j);
-                tShaderDesc.atBindGroupLayouts[i].atSamplerBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
-
-                char acStage0[64] = {0};
-                char acStage1[64] = {0};
-                char acStage2[64] = {0};
-                char* aacStages[3] = {acStage0, acStage1, acStage2};
-                uint32_t auLengths[3] = {64, 64, 64};
-                uint32_t uStageCount = 0;
-                pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
-                for(uint32_t k = 0; k < uStageCount; k++)
-                    tShaderDesc.atBindGroupLayouts[i].atSamplerBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
-
+                tShaderDesc.atBindGroupLayouts[i] = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
+                tInfo.atBindGroupLayouts[i] = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tShaderDesc.atBindGroupLayouts[i]);
             }
         }
-
-        plMetaShaderInfo tInfo = {0};
-        for(uint32_t i = 0; i < uBindGroupLayoutCount; i++)
-        {
-            tInfo.atBindGroupLayouts[i] = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tShaderDesc.atBindGroupLayouts[i]);
-        }
-
         gptShaderVariantCtx->sbtMetaVariants[uVariantIndex] = tInfo;
         gptShaderVariantCtx->sbtShaderDesc[uVariantIndex] = tShaderDesc;
     }   
@@ -1186,6 +1058,76 @@ pl__shader_tools_texture_binding_type(const char* pcText)
     }
 
     return tType;
+}
+
+static plBindGroupLayoutDesc
+pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
+{
+    plBindGroupLayoutDesc tDesc = {0};
+    uint32_t uBufferBindingCount = 0;
+    plJsonObject* ptBufferBindings = pl_json_array_member(ptBindGroupLayout, "atBufferBindings", &uBufferBindingCount);
+    for(uint32_t j = 0; j < uBufferBindingCount; j++)
+    {
+        plJsonObject* ptBinding = pl_json_member_by_index(ptBufferBindings, j);
+        tDesc.atBufferBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
+
+        char acTypeBuffer[64] = {0};
+        pl_json_string_member(ptBinding, "tType", acTypeBuffer, 64);
+        tDesc.atBufferBindings[j].tType = pl__shader_tools_buffer_binding_type(acTypeBuffer);
+
+        char acStage0[64] = {0};
+        char acStage1[64] = {0};
+        char acStage2[64] = {0};
+        char* aacStages[3] = {acStage0, acStage1, acStage2};
+        uint32_t auLengths[3] = {64, 64, 64};
+        uint32_t uStageCount = 0;
+        pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
+        for(uint32_t k = 0; k < uStageCount; k++)
+            tDesc.atBufferBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
+    }
+
+    uint32_t uTextureBindingCount = 0;
+    plJsonObject* ptTextureBindings = pl_json_array_member(ptBindGroupLayout, "atTextureBindings", &uTextureBindingCount);
+    for(uint32_t j = 0; j < uTextureBindingCount; j++)
+    {
+        plJsonObject* ptBinding = pl_json_member_by_index(ptTextureBindings, j);
+        tDesc.atTextureBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
+        tDesc.atTextureBindings[j].bNonUniformIndexing = pl_json_bool_member(ptBinding, "bNonUniformIndexing", false);
+        tDesc.atTextureBindings[j].uDescriptorCount = pl_json_uint_member(ptBinding, "uDescriptorCount", 0);
+
+        char acTypeBuffer[64] = {0};
+        pl_json_string_member(ptBinding, "tType", acTypeBuffer, 64);
+        tDesc.atTextureBindings[j].tType = pl__shader_tools_texture_binding_type(acTypeBuffer);
+
+        char acStage0[64] = {0};
+        char acStage1[64] = {0};
+        char acStage2[64] = {0};
+        char* aacStages[3] = {acStage0, acStage1, acStage2};
+        uint32_t auLengths[3] = {64, 64, 64};
+        uint32_t uStageCount = 0;
+        pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
+        for(uint32_t k = 0; k < uStageCount; k++)
+            tDesc.atTextureBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
+    }
+
+    uint32_t uSamplerBindingCount = 0;
+    plJsonObject* ptSamplerBindings = pl_json_array_member(ptBindGroupLayout, "atSamplerBindings", &uSamplerBindingCount);
+    for(uint32_t j = 0; j < uSamplerBindingCount; j++)
+    {
+        plJsonObject* ptBinding = pl_json_member_by_index(ptSamplerBindings, j);
+        tDesc.atSamplerBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
+
+        char acStage0[64] = {0};
+        char acStage1[64] = {0};
+        char acStage2[64] = {0};
+        char* aacStages[3] = {acStage0, acStage1, acStage2};
+        uint32_t auLengths[3] = {64, 64, 64};
+        uint32_t uStageCount = 0;
+        pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
+        for(uint32_t k = 0; k < uStageCount; k++)
+            tDesc.atSamplerBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
+    }
+    return tDesc;
 }
 
 //-----------------------------------------------------------------------------
