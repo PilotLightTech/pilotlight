@@ -187,6 +187,7 @@ jobs:
         if not exist ../out/pl_script_camera.dll exit 1
         if not exist ../out/pl_shader_variant_ext.dll exit 1
         if not exist ../out/pl_dds_ext.dll exit 1
+        if not exist ../out/pl_dxt_ext.dll exit 1
         cd ..
 
     - name: Package Pilot Light
@@ -391,6 +392,7 @@ jobs:
         test -f ./out/pl_script_camera.dylib || exit 1
         test -f ./out/pl_shader_variant_ext.dylib || exit 1
         test -f ./out/pl_dds_ext.dylib || exit 1
+        test -f ./out/pl_dxt_ext.dylib || exit 1
 
     - name: Package Pilot Light
       run: |
@@ -606,6 +608,7 @@ jobs:
         test -f ./out/pl_script_camera.so || exit 1
         test -f ./out/pl_shader_variant_ext.so || exit 1
         test -f ./out/pl_dds_ext.so || exit 1
+        test -f ./out/pl_dxt_ext.so || exit 1
 
     - name: Package Pilot Light
       run: |

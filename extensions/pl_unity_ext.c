@@ -53,6 +53,7 @@ Index of this file:
 #include "pl_datetime_ext.c"
 #include "pl_compress_ext.c"
 #include "pl_dds_ext.c"
+#include "pl_dxt_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -103,6 +104,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptDateTime          = pl_get_api_latest(ptApiRegistry, plDateTimeI);
     gptCompress          = pl_get_api_latest(ptApiRegistry, plCompressI);
     gptDds               = pl_get_api_latest(ptApiRegistry, plDdsI);
+    gptDxt               = pl_get_api_latest(ptApiRegistry, plDxtI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -143,6 +145,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_shader_variant_ext(ptApiRegistry, bReload);
     pl_load_compress_ext(ptApiRegistry, bReload);
     pl_load_dds_ext(ptApiRegistry, bReload);
+    pl_load_dxt_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -184,6 +187,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_shader_variant_ext(ptApiRegistry, bReload);
     pl_unload_compress_ext(ptApiRegistry, bReload);
     pl_unload_dds_ext(ptApiRegistry, bReload);
+    pl_unload_dxt_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------
@@ -238,5 +242,9 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 #define PL_JSON_IMPLEMENTATION
 #include "pl_json.h"
 #undef PL_JSON_IMPLEMENTATION
+
+#define STB_DXT_IMPLEMENTATION
+#include "stb_dxt.h"
+#undef STB_DXT_IMPLEMENTATION
 
 #undef CGLTF_IMPLEMENTATION
