@@ -4,6 +4,7 @@
 
 /*
 Index of this file:
+// [SECTION] quick notes
 // [SECTION] header mess
 // [SECTION] APIs
 // [SECTION] includes
@@ -11,6 +12,19 @@ Index of this file:
 // [SECTION] public api struct
 // [SECTION] structs
 // [SECTION] enums
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] quick notes
+//-----------------------------------------------------------------------------
+
+/*
+    The following channel counts correspond to following formats:
+      
+      * 1 channel -> PL_FORMAT_BC4_*
+      * 2 channel -> PL_FORMAT_BC5_*
+      * 3 channel -> PL_FORMAT_BC1_*
+      * 4 channel -> PL_FORMAT_BC2_*
 */
 
 //-----------------------------------------------------------------------------
@@ -24,7 +38,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plDxtI_version {0, 1, 0}
+#define plDxtI_version {0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -61,7 +75,7 @@ typedef struct _plDxtInfo
     plDxtFlags     tFlags;
     uint32_t       uWidth;
     uint32_t       uHeight;
-    uint32_t       uChannels; // currently limited to 3 & 4
+    uint32_t       uChannels;
     const uint8_t* puData;
 } plDxtInfo;
 

@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] internal api
 // [SECTION] public api implementation
 // [SECTION] extension loading
 // [SECTION] unity build
@@ -19,11 +20,40 @@ Index of this file:
 #include "pl.h"
 #include "pl_dxt_ext.h"
 
-// extensions
-#include "pl_graphics_ext.h"
+// libs
+#define PL_MATH_INCLUDE_FUNCTIONS
+#include "pl_math.h"
 
 // libraries
 #include "stb_dxt.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api
+//-----------------------------------------------------------------------------
+
+static inline void
+pl__dxt_sample(const uint8_t* puData, uint32_t uChannels, uint32_t uWidth, uint32_t uX, uint32_t uY, uint8_t* auOut)
+{
+    const uint8_t* ptSource = puData + (uY * uWidth + uX) * uChannels;
+    for(uint32_t uChannel = 0; uChannel < uChannels; uChannel++)
+        auOut[uChannel] = ptSource[uChannel];
+}
+
+static inline void
+pl__dxt_sample_wrap(const uint8_t* puData, uint32_t uChannels, uint32_t uWidth, uint32_t uHeight, uint32_t uX, uint32_t uY, uint8_t* auOut)
+{
+    uX = pl_clampu(0, uX, uWidth - 1);
+    uY = pl_clampu(0, uY, uHeight - 1);
+    const uint8_t* ptSource = puData + (uY * uWidth + uX) * uChannels;
+    for(uint32_t uChannel = 0; uChannel < uChannels; uChannel++)
+        auOut[uChannel] = ptSource[uChannel];
+}
+
+static inline void
+pl__dxt_copy(const uint8_t* puData, uint32_t uDxtBlockWidth, uint32_t uX, uint32_t uY, uint8_t* auOut)
+{
+    memcpy(auOut + (uY * 4 + uX) * uDxtBlockWidth, puData, uDxtBlockWidth);
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -38,16 +68,7 @@ pl_dxt_compress(const plDxtInfo* ptInfo, uint8_t* puDataOut, size_t* szSizeOut)
     const uint32_t uBlockSize = (ptInfo->uChannels == 2 || ptInfo->uChannels == 4 ? 16 : 8);
 
     if(szSizeOut)
-    {
-        if(ptInfo->uChannels == 4)
-            *szSizeOut = uAdjustedImageWidth * uAdjustedImageHeight;
-        else if(ptInfo->uChannels == 3)
-            *szSizeOut = uAdjustedImageWidth * uAdjustedImageHeight / 2;
-        else
-        {
-            PL_ASSERT(false && "Only supporting 3 & 4 channels for now");
-        }
-    }
+        *szSizeOut = uAdjustedImageWidth * uAdjustedImageHeight * ptInfo->uChannels * uBlockSize / (16 * ptInfo->uChannels);
 
     if(puDataOut == NULL)
         return;
@@ -63,6 +84,10 @@ pl_dxt_compress(const plDxtInfo* ptInfo, uint8_t* puDataOut, size_t* szSizeOut)
     const uint32_t uOverflowV = (4 - (uAdjustedImageHeight - ptInfo->uHeight)) % 4;
     const uint32_t uWrapPosH = ptInfo->uWidth - uOverflowH;
     const uint32_t uWrapPosV = ptInfo->uHeight - uOverflowV;
+    const uint32_t uDxtBlockWidth = ptInfo->uChannels > 2 ? 4 : ptInfo->uChannels;
+
+    uint32_t uBlocksPerRow = uAdjustedImageWidth / 4;
+    uint32_t uBlocksPerColumn = uAdjustedImageHeight / 4;
 
     uint8_t auPadded[4] = {0};
 
@@ -74,130 +99,223 @@ pl_dxt_compress(const plDxtInfo* ptInfo, uint8_t* puDataOut, size_t* szSizeOut)
     if(ptInfo->uChannels == 4)
         iIncludeAlpha = 1;
 
-    if(uOverflowH == 0 && uOverflowV == 0 && ptInfo->uChannels > 2)
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~inner fill~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    if(ptInfo->uChannels > 2)
     {
 
         for (uint32_t uRowStart = 0; uRowStart < uAdjustedImageHeight; uRowStart += 4)
         {
+            const uint32_t uBlockRowOffset = (uBlocksPerRow * uRowStart / 4);
+            const uint32_t uBlockRowBytesOffset = (ptInfo->uWidth * uBytesPerPixel * uRowStart);
             for (uint32_t uColumnStart = 0; uColumnStart < uAdjustedImageWidth; uColumnStart += 4)
             {
+
+                uint32_t uBlockIndex =  uBlockRowOffset + uColumnStart / 4;
+                uOffset = uBlockSize * uBlockIndex;
+
+                const uint32_t uOffsetBytes = uBlockRowBytesOffset + uColumnStart * uBytesPerPixel;
+                puData = ptInfo->puData + uOffsetBytes;
+
                 for (uint32_t uRow = 0; uRow < 4; uRow++)
                 {
                     for (uint32_t uColumn = 0; uColumn < 4; uColumn++)
                     {
-                        const uint8_t* ptSource = puData + (uRow * ptInfo->uWidth + uColumn) * ptInfo->uChannels;
-                        for(uint32_t uChannel = 0; uChannel < ptInfo->uChannels; uChannel++)
-                            auPadded[uChannel] = ptSource[uChannel];
-                        memcpy(auInDataBuf + (uRow * 4 + uColumn) * 4, auPadded, 4);
+                        pl__dxt_sample(puData, ptInfo->uChannels, ptInfo->uWidth, uColumn, uRow, auPadded);
+                        pl__dxt_copy(auPadded, uDxtBlockWidth, uColumn, uRow, auInDataBuf);
                     }
                 }
 
                 stb_compress_dxt_block(auOutDataBuf, auInDataBuf, iIncludeAlpha, iDxtFlags);
                 memcpy(&puDataOut[uOffset], auOutDataBuf, uBlockSize);
-
-                uOffset += uBlockSize;
-                puData += uBytesPerPixel * 4;
             }
-            puData += ptInfo->uWidth * uBytesPerPixel * 3; // by 3 since we already moved first row across
         }
     }
-    else // slow path
+    else if(ptInfo->uChannels == 2)
     {
-
         for (uint32_t uRowStart = 0; uRowStart < uAdjustedImageHeight; uRowStart += 4)
         {
+            const uint32_t uBlockRowOffset = (uBlocksPerRow * uRowStart / 4);
+            const uint32_t uBlockRowBytesOffset = (ptInfo->uWidth * uBytesPerPixel * uRowStart);
             for (uint32_t uColumnStart = 0; uColumnStart < uAdjustedImageWidth; uColumnStart += 4)
             {
-                if (uRowStart >= uWrapPosV && uColumnStart >= uWrapPosH) // overflow on bottom right corner
+
+                uint32_t uBlockIndex = uBlockRowOffset + uColumnStart / 4;
+                uOffset = uBlockSize * uBlockIndex;
+
+                const uint32_t uOffsetBytes = uBlockRowBytesOffset + uColumnStart * uBytesPerPixel;
+                puData = ptInfo->puData + uOffsetBytes;
+
+                for (uint32_t uRow = 0; uRow < 4; uRow++)
                 {
-                    memset(auInDataBuf, 255, 64);
-
-                    for (uint32_t uRow = 0; uRow < uOverflowV; uRow++)
+                    for (uint32_t uColumn = 0; uColumn < 4; uColumn++)
                     {
-                        for (uint32_t uColumn = 0; uColumn < uOverflowH; uColumn++)
-                        {
-                            const uint8_t* ptSource = puData + (uRow * ptInfo->uWidth + uColumn) * 4;
-                            memcpy(auInDataBuf + (uRow * 4 + uColumn) * ptInfo->uChannels, ptSource, ptInfo->uChannels);
-                        }
-                    }
-                }
-                else if(uColumnStart >= uWrapPosH) // overflow on right
-                {
-                    memset(auInDataBuf, 0, 64);
-
-                    for (uint32_t uRow = 0; uRow < 4; uRow++)
-                    {
-                        for (uint32_t uColumn = 0; uColumn < uOverflowH; uColumn++)
-                        {
-                            const uint8_t* ptSource = puData + (uRow * ptInfo->uWidth + uColumn) * 4;
-                            memcpy(auInDataBuf + (uRow * 4 + uColumn) * ptInfo->uChannels, ptSource, ptInfo->uChannels);
-
-                            if(uColumn == uOverflowH - 1)
-                            {
-                                for(uint32_t iOverflow = 0; iOverflow < uOverflowV; iOverflow++)
-                                {
-                                    memcpy(auInDataBuf + (uRow * 4 + uColumn + iOverflow + 1) * ptInfo->uChannels, ptSource, ptInfo->uChannels);
-                                }
-                            }
-                        }
-                    }
-                }
-                else if (uRowStart >= uWrapPosV) // overflow on bottom
-                {
-                    memset(auInDataBuf, 255, 64);
-
-                    for (uint32_t uRow = 0; uRow < uOverflowV; uRow++)
-                    {
-                        for (uint32_t uColumn = 0; uColumn < 4; uColumn++)
-                        {
-                            const uint8_t* ptSource = puData + (uRow * ptInfo->uWidth + uColumn) * 4;
-                            memcpy(auInDataBuf + (uRow * 4 + uColumn) * ptInfo->uChannels, ptSource, ptInfo->uChannels);
-                            if(uRow == uOverflowV - 1)
-                            {
-                                for(uint32_t iOverflow = 0; iOverflow < uOverflowV; iOverflow++)
-                                {
-                                    memcpy(auInDataBuf + ((uRow + iOverflow + 1) * 4 + uColumn) * ptInfo->uChannels, ptSource, ptInfo->uChannels);
-                                }
-                            }
-                        }
+                        pl__dxt_sample(puData, ptInfo->uChannels, ptInfo->uWidth, uColumn, uRow, auPadded);
+                        pl__dxt_copy(auPadded, uDxtBlockWidth, uColumn, uRow, auInDataBuf);
                     }
                 }
 
-                else
-                {
-                    for (uint32_t uRow = 0; uRow < 4; uRow++)
-                    {
-                        for (uint32_t uColumn = 0; uColumn < 4; uColumn++)
-                        {
-                            const uint8_t* ptSource = puData + (uRow * ptInfo->uWidth + uColumn) * 4;
-                            memcpy(auInDataBuf + (uRow * 4 + uColumn) * ptInfo->uChannels, ptSource, ptInfo->uChannels);
-                        }
-                    }
-                }
-
-                switch (ptInfo->uChannels)
-                {
-                    case 3:
-                    case 4:
-                        stb_compress_dxt_block(auOutDataBuf, auInDataBuf, iIncludeAlpha, iDxtFlags);
-                        break;
-                    case 1:
-                        stb_compress_bc4_block(auOutDataBuf, auInDataBuf);
-                        break;
-                    case 2:
-                        stb_compress_bc5_block(auOutDataBuf, auInDataBuf);
-                        break;
-                }
-                memcpy(&puDataOut[uOffset], auOutDataBuf, 16);
-
-                uOffset += 16;
-                if(uColumnStart >= uWrapPosH && uOverflowH > 0)
-                    puData += uBytesPerPixel * uOverflowH;
-                else
-                    puData += uBytesPerPixel * 4;
+                stb_compress_bc5_block(auOutDataBuf, auInDataBuf);
+                memcpy(&puDataOut[uOffset], auOutDataBuf, uBlockSize);
             }
-            puData += ptInfo->uWidth * uBytesPerPixel * 3; // by 3 since we already moved first row across
         }
+    }
+    else if(ptInfo->uChannels == 1)
+    {
+        for (uint32_t uRowStart = 0; uRowStart < uAdjustedImageHeight; uRowStart += 4)
+        {
+            const uint32_t uBlockRowOffset = (uBlocksPerRow * uRowStart / 4);
+            const uint32_t uBlockRowBytesOffset = (ptInfo->uWidth * uBytesPerPixel * uRowStart);
+            for (uint32_t uColumnStart = 0; uColumnStart < uAdjustedImageWidth; uColumnStart += 4)
+            {
+                uint32_t uBlockIndex = uBlockRowOffset + uColumnStart / 4;
+                uOffset = uBlockSize * uBlockIndex;
+
+                const uint32_t uOffsetBytes = uBlockRowBytesOffset + uColumnStart * uBytesPerPixel;
+                puData = ptInfo->puData + uOffsetBytes;
+
+                for (uint32_t uRow = 0; uRow < 4; uRow++)
+                {
+                    for (uint32_t uColumn = 0; uColumn < 4; uColumn++)
+                    {
+                        pl__dxt_sample(puData, ptInfo->uChannels, ptInfo->uWidth, uColumn, uRow, auPadded);
+                        pl__dxt_copy(auPadded, uDxtBlockWidth, uColumn, uRow, auInDataBuf);
+                    }
+                }
+
+                stb_compress_bc4_block(auOutDataBuf, auInDataBuf);
+                memcpy(&puDataOut[uOffset], auOutDataBuf, uBlockSize);
+            }
+        }
+    }
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~right fill~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    if(uOverflowH > 0)
+    {
+        for (uint32_t uRowStart = 0; uRowStart < uWrapPosV; uRowStart += 4)
+        {
+            uint32_t uBlockIndex = uRowStart * uAdjustedImageWidth / 16;
+            uBlockIndex += uWrapPosH / 4;
+            uOffset = uBlockSize * uBlockIndex;
+            const uint32_t uOffsetBytes = (ptInfo->uWidth * uBytesPerPixel * uRowStart) + uWrapPosH * uBytesPerPixel;
+            puData = ptInfo->puData + uOffsetBytes;
+
+            memset(auInDataBuf, 255, 64);
+
+            for (uint32_t uRow = 0; uRow < 4; uRow++)
+            {
+                for (uint32_t uColumn = 0; uColumn < uOverflowH; uColumn++)
+                {
+                    pl__dxt_sample(puData, ptInfo->uChannels, ptInfo->uWidth, uColumn, uRow, auPadded);
+                    pl__dxt_copy(auPadded, uDxtBlockWidth, uColumn, uRow, auInDataBuf);
+
+                    if(uColumn == uOverflowH - 1)
+                    {
+                        for(uint32_t iOverflow = 0; iOverflow < 4 - uOverflowH; iOverflow++)
+                            pl__dxt_copy(auPadded, uDxtBlockWidth, uColumn + iOverflow + 1, uRow, auInDataBuf);
+                    }
+                }
+            }
+
+            memset(auOutDataBuf, 0, 16);
+
+            switch (ptInfo->uChannels)
+            {
+                case 3:
+                case 4:
+                    stb_compress_dxt_block(auOutDataBuf, auInDataBuf, iIncludeAlpha, iDxtFlags);
+                    break;
+                case 1:
+                    stb_compress_bc4_block(auOutDataBuf, auInDataBuf);
+                    break;
+                case 2:
+                    stb_compress_bc5_block(auOutDataBuf, auInDataBuf);
+                    break;
+            }
+            memcpy(&puDataOut[uOffset], auOutDataBuf, uBlockSize);
+        }
+
+    }
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~bottom fill~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    if(uOverflowV > 0)
+    {
+        for (uint32_t uColumnStart = 0; uColumnStart < uWrapPosH; uColumnStart += 4)
+        {
+            uint32_t uBlockIndex = uColumnStart / 4 + uBlocksPerRow * uWrapPosV / 4;
+            uOffset = uBlockSize * uBlockIndex;
+            const uint32_t uOffsetBytes = (ptInfo->uWidth * uBytesPerPixel * uWrapPosV) + uColumnStart * uBytesPerPixel;
+            puData = ptInfo->puData + uOffsetBytes;
+
+            memset(auInDataBuf, 255, 64);
+
+            for (uint32_t uRow = 0; uRow < uOverflowV; uRow++)
+            {
+                for (uint32_t uColumn = 0; uColumn < 4; uColumn++)
+                {
+                    pl__dxt_sample(puData, ptInfo->uChannels, ptInfo->uWidth, uColumn, uRow, auPadded);
+                    pl__dxt_copy(auPadded, uDxtBlockWidth, uColumn, uRow, auInDataBuf);
+                    if(uRow == uOverflowV - 1)
+                    {
+                        for(uint32_t iOverflow = 0; iOverflow < 4 - uOverflowV; iOverflow++)
+                            pl__dxt_copy(auPadded, uDxtBlockWidth, uColumn, uRow + iOverflow + 1, auInDataBuf);
+                    }
+                }
+            }
+
+            memset(auOutDataBuf, 0, 16);
+
+            switch (ptInfo->uChannels)
+            {
+                case 3:
+                case 4:
+                    stb_compress_dxt_block(auOutDataBuf, auInDataBuf, iIncludeAlpha, iDxtFlags);
+                    break;
+                case 1:
+                    stb_compress_bc4_block(auOutDataBuf, auInDataBuf);
+                    break;
+                case 2:
+                    stb_compress_bc5_block(auOutDataBuf, auInDataBuf);
+                    break;
+            }
+            memcpy(&puDataOut[uOffset], auOutDataBuf, uBlockSize);
+        }
+    }
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~corner fill~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    if(uOverflowV > 0 && uOverflowH > 0)
+    {
+        uint32_t uBlockIndex = uBlocksPerRow * uBlocksPerColumn - 1;
+        uOffset = uBlockSize * uBlockIndex;
+
+        memset(auInDataBuf, 255, 64);
+        memset(auOutDataBuf, 0, 16);
+
+        for (uint32_t uRow = 0; uRow < 4; uRow++)
+        {
+            for (uint32_t uColumn = 0; uColumn < 4; uColumn++)
+            {
+                pl__dxt_sample_wrap(ptInfo->puData, ptInfo->uChannels, ptInfo->uWidth, ptInfo->uHeight, uWrapPosH + uColumn, uWrapPosV + uRow, auPadded);
+                pl__dxt_copy(auPadded, uDxtBlockWidth, uColumn, uRow, auInDataBuf);
+            }
+        }
+        switch (ptInfo->uChannels)
+        {
+            case 3:
+            case 4:
+                stb_compress_dxt_block(auOutDataBuf, auInDataBuf, iIncludeAlpha, iDxtFlags);
+                break;
+            case 1:
+                stb_compress_bc4_block(auOutDataBuf, auInDataBuf);
+                break;
+            case 2:
+                stb_compress_bc5_block(auOutDataBuf, auInDataBuf);
+                break;
+        }
+        memcpy(&puDataOut[uOffset], auOutDataBuf, uBlockSize);
     }
 }
 

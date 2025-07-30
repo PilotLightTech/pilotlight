@@ -92,6 +92,7 @@ the API is complete. It just means we won't break what currently exists.
 * Mesh Builder        v0.1.0 (pl_mesh_ext.h)
 * Shader Variant      v0.2.0 (pl_shader_variant_ext.h)
 * DDS                 v0.2.0 (pl_dds_ext.h)
+* DXT                 v0.2.0 (pl_dxt_ext.h)
 
 ## Unstable Extensions
 
@@ -102,4 +103,3 @@ the API is complete. It just means we won't break what currently exists.
 * Renderer            v0.2.1 (pl_renderer_ext.h)
 * Dear ImGui          v0.1.0 (pl_dear_imgui_ext.h)
 * Animation           v0.1.0 (pl_animation_ext.h)
-* DXT                 v0.1.0 (pl_dxt_ext.h)
