@@ -2822,6 +2822,9 @@ pl_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCount)
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
             .pNext = &tDeviceFeatures12};
 
+        if(tDeviceFeatures.shaderFloat64) atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_SHADER_FLOAT_64;
+        if(tDeviceFeatures.shaderInt64)   atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_SHADER_INT_64;
+
         // create logical device
         tDeviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
         tDeviceFeatures2.pNext = &tDescriptorIndexingFeatures;
@@ -4922,6 +4925,10 @@ pl__vulkan_vertex_format(plVertexFormat tFormat)
         case PL_VERTEX_FORMAT_FLOAT2:  return VK_FORMAT_R32G32_SFLOAT;
         case PL_VERTEX_FORMAT_FLOAT3:  return VK_FORMAT_R32G32B32_SFLOAT;
         case PL_VERTEX_FORMAT_FLOAT4:  return VK_FORMAT_R32G32B32A32_SFLOAT;
+        case PL_VERTEX_FORMAT_DOUBLE:  return VK_FORMAT_R64_SFLOAT;
+        case PL_VERTEX_FORMAT_DOUBLE2: return VK_FORMAT_R64G64_SFLOAT;
+        case PL_VERTEX_FORMAT_DOUBLE3: return VK_FORMAT_R64G64B64_SFLOAT;
+        case PL_VERTEX_FORMAT_DOUBLE4: return VK_FORMAT_R64G64B64A64_SFLOAT;
         case PL_VERTEX_FORMAT_UCHAR:   return VK_FORMAT_R8_UNORM;
         case PL_VERTEX_FORMAT_UCHAR2:  return VK_FORMAT_R8G8_UNORM;
         case PL_VERTEX_FORMAT_UCHAR3:  return VK_FORMAT_R8G8B8_UNORM;

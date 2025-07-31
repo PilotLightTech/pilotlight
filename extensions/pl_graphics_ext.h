@@ -1323,7 +1323,9 @@ enum _plDeviceCapability
     PL_DEVICE_CAPABILITY_SWAPCHAIN           = 1 << 0,
     PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING = 1 << 1,
     PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY  = 1 << 2,
-    PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS  = 1 << 3
+    PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS  = 1 << 3,    
+    PL_DEVICE_CAPABILITY_SHADER_FLOAT_64     = 1 << 4,
+    PL_DEVICE_CAPABILITY_SHADER_INT_64       = 1 << 5
 };
 
 enum _plCommandPoolResetFlags
@@ -1564,7 +1566,12 @@ enum _plVertexFormat
     PL_VERTEX_FORMAT_INT,
     PL_VERTEX_FORMAT_INT2,
     PL_VERTEX_FORMAT_INT3,
-    PL_VERTEX_FORMAT_INT4,    
+    PL_VERTEX_FORMAT_INT4,
+    
+    PL_VERTEX_FORMAT_DOUBLE,  // must check for support (no metal support)
+    PL_VERTEX_FORMAT_DOUBLE2, // must check for support (no metal support)
+    PL_VERTEX_FORMAT_DOUBLE3, // must check for support (no metal support)
+    PL_VERTEX_FORMAT_DOUBLE4, // must check for support (no metal support)
 
     PL_VERTEX_FORMAT_COUNT
 };

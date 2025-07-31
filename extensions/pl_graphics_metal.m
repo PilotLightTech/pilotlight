@@ -3143,6 +3143,15 @@ pl__metal_vertex_format(plVertexFormat tFormat)
         case PL_VERTEX_FORMAT_INT2:    return MTLVertexFormatInt2;
         case PL_VERTEX_FORMAT_INT3:    return MTLVertexFormatInt3;
         case PL_VERTEX_FORMAT_INT4:    return MTLVertexFormatInt4;
+        
+        case PL_VERTEX_FORMAT_DOUBLE:
+        case PL_VERTEX_FORMAT_DOUBLE2:
+        case PL_VERTEX_FORMAT_DOUBLE3:
+        case PL_VERTEX_FORMAT_DOUBLE4:
+        {
+            PL_ASSERT(false && "Unsupported vertex format");
+            return MTLVertexFormatInvalid;
+        }
     }
 
     PL_ASSERT(false && "Unsupported vertex format");
