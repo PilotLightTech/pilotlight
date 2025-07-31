@@ -848,13 +848,14 @@ typedef struct _plBlendState
 
 typedef struct _plVertexAttribute
 {
-    uint32_t       uByteOffset;
+    uint32_t       uLocation;   // if set to 0, will be calculated
+    uint32_t       uByteOffset; // if set to 0, will be calculated
     plVertexFormat tFormat;
 } plVertexAttribute;
 
 typedef struct _plVertexBufferLayout
 {
-    uint32_t          uByteStride;
+    uint32_t          uByteStride; // if set to 0, will be calculated
     plVertexAttribute atAttributes[PL_MAX_VERTEX_ATTRIBUTES];
 } plVertexBufferLayout;
 

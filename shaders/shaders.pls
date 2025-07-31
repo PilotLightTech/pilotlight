@@ -150,10 +150,9 @@
             },
             "atVertexBufferLayouts": [
                 {
-                    "uByteStride": 16,
                     "atAttributes": [
-                        { "uByteOffset": 0, "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
-                        { "uByteOffset": 8, "tFormat": "PL_VERTEX_FORMAT_FLOAT2" }
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" }
                     ]
                 }
             ],
@@ -193,9 +192,8 @@
             },
             "atVertexBufferLayouts": [
                 {
-                    "uByteStride": 12,
                     "atAttributes": [
-                        { "uByteOffset": 0, "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
@@ -225,9 +223,8 @@
             "tPixelShader":  { "file": "gbuffer_fill.frag", "entry": "main" },
             "atVertexBufferLayouts": [
                 {
-                    "uByteStride": 12,
                     "atAttributes": [
-                        { "uByteOffset": 0, "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
@@ -260,9 +257,8 @@
             "tPixelShader":  { "file": "forward.frag", "entry": "main" },
             "atVertexBufferLayouts": [
                 {
-                    "uByteStride": 12,
                     "atAttributes": [
-                        { "uByteOffset": 0, "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
@@ -312,10 +308,9 @@
             },
             "atVertexBufferLayouts": [
                 {
-                    "uByteStride": 16,
                     "atAttributes": [
-                        { "uByteOffset": 0, "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
-                        { "uByteOffset": 8, "tFormat": "PL_VERTEX_FORMAT_FLOAT2" }
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" }
                     ]
                 }
             ],
@@ -343,9 +338,8 @@
             },
             "atVertexBufferLayouts": [
                 {
-                    "uByteStride": 12,
                     "atAttributes": [
-                        { "uByteOffset": 0, "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
@@ -384,9 +378,8 @@
             },
             "atVertexBufferLayouts": [
                 {
-                    "uByteStride": 12,
                     "atAttributes": [
-                        { "uByteOffset": 0, "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
@@ -432,9 +425,8 @@
             },
             "atVertexBufferLayouts": [
                 {
-                    "uByteStride": 12,
                     "atAttributes": [
-                        { "uByteOffset": 0, "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
@@ -481,10 +473,9 @@
             "uSubpassIndex": 1,
             "atVertexBufferLayouts": [
                 {
-                    "uByteStride": 16,
                     "atAttributes": [
-                        { "uByteOffset": 0, "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
-                        { "uByteOffset": 8, "tFormat": "PL_VERTEX_FORMAT_FLOAT2" }
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" }
                     ]
                 }
             ],

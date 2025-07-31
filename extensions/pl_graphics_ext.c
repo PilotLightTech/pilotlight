@@ -13,6 +13,53 @@
 #endif
 
 static size_t
+pl__get_vertex_attribute_size(plVertexFormat tFormat)
+{
+    switch(tFormat)
+    {
+        case PL_VERTEX_FORMAT_HALF:    return 2;
+        case PL_VERTEX_FORMAT_HALF2:   return 4;
+        case PL_VERTEX_FORMAT_HALF3:   return 6;
+        case PL_VERTEX_FORMAT_HALF4:   return 8;
+        case PL_VERTEX_FORMAT_FLOAT:   return sizeof(float);
+        case PL_VERTEX_FORMAT_FLOAT2:  return sizeof(float) * 2;
+        case PL_VERTEX_FORMAT_FLOAT3:  return sizeof(float) * 3;
+        case PL_VERTEX_FORMAT_FLOAT4:  return sizeof(float) * 4;
+        case PL_VERTEX_FORMAT_DOUBLE:  return sizeof(double);
+        case PL_VERTEX_FORMAT_DOUBLE2: return sizeof(double) * 2;
+        case PL_VERTEX_FORMAT_DOUBLE3: return sizeof(double) * 3;
+        case PL_VERTEX_FORMAT_DOUBLE4: return sizeof(double) * 4;
+        case PL_VERTEX_FORMAT_UCHAR:   return sizeof(unsigned char);
+        case PL_VERTEX_FORMAT_UCHAR2:  return sizeof(unsigned char) * 2;
+        case PL_VERTEX_FORMAT_UCHAR3:  return sizeof(unsigned char) * 3;
+        case PL_VERTEX_FORMAT_UCHAR4:  return sizeof(unsigned char) * 4;
+        case PL_VERTEX_FORMAT_CHAR:    return sizeof(char);
+        case PL_VERTEX_FORMAT_CHAR2:   return sizeof(char) * 2;
+        case PL_VERTEX_FORMAT_CHAR3:   return sizeof(char) * 3;
+        case PL_VERTEX_FORMAT_CHAR4:   return sizeof(char) * 4;
+        case PL_VERTEX_FORMAT_USHORT:  return sizeof(uint16_t);
+        case PL_VERTEX_FORMAT_USHORT2: return sizeof(uint16_t) * 2;
+        case PL_VERTEX_FORMAT_USHORT3: return sizeof(uint16_t) * 3;
+        case PL_VERTEX_FORMAT_USHORT4: return sizeof(uint16_t) * 4;
+        case PL_VERTEX_FORMAT_SHORT:   return sizeof(int16_t);
+        case PL_VERTEX_FORMAT_SHORT2:  return sizeof(int16_t) * 2;
+        case PL_VERTEX_FORMAT_SHORT3:  return sizeof(int16_t) * 3;
+        case PL_VERTEX_FORMAT_SHORT4:  return sizeof(int16_t) * 4;
+        case PL_VERTEX_FORMAT_UINT:    return sizeof(uint32_t);
+        case PL_VERTEX_FORMAT_UINT2:   return sizeof(uint32_t) * 2;
+        case PL_VERTEX_FORMAT_UINT3:   return sizeof(uint32_t) * 3;
+        case PL_VERTEX_FORMAT_UINT4:   return sizeof(uint32_t) * 4;
+        case PL_VERTEX_FORMAT_INT:     return sizeof(int);
+        case PL_VERTEX_FORMAT_INT2:    return sizeof(int) * 2;
+        case PL_VERTEX_FORMAT_INT3:    return sizeof(int) * 3;
+        case PL_VERTEX_FORMAT_INT4:    return sizeof(int) * 4;
+    }
+
+    PL_ASSERT(false && "Unsupported vertex format");
+    return 0;
+}
+
+static size_t
 pl__get_data_type_size(plDataType tType)
 {
     switch(tType)

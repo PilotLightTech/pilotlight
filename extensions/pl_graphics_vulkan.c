@@ -1510,27 +1510,57 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     uint32_t uVertexBufferCount = 0;
     uint32_t uCurrentAttributeCount = 0;
 
+    bool abExplicitAttributePosition[2] = {0};
+    bool abExplicitOffset[2] = {0};
+    bool abExplicitStride[2] = {0};
+    size_t auCalculatedStrides[2] = {0};
+
     for(uint32_t uVtxBufferIdx = 0; uVtxBufferIdx < 2; uVtxBufferIdx++)
     {
-        if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride == 0)
+        if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[0].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
             break;
 
-        
+        if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride != 0)
+            abExplicitStride[uVtxBufferIdx] = true;
+
+        uVertexBufferCount++;
+        uint32_t uByteStride = 0;
+        for (uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
+        {
+            if (ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
+                break;
+
+            auCalculatedStrides[uVtxBufferIdx] += pl__get_vertex_attribute_size(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat);
+            if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uLocation != 0)
+            {
+                abExplicitAttributePosition[uVtxBufferIdx] = true;
+            }
+
+            if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uByteOffset != 0)
+            {
+                abExplicitOffset[uVtxBufferIdx] = true;
+            }
+        }
+    }
+
+    for(uint32_t uVtxBufferIdx = 0; uVtxBufferIdx < uVertexBufferCount; uVtxBufferIdx++)
+    {
+        size_t uOffset = 0;
         for (uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
         {
             if (ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
                 break;
             atAttributeDescription[uCurrentAttributeCount].binding = uVtxBufferIdx;
-            atAttributeDescription[uCurrentAttributeCount].location = ptDescription->atVertexBufferLayouts[uVtxBufferIdx].bExplicitLocation ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uLocation : uCurrentAttributeCount;
-            atAttributeDescription[uCurrentAttributeCount].offset = ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uByteOffset;
+            atAttributeDescription[uCurrentAttributeCount].location = abExplicitAttributePosition[uVtxBufferIdx] ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uLocation : uCurrentAttributeCount;
+            atAttributeDescription[uCurrentAttributeCount].offset = abExplicitOffset[uVtxBufferIdx] ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uByteOffset : (uint32_t)uOffset;
             atAttributeDescription[uCurrentAttributeCount].format = pl__vulkan_vertex_format(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat);
+            uOffset += pl__get_vertex_attribute_size(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat);
             uCurrentAttributeCount++;
         }
 
         atBindingDescription[uVtxBufferIdx].binding   = uVtxBufferIdx;
-        atBindingDescription[uVtxBufferIdx].stride    = ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride;
+        atBindingDescription[uVtxBufferIdx].stride    = abExplicitStride[uVtxBufferIdx] ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride : (uint32_t)auCalculatedStrides[uVtxBufferIdx];
         atBindingDescription[uVtxBufferIdx].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        uVertexBufferCount++;
     }
 
     VkPipelineVertexInputStateCreateInfo tVertexInputInfo = {

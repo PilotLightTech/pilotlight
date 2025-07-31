@@ -676,6 +676,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
             {
                 plJsonObject* ptAttribute = pl_json_member_by_index(ptAttributes, j);
                 tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].uByteOffset = pl_json_uint_member(ptAttribute, "uByteOffset", 0);
+                tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].uLocation = pl_json_uint_member(ptAttribute, "uLocation", 0);
 
                 char acVertexFormatBuffer[64] = {0};
                 char* pcVertexFormatEnum = pl_json_string_member(ptAttribute, "tFormat", acVertexFormatBuffer, 64);
