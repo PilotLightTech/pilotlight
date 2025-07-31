@@ -47,9 +47,9 @@
             "pcName": "panorama_to_cubemap",
             "tShader": { "file": "panorama_to_cubemap.comp", "entry": "main" },
             "atConstants": [
-                { "uID": 0, "uOffset": 0, "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 1, "uOffset": 4, "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 2, "uOffset": 8, "tType": "PL_DATA_TYPE_INT" }
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 {
@@ -104,10 +104,10 @@
             "pcName": "skinning",
             "tShader": { "file": "skinning.comp", "entry": "main" },
             "atConstants": [
-                { "uID": 0, "uOffset": 0,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 1, "uOffset": 4,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 2, "uOffset": 8,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 3, "uOffset": 12, "tType": "PL_DATA_TYPE_INT" }
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 {
@@ -236,11 +236,11 @@
                 { "bBlendEnabled": false }
             ],
             "atConstants": [
-                { "uID": 0, "uOffset": 0,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 1, "uOffset": 4,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 2, "uOffset": 8,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 3, "uOffset": 12, "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 4, "uOffset": 16, "tType": "PL_DATA_TYPE_INT" }
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 { "pcName": "global" },
@@ -275,13 +275,13 @@
                 }
             ],
             "atConstants": [
-                { "uID": 0, "uOffset": 0,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 1, "uOffset": 4,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 2, "uOffset": 8,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 3, "uOffset": 12, "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 4, "uOffset": 16, "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 5, "uOffset": 20, "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 6, "uOffset": 24, "tType": "PL_DATA_TYPE_INT" }
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 { "pcName": "global" },
@@ -395,10 +395,10 @@
                 }
             ],
             "atConstants": [
-                { "uID": 0, "uOffset": 0,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 1, "uOffset": 4,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 2, "uOffset": 8,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 3, "uOffset": 12, "tType": "PL_DATA_TYPE_INT" }
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
                 { "pcName": "global" },
@@ -442,10 +442,10 @@
                 }
             ],
             "atConstants": [
-                { "uID": 0, "uOffset": 0,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 1, "uOffset": 4,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 2, "uOffset": 8,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 3, "uOffset": 12, "tType": "PL_DATA_TYPE_INT" }
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
                 { "pcName": "global" },
@@ -483,9 +483,9 @@
                 { "bBlendEnabled": false }
             ],
             "atConstants": [
-                { "uID": 0, "uOffset": 0,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 1, "uOffset": 4,  "tType": "PL_DATA_TYPE_INT" },
-                { "uID": 2, "uOffset": 8,  "tType": "PL_DATA_TYPE_INT" }
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
                 { "pcName": "global" },

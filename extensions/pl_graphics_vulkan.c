@@ -1369,13 +1369,15 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
     // setup & count specilization constants
     ptShader->tDesc._uConstantCount = 0;
     ptVulkanShader->szSpecializationSize = 0;
+    uint32_t uConstantOffset = 0;
     for (uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
         if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
             break;
-        ptVulkanShader->atSpecializationEntries[i].constantID = ptConstant->uID;
-        ptVulkanShader->atSpecializationEntries[i].offset = ptConstant->uOffset;
+        ptVulkanShader->atSpecializationEntries[i].constantID = ptConstant->uID == 0 ? ptShader->tDesc._uConstantCount : ptConstant->uID;
+        ptVulkanShader->atSpecializationEntries[i].offset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
+        uConstantOffset += (uint32_t)pl__get_data_type_size(ptConstant->tType);
         ptVulkanShader->atSpecializationEntries[i].size = pl__get_data_type_size(ptConstant->tType);
         ptVulkanShader->szSpecializationSize += ptVulkanShader->atSpecializationEntries[i].size;
         ptShader->tDesc._uConstantCount++;
@@ -1574,13 +1576,15 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     // setup & count specilization constants
     ptShader->tDesc._uConstantCount = 0;
     ptVulkanShader->szSpecializationSize = 0;
+    uint32_t uConstantOffset = 0;
     for (uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
         if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
             break;
-        ptVulkanShader->atSpecializationEntries[i].constantID = ptConstant->uID;
-        ptVulkanShader->atSpecializationEntries[i].offset = ptConstant->uOffset;
+        ptVulkanShader->atSpecializationEntries[i].constantID = ptConstant->uID == 0 ? ptShader->tDesc._uConstantCount : ptConstant->uID;
+        ptVulkanShader->atSpecializationEntries[i].offset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
+        uConstantOffset += (uint32_t)pl__get_data_type_size(ptConstant->tType);
         ptVulkanShader->atSpecializationEntries[i].size = pl__get_data_type_size(ptConstant->tType);
         ptVulkanShader->szSpecializationSize += ptVulkanShader->atSpecializationEntries[i].size;
         ptShader->tDesc._uConstantCount++;

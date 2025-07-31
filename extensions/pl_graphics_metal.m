@@ -1228,10 +1228,14 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
     MTLFunctionConstantValues* ptConstantValues = [MTLFunctionConstantValues new];
 
     const char* pcConstantData = ptDescription->pTempConstantData;
+    uint32_t uConstantOffset = 0;
     for(uint32_t i = 0; i < ptShader->tDesc._uConstantCount; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
-        [ptConstantValues setConstantValue:&pcConstantData[ptConstant->uOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:ptConstant->uID];
+        const uint32_t uConstantIndex = ptConstant->uID == 0 ? i : ptConstant->uID;
+        const uint32_t uAutoConstantOffset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
+        [ptConstantValues setConstantValue:&pcConstantData[uAutoConstantOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:uConstantIndex];
+        uConstantOffset += (uint32_t)pl__get_data_type_size(ptConstant->tType);
     }
 
     id<MTLFunction> computeFunction = [ptMetalShader->library newFunctionWithName:entryFunc constantValues:ptConstantValues error:&error];
@@ -1383,10 +1387,14 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     MTLFunctionConstantValues* ptConstantValues = [MTLFunctionConstantValues new];
 
     const char* pcConstantData = ptDescription->pTempConstantData;
+    uint32_t uConstantOffset = 0;
     for(uint32_t i = 0; i < ptShader->tDesc._uConstantCount; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
-        [ptConstantValues setConstantValue:&pcConstantData[ptConstant->uOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:ptConstant->uID];
+        const uint32_t uConstantIndex = ptConstant->uID == 0 ? i : ptConstant->uID;
+        const uint32_t uAutoConstantOffset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
+        [ptConstantValues setConstantValue:&pcConstantData[uAutoConstantOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:uConstantIndex];
+        uConstantOffset += (uint32_t)pl__get_data_type_size(ptConstant->tType);
     }
 
     id<MTLFunction> vertexFunction = [ptMetalShader->tVertexLibrary newFunctionWithName:vertexEntry constantValues:ptConstantValues error:&error];

@@ -808,8 +808,8 @@ typedef struct _plShaderModule
 
 typedef struct _plSpecializationConstant
 {
-    uint32_t   uID;
-    uint32_t   uOffset;
+    uint32_t   uID;     // if set to 0, will be calculated
+    uint32_t   uOffset; // if set to 0, will be calculated
     plDataType tType;
 } plSpecializationConstant;
 
