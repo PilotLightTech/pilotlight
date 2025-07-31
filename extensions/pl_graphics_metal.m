@@ -1276,19 +1276,30 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 
     // vertex layout
     MTLVertexDescriptor* vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
-    vertexDescriptor.layouts[4].stepRate = 1;
-    vertexDescriptor.layouts[4].stepFunction = MTLVertexStepFunctionPerVertex;
-    vertexDescriptor.layouts[4].stride = ptDescription->atVertexBufferLayouts[0].uByteStride;
 
+    uint32_t uVertexBufferCount = 0;
     uint32_t uCurrentAttributeCount = 0;
-    for(uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
+    for(uint32_t uVtxBufferIdx = 0; uVtxBufferIdx < 2; uVtxBufferIdx++)
     {
-        if(ptDescription->atVertexBufferLayouts[0].atAttributes[i].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
+        if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride == 0)
             break;
-        vertexDescriptor.attributes[i].bufferIndex = 4;
-        vertexDescriptor.attributes[i].offset = ptDescription->atVertexBufferLayouts[0].atAttributes[i].uByteOffset;
-        vertexDescriptor.attributes[i].format = pl__metal_vertex_format(ptDescription->atVertexBufferLayouts[0].atAttributes[i].tFormat);
-        uCurrentAttributeCount++;
+
+        for (uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
+        {
+            if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
+                break;
+            const uint32_t uLocation = ptDescription->atVertexBufferLayouts[uVtxBufferIdx].bExplicitLocation ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uLocation : uCurrentAttributeCount;
+            vertexDescriptor.attributes[uLocation].bufferIndex = 4 + uVtxBufferIdx;
+            vertexDescriptor.attributes[uLocation].offset = ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uByteOffset;
+            vertexDescriptor.attributes[uLocation].format = pl__metal_vertex_format(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat);
+            uCurrentAttributeCount++;
+
+        }
+
+        vertexDescriptor.layouts[4 + uVtxBufferIdx].stepRate = 1;
+        vertexDescriptor.layouts[4 + uVtxBufferIdx].stepFunction = MTLVertexStepFunctionPerVertex;
+        vertexDescriptor.layouts[4 + uVtxBufferIdx].stride = ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride;
+        uVertexBufferCount++;
     }
 
     // prepare preprocessor defines
@@ -2382,6 +2393,20 @@ pl_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
 }
 
 static void
+pl_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
+{
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        [ptEncoder->tEncoder setVertexBuffer:ptDevice->sbtBuffersHot[ptHandles[i].uIndex].tBuffer
+            offset:(pszOffsets == NULL) ? 0 : pszOffsets[i]
+            atIndex:4 + uFirst + i];
+    }
+}
+
+static void
 pl_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw* atDraws)
 {
 
@@ -2666,6 +2691,14 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 [ptEncoder->tEncoder setVertexBuffer:ptDevice->sbtBuffersHot[tBufferHandle.uIndex].tBuffer
                     offset:0
                     atIndex:4];
+                uCurrentStreamIndex++;
+            }
+            if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_1)
+            {
+                const plBufferHandle tBufferHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                [ptEncoder->tEncoder setVertexBuffer:ptDevice->sbtBuffersHot[tBufferHandle.uIndex].tBuffer
+                    offset:0
+                    atIndex:5];
                 uCurrentStreamIndex++;
             }
             if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)

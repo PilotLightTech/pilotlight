@@ -965,6 +965,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .set_scissor_region                     = pl_set_scissor_region,
         .set_viewport                           = pl_set_viewport,
         .bind_vertex_buffer                     = pl_bind_vertex_buffer,
+        .bind_vertex_buffers                    = pl_bind_vertex_buffers,
         .bind_shader                            = pl_bind_shader,
         .bind_compute_shader                    = pl_bind_compute_shader,
         .cleanup                                = pl_cleanup_graphics,

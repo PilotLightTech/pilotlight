@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 1, 5}
+#define plGraphicsI_version {1, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -382,6 +382,7 @@ typedef struct _plGraphicsI
     void (*set_viewport)             (plRenderEncoder*, const plRenderViewport*);
     void (*set_scissor_region)       (plRenderEncoder*, const plScissor*);
     void (*bind_vertex_buffer)       (plRenderEncoder*, plBufferHandle);
+    void (*bind_vertex_buffers)      (plRenderEncoder*, uint32_t first, uint32_t count, const plBufferHandle*, const size_t* offsets); // offsets can be NULL or array of "count" length
     void (*draw)                     (plRenderEncoder*, uint32_t count, const plDraw*);
     void (*draw_indexed)             (plRenderEncoder*, uint32_t count, const plDrawIndex*);
     void (*bind_shader)              (plRenderEncoder*, plShaderHandle);
@@ -888,7 +889,7 @@ typedef struct _plShaderDesc
     uint32_t                 uSubpassIndex;
     plGraphicsState          tGraphicsState;
     plBlendState             atBlendStates[PL_MAX_RENDER_TARGETS];
-    plVertexBufferLayout     atVertexBufferLayouts[1];
+    plVertexBufferLayout     atVertexBufferLayouts[2];
     plShaderModule           tVertexShader;
     plShaderModule           tPixelShader;
     const void*              pTempConstantData;
@@ -1111,7 +1112,7 @@ typedef struct _plDrawStreamData
     plBindGroupHandle atBindGroups[3];
     uint16_t          auDynamicBuffers[1];
     plBufferHandle    tIndexBuffer;
-    plBufferHandle    atVertexBuffers[1];
+    plBufferHandle    atVertexBuffers[2];
     uint32_t          uIndexOffset;
     uint32_t          uVertexOffset;
     uint32_t          uInstanceOffset;
@@ -1727,9 +1728,10 @@ enum plDrawStreamBits
     PL_DRAW_STREAM_BIT_VERTEX_OFFSET    = 1 << 7,
     PL_DRAW_STREAM_BIT_INDEX_BUFFER     = 1 << 8,
     PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0  = 1 << 9,
-    PL_DRAW_STREAM_BIT_TRIANGLES        = 1 << 10,
-    PL_DRAW_STREAM_BIT_INSTANCE_OFFSET  = 1 << 11,
-    PL_DRAW_STREAM_BIT_INSTANCE_COUNT   = 1 << 12
+    PL_DRAW_STREAM_BIT_VERTEX_BUFFER_1  = 1 << 10,
+    PL_DRAW_STREAM_BIT_TRIANGLES        = 1 << 11,
+    PL_DRAW_STREAM_BIT_INSTANCE_OFFSET  = 1 << 12,
+    PL_DRAW_STREAM_BIT_INSTANCE_COUNT   = 1 << 13
 };
 
 //-----------------------------------------------------------------------------
@@ -1819,6 +1821,12 @@ pl_add_to_draw_stream(plDrawStream* ptStream, plDrawStreamData tDraw)
         uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0;
     }
 
+    if(ptStream->_tCurrentDraw.atVertexBuffers[1].uData != tDraw.atVertexBuffers[1].uData)
+    {
+        ptStream->_tCurrentDraw.atVertexBuffers[1] = tDraw.atVertexBuffers[1];
+        uDirtyMask |= PL_DRAW_STREAM_BIT_VERTEX_BUFFER_1;
+    }
+
     if(ptStream->_tCurrentDraw.uTriangleCount != tDraw.uTriangleCount)
     {
         ptStream->_tCurrentDraw.uTriangleCount = tDraw.uTriangleCount;
@@ -1858,6 +1866,8 @@ pl_add_to_draw_stream(plDrawStream* ptStream, plDrawStreamData tDraw)
         ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.tIndexBuffer.uData;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_0)
         ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.atVertexBuffers[0].uData;
+    if(uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_1)
+        ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.atVertexBuffers[1].uData;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)
         ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uTriangleCount;
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_OFFSET)

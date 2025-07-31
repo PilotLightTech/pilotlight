@@ -1505,30 +1505,39 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     }
 
     // setup & count vertex attributes
-    VkVertexInputAttributeDescription atAttributeDescription[PL_MAX_VERTEX_ATTRIBUTES] = {0};
+    VkVertexInputBindingDescription atBindingDescription[2] = {0};
+    VkVertexInputAttributeDescription atAttributeDescription[PL_MAX_VERTEX_ATTRIBUTES * 2] = {0};
+    uint32_t uVertexBufferCount = 0;
     uint32_t uCurrentAttributeCount = 0;
-    for (uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
-    {
-        if (ptDescription->atVertexBufferLayouts[0].atAttributes[i].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
-            break;
-        atAttributeDescription[i].binding = 0;
-        atAttributeDescription[i].location = i;
-        atAttributeDescription[i].offset = ptDescription->atVertexBufferLayouts[0].atAttributes[i].uByteOffset;
-        atAttributeDescription[i].format = pl__vulkan_vertex_format(ptDescription->atVertexBufferLayouts[0].atAttributes[i].tFormat);
-        uCurrentAttributeCount++;
-    }
 
-    VkVertexInputBindingDescription tBindingDescription = {
-        .binding   = 0,
-        .stride    = ptDescription->atVertexBufferLayouts[0].uByteStride,
-        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-    };
+    for(uint32_t uVtxBufferIdx = 0; uVtxBufferIdx < 2; uVtxBufferIdx++)
+    {
+        if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride == 0)
+            break;
+
+        
+        for (uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
+        {
+            if (ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
+                break;
+            atAttributeDescription[uCurrentAttributeCount].binding = uVtxBufferIdx;
+            atAttributeDescription[uCurrentAttributeCount].location = ptDescription->atVertexBufferLayouts[uVtxBufferIdx].bExplicitLocation ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uLocation : uCurrentAttributeCount;
+            atAttributeDescription[uCurrentAttributeCount].offset = ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uByteOffset;
+            atAttributeDescription[uCurrentAttributeCount].format = pl__vulkan_vertex_format(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat);
+            uCurrentAttributeCount++;
+        }
+
+        atBindingDescription[uVtxBufferIdx].binding   = uVtxBufferIdx;
+        atBindingDescription[uVtxBufferIdx].stride    = ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride;
+        atBindingDescription[uVtxBufferIdx].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        uVertexBufferCount++;
+    }
 
     VkPipelineVertexInputStateCreateInfo tVertexInputInfo = {
         .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount   = 1,
+        .vertexBindingDescriptionCount   = uVertexBufferCount,
         .vertexAttributeDescriptionCount = uCurrentAttributeCount,
-        .pVertexBindingDescriptions      = &tBindingDescription,
+        .pVertexBindingDescriptions      = atBindingDescription,
         .pVertexAttributeDescriptions    = atAttributeDescription
     };
 
@@ -2058,6 +2067,24 @@ pl_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
 }
 
 void
+pl_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
+{
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    
+    VkBuffer atBuffers[8] = {0};
+    static VkDeviceSize atOffsets[8] = {0};
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        if(pszOffsets)
+            atOffsets[i] = pszOffsets[i];
+        plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[ptHandles[i].uIndex];
+        atBuffers[i] = ptVertexBuffer->tBuffer;
+    }
+    vkCmdBindVertexBuffers(ptCmdBuffer->tCmdBuffer, uFirst, uCount, atBuffers, atOffsets);
+}
+
+void
 pl_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw *atDraws)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
@@ -2265,6 +2292,13 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAr
                 const plBufferHandle tBufferHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
                 plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[tBufferHandle.uIndex];
                 vkCmdBindVertexBuffers(ptCmdBuffer->tCmdBuffer, 0, 1, &ptVertexBuffer->tBuffer, &offsets);
+                uCurrentStreamIndex++;
+            }
+            if (uDirtyMask & PL_DRAW_STREAM_BIT_VERTEX_BUFFER_1)
+            {
+                const plBufferHandle tBufferHandle = {.uData = ptStream->_auStream[uCurrentStreamIndex] };
+                plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[tBufferHandle.uIndex];
+                vkCmdBindVertexBuffers(ptCmdBuffer->tCmdBuffer, 1, 1, &ptVertexBuffer->tBuffer, &offsets);
                 uCurrentStreamIndex++;
             }
             if (uDirtyMask & PL_DRAW_STREAM_BIT_TRIANGLES)

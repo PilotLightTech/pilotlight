@@ -473,6 +473,11 @@ pl_end_render_pass(plRenderEncoder* ptEncoder)
 {
 }
 
+static void
+pl_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
+{
+}
+
 void
 pl_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
 {
