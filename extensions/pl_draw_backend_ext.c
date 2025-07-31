@@ -404,8 +404,8 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
 
     {
         const plShaderDesc t3DShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("draw_3d.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("draw_3d.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("draw_3d.frag", "main", NULL, NULL),
+            .tVertexShader   = gptShader->load_glsl("draw_3d.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE ? 1 : 0,
                 .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? (tFlags & PL_DRAW_FLAG_REVERSE_Z_DEPTH ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_LESS) : PL_COMPARE_MODE_ALWAYS,
@@ -448,8 +448,8 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
 
     {
         const plShaderDesc t3DLineShaderDesc = {
-            .tPixelShader = gptShader->load_glsl("draw_3d.frag", "main", NULL, NULL),
-            .tVertexShader = gptShader->load_glsl("draw_3d_line.vert", "main", NULL, NULL),
+            .tFragmentShader = gptShader->load_glsl("draw_3d.frag", "main", NULL, NULL),
+            .tVertexShader   = gptShader->load_glsl("draw_3d_line.vert", "main", NULL, NULL),
             .tGraphicsState = {
                 .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE,
                 .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? (tFlags & PL_DRAW_FLAG_REVERSE_Z_DEPTH ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_LESS) : PL_COMPARE_MODE_ALWAYS,
@@ -517,8 +517,8 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
     ptEntry->uSubpassIndex = uSubpassIndex;
 
     const plShaderDesc tRegularShaderDesc = {
-        .tPixelShader  = gptShader->load_glsl("draw_2d.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("draw_2d.vert", "main", NULL, NULL),
+        .tFragmentShader  = gptShader->load_glsl("draw_2d.frag", "main", NULL, NULL),
+        .tVertexShader    = gptShader->load_glsl("draw_2d.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
@@ -572,8 +572,8 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
     pl_temp_allocator_reset(&gptDrawBackendCtx->tTempAllocator);
 
     const plShaderDesc tSecondaryShaderDesc = {
-        .tPixelShader  = gptShader->load_glsl("draw_2d_sdf.frag", "main", NULL, NULL),
-        .tVertexShader = gptShader->load_glsl("draw_2d.vert", "main", NULL, NULL),
+        .tFragmentShader  = gptShader->load_glsl("draw_2d_sdf.frag", "main", NULL, NULL),
+        .tVertexShader    = gptShader->load_glsl("draw_2d.vert", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,

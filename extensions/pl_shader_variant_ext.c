@@ -424,6 +424,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
         plJsonObject* ptShaderMember = pl_json_member(ptComputeShader, "tShader");
         char acFileBuffer[256] = {0};
         char acEntryBuffer[64] = {0};
+        strncpy(acEntryBuffer, "main", 64);
         pl_json_string_member(ptShaderMember, "file", acFileBuffer, 256);
         pl_json_string_member(ptShaderMember, "entry", acEntryBuffer, 64);
 
@@ -547,12 +548,14 @@ pl_shader_tool_load_manifest(const char* pcPath)
         plJsonObject* ptVertexShaderMember = pl_json_member(ptGraphicsShader, "tVertexShader");
         char acFileBuffer[256] = {0};
         char acEntryBuffer[64] = {0};
+        strncpy(acEntryBuffer, "main", 64);
         pl_json_string_member(ptVertexShaderMember, "file", acFileBuffer, 256);
         pl_json_string_member(ptVertexShaderMember, "entry", acEntryBuffer, 64);
 
-        plJsonObject* ptPixelShaderMember = pl_json_member(ptGraphicsShader, "tPixelShader");
+        plJsonObject* ptPixelShaderMember = pl_json_member(ptGraphicsShader, "tFragmentShader");
         char acFileBuffer2[256] = {0};
         char acEntryBuffer2[64] = {0};
+        strncpy(acEntryBuffer2, "main", 64);
         if(ptPixelShaderMember)
         {
             pl_json_string_member(ptPixelShaderMember, "file", acFileBuffer2, 256);
@@ -564,7 +567,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
         tShaderDesc.tVertexShader = gptShader->load_glsl(acFileBuffer, acEntryBuffer, NULL, NULL);
 
         if(ptPixelShaderMember)
-            tShaderDesc.tPixelShader = gptShader->load_glsl(acFileBuffer2, acEntryBuffer2, NULL, NULL);
+            tShaderDesc.tFragmentShader = gptShader->load_glsl(acFileBuffer2, acEntryBuffer2, NULL, NULL);
 
         tShaderDesc.uSubpassIndex = pl_json_uint_member(ptGraphicsShader, "uSubpassIndex", 0);
 

@@ -1462,7 +1462,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     // TODO: handle these properly
 
     // if(ptDescription->pcPixelShaderEntryFunc == NULL)
-    ptShader->tDesc.tPixelShader.pcEntryFunc = "main";
+    ptShader->tDesc.tFragmentShader.pcEntryFunc = "main";
 
     // if(ptDescription->pcVertexShaderEntryFunc == NULL)
     ptShader->tDesc.tVertexShader.pcEntryFunc = "main";
@@ -1494,13 +1494,13 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     };
     PL_VULKAN(vkCreateShaderModule(ptDevice->tLogicalDevice, &tVertexShaderCreateInfo, gptGraphics->ptAllocationCallbacks, &ptVulkanShader->tVertexShaderModule));
 
-    if (ptShader->tDesc.tPixelShader.puCode)
+    if (ptShader->tDesc.tFragmentShader.puCode)
     {
         uStageCount++;
         VkShaderModuleCreateInfo tPixelShaderCreateInfo = {
             .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = ptShader->tDesc.tPixelShader.szCodeSize,
-            .pCode    = (const uint32_t *)(ptShader->tDesc.tPixelShader.puCode)
+            .codeSize = ptShader->tDesc.tFragmentShader.szCodeSize,
+            .pCode    = (const uint32_t *)(ptShader->tDesc.tFragmentShader.puCode)
         };
 
         PL_VULKAN(vkCreateShaderModule(ptDevice->tLogicalDevice, &tPixelShaderCreateInfo, gptGraphics->ptAllocationCallbacks, &ptVulkanShader->tPixelShaderModule));
@@ -1655,7 +1655,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
         .stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
         .module              = ptVulkanShader->tPixelShaderModule,
-        .pName               = ptShader->tDesc.tPixelShader.pcEntryFunc,
+        .pName               = ptShader->tDesc.tFragmentShader.pcEntryFunc,
         .pSpecializationInfo = &tSpecializationInfo
     };
 

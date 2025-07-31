@@ -1267,8 +1267,8 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 
     plMetalShader* ptMetalShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
 
-    if(ptShader->tDesc.tPixelShader.pcEntryFunc == NULL)
-        ptShader->tDesc.tPixelShader.pcEntryFunc = "fragment_main";
+    if(ptShader->tDesc.tFragmentShader.pcEntryFunc == NULL)
+        ptShader->tDesc.tFragmentShader.pcEntryFunc = "fragment_main";
 
     if(ptShader->tDesc.tVertexShader.pcEntryFunc == NULL)
         ptShader->tDesc.tVertexShader.pcEntryFunc = "vertex_main";
@@ -1348,9 +1348,9 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         NSLog(@"Error: failed to create Metal vertex library: %@", error);
     }
 
-    if(ptShader->tDesc.tPixelShader.puCode)
+    if(ptShader->tDesc.tFragmentShader.puCode)
     {
-        NSString* fragmentSource = [NSString stringWithUTF8String:(const char*)ptShader->tDesc.tPixelShader.puCode];
+        NSString* fragmentSource = [NSString stringWithUTF8String:(const char*)ptShader->tDesc.tFragmentShader.puCode];
         ptMetalShader->tFragmentLibrary = [ptDevice->tDevice  newLibraryWithSource:fragmentSource options:ptCompileOptions error:&error];
         if (ptMetalShader->tFragmentLibrary == nil)
         {
@@ -1405,7 +1405,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         NSLog(@"Error: failed to find Metal shader functions in library: %@", error);
     }
 
-    if(ptShader->tDesc.tPixelShader.puCode)
+    if(ptShader->tDesc.tFragmentShader.puCode)
     {
         fragmentFunction = [ptMetalShader->tFragmentLibrary newFunctionWithName:fragmentEntry constantValues:ptConstantValues error:&error];
         if (fragmentFunction == nil)

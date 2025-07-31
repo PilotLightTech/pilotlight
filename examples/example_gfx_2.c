@@ -415,8 +415,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plShaderDesc tShaderDesc = {
-        .tVertexShader = gptShader->load_glsl("example_gfx_2.vert", "main", NULL, NULL),
-        .tPixelShader  = gptShader->load_glsl("example_gfx_2.frag", "main", NULL, NULL),
+        .tVertexShader    = gptShader->load_glsl("example_gfx_2.vert", "main", NULL, NULL),
+        .tFragmentShader  = gptShader->load_glsl("example_gfx_2.frag", "main", NULL, NULL),
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 0,
             .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,

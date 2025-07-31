@@ -892,7 +892,17 @@ typedef struct _plShaderDesc
     plBlendState             atBlendStates[PL_MAX_RENDER_TARGETS];
     plVertexBufferLayout     atVertexBufferLayouts[2];
     plShaderModule           tVertexShader;
-    plShaderModule           tPixelShader;
+
+    #ifndef PL_DISABLE_OBSOLETE
+    union
+    {
+        plShaderModule tPixelShader;
+        plShaderModule tFragmentShader;
+    };
+    #else
+    plShaderModule tFragmentShader;
+    #endif
+    
     const void*              pTempConstantData;
     plBindGroupLayoutDesc    atBindGroupLayouts[3];
     plRenderPassLayoutHandle tRenderPassLayout;    
