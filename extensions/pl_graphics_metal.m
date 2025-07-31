@@ -1018,7 +1018,7 @@ pl_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc* ptDesc)
         ptPool->tDesc.szStorageTextureBindings +
         ptPool->tDesc.szAttachmentTextureBindings;
 
-    ptPool->szHeapSize = szMaxSets * sizeof(uint32_t);
+    ptPool->szHeapSize = szMaxSets * sizeof(uint64_t);
 
     MTLHeapDescriptor* ptHeapDescriptor = [MTLHeapDescriptor new];
     ptHeapDescriptor.storageMode = MTLStorageModeShared;
