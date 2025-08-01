@@ -3,7 +3,7 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "defines.glsl"
-#include "material.glsl"
+#include "pl_shader_interop_renderer.h"
 #include "lights.glsl"
 
 //-----------------------------------------------------------------------------
@@ -35,7 +35,7 @@ layout(std140, set = 0, binding = 1) readonly buffer _tTransformBuffer
 
 layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 {
-    tMaterial atMaterials[];
+    plGpuMaterial atMaterials[];
 } tMaterialInfo;
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
@@ -47,19 +47,9 @@ layout(set = 0, binding = PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT)  uniform textureCub
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-struct tGlobalData
-{
-    vec4 tViewportSize;
-    vec4 tViewportInfo;
-    vec4 tCameraPos;
-    mat4 tCameraView;
-    mat4 tCameraProjection;
-    mat4 tCameraViewProjection;
-};
-
 layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
 {
-    tGlobalData data[];
+    plGpuGlobalData data[];
 } tGlobalInfo;
 
 //-----------------------------------------------------------------------------
@@ -68,10 +58,7 @@ layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    int  iDataOffset;
-    int  iVertexOffset;
-    int  iMaterialIndex;
-    uint uGlobalIndex;
+    plGpuDynData tData;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -114,7 +101,7 @@ void main()
     const mat4 tTransform = tTransformBuffer.atTransform[gl_InstanceIndex];
     
     // offset = offset into current mesh + offset into global buffer
-    const uint iVertexDataOffset = iDataStride * (gl_VertexIndex - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;
+    const uint iVertexDataOffset = iDataStride * (gl_VertexIndex - tObjectInfo.tData.iVertexOffset) + tObjectInfo.tData.iDataOffset;
 
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { inPosition.xyz = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { inNormal       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xyz; iCurrentAttribute++;}
@@ -158,7 +145,7 @@ void main()
 
     vec4 pos = tTransform * inPosition;
     tShaderIn.tPosition = pos.xyz / pos.w;
-    gl_Position = tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraViewProjection * pos;
+    gl_Position = tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraViewProjection * pos;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tUV[2] = inTexCoord2;

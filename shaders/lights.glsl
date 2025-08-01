@@ -1,46 +1,8 @@
 
-struct plLightData
-{
-    vec3  tPosition;
-    float fIntensity;
+#ifndef PL_LIGHTS_GLSL
+#define PL_LIGHTS_GLSL
 
-    vec3  tDirection;
-    float fInnerConeCos;
-
-    vec3  tColor;
-    float fRange;
-
-    int iShadowIndex;
-    int iCascadeCount;
-    int iCastShadow;
-    float fOuterConeCos;
-
-    int iType;
-};
-
-struct plLightShadowData
-{
-    vec4 cascadeSplits;
-	mat4 viewProjMat[6];
-    int iShadowMapTexIdx;
-    float fFactor;
-    float fXOffset;
-    float fYOffset;
-};
-
-struct plEnvironmentProbeData
-{
-    vec3  tPosition;
-    float fRangeSqr;
-
-    uint  uLambertianEnvSampler;
-    uint  uGGXEnvSampler;
-    uint  uGGXLUT;
-    int   iParallaxCorrection;
-
-    vec4 tMin;
-    vec4 tMax;
-};
+#include "pl_shader_interop_renderer.h"
 
 float
 getRangeAttenuation(float range2, float dist2)
@@ -56,7 +18,8 @@ getRangeAttenuation(float range2, float dist2)
 }
 
 // https://github.com/KhronosGroup/glTF/blob/master/extensions/2.0/Khronos/KHR_lights_punctual/README.md#inner-and-outer-cone-angles
-float getSpotAttenuation(vec3 pointToLight, vec3 spotDirection, float outerConeCos, float innerConeCos)
+float
+getSpotAttenuation(vec3 pointToLight, vec3 spotDirection, float outerConeCos, float innerConeCos)
 {
     float actualCos = dot(normalize(spotDirection), normalize(-pointToLight));
     if (actualCos > outerConeCos)
@@ -72,7 +35,7 @@ float getSpotAttenuation(vec3 pointToLight, vec3 spotDirection, float outerConeC
 }
 
 vec3
-getLightIntensity(plLightData light, vec3 pointToLight)
+getLightIntensity(plGpuLight light, vec3 pointToLight)
 {
     float rangeAttenuation = 1.0;
     float spotAttenuation = 1.0;
@@ -88,3 +51,5 @@ getLightIntensity(plLightData light, vec3 pointToLight)
 
     return rangeAttenuation * spotAttenuation * light.fIntensity * light.tColor;
 }
+
+#endif // PL_LIGHTS_GLSL

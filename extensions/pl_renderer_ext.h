@@ -67,9 +67,10 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_ecs_ext.inl"      // plEntity
-#include "pl_resource_ext.inl" // plResourceHandle
-#include "pl_math.h"           // plVec3, plMat4
+#include "pl_ecs_ext.inl"               // plEntity
+#include "pl_resource_ext.inl"          // plResourceHandle
+#include "pl_math.h"                    // plVec3, plMat4
+#include "pl_shader_interop_renderer.h" // plLightType
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -94,7 +95,6 @@ typedef int plShaderType;
 typedef int plMaterialFlags;
 typedef int plBlendMode;
 typedef int plLightFlags;
-typedef int plLightType;
 typedef int plEnvironmentProbeFlags;
 typedef int plObjectFlags;
 typedef int plTextureSlot;
@@ -258,6 +258,7 @@ enum _plTextureSlot
     PL_TEXTURE_SLOT_EMISSIVE_MAP,
     PL_TEXTURE_SLOT_OCCLUSION_MAP,
     PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP,
+    
     PL_TEXTURE_SLOT_COUNT
 };
 
@@ -295,13 +296,6 @@ enum _plLightFlags
     PL_LIGHT_FLAG_NONE        = 0,
     PL_LIGHT_FLAG_CAST_SHADOW = 1 << 0,
     PL_LIGHT_FLAG_VISUALIZER  = 1 << 2,
-};
-
-enum _plLightType
-{
-    PL_LIGHT_TYPE_DIRECTIONAL,
-    PL_LIGHT_TYPE_POINT,
-    PL_LIGHT_TYPE_SPOT
 };
 
 enum _plEnvironmentProbeFlags

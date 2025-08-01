@@ -4,7 +4,7 @@
 #extension GL_ARB_shader_viewport_layer_array : enable
 
 #include "defines.glsl"
-#include "material.glsl"
+#include "pl_shader_interop_renderer.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -31,7 +31,7 @@ layout(std140, set = 0, binding = 1) readonly buffer _tTransformBuffer
 
 layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 {
-    tMaterial atMaterials[];
+    plGpuMaterial atMaterials[];
 } tMaterialInfo;
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
@@ -65,10 +65,7 @@ layout(set = 1, binding = 1) readonly buffer _plInstanceInfo
 
 layout(std140, set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    int  iIndex;
-    int  iDataOffset;
-    int  iVertexOffset;
-    int  iMaterialIndex;
+    plGpuDynShadow tData;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -108,7 +105,7 @@ void main()
     int iCurrentAttribute = 0;
     
     // offset = offset into current mesh + offset into global buffer
-    const uint iVertexDataOffset = iDataStride * (gl_VertexIndex - tObjectInfo.iVertexOffset) + tObjectInfo.iDataOffset;
+    const uint iVertexDataOffset = iDataStride * (gl_VertexIndex - tObjectInfo.tData.iVertexOffset) + tObjectInfo.tData.iDataOffset;
 
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_POSITION))  { iCurrentAttribute++;}
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))    { iCurrentAttribute++;}
@@ -136,13 +133,13 @@ void main()
 
     vec4 pos = tTransform * inPosition;
 
-    // gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.iIndex + gl_InstanceIndex] * pos;
+    // gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + gl_InstanceIndex] * pos;
     // gl_ViewportIndex = gl_InstanceIndex;
 
-    gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.iIndex + uViewportIndex] * pos;
+    gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex] * pos;
     gl_ViewportIndex = uViewportIndex;
 
-    if(tCameraInfo.atCameraProjs[tObjectInfo.iIndex + uViewportIndex][3][3] == 1.0) // orthographic
+    if(tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex][3][3] == 1.0) // orthographic
         gl_Position.z = 1.0 - gl_Position.z;
 
     tShaderIn.tUV[0] = inTexCoord0;

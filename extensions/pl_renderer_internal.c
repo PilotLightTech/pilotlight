@@ -650,7 +650,7 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
         for(uint32_t i = 0; i < uSkinCount; i++)
         {
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-            SkinDynamicData* ptDynamicData = (SkinDynamicData*)tDynamicBinding.pcData;
+            plGpuDynSkinData* ptDynamicData = (plGpuDynSkinData*)tDynamicBinding.pcData;
             ptDynamicData->iSourceDataOffset = ptScene->sbtSkinData[i].iSourceDataOffset;
             ptDynamicData->iDestDataOffset = ptScene->sbtSkinData[i].iDestDataOffset;
             ptDynamicData->iDestVertexOffset = ptScene->sbtSkinData[i].iDestVertexOffset;
@@ -806,7 +806,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
         {
             pl_sb_add(ptScene->sbtLightShadowData);
 
-            plGPULightShadowData* ptShadowData = &ptScene->sbtLightShadowData[pl_sb_size(ptScene->sbtLightShadowData) - 1];
+            plGpuLightShadow* ptShadowData = &ptScene->sbtLightShadowData[pl_sb_size(ptScene->sbtLightShadowData) - 1];
             ptShadowData->iShadowMapTexIdx = ptScene->atShadowTextureBindlessIndices;
             ptShadowData->fFactor = (float)ptLight->uShadowResolution / (float)ptScene->uShadowAtlasResolution;
             ptShadowData->fXOffset = (float)ptRect->iX / (float)ptScene->uShadowAtlasResolution;
@@ -850,7 +850,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
         {
             pl_sb_add(ptScene->sbtLightShadowData);
 
-            plGPULightShadowData* ptShadowData = &ptScene->sbtLightShadowData[pl_sb_size(ptScene->sbtLightShadowData) - 1];
+            plGpuLightShadow* ptShadowData = &ptScene->sbtLightShadowData[pl_sb_size(ptScene->sbtLightShadowData) - 1];
             ptShadowData->iShadowMapTexIdx = ptScene->atShadowTextureBindlessIndices;
             ptShadowData->fFactor = (float)ptLight->uShadowResolution / (float)ptScene->uShadowAtlasResolution;
             ptShadowData->fXOffset = (float)ptRect->iX / (float)ptScene->uShadowAtlasResolution;
@@ -946,7 +946,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                         
                         plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                        plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                        plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
                         ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                         ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                         ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
@@ -991,7 +991,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                         
                         plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                        plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                        plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
                         ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                         ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                         ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
@@ -1131,7 +1131,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                             
                             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                            plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                            plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
                             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                             ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                             ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
@@ -1174,7 +1174,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                             
                             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                            plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                            plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
                             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                             ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                             ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
@@ -1259,7 +1259,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                     
                     plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                    plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
                     ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                     ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
@@ -1302,7 +1302,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                     
                     plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                    plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
                     ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                     ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
@@ -1430,15 +1430,15 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
         pl_sb_add(ptDShadowData->sbtDLightShadowData);
 
         // copy GPU light shadow data
-        plGPULightShadowData* ptShadowData = &ptDShadowData->sbtDLightShadowData[uDataOffset];
+        plGpuLightShadow* ptShadowData = &ptDShadowData->sbtDLightShadowData[uDataOffset];
         ptShadowData->iShadowMapTexIdx    = ptScene->atShadowTextureBindlessIndices;
         ptShadowData->fFactor             = (float)ptLight->uShadowResolution / (float)ptScene->uShadowAtlasResolution;
         ptShadowData->fXOffset            = (float)ptRect->iX / (float)ptScene->uShadowAtlasResolution;
         ptShadowData->fYOffset            = (float)ptRect->iY / (float)ptScene->uShadowAtlasResolution;
-        ptShadowData->tCascadeSplits.d[0] = 10000.0f;
-        ptShadowData->tCascadeSplits.d[1] = 10000.0f;
-        ptShadowData->tCascadeSplits.d[2] = 10000.0f;
-        ptShadowData->tCascadeSplits.d[3] = 10000.0f;
+        ptShadowData->cascadeSplits.d[0] = 10000.0f;
+        ptShadowData->cascadeSplits.d[1] = 10000.0f;
+        ptShadowData->cascadeSplits.d[2] = 10000.0f;
+        ptShadowData->cascadeSplits.d[3] = 10000.0f;
 
         plMat4 atCamViewProjs[PL_MAX_SHADOW_CASCADES] = {0};
         float fLastSplitDist = 0.0f;
@@ -1455,7 +1455,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
         for(uint32_t uCascade = 0; uCascade < uCascadeCount; uCascade++)
         {
             float fSplitDist = afCascadeSplits[uCascade] * ptSceneCamera->fFarZ;
-            ptShadowData->tCascadeSplits.d[uCascade] = fSplitDist;
+            ptShadowData->cascadeSplits.d[uCascade] = fSplitDist;
 
             // camera space
             plVec3 atCameraCorners2[] = {
@@ -1628,7 +1628,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                     
                     plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                    plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
                     ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                     ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
@@ -1671,7 +1671,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                     
                     plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                    plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                    plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
                     ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                     ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
@@ -1786,7 +1786,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                         
                         plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                        plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                        plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
                         ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                         ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                         ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
@@ -1830,7 +1830,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                         
                         plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                        plShadowDynamicData* ptDynamicData = (plShadowDynamicData*)tDynamicBinding.pcData;
+                        plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
                         ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                         ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                         ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
@@ -1955,7 +1955,7 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
 
     plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-    plPostProcessOptions* ptDynamicData = (plPostProcessOptions*)tDynamicBinding.pcData;
+    plGpuDynPost* ptDynamicData = (plGpuDynPost*)tDynamicBinding.pcData;
     const plVec4 tOutlineColor = (plVec4){(float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
     ptDynamicData->fTargetWidth = (float)gptData->tRuntimeOptions.uOutlineWidth * tOutlineColor.r + 1.0f;
     ptDynamicData->tOutlineColor = tOutlineColor;
@@ -2511,7 +2511,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
 
     const plBufferDesc atLightShadowDataBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
-        .szByteSize = PL_MAX_LIGHTS * sizeof(plGPULightShadowData),
+        .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuLightShadow),
         .pcDebugName = "shadow data buffer"
     };
 
@@ -2823,11 +2823,11 @@ pl__renderer_update_probes(plScene* ptScene)
         // create scene bind group (camera, lights, shadows)
         const plBindGroupUpdateBufferData tSceneBGBufferData[] = 
         {
-            { .uSlot = 0, .tBuffer = ptProbe->atGlobalBuffers[uFrameIdx],                                   .szBufferRange = sizeof(BindGroup_0) * 6 },
-            { .uSlot = 1, .tBuffer = ptScene->atLightBuffer[uFrameIdx],                                     .szBufferRange = sizeof(plGPULight) * pl_sb_size(ptScene->sbtLightData)},
-            { .uSlot = 2, .tBuffer = ptProbe->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGPULightShadowData) * pl_sb_size(ptProbe->tDirectionLightShadowData.sbtDLightShadowData)},
-            { .uSlot = 3, .tBuffer = ptScene->atLightShadowDataBuffer[uFrameIdx],                           .szBufferRange = sizeof(plGPULightShadowData) * pl_sb_size(ptScene->sbtLightShadowData)},
-            { .uSlot = 4, .tBuffer = ptScene->atGPUProbeDataBuffers[uFrameIdx],                              .szBufferRange = sizeof(plGPUProbeData) * pl_sb_size(ptScene->sbtGPUProbeData)},
+            { .uSlot = 0, .tBuffer = ptProbe->atGlobalBuffers[uFrameIdx],                                   .szBufferRange = sizeof(plGpuGlobalData) * 6 },
+            { .uSlot = 1, .tBuffer = ptScene->atLightBuffer[uFrameIdx],                                     .szBufferRange = sizeof(plGpuLight) * pl_sb_size(ptScene->sbtLightData)},
+            { .uSlot = 2, .tBuffer = ptProbe->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptProbe->tDirectionLightShadowData.sbtDLightShadowData)},
+            { .uSlot = 3, .tBuffer = ptScene->atLightShadowDataBuffer[uFrameIdx],                           .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptScene->sbtLightShadowData)},
+            { .uSlot = 4, .tBuffer = ptScene->atGPUProbeDataBuffers[uFrameIdx],                              .szBufferRange = sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData)},
         };
 
         const plBindGroupUpdateData tSceneBGData = {
@@ -2844,7 +2844,7 @@ pl__renderer_update_probes(plScene* ptScene)
         const plBindGroupUpdateBufferData tSkyboxBG1BufferData = {
             .tBuffer       = ptProbe->atGlobalBuffers[uFrameIdx],
             .uSlot         = 0,
-            .szBufferRange = sizeof(BindGroup_0) * 6
+            .szBufferRange = sizeof(plGpuGlobalData) * 6
         };
 
         const plBindGroupUpdateData tSkyboxBG1Data = {
@@ -2901,7 +2901,7 @@ pl__renderer_update_probes(plScene* ptScene)
         const plBindGroupUpdateBufferData tGBufferFillBG1BufferData = {
             .tBuffer       = ptProbe->atGlobalBuffers[uFrameIdx],
             .uSlot         = 0,
-            .szBufferRange = sizeof(BindGroup_0) * 6
+            .szBufferRange = sizeof(plGpuGlobalData) * 6
         };
 
         const plBindGroupUpdateData tGBufferFillBG1Data = {
@@ -2976,10 +2976,10 @@ pl__renderer_update_probes(plScene* ptScene)
                 
                 plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
+                plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = ptDrawable->uDataOffset;
                 ptDynamicData->iVertexOffset = ptDrawable->uDynamicVertexOffset;
-                ptDynamicData->iMaterialOffset = ptDrawable->uMaterialIndex;
+                ptDynamicData->iMaterialIndex = ptDrawable->uMaterialIndex;
                 ptDynamicData->uGlobalIndex = uFace;
 
                 pl_add_to_draw_stream(ptStream, (plDrawStreamData)
@@ -3016,7 +3016,7 @@ pl__renderer_update_probes(plScene* ptScene)
             // create lighting dynamic bind group
 
             plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
-            plLightingDynamicData* ptLightingDynamicData = (plLightingDynamicData*)tLightingDynamicData.pcData;
+            plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
             ptLightingDynamicData->uGlobalIndex = uFace;
 
             
@@ -3055,7 +3055,7 @@ pl__renderer_update_probes(plScene* ptScene)
             {
 
                 plDynamicBinding tSkyboxDynamicData = pl__allocate_dynamic_data(ptDevice);
-                plSkyboxDynamicData* ptSkyboxDynamicData = (plSkyboxDynamicData*)tSkyboxDynamicData.pcData;
+                plGpuDynSkybox* ptSkyboxDynamicData = (plGpuDynSkybox*)tSkyboxDynamicData.pcData;
                 ptSkyboxDynamicData->tModel = pl_mat4_translate_vec3(ptProbeTransform->tTranslation);
                 ptSkyboxDynamicData->uGlobalIndex = uFace;
 
@@ -3099,10 +3099,10 @@ pl__renderer_update_probes(plScene* ptScene)
                 
                 plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
+                plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
                 ptDynamicData->iDataOffset = ptDrawable->uDataOffset;
                 ptDynamicData->iVertexOffset = ptDrawable->uDynamicVertexOffset;
-                ptDynamicData->iMaterialOffset = ptDrawable->uMaterialIndex;
+                ptDynamicData->iMaterialIndex = ptDrawable->uMaterialIndex;
                 ptDynamicData->uGlobalIndex = uFace;
 
                 pl_add_to_draw_stream(ptStream, (plDrawStreamData)
@@ -3267,7 +3267,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         };
 
         plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-        FilterShaderSpecData* ptDynamicData = (FilterShaderSpecData*)tDynamicBinding.pcData;
+        plGpuDynFilterSpec* ptDynamicData = (plGpuDynFilterSpec*)tDynamicBinding.pcData;
         ptDynamicData->iResolution = iResolution;
         ptDynamicData->fRoughness = 0.0f;
         ptDynamicData->iSampleCount = (int)ptProbeComp->uSamples;
@@ -3278,7 +3278,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         ptDynamicData->iCurrentMipLevel = 0;
 
         plDynamicBinding tIrradianceDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-        FilterShaderSpecData* ptIrrDynamicData = (FilterShaderSpecData*)tIrradianceDynamicBinding.pcData;
+        plGpuDynFilterSpec* ptIrrDynamicData = (plGpuDynFilterSpec*)tIrradianceDynamicBinding.pcData;
         ptIrrDynamicData->iResolution = iResolution;
         ptIrrDynamicData->fRoughness = 0.0f;
         ptIrrDynamicData->iSampleCount = (int)ptProbeComp->uSamples;
@@ -3438,7 +3438,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
 
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-            FilterShaderSpecData* ptDynamicData = (FilterShaderSpecData*)tDynamicBinding.pcData;
+            plGpuDynFilterSpec* ptDynamicData = (plGpuDynFilterSpec*)tDynamicBinding.pcData;
             ptDynamicData->iResolution = iResolution;
             ptDynamicData->fRoughness = (float)i / (float)(ptEnvTexture->tDesc.uMips - 1);
             ptDynamicData->iSampleCount = i == 0 ? 1 : (int)ptProbeComp->uSamples;

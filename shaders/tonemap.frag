@@ -1,6 +1,8 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
+#include "pl_shader_interop_renderer.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
@@ -15,8 +17,7 @@ layout(set = 0, binding = 2)  uniform texture2D tMaskTexture;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    float fTargetWidth;
-    vec4 tOutlineColor;
+    plGpuDynPost tData;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -61,9 +62,9 @@ main()
     float ydist = h.y * float(textureSize(sampler2D(tColorTexture, tSampler),0).y);
     float tdist2 = xdist * xdist + ydist * ydist;
     float dist = distance(closestSeed, tShaderIn.tUV);
-    if (closestSeed.x > 0 && closestSeed.y > 0 && dist > 0 && tdist2 < tObjectInfo.fTargetWidth * tObjectInfo.fTargetWidth)
+    if (closestSeed.x > 0 && closestSeed.y > 0 && dist > 0 && tdist2 < tObjectInfo.tData.fTargetWidth * tObjectInfo.tData.fTargetWidth)
     {
-        color = tObjectInfo.tOutlineColor;
+        color = tObjectInfo.tData.tOutlineColor;
     }
     outColor = color;
     outColor.rgb = pl_linear_to_srgb(outColor.rgb);

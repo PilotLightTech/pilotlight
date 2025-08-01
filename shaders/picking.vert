@@ -1,18 +1,15 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
+#include "pl_shader_interop_renderer.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
 
 layout(set = 0, binding = 0) uniform _plGlobalInfo
 {
-    vec4 tViewportSize;
-    vec4 tViewportInfo;
-    vec4 tCameraPos;
-    mat4 tCameraView;
-    mat4 tCameraProjection;
-    mat4 tCameraViewProjection;
+    plGpuGlobalData tData;
 } tGlobalInfo;
 
 //-----------------------------------------------------------------------------
@@ -21,9 +18,7 @@ layout(set = 0, binding = 0) uniform _plGlobalInfo
 
 layout(std140, set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    uint uID;
-    vec4 tMousePos;
-    mat4 tModel;
+    plGpuDynPick tData;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -46,8 +41,8 @@ layout(location = 0) flat out struct plShaderOut {
 void main()
 {
     vec4 inPosition  = vec4(inPos, 1.0);
-    vec4 pos = tObjectInfo.tModel * inPosition;
-    gl_Position = tGlobalInfo.tCameraViewProjection * pos;
-    tShaderOut.uID = tObjectInfo.uID;
-    tShaderOut.tMousePos = tObjectInfo.tMousePos.xy;
+    vec4 pos = tObjectInfo.tData.tModel * inPosition;
+    gl_Position = tGlobalInfo.tData.tCameraViewProjection * pos;
+    tShaderOut.uID = tObjectInfo.tData.uID;
+    tShaderOut.tMousePos = tObjectInfo.tData.tMousePos.xy;
 }

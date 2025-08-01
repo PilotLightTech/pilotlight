@@ -662,7 +662,7 @@ pl_renderer_create_scene(plSceneInit tInit)
     // pre-create some global buffers, later we should defer this
     const plBufferDesc atLightShadowDataBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
-        .szByteSize = PL_MAX_LIGHTS * sizeof(plGPULightShadowData),
+        .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuLightShadow),
         .pcDebugName = "shadow data buffer"
     };
 
@@ -1045,7 +1045,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
 
     const plBufferDesc atLightShadowDataBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
-        .szByteSize = PL_MAX_LIGHTS * sizeof(plGPULightShadowData),
+        .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuLightShadow),
         .pcDebugName = "shadow data buffer"
     };
 
@@ -1896,13 +1896,13 @@ pl_renderer_finalize_scene(plScene* ptScene)
 
     const plBufferDesc tMaterialDataBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = sizeof(plGPUMaterial) * ptScene->uGPUMaterialBufferCapacity,
+        .szByteSize = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity,
         .pcDebugName = "material buffer"
     };
     
     const plBufferDesc tLightBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_UNIFORM,
-        .szByteSize = sizeof(plGPULight) * PL_MAX_LIGHTS,
+        .szByteSize = sizeof(plGpuLight) * PL_MAX_LIGHTS,
         .pcDebugName = "light buffer"
     };
 
@@ -1923,7 +1923,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
         ptScene->atLightBuffer[i]        = pl__renderer_create_staging_buffer(&tLightBufferDesc, "light", i);
         ptScene->atTransformBuffer[i]    = pl__renderer_create_staging_buffer(&tTransformBufferDesc, "transform", i);
         ptScene->atInstanceBuffer[i]     = pl__renderer_create_staging_buffer(&tInstanceBufferDesc, "instance", i);
-        ptScene->atMaterialDataBuffer[i] = pl__renderer_create_local_buffer(&tMaterialDataBufferDesc,  "material buffer", 0, ptScene->sbtMaterialBuffer, pl_sb_size(ptScene->sbtMaterialBuffer) * sizeof(plGPUMaterial));
+        ptScene->atMaterialDataBuffer[i] = pl__renderer_create_local_buffer(&tMaterialDataBufferDesc,  "material buffer", 0, ptScene->sbtMaterialBuffer, pl_sb_size(ptScene->sbtMaterialBuffer) * sizeof(plGpuMaterial));
     }
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
@@ -1951,7 +1951,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
             {
                 .tBuffer       = ptScene->atMaterialDataBuffer[i],
                 .uSlot         = 2,
-                .szBufferRange = sizeof(plGPUMaterial) * ptScene->uGPUMaterialBufferCapacity
+                .szBufferRange = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity
             },
         };
 
@@ -2088,7 +2088,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
             if(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW)
                 ptScene->uShadowIndex++;
 
-            const plGPULight tLight = {
+            const plGpuLight tLight = {
                 .fIntensity   = ptLight->fIntensity,
                 .fRange       = ptLight->fRange,
                 .tPosition    = ptLight->tPosition,
@@ -2106,7 +2106,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
             if(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW)
                 ptScene->uShadowIndex++;
 
-            const plGPULight tLight = {
+            const plGpuLight tLight = {
                 .fIntensity    = ptLight->fIntensity,
                 .fRange        = ptLight->fRange,
                 .tPosition     = ptLight->tPosition,
@@ -2126,7 +2126,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
             if(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW)
                 ptScene->uDShadowIndex++;
 
-            const plGPULight tLight = {
+            const plGpuLight tLight = {
                 .fIntensity    = ptLight->fIntensity,
                 .fRange        = ptLight->fRange,
                 .tPosition     = ptLight->tPosition,
@@ -2172,7 +2172,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
     gptGfx->return_command_buffer(ptShadowCmdBuffer);
 
     plBuffer* ptShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->atLightShadowDataBuffer[uFrameIdx]);
-    memcpy(ptShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtLightShadowData, sizeof(plGPULightShadowData) * pl_sb_size(ptScene->sbtLightShadowData));
+    memcpy(ptShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtLightShadowData, sizeof(plGpuLightShadow) * pl_sb_size(ptScene->sbtLightShadowData));
     
     const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
     for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
@@ -2242,7 +2242,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
             gptGfx->submit_command_buffer(ptCSMCommandBuffer, &tSubmitCSMInfo);
             gptGfx->return_command_buffer(ptCSMCommandBuffer);
 
-            const BindGroup_0 tProbeBindGroupBuffer = {
+            const plGpuGlobalData tProbeBindGroupBuffer = {
                 .tViewportSize         = {.x = ptProbe->tTargetSize.x, .y = ptProbe->tTargetSize.y, .z = 1.0f, .w = 1.0f},
                 .tViewportInfo         = {0},
                 .tCameraPos            = atEnvironmentCamera[uFace].tPos,
@@ -2252,20 +2252,20 @@ pl_renderer_prepare_scene(plScene* ptScene)
             };
 
             // copy global buffer data for probe rendering
-            const uint32_t uProbeGlobalBufferOffset = sizeof(BindGroup_0) * uFace;
+            const uint32_t uProbeGlobalBufferOffset = sizeof(plGpuGlobalData) * uFace;
             plBuffer* ptProbeGlobalBuffer = gptGfx->get_buffer(ptDevice, ptProbe->atGlobalBuffers[uFrameIdx]);
-            memcpy(&ptProbeGlobalBuffer->tMemoryAllocation.pHostMapped[uProbeGlobalBufferOffset], &tProbeBindGroupBuffer, sizeof(BindGroup_0));
+            memcpy(&ptProbeGlobalBuffer->tMemoryAllocation.pHostMapped[uProbeGlobalBufferOffset], &tProbeBindGroupBuffer, sizeof(plGpuGlobalData));
         }
 
         // copy probe shadow data to GPU buffer
         plBuffer* ptDShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptProbe->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx]);
-        memcpy(ptDShadowDataBuffer->tMemoryAllocation.pHostMapped, ptProbe->tDirectionLightShadowData.sbtDLightShadowData, sizeof(plGPULightShadowData) * pl_sb_size(ptProbe->tDirectionLightShadowData.sbtDLightShadowData));
+        memcpy(ptDShadowDataBuffer->tMemoryAllocation.pHostMapped, ptProbe->tDirectionLightShadowData.sbtDLightShadowData, sizeof(plGpuLightShadow) * pl_sb_size(ptProbe->tDirectionLightShadowData.sbtDLightShadowData));
 
     }
 
     // update light GPU side buffers
     plBuffer* ptLightingBuffer = gptGfx->get_buffer(ptDevice, ptScene->atLightBuffer[uFrameIdx]);
-    memcpy(ptLightingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtLightData, sizeof(plGPULight) * pl_sb_size(ptScene->sbtLightData));
+    memcpy(ptLightingBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtLightData, sizeof(plGpuLight) * pl_sb_size(ptScene->sbtLightData));
 
     pl_sb_reset(ptScene->sbtGPUProbeData);
     for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtProbeData); i++)
@@ -2273,7 +2273,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
         plEnvironmentProbeComponent* ptProbe = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptScene->sbtProbeData[i].tEntity);
         plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtProbeData[i].tEntity);
         plTransformComponent* ptProbeTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptScene->sbtProbeData[i].tEntity);
-        plGPUProbeData tProbeData = {
+        plGpuProbe tProbeData = {
             .tPosition              = ptProbeTransform->tTranslation,
             .fRangeSqr              = ptProbe->fRange * ptProbe->fRange,
             .uGGXEnvSampler         = ptScene->sbtProbeData[i].uGGXEnvSampler,
@@ -2290,7 +2290,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
     {
 
         plBuffer* ptProbeDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->atGPUProbeDataBuffers[uFrameIdx]);
-        memcpy(ptProbeDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtGPUProbeData, sizeof(plGPUProbeData) * pl_sb_size(ptScene->sbtGPUProbeData));
+        memcpy(ptProbeDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtGPUProbeData, sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData));
     }
 
     // update environment probes
@@ -2346,7 +2346,7 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
     gptGfx->return_command_buffer(ptCSMCmdBuffer);
 
     plBuffer* ptDShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx]);
-    memcpy(ptDShadowDataBuffer->tMemoryAllocation.pHostMapped, ptView->tDirectionLightShadowData.sbtDLightShadowData, sizeof(plGPULightShadowData) * pl_sb_size(ptView->tDirectionLightShadowData.sbtDLightShadowData));
+    memcpy(ptDShadowDataBuffer->tMemoryAllocation.pHostMapped, ptView->tDirectionLightShadowData.sbtDLightShadowData, sizeof(plGpuLightShadow) * pl_sb_size(ptView->tDirectionLightShadowData.sbtDLightShadowData));
 
     if(gptData->tRuntimeOptions.bShowProbes)
     {
@@ -2455,7 +2455,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const BindGroup_0 tBindGroupBuffer = {
+    const plGpuGlobalData tBindGroupBuffer = {
         .tViewportSize         = {.xy = ptView->tTargetSize, .ignored0_ = 1.0f, .ignored1_ = 1.0f},
         .tViewportInfo         = {0},
         .tCameraPos            = ptCamera->tPos,
@@ -2463,12 +2463,12 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .tCameraView           = ptCamera->tViewMat,
         .tCameraViewProjection = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat)
     };
-    memcpy(gptGfx->get_buffer(ptDevice, ptView->atGlobalBuffers[uFrameIdx])->tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(BindGroup_0));
+    memcpy(gptGfx->get_buffer(ptDevice, ptView->atGlobalBuffers[uFrameIdx])->tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(plGpuGlobalData));
 
     const plBindGroupUpdateBufferData tDeferredBG1BufferData = {
         .tBuffer       = ptView->atGlobalBuffers[uFrameIdx],
         .uSlot         = 0,
-        .szBufferRange = sizeof(BindGroup_0)
+        .szBufferRange = sizeof(plGpuGlobalData)
     };
 
     plBindGroupUpdateData tDeferredBG1Data = {
@@ -2568,10 +2568,10 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-            DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
+            plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
             ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-            ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
+            ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
             ptDynamicData->uGlobalIndex = 0;
 
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
@@ -2608,11 +2608,11 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     const plBindGroupUpdateBufferData atSceneBGBufferData[] = 
     {
-        { .uSlot = 0, .tBuffer = ptView->atGlobalBuffers[uFrameIdx], .szBufferRange = sizeof(BindGroup_0) },
-        { .uSlot = 1, .tBuffer = ptScene->atLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGPULight) * pl_sb_size(ptScene->sbtLightData)},
-        { .uSlot = 2, .tBuffer = ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGPULightShadowData) * pl_sb_size(ptView->tDirectionLightShadowData.sbtDLightShadowData)},
-        { .uSlot = 3, .tBuffer = ptScene->atLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGPULightShadowData) * pl_sb_size(ptScene->sbtLightShadowData)},
-        { .uSlot = 4, .tBuffer = ptScene->atGPUProbeDataBuffers[uFrameIdx], .szBufferRange = sizeof(plGPUProbeData) * pl_sb_size(ptScene->sbtGPUProbeData)},
+        { .uSlot = 0, .tBuffer = ptView->atGlobalBuffers[uFrameIdx], .szBufferRange = sizeof(plGpuGlobalData) },
+        { .uSlot = 1, .tBuffer = ptScene->atLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLight) * pl_sb_size(ptScene->sbtLightData)},
+        { .uSlot = 2, .tBuffer = ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptView->tDirectionLightShadowData.sbtDLightShadowData)},
+        { .uSlot = 3, .tBuffer = ptScene->atLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptScene->sbtLightShadowData)},
+        { .uSlot = 4, .tBuffer = ptScene->atGPUProbeDataBuffers[uFrameIdx], .szBufferRange = sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData)},
     };
 
     const plBindGroupUpdateData tSceneBGData = {
@@ -2626,7 +2626,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->queue_bind_group_for_deletion(ptDevice, tSceneBG);
 
     plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
-    plLightingDynamicData* ptLightingDynamicData = (plLightingDynamicData*)tLightingDynamicData.pcData;
+    plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
     ptLightingDynamicData->uGlobalIndex = 0;
 
     gptGfx->reset_draw_stream(ptStream, 1);
@@ -2666,7 +2666,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         const plBindGroupUpdateBufferData tSkyboxBG0BufferData = {
             .tBuffer       = ptView->atGlobalBuffers[uFrameIdx],
             .uSlot         = 0,
-            .szBufferRange = sizeof(BindGroup_0)
+            .szBufferRange = sizeof(plGpuGlobalData)
         };
 
         plBindGroupUpdateData tSkyboxBG0Data = {
@@ -2681,7 +2681,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         gptGfx->queue_bind_group_for_deletion(ptDevice, tSkyboxBG0);
 
         plDynamicBinding tSkyboxDynamicData = pl__allocate_dynamic_data(ptDevice);
-        plSkyboxDynamicData* ptSkyboxDynamicData = (plSkyboxDynamicData*)tSkyboxDynamicData.pcData;
+        plGpuDynSkybox* ptSkyboxDynamicData = (plGpuDynSkybox*)tSkyboxDynamicData.pcData;
         ptSkyboxDynamicData->tModel = pl_mat4_translate_vec3(ptCamera->tPos);
         ptSkyboxDynamicData->uGlobalIndex = 0;
 
@@ -2724,10 +2724,10 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-            DynamicData* ptDynamicData = (DynamicData*)tDynamicBinding.pcData;
+            plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
             ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-            ptDynamicData->iMaterialOffset = tDrawable.uMaterialIndex;
+            ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
             ptDynamicData->uGlobalIndex = 0;
 
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
@@ -2811,7 +2811,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         const plBindGroupUpdateBufferData tPickBG0BufferData = {
             .tBuffer       = ptView->atGlobalBuffers[uFrameIdx],
             .uSlot         = 0,
-            .szBufferRange = sizeof(BindGroup_0)
+            .szBufferRange = sizeof(plGpuGlobalData)
         };
 
         const plBindGroupUpdateData tPickBGData0 = {
@@ -2848,7 +2848,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
             
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-            plPickDynamicData* ptDynamicData = (plPickDynamicData*)tDynamicBinding.pcData;
+            plGpuDynPick* ptDynamicData = (plGpuDynPick*)tDynamicBinding.pcData;
             
             ptDynamicData->uID = uId;
             ptDynamicData->tModel = ptTransform->tWorld;
@@ -2972,7 +2972,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             .tTexture = ptView->atUVMaskTexture0,
             .uSlot    = 0,
             .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
+            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
         },
         {
             .tTexture = ptView->atUVMaskTexture1,
@@ -3259,9 +3259,9 @@ pl_renderer_begin_frame(void)
             gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
         
             plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
-            memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[gptData->atStagingBufferHandle[uFrameIdx].szOffset], ptScene->sbtMaterialBuffer, sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
-            gptGfx->copy_buffer(ptBlitEncoder, tStagingBuffer, ptScene->atMaterialDataBuffer[uFrameIdx], (uint32_t)gptData->atStagingBufferHandle[uFrameIdx].szOffset, 0, sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
-            gptData->atStagingBufferHandle[uFrameIdx].szOffset += sizeof(plGPUMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer);
+            memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[gptData->atStagingBufferHandle[uFrameIdx].szOffset], ptScene->sbtMaterialBuffer, sizeof(plGpuMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
+            gptGfx->copy_buffer(ptBlitEncoder, tStagingBuffer, ptScene->atMaterialDataBuffer[uFrameIdx], (uint32_t)gptData->atStagingBufferHandle[uFrameIdx].szOffset, 0, sizeof(plGpuMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
+            gptData->atStagingBufferHandle[uFrameIdx].szOffset += sizeof(plGpuMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer);
 
             gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
             gptGfx->end_blit_pass(ptBlitEncoder);
@@ -3418,7 +3418,7 @@ pl_renderer_update_scene_materials(plScene* ptScene, uint32_t uMaterialCount, co
             int iMetallicRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
             int iOcclusionTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
 
-            plGPUMaterial tGPUMaterial = {
+            plGpuMaterial tGPUMaterial = {
                 .fMetallicFactor          = ptMaterial->fMetalness,
                 .fRoughnessFactor         = ptMaterial->fRoughness,
                 .tBaseColorFactor         = ptMaterial->tBaseColor,
@@ -3548,7 +3548,7 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
             int iOcclusionTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
 
             // create GPU material
-            plGPUMaterial tGPUMaterial = {
+            plGpuMaterial tGPUMaterial = {
                 .fMetallicFactor          = ptMaterial->fMetalness,
                 .fRoughnessFactor         = ptMaterial->fRoughness,
                 .tBaseColorFactor         = ptMaterial->tBaseColor,

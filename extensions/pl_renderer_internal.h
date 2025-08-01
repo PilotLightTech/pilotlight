@@ -60,6 +60,9 @@ Index of this file:
 #include "pl_vfs_ext.h"
 #include "pl_starter_ext.h"
 
+// shader interop
+#include "pl_shader_interop_renderer.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
@@ -110,7 +113,7 @@ Index of this file:
     static const plBVHI*           gptBvh           = NULL;
     static const plAnimationI*     gptAnimation     = NULL;
     static const plMeshI*          gptMesh          = NULL;
-    static const plShaderVariantI*   gptShaderVariant   = NULL;
+    static const plShaderVariantI* gptShaderVariant = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
@@ -131,35 +134,19 @@ typedef struct _plRendererStagingBuffer plRendererStagingBuffer;
 typedef struct _plCullData              plCullData;
 typedef struct _plMemCpyJobData         plMemCpyJobData;
 typedef struct _plOBB                   plOBB;
+typedef struct _plEnvironmentProbeData  plEnvironmentProbeData;
 
 // shader variants
 typedef struct _plShaderVariant plShaderVariant;
 typedef struct _plComputeShaderVariant plComputeShaderVariant;
 
 // gpu buffers
-typedef struct _plGPUProbeData             plGPUProbeData;
-typedef struct _plGPUMaterial              plGPUMaterial;
-typedef struct _plGPULight                 plGPULight;
-typedef struct _plGPULightShadowData       plGPULightShadowData;
 typedef struct _plShadowInstanceBufferData plShadowInstanceBufferData;
-typedef struct _plEnvironmentProbeData     plEnvironmentProbeData;
-
-// gpu dynamic data types
-typedef struct _SkinDynamicData            SkinDynamicData;
-typedef struct _BindGroup_0                BindGroup_0;
-typedef struct _DynamicData                DynamicData;
-typedef struct _plShadowDynamicData        plShadowDynamicData;
-typedef struct _plSkyboxDynamicData        plSkyboxDynamicData;
 typedef struct _plDirectionLightShadowData plDirectionLightShadowData;
-typedef struct _plLightingDynamicData      plLightingDynamicData;
-typedef struct _plPickDynamicData          plPickDynamicData;
-typedef struct _plPostProcessOptions       plPostProcessOptions;
-typedef struct _FilterShaderSpecData       FilterShaderSpecData;
 
 // enums & flags
 typedef int plDrawableFlags;
 typedef int plTextureMappingFlags;
-typedef int plMaterialInfoFlags;
 typedef int plRenderingFlags;
 
 //-----------------------------------------------------------------------------
@@ -174,19 +161,6 @@ enum _plDrawableFlags
     PL_DRAWABLE_FLAG_PROBE    = 1 << 2
 };
 
-enum _plTextureMappingFlags
-{
-    PL_HAS_BASE_COLOR_MAP         = 1 << 0,
-    PL_HAS_NORMAL_MAP             = 1 << 1,
-    PL_HAS_EMISSIVE_MAP           = 1 << 2,
-    PL_HAS_OCCLUSION_MAP          = 1 << 3,
-    PL_HAS_METALLIC_ROUGHNESS_MAP = 1 << 4
-};
-
-enum _plMaterialInfoFlags
-{
-    PL_INFO_MATERIAL_METALLICROUGHNESS = 1 << 0,
-};
 
 enum _plRenderingFlags
 {
@@ -199,45 +173,12 @@ enum _plRenderingFlags
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _FilterShaderSpecData
-{
-    int   iResolution;
-    float fRoughness;
-    int   iSampleCount;
-    int   iWidth;
-    float fLodBias;
-    int   iDistribution;
-    int   iIsGeneratingLut;
-    int   iCurrentMipLevel;
-} FilterShaderSpecData;
-
-typedef struct _plPostProcessOptions
-{
-    float fTargetWidth;
-    int   _padding[3];
-    plVec4 tOutlineColor;
-} plPostProcessOptions;
-
 typedef struct _plOBB
 {
     plVec3 tCenter;
     plVec3 tExtents;
     plVec3 atAxes[3]; // Orthonormal basis
 } plOBB;
-
-typedef struct _plLightingDynamicData
-{
-    uint32_t uGlobalIndex;
-    uint32_t uUnused[3];
-} plLightingDynamicData;
-
-typedef struct _plPickDynamicData
-{
-    uint32_t uID;
-    uint32_t _unused[3];
-    plVec4 tMousePos;
-    plMat4 tModel;
-} plPickDynamicData;
 
 typedef struct _plRendererStagingBuffer
 {
@@ -246,15 +187,6 @@ typedef struct _plRendererStagingBuffer
     size_t         szOffset;
     double         dLastTimeActive;
 } plRendererStagingBuffer;
-
-typedef struct _SkinDynamicData
-{
-    int iSourceDataOffset;
-    int iDestDataOffset;
-    int iDestVertexOffset;
-    uint32_t uMaxSize;
-    plMat4 tInverseWorld;
-} SkinDynamicData;
 
 typedef struct _plSkinData
 {
@@ -293,125 +225,19 @@ typedef struct _plDrawable
     bool            bCulled;
 } plDrawable;
 
-typedef struct _plGPUProbeData
-{
-    plVec3 tPosition;
-    float  fRangeSqr;
-
-    uint32_t  uLambertianEnvSampler;
-    uint32_t  uGGXEnvSampler;
-    uint32_t  uGGXLUT;
-    int       iParallaxCorrection;
-
-    plVec4 tMin;
-    plVec4 tMax;
-} plGPUProbeData;
-
-typedef struct _plGPUMaterial
-{
-    // Metallic Roughness
-    float fMetallicFactor;
-    float fRoughnessFactor;
-    int _unused0[2];
-    plVec4 tBaseColorFactor;
-
-    // Emissive Strength
-    plVec3 tEmissiveFactor;
-    float  fEmissiveStrength;
-    
-    // Alpha mode
-    float fAlphaCutoff;
-    float fOcclusionStrength;
-    int iBaseColorUVSet;
-    int iNormalUVSet;
-
-    int iEmissiveUVSet;
-    int iOcclusionUVSet;
-    int iMetallicRoughnessUVSet;
-    int iBaseColorTexIdx;
-    
-    int iNormalTexIdx;
-    int iEmissiveTexIdx;
-    int iMetallicRoughnessTexIdx;
-    int iOcclusionTexIdx;
-} plGPUMaterial;
-
-typedef struct _plGPULight
-{
-    plVec3 tPosition;
-    float  fIntensity;
-
-    plVec3 tDirection;
-    float fInnerConeCos;
-
-    plVec3 tColor;
-    float  fRange;
-
-    int iShadowIndex;
-    int iCascadeCount;
-    int iCastShadow;
-    float fOuterConeCos;
-
-    int iType;
-    int _unused[3];
-} plGPULight;
-
-typedef struct _plGPULightShadowData
-{
-    plVec4 tCascadeSplits;
-	plMat4 viewProjMat[6];
-    int iShadowMapTexIdx;
-    float fFactor;
-    float fXOffset;
-    float fYOffset;
-} plGPULightShadowData;
-
-typedef struct _BindGroup_0
-{
-    plVec4 tViewportSize;
-    plVec4 tViewportInfo;
-    plVec4 tCameraPos;
-    plMat4 tCameraView;
-    plMat4 tCameraProjection;   
-    plMat4 tCameraViewProjection;
-} BindGroup_0;
-
-typedef struct _DynamicData
-{
-    int      iDataOffset;
-    int      iVertexOffset;
-    int      iMaterialOffset;
-    uint32_t uGlobalIndex;
-} DynamicData;
-
 typedef struct _plShadowInstanceBufferData
 {
     uint32_t uTransformIndex;
     int32_t  iViewportIndex;
 } plShadowInstanceBufferData;
 
-typedef struct _plShadowDynamicData
-{
-    int iIndex;
-    int iDataOffset;
-    int iVertexOffset;
-    int iMaterialIndex;
-} plShadowDynamicData;
-
-typedef struct _plSkyboxDynamicData
-{
-    uint32_t uGlobalIndex;
-    uint32_t _auUnused[3];
-    plMat4 tModel;
-} plSkyboxDynamicData;
-
 typedef struct _plDirectionLightShadowData
 {
-    plBufferHandle        atDShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferHandle        atDLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    plGPULightShadowData* sbtDLightShadowData;
-    uint32_t              uOffset;
-    uint32_t              uOffsetIndex;
+    plBufferHandle     atDShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle     atDLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plGpuLightShadow* sbtDLightShadowData;
+    uint32_t           uOffset;
+    uint32_t           uOffsetIndex;
 } plDirectionLightShadowData;
 
 typedef struct _plEnvironmentProbeData
@@ -539,9 +365,9 @@ typedef struct _plScene
     plVec3*        sbtVertexPosBuffer;
     plVec4*        sbtVertexDataBuffer;
     uint32_t*      sbuIndexBuffer;
-    plGPUMaterial* sbtMaterialBuffer;
+    plGpuMaterial* sbtMaterialBuffer;
     plVec4*        sbtSkinVertexDataBuffer;
-    plGPULight*    sbtLightData;
+    plGpuLight*   sbtLightData;
 
     // GPU buffers
     plBufferHandle tVertexBuffer;
@@ -604,7 +430,7 @@ typedef struct _plScene
     // shadows
     plBufferHandle atShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    plGPULightShadowData* sbtLightShadowData;
+    plGpuLightShadow* sbtLightShadowData;
     uint32_t              uShadowOffset;
     uint32_t              uShadowIndex;
     uint32_t              uDShadowOffset;
@@ -613,7 +439,7 @@ typedef struct _plScene
     // environment probes
     plEntity tProbeMesh;
     plEnvironmentProbeData* sbtProbeData;
-    plGPUProbeData* sbtGPUProbeData;
+    plGpuProbe* sbtGPUProbeData;
     plBufferHandle atGPUProbeDataBuffers[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atFilterWorkingBuffers[7]; // used for runtime filtering
 
@@ -754,7 +580,6 @@ static void pl__renderer_post_process_scene(plCommandBuffer*, plView*, const plM
 static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock);}
 static void                    pl__renderer_add_drawable_skin_data_to_global_buffers(plScene*, uint32_t uDrawableIndex);
 static void                    pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex);
-static size_t                  pl__renderer_get_data_type_size2(plDataType tType);
 static plBlendState            pl__renderer_get_blend_state(plBlendMode tBlendMode);
 static uint32_t                pl__renderer_get_bindless_texture_index(plScene*, plTextureHandle);
 static uint32_t                pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);

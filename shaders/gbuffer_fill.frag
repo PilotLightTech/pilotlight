@@ -23,7 +23,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "defines.glsl"
-#include "material.glsl"
+#include "pl_shader_interop_renderer.h"
 #include "math.glsl"
 
 //-----------------------------------------------------------------------------
@@ -52,7 +52,7 @@ layout(std140, set = 0, binding = 1) readonly buffer _tTransformBuffer
 
 layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 {
-    tMaterial atMaterials[];
+    plGpuMaterial atMaterials[];
 } tMaterialInfo;
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
@@ -64,19 +64,9 @@ layout(set = 0, binding = PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT)  uniform textureCub
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-struct tGlobalData
-{
-    vec4 tViewportSize;
-    vec4 tViewportInfo;
-    vec4 tCameraPos;
-    mat4 tCameraView;
-    mat4 tCameraProjection;
-    mat4 tCameraViewProjection;
-};
-
 layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
 {
-    tGlobalData data[];
+    plGpuGlobalData data[];
 } tGlobalInfo;
 
 //-----------------------------------------------------------------------------
@@ -85,10 +75,7 @@ layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    int  iDataOffset;
-    int  iVertexOffset;
-    int  iMaterialIndex;
-    uint uGlobalIndex;
+    plGpuDynData tInner;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -181,7 +168,7 @@ NormalInfo pl_get_normal_info(int iUVSet)
     info.ng = ng;
     if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP)) 
     {
-        tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
+        plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tInner.iMaterialIndex];
         info.ntex = texture(sampler2D(at2DTextures[nonuniformEXT(material.iNormalTexIdx)], tDefaultSampler), UV).rgb * 2.0 - vec3(1.0);
         // info.ntex *= vec3(0.2, 0.2, 1.0);
         // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
@@ -197,7 +184,8 @@ NormalInfo pl_get_normal_info(int iUVSet)
     return info;
 }
 
-vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
+vec4
+getBaseColor(vec4 u_ColorFactor, int iUVSet)
 {
     vec4 baseColor = vec4(1);
 
@@ -206,7 +194,7 @@ vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
     //     baseColor = u_DiffuseFactor;
     // }
     // else if(bool(MATERIAL_METALLICROUGHNESS))
-    if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS))
+    if(bool(iMaterialFlags & PL_INFO_MATERIAL_METALLICROUGHNESS))
     {
         // baseColor = u_BaseColorFactor;
         baseColor = u_ColorFactor;
@@ -218,15 +206,16 @@ vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
     //     baseColor *= texture(u_DiffuseSampler, tShaderIn.tUV);
     // }
     // else if(bool(MATERIAL_METALLICROUGHNESS) && bool(HAS_BASE_COLOR_MAP))
-    if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
+    if(bool(iMaterialFlags & PL_INFO_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
-        tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
+        plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tInner.iMaterialIndex];
         baseColor *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tDefaultSampler), tShaderIn.tUV[iUVSet]));
     }
     return baseColor * tShaderIn.tColor;
 }
 
-MaterialInfo getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_RoughnessFactor, int UVSet)
+MaterialInfo
+getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_RoughnessFactor, int UVSet)
 {
     info.metallic = u_MetallicFactor;
     info.perceptualRoughness = u_RoughnessFactor;
@@ -235,7 +224,7 @@ MaterialInfo getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor,
     {
         // Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
         // This layout intentionally reserves the 'r' channel for (optional) occlusion map data
-        tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
+        plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tInner.iMaterialIndex];
         vec4 mrSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.iMetallicRoughnessTexIdx)], tDefaultSampler), tShaderIn.tUV[UVSet]);
         info.perceptualRoughness *= mrSample.g;
         info.metallic *= mrSample.b;
@@ -247,20 +236,6 @@ MaterialInfo getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor,
     return info;
 }
 
-vec2 OctWrap( vec2 v ) {
-    vec2 w = 1.0 - abs( v.yx );
-    if (v.x < 0.0) w.x = -w.x;
-    if (v.y < 0.0) w.y = -w.y;
-    return w;
-}
- 
-vec2 Encode( vec3 n ) {
-    n /= ( abs( n.x ) + abs( n.y ) + abs( n.z ) );
-    n.xy = n.z > 0.0 ? n.xy : OctWrap( n.xy );
-    n.xy = n.xy * 0.5 + 0.5;
-    return n.xy;
-}
-
 //-----------------------------------------------------------------------------
 // [SECTION] entry
 //-----------------------------------------------------------------------------
@@ -268,11 +243,11 @@ vec2 Encode( vec3 n ) {
 void main() 
 {
     
-    tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
-    NormalInfo tNormalInfo = pl_get_normal_info(material.NormalUVSet);
-    vec4 tBaseColor = getBaseColor(material.u_BaseColorFactor, material.BaseColorUVSet);
+    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tInner.iMaterialIndex];
+    NormalInfo tNormalInfo = pl_get_normal_info(material.iNormalUVSet);
+    vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.iBaseColorUVSet);
 
-    if(tBaseColor.a <  material.u_AlphaCutoff)
+    if(tBaseColor.a <  material.fAlphaCutoff)
     {
         discard;
     }
@@ -281,9 +256,9 @@ void main()
     materialInfo.f0 = vec3(0.04);
     materialInfo.baseColor = tBaseColor.rgb;
     
-    if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS))
+    if(bool(iMaterialFlags & PL_INFO_MATERIAL_METALLICROUGHNESS))
     {
-        materialInfo = getMetallicRoughnessInfo(materialInfo, material.u_MetallicFactor, material.u_RoughnessFactor, material.MetallicRoughnessUVSet);
+        materialInfo = getMetallicRoughnessInfo(materialInfo, material.fMetallicFactor, material.fRoughnessFactor, material.iMetallicRoughnessUVSet);
     }
 
     materialInfo.perceptualRoughness = clamp(materialInfo.perceptualRoughness, 0.0, 1.0);
@@ -300,7 +275,7 @@ void main()
     float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
-        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.iOcclusionTexIdx)], tDefaultSampler), tShaderIn.tUV[material.OcclusionUVSet]).r;
+        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.iOcclusionTexIdx)], tDefaultSampler), tShaderIn.tUV[material.iOcclusionUVSet]).r;
     }
 
     // fill g-buffer

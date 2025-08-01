@@ -3,7 +3,7 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "defines.glsl"
-#include "material.glsl"
+#include "pl_shader_interop_renderer.h"
 #include "lights.glsl"
 #include "math.glsl"
 
@@ -31,7 +31,7 @@ layout(std140, set = 0, binding = 1) readonly buffer _tTransformBuffer
 
 layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 {
-    tMaterial atMaterials[];
+    plGpuMaterial atMaterials[];
 } tMaterialInfo;
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
@@ -51,39 +51,29 @@ layout(input_attachment_index = 0, set = 1, binding = 3)  uniform subpassInput t
 // [SECTION] bind group 2
 //-----------------------------------------------------------------------------
 
-struct tGlobalData
-{
-    vec4 tViewportSize;
-    vec4 tViewportInfo;
-    vec4 tCameraPos;
-    mat4 tCameraView;
-    mat4 tCameraProjection;
-    mat4 tCameraViewProjection;
-};
-
 layout(set = 2, binding = 0) readonly buffer _plGlobalInfo
 {
-    tGlobalData data[];
+    plGpuGlobalData data[];
 } tGlobalInfo;
 
 layout(set = 2, binding = 1) uniform _plLightInfo
 {
-    plLightData atData[1];
+    plGpuLight atData[1];
 } tLightInfo;
 
 layout(set = 2, binding = 2) readonly buffer plDShadowData
 {
-    plLightShadowData atData[];
+    plGpuLightShadow atData[];
 } tDShadowData;
 
 layout(set = 2, binding = 3) readonly buffer plShadowData
 {
-    plLightShadowData atData[];
+    plGpuLightShadow atData[];
 } tShadowData;
 
 layout(set = 2, binding = 4) readonly buffer plProbeData
 {
-    plEnvironmentProbeData atData[];
+    plGpuProbe atData[];
 } tProbeData;
 
 layout(set = 2, binding = 5)  uniform sampler tShadowSampler;
@@ -94,7 +84,7 @@ layout(set = 2, binding = 5)  uniform sampler tShadowSampler;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    uint uGlobalIndex;
+    plGpuDynDeferredLighting tData;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -108,83 +98,16 @@ layout(location = 0) in struct plShaderIn {
     vec2 tUV;
 } tShaderIn;
 
-//-----------------------------------------------------------------------------
-// [SECTION] BRDF
-//-----------------------------------------------------------------------------
-
-//
-// Fresnel
-//
-// http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
-// https://github.com/wdas/brdf/tree/master/src/brdfs
-// https://google.github.io/filament/Filament.md.html
-//
-
-// The following equation models the Fresnel reflectance term of the spec equation (aka F())
-// Implementation of fresnel from [4], Equation 15
-vec3 F_Schlick(vec3 f0, vec3 f90, float VdotH)
-{
-    return f0 + (f90 - f0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
-}
-
-// Smith Joint GGX
-// Note: Vis = G / (4 * NdotL * NdotV)
-// see Eric Heitz. 2014. Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs. Journal of Computer Graphics Techniques, 3
-// see Real-Time Rendering. Page 331 to 336.
-// see https://google.github.io/filament/Filament.md.html#materialsystem/specularbrdf/geometricshadowing(specularg)
-float V_GGX(float NdotL, float NdotV, float alphaRoughness)
-{
-    float alphaRoughnessSq = alphaRoughness * alphaRoughness;
-
-    float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
-    float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - alphaRoughnessSq) + alphaRoughnessSq);
-
-    float GGX = GGXV + GGXL;
-    if (GGX > 0.0)
-    {
-        return 0.5 / GGX;
-    }
-    return 0.0;
-}
-
-
-// The following equation(s) model the distribution of microfacet normals across the area being drawn (aka D())
-// Implementation from "Average Irregularity Representation of a Roughened Surface for Ray Reflection" by T. S. Trowbridge, and K. P. Reitz
-// Follows the distribution function recommended in the SIGGRAPH 2013 course notes from EPIC Games [1], Equation 3.
-float D_GGX(float NdotH, float alphaRoughness)
-{
-    float alphaRoughnessSq = alphaRoughness * alphaRoughness;
-    float f = (NdotH * NdotH) * (alphaRoughnessSq - 1.0) + 1.0;
-    return alphaRoughnessSq / (M_PI * f * f);
-}
-
-
-//https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#acknowledgments AppendixB
-vec3 BRDF_lambertian(vec3 f0, vec3 f90, vec3 diffuseColor, float specularWeight, float VdotH)
-{
-    // see https://seblagarde.wordpress.com/2012/01/08/pi-or-not-to-pi-in-game-lighting-equation/
-    return (1.0 - specularWeight * F_Schlick(f0, f90, VdotH)) * (diffuseColor / M_PI);
-}
-
-//  https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#acknowledgments AppendixB
-vec3 BRDF_specularGGX(vec3 f0, vec3 f90, float alphaRoughness, float specularWeight, float VdotH, float NdotL, float NdotV, float NdotH)
-{
-    vec3 F = F_Schlick(f0, f90, VdotH);
-    float Vis = V_GGX(NdotL, NdotV, alphaRoughness);
-    float D = D_GGX(NdotH, alphaRoughness);
-
-    return specularWeight * F * Vis * D;
-}
-
-vec3 getDiffuseLight(vec3 n, int iProbeIndex)
+vec3
+getDiffuseLight(vec3 n, int iProbeIndex)
 {
     // n.z = -n.z; // uncomment if not reverse z
     // return texture(samplerCube(u_LambertianEnvSampler, tEnvSampler), n).rgb;
     return texture(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uLambertianEnvSampler)], tEnvSampler), n).rgb;
 }
 
-
-vec4 getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
+vec4
+getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
 {
     // reflection.z = -reflection.z; // uncomment if not reverse z
     // reflection.x = -reflection.x; // uncomment if not reverse z
@@ -192,7 +115,8 @@ vec4 getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
     return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tEnvSampler), reflection, lod);
 }
 
-vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount, int iProbeIndex, vec3 tWorldPos)
+vec3
+getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount, int iProbeIndex, vec3 tWorldPos)
 {
     
     float lod = roughness * float(u_MipCount - 1);
@@ -238,7 +162,8 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularW
 }
 
 // specularWeight is introduced with KHR_materials_specular
-vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight, int iProbeIndex, vec3 tWorldPos)
+vec3
+getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight, int iProbeIndex, vec3 tWorldPos)
 {
 
     // if(bool(tProbeData.atData[iProbeIndex].iParallaxCorrection))
@@ -287,40 +212,8 @@ vec3 getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor
     return (FmsEms + k_D) * irradiance;
 }
 
-const mat4 biasMat = mat4( 
-	0.5, 0.0, 0.0, 0.0,
-	0.0, 0.5, 0.0, 0.0,
-	0.0, 0.0, 1.0, 0.0,
-	0.5, 0.5, 0.0, 1.0 
-);
-
-vec2 poissonDisk[16] = vec2[]( 
-   vec2( -0.94201624, -0.39906216 ), 
-   vec2( 0.94558609, -0.76890725 ), 
-   vec2( -0.094184101, -0.92938870 ), 
-   vec2( 0.34495938, 0.29387760 ), 
-   vec2( -0.91588581, 0.45771432 ), 
-   vec2( -0.81544232, -0.87912464 ), 
-   vec2( -0.38277543, 0.27676845 ), 
-   vec2( 0.97484398, 0.75648379 ), 
-   vec2( 0.44323325, -0.97511554 ), 
-   vec2( 0.53742981, -0.47373420 ), 
-   vec2( -0.26496911, -0.41893023 ), 
-   vec2( 0.79197514, 0.19090188 ), 
-   vec2( -0.24188840, 0.99706507 ), 
-   vec2( -0.81409955, 0.91437590 ), 
-   vec2( 0.19984126, 0.78641367 ), 
-   vec2( 0.14383161, -0.14100790 ) 
-);
-
-float random(vec3 seed, int i)
-{
-    vec4 seed4 = vec4(seed, float(i));
-    float dot_product = dot(seed4, vec4(12.9898,78.233,45.164,94.673));
-    return fract(sin(dot_product) * 43758.5453);
-}
-
-float textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
+float
+textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 {
 	float shadow = 1.0;
     vec2 comp2 = shadowCoord.st + offset;
@@ -336,7 +229,8 @@ float textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 	return shadow;
 }
 
-float textureProj2(vec4 shadowCoord, vec2 offset, int textureIndex)
+float
+textureProj2(vec4 shadowCoord, vec2 offset, int textureIndex)
 {
 	float shadow = 1.0;
     vec2 comp2 = shadowCoord.st + offset;
@@ -352,7 +246,8 @@ float textureProj2(vec4 shadowCoord, vec2 offset, int textureIndex)
 	return shadow;
 }
 
-float filterPCF(vec4 sc, vec2 offset, int textureIndex)
+float
+filterPCF(vec4 sc, vec2 offset, int textureIndex)
 {
 	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), 0).xy;
 	float scale = 1.0;
@@ -372,7 +267,8 @@ float filterPCF(vec4 sc, vec2 offset, int textureIndex)
 	return shadowFactor / count;
 }
 
-float filterPCF2(vec4 sc, vec2 offset, int textureIndex)
+float
+filterPCF2(vec4 sc, vec2 offset, int textureIndex)
 {
 	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), 0).xy;
 	float scale = 1.0;
@@ -392,53 +288,13 @@ float filterPCF2(vec4 sc, vec2 offset, int textureIndex)
 	return shadowFactor / count;
 }
 
-vec3 Decode( vec2 f )
-{
-    f = f * 2.0 - 1.0;
- 
-    // https://twitter.com/Stubbesaurus/status/937994790553227264
-    vec3 n = vec3( f.x, f.y, 1.0 - abs( f.x ) - abs( f.y ) );
-    float t = max( -n.z, 0.0 );
-    n.x += n.x >= 0.0 ? -t : t;
-    n.y += n.y >= 0.0 ? -t : t;
-    return normalize( n );
-}
-
-vec3 sampleCube(vec3 v)
-{
-	vec3 vAbs = abs(v);
-	float ma;
-	vec2 uv;
-    float faceIndex = 0.0;
-	if(vAbs.z >= vAbs.x && vAbs.z >= vAbs.y)
-	{
-		faceIndex = v.z < 0.0 ? 1.0 : 0.0;
-		ma = 0.5 / vAbs.z;
-		uv = vec2(v.z < 0.0 ? v.x : -v.x, -v.y);
-	}
-	else if(vAbs.y >= vAbs.x)
-	{
-		faceIndex = v.y < 0.0 ? 5.0 : 4.0;
-		ma = 0.5 / vAbs.y;
-		uv = vec2(-v.x, v.y < 0.0 ? -v.z : v.z);
-	}
-	else
-	{
-		faceIndex = v.x < 0.0 ? 3.0 : 2.0;
-		ma = 0.5 / vAbs.x;
-		uv = vec2(v.x < 0.0 ? -v.z : v.z, -v.y);
-	}
-	vec2 result = uv * ma + vec2(0.5, 0.5);
-    return vec3(result, faceIndex);
-}
-
 void main() 
 {
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
     
     float depth = subpassLoad(tDepthSampler).r;
-    vec3 ndcSpace = vec3((gl_FragCoord.x - tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportInfo.x) / tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportSize.x, (gl_FragCoord.y - tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportInfo.y) / tGlobalInfo.data[tObjectInfo.uGlobalIndex].tViewportSize.y, depth);
+    vec3 ndcSpace = vec3((gl_FragCoord.x - tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportInfo.x) / tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.x, (gl_FragCoord.y - tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportInfo.y) / tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.y, depth);
 
 
     vec3 clipSpace = ndcSpace;
@@ -447,7 +303,7 @@ void main()
     // clipSpace.y *= tGlobalInfo.tViewportSize.w;
     // clipSpace.x += tGlobalInfo.tViewportInfo.x;
     // clipSpace.y += tGlobalInfo.tViewportInfo.y;
-    vec4 homoLocation = inverse(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraProjection) * vec4(clipSpace, 1.0);
+    vec4 homoLocation = inverse(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraProjection) * vec4(clipSpace, 1.0);
 
     // vec4 tWorldPosition0 = subpassLoad(tPositionSampler);
     vec4 tViewPosition = homoLocation;
@@ -456,7 +312,7 @@ void main()
     tViewPosition.y = tViewPosition.y;
     tViewPosition.z = tViewPosition.z;
     tViewPosition.w = 1.0;
-    vec4 tWorldPosition = inverse(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraView) * tViewPosition;
+    vec4 tWorldPosition = inverse(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraView) * tViewPosition;
     vec3 n = Decode(subpassLoad(tNormalTexture).xy);
 
     const vec3 f90 = vec3(1.0);
@@ -471,7 +327,7 @@ void main()
 
     const float fPerceptualRoughness = AORoughnessMetalnessData.b;
     float specularWeight = 1.0;
-    vec3 v = normalize(tGlobalInfo.data[tObjectInfo.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
+    vec3 v = normalize(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
 
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
@@ -513,17 +369,17 @@ void main()
         for(int i = 0; i < iLightCount; i++)
         {
 
-            plLightData tLightData = tLightInfo.atData[i];
+            plGpuLight tLightData = tLightInfo.atData[i];
 
             float shadow = 1.0;
 
-            if(tLightData.iType == 0) // directional lights
+            if(tLightData.iType == PL_LIGHT_TYPE_DIRECTIONAL)
             {
                 vec3 pointToLight = -tLightData.tDirection;
 
                 if(bShadows && tLightData.iCastShadow > 0)
                 {
-                    plLightShadowData tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
+                    plGpuLightShadow tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
 
                     // Get cascade index for the current fragment's view position
                     
@@ -572,13 +428,13 @@ void main()
                 }
             }
 
-            else if(tLightData.iType == 1) // point light
+            else if(tLightData.iType == PL_LIGHT_TYPE_POINT)
             {
                 vec3 pointToLight = tLightData.tPosition - tWorldPosition.xyz;
 
                 if(bShadows && tLightData.iCastShadow > 0)
                 {
-                    plLightShadowData tShadowData = tShadowData.atData[tLightData.iShadowIndex];
+                    plGpuLightShadow tShadowData = tShadowData.atData[tLightData.iShadowIndex];
 
                     vec3 result = sampleCube(-normalize(pointToLight));
                     vec4 shadowCoord = tShadowData.viewProjMat[int(result.z)] * vec4(tWorldPosition.xyz, 1.0);
@@ -618,12 +474,12 @@ void main()
                 }
             }
 
-            else if(tLightData.iType == 2) // spot lights
+            else if(tLightData.iType == PL_LIGHT_TYPE_SPOT)
             {
                 vec3 pointToLight = tLightData.tPosition - tWorldPosition.xyz;
                 if(bShadows && tLightData.iCastShadow > 0)
                 {
-                    plLightShadowData tShadowData = tShadowData.atData[tLightData.iShadowIndex];
+                    plGpuLightShadow tShadowData = tShadowData.atData[tLightData.iShadowIndex];
 
                     vec4 shadowCoord = tShadowData.viewProjMat[0] * vec4(tWorldPosition.xyz, 1.0);
                     if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)

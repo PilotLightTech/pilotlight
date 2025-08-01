@@ -3,7 +3,7 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "defines.glsl"
-#include "material.glsl"
+#include "pl_shader_interop_renderer.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -30,7 +30,7 @@ layout(std140, set = 0, binding = 1) readonly buffer _tTransformBuffer
 
 layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 {
-    tMaterial atMaterials[];
+    plGpuMaterial atMaterials[];
 } tMaterialInfo;
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
@@ -58,12 +58,7 @@ layout(set = 1, binding = 1) readonly buffer _plInstanceInfo
 
 layout(std140, set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    int  iIndex;
-    int  iDataOffset;
-    int  iVertexOffset;
-    int  iMaterialIndex;
-    
-    uint uTransformIndex;
+    plGpuDynShadow tData;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -83,15 +78,15 @@ vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
 {
     vec4 baseColor = vec4(1);
 
-    if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS))
+    if(bool(iMaterialFlags & PL_INFO_MATERIAL_METALLICROUGHNESS))
     {
         // baseColor = u_BaseColorFactor;
         baseColor = u_ColorFactor;
     }
 
-    if(bool(iMaterialFlags & PL_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
+    if(bool(iMaterialFlags & PL_INFO_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
-        tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
+        plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
         baseColor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tDefaultSampler), tShaderIn.tUV[iUVSet]);
     }
     return baseColor;
@@ -103,10 +98,10 @@ vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
 
 void main() 
 {
-    tMaterial material = tMaterialInfo.atMaterials[tObjectInfo.iMaterialIndex];
-    vec4 tBaseColor = getBaseColor(material.u_BaseColorFactor, material.BaseColorUVSet);
+    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+    vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.iBaseColorUVSet);
 
-    if(tBaseColor.a <  material.u_AlphaCutoff)
+    if(tBaseColor.a <  material.fAlphaCutoff)
     {
         discard;
     }

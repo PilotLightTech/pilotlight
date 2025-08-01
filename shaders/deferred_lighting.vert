@@ -3,7 +3,7 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "defines.glsl"
-#include "material.glsl"
+#include "pl_shader_interop_renderer.h"
 
 layout(std140, set = 0, binding = 0) readonly buffer _tVertexBuffer
 {
@@ -17,7 +17,7 @@ layout(std140, set = 0, binding = 1) readonly buffer _tTransformBuffer
 
 layout(set = 0, binding = 2) readonly buffer plMaterialInfo
 {
-    tMaterial atMaterials[];
+    plGpuMaterial atMaterials[];
 } tMaterialInfo;
 
 layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
@@ -28,11 +28,6 @@ layout(set = 0, binding = PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT)  uniform textureCub
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
-
-layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
-{
-    uint uGlobalIndex;
-} tObjectInfo;
 
 // input
 layout(location = 0) in vec2 inPos;

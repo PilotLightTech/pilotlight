@@ -1,11 +1,5 @@
-
 #define PL_MAX_BINDLESS_TEXTURES 4096
 #define PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT 4101
-
-// math
-const float M_PI = 3.141592653589793;
-const float GAMMA = 2.2;
-const float INV_GAMMA = 1.0 / GAMMA;
 
 // iMeshVariantFlags
 const int PL_MESH_FORMAT_FLAG_NONE           = 0;
@@ -30,14 +24,7 @@ const int PL_HAS_EMISSIVE_MAP              = 1 << 2;
 const int PL_HAS_OCCLUSION_MAP             = 1 << 3;
 const int PL_HAS_METALLIC_ROUGHNESS_MAP    = 1 << 4;
 
-// iMaterialFlags
-const int PL_MATERIAL_METALLICROUGHNESS = 1 << 0;
-
 // iRenderingFlags
 const int PL_RENDERING_FLAG_USE_PUNCTUAL = 1 << 0;
 const int PL_RENDERING_FLAG_USE_IBL      = 1 << 1;
 const int PL_RENDERING_FLAG_SHADOWS      = 1 << 2;
-
-// lights
-const int PL_LIGHT_TYPE_DIRECTIONAL = 0;
-const int PL_LIGHT_TYPE_POINT = 1;
