@@ -59,8 +59,8 @@ pl__get_vertex_attribute_size(plVertexFormat tFormat)
     return 0;
 }
 
-static size_t
-pl__get_data_type_size(plDataType tType)
+size_t
+pl_get_data_type_size(plDataType tType)
 {
     switch(tType)
     {
@@ -74,53 +74,41 @@ pl__get_data_type_size(plDataType tType)
         case PL_DATA_TYPE_FLOAT3: return 3 * sizeof(float);
         case PL_DATA_TYPE_FLOAT4: return 4 * sizeof(float);
 
-        case PL_DATA_TYPE_UNSIGNED_BYTE:
-        case PL_DATA_TYPE_BYTE:  return sizeof(uint8_t);
+        case PL_DATA_TYPE_UCHAR:
+        case PL_DATA_TYPE_CHAR:  return sizeof(uint8_t);
 
-        case PL_DATA_TYPE_UNSIGNED_SHORT:
+        case PL_DATA_TYPE_USHORT:
         case PL_DATA_TYPE_SHORT: return sizeof(uint16_t);
 
-        case PL_DATA_TYPE_UNSIGNED_INT:
+        case PL_DATA_TYPE_UINT:
         case PL_DATA_TYPE_INT:   return sizeof(uint32_t);
 
-        case PL_DATA_TYPE_UNSIGNED_LONG:
-        case PL_DATA_TYPE_LONG:  return sizeof(uint64_t);
+        case PL_DATA_TYPE_UCHAR2:
+        case PL_DATA_TYPE_CHAR2:  return 2 * sizeof(uint8_t);
 
-        case PL_DATA_TYPE_UNSIGNED_BYTE2:
-        case PL_DATA_TYPE_BYTE2:  return 2 * sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT2:
+        case PL_DATA_TYPE_USHORT2:
         case PL_DATA_TYPE_SHORT2: return 2 * sizeof(uint16_t);
 
-        case PL_DATA_TYPE_UNSIGNED_INT2:
+        case PL_DATA_TYPE_UINT2:
         case PL_DATA_TYPE_INT2:   return 2 * sizeof(uint32_t);
 
-        case PL_DATA_TYPE_UNSIGNED_LONG2:
-        case PL_DATA_TYPE_LONG2:  return 2 * sizeof(uint64_t);
+        case PL_DATA_TYPE_UCHAR3:
+        case PL_DATA_TYPE_CHAR3:  return 3 * sizeof(uint8_t);
 
-        case PL_DATA_TYPE_UNSIGNED_BYTE3:
-        case PL_DATA_TYPE_BYTE3:  return 3 * sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT3:
+        case PL_DATA_TYPE_USHORT3:
         case PL_DATA_TYPE_SHORT3: return 3 * sizeof(uint16_t);
 
-        case PL_DATA_TYPE_UNSIGNED_INT3:
+        case PL_DATA_TYPE_UINT3:
         case PL_DATA_TYPE_INT3:   return 3 * sizeof(uint32_t);
 
-        case PL_DATA_TYPE_UNSIGNED_LONG3:
-        case PL_DATA_TYPE_LONG3:  return 3 * sizeof(uint64_t);
+        case PL_DATA_TYPE_UCHAR4:
+        case PL_DATA_TYPE_CHAR4:  return 4 * sizeof(uint8_t);
 
-        case PL_DATA_TYPE_UNSIGNED_BYTE4:
-        case PL_DATA_TYPE_BYTE4:  return 4 * sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT4:
+        case PL_DATA_TYPE_USHORT4:
         case PL_DATA_TYPE_SHORT4: return 4 * sizeof(uint16_t);
 
-        case PL_DATA_TYPE_UNSIGNED_INT4:
+        case PL_DATA_TYPE_UINT4:
         case PL_DATA_TYPE_INT4:   return 4 * sizeof(uint32_t);
-
-        case PL_DATA_TYPE_UNSIGNED_LONG4:
-        case PL_DATA_TYPE_LONG4:  return 4 * sizeof(uint64_t);
     }
 
     PL_ASSERT(false && "Unsupported data type");
@@ -1117,6 +1105,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_encoder_command_buffer             = pl_get_encoder_command_buffer,
         .invalidate_memory                      = pl_gfx_invalidate_memory,
         .flush_memory                           = pl_gfx_flush_memory,
+        .get_data_type_size                     = pl_get_data_type_size,
 
         #if defined(PL_GRAPHICS_EXPOSE_VULKAN) && defined(PL_VULKAN_BACKEND)
         .get_vulkan_instance        = pl_get_vulkan_instance,

@@ -1210,7 +1210,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
         if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
             break;
-        uTotalConstantSize += pl__get_data_type_size(ptConstant->tType);
+        uTotalConstantSize += pl_get_data_type_size(ptConstant->tType);
         ptShader->tDesc._uConstantCount++;
     }
 
@@ -1235,7 +1235,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
         const uint32_t uConstantIndex = ptConstant->uID == 0 ? i : ptConstant->uID;
         const uint32_t uAutoConstantOffset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
         [ptConstantValues setConstantValue:&pcConstantData[uAutoConstantOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:uConstantIndex];
-        uConstantOffset += (uint32_t)pl__get_data_type_size(ptConstant->tType);
+        uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
     }
 
     id<MTLFunction> computeFunction = [ptMetalShader->library newFunctionWithName:entryFunc constantValues:ptConstantValues error:&error];
@@ -1369,7 +1369,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
         if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
             break;
-        uTotalConstantSize += pl__get_data_type_size(ptConstant->tType);
+        uTotalConstantSize += pl_get_data_type_size(ptConstant->tType);
         ptShader->tDesc._uConstantCount++;
     }
 
@@ -1394,7 +1394,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         const uint32_t uConstantIndex = ptConstant->uID == 0 ? i : ptConstant->uID;
         const uint32_t uAutoConstantOffset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
         [ptConstantValues setConstantValue:&pcConstantData[uAutoConstantOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:uConstantIndex];
-        uConstantOffset += (uint32_t)pl__get_data_type_size(ptConstant->tType);
+        uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
     }
 
     id<MTLFunction> vertexFunction = [ptMetalShader->tVertexLibrary newFunctionWithName:vertexEntry constantValues:ptConstantValues error:&error];
@@ -2933,47 +2933,39 @@ pl__metal_data_type(plDataType tType)
 
         case PL_DATA_TYPE_BOOL:           return MTLDataTypeBool;
         case PL_DATA_TYPE_FLOAT:          return MTLDataTypeFloat;
-        case PL_DATA_TYPE_UNSIGNED_BYTE:  return MTLDataTypeUChar;
-        case PL_DATA_TYPE_BYTE:           return MTLDataTypeChar;
-        case PL_DATA_TYPE_UNSIGNED_SHORT: return MTLDataTypeUShort;
+        case PL_DATA_TYPE_UCHAR:  return MTLDataTypeUChar;
+        case PL_DATA_TYPE_CHAR:           return MTLDataTypeChar;
+        case PL_DATA_TYPE_USHORT: return MTLDataTypeUShort;
         case PL_DATA_TYPE_SHORT:          return MTLDataTypeShort;
-        case PL_DATA_TYPE_UNSIGNED_INT:   return MTLDataTypeUInt;
+        case PL_DATA_TYPE_UINT:   return MTLDataTypeUInt;
         case PL_DATA_TYPE_INT:            return MTLDataTypeInt;
-        case PL_DATA_TYPE_UNSIGNED_LONG:  return MTLDataTypeULong;
-        case PL_DATA_TYPE_LONG:           return MTLDataTypeLong;
 
         case PL_DATA_TYPE_BOOL2:           return MTLDataTypeBool2;
         case PL_DATA_TYPE_FLOAT2:          return MTLDataTypeFloat2;
-        case PL_DATA_TYPE_UNSIGNED_BYTE2:  return MTLDataTypeUChar2;
-        case PL_DATA_TYPE_BYTE2:           return MTLDataTypeChar2;
-        case PL_DATA_TYPE_UNSIGNED_SHORT2: return MTLDataTypeUShort2;
+        case PL_DATA_TYPE_UCHAR2:  return MTLDataTypeUChar2;
+        case PL_DATA_TYPE_CHAR2:           return MTLDataTypeChar2;
+        case PL_DATA_TYPE_USHORT2: return MTLDataTypeUShort2;
         case PL_DATA_TYPE_SHORT2:          return MTLDataTypeShort2;
-        case PL_DATA_TYPE_UNSIGNED_INT2:   return MTLDataTypeUInt2;
+        case PL_DATA_TYPE_UINT2:   return MTLDataTypeUInt2;
         case PL_DATA_TYPE_INT2:            return MTLDataTypeInt2;
-        case PL_DATA_TYPE_UNSIGNED_LONG2:  return MTLDataTypeULong2;
-        case PL_DATA_TYPE_LONG2:           return MTLDataTypeLong2;
 
         case PL_DATA_TYPE_BOOL3:           return MTLDataTypeBool3;
         case PL_DATA_TYPE_FLOAT3:          return MTLDataTypeFloat3;
-        case PL_DATA_TYPE_UNSIGNED_BYTE3:  return MTLDataTypeUChar3;
-        case PL_DATA_TYPE_BYTE3:           return MTLDataTypeChar3;
-        case PL_DATA_TYPE_UNSIGNED_SHORT3: return MTLDataTypeUShort3;
+        case PL_DATA_TYPE_UCHAR3:  return MTLDataTypeUChar3;
+        case PL_DATA_TYPE_CHAR3:           return MTLDataTypeChar3;
+        case PL_DATA_TYPE_USHORT3: return MTLDataTypeUShort3;
         case PL_DATA_TYPE_SHORT3:          return MTLDataTypeShort3;
-        case PL_DATA_TYPE_UNSIGNED_INT3:   return MTLDataTypeUInt3;
+        case PL_DATA_TYPE_UINT3:   return MTLDataTypeUInt3;
         case PL_DATA_TYPE_INT3:            return MTLDataTypeInt3;
-        case PL_DATA_TYPE_UNSIGNED_LONG3:  return MTLDataTypeULong3;
-        case PL_DATA_TYPE_LONG3:           return MTLDataTypeLong3;
 
         case PL_DATA_TYPE_BOOL4:           return MTLDataTypeBool4;
         case PL_DATA_TYPE_FLOAT4:          return MTLDataTypeFloat4;
-        case PL_DATA_TYPE_UNSIGNED_BYTE4:  return MTLDataTypeUChar4;
-        case PL_DATA_TYPE_BYTE4:           return MTLDataTypeChar4;
-        case PL_DATA_TYPE_UNSIGNED_SHORT4: return MTLDataTypeUShort4;
+        case PL_DATA_TYPE_UCHAR4:  return MTLDataTypeUChar4;
+        case PL_DATA_TYPE_CHAR4:           return MTLDataTypeChar4;
+        case PL_DATA_TYPE_USHORT4: return MTLDataTypeUShort4;
         case PL_DATA_TYPE_SHORT4:          return MTLDataTypeShort4;
-        case PL_DATA_TYPE_UNSIGNED_INT4:   return MTLDataTypeUInt4;
+        case PL_DATA_TYPE_UINT4:   return MTLDataTypeUInt4;
         case PL_DATA_TYPE_INT4:            return MTLDataTypeInt4;
-        case PL_DATA_TYPE_UNSIGNED_LONG4:  return MTLDataTypeULong4;
-        case PL_DATA_TYPE_LONG4:           return MTLDataTypeLong4;
     }
 
     PL_ASSERT(false && "Unsupported data type");

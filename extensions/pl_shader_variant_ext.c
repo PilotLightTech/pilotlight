@@ -127,7 +127,7 @@ static plShaderToolsContext* gptShaderVariantCtx = NULL;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static size_t                pl__shader_tools_get_data_type_size  (plDataType);
+static plCompareMode         pl__shader_tools_get_compare_mode      (const char*);
 static plCompareMode         pl__shader_tools_get_compare_mode    (const char*);
 static plBlendFactor         pl__shader_tools_get_blend_factor    (const char*);
 static plBlendOp             pl__shader_tools_get_blend_op        (const char*);
@@ -242,7 +242,7 @@ pl_shader_tool_get_shader(const char* pcName, const plGraphicsState* ptGraphicsS
     for(uint32_t i = 0; i < ptShader->tDesc._uConstantCount; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
-        szSpecializationSize += pl__shader_tools_get_data_type_size(ptConstant->tType);
+        szSpecializationSize += gptGfx->get_data_type_size(ptConstant->tType);
     }
 
     // retrieve shader variant data
@@ -313,7 +313,7 @@ pl_shader_tool_get_compute_shader(const char* pcName, const void* pTempConstantD
     for(uint32_t i = 0; i < ptShader->tDesc._uConstantCount; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
-        szSpecializationSize += pl__shader_tools_get_data_type_size(ptConstant->tType);
+        szSpecializationSize += gptGfx->get_data_type_size(ptConstant->tType);
     }
 
     // retrieve shader variant data
@@ -451,7 +451,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
                 PL_ASSERT(false);
             }
 
-            const size_t szConstantExtent = pl__shader_tools_get_data_type_size(tComputeShaderDesc.atConstants[i].tType) + tComputeShaderDesc.atConstants[i].uOffset;
+            const size_t szConstantExtent = gptGfx->get_data_type_size(tComputeShaderDesc.atConstants[i].tType) + tComputeShaderDesc.atConstants[i].uOffset;
 
             if(szConstantExtent > szMaxContantExtent)
                 szMaxContantExtent = szConstantExtent;
@@ -874,74 +874,6 @@ pl_shader_tool_get_bind_group_layout(const char* pcName)
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
-
-static size_t
-pl__shader_tools_get_data_type_size(plDataType tType)
-{
-    switch(tType)
-    {
-        case PL_DATA_TYPE_BOOL:   return sizeof(int);
-        case PL_DATA_TYPE_BOOL2:  return 2 * sizeof(int);
-        case PL_DATA_TYPE_BOOL3:  return 3 * sizeof(int);
-        case PL_DATA_TYPE_BOOL4:  return 4 * sizeof(int);
-        
-        case PL_DATA_TYPE_FLOAT:  return sizeof(float);
-        case PL_DATA_TYPE_FLOAT2: return 2 * sizeof(float);
-        case PL_DATA_TYPE_FLOAT3: return 3 * sizeof(float);
-        case PL_DATA_TYPE_FLOAT4: return 4 * sizeof(float);
-
-        case PL_DATA_TYPE_UNSIGNED_BYTE:
-        case PL_DATA_TYPE_BYTE:  return sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT:
-        case PL_DATA_TYPE_SHORT: return sizeof(uint16_t);
-
-        case PL_DATA_TYPE_UNSIGNED_INT:
-        case PL_DATA_TYPE_INT:   return sizeof(uint32_t);
-
-        case PL_DATA_TYPE_UNSIGNED_LONG:
-        case PL_DATA_TYPE_LONG:  return sizeof(uint64_t);
-
-        case PL_DATA_TYPE_UNSIGNED_BYTE2:
-        case PL_DATA_TYPE_BYTE2:  return 2 * sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT2:
-        case PL_DATA_TYPE_SHORT2: return 2 * sizeof(uint16_t);
-
-        case PL_DATA_TYPE_UNSIGNED_INT2:
-        case PL_DATA_TYPE_INT2:   return 2 * sizeof(uint32_t);
-
-        case PL_DATA_TYPE_UNSIGNED_LONG2:
-        case PL_DATA_TYPE_LONG2:  return 2 * sizeof(uint64_t);
-
-        case PL_DATA_TYPE_UNSIGNED_BYTE3:
-        case PL_DATA_TYPE_BYTE3:  return 3 * sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT3:
-        case PL_DATA_TYPE_SHORT3: return 3 * sizeof(uint16_t);
-
-        case PL_DATA_TYPE_UNSIGNED_INT3:
-        case PL_DATA_TYPE_INT3:   return 3 * sizeof(uint32_t);
-
-        case PL_DATA_TYPE_UNSIGNED_LONG3:
-        case PL_DATA_TYPE_LONG3:  return 3 * sizeof(uint64_t);
-
-        case PL_DATA_TYPE_UNSIGNED_BYTE4:
-        case PL_DATA_TYPE_BYTE4:  return 4 * sizeof(uint8_t);
-
-        case PL_DATA_TYPE_UNSIGNED_SHORT4:
-        case PL_DATA_TYPE_SHORT4: return 4 * sizeof(uint16_t);
-
-        case PL_DATA_TYPE_UNSIGNED_INT4:
-        case PL_DATA_TYPE_INT4:   return 4 * sizeof(uint32_t);
-
-        case PL_DATA_TYPE_UNSIGNED_LONG4:
-        case PL_DATA_TYPE_LONG4:  return 4 * sizeof(uint64_t);
-    }
-
-    PL_ASSERT(false && "Unsupported data type");
-    return 0;
-}
 
 static plCompareMode
 pl__shader_tools_get_compare_mode(const char* pcText)

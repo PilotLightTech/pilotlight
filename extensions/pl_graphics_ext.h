@@ -503,6 +503,10 @@ typedef struct _plGraphicsI
     bool                            (*invalidate_memory)(plDevice*, uint32_t rangeCount, const plDeviceMemoryRange*); // call after writing from device on non-coherent memory
     const plDeviceMemoryAllocation* (*get_allocations)(plDevice*, uint32_t* sizeOut);
 
+    //---------------------------------MISC----------------------------------------
+
+    size_t (*get_data_type_size)(plDataType);
+
     //------------------------------NOT STABLE-------------------------------------
 
     #ifdef PL_GRAPHICS_EXPOSE_VULKAN
@@ -1502,38 +1506,30 @@ enum _plDataType
     PL_DATA_TYPE_FLOAT2,
     PL_DATA_TYPE_FLOAT3,
     PL_DATA_TYPE_FLOAT4,
-    PL_DATA_TYPE_BYTE,
-    PL_DATA_TYPE_BYTE2,
-    PL_DATA_TYPE_BYTE3,
-    PL_DATA_TYPE_BYTE4,
-    PL_DATA_TYPE_UNSIGNED_BYTE,
-    PL_DATA_TYPE_UNSIGNED_BYTE2,
-    PL_DATA_TYPE_UNSIGNED_BYTE3,
-    PL_DATA_TYPE_UNSIGNED_BYTE4,
+    PL_DATA_TYPE_CHAR,
+    PL_DATA_TYPE_CHAR2,
+    PL_DATA_TYPE_CHAR3,
+    PL_DATA_TYPE_CHAR4,
+    PL_DATA_TYPE_UCHAR,
+    PL_DATA_TYPE_UCHAR2,
+    PL_DATA_TYPE_UCHAR3,
+    PL_DATA_TYPE_UCHAR4,
     PL_DATA_TYPE_SHORT,
     PL_DATA_TYPE_SHORT2,
     PL_DATA_TYPE_SHORT3,
     PL_DATA_TYPE_SHORT4,
-    PL_DATA_TYPE_UNSIGNED_SHORT,
-    PL_DATA_TYPE_UNSIGNED_SHORT2,
-    PL_DATA_TYPE_UNSIGNED_SHORT3,
-    PL_DATA_TYPE_UNSIGNED_SHORT4,
+    PL_DATA_TYPE_USHORT,
+    PL_DATA_TYPE_USHORT2,
+    PL_DATA_TYPE_USHORT3,
+    PL_DATA_TYPE_USHORT4,
     PL_DATA_TYPE_INT,
     PL_DATA_TYPE_INT2,
     PL_DATA_TYPE_INT3,
     PL_DATA_TYPE_INT4,
-    PL_DATA_TYPE_UNSIGNED_INT,
-    PL_DATA_TYPE_UNSIGNED_INT2,
-    PL_DATA_TYPE_UNSIGNED_INT3,
-    PL_DATA_TYPE_UNSIGNED_INT4,
-    PL_DATA_TYPE_LONG,
-    PL_DATA_TYPE_LONG2,
-    PL_DATA_TYPE_LONG3,
-    PL_DATA_TYPE_LONG4,
-    PL_DATA_TYPE_UNSIGNED_LONG,
-    PL_DATA_TYPE_UNSIGNED_LONG2,
-    PL_DATA_TYPE_UNSIGNED_LONG3,
-    PL_DATA_TYPE_UNSIGNED_LONG4,
+    PL_DATA_TYPE_UINT,
+    PL_DATA_TYPE_UINT2,
+    PL_DATA_TYPE_UINT3,
+    PL_DATA_TYPE_UINT4
 };
 
 enum _plVertexFormat

@@ -1377,8 +1377,8 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
             break;
         ptVulkanShader->atSpecializationEntries[i].constantID = ptConstant->uID == 0 ? ptShader->tDesc._uConstantCount : ptConstant->uID;
         ptVulkanShader->atSpecializationEntries[i].offset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
-        uConstantOffset += (uint32_t)pl__get_data_type_size(ptConstant->tType);
-        ptVulkanShader->atSpecializationEntries[i].size = pl__get_data_type_size(ptConstant->tType);
+        uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
+        ptVulkanShader->atSpecializationEntries[i].size = pl_get_data_type_size(ptConstant->tType);
         ptVulkanShader->szSpecializationSize += ptVulkanShader->atSpecializationEntries[i].size;
         ptShader->tDesc._uConstantCount++;
     }
@@ -1584,8 +1584,8 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
             break;
         ptVulkanShader->atSpecializationEntries[i].constantID = ptConstant->uID == 0 ? ptShader->tDesc._uConstantCount : ptConstant->uID;
         ptVulkanShader->atSpecializationEntries[i].offset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
-        uConstantOffset += (uint32_t)pl__get_data_type_size(ptConstant->tType);
-        ptVulkanShader->atSpecializationEntries[i].size = pl__get_data_type_size(ptConstant->tType);
+        uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
+        ptVulkanShader->atSpecializationEntries[i].size = pl_get_data_type_size(ptConstant->tType);
         ptVulkanShader->szSpecializationSize += ptVulkanShader->atSpecializationEntries[i].size;
         ptShader->tDesc._uConstantCount++;
     }

@@ -116,7 +116,7 @@ static void pl_queue_bind_group_layout_for_deletion(plDevice*, plBindGroupLayout
 static void pl_queue_sampler_for_deletion(plDevice*, plSamplerHandle);
 
 // helpers
-static size_t   pl__get_data_type_size(plDataType);
+static size_t   pl_get_data_type_size(plDataType);
 static uint32_t pl__format_stride(plFormat);
 static size_t   pl__get_vertex_attribute_size(plVertexFormat);
 
