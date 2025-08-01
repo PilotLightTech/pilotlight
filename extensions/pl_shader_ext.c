@@ -127,7 +127,7 @@ pl_shaderc_include_resolve_fn(void* pUserData, const char* pcRequestedSource, in
 static void
 pl_shaderc_include_result_release_fn(void* pUserData, shaderc_include_result* ptIncludeResult)
 {
-    pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator);
+    
 }
 
 static void
@@ -399,6 +399,7 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     }
 
     shaderc_compile_options_set_include_callbacks(tShaderRcOptions, pl_shaderc_include_resolve_fn, pl_shaderc_include_result_release_fn, ptOptions);
+    pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator);
 
     if(ptOptions == NULL)
         ptOptions = &gptShaderCtx->tDefaultShaderOptions;
@@ -444,6 +445,8 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
 
     if(ptOptions->tFlags & PL_SHADER_FLAGS_INCLUDE_DEBUG)
         shaderc_compile_options_set_generate_debug_info(tShaderRcOptions);
+
+    shaderc_compile_options_add_macro_definition(tShaderRcOptions, "PL_SHADER_CODE", 14, "1", 1);
 
     for(uint32_t i = 0; i < ptOptions->uMacroDefinitionCount; i++)
     {
