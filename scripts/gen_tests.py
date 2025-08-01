@@ -35,7 +35,7 @@ with pl.project("pilotlight_lib_tests"):
 
     # project wide settings
     pl.set_output_directory("../out")
-    pl.add_include_directories("../examples", "../src", "../libs", "../extensions", "../out", "../dependencies/stb")
+    pl.add_include_directories("../examples", "../src", "../shaders", "../libs", "../extensions", "../out", "../dependencies/stb")
     pl.add_definitions("PL_CPU_BACKEND")
 
     #-----------------------------------------------------------------------------

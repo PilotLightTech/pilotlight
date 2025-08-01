@@ -108,7 +108,7 @@
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light_test_c
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no 
 @set PL_SOURCES="main_lib_tests.c" 
@@ -149,7 +149,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light_test_cpp
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"%WindowsSdkDir%Include\um" -I"%WindowsSdkDir%Include\shared" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no 
 @set PL_SOURCES="main_lib_tests.cpp" 
@@ -190,7 +190,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no 
 @set PL_STATIC_LINK_LIBRARIES=ucrtd.lib user32.lib Ole32.lib 
@@ -232,7 +232,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_collision_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_collision_ext.c" 
@@ -268,7 +268,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_graphics_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_graphics_ext.c" 
@@ -304,7 +304,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_datetime_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_datetime_ext.c" 
@@ -340,7 +340,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_compress_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_compress_ext.c" 
@@ -376,7 +376,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_pak_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_pak_ext.c" 
@@ -412,7 +412,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_vfs_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_vfs_ext.c" 
@@ -448,7 +448,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_string_intern_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_string_intern_ext.c" 
@@ -484,7 +484,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_platform_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-std:c11 -Od -MDd -Zi -Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_STATIC_LINK_LIBRARIES=ucrtd.lib user32.lib Ole32.lib 
@@ -521,7 +521,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_tests_c
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="app_tests.c" 
@@ -557,7 +557,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_tests_cpp
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-Od -MDd -Zi -Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="app_tests.cpp" 
@@ -664,7 +664,7 @@ goto ExitLabel
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light_test_c
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no 
 @set PL_SOURCES="main_lib_tests.c" 
@@ -705,7 +705,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light_test_cpp
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no 
 @set PL_SOURCES="main_lib_tests.cpp" 
@@ -746,7 +746,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no 
 @set PL_STATIC_LINK_LIBRARIES=ucrt.lib user32.lib Ole32.lib 
@@ -788,7 +788,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_collision_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_collision_ext.c" 
@@ -824,7 +824,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_graphics_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_graphics_ext.c" 
@@ -860,7 +860,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_datetime_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_datetime_ext.c" 
@@ -896,7 +896,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_compress_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_compress_ext.c" 
@@ -932,7 +932,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_pak_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_pak_ext.c" 
@@ -968,7 +968,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_vfs_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_vfs_ext.c" 
@@ -1004,7 +1004,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_string_intern_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="../extensions/pl_string_intern_ext.c" 
@@ -1040,7 +1040,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_platform_ext
 
 @set PL_DEFINES=-DPL_CPU_BACKEND 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-std:c11 -O2 -MD -Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_STATIC_LINK_LIBRARIES=ucrt.lib user32.lib Ole32.lib 
@@ -1077,7 +1077,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_tests_c
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c11 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="app_tests.c" 
@@ -1113,7 +1113,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_tests_cpp
 
 @set PL_DEFINES=-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG 
-@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
+@set PL_INCLUDE_DIRECTORIES=-I"../examples" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" 
 @set PL_COMPILER_FLAGS=-O2 -MD -Zc:preprocessor -nologo -std:c++14 -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- 
 @set PL_LINKER_FLAGS=-incremental:no -noimplib -noexp 
 @set PL_SOURCES="app_tests.cpp" 

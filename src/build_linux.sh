@@ -88,7 +88,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -117,7 +117,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -149,7 +149,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -181,7 +181,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -213,7 +213,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -289,7 +289,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -318,7 +318,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -350,7 +350,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -382,7 +382,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -414,7 +414,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -494,7 +494,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -523,7 +523,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -555,7 +555,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -587,7 +587,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -622,7 +622,7 @@ if [ ! -f "../out/glfwd.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_X11 -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-fPIC -std=gnu99 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -668,7 +668,7 @@ if [ ! -f "../out/dearimguid.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -706,7 +706,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -738,7 +738,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -773,7 +773,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -853,7 +853,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -882,7 +882,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -914,7 +914,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -946,7 +946,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -981,7 +981,7 @@ if [ ! -f "../out/glfw.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_X11 "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-fPIC -std=gnu99 "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1027,7 +1027,7 @@ if [ ! -f "../out/dearimgui.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -1065,7 +1065,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -1097,7 +1097,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -1132,7 +1132,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "

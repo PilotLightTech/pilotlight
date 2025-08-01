@@ -109,7 +109,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -152,7 +152,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c++14 -fmodules -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -195,7 +195,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -Wno-deprecated-declarations -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -238,7 +238,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -281,7 +281,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -324,7 +324,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -367,7 +367,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -410,7 +410,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -453,7 +453,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -496,7 +496,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -539,7 +539,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
 PL_LINKER_FLAGS=""
@@ -582,7 +582,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -625,7 +625,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="--debug -g -std=c++14 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -728,7 +728,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -771,7 +771,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c++14 -fmodules -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -814,7 +814,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-Wno-deprecated-declarations -std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -857,7 +857,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -900,7 +900,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -943,7 +943,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -986,7 +986,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -1029,7 +1029,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -1072,7 +1072,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -1115,7 +1115,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -1158,7 +1158,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -1201,7 +1201,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c99 -fmodules -fPIC "
 PL_LINKER_FLAGS=""
@@ -1244,7 +1244,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=c++14 -fmodules -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
