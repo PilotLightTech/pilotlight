@@ -45,7 +45,7 @@ the API is complete. It just means we won't break what currently exists.
 * Json              v1.0.3 (pl_json.h)
 * Logging           v1.0.1 (pl_log.h)
 * Math              v1.2.0 (pl_math.h)
-* Memory Allocators v1.1.0 (pl_memory.h)
+* Memory Allocators v1.1.1 (pl_memory.h)
 * Profiling         v1.0.0 (pl_profile.h)
 * Stl               v1.0.0 (pl_stl.h)
 * String            v1.1.2 (pl_string.h)

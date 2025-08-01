@@ -20,8 +20,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_MEMORY_VERSION    "1.1.0"
-#define PL_MEMORY_VERSION_NUM 10100
+#define PL_MEMORY_VERSION    "1.1.1"
+#define PL_MEMORY_VERSION_NUM 10101
 
 /*
 Index of this file:
@@ -135,17 +135,20 @@ void  pl_general_allocator_aligned_free (plGeneralAllocator*, void*);
 // the details of the following structures don't matter to you, but they must
 // be visible so you can handle the memory allocations for them
 
+typedef struct _plTempAllocatorBlock
+{
+    char* pcBuffer;
+} plTempAllocatorBlock;
+
 typedef struct _plTempAllocator
 {
-    size_t szSize;   // size in bytes of current working buffer
-    size_t szOffset; // offset into pcBuffer
-    char*  pcBuffer; // current working buffer (starts as acStackBuffer)
-    char   acStackBuffer[PL_MEMORY_TEMP_STACK_SIZE];
-    char** ppcMemoryBlocks;
-    size_t szMemoryBlockCount; // current number working heap alloc blocks
-    size_t szMemoryBlockCapacity;
-    size_t szCurrentBlockSizes;
-    size_t szNextBlockSizes;
+    size_t                szOffset; // offset into pcBuffer
+    char                  acStackBuffer[PL_MEMORY_TEMP_STACK_SIZE];
+    plTempAllocatorBlock* atMemoryBlocks;
+    size_t                szCurrentBlockIndex;
+    size_t                szMemoryBlockCapacity;
+    size_t                szTotalBytes; // heap only
+    size_t                szAvailableBytes;
 } plTempAllocator;
 
 typedef struct _plStackAllocator
@@ -328,117 +331,94 @@ void*
 pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
 {
 
-    if(ptAllocator->szSize == 0) // first usage ever
+    if(ptAllocator->szTotalBytes == 0) // first usage ever
     {
-        ptAllocator->ppcMemoryBlocks = NULL;
-        ptAllocator->szMemoryBlockCount = 0;
+        ptAllocator->atMemoryBlocks = NULL;
         ptAllocator->szMemoryBlockCapacity = 0;
-        ptAllocator->szSize = PL_MEMORY_TEMP_STACK_SIZE;
-        ptAllocator->pcBuffer = ptAllocator->acStackBuffer;
+        ptAllocator->szTotalBytes = PL_MEMORY_TEMP_STACK_SIZE;
+        ptAllocator->szAvailableBytes = PL_MEMORY_TEMP_STACK_SIZE;
+        ptAllocator->szCurrentBlockIndex = 0;
         ptAllocator->szOffset = 0;
-        ptAllocator->szCurrentBlockSizes = PL_MEMORY_TEMP_STACK_SIZE * 2;
-        ptAllocator->szNextBlockSizes = PL_MEMORY_TEMP_STACK_SIZE * 2;
         memset(ptAllocator->acStackBuffer, 0, PL_MEMORY_TEMP_STACK_SIZE); 
     }
 
     void* pRequestedMemory = NULL;
 
     // not enough room is available
-    if(szSize > ptAllocator->szSize - ptAllocator->szOffset)
+    if(szSize > ptAllocator->szAvailableBytes)
     {
-        if(ptAllocator->szMemoryBlockCapacity == 0) // first overflow
-        {
-            // allocate block array
-            ptAllocator->szMemoryBlockCapacity = 1;
-            ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * ptAllocator->szMemoryBlockCapacity);
-            memset(ptAllocator->ppcMemoryBlocks, 0, (sizeof(char*) * ptAllocator->szMemoryBlockCapacity));
 
-            size_t szNewBlockSize = ptAllocator->szCurrentBlockSizes;
-            if(szSize > szNewBlockSize)
+        size_t szNewBlockSize = PL_MEMORY_TEMP_STACK_SIZE * 2;
+        size_t szCurrentBlockIndex = 0;
+
+        if(ptAllocator->atMemoryBlocks) // grow
+        {
+            szNewBlockSize = ptAllocator->szTotalBytes * 2;
+            szCurrentBlockIndex = ++ptAllocator->szCurrentBlockIndex;
+
+            if(ptAllocator->szCurrentBlockIndex == ptAllocator->szMemoryBlockCapacity - 1)
             {
-                ptAllocator->szNextBlockSizes = szSize;
-                szNewBlockSize = szSize;
+                plTempAllocatorBlock* atOldBlocks = ptAllocator->atMemoryBlocks;
+                ptAllocator->atMemoryBlocks = (plTempAllocatorBlock*)PL_MEMORY_ALLOC(sizeof(plTempAllocatorBlock) * (ptAllocator->szMemoryBlockCapacity + 1));
+                memset(ptAllocator->atMemoryBlocks, 0, (sizeof(plTempAllocatorBlock) * (ptAllocator->szMemoryBlockCapacity + 1)));
+                memcpy(ptAllocator->atMemoryBlocks, atOldBlocks, sizeof(plTempAllocatorBlock) * ptAllocator->szMemoryBlockCapacity);
+                ptAllocator->szMemoryBlockCapacity++;
+                PL_MEMORY_FREE(atOldBlocks);
             }
-
-            // allocate first block
-            ptAllocator->ppcMemoryBlocks[0] = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
-            ptAllocator->szSize = szNewBlockSize;
-            ptAllocator->szOffset = 0;
-            ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[0];
         }
-        else if(ptAllocator->szMemoryBlockCount == ptAllocator->szMemoryBlockCapacity) // grow memory block storage
+        else // first overflow
         {
-
-            size_t szNewBlockSize = ptAllocator->szCurrentBlockSizes;
-            if(szSize > szNewBlockSize)
-            {
-                ptAllocator->szNextBlockSizes = szSize;
-                szNewBlockSize = szSize;
-            }
-
-            char** ppcOldBlocks = ptAllocator->ppcMemoryBlocks;
-            ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1));
-            memset(ptAllocator->ppcMemoryBlocks, 0, (sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1)));
-            memcpy(ptAllocator->ppcMemoryBlocks, ppcOldBlocks, sizeof(char*) * ptAllocator->szMemoryBlockCapacity);
-            PL_MEMORY_FREE(ppcOldBlocks);
-            ptAllocator->szMemoryBlockCapacity++;
-            ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount] = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
-            ptAllocator->szSize = szNewBlockSize;
-            ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount];
-            ptAllocator->szOffset = 0;
+            ptAllocator->szTotalBytes = 0;
+            ptAllocator->szCurrentBlockIndex = 0;
+            ptAllocator->szMemoryBlockCapacity = 4;
+            ptAllocator->atMemoryBlocks = (plTempAllocatorBlock*)PL_MEMORY_ALLOC(sizeof(plTempAllocatorBlock) * ptAllocator->szMemoryBlockCapacity);
+            memset(ptAllocator->atMemoryBlocks, 0, (sizeof(plTempAllocatorBlock) * ptAllocator->szMemoryBlockCapacity));
         }
-        else if(szSize <= ptAllocator->szCurrentBlockSizes) // block available & small enough
-        {
-            ptAllocator->szSize = ptAllocator->szCurrentBlockSizes;
-            ptAllocator->szOffset = 0;
-            ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount];
-        }
-        else // block available but too small
-        {
-            size_t szNewBlockSize = ptAllocator->szCurrentBlockSizes;
-            ptAllocator->szNextBlockSizes = szSize;
-            szNewBlockSize = szSize;
 
-            char** ppcOldBlocks = ptAllocator->ppcMemoryBlocks;
-            ptAllocator->ppcMemoryBlocks = (char**)PL_MEMORY_ALLOC(sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1));
-            memset(ptAllocator->ppcMemoryBlocks, 0, (sizeof(char*) * (ptAllocator->szMemoryBlockCapacity + 1)));
-            memcpy(ptAllocator->ppcMemoryBlocks, ppcOldBlocks, sizeof(char*) * ptAllocator->szMemoryBlockCapacity);
-            PL_MEMORY_FREE(ppcOldBlocks);
-            ptAllocator->szMemoryBlockCapacity++;
-            if(ptAllocator->szMemoryBlockCount == 0) // special case
-                PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount]);
-            ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount] = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
-            ptAllocator->szSize = szNewBlockSize;
-            ptAllocator->pcBuffer = ptAllocator->ppcMemoryBlocks[ptAllocator->szMemoryBlockCount];
-            ptAllocator->szOffset = 0;
-        }
-        
-        ptAllocator->szMemoryBlockCount++;
+
+        if(szSize > szNewBlockSize)
+            szNewBlockSize = pl__get_next_power_of_2(szSize);
+
+        ptAllocator->atMemoryBlocks[szCurrentBlockIndex].pcBuffer = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
+        memset(ptAllocator->atMemoryBlocks[szCurrentBlockIndex].pcBuffer, 0, szNewBlockSize);
+        ptAllocator->szAvailableBytes = szNewBlockSize;
+        ptAllocator->szTotalBytes += szNewBlockSize;
+        ptAllocator->szOffset = 0;
     }
 
-    pRequestedMemory = &ptAllocator->pcBuffer[ptAllocator->szOffset];
+    if(ptAllocator->atMemoryBlocks)
+        pRequestedMemory = &ptAllocator->atMemoryBlocks[ptAllocator->szCurrentBlockIndex].pcBuffer[ptAllocator->szOffset];
+    else
+        pRequestedMemory = &ptAllocator->acStackBuffer[ptAllocator->szOffset];
+
     ptAllocator->szOffset += szSize;
+    ptAllocator->szAvailableBytes -= szSize;
     return pRequestedMemory;
 }
 
 void
 pl_temp_allocator_reset(plTempAllocator* ptAllocator)
 {
-    ptAllocator->szSize = PL_MEMORY_TEMP_STACK_SIZE;
     ptAllocator->szOffset = 0;
-    ptAllocator->szMemoryBlockCount = 0;
-    ptAllocator->pcBuffer = ptAllocator->acStackBuffer;
-
-    if(ptAllocator->szCurrentBlockSizes != ptAllocator->szNextBlockSizes)
+    ptAllocator->szAvailableBytes = ptAllocator->szTotalBytes;
+    
+    if(ptAllocator->atMemoryBlocks && ptAllocator->szCurrentBlockIndex > 0) // consolidate blocks
     {
+        // free all blocks
         for(size_t i = 0; i < ptAllocator->szMemoryBlockCapacity; i++)
         {
-            PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks[i]);
-            ptAllocator->ppcMemoryBlocks[i] = (char*)PL_MEMORY_ALLOC(ptAllocator->szNextBlockSizes);
-            memset(ptAllocator->ppcMemoryBlocks[i], 0, ptAllocator->szNextBlockSizes);
-        } 
-        ptAllocator->szCurrentBlockSizes = ptAllocator->szNextBlockSizes;
+            if(ptAllocator->atMemoryBlocks[i].pcBuffer)
+            {
+                PL_MEMORY_FREE(ptAllocator->atMemoryBlocks[i].pcBuffer);
+                ptAllocator->atMemoryBlocks[i].pcBuffer = NULL;
+            }
+        }
+
+        ptAllocator->atMemoryBlocks[0].pcBuffer = (char*)PL_MEMORY_ALLOC(ptAllocator->szTotalBytes);
+        memset(ptAllocator->atMemoryBlocks[0].pcBuffer, 0, ptAllocator->szTotalBytes);
+        ptAllocator->szCurrentBlockIndex = 0;
     }
+
 }
 
 void
@@ -446,15 +426,19 @@ pl_temp_allocator_free(plTempAllocator* ptAllocator)
 {
     for(size_t i = 0; i < ptAllocator->szMemoryBlockCapacity; i++)
     {
-        PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks[i]);
+        if(ptAllocator->atMemoryBlocks[i].pcBuffer)
+        {
+            PL_MEMORY_FREE(ptAllocator->atMemoryBlocks[i].pcBuffer);
+            ptAllocator->atMemoryBlocks[i].pcBuffer = NULL;
+        }
     }
-    if(ptAllocator->ppcMemoryBlocks)
-        PL_MEMORY_FREE(ptAllocator->ppcMemoryBlocks);
-    ptAllocator->ppcMemoryBlocks = NULL;
+    if(ptAllocator->atMemoryBlocks)
+        PL_MEMORY_FREE(ptAllocator->atMemoryBlocks);
+    ptAllocator->atMemoryBlocks = NULL;
     ptAllocator->szMemoryBlockCapacity = 0;
-    ptAllocator->szMemoryBlockCount = 0;
-    ptAllocator->pcBuffer = NULL;
-    ptAllocator->szSize = 0;
+    ptAllocator->szTotalBytes = 0;
+    ptAllocator->szCurrentBlockIndex = 0;
+    ptAllocator->szAvailableBytes = 0;
     ptAllocator->szOffset = 0;
 }
 
