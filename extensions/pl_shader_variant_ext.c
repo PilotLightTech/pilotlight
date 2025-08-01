@@ -128,13 +128,15 @@ static plShaderToolsContext* gptShaderVariantCtx = NULL;
 //-----------------------------------------------------------------------------
 
 static plCompareMode         pl__shader_tools_get_compare_mode      (const char*);
-static plCompareMode         pl__shader_tools_get_compare_mode    (const char*);
-static plBlendFactor         pl__shader_tools_get_blend_factor    (const char*);
-static plBlendOp             pl__shader_tools_get_blend_op        (const char*);
-static plShaderStageFlags    pl__shader_tools_get_shader_stage    (const char*);
-static plBufferBindingType   pl__shader_tools_buffer_binding_type (const char*);
-static plTextureBindingType  pl__shader_tools_texture_binding_type(const char*);
+static plBlendFactor         pl__shader_tools_get_blend_factor      (const char*);
+static plBlendOp             pl__shader_tools_get_blend_op          (const char*);
+static plShaderStageFlags    pl__shader_tools_get_shader_stage      (const char*);
+static plBufferBindingType   pl__shader_tools_buffer_binding_type   (const char*);
+static plTextureBindingType  pl__shader_tools_texture_binding_type  (const char*);
 static plBindGroupLayoutDesc pl__shader_tools_bind_group_layout_desc(plJsonObject*);
+static plDataType            pl__shader_tools_get_data_type         (const char*);
+static plStencilOp           pl__shader_tools_get_stencil_op        (const char*);
+static plVertexFormat        pl__shader_tools_get_vertex_format     (const char*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public implementation
@@ -400,6 +402,98 @@ pl_shader_tool_load_manifest(const char* pcPath)
     // load compute shaders
     uint32_t uComputeShaderCount = 0;
     plJsonObject* ptComputeShaders = pl_json_array_member(ptRootJsonObject, "compute shaders", &uComputeShaderCount);
+
+    uint32_t uShaderCount = 0;
+    plJsonObject* ptGraphicsShaders = pl_json_array_member(ptRootJsonObject, "graphics shaders", &uShaderCount);
+
+    // bind group layout prepass
+    for(uint32_t uShaderIndex = 0; uShaderIndex < uComputeShaderCount; uShaderIndex++)
+    {
+        plJsonObject* ptComputeShader = pl_json_member_by_index(ptComputeShaders, uShaderIndex);
+        uint32_t uBindGroupLayoutCount = 0;
+        plJsonObject* ptBindGroupLayouts = pl_json_array_member(ptComputeShader, "atBindGroupLayouts", &uBindGroupLayoutCount);
+        for(uint32_t uBindGroupIndex = 0; uBindGroupIndex < uBindGroupLayoutCount; uBindGroupIndex++)
+        {
+            plJsonObject* ptBindGroupLayout = pl_json_member_by_index(ptBindGroupLayouts, uBindGroupIndex);
+
+            if(pl_json_member_exist(ptBindGroupLayout, "pcName"))
+            {
+
+
+                if(pl_json_member_exist(ptBindGroupLayout, "atBufferBindings") ||
+                    pl_json_member_exist(ptBindGroupLayout, "atSamplerBindings") ||
+                    pl_json_member_exist(ptBindGroupLayout, "atTextureBindings"))
+                    {
+
+                        char acNameBuffer[256] = {0};
+                        pl_json_string_member(ptBindGroupLayout, "pcName", acNameBuffer, 256);
+
+                        if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer))
+                        {
+                            pl_temp_allocator_free(&tTempAllocator);
+                            return false;
+                        }
+
+                        uint32_t uVariantIndex = pl_hm32_get_free_index(&gptShaderVariantCtx->tBindGroupLayoutsHashmap);
+                        if(uVariantIndex == PL_DS_HASH32_INVALID)
+                        {
+                            uVariantIndex = pl_sb_size(gptShaderVariantCtx->sbtBindGroupLayouts);
+                            pl_sb_add(gptShaderVariantCtx->sbtBindGroupLayouts);
+                        }
+                        pl_hm32_insert_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer, uVariantIndex);
+
+                        plBindGroupLayoutDesc tLayout = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
+                        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tLayout);
+                        gptShaderVariantCtx->sbtBindGroupLayouts[uVariantIndex] = tHandle;
+                    }
+            }
+        }
+    }
+
+    // bind group layout prepass
+    for(uint32_t uShaderIndex = 0; uShaderIndex < uShaderCount; uShaderIndex++)
+    {
+        plJsonObject* ptShader = pl_json_member_by_index(ptGraphicsShaders, uShaderIndex);
+        uint32_t uBindGroupLayoutCount = 0;
+        plJsonObject* ptBindGroupLayouts = pl_json_array_member(ptShader, "atBindGroupLayouts", &uBindGroupLayoutCount);
+        for(uint32_t uBindGroupIndex = 0; uBindGroupIndex < uBindGroupLayoutCount; uBindGroupIndex++)
+        {
+            plJsonObject* ptBindGroupLayout = pl_json_member_by_index(ptBindGroupLayouts, uBindGroupIndex);
+
+            if(pl_json_member_exist(ptBindGroupLayout, "pcName"))
+            {
+
+
+                if(pl_json_member_exist(ptBindGroupLayout, "atBufferBindings") ||
+                    pl_json_member_exist(ptBindGroupLayout, "atSamplerBindings") ||
+                    pl_json_member_exist(ptBindGroupLayout, "atTextureBindings"))
+                    {
+
+                        char acNameBuffer[256] = {0};
+                        pl_json_string_member(ptBindGroupLayout, "pcName", acNameBuffer, 256);
+
+                        if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer))
+                        {
+                            pl_temp_allocator_free(&tTempAllocator);
+                            return false;
+                        }
+
+                        uint32_t uVariantIndex = pl_hm32_get_free_index(&gptShaderVariantCtx->tBindGroupLayoutsHashmap);
+                        if(uVariantIndex == PL_DS_HASH32_INVALID)
+                        {
+                            uVariantIndex = pl_sb_size(gptShaderVariantCtx->sbtBindGroupLayouts);
+                            pl_sb_add(gptShaderVariantCtx->sbtBindGroupLayouts);
+                        }
+                        pl_hm32_insert_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer, uVariantIndex);
+
+                        plBindGroupLayoutDesc tLayout = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
+                        plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tLayout);
+                        gptShaderVariantCtx->sbtBindGroupLayouts[uVariantIndex] = tHandle;
+                    }
+            }
+        }
+    }
+
     for(uint32_t uShaderIndex = 0; uShaderIndex < uComputeShaderCount; uShaderIndex++)
     {
         plJsonObject* ptComputeShader = pl_json_member_by_index(ptComputeShaders, uShaderIndex);
@@ -444,12 +538,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
 
             char acTypeBuffer[64] = {0};
             pl_json_string_member(ptConstant, "tType", acTypeBuffer, 64);
-            if(acTypeBuffer[13] == 'I')
-                tComputeShaderDesc.atConstants[i].tType = PL_DATA_TYPE_INT;
-            else
-            {
-                PL_ASSERT(false);
-            }
+            tComputeShaderDesc.atConstants[i].tType = pl__shader_tools_get_data_type(acTypeBuffer);
 
             const size_t szConstantExtent = gptGfx->get_data_type_size(tComputeShaderDesc.atConstants[i].tType) + tComputeShaderDesc.atConstants[i].uOffset;
 
@@ -484,20 +573,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
                 }
                 else
                 {
-                    tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex] = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
-                    tInfo.atBindGroupLayouts[uBindGroupIndex] = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tComputeShaderDesc.atBindGroupLayouts[uBindGroupIndex]);
-
-                    uint32_t uBGIndex = pl_hm32_get_free_index(&gptShaderVariantCtx->tBindGroupLayoutsHashmap);
-                    if(uBGIndex == PL_DS_HASH32_INVALID)
-                    {
-                        uBGIndex = pl_sb_size(gptShaderVariantCtx->sbtBindGroupLayouts);
-                        pl_sb_add(gptShaderVariantCtx->sbtBindGroupLayouts);
-                    }
-                    pl_hm32_insert_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer, uBGIndex);
-
-                    plBindGroupLayoutDesc tLayout = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
-                    plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tLayout);
-                    gptShaderVariantCtx->sbtBindGroupLayouts[uBGIndex] = tHandle;
+                    PL_ASSERT(false);
                 }
             }
             else
@@ -521,8 +597,6 @@ pl_shader_tool_load_manifest(const char* pcPath)
     }
 
     // load graphics shaders
-    uint32_t uShaderCount = 0;
-    plJsonObject* ptGraphicsShaders = pl_json_array_member(ptRootJsonObject, "graphics shaders", &uShaderCount);
     for(uint32_t uShaderIndex = 0; uShaderIndex < uShaderCount; uShaderIndex++)
     {
         plJsonObject* ptGraphicsShader = pl_json_member_by_index(ptGraphicsShaders, uShaderIndex);
@@ -583,37 +657,16 @@ pl_shader_tool_load_manifest(const char* pcPath)
 
             char acEnumBuffer[64] = {0};
             char* pcEnumValue = pl_json_string_member(ptGraphicsMember, "ulStencilOpFail", acEntryBuffer, 64);
-            if(pcEnumValue)
-            {
-                if(pcEnumValue[14] == 'K')
-                    tShaderDesc.tGraphicsState.ulStencilOpFail = PL_STENCIL_OP_KEEP;
-                else
-                {
-                    PL_ASSERT(false);
-                }
-            }
+            if(pl_json_member_exist(ptGraphicsMember, "ulStencilOpFail"))
+                tShaderDesc.tGraphicsState.ulStencilOpFail = pl__shader_tools_get_stencil_op(pcEnumValue);
 
-            pcEnumValue = pl_json_string_member(ptGraphicsMember, "ulStencilOpDepthFail", acEntryBuffer, 64);
-            if(pcEnumValue)
-            {
-                if(pcEnumValue[14] == 'K')
-                    tShaderDesc.tGraphicsState.ulStencilOpDepthFail = PL_STENCIL_OP_KEEP;
-                else
-                {
-                    PL_ASSERT(false);
-                }
-            }
+            pl_json_string_member(ptGraphicsMember, "ulStencilOpDepthFail", acEntryBuffer, 64);
+            if(pl_json_member_exist(ptGraphicsMember, "ulStencilOpDepthFail"))
+                tShaderDesc.tGraphicsState.ulStencilOpDepthFail = pl__shader_tools_get_stencil_op(pcEnumValue);
 
-            pcEnumValue = pl_json_string_member(ptGraphicsMember, "ulStencilOpPass", acEntryBuffer, 64);
-            if(pcEnumValue)
-            {
-                if(pcEnumValue[14] == 'K')
-                    tShaderDesc.tGraphicsState.ulStencilOpPass = PL_STENCIL_OP_KEEP;
-                else
-                {
-                    PL_ASSERT(false);
-                }
-            }
+            pl_json_string_member(ptGraphicsMember, "ulStencilOpPass", acEntryBuffer, 64);
+            if(pl_json_member_exist(ptGraphicsMember, "ulStencilOpDepthFail"))
+                tShaderDesc.tGraphicsState.ulStencilOpPass = pl__shader_tools_get_stencil_op(pcEnumValue);
 
             pcEnumValue = pl_json_string_member(ptGraphicsMember, "ulStencilMode", acEntryBuffer, 64);
             if(pcEnumValue)
@@ -682,19 +735,9 @@ pl_shader_tool_load_manifest(const char* pcPath)
                 tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].uLocation = pl_json_uint_member(ptAttribute, "uLocation", 0);
 
                 char acVertexFormatBuffer[64] = {0};
-                char* pcVertexFormatEnum = pl_json_string_member(ptAttribute, "tFormat", acVertexFormatBuffer, 64);
-                if(pcVertexFormatEnum)
-                {
-                    plVertexFormat tFormat = PL_VERTEX_FORMAT_UNKNOWN;
-                    if(pcVertexFormatEnum[17] == 'F' && pcVertexFormatEnum[22] == '2')      tFormat = PL_VERTEX_FORMAT_FLOAT2;
-                    else if(pcVertexFormatEnum[17] == 'F' && pcVertexFormatEnum[22] == '3') tFormat = PL_VERTEX_FORMAT_FLOAT3;
-                    else if(pcVertexFormatEnum[17] == 'F' && pcVertexFormatEnum[22] == '4') tFormat = PL_VERTEX_FORMAT_FLOAT4;
-                    else
-                    {
-                        PL_ASSERT(false);
-                    }
-                    tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].tFormat = tFormat;
-                }
+                pl_json_string_member(ptAttribute, "tFormat", acVertexFormatBuffer, 64);
+                if(pl_json_member_exist(ptAttribute, "tFormat"))
+                    tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].tFormat = pl__shader_tools_get_vertex_format(acVertexFormatBuffer);
             }
         }
 
@@ -708,12 +751,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
 
             char acTypeBuffer[64] = {0};
             pl_json_string_member(ptConstant, "tType", acTypeBuffer, 64);
-            if(acTypeBuffer[13] == 'I')
-                tShaderDesc.atConstants[i].tType = PL_DATA_TYPE_INT;
-            else
-            {
-                PL_ASSERT(false);
-            }
+            tShaderDesc.atConstants[i].tType = pl__shader_tools_get_data_type(acTypeBuffer);
         }
 
         uint32_t uBindGroupLayoutCount = 0;
@@ -735,20 +773,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
                 }
                 else
                 {
-                    tShaderDesc.atBindGroupLayouts[i] = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
-                    tInfo.atBindGroupLayouts[i] = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tShaderDesc.atBindGroupLayouts[i]);
-
-                    uint32_t uBGIndex = pl_hm32_get_free_index(&gptShaderVariantCtx->tBindGroupLayoutsHashmap);
-                    if(uBGIndex == PL_DS_HASH32_INVALID)
-                    {
-                        uBGIndex = pl_sb_size(gptShaderVariantCtx->sbtBindGroupLayouts);
-                        pl_sb_add(gptShaderVariantCtx->sbtBindGroupLayouts);
-                    }
-                    pl_hm32_insert_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer, uBGIndex);
-
-                    plBindGroupLayoutDesc tLayout = pl__shader_tools_bind_group_layout_desc(ptBindGroupLayout);
-                    plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tLayout);
-                    gptShaderVariantCtx->sbtBindGroupLayouts[uBGIndex] = tHandle;
+                    PL_ASSERT(false);
                 }
             }
             else
@@ -963,6 +988,119 @@ pl__shader_tools_get_shader_stage(const char* pcText)
     }
 
     return tStage;
+}
+
+static plStencilOp
+pl__shader_tools_get_stencil_op(const char* pcText)
+{
+    plStencilOp tOp = PL_STENCIL_OP_KEEP;
+
+    if     (pcText[14] == 'K')                      tOp = PL_STENCIL_OP_KEEP;
+    else if(pcText[14] == 'Z')                      tOp = PL_STENCIL_OP_ZERO;
+    else if(pcText[14] == 'R')                      tOp = PL_STENCIL_OP_REPLACE;
+    else if(pcText[14] == 'I' && pcText[16] == 'V') tOp = PL_STENCIL_OP_INVERT;
+    else if(pcText[14] == 'I' && pcText[28] == 'C') tOp = PL_STENCIL_OP_INCREMENT_AND_CLAMP;
+    else if(pcText[14] == 'I')                      tOp = PL_STENCIL_OP_INCREMENT_AND_WRAP;
+    else if(pcText[14] == 'D' && pcText[28] == 'C') tOp = PL_STENCIL_OP_DECREMENT_AND_CLAMP;
+    else if(pcText[14] == 'D')                      tOp = PL_STENCIL_OP_DECREMENT_AND_WRAP;
+    else
+    {
+        PL_ASSERT(false);
+    }
+    return tOp;
+}
+
+static plVertexFormat
+pl__shader_tools_get_vertex_format(const char* pcText)
+{
+
+    plVertexFormat tFormat = PL_VERTEX_FORMAT_UNKNOWN;
+    if     (pcText[17] == 'F' && pcText[22] == '2') tFormat = PL_VERTEX_FORMAT_FLOAT2;
+    else if(pcText[17] == 'F' && pcText[22] == '3') tFormat = PL_VERTEX_FORMAT_FLOAT3;
+    else if(pcText[17] == 'F' && pcText[22] == '4') tFormat = PL_VERTEX_FORMAT_FLOAT4;
+    else if(pcText[17] == 'F')                      tFormat = PL_VERTEX_FORMAT_FLOAT;
+    else if(pcText[17] == 'D' && pcText[23] == '2') tFormat = PL_VERTEX_FORMAT_DOUBLE2;
+    else if(pcText[17] == 'D' && pcText[23] == '3') tFormat = PL_VERTEX_FORMAT_DOUBLE3;
+    else if(pcText[17] == 'D' && pcText[23] == '4') tFormat = PL_VERTEX_FORMAT_DOUBLE4;
+    else if(pcText[17] == 'D')                      tFormat = PL_VERTEX_FORMAT_DOUBLE;
+    else if(pcText[17] == 'I' && pcText[20] == '2') tFormat = PL_VERTEX_FORMAT_INT2;
+    else if(pcText[17] == 'I' && pcText[20] == '3') tFormat = PL_VERTEX_FORMAT_INT3;
+    else if(pcText[17] == 'I' && pcText[20] == '4') tFormat = PL_VERTEX_FORMAT_INT4;
+    else if(pcText[17] == 'I')                      tFormat = PL_VERTEX_FORMAT_INT;
+    else if(pcText[17] == 'C' && pcText[21] == '2') tFormat = PL_VERTEX_FORMAT_CHAR2;
+    else if(pcText[17] == 'C' && pcText[21] == '3') tFormat = PL_VERTEX_FORMAT_CHAR3;
+    else if(pcText[17] == 'C' && pcText[21] == '4') tFormat = PL_VERTEX_FORMAT_CHAR4;
+    else if(pcText[17] == 'C')                      tFormat = PL_VERTEX_FORMAT_CHAR;
+    else if(pcText[17] == 'H' && pcText[21] == '2') tFormat = PL_VERTEX_FORMAT_HALF2;
+    else if(pcText[17] == 'H' && pcText[21] == '3') tFormat = PL_VERTEX_FORMAT_HALF3;
+    else if(pcText[17] == 'H' && pcText[21] == '4') tFormat = PL_VERTEX_FORMAT_HALF4;
+    else if(pcText[17] == 'H')                      tFormat = PL_VERTEX_FORMAT_HALF;
+    else if(pcText[17] == 'S' && pcText[22] == '2') tFormat = PL_VERTEX_FORMAT_SHORT2;
+    else if(pcText[17] == 'S' && pcText[22] == '3') tFormat = PL_VERTEX_FORMAT_SHORT3;
+    else if(pcText[17] == 'S' && pcText[22] == '4') tFormat = PL_VERTEX_FORMAT_SHORT4;
+    else if(pcText[17] == 'S')                      tFormat = PL_VERTEX_FORMAT_SHORT;
+    else if(pcText[18] == 'I' && pcText[21] == '2') tFormat = PL_VERTEX_FORMAT_UINT2;
+    else if(pcText[18] == 'I' && pcText[21] == '3') tFormat = PL_VERTEX_FORMAT_UINT3;
+    else if(pcText[18] == 'I' && pcText[21] == '4') tFormat = PL_VERTEX_FORMAT_UINT4;
+    else if(pcText[18] == 'I')                      tFormat = PL_VERTEX_FORMAT_UINT;
+    else if(pcText[18] == 'C' && pcText[22] == '2') tFormat = PL_VERTEX_FORMAT_UCHAR2;
+    else if(pcText[18] == 'C' && pcText[22] == '3') tFormat = PL_VERTEX_FORMAT_UCHAR3;
+    else if(pcText[18] == 'C' && pcText[22] == '4') tFormat = PL_VERTEX_FORMAT_UCHAR4;
+    else if(pcText[18] == 'C')                      tFormat = PL_VERTEX_FORMAT_UCHAR;
+    else if(pcText[18] == 'S' && pcText[23] == '2') tFormat = PL_VERTEX_FORMAT_USHORT2;
+    else if(pcText[18] == 'S' && pcText[23] == '3') tFormat = PL_VERTEX_FORMAT_USHORT3;
+    else if(pcText[18] == 'S' && pcText[23] == '4') tFormat = PL_VERTEX_FORMAT_USHORT4;
+    else if(pcText[18] == 'S')                      tFormat = PL_VERTEX_FORMAT_USHORT;
+    else
+    {
+        PL_ASSERT(false);
+    }
+    return tFormat;
+}
+
+static plDataType
+pl__shader_tools_get_data_type(const char* pcText)
+{
+    plDataType tType = PL_DATA_TYPE_UNSPECIFIED;
+
+    if     (pcText[13] == 'I' && pcText[16] == '4') tType = PL_DATA_TYPE_INT4;
+    else if(pcText[13] == 'I' && pcText[16] == '3') tType = PL_DATA_TYPE_INT3;
+    else if(pcText[13] == 'I' && pcText[16] == '2') tType = PL_DATA_TYPE_INT2;
+    else if(pcText[13] == 'I')                      tType = PL_DATA_TYPE_INT;
+    else if(pcText[13] == 'F' && pcText[18] == '4') tType = PL_DATA_TYPE_FLOAT4;
+    else if(pcText[13] == 'F' && pcText[18] == '3') tType = PL_DATA_TYPE_FLOAT3;
+    else if(pcText[13] == 'F' && pcText[18] == '2') tType = PL_DATA_TYPE_FLOAT2;
+    else if(pcText[13] == 'F')                      tType = PL_DATA_TYPE_FLOAT;
+    else if(pcText[13] == 'B' && pcText[17] == '4') tType = PL_DATA_TYPE_BOOL4;
+    else if(pcText[13] == 'B' && pcText[17] == '3') tType = PL_DATA_TYPE_BOOL3;
+    else if(pcText[13] == 'B' && pcText[17] == '2') tType = PL_DATA_TYPE_BOOL2;
+    else if(pcText[13] == 'B')                      tType = PL_DATA_TYPE_BOOL;
+    else if(pcText[13] == 'C' && pcText[17] == '4') tType = PL_DATA_TYPE_CHAR4;
+    else if(pcText[13] == 'C' && pcText[17] == '3') tType = PL_DATA_TYPE_CHAR3;
+    else if(pcText[13] == 'C' && pcText[17] == '2') tType = PL_DATA_TYPE_CHAR2;
+    else if(pcText[13] == 'C')                      tType = PL_DATA_TYPE_CHAR;
+    else if(pcText[13] == 'S' && pcText[18] == '4') tType = PL_DATA_TYPE_SHORT4;
+    else if(pcText[13] == 'S' && pcText[18] == '3') tType = PL_DATA_TYPE_SHORT3;
+    else if(pcText[13] == 'S' && pcText[18] == '2') tType = PL_DATA_TYPE_SHORT2;
+    else if(pcText[13] == 'S')                      tType = PL_DATA_TYPE_SHORT;
+    else if(pcText[14] == 'C' && pcText[18] == '4') tType = PL_DATA_TYPE_UCHAR4;
+    else if(pcText[14] == 'C' && pcText[18] == '3') tType = PL_DATA_TYPE_UCHAR3;
+    else if(pcText[14] == 'C' && pcText[18] == '2') tType = PL_DATA_TYPE_UCHAR2;
+    else if(pcText[14] == 'C')                      tType = PL_DATA_TYPE_UCHAR;
+    else if(pcText[14] == 'S' && pcText[19] == '4') tType = PL_DATA_TYPE_USHORT4;
+    else if(pcText[14] == 'S' && pcText[19] == '3') tType = PL_DATA_TYPE_USHORT3;
+    else if(pcText[14] == 'S' && pcText[19] == '2') tType = PL_DATA_TYPE_USHORT2;
+    else if(pcText[14] == 'S')                      tType = PL_DATA_TYPE_USHORT;
+    else if(pcText[14] == 'I' && pcText[17] == '4') tType = PL_DATA_TYPE_UINT4;
+    else if(pcText[14] == 'I' && pcText[17] == '3') tType = PL_DATA_TYPE_UINT3;
+    else if(pcText[14] == 'I' && pcText[17] == '2') tType = PL_DATA_TYPE_UINT2;
+    else if(pcText[14] == 'I')                      tType = PL_DATA_TYPE_UINT;
+    else
+    {
+        PL_ASSERT(false);
+    }
+
+    return tType;
 }
 
 static plBufferBindingType

@@ -4,12 +4,23 @@
 
 /*
 Index of this file:
+// [SECTION] quick notes
 // [SECTION] header mess
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api structs
 // [SECTION] structs
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] quick notes
+//-----------------------------------------------------------------------------
+
+/*
+    Limitations:
+        * only a single manifest is supported at the moment
+        * bind group layouts are not cleanup up when unloading manifest
 */
 
 //-----------------------------------------------------------------------------

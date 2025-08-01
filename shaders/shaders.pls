@@ -1,8 +1,4 @@
 {
-    "settings": {
-        "bShortHand": false
-    },
-
     "bind group layouts": [
         {
             "pcName": "global",
