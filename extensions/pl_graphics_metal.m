@@ -405,6 +405,7 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const 
     if(ptDesc->ptSwapchain)
     {
         uCount = ptDesc->ptSwapchain->uImageCount;
+        pl_sb_reset(gptGraphics->sbtMainRenderPassHandles);
         pl_sb_push(gptGraphics->sbtMainRenderPassHandles, tHandle);
     }
 
@@ -1781,7 +1782,7 @@ pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
 
     bool bMSAAChange = ptSwap->tInfo.tSampleCount != ptInit->tSampleCount;
 
-    gptGraphics->uCurrentFrameIndex = 0;
+    // gptGraphics->uCurrentFrameIndex = 0;
     ptSwap->tInfo.bVSync = ptInit->bVSync;
     ptSwap->tInfo.uWidth = ptInit->uWidth;
     ptSwap->tInfo.uHeight = ptInit->uHeight;
@@ -1791,13 +1792,13 @@ pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
 
     if(bMSAAChange)
     {
-        uint32_t uNextFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
-        plFrameContext* ptFrame1 = &ptSwap->ptDevice->sbtFrames[uNextFrameIndex];
+        // uint32_t uNextFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
+        // plFrameContext* ptFrame1 = &ptSwap->ptDevice->sbtFrames[uNextFrameIndex];
         plFrameContext* ptFrame0 = pl__get_frame_resources(ptSwap->ptDevice);
         // dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
 
         dispatch_semaphore_signal(ptFrame0->tFrameBoundarySemaphore);
-        dispatch_semaphore_signal(ptFrame1->tFrameBoundarySemaphore);
+        // // dispatch_semaphore_signal(ptFrame1->tFrameBoundarySemaphore);
     }
 }
 
@@ -1876,6 +1877,7 @@ pl_begin_frame(plDevice* ptDevice)
 
     // Wait until the inflight command buffer has completed its work
     // gptGraphics->tSwapchain.uCurrentImageIndex = gptGraphics->uCurrentFrameIndex;
+    gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
     dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
@@ -1987,7 +1989,6 @@ pl_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubmitInfo, p
 
     [ptCommandBuffer->tCmdBuffer commit];
 
-    gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
     return true;
 }
 
