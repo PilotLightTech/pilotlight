@@ -1775,6 +1775,11 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDesc* p
     plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, tHandle);
     ptLayout->tDesc = *ptDesc;
 
+    if (ptDesc->pcDebugName == NULL)
+    {
+        ptLayout->tDesc.pcDebugName = "unnamed render pass layout";
+    }
+
     plRenderPassCommonData tCommonData = {0};
     pl__fill_common_render_pass_data(&ptLayout->tDesc, ptLayout, &tCommonData);
 
@@ -1790,7 +1795,7 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDesc* p
         .pDependencies   = tCommonData.atSubpassDependencies
     };
     PL_VULKAN(vkCreateRenderPass(ptDevice->tLogicalDevice, &tRenderPassInfo, gptGraphics->ptAllocationCallbacks, &tVulkanRenderPassLayout.tRenderPass));
-
+    pl__set_vulkan_object_name(ptDevice, (uint64_t)tVulkanRenderPassLayout.tRenderPass, VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT, ptLayout->tDesc.pcDebugName);
     ptDevice->sbtRenderPassLayoutsHot[tHandle.uIndex] = tVulkanRenderPassLayout;
     return tHandle;
 }
@@ -1802,6 +1807,11 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const 
     plRenderPassHandle tHandle = pl__get_new_render_pass_handle(ptDevice);
     plRenderPass* ptPass = pl_get_render_pass(ptDevice, tHandle);
     ptPass->tDesc = *ptDesc;
+
+    if (ptDesc->pcDebugName == NULL)
+    {
+        ptPass->tDesc.pcDebugName = "unnamed render pass";
+    }
 
     plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, ptDesc->tLayout);
 
@@ -1859,6 +1869,7 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const 
         .pDependencies   = tCommonData.atSubpassDependencies
     };
     PL_VULKAN(vkCreateRenderPass(ptDevice->tLogicalDevice, &tRenderPassInfo, gptGraphics->ptAllocationCallbacks, &ptVulkanRenderPass->tRenderPass));
+    pl__set_vulkan_object_name(ptDevice, (uint64_t)ptVulkanRenderPass->tRenderPass, VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT, ptPass->tDesc.pcDebugName);
 
     uint32_t uCount = gptGraphics->uFramesInFlight;
     if (ptDesc->ptSwapchain)
@@ -5500,7 +5511,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtTextures[i].uIndex;
-        pl_log_debug_f(gptLog, uLogChannelGraphics, "destroy texture %u", iResourceIndex);
+        pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy texture %u", iResourceIndex);
         plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[iResourceIndex];
         vkDestroyImageView(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[iResourceIndex].tImageView, gptGraphics->ptAllocationCallbacks);
         ptDevice->sbtTexturesHot[iResourceIndex].tImageView = VK_NULL_HANDLE;
@@ -5629,7 +5640,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtBuffers[i].uIndex;
-        pl_log_debug_f(gptLog, uLogChannelGraphics, "destroy buffer %u", iResourceIndex);
+        pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy buffer %u", iResourceIndex);
         vkDestroyBuffer(ptDevice->tLogicalDevice, ptDevice->sbtBuffersHot[iResourceIndex].tBuffer, gptGraphics->ptAllocationCallbacks);
         ptDevice->sbtBuffersHot[iResourceIndex].tBuffer = VK_NULL_HANDLE;
         pl_sb_push(ptDevice->sbtBufferFreeIndices, iResourceIndex);

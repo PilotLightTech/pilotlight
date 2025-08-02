@@ -2484,7 +2484,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_CUBE,
         .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .pcDebugName   = "offscreen depth texture"
+        .pcDebugName   = "offscreen depth texture probe"
     };
 
     const plTextureDesc tEmmissiveTexDesc = {

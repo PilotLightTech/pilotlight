@@ -226,79 +226,147 @@ pl_get_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
 static void
 pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
 {
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-    pl_sb_push(ptGarbage->sbtBuffers, tHandle);
-    pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation);
-    ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
-    pl_log_debug_f(gptLog, uLogChannelGraphics, "Queue buffer %u for deletion frame %llu", tHandle.uIndex, gptIO->ulFrameCount);
+    if(ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
+    {
+        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
+        pl_sb_push(ptGarbage->sbtBuffers, tHandle);
+        pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation);
+        ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
+        // pl_log_trace_f(gptLog, uLogChannelGraphics, "Queue buffer %u for deletion frame %llu", tHandle.uIndex, gptIO->ulFrameCount);
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "queue buffer %s for deletion (%u)", ptDevice->sbtBuffersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+    }
+    else
+    {
+        pl_log_warn_f(gptLog, uLogChannelGraphics, "double buffer %s deletion (%u)", ptDevice->sbtBuffersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+    }
 }
 
 static void
 pl_queue_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
 {
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-    pl_sb_push(ptGarbage->sbtTextures, tHandle);
-    if(ptDevice->sbtTexturesHot[tHandle.uIndex].bOriginalView)
+    if(ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
     {
-        pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtTexturesCold[tHandle.uIndex].tMemoryAllocation);
+        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
+        pl_sb_push(ptGarbage->sbtTextures, tHandle);
+        if(ptDevice->sbtTexturesHot[tHandle.uIndex].bOriginalView)
+        {
+            pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtTexturesCold[tHandle.uIndex].tMemoryAllocation);
+        }
+        ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "queue texture %s for deletion (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
-    ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
+    else
+    {
+        pl_log_warn_f(gptLog, uLogChannelGraphics, "double texture %s deletion (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+    }
 }
 
 static void
 pl_queue_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-    pl_sb_push(ptGarbage->sbtRenderPasses, tHandle);
-    ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration++;
+    if(ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
+    {
+        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
+        pl_sb_push(ptGarbage->sbtRenderPasses, tHandle);
+        ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration++;
+    }
+    else
+    {
+        pl_log_warn(gptLog, uLogChannelGraphics, "double render pass deletion");
+    }
 }
 
 static void
 pl_queue_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 {
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-    pl_sb_push(ptGarbage->sbtRenderPassLayouts, tHandle);
-    ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration++;
+    if(ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
+    {
+        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
+        pl_sb_push(ptGarbage->sbtRenderPassLayouts, tHandle);
+        ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration++;
+    }
+    else
+    {
+        pl_log_warn(gptLog, uLogChannelGraphics, "double render pass layout deletion");
+    }
 }
 
 static void
 pl_queue_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
 {
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-    pl_sb_push(ptGarbage->sbtShaders, tHandle);
-    ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration++;
+    if(ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
+    {
+        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
+        pl_sb_push(ptGarbage->sbtShaders, tHandle);
+        ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration++;
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "queue shader %s for deletion (%u)", ptDevice->sbtShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+    }
+    else
+    {
+        pl_log_warn_f(gptLog, uLogChannelGraphics, "double shader %s deletion (%u)", ptDevice->sbtShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+    }
 }
 
 static void
 pl_queue_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-    pl_sb_push(ptGarbage->sbtComputeShaders, tHandle);
-    ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration++;
+    if(ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
+    {
+        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
+        pl_sb_push(ptGarbage->sbtComputeShaders, tHandle);
+        ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration++;
+        pl_log_debug_f(gptLog, uLogChannelGraphics, "queue compute shader %s for deletion (%u)", ptDevice->sbtComputeShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+    }
+    else
+    {
+        pl_log_warn_f(gptLog, uLogChannelGraphics, "double compute shader %s deletion (%u)", ptDevice->sbtComputeShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+    }
 }
 
 static void
 pl_queue_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-    pl_sb_push(ptGarbage->sbtBindGroups, tHandle);
-    ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration++;
+    if(ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
+    {
+        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
+        pl_sb_push(ptGarbage->sbtBindGroups, tHandle);
+        ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration++;
+    }
+    else
+    {
+        pl_log_warn(gptLog, uLogChannelGraphics, "double bind group deletion");
+    }
 }
 
 static void
 pl_queue_bind_group_layout_for_deletion(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
 {
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-    pl_sb_push(ptGarbage->sbtBindGroupLayouts, tHandle);
-    ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration++;
+
+    if(ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
+    {
+        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
+        pl_sb_push(ptGarbage->sbtBindGroupLayouts, tHandle);
+        ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration++;
+    }
+    else
+    {
+        pl_log_warn(gptLog, uLogChannelGraphics, "double bind group layout deletion");
+    }
 }
 
 static void
 pl_queue_sampler_for_deletion(plDevice* ptDevice, plSamplerHandle tHandle)
 {
-    plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-    pl_sb_push(ptGarbage->sbtSamplers, tHandle);
-    ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration++;
+    if(ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
+    {
+        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
+        pl_sb_push(ptGarbage->sbtSamplers, tHandle);
+        ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration++;
+    }
+    else
+    {
+        pl_log_warn(gptLog, uLogChannelGraphics, "double sampler deletion");
+    }
 }
 
 static void

@@ -963,6 +963,7 @@ typedef struct _plRenderPassLayoutDesc
     plRenderTarget      atRenderTargets[PL_MAX_RENDER_TARGETS];
     plSubpass           atSubpasses[PL_MAX_SUBPASSES];
     plSubpassDependency atSubpassDependencies[PL_MAX_SUBPASSES];
+    const char*         pcDebugName; // default: "unnamed render pass layout"
 
     // [INTERNAL]
     uint32_t _uSubpassCount;
@@ -1011,6 +1012,7 @@ typedef struct _plRenderPassDesc
     plDepthTarget            tDepthTarget;
     plVec2                   tDimensions;
     plSwapchain*             ptSwapchain;
+    const char*              pcDebugName; // default: "unnamed render pass"
 } plRenderPassDesc;
 
 typedef struct _plRenderPass

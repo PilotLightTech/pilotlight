@@ -316,6 +316,11 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDesc* p
     plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, tHandle);
     ptLayout->tDesc = *ptDesc;
 
+    if (ptDesc->pcDebugName == NULL)
+    {
+        ptLayout->tDesc.pcDebugName = "unnamed render pass layout";
+    }
+
     ptDevice->sbtRenderPassLayoutsHot[tHandle.uIndex] = (plMetalRenderPassLayout){0};
     return tHandle;
 }
@@ -372,6 +377,11 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const 
     plRenderPassHandle tHandle = pl__get_new_render_pass_handle(ptDevice);
     plRenderPass* ptPass = pl_get_render_pass(ptDevice, tHandle);
     ptPass->tDesc = *ptDesc;
+
+    if (ptDesc->pcDebugName == NULL)
+    {
+        ptPass->tDesc.pcDebugName = "unnamed render pass";
+    }
 
     plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, ptDesc->tLayout);
 
@@ -1186,6 +1196,9 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
     ptShader->tDesc._uBindGroupLayoutCount = 0;
     ptShader->tDesc._uConstantCount = 0;
 
+    if(ptShader->tDesc.pcDebugName == NULL)
+        ptShader->tDesc.pcDebugName = "unnamed shader";
+
     plMetalComputeShader* ptMetalShader = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
 
     if(ptShader->tDesc.tShader.pcEntryFunc == NULL)
@@ -1264,6 +1277,9 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     ptShader->tDesc = *ptDescription;
     ptShader->tDesc._uBindGroupLayoutCount = 0;
     ptShader->tDesc._uConstantCount = 0;
+
+    if(ptShader->tDesc.pcDebugName == NULL)
+        ptShader->tDesc.pcDebugName = "unnamed shader";
 
     plMetalShader* ptMetalShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
 
