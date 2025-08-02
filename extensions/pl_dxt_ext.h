@@ -1,5 +1,6 @@
 /*
    pl_dxt_ext.h
+     - simple DXT compressor
 */
 
 /*
@@ -19,6 +20,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 /*
+
     The following channel counts correspond to following formats:
       
       * 1 channel -> PL_FORMAT_BC4_*
@@ -38,24 +40,24 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plDxtI_version {0, 2, 0}
+#define plDxtI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdint.h>  // uint*_t
-#include <stddef.h>  // size_t
+#include <stdint.h> // uint*_t
+#include <stddef.h> // size_t
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plDxtInfo plDxtInfo;
+typedef struct _plDxtInfo plDxtInfo; // input information
 
 // flags/enums
-typedef int plDxtFlags;
+typedef int plDxtFlags; // -> enum _plDxtFlags // Flag: compression option flags (PL_DXT_FLAGS_XXXX)
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -63,6 +65,8 @@ typedef int plDxtFlags;
 
 typedef struct _plDxtI
 {
+    // Notes
+    //   - setting dataOut to NULL, will set sizeOut to required buffer size
     void (*compress)(const plDxtInfo*, uint8_t* dataOut, size_t* sizeOut);
 } plDxtI;
 
@@ -75,7 +79,7 @@ typedef struct _plDxtInfo
     plDxtFlags     tFlags;
     uint32_t       uWidth;
     uint32_t       uHeight;
-    uint32_t       uChannels;
+    uint32_t       uChannels; // 1 - 4 channels
     const uint8_t* puData;
 } plDxtInfo;
 
@@ -86,7 +90,7 @@ typedef struct _plDxtInfo
 enum _plDxtFlags
 {
     PL_DXT_FLAGS_NONE         = 0,
-    PL_DXT_FLAGS_HIGH_QUALITY = 1 << 0
+    PL_DXT_FLAGS_HIGH_QUALITY = 1 << 0 // only for 3 & 4 channels
 };
 
 #endif // PL_DXT_EXT_H

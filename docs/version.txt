@@ -58,6 +58,7 @@ the API is complete. It just means we won't break what currently exists.
 * Console             v1.0.0 (pl_console_ext.h)
 * Draw                v1.2.0 (pl_draw_ext.h)
 * Draw Backend        v1.0.1 (pl_draw_backend_ext.h)
+* DXT                 v1.0.0 (pl_dxt_ext.h)
 * GPU Allocators      v1.0.0 (pl_gpu_allocators_ext.h)
 * Graphics            v1.2.0 (pl_graphics_ext.h)
 * Image               v1.0.0 (pl_image_ext.h)
@@ -92,7 +93,6 @@ the API is complete. It just means we won't break what currently exists.
 * Mesh Builder        v0.1.0 (pl_mesh_ext.h)
 * Shader Variant      v0.2.0 (pl_shader_variant_ext.h)
 * DDS                 v0.2.0 (pl_dds_ext.h)
-* DXT                 v0.2.0 (pl_dxt_ext.h)
 
 ## Unstable Extensions
 

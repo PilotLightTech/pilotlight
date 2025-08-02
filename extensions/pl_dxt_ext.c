@@ -62,6 +62,10 @@ pl__dxt_copy(const uint8_t* puData, uint32_t uDxtBlockWidth, uint32_t uX, uint32
 void
 pl_dxt_compress(const plDxtInfo* ptInfo, uint8_t* puDataOut, size_t* szSizeOut)
 {
+
+    PL_ASSERT(ptInfo);
+    PL_ASSERT(ptInfo->uChannels < 5);
+
     const uint32_t uAdjustedImageWidth = (uint32_t)ceilf((float)ptInfo->uWidth / 4.0f) * 4;
     const uint32_t uAdjustedImageHeight = (uint32_t)ceilf((float)ptInfo->uHeight / 4.0f) * 4;
 
