@@ -1915,10 +1915,10 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
         .uInstanceCount = 1,
     };
 
-    // create bind group
+    // create bind groups
     const plBindGroupDesc tOutlineBGDesc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("tonemap", 0),
+        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("jumpfloodalgo2", 0),
         .pcDebugName = "temp bind group 0"
     };
     plBindGroupHandle tJFABindGroup0 = gptGfx->create_bind_group(gptData->ptDevice, &tOutlineBGDesc);
@@ -1960,7 +1960,7 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
     ptDynamicData->fTargetWidth = (float)gptData->tRuntimeOptions.uOutlineWidth * tOutlineColor.r + 1.0f;
     ptDynamicData->tOutlineColor = tOutlineColor;
 
-    plShaderHandle tTonemapShader = gptShaderVariant->get_shader("tonemap", NULL, NULL, &gptData->tPostProcessRenderPassLayout);
+    plShaderHandle tTonemapShader = gptShaderVariant->get_shader("jumpfloodalgo2", NULL, NULL, &gptData->tPostProcessRenderPassLayout);
     gptGfx->bind_shader(ptEncoder, tTonemapShader);
     gptGfx->bind_vertex_buffer(ptEncoder, gptData->tFullQuadVertexBuffer);
     gptGfx->bind_graphics_bind_groups(ptEncoder, tTonemapShader, 0, 1, &tJFABindGroup0, 1, &tDynamicBinding);

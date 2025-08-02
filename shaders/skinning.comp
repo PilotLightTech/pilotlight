@@ -60,7 +60,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 mat4
 get_matrix_from_texture(int index)
 {
-    return tSkinningData.atData[index];;
+    return tSkinningData.atData[index];
 }
 
 mat4

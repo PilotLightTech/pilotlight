@@ -35,19 +35,6 @@ layout(location = 0) in struct plShaderOut {
 layout(location = 0) out vec4 outColor;
 
 //-----------------------------------------------------------------------------
-// [SECTION] helpers
-//-----------------------------------------------------------------------------
-
-const float GAMMA = 2.2;
-const float INV_GAMMA = 1.0 / GAMMA;
-
-vec3
-pl_linear_to_srgb(vec3 color)
-{
-    return pow(color, vec3(INV_GAMMA));
-}
-
-//-----------------------------------------------------------------------------
 // [SECTION] entry
 //-----------------------------------------------------------------------------
 
@@ -67,5 +54,4 @@ main()
         color = tObjectInfo.tData.tOutlineColor;
     }
     outColor = color;
-    outColor.rgb = pl_linear_to_srgb(outColor.rgb);
 }

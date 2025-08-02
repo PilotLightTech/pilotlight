@@ -122,14 +122,25 @@
                     ]
                 }
             ]
+        },
+        {
+            "pcName": "tonemap",
+            "tShader": { "file": "tonemap.comp"},
+            "atBindGroupLayouts": [
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
         }
     ],
 
     "graphics shaders": [
         {
-            "pcName": "tonemap",
+            "pcName": "jumpfloodalgo2",
             "tVertexShader":    { "file": "full_quad.vert"},
-            "tFragmentShader":  { "file":   "tonemap.frag"},
+            "tFragmentShader":  { "file": "jumpfloodalgo.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled": false,
                 "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",

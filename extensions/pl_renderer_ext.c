@@ -967,7 +967,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
         .uLayers       = 1,
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
         .pcDebugName   = "offscreen final"
     };
 
@@ -1310,7 +1310,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
         .uLayers       = 1,
         .uMips         = 1,
         .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE
     };
 
     const plTextureDesc tPickTextureDesc = {
@@ -1592,7 +1592,6 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
         gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
         gptGfx->wait_on_command_buffer(ptCommandBuffer);
         gptGfx->return_command_buffer(ptCommandBuffer);
-        gptGfx->queue_compute_shader_for_deletion(ptDevice, tPanoramaShader);
 
         const plTextureDesc tSkyboxTextureDesc = {
             .tDimensions = {(float)iResolution, (float)iResolution, 1},
@@ -3061,7 +3060,53 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             fJumpDistance = 1.0f;
     }
 
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~outline~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    const plBeginCommandInfo tOutlineBeginInfo = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+    };
+
+    plCommandBuffer* ptOutlineCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    gptGfx->begin_command_recording(ptOutlineCmdBuffer, &tOutlineBeginInfo);
+
+    pl__renderer_post_process_scene(ptOutlineCmdBuffer, ptView, &tMVP);
+    gptGfx->end_command_recording(ptOutlineCmdBuffer);
+
+    const plSubmitInfo tOutlineSubmitInfo = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    gptGfx->submit_command_buffer(ptOutlineCmdBuffer, &tOutlineSubmitInfo);
+    gptGfx->return_command_buffer(ptOutlineCmdBuffer);
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~post process~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    const plBindGroupDesc tTonemapBGDesc = {
+        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("tonemap", 0),
+        .pcDebugName = "temp bind group c0"
+    };
+    plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
+
+    const plBindGroupUpdateTextureData tTonemapTextureData[] = 
+    {
+        {
+            .tTexture      = ptView->tFinalTexture,
+            .uSlot         = 0,
+            .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
+        }
+    };
+
+    const plBindGroupUpdateData tTonemapBGData = {
+        .uTextureCount = 1,
+        .atTextureBindings = tTonemapTextureData
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, tTonemapBG, &tTonemapBGData);
+    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tTonemapBG);
 
     const plBeginCommandInfo tPostBeginInfo = {
         .uWaitSemaphoreCount   = 1,
@@ -3072,7 +3117,37 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
     gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
 
-    pl__renderer_post_process_scene(ptPostCmdBuffer, ptView, &tMVP);
+    plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+    gptGfx->set_texture_usage(ptTonemapPrepEncoder0, ptView->tFinalTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
+    gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
+
+    plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
+    gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
+
+
+    plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("tonemap", NULL);
+    gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
+    gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 0, NULL);
+
+    plTexture* ptFinalTexture = gptGfx->get_texture(gptData->ptDevice, ptView->tFinalTexture);
+    
+    plDispatch tTonemapDispatch = {
+        .uGroupCountX     = (uint32_t)(ptFinalTexture->tDesc.tDimensions.x / 8.0f),
+        .uGroupCountY     = (uint32_t)(ptFinalTexture->tDesc.tDimensions.y / 8.0f),
+        .uGroupCountZ     = 1,
+        .uThreadPerGroupX = 8,
+        .uThreadPerGroupY = 8,
+        .uThreadPerGroupZ = 1
+    };
+    gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
+
+    gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
+    gptGfx->end_compute_pass(ptPostEncoder);
+
+    plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+    gptGfx->set_texture_usage(ptTonemapPrepEncoder1, ptView->tFinalTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
+    gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
+
     gptGfx->end_command_recording(ptPostCmdBuffer);
 
     const plSubmitInfo tPostSubmitInfo = {
