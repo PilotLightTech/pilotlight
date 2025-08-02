@@ -5,6 +5,15 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
+- v0.5.3 (2025-08-01) fix pl_ds.h hm32 reset (v1.0.1)
+                      fix several internal issues with the metal backend
+                      add debug names to vulkan pipelines
+                      add double support for vulkan backend
+                      add support for multiple vertex buffers (v1.2.0)
+                      add dds extension
+                      add dxt extension (v1.0.0)
+                      update stb_image_resize2 from v2.13 to v2.14
+                      rework & improve shader variant system
 - v0.5.2 (2025-07-09) fix missing sampler functions in graphics ext (v1.1.3)
                       add mesh builder API to mesh ext (v0.1.0)
                       add starter ext MSAA & depth issues (v1.0.2)

@@ -3632,7 +3632,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             };
-            ptScene->sbtDrawables[i].tShadowShader = gptShaderVariant->get_shader("alphashadow", &tShadowVariant, aiConstantData0, NULL);
+            ptScene->sbtDrawables[i].tShadowShader = gptShaderVariant->get_shader("alphashadow", &tShadowVariant, aiConstantData0, &gptData->tDepthRenderPassLayout);
         }
     }
 }

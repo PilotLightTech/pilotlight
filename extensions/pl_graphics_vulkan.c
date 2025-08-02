@@ -4662,6 +4662,7 @@ pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT tMsgSeverity, VkDebugU
 
     else if (tMsgSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
+        printf("warn validation layer: %s\n", ptCallbackData->pMessage);
         pl_log_warn_f(gptLog, uLogChannelGraphics, "warn validation layer: %s\n", ptCallbackData->pMessage);
     }
 

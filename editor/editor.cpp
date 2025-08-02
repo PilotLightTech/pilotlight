@@ -1137,8 +1137,9 @@ pl__create_scene(plAppData* ptAppData)
     gptRenderer->create_directional_light(ptAppData->ptCompLibrary, "direction light", pl_create_vec3(-0.375f, -1.0f, -0.085f), &ptLight);
     ptLight->uCascadeCount = 4;
     ptLight->fIntensity = 1.0f;
+    ptLight->fRange = 1.0f;
     ptLight->uShadowResolution = 1024;
-    ptLight->afCascadeSplits[0] = 0.10f;
+    ptLight->afCascadeSplits[0] = 0.01f;
     ptLight->afCascadeSplits[1] = 0.25f;
     ptLight->afCascadeSplits[2] = 0.50f;
     ptLight->afCascadeSplits[3] = 1.00f;
