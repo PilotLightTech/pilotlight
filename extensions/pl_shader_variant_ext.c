@@ -247,6 +247,9 @@ pl_shader_tool_get_shader(const char* pcName, const plGraphicsState* ptGraphicsS
         szSpecializationSize += gptGfx->get_data_type_size(ptConstant->tType);
     }
 
+    if(szSpecializationSize == 0 && ptShader->tDesc.tGraphicsState.ulValue == ptGraphicsState->ulValue)
+        return tBaseHandle;
+
     // retrieve shader variant data
     uVariantIndex = UINT32_MAX;
     if(!pl_hm32_has_key_ex(&gptShaderVariantCtx->tParentHashmap, tBaseHandle.uData, &uVariantIndex))
@@ -317,6 +320,9 @@ pl_shader_tool_get_compute_shader(const char* pcName, const void* pTempConstantD
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
         szSpecializationSize += gptGfx->get_data_type_size(ptConstant->tType);
     }
+
+    if(szSpecializationSize == 0)
+        return tBaseHandle;
 
     // retrieve shader variant data
     uVariantIndex = UINT32_MAX;
@@ -769,7 +775,8 @@ pl_shader_tool_load_manifest(const char* pcPath)
                 {
                     uint32_t uBGIndex = pl_hm32_lookup_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acBGNameBuffer);
                     tInfo.atBindGroupLayouts[i] = gptShaderVariantCtx->sbtBindGroupLayouts[uBGIndex];
-                    tShaderDesc.atBindGroupLayouts[i] = gptGfx->get_bind_group_layout(gptShaderVariantCtx->ptDevice, tInfo.atBindGroupLayouts[i])->tDesc;
+                    plBindGroupLayout* ptLayout = gptGfx->get_bind_group_layout(gptShaderVariantCtx->ptDevice, tInfo.atBindGroupLayouts[i]);
+                    tShaderDesc.atBindGroupLayouts[i] = ptLayout->tDesc;
                 }
                 else
                 {
@@ -848,39 +855,23 @@ pl_shader_tool_unload_manifest(const char* pcPath)
         }
     }
 
-    // const uint32_t uBindGroupLayoutCount = pl_sb_size(gptShaderVariantCtx->sbtBindGroupLayouts);
-    // for(uint32_t i = 0; i < uBindGroupLayoutCount; i++)
-    //     gptGfx->queue_bind_group_layout_for_deletion(gptShaderVariantCtx->ptDevice, gptShaderVariantCtx->sbtBindGroupLayouts[i]);
-
-    // const uint32_t uComputeMetaCount = pl_sb_size(gptShaderVariantCtx->sbtComputeMetaVariants);
-    // for(uint32_t i = 0; i < uComputeMetaCount; i++)
-    // {
-    //     for(uint32_t j = 0; j < 3; j++)
-    //     {
-    //         if(gptGfx->get_bind_group_layout(gptShaderVariantCtx->ptDevice, gptShaderVariantCtx->sbtComputeMetaVariants[i].atBindGroupLayouts[j]))
-    //             gptGfx->queue_bind_group_layout_for_deletion(gptShaderVariantCtx->ptDevice, gptShaderVariantCtx->sbtComputeMetaVariants[i].atBindGroupLayouts[j]);
-    //     }
-    // }
-
-    // const uint32_t uMetaCount = pl_sb_size(gptShaderVariantCtx->sbtMetaVariants);
-    // for(uint32_t i = 0; i < uMetaCount; i++)
-    // {
-    //     for(uint32_t j = 0; j < 3; j++)
-    //     {
-    //         if(gptGfx->get_bind_group_layout(gptShaderVariantCtx->ptDevice, gptShaderVariantCtx->sbtMetaVariants[i].atBindGroupLayouts[j]))
-    //             gptGfx->queue_bind_group_layout_for_deletion(gptShaderVariantCtx->ptDevice, gptShaderVariantCtx->sbtMetaVariants[i].atBindGroupLayouts[j]);
-    //     }
-    // }
-
     pl_sb_free(gptShaderVariantCtx->sbtMetaVariants);
     pl_sb_free(gptShaderVariantCtx->sbtShaderMeta);
     pl_sb_free(gptShaderVariantCtx->sbtShaderDesc);
     pl_sb_free(gptShaderVariantCtx->sbtComputeMetaVariants);
     pl_sb_free(gptShaderVariantCtx->sbtComputeMeta);
     pl_sb_free(gptShaderVariantCtx->sbtBindGroupLayouts);
+    pl_sb_free(gptShaderVariantCtx->sbtGraphicsVariants);
+    pl_sb_free(gptShaderVariantCtx->sbtComputeVariants);
     pl_hm32_free(&gptShaderVariantCtx->tGraphicsHashmap);
     pl_hm32_free(&gptShaderVariantCtx->tComputeHashmap);
     pl_hm32_free(&gptShaderVariantCtx->tBindGroupLayoutsHashmap);
+    pl_hm32_free(&gptShaderVariantCtx->tComputeParentHashmap);
+    pl_hm32_free(&gptShaderVariantCtx->tParentHashmap);
+    gptShaderVariantCtx->dParentShaderCount = 0;
+    gptShaderVariantCtx->dParentComputeShaderCount = 0;
+    gptShaderVariantCtx->dVariantsCount = 0;
+    gptShaderVariantCtx->dComputeVariantsCount = 0;
     return true;
 }
 
