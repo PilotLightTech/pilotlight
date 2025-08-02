@@ -350,7 +350,7 @@ pl_starter_resize(void)
     plBlitEncoder* ptEncoder = NULL;
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER || gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
     {
-        ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[0]);
+        ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()]);
         gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
         // begin blit pass, copy buffer, end pass
@@ -1379,7 +1379,7 @@ pl__starter_create_render_pass_with_depth(void)
         .ptSwapchain = gptStarterCtx->ptSwapchain
     };
 
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[0]);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()]);
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
     // begin blit pass, copy buffer, end pass
@@ -1478,7 +1478,7 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
         .ptSwapchain = gptStarterCtx->ptSwapchain
     };
 
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[0]);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()]);
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
     // begin blit pass, copy buffer, end pass
