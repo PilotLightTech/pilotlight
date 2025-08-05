@@ -98,6 +98,7 @@ typedef int plLightFlags;
 typedef int plEnvironmentProbeFlags;
 typedef int plObjectFlags;
 typedef int plTextureSlot;
+typedef int plTonemapMode;
 
 // external 
 typedef struct _plWindow           plWindow;           // pl_os.h
@@ -212,6 +213,8 @@ typedef struct _plRendererI
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+
+
 typedef struct _plSceneInit
 {
     plComponentLibrary* ptComponentLibrary;
@@ -236,6 +239,13 @@ typedef struct _plRendererRuntimeOptions
     float    fShadowConstantDepthBias;
     float    fShadowSlopeDepthBias;
     uint32_t uOutlineWidth;
+
+    // tonemapping
+    plTonemapMode   tTonemapMode;
+    float           fExposure;
+    float           fBrightness;
+    float           fContrast;
+    float           fSaturation;
 } plRendererRuntimeOptions;
 
 typedef struct _plTextureMap

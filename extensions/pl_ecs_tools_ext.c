@@ -25,6 +25,7 @@ Index of this file:
 #include "pl_ui_ext.h"
 #include "pl_physics_ext.h"
 #include "pl_mesh_ext.h"
+#include "pl_shader_interop_renderer.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"

@@ -3,7 +3,6 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_ARB_shader_viewport_layer_array : enable
 
-#include "defines.glsl"
 #include "pl_shader_interop_renderer.h"
 
 //-----------------------------------------------------------------------------

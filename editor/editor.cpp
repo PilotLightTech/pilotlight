@@ -1031,6 +1031,16 @@ pl__show_editor_window(plAppData* ptAppData)
                 else
                     gptStarter->deactivate_vsync();
             }
+            static const char* apcTonemapText[] = {
+                "None",
+                "ACES",
+                "Reinhard",
+            };
+            ImGui::Combo("Tonemapping", &ptRuntimeOptions->tTonemapMode, apcTonemapText, 3);
+            ImGui::SliderFloat("Exposure", &ptRuntimeOptions->fExposure, 0.0f, 3.0f);
+            ImGui::SliderFloat("Brightness", &ptRuntimeOptions->fBrightness, -1.0f, 1.0f);
+            ImGui::SliderFloat("Contrast", &ptRuntimeOptions->fContrast, 0.0f, 2.0f);
+            ImGui::SliderFloat("Saturation", &ptRuntimeOptions->fSaturation, 0.0f, 2.0f);
             ImGui::Checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
             ImGui::Checkbox("Show BVH", &ptAppData->bShowBVH);
             ImGui::Checkbox("Show Skybox", &ptAppData->bShowSkybox);

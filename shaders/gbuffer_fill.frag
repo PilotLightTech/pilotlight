@@ -22,7 +22,6 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "defines.glsl"
 #include "pl_shader_interop_renderer.h"
 #include "math.glsl"
 

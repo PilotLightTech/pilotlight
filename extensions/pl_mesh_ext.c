@@ -28,6 +28,9 @@ Index of this file:
 // extensions
 #include "pl_log_ext.h"
 
+// shader interop
+#include "pl_shader_interop_renderer.h"
+
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
 #else

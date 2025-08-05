@@ -146,8 +146,6 @@ typedef struct _plDirectionLightShadowData plDirectionLightShadowData;
 
 // enums & flags
 typedef int plDrawableFlags;
-typedef int plTextureMappingFlags;
-typedef int plRenderingFlags;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -159,14 +157,6 @@ enum _plDrawableFlags
     PL_DRAWABLE_FLAG_FORWARD  = 1 << 0,
     PL_DRAWABLE_FLAG_DEFERRED = 1 << 1,
     PL_DRAWABLE_FLAG_PROBE    = 1 << 2
-};
-
-
-enum _plRenderingFlags
-{
-    PL_RENDERING_FLAG_USE_PUNCTUAL = 1 << 0,
-    PL_RENDERING_FLAG_USE_IBL      = 1 << 1,
-    PL_RENDERING_FLAG_SHADOWS      = 1 << 2
 };
 
 //-----------------------------------------------------------------------------

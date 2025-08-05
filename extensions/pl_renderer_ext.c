@@ -257,6 +257,11 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tRuntimeOptions.bPunctualLighting = true;
     gptData->tRuntimeOptions.fShadowConstantDepthBias = -1.25f;
     gptData->tRuntimeOptions.fShadowSlopeDepthBias = -10.75f;
+    gptData->tRuntimeOptions.fExposure = 1.0f;
+    gptData->tRuntimeOptions.fBrightness = 0.0f;
+    gptData->tRuntimeOptions.fContrast = 1.0f;
+    gptData->tRuntimeOptions.fSaturation = 1.0f;
+    gptData->tRuntimeOptions.tTonemapMode = PL_TONEMAP_MODE_NONE;
 
     gptResource->initialize((plResourceManagerInit){.ptDevice = gptData->ptDevice, .uMaxTextureResolution = tSettings.uMaxTextureResolution});
 
@@ -3124,10 +3129,17 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
     gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
+    plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+    plGpuDynTonemap* ptTonemapData = (plGpuDynTonemap*)tTonemapDynamicBinding.pcData;
+    ptTonemapData->iMode = gptData->tRuntimeOptions.tTonemapMode;
+    ptTonemapData->fExposure = gptData->tRuntimeOptions.fExposure;
+    ptTonemapData->fBrightness = gptData->tRuntimeOptions.fBrightness;
+    ptTonemapData->fContrast = gptData->tRuntimeOptions.fContrast;
+    ptTonemapData->fSaturation = gptData->tRuntimeOptions.fSaturation;
 
     plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("tonemap", NULL);
     gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
-    gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 0, NULL);
+    gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
 
     plTexture* ptFinalTexture = gptGfx->get_texture(gptData->ptDevice, ptView->tFinalTexture);
     

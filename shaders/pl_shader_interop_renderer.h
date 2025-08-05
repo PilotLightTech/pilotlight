@@ -1,7 +1,93 @@
+/*
+   pl_shader_interop_renderer.h
+*/
+
+/*
+Index of this file:
+// [SECTION] header mess
+// [SECTION] includes
+// [SECTION] defines
+// [SECTION] enums
+// [SECTION] common
+// [SECTION] tonemapping
+// [SECTION] environment filtering
+// [SECTION] shadows
+// [SECTION] skinning
+// [SECTION] skybox
+// [SECTION] outlines
+// [SECTION] picking
+// [SECTION] lights
+// [SECTION] materials
+*/
+
+//-----------------------------------------------------------------------------
+// [SECTION] header mess
+//-----------------------------------------------------------------------------
+
 #ifndef PL_SHADER_INTEROP_RENDERER_H
 #define PL_SHADER_INTEROP_RENDERER_H
 
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
 #include "pl_shader_interop.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] defines
+//-----------------------------------------------------------------------------
+
+#define PL_MAX_BINDLESS_TEXTURES 4096
+#define PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT 4101
+
+#define PL_INFO_MATERIAL_METALLICROUGHNESS 1
+
+//-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+PL_BEGIN_ENUM(plRenderingFlags)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_PUNCTUAL, 1 << 0)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_IBL, 1 << 1)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_SHADOWS, 1 << 2)
+PL_END_ENUM
+
+PL_BEGIN_ENUM(plMeshFormatFlags)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_NONE,                 0)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_POSITION,   1 <<  0) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_NORMAL,     1 <<  1) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TANGENT,    1 <<  2) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0, 1 <<  3) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1, 1 <<  4) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2, 1 <<  5) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3, 1 <<  6) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_COLOR_0,    1 <<  7) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_COLOR_1,    1 <<  8) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_JOINTS_0,   1 <<  9) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_JOINTS_1,   1 << 10)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0,  1 << 11)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1,  1 << 12)
+PL_END_ENUM
+
+PL_BEGIN_ENUM(plTonemapMode)
+    PL_ENUM_ITEM(PL_TONEMAP_MODE_NONE, 0)
+    PL_ENUM_ITEM(PL_TONEMAP_MODE_ACES, 1)
+    PL_ENUM_ITEM(PL_TONEMAP_MODE_REINHARD, 2)
+PL_END_ENUM
+
+PL_BEGIN_ENUM(plLightType)
+    PL_ENUM_ITEM(PL_LIGHT_TYPE_DIRECTIONAL, 0)
+    PL_ENUM_ITEM(PL_LIGHT_TYPE_POINT, 1)
+    PL_ENUM_ITEM(PL_LIGHT_TYPE_SPOT, 2)
+PL_END_ENUM
+
+PL_BEGIN_ENUM(plTextureMappingFlags)
+    PL_ENUM_ITEM(PL_HAS_BASE_COLOR_MAP, 1 << 0)
+    PL_ENUM_ITEM(PL_HAS_NORMAL_MAP, 1 << 1)
+    PL_ENUM_ITEM(PL_HAS_EMISSIVE_MAP, 1 << 2)
+    PL_ENUM_ITEM(PL_HAS_OCCLUSION_MAP, 1 << 3)
+    PL_ENUM_ITEM(PL_HAS_METALLIC_ROUGHNESS_MAP, 1 << 4)
+PL_END_ENUM
 
 //-----------------------------------------------------------------------------
 // [SECTION] common
@@ -31,12 +117,32 @@ PL_BEGIN_STRUCT(plGpuGlobalData)
 PL_END_STRUCT(plGpuGlobalData)
 
 PL_BEGIN_STRUCT(plGpuDynData)
-
     int  iDataOffset;
     int  iVertexOffset;
     int  iMaterialIndex;
     uint uGlobalIndex;
 PL_END_STRUCT(plGpuDynData)
+
+//-----------------------------------------------------------------------------
+// [SECTION] tonemapping
+//-----------------------------------------------------------------------------
+
+PL_BEGIN_STRUCT(plGpuDynTonemap)
+
+    int   iMode;
+    float fExposure;
+    float fBrightness;
+    float fContrast;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    float fSaturation;
+    uint _auUnused0;
+    uint _auUnused1;
+    uint _auUnused2;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~32 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuDynTonemap)
 
 //-----------------------------------------------------------------------------
 // [SECTION] environment filtering
@@ -60,7 +166,7 @@ PL_BEGIN_STRUCT(plGpuDynFilterSpec)
 PL_END_STRUCT(plGpuDynFilterSpec)
 
 //-----------------------------------------------------------------------------
-// [SECTION] shadow
+// [SECTION] shadows
 //-----------------------------------------------------------------------------
 
 PL_BEGIN_STRUCT(plGpuDynShadow)
@@ -114,7 +220,7 @@ PL_BEGIN_STRUCT(plGpuDynSkybox)
 PL_END_STRUCT(plGpuDynSkybox)
 
 //-----------------------------------------------------------------------------
-// [SECTION] post processing
+// [SECTION] outlines
 //-----------------------------------------------------------------------------
 
 PL_BEGIN_STRUCT(plGpuDynPost)
@@ -155,11 +261,6 @@ PL_END_STRUCT(plGpuDynPick)
 //-----------------------------------------------------------------------------
 // [SECTION] lights
 //-----------------------------------------------------------------------------
-
-PL_TYPEDEF(int, plLightType)
-#define PL_LIGHT_TYPE_DIRECTIONAL 0
-#define PL_LIGHT_TYPE_POINT 1
-#define PL_LIGHT_TYPE_SPOT 2
 
 PL_BEGIN_STRUCT(plGpuLight)
 
@@ -238,9 +339,6 @@ PL_END_STRUCT(plGpuDynDeferredLighting)
 //-----------------------------------------------------------------------------
 // [SECTION] materials
 //-----------------------------------------------------------------------------
-
-PL_TYPEDEF(int, plMaterialInfoFlags)
-#define PL_INFO_MATERIAL_METALLICROUGHNESS 1
 
 PL_BEGIN_STRUCT(plGpuMaterial)
 
