@@ -49,7 +49,7 @@ main()
     float ydist = h.y * float(textureSize(sampler2D(tColorTexture, tSampler),0).y);
     float tdist2 = xdist * xdist + ydist * ydist;
     float dist = distance(closestSeed, tShaderIn.tUV);
-    if (closestSeed.x > 0 && closestSeed.y > 0 && dist > 0 && tdist2 < tObjectInfo.tData.fTargetWidth * tObjectInfo.tData.fTargetWidth)
+    if (closestSeed.x > 0 && closestSeed.y > 0 && dist > 0.0001 && tdist2 < tObjectInfo.tData.fTargetWidth * tObjectInfo.tData.fTargetWidth)
     {
         color = tObjectInfo.tData.tOutlineColor;
     }
