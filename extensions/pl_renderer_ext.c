@@ -3185,8 +3185,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     plTexture* ptFinalTexture = gptGfx->get_texture(gptData->ptDevice, ptView->tFinalTexture);
     
     plDispatch tTonemapDispatch = {
-        .uGroupCountX     = (uint32_t)(ptFinalTexture->tDesc.tDimensions.x / 8.0f),
-        .uGroupCountY     = (uint32_t)(ptFinalTexture->tDesc.tDimensions.y / 8.0f),
+        .uGroupCountX     = (uint32_t)(ceilf(ptFinalTexture->tDesc.tDimensions.x / 8.0f)),
+        .uGroupCountY     = (uint32_t)(ceilf(ptFinalTexture->tDesc.tDimensions.y / 8.0f)),
         .uGroupCountZ     = 1,
         .uThreadPerGroupX = 8,
         .uThreadPerGroupY = 8,
