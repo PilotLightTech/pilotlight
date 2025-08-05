@@ -2006,39 +2006,80 @@ pl_renderer_prepare_scene(plScene* ptScene)
     uint32_t uInstanceOffset = 0;
     const uint32_t uObjectCount = pl_sb_size(ptScene->sbtDrawables);
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
-    for(uint32_t i = 0; i < uObjectCount; i++)
+
+    if(gptData->tRuntimeOptions.bMultiViewportShadows)
     {
-
-        plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawables[i].tEntity);
-
-        // copy transform into proper location in CPU side buffer
-        plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
-        memcpy(&ptTransformBuffer->tMemoryAllocation.pHostMapped[ptScene->sbtDrawables[i].uTransformIndex * sizeof(plMat4)], &ptTransform->tWorld, sizeof(plMat4));
-
-        // if using instancing, set index into instance buffer and
-        // this includes setting the viewport instance data for multiviewport
-        // shadow technique
-        if(ptScene->sbtDrawables[i].uInstanceCount != 0)
+        for(uint32_t i = 0; i < uObjectCount; i++)
         {
-            ptScene->sbtDrawables[i].uInstanceIndex = uInstanceOffset;
 
-            for(int32_t iViewport = 0; iViewport < 6; iViewport++)
+            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawables[i].tEntity);
+
+            // copy transform into proper location in CPU side buffer
+            plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
+            memcpy(&ptTransformBuffer->tMemoryAllocation.pHostMapped[ptScene->sbtDrawables[i].uTransformIndex * sizeof(plMat4)], &ptTransform->tWorld, sizeof(plMat4));
+
+            // if using instancing, set index into instance buffer and
+            // this includes setting the viewport instance data for multiviewport
+            // shadow technique
+            if(ptScene->sbtDrawables[i].uInstanceCount != 0)
             {
-                for(uint32_t uInstance = 0; uInstance < ptScene->sbtDrawables[i].uInstanceCount; uInstance++)
-                {
-                    uint32_t uTransformIndex = ptScene->sbtDrawables[i + uInstance].uTransformIndex;
+                ptScene->sbtDrawables[i].uInstanceIndex = uInstanceOffset;
 
-                    plShadowInstanceBufferData tShadowInstanceData = {
-                        .uTransformIndex = uTransformIndex,
-                        .iViewportIndex  = iViewport
-                    };
-                    
-                    memcpy(&ptInstanceBuffer->tMemoryAllocation.pHostMapped[uInstanceOffset * sizeof(tShadowInstanceData)], &tShadowInstanceData, sizeof(tShadowInstanceData));
-                    uInstanceOffset++;
+                for(int32_t iViewport = 0; iViewport < 6; iViewport++)
+                {
+                    for(uint32_t uInstance = 0; uInstance < ptScene->sbtDrawables[i].uInstanceCount; uInstance++)
+                    {
+                        uint32_t uTransformIndex = ptScene->sbtDrawables[i + uInstance].uTransformIndex;
+
+                        plShadowInstanceBufferData tShadowInstanceData = {
+                            .uTransformIndex = uTransformIndex,
+                            .iViewportIndex  = iViewport
+                        };
+                        
+                        memcpy(&ptInstanceBuffer->tMemoryAllocation.pHostMapped[uInstanceOffset * sizeof(tShadowInstanceData)], &tShadowInstanceData, sizeof(tShadowInstanceData));
+                        uInstanceOffset++;
+                    }
                 }
             }
-        }
 
+        }
+    }
+    else
+    {
+        for(uint32_t i = 0; i < uObjectCount; i++)
+        {
+
+            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawables[i].tEntity);
+
+            // copy transform into proper location in CPU side buffer
+            plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
+            memcpy(&ptTransformBuffer->tMemoryAllocation.pHostMapped[ptScene->sbtDrawables[i].uTransformIndex * sizeof(plMat4)], &ptTransform->tWorld, sizeof(plMat4));
+
+            // if using instancing, set index into instance buffer and
+            // this includes setting the viewport instance data for multiviewport
+            // shadow technique
+            if(ptScene->sbtDrawables[i].uInstanceCount != 0)
+            {
+                ptScene->sbtDrawables[i].uInstanceIndex = uInstanceOffset;
+
+                for(int32_t iViewport = 0; iViewport < 6; iViewport++)
+                {
+                    for(uint32_t uInstance = 0; uInstance < ptScene->sbtDrawables[i].uInstanceCount; uInstance++)
+                    {
+                        uint32_t uTransformIndex = ptScene->sbtDrawables[i + uInstance].uTransformIndex;
+
+                        plShadowInstanceBufferData tShadowInstanceData = {
+                            .uTransformIndex = uTransformIndex,
+                            .iViewportIndex  = 0
+                        };
+                        
+                        memcpy(&ptInstanceBuffer->tMemoryAllocation.pHostMapped[uInstanceOffset * sizeof(tShadowInstanceData)], &tShadowInstanceData, sizeof(tShadowInstanceData));
+                        uInstanceOffset++;
+                    }
+                }
+            }
+
+        }
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
