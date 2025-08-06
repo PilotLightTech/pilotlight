@@ -2550,7 +2550,7 @@ pl__input_text_ex(const char* pcLabel, const char* pcHint, char* pcBuffer, size_
         {
             // Determine if we turn Enter into a \n character
             bool bCtrlEnterForNewLine = (tFlags & PL_UI_INPUT_TEXT_FLAGS_CTRL_ENTER_FOR_NEW_LINE) != 0;
-            if (!bIsMultiLine || bIsGamepadValidate || (bCtrlEnterForNewLine && !gptIO->bKeyCtrl) || (!bCtrlEnterForNewLine && gptIO->bKeyCtrl))
+            if (!bIsMultiLine || bIsGamepadValidate || (bCtrlEnterForNewLine != gptIO->bKeyCtrl))
             {
                 bValidated = true;
                 // if (io.ConfigInputTextEnterKeepActive && !bIsMultiLine)

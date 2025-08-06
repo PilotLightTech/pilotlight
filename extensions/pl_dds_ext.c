@@ -872,7 +872,7 @@ pl_dds_read_info(uint8_t* puBuffer, plDdsReadInfo* ptInfoOut)
             uint32_t uNumBlocksX = (uNumElementsX + uBlockSize - 1) / uBlockSize;
             uint32_t uNumBlocksY = (uNumElementsY + uBlockSize - 1) / uBlockSize;
             ptInfoOut->atMipInfo[i].uSize = uNumBlocksX * uNumBlocksY * uNumElementsZ *  uBitsPerElement / 8;
-            ptInfoOut->atMipInfo[i].uRowPitch = pl_max( 1, ((ptInfoOut->atMipInfo[i].uWidth + 3)/4) ) * uBlockSize;
+            ptInfoOut->atMipInfo[i].uRowPitch = ((ptInfoOut->atMipInfo[i].uWidth + 3) / 4 ) * uBlockSize;
             ptInfoOut->uSize += ptInfoOut->atMipInfo[i].uSize;
         }
     }

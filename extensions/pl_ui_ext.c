@@ -937,12 +937,11 @@ pl_layout_template_end(void)
     {
 
         // sort large to small (slow bubble sort, should replace later)
-        bool bSwapOccured = true;
-        while(bSwapOccured)
+        while(true)
         {
             if(ptCurrentRow->uVariableEntryCount == 0)
                 break;
-            bSwapOccured = false;
+            bool bSwapOccured = false;
             for(uint32_t i = 0; i < ptCurrentRow->uVariableEntryCount - 1; i++)
             {
                 const uint32_t ii = ptWindow->sbuTempLayoutIndexSort[i];
@@ -958,6 +957,8 @@ pl_layout_template_end(void)
                     bSwapOccured = true;
                 }
             }
+            if(!bSwapOccured)
+                break;
         }
 
         // add dynamic to the end
