@@ -808,6 +808,24 @@ pl_starter_get_current_timeline_value(void)
     return gptStarterCtx->aulNextTimelineValue[gptGfx->get_current_frame_index()];
 }
 
+plTimelineSemaphore*
+pl_starter_get_last_timeline_semaphore(void)
+{
+    uint32_t uLastIndex = gptGfx->get_current_frame_index();
+    uLastIndex--;
+    uLastIndex = uLastIndex % gptGfx->get_frames_in_flight();
+    return gptStarterCtx->aptSemaphores[uLastIndex];
+}
+
+uint64_t            
+pl_starter_get_last_timeline_value(void)
+{
+    uint32_t uLastIndex = gptGfx->get_current_frame_index();
+    uLastIndex--;
+    uLastIndex = uLastIndex % gptGfx->get_frames_in_flight();
+    return gptStarterCtx->aulNextTimelineValue[uLastIndex];
+}
+
 uint64_t            
 pl_starter_increment_current_timeline_value(void)
 {
@@ -1533,7 +1551,9 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_render_pass_layout               = pl_starter_get_render_pass_layout,
         .get_current_command_pool             = pl_starter_get_current_command_pool,
         .get_current_timeline_semaphore       = pl_starter_get_current_timeline_semaphore,
+        .get_last_timeline_semaphore          = pl_starter_get_last_timeline_semaphore,
         .get_current_timeline_value           = pl_starter_get_current_timeline_value,
+        .get_last_timeline_value              = pl_starter_get_last_timeline_value,
         .increment_current_timeline_value     = pl_starter_increment_current_timeline_value,
         .get_default_font                     = pl_starter_get_default_font,
         .set_default_font                     = pl_starter_set_default_font,
