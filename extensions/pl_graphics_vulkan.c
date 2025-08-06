@@ -4245,6 +4245,8 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
     pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy texture %u immediately", tHandle.uIndex);
     plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[tHandle.uIndex];
+    vkDestroyImageView(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[tHandle.uIndex].tImageView, gptGraphics->ptAllocationCallbacks);
+    ptDevice->sbtTexturesHot[tHandle.uIndex].tImageView = VK_NULL_HANDLE;
     vkDestroyImage(ptDevice->tLogicalDevice, ptVulkanResource->tImage, gptGraphics->ptAllocationCallbacks);
     ptVulkanResource->tImage = VK_NULL_HANDLE;
     pl_sb_push(ptDevice->sbtTextureFreeIndices, tHandle.uIndex);
