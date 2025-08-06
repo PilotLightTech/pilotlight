@@ -146,6 +146,7 @@ typedef struct _plMetalBindGroup
     plSamplerHandle       atSamplerBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
     uint64_t              uHeapUsageMask;
     uint32_t              uOffset;
+    uint32_t              uSize;
     plTextureHandle       tFirstTexture; // for use with imgui for now (temp)
 } plMetalBindGroup;
 
@@ -184,7 +185,6 @@ typedef struct _plGraphics
     // metal specifics
     plTempAllocator     tTempAllocator;
     CAMetalLayer*       pMetalLayer;
-    id<MTLFence>        tFence;
     
     // per frame
     id<CAMetalDrawable> tCurrentDrawable;
@@ -255,6 +255,7 @@ typedef struct _plDevice
     id<MTLDevice> tDevice;
 
     id<MTLHeap> atHeaps[64];
+    const char* apcHeapNames[64];
     uint64_t*   sbuFreeHeaps;
     
     // memory blocks
@@ -952,6 +953,7 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
 
     tMetalBindGroup.tShaderArgumentBuffer = ptDesc->ptPool->tArgumentBuffer.tBuffer;
     tMetalBindGroup.uOffset = ptDesc->ptPool->szCurrentArgumentOffset;
+    tMetalBindGroup.uSize = argumentBufferLength;
     ptDesc->ptPool->szCurrentArgumentOffset += argumentBufferLength;
     [tMetalBindGroup.tShaderArgumentBuffer retain];
     if(ptDesc->pcDebugName)
@@ -1639,7 +1641,10 @@ pl_create_device(const plDeviceInit* ptInit)
 
     pl_sb_resize(ptDevice->sbuFreeHeaps, 64);
     for(uint64_t i = 0; i < 64; i++)
+    {
         ptDevice->sbuFreeHeaps[i] = 63 - i;
+        ptDevice->apcHeapNames[i] = "unnamed heap";
+    }
 
     pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
     pl_sb_add(ptDevice->sbtRenderPassesHot);
@@ -1699,7 +1704,6 @@ pl_create_device(const plDeviceInit* ptInit)
     plDeviceMemoryAllocatorI* ptDynamicAllocator = &tAllocator;
 
     pl_sb_resize(ptDevice->sbtGarbage, gptGraphics->uFramesInFlight + 1);
-    gptGraphics->tFence = [ptDevice->tDevice newFence];
     plTempAllocator tTempAllocator = {0};
     for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
     {
@@ -2122,7 +2126,7 @@ pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, con
     }
     else
     {
-        ptEncoder->tEncoder.label = @"offscreen encoder";
+        ptEncoder->tEncoder.label = [NSString stringWithUTF8String:ptRenderPass->tDesc.pcDebugName];
         [ptEncoder->tEncoder waitForFence:ptMetalRenderPass->tFence beforeStages:MTLRenderStageFragment | MTLRenderStageVertex];
     }
 
@@ -3446,6 +3450,7 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags
     {
         uint64_t uFreeIndex = pl_sb_pop(ptDevice->sbuFreeHeaps);
         ptDevice->atHeaps[uFreeIndex] = tNewHeap;
+        ptDevice->apcHeapNames[uFreeIndex] = pcName;
         tBlock.uHandle = uFreeIndex;
     }
     else
@@ -3528,6 +3533,8 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
     pl_sb_push(ptDevice->sbtTextureFreeIndices, tHandle.uIndex);
     ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
+
+    pl_log_debug_f(gptLog, uLogChannelGraphics, "destroy texture %s immediately (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
 
     plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
     [ptMetalTexture->tTexture release];

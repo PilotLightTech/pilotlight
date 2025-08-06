@@ -742,7 +742,8 @@ pl_renderer_create_scene(plSceneInit tInit)
                 .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
                 .fClearZ         = 0.0f
         },
-        .tDimensions = {.x = (float)ptScene->uShadowAtlasResolution, .y = (float)ptScene->uShadowAtlasResolution}
+        .tDimensions = {.x = (float)ptScene->uShadowAtlasResolution, .y = (float)ptScene->uShadowAtlasResolution},
+        .pcDebugName = "Secondary Shadow"
     };
 
     const plRenderPassDesc tFirstDepthRenderPassDesc = {
@@ -756,7 +757,8 @@ pl_renderer_create_scene(plSceneInit tInit)
                 .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
                 .fClearZ         = 0.0f
         },
-        .tDimensions = {.x = (float)ptScene->uShadowAtlasResolution, .y = (float)ptScene->uShadowAtlasResolution}
+        .tDimensions = {.x = (float)ptScene->uShadowAtlasResolution, .y = (float)ptScene->uShadowAtlasResolution},
+        .pcDebugName = "First Shadow"
     };
 
     plRenderPassAttachments atShadowAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
@@ -1214,7 +1216,8 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 0.0f}
             }
         },
-        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y}
+        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y},
+        .pcDebugName = "Main"
     };
     ptView->tRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tRenderPassDesc, atAttachmentSets);
 
@@ -1238,7 +1241,8 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
-        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y}
+        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y},
+        .pcDebugName = "Pick"
     };
     ptView->tPickRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tPickRenderPassDesc, atPickAttachmentSets);
 
@@ -1262,7 +1266,8 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
-        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y}
+        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y},
+        .pcDebugName = "JFA"
     };
     ptView->tPostProcessRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tPostProcessRenderPassDesc, atPostProcessAttachmentSets);
 
@@ -1292,7 +1297,8 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
                 .tClearColor   = {0.0f, 0.0f, 0.0f, 0.0f}
             }
         },
-        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y}
+        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y},
+        .pcDebugName = "UV"
     };
     ptView->tUVRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tUVRenderPass0Desc, atUVAttachmentSets);
 
