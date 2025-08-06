@@ -341,6 +341,8 @@ typedef struct _plScene
     bool           bActive;
     plShaderHandle tLightingShader;
     plShaderHandle tEnvLightingShader;
+    uint64_t uLastSemValueForShadow;
+    uint64_t aulStartTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
 
     // skybox resources (optional)
     plDrawable        tSkyboxDrawable;
