@@ -115,6 +115,7 @@ typedef struct _plStarterContext
     plFont*                  ptDefaultFont;
     plTimelineSemaphore*     aptSemaphores[PL_MAX_FRAMES_IN_FLIGHT];
     uint64_t                 aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
+    uint64_t                 aulStartTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
     plCommandPool*           atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
     plRenderPassHandle       tRenderPass;
     plRenderPassLayoutHandle tRenderPassLayout;
@@ -197,7 +198,7 @@ pl_starter_initialize(plStarterInit tInit)
 
     // create timeline semaphores to syncronize GPU work submission
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        gptStarterCtx->aptSemaphores[i] = gptGfx->create_semaphore(ptDevice, false);
+        gptStarterCtx->aptSemaphores[i] = gptGfx->create_semaphore(ptDevice, true);
 
     // create swapchain
     const plSwapchainInit tSwapInit = {
@@ -360,9 +361,14 @@ pl_starter_resize(void)
 
     plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
 
+    uint64_t uOldValue = gptGfx->get_semaphore_value(gptStarterCtx->ptDevice, gptStarterCtx->aptSemaphores[gptGfx->get_current_frame_index()]);
+
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
-        gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
+        if(uOldValue >= gptStarterCtx->aulStartTimelineValue[gptGfx->get_current_frame_index()])
+            gptGfx->destroy_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
+        else
+            gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
 
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {
@@ -678,6 +684,7 @@ pl_starter_end_main_pass(void)
         .atSignalSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]},
     };
+    gptStarterCtx->aulStartTimelineValue[uCurrentFrameIndex] = tSubmitInfo.auSignalSemaphoreValues[0];
 
     if(!gptGfx->present(ptCurrentCommandBuffer, &tSubmitInfo, &gptStarterCtx->ptSwapchain, 1))
     {
