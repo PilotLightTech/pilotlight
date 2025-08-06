@@ -38,7 +38,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #define PL_MAX_BINDLESS_TEXTURES 4096
-#define PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT 4101
+#define PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT PL_MAX_BINDLESS_TEXTURES + 5
 
 #define PL_INFO_MATERIAL_METALLICROUGHNESS 1
 

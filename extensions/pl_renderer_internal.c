@@ -2419,7 +2419,7 @@ pl__renderer_get_bindless_cube_texture_index(plScene* ptScene, plTextureHandle t
     const plBindGroupUpdateTextureData tGlobalTextureData[] = {
         {
             .tTexture = tTexture,
-            .uSlot    = PL_MAX_BINDLESS_TEXTURES + 5,
+            .uSlot    = PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT,
             .uIndex   = (uint32_t)ulValue,
             .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
         },
