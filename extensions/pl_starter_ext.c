@@ -316,7 +316,7 @@ pl_starter_finalize(void)
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DRAW_EXT)
     {
         // build font atlas
-        plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[0]);
+        plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[0], "starter font atlas");
         gptDrawBackend->build_font_atlas(ptCmdBuffer, gptDraw->get_current_font_atlas());
         gptGfx->wait_on_command_buffer(ptCmdBuffer);
         gptGfx->return_command_buffer(ptCmdBuffer);
@@ -350,7 +350,7 @@ pl_starter_resize(void)
     plBlitEncoder* ptEncoder = NULL;
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER || gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
     {
-        ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()]);
+        ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter resize");
         gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
         // begin blit pass, copy buffer, end pass
@@ -604,7 +604,7 @@ pl_starter_begin_main_pass(void)
 {
     const uint32_t uCurrentFrameIndex = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarterCtx->atCmdPools[uCurrentFrameIndex];
-    plCommandBuffer* ptCurrentCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptCurrentCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "starter main pass");
 
     //~~~~~~~~~~~~~~~~~~~~~~~~begin recording command buffer~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -707,7 +707,7 @@ pl_starter_get_command_buffer(void)
     const uint32_t uCurrentFrameIndex = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarterCtx->atCmdPools[uCurrentFrameIndex];
 
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "starter");
 
     //~~~~~~~~~~~~~~~~~~~~~~~~begin recording command buffer~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -829,7 +829,7 @@ pl_starter_set_default_font(plFont* ptFont)
 plCommandBuffer*
 pl_starter_get_temporary_command_buffer(void)
 {
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()]);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter temp");
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     return ptCommandBuffer;
 }
@@ -849,7 +849,7 @@ pl_starter_submit_temporary_command_buffer(plCommandBuffer* ptCommandBuffer)
 plCommandBuffer*
 pl_starter_get_raw_command_buffer(void)
 {
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()]);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter raw");
     return ptCommandBuffer;
 }
 
@@ -862,7 +862,7 @@ pl_starter_return_raw_command_buffer(plCommandBuffer* ptCommandBuffer)
 plBlitEncoder*
 pl_starter_get_blit_encoder(void)
 {
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()]);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter blit");
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
@@ -1379,7 +1379,7 @@ pl__starter_create_render_pass_with_depth(void)
         .ptSwapchain = gptStarterCtx->ptSwapchain
     };
 
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()]);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter 0");
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
     // begin blit pass, copy buffer, end pass
@@ -1478,7 +1478,7 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
         .ptSwapchain = gptStarterCtx->ptSwapchain
     };
 
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()]);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter 1");
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
     // begin blit pass, copy buffer, end pass

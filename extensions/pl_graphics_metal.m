@@ -1845,7 +1845,7 @@ pl_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
 }
 
 static plCommandBuffer*
-pl_request_command_buffer(plCommandPool* ptPool)
+pl_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
 {
     plCommandBuffer* ptCommandBuffer = ptPool->ptCommandBufferFreeList;
     if(ptCommandBuffer)
@@ -1864,9 +1864,9 @@ pl_request_command_buffer(plCommandPool* ptPool)
     ptCommandBuffer->tCmdBuffer = [ptPool->tCmdQueue commandBufferWithDescriptor:ptCmdBufferDescriptor];
     
     // [ptCmdBufferDescriptor release];
-    char blah[32] = {0};
-    pl_sprintf(blah, "%llu", gptIO->ulFrameCount);
-    ptCommandBuffer->tCmdBuffer .label = [NSString stringWithUTF8String:blah];
+    char acName[64] = {0};
+    pl_sprintf(acName, "%s (%llu)", pcDebugName, gptIO->ulFrameCount);
+    ptCommandBuffer->tCmdBuffer.label = [NSString stringWithUTF8String:acName];
 
     // [ptCmdBufferDescriptor release];
     ptCommandBuffer->ptDevice = ptPool->ptDevice;

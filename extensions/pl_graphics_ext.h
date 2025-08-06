@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 2, 0}
+#define plGraphicsI_version {1, 2, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -350,7 +350,7 @@ typedef struct _plGraphicsI
     plCommandPool*   (*create_command_pool)    (plDevice*, const plCommandPoolDesc*);
     void             (*cleanup_command_pool)   (plCommandPool*);
     void             (*reset_command_pool)     (plCommandPool*, plCommandPoolResetFlags); // call at beginning of frame
-    plCommandBuffer* (*request_command_buffer) (plCommandPool*);   // retrieve command buffer from the pool
+    plCommandBuffer* (*request_command_buffer) (plCommandPool*, const char* debugName);   // retrieve command buffer from the pool
     void             (*return_command_buffer)  (plCommandBuffer*); // return command buffer to pool
     void             (*reset_command_buffer)   (plCommandBuffer*); // call if reusing after submit/present
     void             (*wait_on_command_buffer) (plCommandBuffer*); // call after submit to block/wait

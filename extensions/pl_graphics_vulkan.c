@@ -4129,7 +4129,7 @@ pl_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
 }
 
 plCommandBuffer*
-pl_request_command_buffer(plCommandPool* ptPool)
+pl_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
 {
     plCommandBuffer* ptCommandBuffer = ptPool->ptCommandBufferFreeList;
     if (ptCommandBuffer)

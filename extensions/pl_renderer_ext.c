@@ -1574,7 +1574,7 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
             .uThreadPerGroupZ = 3
         };
         
-        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "load skybox 0");
         gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
         const plPassBufferResource atPassBuffers[] = {
@@ -1614,7 +1614,7 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
         };
         ptScene->tSkyboxTexture = pl__renderer_create_texture(&tSkyboxTextureDesc, "skybox texture", 0, PL_TEXTURE_USAGE_SAMPLED);
 
-        ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "load skybox 1");
         gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
         gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
@@ -2096,7 +2096,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
         .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
     };
 
-    plCommandBuffer* ptSkinningCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptSkinningCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "skinning");
     gptGfx->begin_command_recording(ptSkinningCmdBuffer, &tSkinningBeginInfo);
 
     const uint32_t uSkinCount = pl_sb_size(ptScene->sbtSkinData);
@@ -2204,7 +2204,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
         .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
     };
 
-    plCommandBuffer* ptShadowCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptShadowCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "scene shadows");
     gptGfx->begin_command_recording(ptShadowCmdBuffer, &tShadowBeginInfo);
 
     plRenderEncoder* ptShadowEncoder = gptGfx->begin_render_pass(ptShadowCmdBuffer, ptScene->tFirstShadowRenderPass, NULL);
@@ -2275,7 +2275,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
                 .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
             };
 
-            plCommandBuffer* ptCSMCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+            plCommandBuffer* ptCSMCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "probe csm");
             gptGfx->begin_command_recording(ptCSMCommandBuffer, &tBeginCSMInfo);
 
             plRenderEncoder* ptCSMEncoder = gptGfx->begin_render_pass(ptCSMCommandBuffer, ptScene->tShadowRenderPass, NULL);
@@ -2373,7 +2373,7 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
         .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
     };
 
-    plCommandBuffer* ptCSMCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptCSMCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "view csm");
     gptGfx->begin_command_recording(ptCSMCmdBuffer, &tCSMBeginInfo);
 
     pl_sb_reset(ptView->tDirectionLightShadowData.sbtDLightShadowData);
@@ -2598,7 +2598,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
     };
 
-    plCommandBuffer* ptSceneCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptSceneCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "main scene");
     gptGfx->begin_command_recording(ptSceneCmdBuffer, &tSceneBeginInfo);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2950,7 +2950,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
     };
 
-    plCommandBuffer* ptUVCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptUVCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "uv");
     gptGfx->begin_command_recording(ptUVCmdBuffer, &tUVBeginInfo);
 
     plRenderEncoder* ptUVEncoder = gptGfx->begin_render_pass(ptUVCmdBuffer, ptView->tUVRenderPass, NULL);
@@ -3071,7 +3071,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
         };
 
-        plCommandBuffer* ptJumpCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        plCommandBuffer* ptJumpCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "JFA");
         gptGfx->begin_command_recording(ptJumpCmdBuffer, &tJumpBeginInfo);
 
         // begin main renderpass (directly to swapchain)
@@ -3120,7 +3120,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
     };
 
-    plCommandBuffer* ptOutlineCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptOutlineCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "Outline");
     gptGfx->begin_command_recording(ptOutlineCmdBuffer, &tOutlineBeginInfo);
 
     pl__renderer_post_process_scene(ptOutlineCmdBuffer, ptView, &tMVP);
@@ -3166,7 +3166,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
     };
 
-    plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
     gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
 
     plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
@@ -3386,7 +3386,7 @@ pl_renderer_begin_frame(void)
                 .auWaitSemaphoreValues = {ulValue},
             };
         
-            plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+            plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "material upload");
             gptGfx->begin_command_recording(ptCommandBuffer, &tSkinUpdateBeginInfo);
 
             plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);

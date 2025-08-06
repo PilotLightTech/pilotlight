@@ -77,7 +77,7 @@ pl__renderer_create_local_texture(const plTextureDesc* ptDesc, const char* pcNam
     gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
     pl_temp_allocator_free(&tTempAllocator);
 
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "load texture");
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
     gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
@@ -123,7 +123,7 @@ pl__renderer_create_texture(const plTextureDesc* ptDesc, const char* pcName, uin
     gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
     pl_temp_allocator_free(&tTempAllocator);
 
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "create texture");
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
     gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
@@ -169,7 +169,7 @@ pl__renderer_create_texture_with_data(const plTextureDesc* ptDesc, const char* p
     gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
     pl_temp_allocator_free(&tTempAllocator);
 
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "create texture 2");
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
     gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
@@ -341,7 +341,7 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
         memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, szSize);
 
         // begin recording
-        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "create buffer");
         gptGfx->begin_command_recording(ptCommandBuffer, NULL);
         
         // begin blit pass, copy buffer, end pass
@@ -2921,7 +2921,7 @@ pl__renderer_update_probes(plScene* ptScene)
             .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
         };
 
-        plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "probe");
         gptGfx->begin_command_recording(ptCmdBuffer, &tProbeBeginInfo);
 
         for(uint32_t uFaceIndex = 0; uFaceIndex < ptProbeComp->uInterval; uFaceIndex++)
@@ -3172,7 +3172,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
     // copy to cube
     {
 
-        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "map to cube env");
         const plBeginCommandInfo tBeginInfo1 = {
             .uWaitSemaphoreCount   = 1,
             .atWaitSempahores      = {tSemHandle},
@@ -3243,7 +3243,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             .uThreadPerGroupZ = 3
         };
 
-        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 2");
         const plBeginCommandInfo tBeginInfo0 = {
             .uWaitSemaphoreCount   = 1,
             .atWaitSempahores      = {tSemHandle},
@@ -3309,7 +3309,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
         gptGfx->return_command_buffer(ptCommandBuffer);
 
-        ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+        ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 3");
         const plBeginCommandInfo tBeginInfo1 = {
             .uWaitSemaphoreCount   = 1,
             .atWaitSempahores      = {tSemHandle},
@@ -3429,7 +3429,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
                 .uThreadPerGroupZ = 3
             };
 
-            plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+            plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 4");
             const plBeginCommandInfo tBeginInfo = {
                 .uWaitSemaphoreCount   = 1,
                 .atWaitSempahores      = {tSemHandle},
@@ -3464,7 +3464,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
             gptGfx->return_command_buffer(ptCommandBuffer);
 
-            ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool);
+            ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 5");
             const plBeginCommandInfo tBeginInfo2 = {
                 .uWaitSemaphoreCount   = 1,
                 .atWaitSempahores      = {tSemHandle},
