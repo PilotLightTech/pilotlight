@@ -69,7 +69,7 @@ layout(location = 0) in vec3 inPos;
 
 // output
 layout(location = 0) out struct plShaderOut {
-    vec3 tPosition;
+    vec3 tWorldPosition;
     vec2 tUV[8];
     vec4 tColor;
     vec3 tWorldNormal;
@@ -143,7 +143,7 @@ void main()
     }
 
     vec4 pos = tTransform * inPosition;
-    tShaderIn.tPosition = pos.xyz / pos.w;
+    tShaderIn.tWorldPosition = pos.xyz / pos.w;
     gl_Position = tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraViewProjection * pos;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
