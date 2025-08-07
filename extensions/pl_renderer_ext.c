@@ -900,7 +900,6 @@ pl_renderer_cleanup_scene(plScene* ptScene)
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tShadowTexture);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tShadowRenderPass);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tFirstShadowRenderPass);
-    gptShaderVariant->unload_manifest("/shaders/shaders.pls");
 
     if(ptScene->tSkyboxTexture.uIndex != 0)
     {
@@ -1493,6 +1492,7 @@ pl_renderer_cleanup(void)
     gptGfx->cleanup_draw_stream(&gptData->tDrawStream);
 
     pl_sb_free(gptData->sbptScenes);
+    gptShaderVariant->unload_manifest("/shaders/shaders.pls");
     gptResource->cleanup();
     gptGfx->flush_device(gptData->ptDevice);
 
