@@ -172,7 +172,7 @@ pl_ggx(vec2 tXi, float fRoughness)
     // Apply the Jacobian to obtain a pdf that is parameterized by l
     // see https://bruop.github.io/ibl/
     // Typically you'd have the following:
-    // float pdf = D_GGX(NoH, roughness) * NoH / (4.0 * VoH);
+    // float pdf = pl_distribution_ggx(NoH, roughness) * NoH / (4.0 * VoH);
     // but since V = N => VoH == NoH
     tGgx.pdf /= 4.0;
 

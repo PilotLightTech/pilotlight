@@ -16,9 +16,28 @@ getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
 }
 
 vec3
-getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int u_MipCount, int iProbeIndex, vec3 tWorldPos)
+getIBLGGXFresnel(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int iProbeIndex)
 {
-    
+    // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results
+    // Roughness dependent fresnel, from Fdez-Aguera
+    float NdotV = clampedDot(n, v);
+    vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
+    vec3 Fr = max(vec3(1.0 - roughness), F0) - F0;
+    vec3 k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);
+    vec3 FssEss = specularWeight * (k_S * f_ab.x + f_ab.y);
+
+    // Multiple scattering, from Fdez-Aguera
+    float Ems = (1.0 - (f_ab.x + f_ab.y));
+    vec3 F_avg = specularWeight * (F0 + (1.0 - F0) / 21.0);
+    vec3 FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);
+
+    return FssEss + FmsEms;
+}
+
+vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, int u_MipCount, vec3 tWorldPos, int iProbeIndex)
+{
+    float NdotV = clampedDot(n, v);
     float lod = roughness * float(u_MipCount - 1);
     vec3 reflection = normalize(reflect(-v, n));
 
@@ -42,74 +61,12 @@ getIBLRadianceGGX(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight
         // Get corrected reflection
         reflection = IntersectPositionWS - tProbeData.atData[iProbeIndex].tPosition;
     }
-    
-    // End parallax-correction code
 
     vec4 specularSample = getSpecularSample(reflection, lod, iProbeIndex);
 
-    float NdotV = clampedDot(n, v);
-    vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
-    // vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
-
     vec3 specularLight = specularSample.rgb;
 
-    vec3 Fr = max(vec3(1.0 - roughness), F0) - F0;
-    vec3 k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);
-    vec3 FssEss = k_S * f_ab.x + f_ab.y;
-
-    return specularWeight * specularLight * FssEss;
-}
-
-// specularWeight is introduced with KHR_materials_specular
-vec3
-getIBLRadianceLambertian(vec3 n, vec3 v, float roughness, vec3 diffuseColor, vec3 F0, float specularWeight, int iProbeIndex, vec3 tWorldPos)
-{
-
-    // if(bool(tProbeData.atData[iProbeIndex].iParallaxCorrection))
-    // {
-
-    //     // Find the ray intersection with box plane
-    //     vec3 FirstPlaneIntersect = (tProbeData.atData[iProbeIndex].tMax.xyz - tWorldPos) / n;
-    //     vec3 SecondPlaneIntersect = (tProbeData.atData[iProbeIndex].tMin.xyz - tWorldPos) / n;
-        
-    //     // Get the furthest of these intersections along the ray
-    //     // (Ok because x/0 give +inf and -x/0 give –inf )
-    //     vec3 FurthestPlane = max(FirstPlaneIntersect, SecondPlaneIntersect);
-
-    //     // Find the closest far intersection
-    //     float Distance = min(min(FurthestPlane.x, FurthestPlane.y), FurthestPlane.z);
-
-    //     // Get the intersection position
-    //     vec3 IntersectPositionWS = tWorldPos + n * Distance;
-
-    //     // Get corrected reflection
-    //     n = IntersectPositionWS - tProbeData.atData[iProbeIndex].tPosition;
-    // }
-
-    // End parallax-correction code
-
-    vec3 irradiance = getDiffuseLight(n, iProbeIndex);
-
-    float NdotV = clampedDot(n, v);
-    vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
-    // vec2 f_ab = texture(sampler2D(u_GGXLUT, tEnvSampler), brdfSamplePoint).rg;
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
-
-    // see https://bruop.github.io/ibl/#single_scattering_results at Single Scattering Results
-    // Roughness dependent fresnel, from Fdez-Aguera
-
-    vec3 Fr = max(vec3(1.0 - roughness), F0) - F0;
-    vec3 k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);
-    vec3 FssEss = specularWeight * k_S * f_ab.x + f_ab.y; // <--- GGX / specular light contribution (scale it down if the specularWeight is low)
-
-    // Multiple scattering, from Fdez-Aguera
-    float Ems = (1.0 - (f_ab.x + f_ab.y));
-    vec3 F_avg = specularWeight * (F0 + (1.0 - F0) / 21.0);
-    vec3 FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);
-    vec3 k_D = diffuseColor * (1.0 - FssEss + FmsEms); // we use +FmsEms as indicated by the formula in the blog post (might be a typo in the implementation)
-
-    return (FmsEms + k_D) * irradiance;
+    return specularLight;
 }
 
 float

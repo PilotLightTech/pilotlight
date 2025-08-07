@@ -2,8 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "pl_shader_interop_renderer.h"
-#include "lights.glsl"
+#include "global.inc"
 #include "math.glsl"
 
 //-----------------------------------------------------------------------------
@@ -14,29 +13,6 @@ layout(constant_id = 0) const int iRenderingFlags = 0;
 layout(constant_id = 1) const int iLightCount = 0;
 layout(constant_id = 2) const int iProbeCount = 0;
 
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 0
-//-----------------------------------------------------------------------------
-
-layout(std140, set = 0, binding = 0) readonly buffer _tVertexBuffer
-{
-	vec4 atVertexData[];
-} tVertexBuffer;
-
-layout(std140, set = 0, binding = 1) readonly buffer _tTransformBuffer
-{
-	mat4 atTransform[];
-} tTransformBuffer;
-
-layout(set = 0, binding = 2) readonly buffer plMaterialInfo
-{
-    plGpuMaterial atMaterials[];
-} tMaterialInfo;
-
-layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
-layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
-layout(set = 0, binding = 5)  uniform texture2D at2DTextures[PL_MAX_BINDLESS_TEXTURES];
-layout(set = 0, binding = PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT)  uniform textureCube atCubeTextures[PL_MAX_BINDLESS_TEXTURES];
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
@@ -103,20 +79,15 @@ void main()
 {
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
+    vec3 color = vec3(0);
     
     float depth = subpassLoad(tDepthSampler).r;
     vec3 ndcSpace = vec3((gl_FragCoord.x - tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportInfo.x) / tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.x, (gl_FragCoord.y - tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportInfo.y) / tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.y, depth);
 
-
     vec3 clipSpace = ndcSpace;
     clipSpace.xy = clipSpace.xy * 2.0 - 1.0;
-    // clipSpace.x *= tGlobalInfo.tViewportSize.z;
-    // clipSpace.y *= tGlobalInfo.tViewportSize.w;
-    // clipSpace.x += tGlobalInfo.tViewportInfo.x;
-    // clipSpace.y += tGlobalInfo.tViewportInfo.y;
     vec4 homoLocation = inverse(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraProjection) * vec4(clipSpace, 1.0);
 
-    // vec4 tWorldPosition0 = subpassLoad(tPositionSampler);
     vec4 tViewPosition = homoLocation;
     tViewPosition.xyz = tViewPosition.xyz / tViewPosition.w;
     tViewPosition.x = tViewPosition.x;
@@ -126,18 +97,32 @@ void main()
     vec4 tWorldPosition = inverse(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraView) * tViewPosition;
     vec3 n = Decode(subpassLoad(tNormalTexture).xy);
 
-    const vec3 f90 = vec3(1.0);
+    MaterialInfo materialInfo;
+    materialInfo.baseColor = tBaseColor.rgb;
+
+    // The default index of refraction of 1.5 yields a dielectric normal incidence reflectance of 0.04.
+    materialInfo.f0_dielectric = vec3(0.04);
+    materialInfo.specularWeight = 1.0;
+
+    // Anything less than 2% is physically impossible and is instead considered to be shadowing. Compare to "Real-Time-Rendering" 4th editon on page 325.
+    materialInfo.f90 = vec3(1.0);
+    materialInfo.f90_dielectric = materialInfo.f90;
+
+    materialInfo.perceptualRoughness = AORoughnessMetalnessData.b;
+    materialInfo.metallic = AORoughnessMetalnessData.g;
+
+    // Roughness is authored as perceptual roughness; as is convention,
+    // convert to material roughness by squaring the perceptual roughness.
+    materialInfo.alphaRoughness = materialInfo.perceptualRoughness * materialInfo.perceptualRoughness;
     
     // LIGHTING
-    vec3 f_specular = vec3(0.0);
+    vec3 f_specular_dielectric = vec3(0.0);
+    vec3 f_specular_metal = vec3(0.0);
     vec3 f_diffuse = vec3(0.0);
+    vec3 f_dielectric_brdf_ibl = vec3(0.0);
+    vec3 f_metal_brdf_ibl = vec3(0.0);
+    vec3 f_emissive = vec3(0.0);
    
-    const float fMetalness = AORoughnessMetalnessData.g;
-    vec3 c_diff = mix(tBaseColor.rgb,  vec3(0), fMetalness);
-    vec3 f0 = mix(vec3(0.04), tBaseColor.rgb, fMetalness);
-
-    const float fPerceptualRoughness = AORoughnessMetalnessData.b;
-    float specularWeight = 1.0;
     vec3 v = normalize(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
 
     // Calculate lighting contribution from image based lighting source (IBL)
@@ -159,23 +144,42 @@ void main()
 
         if(iProbeIndex > -1)
         {
+            f_diffuse = getDiffuseLight(n, iProbeIndex) * tBaseColor.rgb;
+
             int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tEnvSampler));
-            f_specular +=  getIBLRadianceGGX(n, v, fPerceptualRoughness, f0, specularWeight, iMips, iProbeIndex, tWorldPosition.xyz);
-            f_diffuse += getIBLRadianceLambertian(n, v, fPerceptualRoughness, c_diff, f0, specularWeight, iProbeIndex, tWorldPosition.xyz);
+            f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips, tWorldPosition.xyz, iProbeIndex);
+            f_specular_dielectric = f_specular_metal;
+
+            // Calculate fresnel mix for IBL  
+
+            vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, iProbeIndex);
+            f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
+        
+            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, iProbeIndex);
+            f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);
+
+            color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
         }
     }
 
-    // punctual stuff
-    vec3 f_diffuse_ibl = f_diffuse;
-    vec3 f_specular_ibl = f_specular;
-    f_diffuse = vec3(0.0);
-    f_specular = vec3(0.0);
+    const float ao = AORoughnessMetalnessData.r;
+    if(ao != 1.0)
+    {
+        float u_OcclusionStrength = 1.0;
+        color = color * (1.0 + u_OcclusionStrength * (ao - 1.0)); 
+    }
 
+    f_diffuse = vec3(0.0);
+    f_specular_dielectric = vec3(0.0);
+    f_specular_metal = vec3(0.0);
+    vec3 f_dielectric_brdf = vec3(0.0);
+    vec3 f_metal_brdf = vec3(0.0);
+
+    // punctual stuff
     uint cascadeIndex = 0;
     const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
-        const float fAlphaRoughness = fPerceptualRoughness * fPerceptualRoughness;
 
         for(int i = 0; i < iLightCount; i++)
         {
@@ -213,14 +217,6 @@ void main()
                     shadow = 0;
                     // shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
                     shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-
-                    // for(int j = 0; j < 4; j++)
-                    // {
-                    //     // int index = int(16.0*random(gl_FragCoord.xyy, j))%16;
-                    //     int index = int(16.0*random(tWorldPosition.xxx, j))%16;
-                    //     shadow += 0.25 * textureProj(vec4(( poissonDisk[index] / 4000.0 + shadowCoord.xy), shadowCoord.z, shadowCoord.w), vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-                    // }
-                    // shadow = clamp(shadow, 0.02, 1);
                 }
 
                 // BSTF
@@ -231,11 +227,30 @@ void main()
                 float NdotH = clampedDot(n, h);
                 float LdotH = clampedDot(l, h);
                 float VdotH = clampedDot(v, h);
+ 
+                vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
+                vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
+
+
                 if (NdotL > 0.0 || NdotV > 0.0)
                 {
+
                     vec3 intensity = getLightIntensity(tLightData, pointToLight);
-                    f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
-                    f_specular += shadow * intensity * NdotL * BRDF_specularGGX(f0, f90, fAlphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+
+                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_lambertian(tBaseColor.rgb);
+                    vec3 l_specular_dielectric = vec3(0.0);
+                    vec3 l_specular_metal = vec3(0.0);
+                    vec3 l_dielectric_brdf = vec3(0.0);
+                    vec3 l_metal_brdf = vec3(0.0);
+
+                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_dielectric = l_specular_metal;
+
+                    l_metal_brdf = metal_fresnel * l_specular_metal;
+                    l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
+            
+                    vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
+                    color += l_color;
                 }
             }
 
@@ -277,11 +292,30 @@ void main()
                 float NdotH = clampedDot(n, h);
                 float LdotH = clampedDot(l, h);
                 float VdotH = clampedDot(v, h);
+
+                vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
+                vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
+
+
                 if (NdotL > 0.0 || NdotV > 0.0)
                 {
+
                     vec3 intensity = getLightIntensity(tLightData, pointToLight);
-                    f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
-                    f_specular += shadow * intensity * NdotL * BRDF_specularGGX(f0, f90, fAlphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+
+                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_lambertian(tBaseColor.rgb);
+                    vec3 l_specular_dielectric = vec3(0.0);
+                    vec3 l_specular_metal = vec3(0.0);
+                    vec3 l_dielectric_brdf = vec3(0.0);
+                    vec3 l_metal_brdf = vec3(0.0);
+
+                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_dielectric = l_specular_metal;
+
+                    l_metal_brdf = metal_fresnel * l_specular_metal;
+                    l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
+            
+                    vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
+                    color += l_color;
                 }
             }
 
@@ -303,13 +337,6 @@ void main()
 
                         // shadow = textureProj2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
                         shadow = filterPCF2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
-
-                        // for(int j = 0; j < 4; j++)
-                        // {
-                        //     int index = int(16.0*random(gl_FragCoord.xyy, j))%16;
-                        //     shadow += 0.2 * textureProj2(vec4(( poissonDisk[index] / 2000.0 + shadowCoord.xy), shadowCoord.z, shadowCoord.w), vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
-                        // }
-                        // shadow = clamp(shadow, 0.02, 1);
                     }
                 }
 
@@ -321,11 +348,30 @@ void main()
                 float NdotH = clampedDot(n, h);
                 float LdotH = clampedDot(l, h);
                 float VdotH = clampedDot(v, h);
+
+                vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
+                vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
+
+
                 if (NdotL > 0.0 || NdotV > 0.0)
                 {
+
                     vec3 intensity = getLightIntensity(tLightData, pointToLight);
-                    f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(f0, f90, c_diff, specularWeight, VdotH);
-                    f_specular += shadow * intensity * NdotL * BRDF_specularGGX(f0, f90, fAlphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+
+                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_lambertian(tBaseColor.rgb);
+                    vec3 l_specular_dielectric = vec3(0.0);
+                    vec3 l_specular_metal = vec3(0.0);
+                    vec3 l_dielectric_brdf = vec3(0.0);
+                    vec3 l_metal_brdf = vec3(0.0);
+
+                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_dielectric = l_specular_metal;
+
+                    l_metal_brdf = metal_fresnel * l_specular_metal;
+                    l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
+            
+                    vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
+                    color += l_color;
                 }
             }
 
@@ -334,24 +380,6 @@ void main()
     }
 
     // Layer blending
-    vec3 diffuse;
-    vec3 specular;
-
-    const float ao = AORoughnessMetalnessData.r;
-    if(ao != 1.0)
-    {
-        float u_OcclusionStrength = 1.0;
-        diffuse = f_diffuse + mix(f_diffuse_ibl, f_diffuse_ibl * ao, u_OcclusionStrength);
-        // apply ambient occlusion to all lighting that is not punctual
-        specular = f_specular + mix(f_specular_ibl, f_specular_ibl * ao, u_OcclusionStrength);
-    }
-    else
-    {
-        diffuse = f_diffuse_ibl + f_diffuse;
-        specular = f_specular_ibl + f_specular;
-    }
-
-    vec3 color = diffuse + specular;
 
     outColor = vec4(color.rgb, tBaseColor.a);
     

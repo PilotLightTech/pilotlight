@@ -22,7 +22,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_shader_interop_renderer.h"
+#include "global.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -33,30 +33,6 @@ layout(constant_id = 1) const int iDataStride = 0;
 layout(constant_id = 2) const int iTextureMappingFlags = 0;
 layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iRenderingFlags = 0;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 0
-//-----------------------------------------------------------------------------
-
-layout(std140, set = 0, binding = 0) readonly buffer _tVertexBuffer
-{
-	vec4 atVertexData[];
-} tVertexBuffer;
-
-layout(std140, set = 0, binding = 1) readonly buffer _tTransformBuffer
-{
-	mat4 atTransform[];
-} tTransformBuffer;
-
-layout(set = 0, binding = 2) readonly buffer plMaterialInfo
-{
-    plGpuMaterial atMaterials[];
-} tMaterialInfo;
-
-layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
-layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
-layout(set = 0, binding = 5)  uniform texture2D at2DTextures[PL_MAX_BINDLESS_TEXTURES];
-layout(set = 0, binding = PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT)  uniform textureCube atCubeTextures[PL_MAX_BINDLESS_TEXTURES];
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 1
@@ -114,7 +90,7 @@ void main()
     }
     
     MaterialInfo materialInfo;
-    materialInfo.f0 = vec3(0.04);
+    materialInfo.f0_dielectric = vec3(0.04);
     materialInfo.baseColor = tBaseColor.rgb;
     
     if(bool(iMaterialFlags & PL_INFO_MATERIAL_METALLICROUGHNESS))
@@ -131,6 +107,7 @@ void main()
     
     // Anything less than 2% is physically impossible and is instead considered to be shadowing. Compare to "Real-Time-Rendering" 4th editon on page 325.
     materialInfo.f90 = vec3(1.0);
+    materialInfo.f90_dielectric = materialInfo.f90;
 
     // ambient occlusion
     float ao = 1.0;

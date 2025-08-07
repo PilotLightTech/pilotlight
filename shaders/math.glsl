@@ -135,29 +135,28 @@ const mat4 biasMat = mat4(
 // [SECTION] BRDF
 //-----------------------------------------------------------------------------
 
-//
-// Fresnel
-//
-// http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
-// https://github.com/wdas/brdf/tree/master/src/brdfs
-// https://google.github.io/filament/Filament.md.html
-//
-
-// The following equation models the Fresnel reflectance term of the spec equation (aka F())
-// Implementation of fresnel from [4], Equation 15
+// Fresnel reflectance term of the specular equation (F)
+// Real-Time Rendering 4th Edition, Page 321, Equation 9.18 modified
 vec3
-F_Schlick(vec3 f0, vec3 f90, float VdotH)
+pl_fresnel_schlick(vec3 f0, vec3 f90, float VdotH)
 {
     return f0 + (f90 - f0) * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0);
 }
 
-// Smith Joint GGX
-// Note: Vis = G / (4 * NdotL * NdotV)
-// see Eric Heitz. 2014. Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs. Journal of Computer Graphics Techniques, 3
-// see Real-Time Rendering. Page 331 to 336.
-// see https://google.github.io/filament/Filament.md.html#materialsystem/specularbrdf/geometricshadowing(specularg)
+// Normal distribution function term of the specular equation (D)
+// Real-Time Rendering 4th Edition, Page 340, Equation 9.41
 float
-V_GGX(float NdotL, float NdotV, float alphaRoughness)
+pl_distribution_ggx(float NdotH, float alphaRoughness)
+{
+    float alphaRoughnessSq = alphaRoughness * alphaRoughness;
+    float f = (NdotH * NdotH) * (alphaRoughnessSq - 1.0) + 1.0;
+    return alphaRoughnessSq / (M_PI * f * f);
+}
+
+// Masking-Shadowing function (G2)
+// Real-Time Rendering 4th Edition, Page 341, Equation 9.42
+float
+pl_masking_shadowing_ggx(float NdotL, float NdotV, float alphaRoughness)
 {
     float alphaRoughnessSq = alphaRoughness * alphaRoughness;
 
@@ -172,34 +171,46 @@ V_GGX(float NdotL, float NdotV, float alphaRoughness)
     return 0.0;
 }
 
-// The following equation(s) model the distribution of microfacet normals across the area being drawn (aka D())
-// Implementation from "Average Irregularity Representation of a Roughened Surface for Ray Reflection" by T. S. Trowbridge, and K. P. Reitz
-// Follows the distribution function recommended in the SIGGRAPH 2013 course notes from EPIC Games [1], Equation 3.
+// Masking-Shadowing function fast (G2)
+// Real-Time Rendering 4th Edition, Page 341, Equation 9.42
 float
-D_GGX(float NdotH, float alphaRoughness)
+pl_masking_shadowing_fast_ggx(float NdotL, float NdotV, float alphaRoughness)
 {
-    float alphaRoughnessSq = alphaRoughness * alphaRoughness;
-    float f = (NdotH * NdotH) * (alphaRoughnessSq - 1.0) + 1.0;
-    return alphaRoughnessSq / (M_PI * f * f);
+    float a2 = alphaRoughness * alphaRoughness;
+    float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - a2) + a2);
+    float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - a2) + a2);
+    float GGX = GGXV + GGXL;
+    if (GGX > 0.0)
+    {
+        return 0.5 / GGX;
+    }
+    return 0.0;
 }
 
-//https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#acknowledgments AppendixB
+
+// Simple Lambertian BRDF (fd)
+// Real-Time Rendering 4th Edition, Page 314, Equation 9.11
 vec3
-BRDF_lambertian(vec3 f0, vec3 f90, vec3 diffuseColor, float specularWeight, float VdotH)
+pl_brdf_lambertian(vec3 diffuseColor)
 {
-    // see https://seblagarde.wordpress.com/2012/01/08/pi-or-not-to-pi-in-game-lighting-equation/
-    return (1.0 - specularWeight * F_Schlick(f0, f90, VdotH)) * (diffuseColor / M_PI);
+    return diffuseColor / M_PI;
+
+    // disney
+    // float Fd_Burley(float NoV, float NoL, float LoH, float roughness) {
+    //     float f90 = 0.5 + 2.0 * roughness * LoH * LoH;
+    //     float lightScatter = F_Schlick(NoL, 1.0, f90);
+    //     float viewScatter = F_Schlick(NoV, 1.0, f90);
+    //     return lightScatter * viewScatter * (1.0 / PI);
+    // }
 }
 
 //  https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#acknowledgments AppendixB
 vec3
-BRDF_specularGGX(vec3 f0, vec3 f90, float alphaRoughness, float specularWeight, float VdotH, float NdotL, float NdotV, float NdotH)
+BRDF_specularGGX(float alphaRoughness, float NdotL, float NdotV, float NdotH)
 {
-    vec3 F = F_Schlick(f0, f90, VdotH);
-    float Vis = V_GGX(NdotL, NdotV, alphaRoughness);
-    float D = D_GGX(NdotH, alphaRoughness);
-
-    return specularWeight * F * Vis * D;
+    float G2 = pl_masking_shadowing_ggx(NdotL, NdotV, alphaRoughness);
+    float D = pl_distribution_ggx(NdotH, alphaRoughness);
+    return vec3(G2 * D);
 }
 
 #ifdef PL_FRAGMENT
@@ -337,7 +348,7 @@ getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_Roug
 
     // Achromatic f0 based on IOR.
     info.c_diff = mix(info.baseColor.rgb,  vec3(0), info.metallic);
-    info.f0 = mix(info.f0, info.baseColor.rgb, info.metallic);
+    info.f0_dielectric = mix(info.f0_dielectric, info.baseColor.rgb, info.metallic);
     return info;
 }
 

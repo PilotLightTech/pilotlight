@@ -2,8 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "pl_shader_interop_renderer.h"
-#include "lights.glsl"
+#include "global.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -16,30 +15,6 @@ layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iRenderingFlags = 0;
 layout(constant_id = 5) const int iLightCount = 0;
 layout(constant_id = 6) const int iProbeCount = 0;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 0
-//-----------------------------------------------------------------------------
-
-layout(std140, set = 0, binding = 0) readonly buffer _tVertexBuffer
-{
-	vec4 atVertexData[];
-} tVertexBuffer;
-
-layout(std140, set = 0, binding = 1) readonly buffer _tTransformBuffer
-{
-	mat4 atTransform[];
-} tTransformBuffer;
-
-layout(set = 0, binding = 2) readonly buffer plMaterialInfo
-{
-    plGpuMaterial atMaterials[];
-} tMaterialInfo;
-
-layout(set = 0, binding = 3)  uniform sampler tDefaultSampler;
-layout(set = 0, binding = 4)  uniform sampler tEnvSampler;
-layout(set = 0, binding = 5)  uniform texture2D at2DTextures[PL_MAX_BINDLESS_TEXTURES];
-layout(set = 0, binding = PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT)  uniform textureCube atCubeTextures[PL_MAX_BINDLESS_TEXTURES];
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 1
@@ -109,6 +84,7 @@ void main()
 
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
     vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.iBaseColorUVSet);
+    vec3 color = vec3(0);
 
     if(tBaseColor.a <  material.fAlphaCutoff)
     {
@@ -125,8 +101,8 @@ void main()
     materialInfo.baseColor = tBaseColor.rgb;
 
     // The default index of refraction of 1.5 yields a dielectric normal incidence reflectance of 0.04.
-    materialInfo.f0 = vec3(0.04);
-    float specularWeight = 1.0;
+    materialInfo.f0_dielectric = vec3(0.04);
+    materialInfo.specularWeight = 1.0;
 
     if(bool(iMaterialFlags & PL_INFO_MATERIAL_METALLICROUGHNESS))
     {
@@ -142,33 +118,17 @@ void main()
 
     // Anything less than 2% is physically impossible and is instead considered to be shadowing. Compare to "Real-Time-Rendering" 4th editon on page 325.
     materialInfo.f90 = vec3(1.0);
-
-    // emissive
-    vec3 f_emissive = material.tEmissiveFactor;
-    if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
-    {
-        f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.iEmissiveTexIdx)], tDefaultSampler), tShaderIn.tUV[material.iEmissiveUVSet]).rgb);
-    }
-    
-    // ambient occlusion
-    float ao = 1.0;
-    if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
-    {
-        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.iOcclusionTexIdx)], tDefaultSampler), tShaderIn.tUV[material.iOcclusionUVSet]).r;
-    }
-
-    // fill g-buffer
-    // outEmissive = vec4(f_emissive, material.u_MipCount);
-    // outAlbedo = tBaseColor;
-    // outNormal = vec4(tNormalInfo.n, 1.0);
-    // outPosition = vec4(tShaderIn.tWorldPosition, materialInfo.specularWeight);
-    // outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
-
-    vec3 v = normalize(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tShaderIn.tWorldPosition.xyz);
+    materialInfo.f90_dielectric = materialInfo.f90;
 
     // LIGHTING
-    vec3 f_specular = vec3(0.0);
+    vec3 f_specular_dielectric = vec3(0.0);
+    vec3 f_specular_metal = vec3(0.0);
     vec3 f_diffuse = vec3(0.0);
+    vec3 f_dielectric_brdf_ibl = vec3(0.0);
+    vec3 f_metal_brdf_ibl = vec3(0.0);
+    vec3 f_emissive = vec3(0.0);
+    
+    vec3 v = normalize(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tShaderIn.tWorldPosition.xyz);
 
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
@@ -189,17 +149,40 @@ void main()
 
         if(iProbeIndex > -1)
         {
+            f_diffuse = getDiffuseLight(n, iProbeIndex) * tBaseColor.rgb;
+
             int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tEnvSampler));
-            f_specular +=  getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, materialInfo.f0, specularWeight, iMips, iProbeIndex, tShaderIn.tWorldPosition);
-            f_diffuse += getIBLRadianceLambertian(n, v, materialInfo.perceptualRoughness, materialInfo.c_diff, materialInfo.f0, specularWeight, iProbeIndex, tShaderIn.tWorldPosition);
+            f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips, tShaderIn.tWorldPosition.xyz, iProbeIndex);
+            f_specular_dielectric = f_specular_metal;
+
+            // Calculate fresnel mix for IBL  
+
+            vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, iProbeIndex);
+            f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
+        
+            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, iProbeIndex);
+            f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);
+
+            color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
         }
     }
 
+    // ambient occlusion
+    
+    if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
+    {
+        float u_OcclusionStrength = 1.0;
+        float ao = 1.0;
+        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.iOcclusionTexIdx)], tDefaultSampler), tShaderIn.tUV[material.iOcclusionUVSet]).r;
+        color = color * (1.0 + u_OcclusionStrength * (ao - 1.0)); 
+    }
+
     // punctual stuff
-    vec3 f_diffuse_ibl = f_diffuse;
-    vec3 f_specular_ibl = f_specular;
     f_diffuse = vec3(0.0);
-    f_specular = vec3(0.0);
+    f_specular_dielectric = vec3(0.0);
+    f_specular_metal = vec3(0.0);
+    vec3 f_dielectric_brdf = vec3(0.0);
+    vec3 f_metal_brdf = vec3(0.0);
 
     uint cascadeIndex = 0;
     const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
@@ -262,11 +245,30 @@ void main()
                 float NdotH = clampedDot(n, h);
                 float LdotH = clampedDot(l, h);
                 float VdotH = clampedDot(v, h);
+
+                vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
+                vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
+
+
                 if (NdotL > 0.0 || NdotV > 0.0)
                 {
+
                     vec3 intensity = getLightIntensity(tLightData, pointToLight);
-                    f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, specularWeight, VdotH);
-                    f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+
+                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_lambertian(tBaseColor.rgb);
+                    vec3 l_specular_dielectric = vec3(0.0);
+                    vec3 l_specular_metal = vec3(0.0);
+                    vec3 l_dielectric_brdf = vec3(0.0);
+                    vec3 l_metal_brdf = vec3(0.0);
+
+                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_dielectric = l_specular_metal;
+
+                    l_metal_brdf = metal_fresnel * l_specular_metal;
+                    l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
+            
+                    vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
+                    color += l_color;
                 }
             }
 
@@ -312,11 +314,30 @@ void main()
                 float NdotH = clampedDot(n, h);
                 float LdotH = clampedDot(l, h);
                 float VdotH = clampedDot(v, h);
+
+                vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
+                vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
+
+
                 if (NdotL > 0.0 || NdotV > 0.0)
                 {
+
                     vec3 intensity = getLightIntensity(tLightData, pointToLight);
-                    f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, specularWeight, VdotH);
-                    f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+
+                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_lambertian(tBaseColor.rgb);
+                    vec3 l_specular_dielectric = vec3(0.0);
+                    vec3 l_specular_metal = vec3(0.0);
+                    vec3 l_dielectric_brdf = vec3(0.0);
+                    vec3 l_metal_brdf = vec3(0.0);
+
+                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_dielectric = l_specular_metal;
+
+                    l_metal_brdf = metal_fresnel * l_specular_metal;
+                    l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
+            
+                    vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
+                    color += l_color;
                 }
             }
 
@@ -356,11 +377,30 @@ void main()
                 float NdotH = clampedDot(n, h);
                 float LdotH = clampedDot(l, h);
                 float VdotH = clampedDot(v, h);
+
+                vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
+                vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
+
+
                 if (NdotL > 0.0 || NdotV > 0.0)
                 {
+
                     vec3 intensity = getLightIntensity(tLightData, pointToLight);
-                    f_diffuse += shadow * intensity * NdotL *  BRDF_lambertian(materialInfo.f0, materialInfo.f90, materialInfo.c_diff, specularWeight, VdotH);
-                    f_specular += shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.f0, materialInfo.f90, materialInfo.alphaRoughness, specularWeight, VdotH, NdotL, NdotV, NdotH);
+
+                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_lambertian(tBaseColor.rgb);
+                    vec3 l_specular_dielectric = vec3(0.0);
+                    vec3 l_specular_metal = vec3(0.0);
+                    vec3 l_dielectric_brdf = vec3(0.0);
+                    vec3 l_metal_brdf = vec3(0.0);
+
+                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_dielectric = l_specular_metal;
+
+                    l_metal_brdf = metal_fresnel * l_specular_metal;
+                    l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
+            
+                    vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
+                    color += l_color;
                 }
             }
 
@@ -369,30 +409,15 @@ void main()
 
     }
 
-    // Layer blending
-    vec3 diffuse;
-    vec3 specular;
-
-    if(ao != 1.0)
+    // emissive
+    f_emissive = material.tEmissiveFactor;
+    if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
     {
-        float u_OcclusionStrength = 1.0;
-        diffuse = f_diffuse + mix(f_diffuse_ibl, f_diffuse_ibl * ao, u_OcclusionStrength);
-        // apply ambient occlusion to all lighting that is not punctual
-        specular = f_specular + mix(f_specular_ibl, f_specular_ibl * ao, u_OcclusionStrength);
-    }
-    else
-    {
-        diffuse = f_diffuse_ibl + f_diffuse;
-        specular = f_specular_ibl + f_specular;
+        f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.iEmissiveTexIdx)], tDefaultSampler), tShaderIn.tUV[material.iEmissiveUVSet]).rgb);
     }
 
-    vec3 color = f_emissive.rgb + diffuse + specular;
-
-    // outColor = vec4(pl_linear_to_srgb(color.rgb), tBaseColor.a);
+    color = f_emissive + color;
     outColor = vec4(color.rgb, tBaseColor.a);
-    // outColor = vec4(n, 1.0);
-    // outColor = vec4(tNormalInfo.ng, tBaseColor.a);
-    // outColor = vec4(tNormalInfo.ntex, tBaseColor.a);
 
     // if(gl_FragCoord.x < 600.0)
     // {

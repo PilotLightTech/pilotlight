@@ -336,6 +336,15 @@ PL_BEGIN_STRUCT(plGpuDynDeferredLighting)
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynDeferredLighting)
 
+PL_BEGIN_STRUCT(plShadowInstanceBufferData)
+
+    uint uTransformIndex;
+    int iViewportIndex;
+    uint _uUnused0;
+    uint _uUnused1;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plShadowInstanceBufferData)
+
 //-----------------------------------------------------------------------------
 // [SECTION] materials
 //-----------------------------------------------------------------------------
@@ -375,20 +384,5 @@ PL_BEGIN_STRUCT(plGpuMaterial)
 
     // ~~~~~~~~~~~~~~~~96 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuMaterial)
-
-PL_BEGIN_STRUCT(MaterialInfo)
-
-    float perceptualRoughness;      // roughness value, as authored by the model creator (input to shader)
-    vec3 f0;                        // full reflectance color (n incidence angle)
-
-    float alphaRoughness;           // roughness mapped to a more linear change in the roughness (proposed by [2])
-    vec3 c_diff;
-
-    vec3 f90;                       // reflectance color at grazing angle
-    float metallic;
-
-    vec3 baseColor;
-
-PL_END_STRUCT(MaterialInfo)
 
 #endif // PL_SHADER_INTEROP_RENDERER_H

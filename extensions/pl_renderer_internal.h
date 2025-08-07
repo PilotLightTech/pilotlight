@@ -140,7 +140,6 @@ typedef struct _plShaderVariant plShaderVariant;
 typedef struct _plComputeShaderVariant plComputeShaderVariant;
 
 // gpu buffers
-typedef struct _plShadowInstanceBufferData plShadowInstanceBufferData;
 typedef struct _plDirectionLightShadowData plDirectionLightShadowData;
 
 // enums & flags
@@ -213,12 +212,6 @@ typedef struct _plDrawable
     uint32_t        uInstanceCount;
     bool            bCulled;
 } plDrawable;
-
-typedef struct _plShadowInstanceBufferData
-{
-    uint32_t uTransformIndex;
-    int32_t  iViewportIndex;
-} plShadowInstanceBufferData;
 
 typedef struct _plDirectionLightShadowData
 {
