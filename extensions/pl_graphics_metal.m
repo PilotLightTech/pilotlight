@@ -1430,7 +1430,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 
     const char* pcFragmentConstantData = ptDescription->pFragmentTempConstantData;
     uConstantOffset = 0;
-    for(uint32_t i = 0; i < ptShader->tDesc._uVertexConstantCount; i++)
+    for(uint32_t i = 0; i < ptShader->tDesc._uFragmentConstantCount; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atFragmentConstants[i];
         const uint32_t uConstantIndex = ptConstant->uID == 0 ? i : ptConstant->uID;
