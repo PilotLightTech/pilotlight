@@ -11,11 +11,6 @@
 
 layout(constant_id = 0) const int iMeshVariantFlags = 0;
 layout(constant_id = 1) const int iDataStride = 0;
-layout(constant_id = 2) const int iTextureMappingFlags = 0;
-layout(constant_id = 3) const int iMaterialFlags = 0;
-layout(constant_id = 4) const int iRenderingFlags = 0;
-layout(constant_id = 5) const int iLightCount = 0;
-layout(constant_id = 6) const int iProbeCount = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group

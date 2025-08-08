@@ -44,6 +44,7 @@ layout(location = 0) in struct plShaderIn {
 } tShaderIn;
 
 #include "lighting.glsl"
+#include "material_info.glsl"
 
 void main() 
 {

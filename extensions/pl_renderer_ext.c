@@ -1782,14 +1782,24 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
         }
 
         // choose shader variant
-        int aiConstantData0[] = {
+        int aiForwardFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
-            iDataStride,
             iTextureMappingFlags,
             PL_INFO_MATERIAL_METALLICROUGHNESS,
             iObjectRenderingFlags,
             pl_sb_capacity(ptScene->sbtLightData),
             pl_sb_capacity(ptScene->sbtProbeData),
+        };
+
+        int aiGBufferFragmentConstantData0[] = {
+            (int)ptMesh->ulVertexStreamMask,
+            iTextureMappingFlags,
+            PL_INFO_MATERIAL_METALLICROUGHNESS
+        };
+
+        int aiVertexConstantData0[] = {
+            (int)ptMesh->ulVertexStreamMask,
+            iDataStride
         };
 
         uint64_t ulIndex = 0;
@@ -1813,9 +1823,9 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
             pl_sb_push(ptScene->sbtOutlineDrawablesOldEnvShaders, ptDrawable->tEnvShader);
 
             if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_FORWARD)
-                ptDrawable->tShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiConstantData0, aiConstantData0, NULL);
+                ptDrawable->tShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, NULL);
             else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_DEFERRED)
-                ptDrawable->tShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiConstantData0, aiConstantData0, NULL);
+                ptDrawable->tShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiVertexConstantData0, aiGBufferFragmentConstantData0, NULL);
 
             if(ptDrawable->uInstanceCount == 0)
             {
@@ -1890,9 +1900,9 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
-    ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, aiLightingConstantData, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-    ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, aiLightingConstantData, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
 
     pl__renderer_unstage_drawables(ptScene);
     pl__renderer_set_drawable_shaders(ptScene);
@@ -1976,9 +1986,9 @@ pl_renderer_finalize_scene(plScene* ptScene)
 
     // create lighting shader
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
-    ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, aiLightingConstantData, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-    ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, aiLightingConstantData, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
 
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)

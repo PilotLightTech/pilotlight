@@ -3538,14 +3538,24 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
         }
 
         // choose shader variant
-        int aiConstantData0[] = {
+        int aiForwardFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
-            iDataStride,
             iTextureMappingFlags,
             PL_INFO_MATERIAL_METALLICROUGHNESS,
             iObjectRenderingFlags,
             pl_sb_capacity(ptScene->sbtLightData),
             pl_sb_size(ptScene->sbtProbeData),
+        };
+
+        int aiGBufferFragmentConstantData0[] = {
+            (int)ptMesh->ulVertexStreamMask,
+            iTextureMappingFlags,
+            PL_INFO_MATERIAL_METALLICROUGHNESS
+        };
+
+        int aiVertexConstantData0[] = {
+            (int)ptMesh->ulVertexStreamMask,
+            iDataStride
         };
 
         if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_DEFERRED)
@@ -3567,9 +3577,8 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.ulCullMode = PL_CULL_MODE_NONE;
 
-            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiConstantData0, aiConstantData0, &gptData->tRenderPassLayout);
-            aiConstantData0[4] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiConstantData0, aiConstantData0, NULL);
+            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiVertexConstantData0, aiGBufferFragmentConstantData0, &gptData->tRenderPassLayout);
+            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiVertexConstantData0, aiGBufferFragmentConstantData0, NULL);
         }
 
         else if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
@@ -3591,9 +3600,9 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.ulCullMode = PL_CULL_MODE_NONE;
 
-            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiConstantData0, aiConstantData0, &gptData->tRenderPassLayout);
-            aiConstantData0[4] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiConstantData0, aiConstantData0, NULL);
+            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, &gptData->tRenderPassLayout);
+            aiForwardFragmentConstantData0[2] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, NULL);
   
         }
         if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
@@ -3610,7 +3619,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             };
-            ptScene->sbtDrawables[i].tShadowShader = gptShaderVariant->get_shader("alphashadow", &tShadowVariant, aiConstantData0, aiConstantData0, &gptData->tDepthRenderPassLayout);
+            ptScene->sbtDrawables[i].tShadowShader = gptShaderVariant->get_shader("alphashadow", &tShadowVariant, aiVertexConstantData0, aiGBufferFragmentConstantData0, &gptData->tDepthRenderPassLayout);
         }
     }
 }

@@ -3,7 +3,6 @@
 
 #include "pl_shader_interop_renderer.h"
 #include "lights.glsl"
-#include "material_info.glsl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0

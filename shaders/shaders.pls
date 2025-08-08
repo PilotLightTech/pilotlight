@@ -237,14 +237,9 @@
             ],
             "atVertexConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
@@ -284,15 +279,9 @@
             "atVertexConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
@@ -408,13 +397,9 @@
             ],
             "atVertexConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
@@ -461,13 +446,9 @@
             ],
             "atVertexConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
@@ -505,11 +486,6 @@
             ],
             "atBlendStates": [
                 { "bBlendEnabled": false }
-            ],
-            "atVertexConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
