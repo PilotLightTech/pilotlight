@@ -258,8 +258,8 @@ typedef struct _plEnvironmentProbeData
     plDirectionLightShadowData tDirectionLightShadowData;
 
     // textures
-    plTextureHandle tGGXLUTTexture;
-    uint32_t        uGGXLUT;
+    plTextureHandle tBrdfLutTexture;
+    uint32_t        tBrdfLutIndex;
     plTextureHandle tLambertianEnvTexture;
     uint32_t        uLambertianEnvSampler;
     plTextureHandle tGGXEnvTexture;

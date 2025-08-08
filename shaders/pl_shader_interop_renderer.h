@@ -315,7 +315,7 @@ PL_BEGIN_STRUCT(plGpuProbe)
 
     uint  uLambertianEnvSampler;
     uint  uGGXEnvSampler;
-    uint  uGGXLUT;
+    uint  tBrdfLutIndex;
     int   iParallaxCorrection;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 

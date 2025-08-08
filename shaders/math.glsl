@@ -38,11 +38,39 @@ pl_saturate(float fV)
 }
 
 float
-random(vec3 seed, int i)
+pl_random(vec3 seed, int i)
 {
     vec4 seed4 = vec4(seed, float(i));
     float dot_product = dot(seed4, vec4(12.9898,78.233,45.164,94.673));
     return fract(sin(dot_product) * 43758.5453);
+}
+
+float
+pl_random(vec2 co)
+{
+    float dt = dot(co.xy, vec2(12.9898, 78.233));
+    float sn = mod(dt, 3.14);
+    return fract(sin(sn) * 43758.5453);
+}
+
+vec2
+pl_hammersley_2d(int i, int iN)
+{
+    // Hammersley Points on the Hemisphere
+    // CC BY 3.0 (Holger Dammertz)
+    // http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
+    // with adapted interface
+    uint uBits =  uint(i);
+    uBits = (uBits << 16u) | (uBits >> 16u);
+    uBits = ((uBits & 0x55555555u) << 1u) | ((uBits & 0xAAAAAAAAu) >> 1u);
+    uBits = ((uBits & 0x33333333u) << 2u) | ((uBits & 0xCCCCCCCCu) >> 2u);
+    uBits = ((uBits & 0x0F0F0F0Fu) << 4u) | ((uBits & 0xF0F0F0F0u) >> 4u);
+    uBits = ((uBits & 0x00FF00FFu) << 8u) | ((uBits & 0xFF00FF00u) >> 8u);
+    float rdi = float(uBits) * 2.3283064365386963e-10; // / 0x100000000
+
+    // hammersley2d describes a sequence of points in the 2d unit square [0,1)^2
+    // that can be used for quasi Monte Carlo integration
+    return vec2(float(i)/float(iN), rdi);
 }
 
 vec2

@@ -840,7 +840,7 @@ pl_renderer_cleanup_scene(plScene* ptScene)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];
         
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXLUTTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tBrdfLutTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tAlbedoTexture);
@@ -2373,7 +2373,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
             .fRangeSqr              = ptProbe->fRange * ptProbe->fRange,
             .uGGXEnvSampler         = ptScene->sbtProbeData[i].uGGXEnvSampler,
             .uLambertianEnvSampler  = ptScene->sbtProbeData[i].uLambertianEnvSampler,
-            .uGGXLUT                = ptScene->sbtProbeData[i].uGGXLUT,
+            .tBrdfLutIndex                = ptScene->sbtProbeData[i].tBrdfLutIndex,
             .tMin.xyz               = ptObject->tAABB.tMin,
             .tMax.xyz               = ptObject->tAABB.tMax,
             .iParallaxCorrection    = (int)(ptProbe->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX)

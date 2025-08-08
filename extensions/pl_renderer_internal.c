@@ -2718,7 +2718,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .tType       = PL_TEXTURE_TYPE_2D,
         .tUsage      = PL_TEXTURE_USAGE_SAMPLED
     };
-    tProbeData.tGGXLUTTexture = pl__renderer_create_texture(&tLutTextureDesc, "lut texture", 0, PL_TEXTURE_USAGE_SAMPLED);
+    tProbeData.tBrdfLutTexture = pl__renderer_create_texture(&tLutTextureDesc, "lut texture", 0, PL_TEXTURE_USAGE_SAMPLED);
 
     const plTextureDesc tSpecularTextureDesc = {
         .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
@@ -2740,7 +2740,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
     };
     tProbeData.tGGXEnvTexture = pl__renderer_create_texture(&tTextureDesc, "tGGXEnvTexture", 0, PL_TEXTURE_USAGE_SAMPLED);
 
-    tProbeData.uGGXLUT = pl__renderer_get_bindless_texture_index(ptScene, tProbeData.tGGXLUTTexture);
+    tProbeData.tBrdfLutIndex = pl__renderer_get_bindless_texture_index(ptScene, tProbeData.tBrdfLutTexture);
     tProbeData.uLambertianEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tLambertianEnvTexture);
     tProbeData.uGGXEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tGGXEnvTexture);
 
@@ -3305,7 +3305,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             .szBufferOffset = 0,
             .uBaseArrayLayer = 0,
         };
-        gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[6], ptProbe->tGGXLUTTexture, 1, &tBufferImageCopy0);
+        gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[6], ptProbe->tBrdfLutTexture, 1, &tBufferImageCopy0);
 
         for(uint32_t i = 0; i < 6; i++)
         {
@@ -3601,7 +3601,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
                 tVariantTemp.ulCullMode = PL_CULL_MODE_NONE;
 
             ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, &gptData->tRenderPassLayout);
-            aiForwardFragmentConstantData0[2] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+            aiForwardFragmentConstantData0[3] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
             ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, NULL);
   
         }

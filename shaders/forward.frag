@@ -362,13 +362,13 @@ void main()
 
                     vec3 intensity = getLightIntensity(tLightData, pointToLight);
 
-                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_lambertian(tBaseColor.rgb);
+                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
                     vec3 l_specular_dielectric = vec3(0.0);
                     vec3 l_specular_metal = vec3(0.0);
                     vec3 l_dielectric_brdf = vec3(0.0);
                     vec3 l_metal_brdf = vec3(0.0);
 
-                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
                     l_specular_dielectric = l_specular_metal;
 
                     l_metal_brdf = metal_fresnel * l_specular_metal;
@@ -431,13 +431,13 @@ void main()
 
                     vec3 intensity = getLightIntensity(tLightData, pointToLight);
 
-                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_lambertian(tBaseColor.rgb);
+                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
                     vec3 l_specular_dielectric = vec3(0.0);
                     vec3 l_specular_metal = vec3(0.0);
                     vec3 l_dielectric_brdf = vec3(0.0);
                     vec3 l_metal_brdf = vec3(0.0);
 
-                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
                     l_specular_dielectric = l_specular_metal;
 
                     l_metal_brdf = metal_fresnel * l_specular_metal;
@@ -494,13 +494,13 @@ void main()
 
                     vec3 intensity = getLightIntensity(tLightData, pointToLight);
 
-                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_lambertian(tBaseColor.rgb);
+                    vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
                     vec3 l_specular_dielectric = vec3(0.0);
                     vec3 l_specular_metal = vec3(0.0);
                     vec3 l_dielectric_brdf = vec3(0.0);
                     vec3 l_metal_brdf = vec3(0.0);
 
-                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGX(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
                     l_specular_dielectric = l_specular_metal;
 
                     l_metal_brdf = metal_fresnel * l_specular_metal;

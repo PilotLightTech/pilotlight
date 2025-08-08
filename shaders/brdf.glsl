@@ -44,9 +44,9 @@ pl_masking_shadowing_ggx(float NdotL, float NdotV, float alphaRoughness)
 float
 pl_masking_shadowing_fast_ggx(float NdotL, float NdotV, float alphaRoughness)
 {
-    float a2 = alphaRoughness * alphaRoughness;
-    float GGXV = NdotL * sqrt(NdotV * NdotV * (1.0 - a2) + a2);
-    float GGXL = NdotV * sqrt(NdotL * NdotL * (1.0 - a2) + a2);
+    float a = alphaRoughness;
+    float GGXV = NdotL * (NdotV * (1.0 - a) + a);
+    float GGXL = NdotV * (NdotL * (1.0 - a) + a);
     float GGX = GGXV + GGXL;
     if (GGX > 0.0)
     {
@@ -59,10 +59,8 @@ pl_masking_shadowing_fast_ggx(float NdotL, float NdotV, float alphaRoughness)
 // Simple Lambertian BRDF (fd)
 // Real-Time Rendering 4th Edition, Page 314, Equation 9.11
 vec3
-pl_brdf_lambertian(vec3 diffuseColor)
+pl_brdf_diffuse(vec3 diffuseColor)
 {
-    return diffuseColor / M_PI;
-
     // disney
     // float Fd_Burley(float NoV, float NoL, float LoH, float roughness) {
     //     float f90 = 0.5 + 2.0 * roughness * LoH * LoH;
@@ -70,11 +68,14 @@ pl_brdf_lambertian(vec3 diffuseColor)
     //     float viewScatter = F_Schlick(NoV, 1.0, f90);
     //     return lightScatter * viewScatter * (1.0 / PI);
     // }
+
+    return diffuseColor / M_PI;
 }
 
-//  https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#acknowledgments AppendixB
+// BRDF for specular (fs)
+// Real-Time Rendering 4th Edition, Page 337, Equation 9.34
 vec3
-BRDF_specularGGX(float alphaRoughness, float NdotL, float NdotV, float NdotH)
+pl_brdf_specular(float alphaRoughness, float NdotL, float NdotV, float NdotH)
 {
     float G2 = pl_masking_shadowing_ggx(NdotL, NdotV, alphaRoughness);
     float D = pl_distribution_ggx(NdotH, alphaRoughness);
