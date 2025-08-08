@@ -285,7 +285,7 @@ pl_get_normal_info(int iUVSet)
     if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP)) 
     {
         plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-        info.ntex = texture(sampler2D(at2DTextures[nonuniformEXT(material.iNormalTexIdx)], tDefaultSampler), UV).rgb * 2.0 - vec3(1.0);
+        info.ntex = texture(sampler2D(at2DTextures[nonuniformEXT(material.iNormalTexIdx)], tSamplerLinearRepeat), UV).rgb * 2.0 - vec3(1.0);
         // info.ntex *= vec3(0.2, 0.2, 1.0);
         // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
         info.ntex = normalize(info.ntex);
@@ -325,7 +325,7 @@ getBaseColor(vec4 u_ColorFactor, int iUVSet)
     if(bool(iMaterialFlags & PL_INFO_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
         plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-        baseColor *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tDefaultSampler), tShaderIn.tUV[iUVSet]));
+        baseColor *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tSamplerLinearRepeat), tShaderIn.tUV[iUVSet]));
     }
     return baseColor * tShaderIn.tColor;
 }
@@ -341,7 +341,7 @@ getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_Roug
         // Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
         // This layout intentionally reserves the 'r' channel for (optional) occlusion map data
         plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-        vec4 mrSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.iMetallicRoughnessTexIdx)], tDefaultSampler), tShaderIn.tUV[UVSet]);
+        vec4 mrSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.iMetallicRoughnessTexIdx)], tSamplerLinearRepeat), tShaderIn.tUV[UVSet]);
         info.perceptualRoughness *= mrSample.g;
         info.metallic *= mrSample.b;
     }

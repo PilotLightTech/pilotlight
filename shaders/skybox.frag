@@ -2,23 +2,14 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 #include "pl_shader_interop_renderer.h"
+#include "bg_scene.inc"
+#include "bg_view.inc"
 
 //-----------------------------------------------------------------------------
-// [SECTION] bind group 0
+// [SECTION] bind group 2
 //-----------------------------------------------------------------------------
 
-layout(set = 0, binding = 0) readonly buffer _plGlobalInfo
-{
-    plGpuGlobalData data[];
-} tGlobalInfo;
-
-layout(set = 0, binding = 1)  uniform sampler tDefaultSampler;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 1
-//-----------------------------------------------------------------------------
-
-layout(set = 1, binding = 0) uniform textureCube samplerCubeMap;
+layout(set = 2, binding = 0) uniform textureCube samplerCubeMap;
 
 //-----------------------------------------------------------------------------
 // [SECTION] input
@@ -42,5 +33,5 @@ void
 main() 
 {
     vec3 tVectorOut = normalize(tShaderIn.tWorldPosition);
-    outColor = vec4(texture(samplerCube(samplerCubeMap, tDefaultSampler), tVectorOut).rgb, 1.0);
+    outColor = vec4(texture(samplerCube(samplerCubeMap, tSamplerLinearRepeat), tVectorOut).rgb, 1.0);
 }

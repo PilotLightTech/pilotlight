@@ -283,7 +283,7 @@ pl_renderer_initialize(plRendererSettings tSettings)
     bool bManifestResult = gptShaderVariant->load_manifest("/shaders/shaders.pls");
     PL_ASSERT(bManifestResult);
 
-    gptData->tSceneBGLayout = gptShaderVariant->get_bind_group_layout("scene");
+    gptData->tViewBGLayout = gptShaderVariant->get_bind_group_layout("view");
     gptData->tShadowGlobalBGLayout = gptShaderVariant->get_bind_group_layout("shadow");
 
     // create pools
@@ -339,56 +339,53 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tDummyTextureCube = pl__renderer_create_texture(&tSkyboxTextureDesc, "dummy cube", 0, PL_TEXTURE_USAGE_SAMPLED);
 
     // create samplers
-    const plSamplerDesc tSamplerDesc = {
+    const plSamplerDesc tSamplerLinearClampDesc = {
         .tMagFilter      = PL_FILTER_LINEAR,
         .tMinFilter      = PL_FILTER_LINEAR,
         .fMinMip         = 0.0f,
         .fMaxMip         = 64.0f,
-        .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .tMipmapMode     = PL_MIPMAP_MODE_NEAREST,
-        .pcDebugName     = "default sampler"
-    };
-    gptData->tDefaultSampler = gptGfx->create_sampler(gptData->ptDevice, &tSamplerDesc);
-    
-    const plSamplerDesc tShadowSamplerDesc = {
-        .tMagFilter      = PL_FILTER_NEAREST,
-        .tMinFilter      = PL_FILTER_NEAREST,
-        .fMinMip         = 0.0f,
-        .fMaxMip         = 1.0f,
-        .fMaxAnisotropy  = 1.0f,
         .tVAddressMode   = PL_ADDRESS_MODE_CLAMP,
         .tUAddressMode   = PL_ADDRESS_MODE_CLAMP,
-        .tMipmapMode     = PL_MIPMAP_MODE_NEAREST,
-        .pcDebugName     = "shadow sampler"
-    };
-    gptData->tShadowSampler = gptGfx->create_sampler(gptData->ptDevice, &tShadowSamplerDesc);
-
-    const plSamplerDesc tSkyboxSamplerDesc = {
-        .tMagFilter      = PL_FILTER_LINEAR,
-        .tMinFilter      = PL_FILTER_LINEAR,
-        .fMinMip         = 0.0f,
-        .fMaxMip         = 64.0f,
-        .fMaxAnisotropy  = 1.0f,
-        .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
         .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
-        .pcDebugName     = "skybox sampler"
+        .pcDebugName     = "linear clamp"
     };
-    gptData->tSkyboxSampler = gptGfx->create_sampler(gptData->ptDevice, &tSkyboxSamplerDesc);
+    gptData->tSamplerLinearClamp = gptGfx->create_sampler(gptData->ptDevice, &tSamplerLinearClampDesc);
 
-    const plSamplerDesc tEnvSamplerDesc = {
+    const plSamplerDesc tSamplerNearestClampDesc = {
         .tMagFilter      = PL_FILTER_NEAREST,
         .tMinFilter      = PL_FILTER_NEAREST,
         .fMinMip         = 0.0f,
         .fMaxMip         = 64.0f,
-        .fMaxAnisotropy  = 1.0f,
+        .tVAddressMode   = PL_ADDRESS_MODE_CLAMP,
+        .tUAddressMode   = PL_ADDRESS_MODE_CLAMP,
+        .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
+        .pcDebugName     = "nearest clamp"
+    };
+    gptData->tSamplerNearestClamp = gptGfx->create_sampler(gptData->ptDevice, &tSamplerNearestClampDesc);
+
+    const plSamplerDesc tSamplerLinearRepeatDesc = {
+        .tMagFilter      = PL_FILTER_LINEAR,
+        .tMinFilter      = PL_FILTER_LINEAR,
+        .fMinMip         = 0.0f,
+        .fMaxMip         = 64.0f,
         .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
         .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
         .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
-        .pcDebugName     = "ENV sampler"
+        .pcDebugName     = "linear repeat"
     };
-    gptData->tEnvSampler = gptGfx->create_sampler(gptData->ptDevice, &tEnvSamplerDesc);
+    gptData->tSamplerLinearRepeat = gptGfx->create_sampler(gptData->ptDevice, &tSamplerLinearRepeatDesc);
+
+    const plSamplerDesc tSamplerNearestRepeatDesc = {
+        .tMagFilter      = PL_FILTER_NEAREST,
+        .tMinFilter      = PL_FILTER_NEAREST,
+        .fMinMip         = 0.0f,
+        .fMaxMip         = 64.0f,
+        .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
+        .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
+        .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
+        .pcDebugName     = "nearest repeat"
+    };
+    gptData->tSamplerNearestRepeat = gptGfx->create_sampler(gptData->ptDevice, &tSamplerNearestRepeatDesc);
 
     // create deferred render pass layout
     const plRenderPassLayoutDesc tRenderPassLayoutDesc = {
@@ -633,37 +630,6 @@ pl_renderer_create_scene(plSceneInit tInit)
     // create global bindgroup
     ptScene->uTextureIndexCount = 0;
 
-    plBindGroupLayoutHandle tGlobalSceneBindGroupLayout = gptShaderVariant->get_bind_group_layout("global");
-
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-        // create global bindgroup
-        const plBindGroupDesc tGlobalBindGroupDesc = {
-            .ptPool      = gptData->ptBindGroupPool,
-            .tLayout     = tGlobalSceneBindGroupLayout,
-            .pcDebugName = "global bind group"
-        };
-        ptScene->atGlobalBindGroup[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBindGroupDesc);
-
-        // partially update global bindgroup (just samplers)
-        plBindGroupUpdateSamplerData tGlobalSamplerData[] = {
-            {
-                .tSampler = gptData->tDefaultSampler,
-                .uSlot    = 3
-            },
-            {
-                .tSampler = gptData->tEnvSampler,
-                .uSlot    = 4
-            }
-        };
-
-        plBindGroupUpdateData tGlobalBindGroupData = {
-            .uSamplerCount     = 2,
-            .atSamplerBindings = tGlobalSamplerData,
-        };
-        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
-    }
-
     // pre-create some global buffers, later we should defer this
     const plBufferDesc atLightShadowDataBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
@@ -683,11 +649,51 @@ pl_renderer_create_scene(plSceneInit tInit)
         .pcDebugName = "probe buffers"
     };
 
+    const plBufferDesc tSceneBufferDesc = {
+        .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .szByteSize = sizeof(plGpuSceneData),
+        .pcDebugName = "scene buffer"
+    };
+
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
+        ptScene->atSceneBuffer[i]           = pl__renderer_create_staging_buffer(&tSceneBufferDesc, "scene buffer", i);
         ptScene->atLightShadowDataBuffer[i] = pl__renderer_create_staging_buffer(&atLightShadowDataBufferDesc, "shadow buffer", i);
         ptScene->atShadowCameraBuffers[i]   = pl__renderer_create_staging_buffer(&atCameraBuffersDesc, "shadow camera buffer", i);
         ptScene->atGPUProbeDataBuffers[i]   = pl__renderer_create_staging_buffer(&atProbeDataBufferDesc, "probe buffer", i);
+    }
+
+    plBindGroupLayoutHandle tGlobalSceneBindGroupLayout = gptShaderVariant->get_bind_group_layout("scene");
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        // create global bindgroup
+        const plBindGroupDesc tGlobalBindGroupDesc = {
+            .ptPool      = gptData->ptBindGroupPool,
+            .tLayout     = tGlobalSceneBindGroupLayout,
+            .pcDebugName = "global bind group"
+        };
+        ptScene->atBindGroups[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBindGroupDesc);
+
+        // partially update global bindgroup (just samplers)
+        plBindGroupUpdateSamplerData tGlobalSamplerData[] = {
+            { .uSlot = 4, .tSampler = gptData->tSamplerLinearClamp },
+            { .uSlot = 5, .tSampler = gptData->tSamplerNearestClamp },
+            { .uSlot = 6, .tSampler = gptData->tSamplerLinearRepeat },
+            { .uSlot = 7, .tSampler = gptData->tSamplerNearestRepeat }
+        };
+
+        plBindGroupUpdateBufferData tGlobalBufferData[] = {
+            { .uSlot = 0, .tBuffer = ptScene->atSceneBuffer[i], .szBufferRange = sizeof(plGpuSceneData) }
+        };
+
+        plBindGroupUpdateData tGlobalBindGroupData = {
+            .uSamplerCount     = 4,
+            .atSamplerBindings = tGlobalSamplerData,
+            .uBufferCount = 1,
+            .atBufferBindings = tGlobalBufferData
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atBindGroups[i], &tGlobalBindGroupData);
     }
 
     // pre-create working buffers for environment filtering, later we should defer this
@@ -800,7 +806,8 @@ pl_renderer_cleanup_view(plView* ptView)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atGlobalBuffers[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atViewBuffers[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atView2Buffers[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->tDirectionLightShadowData.atDShadowCameraBuffers[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atPickBuffer[i]);
@@ -855,7 +862,8 @@ pl_renderer_cleanup_scene(plScene* ptScene)
 
         for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
         {
-            gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->atGlobalBuffers[i]);
+            gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->atViewBuffers[i]);
+            gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->atView2Buffers[i]);
             gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDirectionLightShadowData.atDLightShadowDataBuffer[i]);
             gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDirectionLightShadowData.atDShadowCameraBuffers[i]);
         }
@@ -870,11 +878,12 @@ pl_renderer_cleanup_scene(plScene* ptScene)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atSceneBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atLightBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atShadowCameraBuffers[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atLightShadowDataBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atGPUProbeDataBuffers[i]);
-        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptScene->atGlobalBindGroup[i]);
+        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptScene->atBindGroups[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atMaterialDataBuffer[i]);
     }
 
@@ -1037,10 +1046,10 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
         .pcDebugName   = "emissive texture"
     };
 
-    const plBufferDesc atGlobalBuffersDesc = {
+    const plBufferDesc atView2BuffersDesc = {
         .tUsage     = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
         .szByteSize = 4096,
-        .pcDebugName = "global buffer"
+        .pcDebugName = "view buffer"
     };
 
     const plBufferDesc atCameraBuffersDesc = {
@@ -1053,6 +1062,12 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
         .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
         .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuLightShadow),
         .pcDebugName = "shadow data buffer"
+    };
+
+    const plBufferDesc atViewBuffersDesc = {
+        .tUsage     = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+        .szByteSize = sizeof(plGpuViewData),
+        .pcDebugName = "view buffer"
     };
 
     // create offscreen render pass
@@ -1141,7 +1156,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
         gptGfx->update_bind_group(gptData->ptDevice, ptView->atPickBindGroup[i], &tPickBGData);
 
         // buffers
-        ptView->atGlobalBuffers[i] = pl__renderer_create_staging_buffer(&atGlobalBuffersDesc, "global", i);
+        ptView->atView2Buffers[i] = pl__renderer_create_staging_buffer(&atView2BuffersDesc, "scene", i);
         
 
         pl_temp_allocator_reset(&gptData->tTempAllocator);
@@ -1164,6 +1179,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
 
         ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[i] = pl__renderer_create_staging_buffer(&atLightShadowDataBufferDesc, "d shadow", i);
         ptView->tDirectionLightShadowData.atDShadowCameraBuffers[i] = pl__renderer_create_staging_buffer(&atCameraBuffersDesc, "d shadow buffer", i);
+        ptView->atViewBuffers[i] = pl__renderer_create_staging_buffer(&atViewBuffersDesc, "view buffer", i);
 
     }
 
@@ -1429,7 +1445,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     // lighting bind group
     const plBindGroupDesc tLightingBindGroupDesc = {
         .ptPool = gptData->ptBindGroupPool,
-        .tLayout = gptShaderVariant->get_graphics_bind_group_layout("deferred_lighting", 1),
+        .tLayout = gptShaderVariant->get_graphics_bind_group_layout("deferred_lighting", 2),
         .pcDebugName = "lighting bind group"
     };
     ptView->tLightingBindGroup = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
@@ -1663,7 +1679,7 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
     
         const plBindGroupDesc tSkyboxBindGroupDesc = {
             .ptPool = gptData->ptBindGroupPool,
-            .tLayout = gptShaderVariant->get_graphics_bind_group_layout("skybox", 1),
+            .tLayout = gptShaderVariant->get_graphics_bind_group_layout("skybox", 2),
             .pcDebugName = "skybox bind group"
         };
         ptScene->tSkyboxBindGroup = gptGfx->create_bind_group(ptDevice, &tSkyboxBindGroupDesc);
@@ -1834,7 +1850,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
 
     gptShaderVariant->unload_manifest("/shaders/shaders.pls");
     gptShaderVariant->load_manifest("/shaders/shaders.pls");
-    gptData->tSceneBGLayout = gptShaderVariant->get_bind_group_layout("scene");
+    gptData->tViewBGLayout = gptShaderVariant->get_bind_group_layout("view");
     gptData->tShadowGlobalBGLayout = gptShaderVariant->get_bind_group_layout("shadow");
 
     if(!ptScene->bActive)
@@ -1971,12 +1987,12 @@ pl_renderer_finalize_scene(plScene* ptScene)
         {
             {
                 .tBuffer       = ptScene->atTransformBuffer[i],
-                .uSlot         = 1,
+                .uSlot         = 2,
                 .szBufferRange = sizeof(plMat4) * 10000
             },
             {
                 .tBuffer       = ptScene->atMaterialDataBuffer[i],
-                .uSlot         = 2,
+                .uSlot         = 3,
                 .szBufferRange = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity
             },
         };
@@ -1986,7 +2002,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
             .atBufferBindings = atGlobalBufferData,
         };
 
-        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atBindGroups[i], &tGlobalBindGroupData);
     }
     
 }
@@ -2103,6 +2119,9 @@ pl_renderer_prepare_scene(plScene* ptScene)
 
         }
     }
+
+    // plBuffer* ptSceneBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSceneBuffer[uFrameIdx]);
+    // memcpy(ptSceneBuffer->tMemoryAllocation.pHostMapped, &ptScene->tSceneBuffer, sizeof(plGpuSceneData));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2309,9 +2328,8 @@ pl_renderer_prepare_scene(plScene* ptScene)
             gptGfx->submit_command_buffer(ptCSMCommandBuffer, &tSubmitCSMInfo);
             gptGfx->return_command_buffer(ptCSMCommandBuffer);
 
-            const plGpuGlobalData tProbeBindGroupBuffer = {
+            const plGpuViewData tProbeBindGroupBuffer = {
                 .tViewportSize         = {.x = ptProbe->tTargetSize.x, .y = ptProbe->tTargetSize.y, .z = 1.0f, .w = 1.0f},
-                .tViewportInfo         = {0},
                 .tCameraPos            = atEnvironmentCamera[uFace].tPos,
                 .tCameraProjection     = atEnvironmentCamera[uFace].tProjMat,
                 .tCameraView           = atEnvironmentCamera[uFace].tViewMat,
@@ -2319,9 +2337,9 @@ pl_renderer_prepare_scene(plScene* ptScene)
             };
 
             // copy global buffer data for probe rendering
-            const uint32_t uProbeGlobalBufferOffset = sizeof(plGpuGlobalData) * uFace;
-            plBuffer* ptProbeGlobalBuffer = gptGfx->get_buffer(ptDevice, ptProbe->atGlobalBuffers[uFrameIdx]);
-            memcpy(&ptProbeGlobalBuffer->tMemoryAllocation.pHostMapped[uProbeGlobalBufferOffset], &tProbeBindGroupBuffer, sizeof(plGpuGlobalData));
+            const uint32_t uProbeGlobalBufferOffset = sizeof(plGpuViewData) * uFace;
+            plBuffer* ptProbeGlobalBuffer = gptGfx->get_buffer(ptDevice, ptProbe->atView2Buffers[uFrameIdx]);
+            memcpy(&ptProbeGlobalBuffer->tMemoryAllocation.pHostMapped[uProbeGlobalBufferOffset], &tProbeBindGroupBuffer, sizeof(plGpuViewData));
         }
 
         // copy probe shadow data to GPU buffer
@@ -2446,14 +2464,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     // common
     const plBindGroupUpdateSamplerData tSkyboxSamplerData = {
-        .tSampler = gptData->tSkyboxSampler,
+        .tSampler = gptData->tSamplerLinearRepeat,
         .uSlot    = 1
-    };
-
-    const plBindGroupDesc tSkyboxBG0Desc = {
-        .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("skybox", 0),
-        .pcDebugName = "skybox view specific bindgroup"
     };
 
     const plBindGroupDesc tDeferredBG1Desc = {
@@ -2462,15 +2474,10 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .pcDebugName = "view specific bindgroup"
     };
 
-    const plBindGroupDesc tSceneBGDesc = {
+    const plBindGroupDesc tViewBGDesc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-        .tLayout     = gptData->tSceneBGLayout,
+        .tLayout     = gptData->tViewBGLayout,
         .pcDebugName = "light bind group 2"
-    };
-
-    const plBindGroupUpdateSamplerData tShadowSamplerData = {
-        .tSampler = gptData->tShadowSampler,
-        .uSlot    = 5
     };
 
     const plBindGroupDesc tPickBGDesc = {
@@ -2522,20 +2529,19 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plGpuGlobalData tBindGroupBuffer = {
+    const plGpuViewData tBindGroupBuffer = {
         .tViewportSize         = {.xy = ptView->tTargetSize, .ignored0_ = 1.0f, .ignored1_ = 1.0f},
-        .tViewportInfo         = {0},
         .tCameraPos            = ptCamera->tPos,
         .tCameraProjection     = ptCamera->tProjMat,
         .tCameraView           = ptCamera->tViewMat,
         .tCameraViewProjection = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat)
     };
-    memcpy(gptGfx->get_buffer(ptDevice, ptView->atGlobalBuffers[uFrameIdx])->tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(plGpuGlobalData));
+    memcpy(gptGfx->get_buffer(ptDevice, ptView->atView2Buffers[uFrameIdx])->tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(plGpuViewData));
 
     const plBindGroupUpdateBufferData tDeferredBG1BufferData = {
-        .tBuffer       = ptView->atGlobalBuffers[uFrameIdx],
+        .tBuffer       = ptView->atView2Buffers[uFrameIdx],
         .uSlot         = 0,
-        .szBufferRange = sizeof(plGpuGlobalData)
+        .szBufferRange = sizeof(plGpuViewData)
     };
 
     plBindGroupUpdateData tDeferredBG1Data = {
@@ -2655,7 +2661,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
                 .uTriangleCount       = tDrawable.uTriangleCount,
                 .uVertexOffset        = tDrawable.uStaticVertexOffset,
                 .atBindGroups = {
-                    ptScene->atGlobalBindGroup[uFrameIdx],
+                    ptScene->atBindGroups[uFrameIdx],
                     tDeferredBG1
                 },
                 .auDynamicBufferOffsets = {
@@ -2673,24 +2679,23 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     gptGfx->next_subpass(ptSceneEncoder, NULL);
 
-    const plBindGroupUpdateBufferData atSceneBGBufferData[] = 
+    const plBindGroupUpdateBufferData atViewBGBufferData[] = 
     {
-        { .uSlot = 0, .tBuffer = ptView->atGlobalBuffers[uFrameIdx], .szBufferRange = sizeof(plGpuGlobalData) },
-        { .uSlot = 1, .tBuffer = ptScene->atLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLight) * pl_sb_size(ptScene->sbtLightData)},
-        { .uSlot = 2, .tBuffer = ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptView->tDirectionLightShadowData.sbtDLightShadowData)},
-        { .uSlot = 3, .tBuffer = ptScene->atLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptScene->sbtLightShadowData)},
-        { .uSlot = 4, .tBuffer = ptScene->atGPUProbeDataBuffers[uFrameIdx], .szBufferRange = sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData)},
+        { .uSlot = 0, .tBuffer = ptView->atViewBuffers[uFrameIdx], .szBufferRange = sizeof(plGpuViewData) },
+        { .uSlot = 1, .tBuffer = ptView->atView2Buffers[uFrameIdx], .szBufferRange = sizeof(plGpuViewData) },
+        { .uSlot = 2, .tBuffer = ptScene->atLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLight) * pl_sb_size(ptScene->sbtLightData)},
+        { .uSlot = 3, .tBuffer = ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptView->tDirectionLightShadowData.sbtDLightShadowData)},
+        { .uSlot = 4, .tBuffer = ptScene->atLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptScene->sbtLightShadowData)},
+        { .uSlot = 5, .tBuffer = ptScene->atGPUProbeDataBuffers[uFrameIdx], .szBufferRange = sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData)},
     };
 
-    const plBindGroupUpdateData tSceneBGData = {
-        .uBufferCount      = 5,
-        .atBufferBindings  = atSceneBGBufferData,
-        .uSamplerCount     = 1,
-        .atSamplerBindings = &tShadowSamplerData
+    const plBindGroupUpdateData tViewBGData = {
+        .uBufferCount      = 6,
+        .atBufferBindings  = atViewBGBufferData,
     };
-    plBindGroupHandle tSceneBG = gptGfx->create_bind_group(ptDevice, &tSceneBGDesc);
-    gptGfx->update_bind_group(gptData->ptDevice, tSceneBG, &tSceneBGData);
-    gptGfx->queue_bind_group_for_deletion(ptDevice, tSceneBG);
+    plBindGroupHandle tViewBG = gptGfx->create_bind_group(ptDevice, &tViewBGDesc);
+    gptGfx->update_bind_group(gptData->ptDevice, tViewBG, &tViewBGData);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, tViewBG);
 
     plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
     plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
@@ -2710,9 +2715,9 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .uIndexOffset   = 0,
         .uTriangleCount = 2,
         .atBindGroups = {
-            ptScene->atGlobalBindGroup[uFrameIdx],
-            ptView->tLightingBindGroup,
-            tSceneBG
+            ptScene->atBindGroups[uFrameIdx],
+            tViewBG,
+            ptView->tLightingBindGroup
         },
         .auDynamicBufferOffsets = {
             tLightingDynamicData.uByteOffset
@@ -2729,23 +2734,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     if(ptScene->tSkyboxTexture.uIndex != 0 && ptView->bShowSkybox)
     {
         ptView->bShowSkybox = false;
-
-        const plBindGroupUpdateBufferData tSkyboxBG0BufferData = {
-            .tBuffer       = ptView->atGlobalBuffers[uFrameIdx],
-            .uSlot         = 0,
-            .szBufferRange = sizeof(plGpuGlobalData)
-        };
-
-        plBindGroupUpdateData tSkyboxBG0Data = {
-            .uBufferCount = 1,
-            .atBufferBindings = &tSkyboxBG0BufferData,
-            .uSamplerCount = 1,
-            .atSamplerBindings = &tSkyboxSamplerData,
-        };
-
-        plBindGroupHandle tSkyboxBG0 = gptGfx->create_bind_group(ptDevice, &tSkyboxBG0Desc);
-        gptGfx->update_bind_group(gptData->ptDevice, tSkyboxBG0, &tSkyboxBG0Data);
-        gptGfx->queue_bind_group_for_deletion(ptDevice, tSkyboxBG0);
 
         plDynamicBinding tSkyboxDynamicData = pl__allocate_dynamic_data(ptDevice);
         plGpuDynSkybox* ptSkyboxDynamicData = (plGpuDynSkybox*)tSkyboxDynamicData.pcData;
@@ -2766,7 +2754,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             .uIndexOffset   = ptScene->tSkyboxDrawable.uIndexOffset,
             .uTriangleCount = ptScene->tSkyboxDrawable.uIndexCount / 3,
             .atBindGroups = {
-                tSkyboxBG0,
+                ptScene->atBindGroups[uFrameIdx],
+                tViewBG,
                 ptScene->tSkyboxBindGroup
             },
             .auDynamicBufferOffsets = {
@@ -2811,8 +2800,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
                 .uTriangleCount = tDrawable.uTriangleCount,
                 .uVertexOffset  = tDrawable.uStaticVertexOffset,
                 .atBindGroups = {
-                    ptScene->atGlobalBindGroup[uFrameIdx],
-                    tSceneBG
+                    ptScene->atBindGroups[uFrameIdx],
+                    tViewBG
                 },
                 .auDynamicBufferOffsets = {
                     tDynamicBinding.uByteOffset
@@ -2866,7 +2855,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     {
         pl_begin_cpu_sample(gptProfile, 0, "Picking Submission");
 
-        plShaderHandle tPickShader = gptShaderVariant->get_shader("picking", NULL, NULL, &gptData->tPickRenderPassLayout);
+        plShaderHandle tPickShader = gptShaderVariant->get_shader("picking", NULL, NULL, NULL, &gptData->tPickRenderPassLayout);
 
         plBuffer* ptPickBuffer = gptGfx->get_buffer(ptDevice, ptView->atPickBuffer[uFrameIdx]);
         // memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
@@ -2875,27 +2864,12 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         ptView->auHoverResultReady[uFrameIdx] = false;
         ptView->bRequestHoverCheck = false;
 
-        const plBindGroupUpdateBufferData tPickBG0BufferData = {
-            .tBuffer       = ptView->atGlobalBuffers[uFrameIdx],
-            .uSlot         = 0,
-            .szBufferRange = sizeof(plGpuGlobalData)
-        };
-
-        const plBindGroupUpdateData tPickBGData0 = {
-            .uBufferCount     = 1,
-            .atBufferBindings = &tPickBG0BufferData,
-        };
-
-        plBindGroupHandle tPickBG0 = gptGfx->create_bind_group(ptDevice, &tPickBGDesc);
-        gptGfx->update_bind_group(gptData->ptDevice, tPickBG0, &tPickBGData0);
-        gptGfx->queue_bind_group_for_deletion(ptDevice, tPickBG0);
-
         plRenderEncoder* ptPickEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tPickRenderPass, NULL);
         gptGfx->set_depth_bias(ptPickEncoder, 0.0f, 0.0f, 0.0f);
         gptGfx->bind_shader(ptPickEncoder, tPickShader);
         gptGfx->bind_vertex_buffer(ptPickEncoder, ptScene->tVertexBuffer);
 
-        plBindGroupHandle atBindGroups[2] = {tPickBG0, ptView->atPickBindGroup[uFrameIdx]};
+        plBindGroupHandle atBindGroups[2] = {tViewBG, ptView->atPickBindGroup[uFrameIdx]};
         gptGfx->bind_graphics_bind_groups(ptPickEncoder, tPickShader, 0, 2, atBindGroups, 0, NULL);
 
         const uint32_t uVisibleDrawCount = pl_sb_size(ptView->sbtVisibleDrawables);

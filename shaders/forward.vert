@@ -2,7 +2,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "global.inc"
+#include "bg_scene.inc"
+#include "bg_view.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -15,15 +16,6 @@ layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iRenderingFlags = 0;
 layout(constant_id = 5) const int iLightCount = 0;
 layout(constant_id = 6) const int iProbeCount = 0;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 1
-//-----------------------------------------------------------------------------
-
-layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
-{
-    plGpuGlobalData data[];
-} tGlobalInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -99,8 +91,8 @@ void main()
         inTexCoord7 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
         iCurrentAttribute++;
     }
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0))   { inColor0       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1))   { inColor1       = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0))   { inColor0 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
+    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1))   { inColor1 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
     tShaderIn.tWorldNormal = mat3(tTransform) * normalize(inNormal);
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
@@ -118,7 +110,7 @@ void main()
 
     vec4 pos = tTransform * inPosition;
     tShaderIn.tWorldPosition = pos.xyz / pos.w;
-    gl_Position = tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraViewProjection * pos;
+    gl_Position = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraViewProjection * pos;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tUV[2] = inTexCoord2;

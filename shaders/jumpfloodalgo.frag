@@ -2,14 +2,14 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 #include "pl_shader_interop_renderer.h"
+#include "bg_scene.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0
 //-----------------------------------------------------------------------------
 
-layout(set = 0, binding = 0)  uniform sampler tSampler;
-layout(set = 0, binding = 1)  uniform texture2D tColorTexture;
-layout(set = 0, binding = 2)  uniform texture2D tMaskTexture;
+layout(set = 1, binding = 0)  uniform texture2D tColorTexture;
+layout(set = 1, binding = 1)  uniform texture2D tMaskTexture;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -42,11 +42,11 @@ void
 main() 
 {
 
-    vec4 color = texture(sampler2D(tColorTexture, tSampler), tShaderIn.tUV);
-    vec2 closestSeed = texture(sampler2D(tMaskTexture, tSampler), tShaderIn.tUV).xy;
+    vec4 color = texture(sampler2D(tColorTexture, tSamplerLinearRepeat), tShaderIn.tUV);
+    vec2 closestSeed = texture(sampler2D(tMaskTexture, tSamplerLinearRepeat), tShaderIn.tUV).xy;
     vec2 h = closestSeed - tShaderIn.tUV;
-    float xdist = h.x * float(textureSize(sampler2D(tColorTexture, tSampler),0).x);
-    float ydist = h.y * float(textureSize(sampler2D(tColorTexture, tSampler),0).y);
+    float xdist = h.x * float(textureSize(sampler2D(tColorTexture, tSamplerLinearRepeat),0).x);
+    float ydist = h.y * float(textureSize(sampler2D(tColorTexture, tSamplerLinearRepeat),0).y);
     float tdist2 = xdist * xdist + ydist * ydist;
     float dist = distance(closestSeed, tShaderIn.tUV);
     if (closestSeed.x > 0 && closestSeed.y > 0 && dist > 0.0001 && tdist2 < tObjectInfo.tData.fTargetWidth * tObjectInfo.tData.fTargetWidth)

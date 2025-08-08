@@ -3,7 +3,7 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_ARB_shader_viewport_layer_array : enable
 
-#include "global.inc"
+#include "bg_scene.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants

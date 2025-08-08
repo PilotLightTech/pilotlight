@@ -2,7 +2,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "global.inc"
+#include "bg_scene.inc"
+#include "bg_view.inc"
 #include "math.glsl"
 
 //-----------------------------------------------------------------------------
@@ -14,44 +15,13 @@ layout(constant_id = 1) const int iLightCount = 0;
 layout(constant_id = 2) const int iProbeCount = 0;
 
 //-----------------------------------------------------------------------------
-// [SECTION] bind group 1
-//-----------------------------------------------------------------------------
-
-layout(input_attachment_index = 1, set = 1, binding = 0)  uniform subpassInput tAlbedoSampler;
-layout(input_attachment_index = 2, set = 1, binding = 1)  uniform subpassInput tNormalTexture;
-layout(input_attachment_index = 3, set = 1, binding = 2)  uniform subpassInput tAOMetalRoughnessTexture;
-layout(input_attachment_index = 0, set = 1, binding = 3)  uniform subpassInput tDepthSampler;
-
-//-----------------------------------------------------------------------------
 // [SECTION] bind group 2
 //-----------------------------------------------------------------------------
 
-layout(set = 2, binding = 0) readonly buffer _plGlobalInfo
-{
-    plGpuGlobalData data[];
-} tGlobalInfo;
-
-layout(set = 2, binding = 1) uniform _plLightInfo
-{
-    plGpuLight atData[1];
-} tLightInfo;
-
-layout(set = 2, binding = 2) readonly buffer plDShadowData
-{
-    plGpuLightShadow atData[];
-} tDShadowData;
-
-layout(set = 2, binding = 3) readonly buffer plShadowData
-{
-    plGpuLightShadow atData[];
-} tShadowData;
-
-layout(set = 2, binding = 4) readonly buffer plProbeData
-{
-    plGpuProbe atData[];
-} tProbeData;
-
-layout(set = 2, binding = 5)  uniform sampler tShadowSampler;
+layout(input_attachment_index = 1, set = 2, binding = 0)  uniform subpassInput tAlbedoSampler;
+layout(input_attachment_index = 2, set = 2, binding = 1)  uniform subpassInput tNormalTexture;
+layout(input_attachment_index = 3, set = 2, binding = 2)  uniform subpassInput tAOMetalRoughnessTexture;
+layout(input_attachment_index = 0, set = 2, binding = 3)  uniform subpassInput tDepthSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -82,11 +52,11 @@ void main()
     vec3 color = vec3(0);
     
     float depth = subpassLoad(tDepthSampler).r;
-    vec3 ndcSpace = vec3((gl_FragCoord.x - tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportInfo.x) / tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.x, (gl_FragCoord.y - tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportInfo.y) / tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.y, depth);
+    vec3 ndcSpace = vec3(gl_FragCoord.x / tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.x, gl_FragCoord.y / tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.y, depth);
 
     vec3 clipSpace = ndcSpace;
     clipSpace.xy = clipSpace.xy * 2.0 - 1.0;
-    vec4 homoLocation = inverse(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraProjection) * vec4(clipSpace, 1.0);
+    vec4 homoLocation = inverse(tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraProjection) * vec4(clipSpace, 1.0);
 
     vec4 tViewPosition = homoLocation;
     tViewPosition.xyz = tViewPosition.xyz / tViewPosition.w;
@@ -94,7 +64,7 @@ void main()
     tViewPosition.y = tViewPosition.y;
     tViewPosition.z = tViewPosition.z;
     tViewPosition.w = 1.0;
-    vec4 tWorldPosition = inverse(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraView) * tViewPosition;
+    vec4 tWorldPosition = inverse(tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraView) * tViewPosition;
     vec3 n = Decode(subpassLoad(tNormalTexture).xy);
 
     MaterialInfo materialInfo;
@@ -123,7 +93,7 @@ void main()
     vec3 f_metal_brdf_ibl = vec3(0.0);
     vec3 f_emissive = vec3(0.0);
    
-    vec3 v = normalize(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
+    vec3 v = normalize(tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
 
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
@@ -146,7 +116,7 @@ void main()
         {
             f_diffuse = getDiffuseLight(n, iProbeIndex) * tBaseColor.rgb;
 
-            int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tEnvSampler));
+            int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
             f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips, tWorldPosition.xyz, iProbeIndex);
             f_specular_dielectric = f_specular_metal;
 

@@ -2,15 +2,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 #include "pl_shader_interop_renderer.h"
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 0
-//-----------------------------------------------------------------------------
-
-layout(set = 0, binding = 0) uniform _plGlobalInfo
-{
-    plGpuGlobalData tData;
-} tGlobalInfo;
+#define PL_VIEW_SET_LOCATION 0
+#include "bg_view.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -42,7 +35,7 @@ void main()
 {
     vec4 inPosition  = vec4(inPos, 1.0);
     vec4 pos = tObjectInfo.tData.tModel * inPosition;
-    gl_Position = tGlobalInfo.tData.tCameraViewProjection * pos;
+    gl_Position = tViewInfo2.data[0].tCameraViewProjection * pos;
     tShaderOut.uID = tObjectInfo.tData.uID;
     tShaderOut.tMousePos = tObjectInfo.tData.tMousePos.xy;
 }

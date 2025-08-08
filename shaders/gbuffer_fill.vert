@@ -21,7 +21,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "global.inc"
+#include "bg_scene.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -39,8 +39,8 @@ layout(constant_id = 4) const int iRenderingFlags = 0;
 
 layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
 {
-    plGpuGlobalData data[];
-} tGlobalInfo;
+    plGpuViewData data[];
+} tViewInfo2;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -136,7 +136,7 @@ void main()
 
     vec4 pos = tTransform * inPosition;
     tShaderIn.tWorldPosition = pos.xyz / pos.w;
-    gl_Position = tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraViewProjection * pos;
+    gl_Position = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraViewProjection * pos;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tUV[2] = inTexCoord2;

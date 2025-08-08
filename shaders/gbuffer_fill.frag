@@ -22,7 +22,8 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "global.inc"
+#include "bg_scene.inc"
+#include "bg_view.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -33,15 +34,6 @@ layout(constant_id = 1) const int iDataStride = 0;
 layout(constant_id = 2) const int iTextureMappingFlags = 0;
 layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iRenderingFlags = 0;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 1
-//-----------------------------------------------------------------------------
-
-layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
-{
-    plGpuGlobalData data[];
-} tGlobalInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -113,7 +105,7 @@ void main()
     float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
-        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.iOcclusionTexIdx)], tDefaultSampler), tShaderIn.tUV[material.iOcclusionUVSet]).r;
+        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.iOcclusionTexIdx)], tSamplerLinearRepeat), tShaderIn.tUV[material.iOcclusionUVSet]).r;
     }
 
     // fill g-buffer

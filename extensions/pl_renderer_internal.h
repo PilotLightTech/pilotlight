@@ -247,7 +247,8 @@ typedef struct _plEnvironmentProbeData
     plBindGroupHandle atLightingBindGroup[6];
 
     // GPU buffers
-    plBufferHandle atGlobalBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atViewBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atView2Buffers[PL_MAX_FRAMES_IN_FLIGHT];
 
     // submitted drawables
     uint32_t* sbuVisibleDeferredEntities[6];
@@ -312,7 +313,8 @@ typedef struct _plView
     plBindGroupHandle tLightingBindGroup;
 
     // GPU buffers
-    plBufferHandle atGlobalBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atViewBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atView2Buffers[PL_MAX_FRAMES_IN_FLIGHT];
 
     // submitted drawables
     uint32_t* sbtVisibleDrawables;
@@ -351,9 +353,10 @@ typedef struct _plScene
     uint32_t*      sbuIndexBuffer;
     plGpuMaterial* sbtMaterialBuffer;
     plVec4*        sbtSkinVertexDataBuffer;
-    plGpuLight*   sbtLightData;
+    plGpuLight*    sbtLightData;
 
     // GPU buffers
+    plBufferHandle atSceneBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle tVertexBuffer;
     plBufferHandle tIndexBuffer;
     plBufferHandle tStorageBuffer;
@@ -405,20 +408,20 @@ typedef struct _plScene
     uint32_t          uCubeTextureIndexCount;
     plHashMap64       tTextureIndexHashmap; // texture handle <-> index
     plHashMap64       tCubeTextureIndexHashmap; // texture handle <-> index
-    plBindGroupHandle atGlobalBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle atBindGroups[PL_MAX_FRAMES_IN_FLIGHT];
 
     // material hashmaps (material component <-> GPU material)
     plMaterialComponent* sbtMaterials;
     plHashMap64 tMaterialHashmap;
 
     // shadows
-    plBufferHandle atShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferHandle atLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle    atShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle    atLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plGpuLightShadow* sbtLightShadowData;
-    uint32_t              uShadowOffset;
-    uint32_t              uShadowIndex;
-    uint32_t              uDShadowOffset;
-    uint32_t              uDShadowIndex;
+    uint32_t          uShadowOffset;
+    uint32_t          uShadowIndex;
+    uint32_t          uDShadowOffset;
+    uint32_t          uDShadowIndex;
 
     // environment probes
     plEntity tProbeMesh;
@@ -462,7 +465,7 @@ typedef struct _plRefRendererData
     plRenderPassLayoutHandle tPickRenderPassLayout;
 
     // bind group layouts
-    plBindGroupLayoutHandle tSceneBGLayout;
+    plBindGroupLayoutHandle tViewBGLayout;
     plBindGroupLayoutHandle tShadowGlobalBGLayout;
 
     // renderer specific log channel
@@ -474,12 +477,14 @@ typedef struct _plRefRendererData
     plDeviceMemoryAllocatorI* ptStagingUnCachedAllocator;
     plDeviceMemoryAllocatorI* ptStagingUnCachedBuddyAllocator;
     plDeviceMemoryAllocatorI* ptStagingCachedAllocator;
+    
+    // samplers
+    plSamplerHandle tSamplerLinearClamp;
+    plSamplerHandle tSamplerNearestClamp;
+    plSamplerHandle tSamplerLinearRepeat;
+    plSamplerHandle tSamplerNearestRepeat;
 
-    // default textures & samplers & bindgroups
-    plSamplerHandle tDefaultSampler;
-    plSamplerHandle tSkyboxSampler;
-    plSamplerHandle tShadowSampler;
-    plSamplerHandle tEnvSampler;
+    // default textures
     plTextureHandle tDummyTexture;
     plTextureHandle tDummyTextureCube;
 

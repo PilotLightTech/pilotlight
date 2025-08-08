@@ -2,7 +2,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "global.inc"
+#include "bg_scene.inc"
+#include "bg_view.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -15,37 +16,6 @@ layout(constant_id = 3) const int iMaterialFlags = 0;
 layout(constant_id = 4) const int iRenderingFlags = 0;
 layout(constant_id = 5) const int iLightCount = 0;
 layout(constant_id = 6) const int iProbeCount = 0;
-
-//-----------------------------------------------------------------------------
-// [SECTION] bind group 1
-//-----------------------------------------------------------------------------
-
-layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
-{
-    plGpuGlobalData data[];
-} tGlobalInfo;
-
-layout(set = 1, binding = 1) uniform _plLightInfo
-{
-    plGpuLight atData[1];
-} tLightInfo;
-
-layout(set = 1, binding = 2) readonly buffer plDShadowData
-{
-    plGpuLightShadow atData[];
-} tDShadowData;
-
-layout(set = 1, binding = 3) readonly buffer plShadowData
-{
-    plGpuLightShadow atData[];
-} tShadowData;
-
-layout(set = 1, binding = 4) readonly buffer plProbeData
-{
-    plGpuProbe atData[];
-} tProbeData;
-
-layout(set = 1, binding = 5)  uniform sampler tShadowSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -128,7 +98,7 @@ void main()
     vec3 f_metal_brdf_ibl = vec3(0.0);
     vec3 f_emissive = vec3(0.0);
     
-    vec3 v = normalize(tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tShaderIn.tWorldPosition.xyz);
+    vec3 v = normalize(tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tShaderIn.tWorldPosition.xyz);
 
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
@@ -151,7 +121,7 @@ void main()
         {
             f_diffuse = getDiffuseLight(n, iProbeIndex) * tBaseColor.rgb;
 
-            int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tEnvSampler));
+            int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
             f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips, tShaderIn.tWorldPosition.xyz, iProbeIndex);
             f_specular_dielectric = f_specular_metal;
 
@@ -173,7 +143,7 @@ void main()
     {
         float u_OcclusionStrength = 1.0;
         float ao = 1.0;
-        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.iOcclusionTexIdx)], tDefaultSampler), tShaderIn.tUV[material.iOcclusionUVSet]).r;
+        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.iOcclusionTexIdx)], tSamplerLinearRepeat), tShaderIn.tUV[material.iOcclusionUVSet]).r;
         color = color * (1.0 + u_OcclusionStrength * (ao - 1.0)); 
     }
 
@@ -208,7 +178,7 @@ void main()
 
                     // Get cascade index for the current fragment's view position
                     
-                    vec4 inViewPos = tGlobalInfo.data[tObjectInfo.tData.uGlobalIndex].tCameraView * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
+                    vec4 inViewPos = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraView * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
                     for(uint j = 0; j < tLightData.iCascadeCount - 1; ++j)
                     {
                         if(inViewPos.z > tShadowData.cascadeSplits[j])
@@ -294,7 +264,7 @@ void main()
                             vec2(1, 2),
                         };
                         vec2 sampleLocation = vec2(tShadowData.fXOffset, tShadowData.fYOffset) + (result.xy * tShadowData.fFactor) + (faceoffsets[int(result.z)] * tShadowData.fFactor);
-                        float dist = texture(sampler2D(at2DTextures[nonuniformEXT(tShadowData.iShadowMapTexIdx)], tShadowSampler), sampleLocation).r;
+                        float dist = texture(sampler2D(at2DTextures[nonuniformEXT(tShadowData.iShadowMapTexIdx)], tSamplerNearestClamp), sampleLocation).r;
                         float fDist = shadowCoord.z;
                         dist = dist * shadowCoord.w;
                         // dist = 1 - dist * shadowCoord.w;
@@ -413,7 +383,7 @@ void main()
     f_emissive = material.tEmissiveFactor;
     if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
     {
-        f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.iEmissiveTexIdx)], tDefaultSampler), tShaderIn.tUV[material.iEmissiveUVSet]).rgb);
+        f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.iEmissiveTexIdx)], tSamplerLinearRepeat), tShaderIn.tUV[material.iEmissiveUVSet]).rgb);
     }
 
     color = f_emissive + color;

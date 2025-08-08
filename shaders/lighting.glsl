@@ -1,9 +1,9 @@
+
 vec3
 getDiffuseLight(vec3 n, int iProbeIndex)
 {
     // n.z = -n.z; // uncomment if not reverse z
-    // return texture(samplerCube(u_LambertianEnvSampler, tEnvSampler), n).rgb;
-    return texture(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uLambertianEnvSampler)], tEnvSampler), n).rgb;
+    return texture(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uLambertianEnvSampler)], tSamplerNearestRepeat), n).rgb;
 }
 
 vec4
@@ -11,8 +11,7 @@ getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
 {
     // reflection.z = -reflection.z; // uncomment if not reverse z
     // reflection.x = -reflection.x; // uncomment if not reverse z
-    // return textureLod(samplerCube(u_GGXEnvSampler, tEnvSampler), reflection, lod);
-    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tEnvSampler), reflection, lod);
+    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat), reflection, lod);
 }
 
 vec3
@@ -22,7 +21,7 @@ getIBLGGXFresnel(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight,
     // Roughness dependent fresnel, from Fdez-Aguera
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXLUT)], tEnvSampler), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXLUT)], tSamplerNearestRepeat), brdfSamplePoint).rg;
     vec3 Fr = max(vec3(1.0 - roughness), F0) - F0;
     vec3 k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);
     vec3 FssEss = specularWeight * (k_S * f_ab.x + f_ab.y);
@@ -77,7 +76,7 @@ textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
     {
-		float dist = 1.0 - texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), comp2).r * shadowCoord.w;
+		float dist = 1.0 - texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), comp2).r * shadowCoord.w;
 		if (shadowCoord.w > 0 && dist < shadowCoord.z)
         {
 			shadow = 0.0; // ambient
@@ -94,7 +93,7 @@ textureProj2(vec4 shadowCoord, vec2 offset, int textureIndex)
 
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
     {
-		float dist = texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), comp2).r;
+		float dist = texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), comp2).r;
 		if (shadowCoord.w > 0 && dist > shadowCoord.z)
         {
 			shadow = 0.0; // ambient
@@ -106,7 +105,7 @@ textureProj2(vec4 shadowCoord, vec2 offset, int textureIndex)
 float
 filterPCF(vec4 sc, vec2 offset, int textureIndex)
 {
-	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), 0).xy;
+	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), 0).xy;
 	float scale = 1.0;
 	float dx = scale * 1.0 / (float(texDim.x));
 	float dy = scale * 1.0 / (float(texDim.y));
@@ -127,7 +126,7 @@ filterPCF(vec4 sc, vec2 offset, int textureIndex)
 float
 filterPCF2(vec4 sc, vec2 offset, int textureIndex)
 {
-	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tShadowSampler), 0).xy;
+	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), 0).xy;
 	float scale = 1.0;
 	float dx = scale * 1.0 / (float(texDim.x));
 	float dy = scale * 1.0 / (float(texDim.y));

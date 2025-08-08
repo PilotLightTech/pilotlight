@@ -9,6 +9,8 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] enums
 // [SECTION] common
+// [SECTION] scene
+// [SECTION] view
 // [SECTION] tonemapping
 // [SECTION] environment filtering
 // [SECTION] shadows
@@ -38,7 +40,8 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #define PL_MAX_BINDLESS_TEXTURES 4096
-#define PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT PL_MAX_BINDLESS_TEXTURES + 5
+#define PL_MAX_BINDLESS_TEXTURE_SLOT 8
+#define PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT PL_MAX_BINDLESS_TEXTURES + PL_MAX_BINDLESS_TEXTURE_SLOT
 
 #define PL_INFO_MATERIAL_METALLICROUGHNESS 1
 
@@ -93,12 +96,32 @@ PL_END_ENUM
 // [SECTION] common
 //-----------------------------------------------------------------------------
 
-PL_BEGIN_STRUCT(plGpuGlobalData)
+PL_BEGIN_STRUCT(plGpuDynData)
+    int  iDataOffset;
+    int  iVertexOffset;
+    int  iMaterialIndex;
+    uint uGlobalIndex;
+PL_END_STRUCT(plGpuDynData)
 
-    vec4 tViewportSize;
+//-----------------------------------------------------------------------------
+// [SECTION] scene
+//-----------------------------------------------------------------------------
+
+PL_BEGIN_STRUCT(plGpuSceneData)
+
+    vec4 tUnused;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    vec4 tViewportInfo;
+    // ~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuSceneData)
+
+//-----------------------------------------------------------------------------
+// [SECTION] view
+//-----------------------------------------------------------------------------
+
+PL_BEGIN_STRUCT(plGpuViewData)
+
+    vec4 tViewportSize;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     vec4 tCameraPos;
@@ -113,15 +136,8 @@ PL_BEGIN_STRUCT(plGpuGlobalData)
     mat4 tCameraViewProjection;
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~240 bytes~~~~~~~~~~~~~~~~
-PL_END_STRUCT(plGpuGlobalData)
-
-PL_BEGIN_STRUCT(plGpuDynData)
-    int  iDataOffset;
-    int  iVertexOffset;
-    int  iMaterialIndex;
-    uint uGlobalIndex;
-PL_END_STRUCT(plGpuDynData)
+    // ~~~~~~~~~~~~~~~~224 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuViewData)
 
 //-----------------------------------------------------------------------------
 // [SECTION] tonemapping

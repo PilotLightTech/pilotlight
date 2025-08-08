@@ -966,7 +966,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                             .uTriangleCount       = tDrawable.uTriangleCount,
                             .uVertexOffset        = tDrawable.uStaticVertexOffset,
                             .atBindGroups = {
-                                ptScene->atGlobalBindGroup[uFrameIdx],
+                                ptScene->atBindGroups[uFrameIdx],
                                 tGlobalBG0
                             },
                             .auDynamicBufferOffsets = {
@@ -1011,7 +1011,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                             .uTriangleCount       = tDrawable.uTriangleCount,
                             .uVertexOffset        = tDrawable.uStaticVertexOffset,
                             .atBindGroups = {
-                                ptScene->atGlobalBindGroup[uFrameIdx],
+                                ptScene->atBindGroups[uFrameIdx],
                                 tGlobalBG0
                             },
                             .auDynamicBufferOffsets = {
@@ -1151,7 +1151,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                                 .uTriangleCount       = tDrawable.uTriangleCount,
                                 .uVertexOffset        = tDrawable.uStaticVertexOffset,
                                 .atBindGroups = {
-                                    ptScene->atGlobalBindGroup[uFrameIdx],
+                                    ptScene->atBindGroups[uFrameIdx],
                                     tGlobalBG0
                                 },
                                 .auDynamicBufferOffsets = {
@@ -1194,7 +1194,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                                 .uTriangleCount       = tDrawable.uTriangleCount,
                                 .uVertexOffset        = tDrawable.uStaticVertexOffset,
                                 .atBindGroups = {
-                                    ptScene->atGlobalBindGroup[uFrameIdx],
+                                    ptScene->atBindGroups[uFrameIdx],
                                     tGlobalBG0
                                 },
                                 .auDynamicBufferOffsets = {
@@ -1279,7 +1279,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                         .uTriangleCount       = tDrawable.uTriangleCount,
                         .uVertexOffset        = tDrawable.uStaticVertexOffset,
                         .atBindGroups = {
-                            ptScene->atGlobalBindGroup[uFrameIdx],
+                            ptScene->atBindGroups[uFrameIdx],
                             tGlobalBG0
                         },
                         .auDynamicBufferOffsets = {
@@ -1322,7 +1322,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                         .uTriangleCount       = tDrawable.uTriangleCount,
                         .uVertexOffset        = tDrawable.uStaticVertexOffset,
                         .atBindGroups = {
-                            ptScene->atGlobalBindGroup[uFrameIdx],
+                            ptScene->atBindGroups[uFrameIdx],
                             tGlobalBG0
                         },
                         .auDynamicBufferOffsets = {
@@ -1648,7 +1648,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                         .uTriangleCount       = tDrawable.uTriangleCount,
                         .uVertexOffset        = tDrawable.uStaticVertexOffset,
                         .atBindGroups = {
-                            ptScene->atGlobalBindGroup[uFrameIdx],
+                            ptScene->atBindGroups[uFrameIdx],
                             tShadowBG1
                         },
                         .auDynamicBufferOffsets = {
@@ -1691,7 +1691,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                         .uTriangleCount       = tDrawable.uTriangleCount,
                         .uVertexOffset        = tDrawable.uStaticVertexOffset,
                         .atBindGroups = {
-                            ptScene->atGlobalBindGroup[uFrameIdx],
+                            ptScene->atBindGroups[uFrameIdx],
                             tShadowBG1
                         },
                         .auDynamicBufferOffsets = {
@@ -1806,7 +1806,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                             .uTriangleCount       = tDrawable.uTriangleCount,
                             .uVertexOffset        = tDrawable.uStaticVertexOffset,
                             .atBindGroups = {
-                                ptScene->atGlobalBindGroup[uFrameIdx],
+                                ptScene->atBindGroups[uFrameIdx],
                                 tShadowBG1
                             },
                             .auDynamicBufferOffsets = {
@@ -1850,7 +1850,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                             .uTriangleCount       = tDrawable.uTriangleCount,
                             .uVertexOffset        = tDrawable.uStaticVertexOffset,
                             .atBindGroups = {
-                                ptScene->atGlobalBindGroup[uFrameIdx],
+                                ptScene->atBindGroups[uFrameIdx],
                                 tShadowBG1
                             },
                             .auDynamicBufferOffsets = {
@@ -1918,13 +1918,13 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
     // create bind groups
     const plBindGroupDesc tOutlineBGDesc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("jumpfloodalgo2", 0),
+        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("jumpfloodalgo2", 1),
         .pcDebugName = "temp bind group 0"
     };
     plBindGroupHandle tJFABindGroup0 = gptGfx->create_bind_group(gptData->ptDevice, &tOutlineBGDesc);
 
     const plBindGroupUpdateSamplerData tOutlineSamplerData = {
-        .tSampler = gptData->tDefaultSampler,
+        .tSampler = gptData->tSamplerLinearRepeat,
         .uSlot = 0
     };
 
@@ -1933,20 +1933,18 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
     {
         {
             .tTexture = ptView->tRawOutputTexture,
-            .uSlot    = 1,
+            .uSlot    = 0,
             .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
         },
         {
             .tTexture = ptView->tLastUVMask,
-            .uSlot    = 2,
+            .uSlot    = 1,
             .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED,
             .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
         },
     };
 
     const plBindGroupUpdateData tJFABGData = {
-        .uSamplerCount = 1,
-        .atSamplerBindings = &tOutlineSamplerData,
         .uTextureCount = 2,
         .atTextureBindings = tOutlineTextureData
     };
@@ -1963,7 +1961,8 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
     plShaderHandle tTonemapShader = gptShaderVariant->get_shader("jumpfloodalgo2", NULL, NULL, NULL, &gptData->tPostProcessRenderPassLayout);
     gptGfx->bind_shader(ptEncoder, tTonemapShader);
     gptGfx->bind_vertex_buffer(ptEncoder, gptData->tFullQuadVertexBuffer);
-    gptGfx->bind_graphics_bind_groups(ptEncoder, tTonemapShader, 0, 1, &tJFABindGroup0, 1, &tDynamicBinding);
+    plBindGroupHandle atBindGroups[] = {ptScene->atBindGroups[uFrameIdx], tJFABindGroup0};
+    gptGfx->bind_graphics_bind_groups(ptEncoder, tTonemapShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
     *gptData->pdDrawCalls += 1.0;
     gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
@@ -2384,7 +2383,7 @@ pl__renderer_get_bindless_texture_index(plScene* ptScene, plTextureHandle tTextu
     const plBindGroupUpdateTextureData tGlobalTextureData[] = {
         {
             .tTexture = tTexture,
-            .uSlot    = 5,
+            .uSlot    = PL_MAX_BINDLESS_TEXTURE_SLOT,
             .uIndex   = (uint32_t)ulValue,
             .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
         },
@@ -2396,7 +2395,7 @@ pl__renderer_get_bindless_texture_index(plScene* ptScene, plTextureHandle tTextu
     };
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atBindGroups[i], &tGlobalBindGroupData);
 
     return (uint32_t)ulValue;
 }
@@ -2431,7 +2430,7 @@ pl__renderer_get_bindless_cube_texture_index(plScene* ptScene, plTextureHandle t
     };
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atBindGroups[i], &tGlobalBindGroupData);
 
     return (uint32_t)ulValue;
 }
@@ -2497,7 +2496,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .pcDebugName   = "emissive texture"
     };
 
-    const plBufferDesc atGlobalBuffersDesc = {
+    const plBufferDesc atView2BuffersDesc = {
         .tUsage     = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
         .szByteSize = 4096,
         .pcDebugName = "global buffer"
@@ -2513,6 +2512,12 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
         .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuLightShadow),
         .pcDebugName = "shadow data buffer"
+    };
+
+    const plBufferDesc atViewBuffersDesc = {
+        .tUsage     = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+        .szByteSize = sizeof(plGpuViewData),
+        .pcDebugName = "probe view buffer"
     };
 
     // textures
@@ -2579,7 +2584,8 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
     {
 
         // buffers
-        tProbeData.atGlobalBuffers[i] = pl__renderer_create_staging_buffer(&atGlobalBuffersDesc, "global", i);
+        tProbeData.atView2Buffers[i] = pl__renderer_create_staging_buffer(&atView2BuffersDesc, "scene", i);
+        tProbeData.atViewBuffers[i] = pl__renderer_create_staging_buffer(&atViewBuffersDesc, "view buffer", i);
         
         for(uint32_t uFace = 0; uFace < 6; uFace++)
         {
@@ -2772,32 +2778,21 @@ pl__renderer_update_probes(plScene* ptScene)
         { 0.0f,    0.0f },
     };
 
-    const plBindGroupDesc tSceneBGDesc = {
+    const plBindGroupDesc tViewBGDesc = {
         .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
-        .tLayout     = gptData->tSceneBGLayout,
+        .tLayout     = gptData->tViewBGLayout,
         .pcDebugName = "probe scene bg"
     };
 
-    const plBindGroupDesc tSkyboxBG1Desc = {
-        .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("skybox", 0),
-        .pcDebugName = "skybox bg 1"
-    };
-
     const plBindGroupUpdateSamplerData tSkyboxBG1SamplerData = {
-        .tSampler = gptData->tSkyboxSampler,
+        .tSampler = gptData->tSamplerLinearRepeat,
         .uSlot    = 1
-    };
-
-    const plBindGroupUpdateSamplerData tShadowSamplerData = {
-        .tSampler = gptData->tShadowSampler,
-        .uSlot    = 5
     };
 
     const plBindGroupDesc tGBufferFillBG1Desc = {
         .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
         .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("gbuffer_fill", 1),
-        .pcDebugName = "gbuffer fille bg1"
+        .pcDebugName = "gbuffer fill bg1"
     };
 
     const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
@@ -2821,42 +2816,24 @@ pl__renderer_update_probes(plScene* ptScene)
         // temporary data for probes
 
         // create scene bind group (camera, lights, shadows)
-        const plBindGroupUpdateBufferData tSceneBGBufferData[] = 
+        const plBindGroupUpdateBufferData tViewBGBufferData[] = 
         {
-            { .uSlot = 0, .tBuffer = ptProbe->atGlobalBuffers[uFrameIdx],                                   .szBufferRange = sizeof(plGpuGlobalData) * 6 },
-            { .uSlot = 1, .tBuffer = ptScene->atLightBuffer[uFrameIdx],                                     .szBufferRange = sizeof(plGpuLight) * pl_sb_size(ptScene->sbtLightData)},
-            { .uSlot = 2, .tBuffer = ptProbe->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptProbe->tDirectionLightShadowData.sbtDLightShadowData)},
-            { .uSlot = 3, .tBuffer = ptScene->atLightShadowDataBuffer[uFrameIdx],                           .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptScene->sbtLightShadowData)},
-            { .uSlot = 4, .tBuffer = ptScene->atGPUProbeDataBuffers[uFrameIdx],                              .szBufferRange = sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData)},
+            { .uSlot = 0, .tBuffer = ptProbe->atViewBuffers[uFrameIdx],                                   .szBufferRange = sizeof(plGpuViewData) },
+            { .uSlot = 1, .tBuffer = ptProbe->atView2Buffers[uFrameIdx],                                   .szBufferRange = sizeof(plGpuViewData) * 6 },
+            { .uSlot = 2, .tBuffer = ptScene->atLightBuffer[uFrameIdx],                                     .szBufferRange = sizeof(plGpuLight) * pl_sb_size(ptScene->sbtLightData)},
+            { .uSlot = 3, .tBuffer = ptProbe->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptProbe->tDirectionLightShadowData.sbtDLightShadowData)},
+            { .uSlot = 4, .tBuffer = ptScene->atLightShadowDataBuffer[uFrameIdx],                           .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptScene->sbtLightShadowData)},
+            { .uSlot = 5, .tBuffer = ptScene->atGPUProbeDataBuffers[uFrameIdx],                              .szBufferRange = sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData)},
         };
 
-        const plBindGroupUpdateData tSceneBGData = {
-            .uBufferCount      = 5,
-            .atBufferBindings  = tSceneBGBufferData,
-            .uSamplerCount     = 1,
-            .atSamplerBindings = &tShadowSamplerData
+        const plBindGroupUpdateData tViewBGData = {
+            .uBufferCount      = 6,
+            .atBufferBindings  = tViewBGBufferData
         };
-        plBindGroupHandle tSceneBG = gptGfx->create_bind_group(ptDevice, &tSceneBGDesc);
-        gptGfx->update_bind_group(gptData->ptDevice, tSceneBG, &tSceneBGData);
-        gptGfx->queue_bind_group_for_deletion(ptDevice, tSceneBG);
+        plBindGroupHandle tViewBG = gptGfx->create_bind_group(ptDevice, &tViewBGDesc);
+        gptGfx->update_bind_group(gptData->ptDevice, tViewBG, &tViewBGData);
+        gptGfx->queue_bind_group_for_deletion(ptDevice, tViewBG);
 
-        // create skybox bind group 1
-        const plBindGroupUpdateBufferData tSkyboxBG1BufferData = {
-            .tBuffer       = ptProbe->atGlobalBuffers[uFrameIdx],
-            .uSlot         = 0,
-            .szBufferRange = sizeof(plGpuGlobalData) * 6
-        };
-
-        const plBindGroupUpdateData tSkyboxBG1Data = {
-            .uBufferCount      = 1,
-            .atBufferBindings  = &tSkyboxBG1BufferData,
-            .uSamplerCount     = 1,
-            .atSamplerBindings = &tSkyboxBG1SamplerData,
-        };
-
-        plBindGroupHandle tSkyboxBG1 = gptGfx->create_bind_group(ptDevice, &tSkyboxBG1Desc);
-        gptGfx->update_bind_group(gptData->ptDevice, tSkyboxBG1, &tSkyboxBG1Data);
-        gptGfx->queue_bind_group_for_deletion(ptDevice, tSkyboxBG1);
 
         plDrawArea tArea = {
             .ptDrawStream = ptStream,
@@ -2899,9 +2876,9 @@ pl__renderer_update_probes(plScene* ptScene)
 
         // create g-buffer fill bind group 1
         const plBindGroupUpdateBufferData tGBufferFillBG1BufferData = {
-            .tBuffer       = ptProbe->atGlobalBuffers[uFrameIdx],
+            .tBuffer       = ptProbe->atView2Buffers[uFrameIdx],
             .uSlot         = 0,
-            .szBufferRange = sizeof(plGpuGlobalData) * 6
+            .szBufferRange = sizeof(plGpuViewData) * 6
         };
 
         const plBindGroupUpdateData tGBufferFillBG1Data = {
@@ -2996,7 +2973,7 @@ pl__renderer_update_probes(plScene* ptScene)
                     .uTriangleCount = ptDrawable->uTriangleCount,
                     .uVertexOffset  = ptDrawable->uStaticVertexOffset,
                     .atBindGroups = {
-                        ptScene->atGlobalBindGroup[uFrameIdx],
+                        ptScene->atBindGroups[uFrameIdx],
                         tGBufferFillBG1
                     },
                     .auDynamicBufferOffsets = {
@@ -3035,9 +3012,9 @@ pl__renderer_update_probes(plScene* ptScene)
                 .uIndexOffset         = 0,
                 .uTriangleCount       = 2,
                 .atBindGroups = {
-                    ptScene->atGlobalBindGroup[uFrameIdx],
-                    ptProbe->atLightingBindGroup[uFace],
-                    tSceneBG
+                    ptScene->atBindGroups[uFrameIdx],
+                    tViewBG,
+                    ptProbe->atLightingBindGroup[uFace]
                 },
                 .auDynamicBufferOffsets = {
                     tLightingDynamicData.uByteOffset
@@ -3074,7 +3051,8 @@ pl__renderer_update_probes(plScene* ptScene)
                     .uIndexOffset         = ptScene->tSkyboxDrawable.uIndexOffset,
                     .uTriangleCount       = ptScene->tSkyboxDrawable.uIndexCount / 3,
                     .atBindGroups = {
-                        tSkyboxBG1,
+                        ptScene->atBindGroups[uFrameIdx],
+                        tViewBG,
                         ptScene->tSkyboxBindGroup
                     },
                     .auDynamicBufferOffsets = {
@@ -3119,8 +3097,8 @@ pl__renderer_update_probes(plScene* ptScene)
                     .uTriangleCount       = ptDrawable->uTriangleCount,
                     .uVertexOffset        = ptDrawable->uStaticVertexOffset,
                     .atBindGroups = {
-                        ptScene->atGlobalBindGroup[uFrameIdx],
-                        tSceneBG
+                        ptScene->atBindGroups[uFrameIdx],
+                        tViewBG
                     },
                     .auDynamicBufferOffsets = {
                         tDynamicBinding.uByteOffset
@@ -3215,7 +3193,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         };
 
         const plBindGroupUpdateSamplerData tSamplerData = {
-            .tSampler = gptData->tSkyboxSampler,
+            .tSampler = gptData->tSamplerLinearRepeat,
             .uSlot = 0
         };
         const plBindGroupUpdateTextureData tTextureData = {
@@ -3356,7 +3334,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
     {
 
         const plBindGroupUpdateSamplerData tSamplerData = {
-            .tSampler = gptData->tSkyboxSampler,
+            .tSampler = gptData->tSamplerLinearRepeat,
             .uSlot = 0
         };
         const plBindGroupUpdateTextureData tTextureData = {
@@ -3508,7 +3486,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
 static void
 pl__renderer_set_drawable_shaders(plScene* ptScene)
 {
-    plDevice*   ptDevice = gptData->ptDevice;
+    plDevice* ptDevice = gptData->ptDevice;
 
     int iSceneWideRenderingFlags = 0;
     if(gptData->tRuntimeOptions.bPunctualLighting)
@@ -3922,7 +3900,7 @@ pl__renderer_unstage_drawables(plScene* ptScene)
         ptScene->tSkinBindGroup0 = gptGfx->create_bind_group(ptDevice, &tSkinBindGroupDesc);
 
         const plBindGroupUpdateSamplerData atSamplerData[] = {
-            { .uSlot = 3, .tSampler = gptData->tDefaultSampler}
+            { .uSlot = 3, .tSampler = gptData->tSamplerLinearRepeat}
         };
         const plBindGroupUpdateBufferData atBufferData[] = 
         {
@@ -3949,7 +3927,7 @@ pl__renderer_unstage_drawables(plScene* ptScene)
         {
             {
                 .tBuffer       = ptScene->tStorageBuffer,
-                .uSlot         = 0,
+                .uSlot         = 1,
                 .szBufferRange = ptStorageBuffer->tDesc.szByteSize
             }
         };
@@ -3959,7 +3937,7 @@ pl__renderer_unstage_drawables(plScene* ptScene)
             .atBufferBindings = atGlobalBufferData,
         };
 
-        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atGlobalBindGroup[i], &tGlobalBindGroupData);
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atBindGroups[i], &tGlobalBindGroupData);
     }
 
     pl_sb_free(ptScene->sbtVertexPosBuffer);

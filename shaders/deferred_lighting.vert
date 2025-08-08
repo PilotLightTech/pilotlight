@@ -2,7 +2,12 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "global.inc"
+#include "bg_scene.inc"
+
+layout(constant_id = 0) const int iRenderingFlags = 0;
+layout(constant_id = 1) const int iLightCount = 0;
+layout(constant_id = 2) const int iProbeCount = 0;
+
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------

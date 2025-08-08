@@ -1,32 +1,33 @@
 {
     "bind group layouts": [
         {
-            "pcName": "global",
+            "pcName": "scene",
             "atBufferBindings": [
-                { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
                 { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 3, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ],
             "atSamplerBindings": [
-                { "uSlot": 3, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 4, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                { "uSlot": 4, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 5, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 6, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 7, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ],
             "atTextureBindings": [
-                { "uSlot":    5, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "bNonUniformIndexing": true, "uDescriptorCount": 4096, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]},
-                { "uSlot": 4101, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "bNonUniformIndexing": true, "uDescriptorCount": 4096, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]}
+                { "uSlot":    8, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "bNonUniformIndexing": true, "uDescriptorCount": 4096, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]},
+                { "uSlot": 4104, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "bNonUniformIndexing": true, "uDescriptorCount": 4096, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]}
             ]
         },
         {
-            "pcName": "scene",
+            "pcName": "view",
             "atBufferBindings": [
-                { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
                 { "uSlot": 3, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 4, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
-            ],
-            "atSamplerBindings": [
-                { "uSlot": 5, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                { "uSlot": 4, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 5, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ]
         },
         {
@@ -168,13 +169,11 @@
                 { "bBlendEnabled": false }
             ],
             "atBindGroupLayouts": [
+                { "pcName": "scene" },
                 {
-                    "atSamplerBindings": [
-                        { "uSlot": 0, "tStages": ["PL_SHADER_STAGE_FRAGMENT"] }
-                    ],
                     "atTextureBindings": [
-                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] },
-                        { "uSlot": 2, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] }
+                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] },
+                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] }
                     ]
                 }
             ]
@@ -209,14 +208,8 @@
                 { "bBlendEnabled": false }
             ],
             "atBindGroupLayouts": [
-                {
-                    "atSamplerBindings": [
-                        { "uSlot": 1, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]}
-                    ],
-                    "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
-                    ]
-                },
+                { "pcName": "scene" },
+                { "pcName": "view"  },
                 {
                     "atTextureBindings": [
                         { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
@@ -257,7 +250,7 @@
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
-                { "pcName": "global" },
+                { "pcName": "scene" },
                 {
                     "atBufferBindings": [
                         { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
@@ -307,8 +300,8 @@
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
-                { "pcName": "global" },
-                { "pcName": "scene"  }
+                { "pcName": "scene" },
+                { "pcName": "view"  }
             ]
         },
         {
@@ -370,11 +363,7 @@
                 { "bBlendEnabled": false }
             ],
             "atBindGroupLayouts": [ 
-                {
-                    "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
-                    ]
-                },
+                { "pcName": "view" },
                 {
                     "atBufferBindings": [
                         { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
@@ -538,8 +527,8 @@
                         { "uSlot": 2, "tType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] },
                         { "uSlot": 3, "tType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] }
                     ]
-                },
-                { "pcName": "scene" }
+                }
+                
             ]
         }
     ]
