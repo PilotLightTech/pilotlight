@@ -786,7 +786,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
     int aiConstantData[7] = {0, 0, 0, 0, 0, 0, 0};
-    plShaderHandle tShadowShader = gptShaderVariant->get_shader("shadow", NULL, aiConstantData, &gptData->tDepthRenderPassLayout);
+    plShaderHandle tShadowShader = gptShaderVariant->get_shader("shadow", NULL, aiConstantData, aiConstantData, &gptData->tDepthRenderPassLayout);
 
     plLightComponent* ptLights = NULL;
     gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
@@ -1375,7 +1375,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
     int aiConstantData[7] = {0, 0, 0, 0, 0, 0, 0};
-    plShaderHandle tShadowShader = gptShaderVariant->get_shader("shadow", NULL, aiConstantData, &gptData->tDepthRenderPassLayout);
+    plShaderHandle tShadowShader = gptShaderVariant->get_shader("shadow", NULL, aiConstantData, aiConstantData, &gptData->tDepthRenderPassLayout);
 
     uint32_t* puOffset = &ptScene->uDShadowOffset;
     uint32_t* puOffsetIndex = &ptScene->uDShadowIndex;
@@ -1960,7 +1960,7 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
     ptDynamicData->fTargetWidth = (float)gptData->tRuntimeOptions.uOutlineWidth * tOutlineColor.r + 1.0f;
     ptDynamicData->tOutlineColor = tOutlineColor;
 
-    plShaderHandle tTonemapShader = gptShaderVariant->get_shader("jumpfloodalgo2", NULL, NULL, &gptData->tPostProcessRenderPassLayout);
+    plShaderHandle tTonemapShader = gptShaderVariant->get_shader("jumpfloodalgo2", NULL, NULL, NULL, &gptData->tPostProcessRenderPassLayout);
     gptGfx->bind_shader(ptEncoder, tTonemapShader);
     gptGfx->bind_vertex_buffer(ptEncoder, gptData->tFullQuadVertexBuffer);
     gptGfx->bind_graphics_bind_groups(ptEncoder, tTonemapShader, 0, 1, &tJFABindGroup0, 1, &tDynamicBinding);
@@ -3063,7 +3063,7 @@ pl__renderer_update_probes(plScene* ptScene)
                 *gptData->pdDrawCalls += 1.0;
                 pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                 {
-                    .tShader        = gptShaderVariant->get_shader("skybox", NULL, NULL, &gptData->tRenderPassLayout),
+                    .tShader        = gptShaderVariant->get_shader("skybox", NULL, NULL, NULL, &gptData->tRenderPassLayout),
                     .auDynamicBuffers = {
                         tSkyboxDynamicData.uBufferHandle
                     },
@@ -3589,9 +3589,9 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.ulCullMode = PL_CULL_MODE_NONE;
 
-            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiConstantData0, &gptData->tRenderPassLayout);
+            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiConstantData0, aiConstantData0, &gptData->tRenderPassLayout);
             aiConstantData0[4] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiConstantData0, NULL);
+            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiConstantData0, aiConstantData0, NULL);
         }
 
         else if(ptScene->sbtDrawables[i].tFlags & PL_DRAWABLE_FLAG_FORWARD)
@@ -3613,9 +3613,9 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED)
                 tVariantTemp.ulCullMode = PL_CULL_MODE_NONE;
 
-            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiConstantData0, &gptData->tRenderPassLayout);
+            ptScene->sbtDrawables[i].tShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiConstantData0, aiConstantData0, &gptData->tRenderPassLayout);
             aiConstantData0[4] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiConstantData0, NULL);
+            ptScene->sbtDrawables[i].tEnvShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiConstantData0, aiConstantData0, NULL);
   
         }
         if(ptMaterial->tBlendMode != PL_BLEND_MODE_OPAQUE)
@@ -3632,7 +3632,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             };
-            ptScene->sbtDrawables[i].tShadowShader = gptShaderVariant->get_shader("alphashadow", &tShadowVariant, aiConstantData0, &gptData->tDepthRenderPassLayout);
+            ptScene->sbtDrawables[i].tShadowShader = gptShaderVariant->get_shader("alphashadow", &tShadowVariant, aiConstantData0, aiConstantData0, &gptData->tDepthRenderPassLayout);
         }
     }
 }

@@ -1279,7 +1279,8 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     plShader* ptShader = pl__get_shader(ptDevice, tHandle);
     ptShader->tDesc = *ptDescription;
     ptShader->tDesc._uBindGroupLayoutCount = 0;
-    ptShader->tDesc._uConstantCount = 0;
+    ptShader->tDesc._uVertexConstantCount = 0;
+    ptShader->tDesc._uFragmentConstantCount = 0;
 
     if(ptShader->tDesc.pcDebugName == NULL)
         ptShader->tDesc.pcDebugName = "unnamed shader";
@@ -1382,14 +1383,24 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     // renderpass stuff
     const plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, ptShader->tDesc.tRenderPassLayout);
 
-    size_t uTotalConstantSize = 0;
+    size_t uTotalVertexConstantSize = 0;
     for(uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
     {
-        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
+        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atVertexConstants[i];
         if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
             break;
-        uTotalConstantSize += pl_get_data_type_size(ptConstant->tType);
-        ptShader->tDesc._uConstantCount++;
+        uTotalVertexConstantSize += pl_get_data_type_size(ptConstant->tType);
+        ptShader->tDesc._uVertexConstantCount++;
+    }
+
+    size_t uTotalFragmentConstantSize = 0;
+    for(uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atFragmentConstants[i];
+        if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
+            break;
+        uTotalFragmentConstantSize += pl_get_data_type_size(ptConstant->tType);
+        ptShader->tDesc._uFragmentConstantCount++;
     }
 
     for (uint32_t i = 0; i < 3; i++)
@@ -1403,20 +1414,32 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         ptShader->tDesc._uBindGroupLayoutCount++;
     }
 
-    MTLFunctionConstantValues* ptConstantValues = [MTLFunctionConstantValues new];
+    MTLFunctionConstantValues* ptVertexConstantValues = [MTLFunctionConstantValues new];
+    MTLFunctionConstantValues* ptFragmentConstantValues = [MTLFunctionConstantValues new];
 
-    const char* pcConstantData = ptDescription->pTempConstantData;
+    const char* pcVertexConstantData = ptDescription->pVertexTempConstantData;
     uint32_t uConstantOffset = 0;
-    for(uint32_t i = 0; i < ptShader->tDesc._uConstantCount; i++)
+    for(uint32_t i = 0; i < ptShader->tDesc._uVertexConstantCount; i++)
     {
-        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
+        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atVertexConstants[i];
         const uint32_t uConstantIndex = ptConstant->uID == 0 ? i : ptConstant->uID;
         const uint32_t uAutoConstantOffset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
-        [ptConstantValues setConstantValue:&pcConstantData[uAutoConstantOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:uConstantIndex];
+        [ptVertexConstantValues setConstantValue:&pcVertexConstantData[uAutoConstantOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:uConstantIndex];
         uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
     }
 
-    id<MTLFunction> vertexFunction = [ptMetalShader->tVertexLibrary newFunctionWithName:vertexEntry constantValues:ptConstantValues error:&error];
+    const char* pcFragmentConstantData = ptDescription->pFragmentTempConstantData;
+    uConstantOffset = 0;
+    for(uint32_t i = 0; i < ptShader->tDesc._uVertexConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atFragmentConstants[i];
+        const uint32_t uConstantIndex = ptConstant->uID == 0 ? i : ptConstant->uID;
+        const uint32_t uAutoConstantOffset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
+        [ptFragmentConstantValues setConstantValue:&pcFragmentConstantData[uAutoConstantOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:uConstantIndex];
+        uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
+    }
+
+    id<MTLFunction> vertexFunction = [ptMetalShader->tVertexLibrary newFunctionWithName:vertexEntry constantValues:ptVertexConstantValues error:&error];
     id<MTLFunction> fragmentFunction = nil;
 
     if (vertexFunction == nil)
@@ -1426,7 +1449,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 
     if(ptShader->tDesc.tFragmentShader.puCode)
     {
-        fragmentFunction = [ptMetalShader->tFragmentLibrary newFunctionWithName:fragmentEntry constantValues:ptConstantValues error:&error];
+        fragmentFunction = [ptMetalShader->tFragmentLibrary newFunctionWithName:fragmentEntry constantValues:ptFragmentConstantValues error:&error];
         if (fragmentFunction == nil)
         {
             NSLog(@"Error: failed to find Metal shader functions in library: %@", error);

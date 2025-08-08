@@ -471,11 +471,20 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
 
     shaderc_shader_kind tShaderKind = 0;
     if(acExtension[0] == 'c')
+    {
+        shaderc_compile_options_add_macro_definition(tShaderRcOptions, "PL_COMPUTE_CODE", 15, "1", 1);
         tShaderKind = shaderc_glsl_compute_shader;
+    }
     else if(acExtension[0] == 'f')
+    {
+        shaderc_compile_options_add_macro_definition(tShaderRcOptions, "PL_FRAGMENT_CODE", 16, "1", 1);
         tShaderKind = shaderc_glsl_fragment_shader;
+    }
     else if(acExtension[0] == 'v')
+    {
+        shaderc_compile_options_add_macro_definition(tShaderRcOptions, "PL_VERTEX_CODE", 14, "1", 1);
         tShaderKind = shaderc_glsl_vertex_shader;
+    }
     else
     {
         PL_ASSERT("unknown glsl shader type");

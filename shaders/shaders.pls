@@ -242,7 +242,14 @@
                 { "bBlendEnabled": false },
                 { "bBlendEnabled": false }
             ],
-            "atConstants": [
+            "atVertexConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
@@ -281,7 +288,16 @@
                     "tAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ],
-            "atConstants": [
+            "atVertexConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
@@ -401,14 +417,20 @@
                     "tAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ],
-            "atConstants": [
+            "atVertexConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
-                { "pcName": "global" },
+                { "pcName": "scene" },
                 { "pcName": "shadow" }
             ]
         },
@@ -448,14 +470,20 @@
                     "tAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ],
-            "atConstants": [
+            "atVertexConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
-                { "pcName": "global" },
+                { "pcName": "scene" },
                 { "pcName": "shadow" }
             ]
         },
@@ -489,13 +517,19 @@
             "atBlendStates": [
                 { "bBlendEnabled": false }
             ],
-            "atConstants": [
+            "atVertexConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
-                { "pcName": "global" },
+                { "pcName": "scene" },
+                { "pcName": "view" },
                 {
                     "pcName": "deferred lighting 1",
                     "atTextureBindings": [

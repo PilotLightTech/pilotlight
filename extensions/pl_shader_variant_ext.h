@@ -70,7 +70,7 @@ typedef struct _plShaderVariantI
     bool (*load_manifest)  (const char* path);
     bool (*unload_manifest)(const char* path);
 
-    plShaderHandle          (*get_shader)                    (const char* name, const plGraphicsState*, const void* tempConstantData, const plRenderPassLayoutHandle*);
+    plShaderHandle          (*get_shader)                    (const char* name, const plGraphicsState*, const void* tempVtxConstantData, const void* tempFragConstantData, const plRenderPassLayoutHandle*);
     plComputeShaderHandle   (*get_compute_shader)            (const char* name, const void* tempConstantData);
     plBindGroupLayoutHandle (*get_compute_bind_group_layout) (const char* name, uint32_t index);
     plBindGroupLayoutHandle (*get_graphics_bind_group_layout)(const char* name, uint32_t index);

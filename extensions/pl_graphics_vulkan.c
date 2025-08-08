@@ -126,8 +126,10 @@ typedef struct _plVulkanShader
     VkShaderModule           tPixelShaderModule;
     VkShaderModule           tVertexShaderModule;
     VkDescriptorSetLayout    atDescriptorSetLayouts[4];
-    VkSpecializationMapEntry atSpecializationEntries[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
-    size_t                   szSpecializationSize;
+    VkSpecializationMapEntry atVertexSpecializationEntries[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
+    size_t                   szVertexSpecializationSize;
+    VkSpecializationMapEntry atFragmentSpecializationEntries[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
+    size_t                   szFragmentSpecializationSize;
 } plVulkanShader;
 
 typedef struct _plVulkanComputeShader
@@ -1586,27 +1588,50 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     };
 
     // setup & count specilization constants
-    ptShader->tDesc._uConstantCount = 0;
-    ptVulkanShader->szSpecializationSize = 0;
+    ptShader->tDesc._uVertexConstantCount = 0;
+    ptShader->tDesc._uFragmentConstantCount = 0;
+    ptVulkanShader->szVertexSpecializationSize = 0;
+    ptVulkanShader->szFragmentSpecializationSize = 0;
     uint32_t uConstantOffset = 0;
     for (uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
     {
-        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
+        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atVertexConstants[i];
         if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
             break;
-        ptVulkanShader->atSpecializationEntries[i].constantID = ptConstant->uID == 0 ? ptShader->tDesc._uConstantCount : ptConstant->uID;
-        ptVulkanShader->atSpecializationEntries[i].offset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
+        ptVulkanShader->atVertexSpecializationEntries[i].constantID = ptConstant->uID == 0 ? ptShader->tDesc._uVertexConstantCount : ptConstant->uID;
+        ptVulkanShader->atVertexSpecializationEntries[i].offset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
         uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
-        ptVulkanShader->atSpecializationEntries[i].size = pl_get_data_type_size(ptConstant->tType);
-        ptVulkanShader->szSpecializationSize += ptVulkanShader->atSpecializationEntries[i].size;
-        ptShader->tDesc._uConstantCount++;
+        ptVulkanShader->atVertexSpecializationEntries[i].size = pl_get_data_type_size(ptConstant->tType);
+        ptVulkanShader->szVertexSpecializationSize += ptVulkanShader->atVertexSpecializationEntries[i].size;
+        ptShader->tDesc._uVertexConstantCount++;
     }
 
-    const VkSpecializationInfo tSpecializationInfo = {
-        .mapEntryCount = ptShader->tDesc._uConstantCount,
-        .pMapEntries   = ptVulkanShader->atSpecializationEntries,
-        .dataSize      = ptVulkanShader->szSpecializationSize,
-        .pData         = ptDescription->pTempConstantData
+    uConstantOffset = 0;
+    for (uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atFragmentConstants[i];
+        if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
+            break;
+        ptVulkanShader->atFragmentSpecializationEntries[i].constantID = ptConstant->uID == 0 ? ptShader->tDesc._uFragmentConstantCount : ptConstant->uID;
+        ptVulkanShader->atFragmentSpecializationEntries[i].offset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
+        uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
+        ptVulkanShader->atFragmentSpecializationEntries[i].size = pl_get_data_type_size(ptConstant->tType);
+        ptVulkanShader->szFragmentSpecializationSize += ptVulkanShader->atFragmentSpecializationEntries[i].size;
+        ptShader->tDesc._uFragmentConstantCount++;
+    }
+
+    const VkSpecializationInfo tVertexSpecializationInfo = {
+        .mapEntryCount = ptShader->tDesc._uVertexConstantCount,
+        .pMapEntries   = ptVulkanShader->atVertexSpecializationEntries,
+        .dataSize      = ptVulkanShader->szVertexSpecializationSize,
+        .pData         = ptDescription->pVertexTempConstantData
+    };
+
+    const VkSpecializationInfo tFragmentSpecializationInfo = {
+        .mapEntryCount = ptShader->tDesc._uFragmentConstantCount,
+        .pMapEntries   = ptVulkanShader->atFragmentSpecializationEntries,
+        .dataSize      = ptVulkanShader->szFragmentSpecializationSize,
+        .pData         = ptDescription->pFragmentTempConstantData
     };
 
     // create pipeline layout
@@ -1623,7 +1648,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         .stage               = VK_SHADER_STAGE_VERTEX_BIT,
         .module              = ptVulkanShader->tVertexShaderModule,
         .pName               = ptShader->tDesc.tVertexShader.pcEntryFunc,
-        .pSpecializationInfo = ptShader->tDesc._uConstantCount > 0 ? &tSpecializationInfo : NULL
+        .pSpecializationInfo = ptShader->tDesc._uVertexConstantCount > 0 ? &tVertexSpecializationInfo : NULL
     };
 
     // doesn't matter since dynamic
@@ -1668,7 +1693,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         .stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
         .module              = ptVulkanShader->tPixelShaderModule,
         .pName               = ptShader->tDesc.tFragmentShader.pcEntryFunc,
-        .pSpecializationInfo = &tSpecializationInfo
+        .pSpecializationInfo = ptShader->tDesc._uFragmentConstantCount > 0 ? &tFragmentSpecializationInfo : NULL
     };
 
     VkPipelineDepthStencilStateCreateInfo tDepthStencil = {

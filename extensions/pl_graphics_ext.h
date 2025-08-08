@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 2, 1}
+#define plGraphicsI_version {1, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -890,7 +890,6 @@ typedef struct _plGraphicsState
 
 typedef struct _plShaderDesc
 {
-    plSpecializationConstant atConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
     uint32_t                 uSubpassIndex;
     plGraphicsState          tGraphicsState;
     plBlendState             atBlendStates[PL_MAX_RENDER_TARGETS];
@@ -907,14 +906,18 @@ typedef struct _plShaderDesc
     plShaderModule tFragmentShader;
     #endif
     
-    const void*              pTempConstantData;
+    plSpecializationConstant atVertexConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
+    plSpecializationConstant atFragmentConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
+    const void*              pVertexTempConstantData;
+    const void*              pFragmentTempConstantData;
     plBindGroupLayoutDesc    atBindGroupLayouts[3];
     plRenderPassLayoutHandle tRenderPassLayout;    
     plSampleCount            tMSAASampleCount;
     const char*              pcDebugName; // default: "unnamed shader"
 
     // [INTERNAL]
-    uint32_t                _uConstantCount;
+    uint32_t                _uVertexConstantCount;
+    uint32_t                _uFragmentConstantCount;
     uint32_t                _uBindGroupLayoutCount;
     plBindGroupLayoutHandle _atBindGroupLayouts[3];
 } plShaderDesc;

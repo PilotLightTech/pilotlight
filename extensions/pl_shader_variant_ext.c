@@ -210,7 +210,7 @@ pl_shader_variant_cleanup(void)
 }
 
 plShaderHandle
-pl_shader_tool_get_shader(const char* pcName, const plGraphicsState* ptGraphicsState, const void* pTempConstantData, const plRenderPassLayoutHandle* ptRenderPassLayout)
+pl_shader_tool_get_shader(const char* pcName, const plGraphicsState* ptGraphicsState, const void* pTempVtxConstantData, const void* pTempFragConstantData, const plRenderPassLayoutHandle* ptRenderPassLayout)
 {
 
     uint32_t uVariantIndex = UINT32_MAX;
@@ -228,7 +228,8 @@ pl_shader_tool_get_shader(const char* pcName, const plGraphicsState* ptGraphicsS
     if(tBaseHandle.uData == 0) // first run
     {
         PL_ASSERT(ptRenderPassLayout != NULL);
-        gptShaderVariantCtx->sbtShaderDesc[uVariantIndex].pTempConstantData = pTempConstantData;
+        gptShaderVariantCtx->sbtShaderDesc[uVariantIndex].pVertexTempConstantData = pTempVtxConstantData;
+        gptShaderVariantCtx->sbtShaderDesc[uVariantIndex].pFragmentTempConstantData = pTempFragConstantData;
         gptShaderVariantCtx->sbtShaderDesc[uVariantIndex].tRenderPassLayout = *ptRenderPassLayout;
 
         gptShaderVariantCtx->sbtShaderDesc[uVariantIndex].pcDebugName = pcName;
@@ -240,14 +241,21 @@ pl_shader_tool_get_shader(const char* pcName, const plGraphicsState* ptGraphicsS
 
     plShader* ptShader = gptGfx->get_shader(ptDevice, tBaseHandle);
 
-    size_t szSpecializationSize = 0;
-    for(uint32_t i = 0; i < ptShader->tDesc._uConstantCount; i++)
+    size_t szVertexSpecializationSize = 0;
+    for(uint32_t i = 0; i < ptShader->tDesc._uVertexConstantCount; i++)
     {
-        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
-        szSpecializationSize += gptGfx->get_data_type_size(ptConstant->tType);
+        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atVertexConstants[i];
+        szVertexSpecializationSize += gptGfx->get_data_type_size(ptConstant->tType);
     }
 
-    if(szSpecializationSize == 0 && ptShader->tDesc.tGraphicsState.ulValue == ptGraphicsState->ulValue)
+    size_t szFragmentSpecializationSize = 0;
+    for(uint32_t i = 0; i < ptShader->tDesc._uFragmentConstantCount; i++)
+    {
+        const plSpecializationConstant* ptConstant = &ptShader->tDesc.atFragmentConstants[i];
+        szFragmentSpecializationSize += gptGfx->get_data_type_size(ptConstant->tType);
+    }
+
+    if(szVertexSpecializationSize + szFragmentSpecializationSize == 0 && ptShader->tDesc.tGraphicsState.ulValue == ptGraphicsState->ulValue)
         return tBaseHandle;
 
     // retrieve shader variant data
@@ -266,7 +274,8 @@ pl_shader_tool_get_shader(const char* pcName, const plGraphicsState* ptGraphicsS
 
     plShaderVariantData* ptVariantData = &gptShaderVariantCtx->sbtGraphicsVariants[uVariantIndex];
 
-    const uint64_t ulVariantHash = pl_hm_hash(pTempConstantData, szSpecializationSize, ptGraphicsState->ulValue);
+    uint64_t ulVariantHash = pl_hm_hash(pTempVtxConstantData, szVertexSpecializationSize, ptGraphicsState->ulValue);
+    ulVariantHash = pl_hm_hash(pTempFragConstantData, szFragmentSpecializationSize, ulVariantHash);
     const uint64_t ulIndex = pl_hm_lookup(&ptVariantData->tVariantHashmap, ulVariantHash);
 
     if(ulIndex != UINT64_MAX)
@@ -274,7 +283,8 @@ pl_shader_tool_get_shader(const char* pcName, const plGraphicsState* ptGraphicsS
 
     plShaderDesc tDesc = ptShader->tDesc;
     tDesc.tGraphicsState = *ptGraphicsState;
-    tDesc.pTempConstantData = pTempConstantData;
+    tDesc.pVertexTempConstantData = pTempVtxConstantData;
+    tDesc.pFragmentTempConstantData = pTempFragConstantData;
     tDesc.pcDebugName = pcName;
 
     plShaderHandle tShader = gptGfx->create_shader(ptDevice, &tDesc);
@@ -748,16 +758,29 @@ pl_shader_tool_load_manifest(const char* pcPath)
         }
 
         uint32_t uConstantCount = 0;
-        plJsonObject* ptConstants = pl_json_array_member(ptGraphicsShader, "atConstants", &uConstantCount);
+        plJsonObject* ptVertexConstants = pl_json_array_member(ptGraphicsShader, "atVertexConstants", &uConstantCount);
         for(uint32_t i = 0; i < uConstantCount; i++)
         {
-            plJsonObject* ptConstant = pl_json_member_by_index(ptConstants, i);
-            tShaderDesc.atConstants[i].uID = pl_json_uint_member(ptConstant, "uID", 0);
-            tShaderDesc.atConstants[i].uOffset = pl_json_uint_member(ptConstant, "uOffset", 0);
+            plJsonObject* ptConstant = pl_json_member_by_index(ptVertexConstants, i);
+            tShaderDesc.atVertexConstants[i].uID = pl_json_uint_member(ptConstant, "uID", 0);
+            tShaderDesc.atVertexConstants[i].uOffset = pl_json_uint_member(ptConstant, "uOffset", 0);
 
             char acTypeBuffer[64] = {0};
             pl_json_string_member(ptConstant, "tType", acTypeBuffer, 64);
-            tShaderDesc.atConstants[i].tType = pl__shader_tools_get_data_type(acTypeBuffer);
+            tShaderDesc.atVertexConstants[i].tType = pl__shader_tools_get_data_type(acTypeBuffer);
+        }
+
+        uConstantCount = 0;
+        plJsonObject* ptFragmentConstants = pl_json_array_member(ptGraphicsShader, "atFragmentConstants", &uConstantCount);
+        for(uint32_t i = 0; i < uConstantCount; i++)
+        {
+            plJsonObject* ptConstant = pl_json_member_by_index(ptFragmentConstants, i);
+            tShaderDesc.atFragmentConstants[i].uID = pl_json_uint_member(ptConstant, "uID", 0);
+            tShaderDesc.atFragmentConstants[i].uOffset = pl_json_uint_member(ptConstant, "uOffset", 0);
+
+            char acTypeBuffer[64] = {0};
+            pl_json_string_member(ptConstant, "tType", acTypeBuffer, 64);
+            tShaderDesc.atFragmentConstants[i].tType = pl__shader_tools_get_data_type(acTypeBuffer);
         }
 
         uint32_t uBindGroupLayoutCount = 0;
