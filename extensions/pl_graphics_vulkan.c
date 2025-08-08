@@ -5729,6 +5729,12 @@ pl_get_vulkan_device(plDevice* ptDevice)
     return ptDevice->tLogicalDevice;
 }
 
+VkPhysicalDeviceMemoryProperties
+pl_get_vulkan_memory_properties(plDevice* ptDevice)
+{
+    return ptDevice->tMemProps;
+}
+
 VkPhysicalDevice
 pl_get_vulkan_physical_device(plDevice* ptDevice)
 {

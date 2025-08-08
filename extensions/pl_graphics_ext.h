@@ -291,6 +291,7 @@ typedef struct VkSampler_T*        VkSampler;
 typedef struct VkDescriptorSet_T*  VkDescriptorSet;
 
 typedef struct VkAllocationCallbacks VkAllocationCallbacks;
+typedef struct VkPhysicalDeviceMemoryProperties VkPhysicalDeviceMemoryProperties;
 #endif
 
 #ifdef PL_GRAPHICS_EXPOSE_METAL
@@ -510,20 +511,21 @@ typedef struct _plGraphicsI
     //------------------------------NOT STABLE-------------------------------------
 
     #ifdef PL_GRAPHICS_EXPOSE_VULKAN
-    VkInstance                   (*get_vulkan_instance)            (void);
-    uint32_t                     (*get_vulkan_api_version)         (void);
-    VkDevice                     (*get_vulkan_device)              (plDevice*);
-    VkPhysicalDevice             (*get_vulkan_physical_device)     (plDevice*);
-    VkQueue                      (*get_vulkan_queue)               (plDevice*);
-    uint32_t                     (*get_vulkan_queue_family)        (plDevice*);
-    VkRenderPass                 (*get_vulkan_render_pass)         (plDevice*, plRenderPassHandle);
-    VkDescriptorPool             (*get_vulkan_descriptor_pool)     (plBindGroupPool*);
-    int                          (*get_vulkan_sample_count)        (plSwapchain*);
-    VkCommandBuffer              (*get_vulkan_command_buffer)      (plCommandBuffer*);
-    VkImageView                  (*get_vulkan_image_view)          (plDevice*, plTextureHandle);
-    VkSampler                    (*get_vulkan_sampler)             (plDevice*, plSamplerHandle);
-    VkDescriptorSet              (*get_vulkan_descriptor_set)      (plDevice*, plBindGroupHandle);
-    const VkAllocationCallbacks* (*get_vulkan_allocation_callbacks)(void);
+    VkInstance                       (*get_vulkan_instance)            (void);
+    uint32_t                         (*get_vulkan_api_version)         (void);
+    VkDevice                         (*get_vulkan_device)              (plDevice*);
+    VkPhysicalDevice                 (*get_vulkan_physical_device)     (plDevice*);
+    VkQueue                          (*get_vulkan_queue)               (plDevice*);
+    uint32_t                         (*get_vulkan_queue_family)        (plDevice*);
+    VkRenderPass                     (*get_vulkan_render_pass)         (plDevice*, plRenderPassHandle);
+    VkDescriptorPool                 (*get_vulkan_descriptor_pool)     (plBindGroupPool*);
+    int                              (*get_vulkan_sample_count)        (plSwapchain*);
+    VkCommandBuffer                  (*get_vulkan_command_buffer)      (plCommandBuffer*);
+    VkImageView                      (*get_vulkan_image_view)          (plDevice*, plTextureHandle);
+    VkSampler                        (*get_vulkan_sampler)             (plDevice*, plSamplerHandle);
+    VkDescriptorSet                  (*get_vulkan_descriptor_set)      (plDevice*, plBindGroupHandle);
+    VkPhysicalDeviceMemoryProperties (*get_vulkan_memory_properties)   (plDevice*);
+    const VkAllocationCallbacks*     (*get_vulkan_allocation_callbacks)(void);
     #endif
 
     #ifdef PL_GRAPHICS_EXPOSE_METAL
