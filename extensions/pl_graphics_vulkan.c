@@ -1102,10 +1102,22 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
         sbtBufferDescInfos[i].offset = ptData->atBufferBindings[i]._szOffset;
         sbtBufferDescInfos[i].range = ptData->atBufferBindings[i].szBufferRange == 0 ? VK_WHOLE_SIZE : ptData->atBufferBindings[i].szBufferRange;
 
+        bool bValid = false;
+        for(uint32_t j = 0; j < ptLayout->_uBufferBindingCount; j++)
+        {
+            if(ptLayout->tDesc.atBufferBindings[j].uSlot == ptData->atBufferBindings[i].uSlot)
+            {
+                sbtWrites[uCurrentWrite].descriptorType = atDescriptorTypeLUT[ptLayout->tDesc.atBufferBindings[j].tType - 1];
+                bValid = true;
+                break;
+            }
+        }
+        PL_ASSERT(bValid);
+
+
         sbtWrites[uCurrentWrite].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sbtWrites[uCurrentWrite].dstBinding = ptData->atBufferBindings[i].uSlot;
         sbtWrites[uCurrentWrite].dstArrayElement = 0;
-        sbtWrites[uCurrentWrite].descriptorType = atDescriptorTypeLUT[ptLayout->tDesc.atBufferBindings[i].tType - 1];
         sbtWrites[uCurrentWrite].descriptorCount = 1;
         sbtWrites[uCurrentWrite].dstSet = ptVulkanBindGroup->tDescriptorSet;
         sbtWrites[uCurrentWrite].pBufferInfo = &sbtBufferDescInfos[i];
