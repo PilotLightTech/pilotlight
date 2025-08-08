@@ -5,6 +5,7 @@
 #include "bg_scene.inc"
 #include "bg_view.inc"
 #include "math.glsl"
+#include "brdf.glsl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants

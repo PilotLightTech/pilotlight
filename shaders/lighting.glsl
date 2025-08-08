@@ -1,3 +1,5 @@
+#ifndef LIGHTING_GLSL
+#define LIGHTING_GLSL
 
 vec3
 getDiffuseLight(vec3 n, int iProbeIndex)
@@ -143,3 +145,5 @@ filterPCF2(vec4 sc, vec2 offset, int textureIndex)
 	}
 	return shadowFactor / count;
 }
+
+#endif // LIGHTING_GLSL

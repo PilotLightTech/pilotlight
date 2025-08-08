@@ -1,6 +1,6 @@
 #version 450
 
-#define PL_PI 3.1415926535897932384626433832795
+#include "math.glsl"
 
 layout(std140, set = 0, binding = 0) readonly buffer _tBufferIn
 {

@@ -1,3 +1,5 @@
+#ifndef MATERIAL_INFO_GLSL
+#define MATERIAL_INFO_GLSL
 
 struct MaterialInfo
 {
@@ -14,3 +16,5 @@ struct MaterialInfo
     float specularWeight; // product of specularFactor and specularTexture.a
 
 };
+
+#endif // MATERIAL_INFO_GLSL

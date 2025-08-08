@@ -1,4 +1,3 @@
-
 #ifndef PL_LIGHTS_GLSL
 #define PL_LIGHTS_GLSL
 
