@@ -61,6 +61,7 @@ typedef struct _plBlitEncoder
 {
     plCommandBuffer*          ptCommandBuffer;
     id<MTLBlitCommandEncoder> tEncoder;
+    bool                      bActive;
     plBlitEncoder*            ptNext;
 } plBlitEncoder;
 
@@ -537,6 +538,13 @@ static void
 pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+
+    if(!ptEncoder->bActive)
+    {
+        ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer blitCommandEncoder];
+        ptEncoder->bActive = true;
+    }
+
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plMetalBuffer* ptBuffer = &ptDevice->sbtBuffersHot[tBufferHandle.uIndex];
@@ -573,6 +581,13 @@ void
 pl_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+
+    if(!ptEncoder->bActive)
+    {
+        ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer blitCommandEncoder];
+        ptEncoder->bActive = true;
+    }
+
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     const plMetalTexture* ptMetalSrcTexture = &ptDevice->sbtTexturesHot[tSrcHandle.uIndex];
     const plMetalTexture* ptMetalDstTexture = &ptDevice->sbtTexturesHot[tDstHandle.uIndex];
@@ -611,6 +626,13 @@ static void
 pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+
+    if(!ptEncoder->bActive)
+    {
+        ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer blitCommandEncoder];
+        ptEncoder->bActive = true;
+    }
+
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     const plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
     const plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[tTextureHandle.uIndex];
@@ -647,6 +669,13 @@ static void
 pl_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+
+    if(!ptEncoder->bActive)
+    {
+        ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer blitCommandEncoder];
+        ptEncoder->bActive = true;
+    }
+
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     [ptEncoder->tEncoder copyFromBuffer:ptDevice->sbtBuffersHot[tSource.uIndex].tBuffer sourceOffset:uSourceOffset toBuffer:ptDevice->sbtBuffersHot[tDestination.uIndex].tBuffer destinationOffset:uDestinationOffset size:szSize];
 }
@@ -767,6 +796,13 @@ static void
 pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+
+    if(!ptEncoder->bActive)
+    {
+        ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer blitCommandEncoder];
+        ptEncoder->bActive = true;
+    }
+
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plTexture* ptTexture = pl__get_texture(ptDevice, tTexture);
@@ -2229,7 +2265,7 @@ static plBlitEncoder*
 pl_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
 {
     plBlitEncoder* ptEncoder = pl__get_new_blit_encoder();
-    ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer blitCommandEncoder];
+    
     // plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
     // [tBlitEncoder waitForFence:ptFrame->tFence];
     ptEncoder->ptCommandBuffer = ptCmdBuffer;
@@ -2239,7 +2275,11 @@ pl_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
 static void
 pl_end_blit_pass(plBlitEncoder* ptEncoder)
 {
-    [ptEncoder->tEncoder endEncoding];
+    if(ptEncoder->bActive)
+    {
+        [ptEncoder->tEncoder endEncoding];
+    }
+    ptEncoder->bActive = false;
     pl__return_blit_encoder(ptEncoder);
 }
 
