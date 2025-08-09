@@ -36,6 +36,26 @@
                 { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
                 { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ]
+        },
+        {
+            "pcName": "cube_filter_set_0",
+            "atTextureBindings": [
+                { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+            ],
+            "atSamplerBindings": [
+                { "uSlot": 0, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+            ]
+        },
+        {
+            "pcName": "cube_filter_set_1",
+            "atBufferBindings": [
+                { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 3, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 4, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 5, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+            ]
         }
     ],
 
@@ -75,26 +95,31 @@
             ]
         },
         {
-            "pcName": "filter_environment",
-            "tShader": { "file": "filter_environment.comp"},
+            "pcName": "brdf_lut",
+            "tShader": { "file": "brdf_lut.comp"},
             "atBindGroupLayouts": [
+                { "pcName": "cube_filter_set_0" },
                 {
-                    "atTextureBindings": [
-                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
-                    ],
-                    "atSamplerBindings": [
-                        { "uSlot": 0, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
-                    ],
                     "atBufferBindings": [
-                        { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 3, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 4, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 5, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 6, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 7, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 8, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
                     ]
                 }
+            ]
+        },
+        {
+            "pcName": "cube_filter_specular",
+            "tShader": { "file": "cube_filter_specular.comp"},
+            "atBindGroupLayouts": [
+                { "pcName": "cube_filter_set_0" },
+                { "pcName": "cube_filter_set_1" }
+            ]
+        },
+        {
+            "pcName": "cube_filter_diffuse",
+            "tShader": { "file": "cube_filter_diffuse.comp"},
+            "atBindGroupLayouts": [
+                { "pcName": "cube_filter_set_0" },
+                { "pcName": "cube_filter_set_1" }
             ]
         },
         {

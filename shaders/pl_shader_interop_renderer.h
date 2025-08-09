@@ -173,9 +173,9 @@ PL_BEGIN_STRUCT(plGpuDynFilterSpec)
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     float fLodBias;
-    int   iDistribution;
-    int   iIsGeneratingLut;
     int   iCurrentMipLevel;
+    int   iUnused0;
+    int   iUnused1;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     // ~~~~~~~~~~~~~~~~32 bytes~~~~~~~~~~~~~~~~

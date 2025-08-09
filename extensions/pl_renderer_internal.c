@@ -3140,7 +3140,9 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
 
-    plComputeShaderHandle tEnvFilterShader = gptShaderVariant->get_compute_shader("filter_environment", NULL);
+    plComputeShaderHandle tBrdfLutShader = gptShaderVariant->get_compute_shader("brdf_lut", NULL);
+    plComputeShaderHandle tCubeFilterSpecularShader = gptShaderVariant->get_compute_shader("cube_filter_specular", NULL);
+    plComputeShaderHandle tCubeFilterDiffuseShader = gptShaderVariant->get_compute_shader("cube_filter_diffuse", NULL);
 
     plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptProbe->tRawOutputTexture);
     const int iResolution = (int)(ptTexture->tDesc.tDimensions.x);
@@ -3172,45 +3174,83 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         gptGfx->return_command_buffer(ptCommandBuffer);
     }
 
-    // create lut
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~common bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // source sampler & cube map
+    const plBindGroupDesc tCubeFilterBGSet0Desc = {
+        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+        .tLayout     = gptShaderVariant->get_bind_group_layout("cube_filter_set_0"),
+        .pcDebugName = "cube_filter_set_0"
+    };
+    plBindGroupHandle tCubeFilterBGSet0 = gptGfx->create_bind_group(ptDevice, &tCubeFilterBGSet0Desc);
     
+    const plBindGroupUpdateSamplerData tCubeFilterBGSet0SamplerData = {
+        .tSampler = gptData->tSamplerLinearRepeat,
+        .uSlot    = 0
+    };
+    const plBindGroupUpdateTextureData tCubeFilterBGSet0TextureData = {
+        .tTexture = ptProbe->tRawOutputTexture,
+        .uSlot    = 1,
+        .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
+    };
+    const plBindGroupUpdateData tCubeFilterBGSet0Data = {
+        .uSamplerCount = 1,
+        .atSamplerBindings = &tCubeFilterBGSet0SamplerData,
+        .uTextureCount = 1,
+        .atTextureBindings = &tCubeFilterBGSet0TextureData
+    };
+    gptGfx->update_bind_group(ptDevice, tCubeFilterBGSet0, &tCubeFilterBGSet0Data);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, tCubeFilterBGSet0);
+
+    // specular & diffuse output buffers
+
+    const plBindGroupDesc tCubeFilterBGSet1Desc = {
+        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+        .tLayout     = gptShaderVariant->get_bind_group_layout("cube_filter_set_1"),
+        .pcDebugName = "cube_filter_set_1"
+    };
+    plBindGroupHandle tCubeFilterBGSet1 = gptGfx->create_bind_group(ptDevice, &tCubeFilterBGSet1Desc);
+
+    const plBindGroupUpdateBufferData atCubeFilterBGSet1BufferData[] = {
+        { .uSlot = 0, .tBuffer = ptScene->atFilterWorkingBuffers[0], .szBufferRange = uFaceSize},
+        { .uSlot = 1, .tBuffer = ptScene->atFilterWorkingBuffers[1], .szBufferRange = uFaceSize},
+        { .uSlot = 2, .tBuffer = ptScene->atFilterWorkingBuffers[2], .szBufferRange = uFaceSize},
+        { .uSlot = 3, .tBuffer = ptScene->atFilterWorkingBuffers[3], .szBufferRange = uFaceSize},
+        { .uSlot = 4, .tBuffer = ptScene->atFilterWorkingBuffers[4], .szBufferRange = uFaceSize},
+        { .uSlot = 5, .tBuffer = ptScene->atFilterWorkingBuffers[5], .szBufferRange = uFaceSize}
+    };
+
+    const plBindGroupUpdateData tCubeFilterBGSet1Data = {
+        .uBufferCount = 6,
+        .atBufferBindings = atCubeFilterBGSet1BufferData,
+    };
+    gptGfx->update_bind_group(ptDevice, tCubeFilterBGSet1, &tCubeFilterBGSet1Data);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, tCubeFilterBGSet1);
+
+    // brdf lut
+
+    const plBindGroupDesc tBrdfBGSet1Desc = {
+        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("brdf_lut", 1),
+        .pcDebugName = "brdf_lut_set_1"
+    };
+    plBindGroupHandle tBrdfBGSet1 = gptGfx->create_bind_group(ptDevice, &tBrdfBGSet1Desc);
+
+    const plBindGroupUpdateBufferData tBrdfBGSet1BufferData[] = {
+        { .uSlot = 0, .tBuffer = ptScene->atFilterWorkingBuffers[6], .szBufferRange = uFaceSize}
+    };
+
+    const plBindGroupUpdateData tBrdfBGSet1Data = {
+        .uBufferCount = 1,
+        .atBufferBindings = tBrdfBGSet1BufferData,
+    };
+    gptGfx->update_bind_group(ptDevice, tBrdfBGSet1, &tBrdfBGSet1Data);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, tBrdfBGSet1);
+
+    plBindGroupHandle atPartialBindGroupHandles[2] = {tCubeFilterBGSet0, tBrdfBGSet1};
+    plBindGroupHandle atFullBindGroupHandles[2] = {tCubeFilterBGSet0, tCubeFilterBGSet1};
+
     {
-
-        const plBindGroupDesc tFilterBindGroupDesc = {
-            .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("filter_environment", 0),
-            .pcDebugName = "lut bind group"
-        };
-        plBindGroupHandle tLutBindGroup = gptGfx->create_bind_group(ptDevice, &tFilterBindGroupDesc);
-        const plBindGroupUpdateBufferData atBGBufferData[] = {
-            { .uSlot = 2, .tBuffer = ptScene->atFilterWorkingBuffers[0], .szBufferRange = uFaceSize},
-            { .uSlot = 3, .tBuffer = ptScene->atFilterWorkingBuffers[1], .szBufferRange = uFaceSize},
-            { .uSlot = 4, .tBuffer = ptScene->atFilterWorkingBuffers[2], .szBufferRange = uFaceSize},
-            { .uSlot = 5, .tBuffer = ptScene->atFilterWorkingBuffers[3], .szBufferRange = uFaceSize},
-            { .uSlot = 6, .tBuffer = ptScene->atFilterWorkingBuffers[4], .szBufferRange = uFaceSize},
-            { .uSlot = 7, .tBuffer = ptScene->atFilterWorkingBuffers[5], .szBufferRange = uFaceSize},
-            { .uSlot = 8, .tBuffer = ptScene->atFilterWorkingBuffers[6], .szBufferRange = uFaceSize},
-        };
-
-        const plBindGroupUpdateSamplerData tSamplerData = {
-            .tSampler = gptData->tSamplerLinearRepeat,
-            .uSlot = 0
-        };
-        const plBindGroupUpdateTextureData tTextureData = {
-            .tTexture = ptProbe->tRawOutputTexture,
-            .uSlot    = 1,
-            .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
-        };
-        const plBindGroupUpdateData tBGData = {
-            .uBufferCount = 7,
-            .atBufferBindings = atBGBufferData,
-            .uSamplerCount = 1,
-            .atSamplerBindings = &tSamplerData,
-            .uTextureCount = 1,
-            .atTextureBindings = &tTextureData
-        };
-        gptGfx->update_bind_group(ptDevice, tLutBindGroup, &tBGData);
-        gptGfx->queue_bind_group_for_deletion(ptDevice, tLutBindGroup);
 
         const plDispatch tDispach = {
             .uGroupCountX     = (uint32_t)iResolution / 16,
@@ -3251,29 +3291,16 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         ptDynamicData->iSampleCount = (int)ptProbeComp->uSamples;
         ptDynamicData->iWidth = iResolution;
         ptDynamicData->fLodBias = 0.0f;
-        ptDynamicData->iDistribution = 1;
-        ptDynamicData->iIsGeneratingLut = 1;
         ptDynamicData->iCurrentMipLevel = 0;
-
-        plDynamicBinding tIrradianceDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-        plGpuDynFilterSpec* ptIrrDynamicData = (plGpuDynFilterSpec*)tIrradianceDynamicBinding.pcData;
-        ptIrrDynamicData->iResolution = iResolution;
-        ptIrrDynamicData->fRoughness = 0.0f;
-        ptIrrDynamicData->iSampleCount = (int)ptProbeComp->uSamples;
-        ptIrrDynamicData->iWidth = iResolution;
-        ptIrrDynamicData->fLodBias = 0.0f;
-        ptIrrDynamicData->iDistribution = 0;
-        ptIrrDynamicData->iIsGeneratingLut = 0;
-        ptIrrDynamicData->iCurrentMipLevel = 0;
 
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
         gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
-        gptGfx->bind_compute_bind_groups(ptComputeEncoder, tEnvFilterShader, 0, 1, &tLutBindGroup, 1, &tDynamicBinding);
-        gptGfx->bind_compute_shader(ptComputeEncoder, tEnvFilterShader);
+        gptGfx->bind_compute_bind_groups(ptComputeEncoder, tBrdfLutShader, 0, 2, atPartialBindGroupHandles, 1, &tDynamicBinding);
+        gptGfx->bind_compute_shader(ptComputeEncoder, tBrdfLutShader);
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
 
-        gptGfx->bind_compute_bind_groups(ptComputeEncoder, tEnvFilterShader, 0, 1, &tLutBindGroup, 1, &tIrradianceDynamicBinding);
-        gptGfx->bind_compute_shader(ptComputeEncoder, tEnvFilterShader);
+        gptGfx->bind_compute_bind_groups(ptComputeEncoder, tCubeFilterDiffuseShader, 0, 2, atFullBindGroupHandles, 1, &tDynamicBinding);
+        gptGfx->bind_compute_shader(ptComputeEncoder, tCubeFilterDiffuseShader);
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
         gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
         gptGfx->end_compute_pass(ptComputeEncoder);
@@ -3333,45 +3360,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
     
     {
 
-        const plBindGroupUpdateSamplerData tSamplerData = {
-            .tSampler = gptData->tSamplerLinearRepeat,
-            .uSlot = 0
-        };
-        const plBindGroupUpdateTextureData tTextureData = {
-            .tTexture = ptProbe->tRawOutputTexture,
-            .uSlot    = 1,
-            .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
-        };
-
         const size_t uMaxFaceSize = (size_t)iResolution * (size_t)iResolution * 4 * sizeof(float);
-
-        const plBindGroupDesc tFilterComputeBindGroupDesc = {
-            .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("filter_environment", 0),
-            .pcDebugName = "lut bindgroup"
-        };
-        plBindGroupHandle tLutBindGroup = gptGfx->create_bind_group(ptDevice, &tFilterComputeBindGroupDesc);
-        
-        const plBindGroupUpdateBufferData atBGBufferData[] = {
-            { .uSlot = 2, .tBuffer = ptScene->atFilterWorkingBuffers[0], .szBufferRange = uMaxFaceSize},
-            { .uSlot = 3, .tBuffer = ptScene->atFilterWorkingBuffers[1], .szBufferRange = uMaxFaceSize},
-            { .uSlot = 4, .tBuffer = ptScene->atFilterWorkingBuffers[2], .szBufferRange = uMaxFaceSize},
-            { .uSlot = 5, .tBuffer = ptScene->atFilterWorkingBuffers[3], .szBufferRange = uMaxFaceSize},
-            { .uSlot = 6, .tBuffer = ptScene->atFilterWorkingBuffers[4], .szBufferRange = uMaxFaceSize},
-            { .uSlot = 7, .tBuffer = ptScene->atFilterWorkingBuffers[5], .szBufferRange = uMaxFaceSize},
-            { .uSlot = 8, .tBuffer = ptScene->atFilterWorkingBuffers[6], .szBufferRange = uMaxFaceSize}
-        };
-
-        const plBindGroupUpdateData tBGData = {
-            .uBufferCount = 7,
-            .atBufferBindings = atBGBufferData,
-            .uSamplerCount = 1,
-            .atSamplerBindings = &tSamplerData,
-            .uTextureCount = 1,
-            .atTextureBindings = &tTextureData
-        };
-        gptGfx->update_bind_group(ptDevice, tLutBindGroup, &tBGData);
-        gptGfx->queue_bind_group_for_deletion(ptDevice, tLutBindGroup);
 
         const plPassBufferResource atInnerPassBuffers[] = {
             { .tHandle = ptScene->atFilterWorkingBuffers[0], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
@@ -3422,14 +3411,12 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             ptDynamicData->iSampleCount = i == 0 ? 1 : (int)ptProbeComp->uSamples;
             ptDynamicData->iWidth = currentWidth;
             ptDynamicData->fLodBias = 0.0f;
-            ptDynamicData->iDistribution = 1;
-            ptDynamicData->iIsGeneratingLut = 0;
             ptDynamicData->iCurrentMipLevel = i;
 
             plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tInnerPassResources);
             gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
-            gptGfx->bind_compute_bind_groups(ptComputeEncoder, tEnvFilterShader, 0, 1, &tLutBindGroup, 1, &tDynamicBinding);
-            gptGfx->bind_compute_shader(ptComputeEncoder, tEnvFilterShader);
+            gptGfx->bind_compute_bind_groups(ptComputeEncoder, tCubeFilterSpecularShader, 0, 2, atFullBindGroupHandles, 1, &tDynamicBinding);
+            gptGfx->bind_compute_shader(ptComputeEncoder, tCubeFilterSpecularShader);
             gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
             gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
             gptGfx->end_compute_pass(ptComputeEncoder);

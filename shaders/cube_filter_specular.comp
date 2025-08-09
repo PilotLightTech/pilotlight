@@ -1,0 +1,127 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+#include "math.glsl"
+#include "brdf.glsl"
+#include "sampling.inc"
+#include "cube.inc"
+#include "pl_shader_interop.h"
+#include "pl_shader_interop_renderer.h"
+
+layout(set = 0, binding = 0)  uniform sampler tDefaultSampler;
+layout(set = 0, binding = 1) uniform textureCube uCubeMap;
+layout(std140, set = 1, binding = 0) buffer _tBufferOut0{ vec4 atPixelData[]; } tFaceOut0;
+layout(std140, set = 1, binding = 1) buffer _tBufferOut1{ vec4 atPixelData[]; } tFaceOut1;
+layout(std140, set = 1, binding = 2) buffer _tBufferOut2{ vec4 atPixelData[]; } tFaceOut2;
+layout(std140, set = 1, binding = 3) buffer _tBufferOut3{ vec4 atPixelData[]; } tFaceOut3;
+layout(std140, set = 1, binding = 4) buffer _tBufferOut4{ vec4 atPixelData[]; } tFaceOut4;
+layout(std140, set = 1, binding = 5) buffer _tBufferOut5{ vec4 atPixelData[]; } tFaceOut5;
+
+//-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
+
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
+{
+    plGpuDynFilterSpec tData;
+} tDynamicData;
+
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 3) in;
+
+void
+main()
+{
+    const float fXCoord = gl_WorkGroupID.x * 16 + gl_LocalInvocationID.x;
+    const float fYCoord = gl_WorkGroupID.y * 16 + gl_LocalInvocationID.y;
+
+    const int iFace = int(gl_WorkGroupID.z * 3 + gl_LocalInvocationID.z);
+    const float fXinc = 1.0 / tDynamicData.tData.iResolution;
+    const float fYinc = 1.0 / tDynamicData.tData.iResolution;
+    const vec2 tInUV = vec2(fXCoord * fXinc, fYCoord * fYinc);
+    const int iCurrentPixel = int(fXCoord + fYCoord * tDynamicData.tData.iWidth); 
+
+    vec2 tNewUV = tInUV * (1 << tDynamicData.tData.iCurrentMipLevel);
+    tNewUV = tNewUV * 2.0 - 1.0;
+    // tNewUV = clamp(tNewUV, -0.999999, 0.999999);
+
+    const vec3 tScan = pl_uv_to_xyz(iFace, tNewUV);
+
+    vec3 tDirection = normalize(tScan);
+    // tDirection.z = -tDirection.z;
+    // tDirection.x = -tDirection.x;
+
+    vec3 tColor = vec3(0.0);
+    float fWeight = 0.0;
+
+    const float fAlpha = tDynamicData.tData.fRoughness * tDynamicData.tData.fRoughness;
+
+    for(int i = 0; i < tDynamicData.tData.iSampleCount; ++i)
+    {
+
+        // generate a quasi monte carlo point in the unit square [0.1)^2
+        vec2 tXi = pl_hammersley_2d(i, tDynamicData.tData.iSampleCount);
+        vec3 tSampleDirection = pl_get_importance_sample_ggx(tXi, tDirection, tDynamicData.tData.fRoughness);
+
+        float NoL = dot(tDirection, tSampleDirection);
+
+        // NDF
+        const float fA = NoL * fAlpha;
+        const float fK = fAlpha / (1.0 - NoL * NoL + fA * fA);
+        float fPdf = fK * fK * (1.0 / PL_PI);
+
+        // Apply the Jacobian to obtain a pdf that is parameterized by l
+        // see https://bruop.github.io/ibl/
+        // Typically you'd have the following:
+        // float pdf = pl_distribution_ggx(NoH, roughness) * NoH / (4.0 * VoH);
+        // but since V = N => VoH == NoH
+        fPdf /= 4.0;
+
+        // mipmap filtered samples (GPU Gems 3, 20.4)
+        float fLod = 0.5 * log2( 6.0 * float(tDynamicData.tData.iWidth) * float(tDynamicData.tData.iWidth) / (float(tDynamicData.tData.iSampleCount) * fPdf));
+
+        // apply the bias to the lod
+        fLod += tDynamicData.tData.fLodBias;
+
+        // Note: reflect takes incident vector.
+        const vec3 tV = tDirection;
+        const vec3 tL = normalize(reflect(-tV, tSampleDirection));
+        const float fNdotL = dot(tDirection, tL);
+
+        if (fNdotL > 0.0)
+        {
+            if(tDynamicData.tData.fRoughness == 0.0)
+            {
+                // without this the roughness=0 lod is too high
+                fLod = tDynamicData.tData.fLodBias;
+            }
+            vec3 sampleColor = textureLod(samplerCube(uCubeMap, tDefaultSampler), tL, fLod).rgb;
+            tColor += sampleColor * fNdotL;
+            fWeight += fNdotL;
+        }
+    }
+
+    if(fWeight != 0.0)
+    {
+        tColor /= fWeight;
+    }
+    else
+    {
+        tColor /= float(tDynamicData.tData.iSampleCount);
+    }
+
+
+    const vec4 tColorOut = vec4(tColor.rgb, 1.0);
+
+    if (iFace == 0)
+        tFaceOut0.atPixelData[iCurrentPixel] = tColorOut;
+    else if (iFace == 1)
+        tFaceOut1.atPixelData[iCurrentPixel] = tColorOut;
+    else if (iFace == 2)
+        tFaceOut2.atPixelData[iCurrentPixel] = tColorOut;
+    else if (iFace == 3)
+        tFaceOut3.atPixelData[iCurrentPixel] = tColorOut;
+    else if (iFace == 4)
+        tFaceOut4.atPixelData[iCurrentPixel] = tColorOut;
+    else if(iFace == 5)
+        tFaceOut5.atPixelData[iCurrentPixel] = tColorOut;
+}

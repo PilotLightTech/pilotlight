@@ -14,10 +14,10 @@ pl_fresnel_schlick(vec3 f0, vec3 f90, float VdotH)
 // Normal distribution function term of the specular equation (D)
 // Real-Time Rendering 4th Edition, Page 340, Equation 9.41
 float
-pl_distribution_ggx(float NdotH, float alphaRoughness)
+pl_distribution_ggx(float fNdotH, float alphaRoughness)
 {
     float alphaRoughnessSq = alphaRoughness * alphaRoughness;
-    float f = (NdotH * NdotH) * (alphaRoughnessSq - 1.0) + 1.0;
+    float f = (fNdotH * fNdotH) * (alphaRoughnessSq - 1.0) + 1.0;
     return alphaRoughnessSq / (M_PI * f * f);
 }
 

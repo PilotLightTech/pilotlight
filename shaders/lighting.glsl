@@ -5,7 +5,7 @@ vec3
 getDiffuseLight(vec3 n, int iProbeIndex)
 {
     // n.z = -n.z; // uncomment if not reverse z
-    return texture(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uLambertianEnvSampler)], tSamplerNearestRepeat), n).rgb;
+    return texture(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uLambertianEnvSampler)], tSamplerLinearClamp), n).rgb;
 }
 
 vec4
@@ -13,7 +13,7 @@ getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
 {
     // reflection.z = -reflection.z; // uncomment if not reverse z
     // reflection.x = -reflection.x; // uncomment if not reverse z
-    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat), reflection, lod);
+    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerLinearClamp), reflection, lod);
 }
 
 vec3
@@ -23,7 +23,7 @@ getIBLGGXFresnel(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight,
     // Roughness dependent fresnel, from Fdez-Aguera
     float NdotV = clampedDot(n, v);
     vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
-    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].tBrdfLutIndex)], tSamplerNearestRepeat), brdfSamplePoint).rg;
+    vec2 f_ab = texture(sampler2D(at2DTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].tBrdfLutIndex)], tSamplerLinearClamp), brdfSamplePoint).rg;
     vec3 Fr = max(vec3(1.0 - roughness), F0) - F0;
     vec3 k_S = F0 + Fr * pow(1.0 - NdotV, 5.0);
     vec3 FssEss = specularWeight * (k_S * f_ab.x + f_ab.y);
