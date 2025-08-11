@@ -615,7 +615,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
             gptIOCtx->tMainFramebufferScale.x = fCurrentScaleX;
             gptIOCtx->tMainFramebufferScale.y = fCurrentScaleY;
             pl_app_resize(gptMainWindow, gpUserData);
-            return;
+            // return;
         }
 
         if(gtTime == 0.0)

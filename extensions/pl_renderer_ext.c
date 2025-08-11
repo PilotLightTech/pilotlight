@@ -1401,33 +1401,15 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     plRenderPassAttachments atPickAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
 
 
-    uint64_t uOldValue = gptGfx->get_semaphore_value(ptDevice, gptStarter->get_current_timeline_semaphore());
-
-    if(uOldValue >= gptStarter->get_current_timeline_value())
-    {
-        gptGfx->destroy_texture(ptDevice, ptView->tFinalTexture);
-        gptGfx->destroy_texture(ptDevice, ptView->atUVMaskTexture0);
-        gptGfx->destroy_texture(ptDevice, ptView->atUVMaskTexture1);
-        gptGfx->destroy_texture(ptDevice, ptView->tRawOutputTexture);
-        gptGfx->destroy_texture(ptDevice, ptView->tAlbedoTexture);
-        gptGfx->destroy_texture(ptDevice, ptView->tNormalTexture);
-        gptGfx->destroy_texture(ptDevice, ptView->tAOMetalRoughnessTexture);
-        gptGfx->destroy_texture(ptDevice, ptView->tDepthTexture);
-        gptGfx->destroy_texture(ptDevice, ptView->tPickTexture);
-    }
-    else
-    {
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFinalTexture);
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture0);
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture1);
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tRawOutputTexture);
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAlbedoTexture);
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tNormalTexture);
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAOMetalRoughnessTexture);
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tDepthTexture);
-        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tPickTexture);
-    }
-
+    gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFinalTexture);
+    gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture0);
+    gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture1);
+    gptGfx->queue_texture_for_deletion(ptDevice, ptView->tRawOutputTexture);
+    gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAlbedoTexture);
+    gptGfx->queue_texture_for_deletion(ptDevice, ptView->tNormalTexture);
+    gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAOMetalRoughnessTexture);
+    gptGfx->queue_texture_for_deletion(ptDevice, ptView->tDepthTexture);
+    gptGfx->queue_texture_for_deletion(ptDevice, ptView->tPickTexture);
     gptGfx->queue_bind_group_for_deletion(ptDevice, ptView->tLightingBindGroup);
     ptView->tPickTexture = pl__renderer_create_texture(&tPickTextureDesc, "pick", 0, PL_TEXTURE_USAGE_SAMPLED);
 
@@ -3215,7 +3197,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
-    ptScene->aulStartTimelineValue[uFrameIdx] = tPostSubmitInfo.auSignalSemaphoreValues[0];
 
     gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
     gptGfx->return_command_buffer(ptPostCmdBuffer);

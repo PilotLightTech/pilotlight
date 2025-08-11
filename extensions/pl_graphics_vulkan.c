@@ -202,6 +202,7 @@ typedef struct _plFrameContext
 {
     VkFence        tInFlight;
     VkFramebuffer* sbtRawFrameBuffers;
+    uint64_t       uNextValue;
 
     // dynamic buffer stuff
     uint16_t               uCurrentBufferIndex;

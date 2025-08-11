@@ -116,7 +116,8 @@ typedef struct _plFrameContext
 {
     uint32_t              uCurrentBufferIndex;
     plMetalDynamicBuffer* sbtDynamicBuffers;
-    dispatch_semaphore_t tFrameBoundarySemaphore;
+    id<MTLSharedEvent>    tFrameBoundaryEvent;
+    uint64_t              uNextValue;
 } plFrameContext;
 
 typedef struct _plMetalTexture
@@ -1767,8 +1768,11 @@ pl_create_device(const plDeviceInit* ptInit)
     for(uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
     {
         plFrameContext tFrame = {
-            .tFrameBoundarySemaphore = dispatch_semaphore_create(1),
+            .uNextValue = 0
         };
+
+        tFrame.tFrameBoundaryEvent = [ptDevice->tDevice newSharedEvent];
+
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
         pl_sprintf(atNameBuffer, "D-BUF-F%d-0", (int)i);
@@ -1852,17 +1856,6 @@ pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
     ptSwap->tInfo.tSampleCount = pl_min(ptInit->tSampleCount, ptSwap->ptDevice->tInfo.tMaxSampleCount);
     if(ptSwap->tInfo.tSampleCount == 0)
         ptSwap->tInfo.tSampleCount = 1;
-
-    if(bMSAAChange)
-    {
-        // uint32_t uNextFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
-        // plFrameContext* ptFrame1 = &ptSwap->ptDevice->sbtFrames[uNextFrameIndex];
-        plFrameContext* ptFrame0 = pl__get_frame_resources(ptSwap->ptDevice);
-        // dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
-
-        dispatch_semaphore_signal(ptFrame0->tFrameBoundarySemaphore);
-        // // dispatch_semaphore_signal(ptFrame1->tFrameBoundarySemaphore);
-    }
 }
 
 static plCommandPool*
@@ -1940,21 +1933,10 @@ pl_begin_frame(plDevice* ptDevice)
 
     // Wait until the inflight command buffer has completed its work
     // gptGraphics->tSwapchain.uCurrentImageIndex = gptGraphics->uCurrentFrameIndex;
-    gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
+    [ptFrame->tFrameBoundaryEvent waitUntilSignaledValue:ptFrame->uNextValue timeoutMS:10000];
 
-    dispatch_semaphore_wait(ptFrame->tFrameBoundarySemaphore, DISPATCH_TIME_FOREVER);
-
-    static bool bFirstRun = true;
-    if(bFirstRun == false)
-    {
-        pl__garbage_collect(ptDevice);
-    }
-    else
-    {
-        bFirstRun = false;
-    }
-    
+    pl__garbage_collect(ptDevice); 
     pl_end_cpu_sample(gptProfile, 0);
 }
 
@@ -2036,21 +2018,9 @@ pl_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubmitInfo, p
     }
     
     ptFrame->uCurrentBufferIndex = 0;
-
-    __block dispatch_semaphore_t semaphore = ptFrame->tFrameBoundarySemaphore;
-    [ptCommandBuffer->tCmdBuffer addCompletedHandler:^(id<MTLCommandBuffer> commandBuffer) {
-
-        if(commandBuffer.status == MTLCommandBufferStatusError)
-        {
-            NSLog(@"PRESENT: %@s", commandBuffer.error);
-        }
-        // GPU work is complete
-        // Signal the semaphore to start the CPU work
-        dispatch_semaphore_signal(semaphore);
-        
-    }];
-
+    [ptCommandBuffer->tCmdBuffer encodeSignalEvent:ptFrame->tFrameBoundaryEvent value:++ptFrame->uNextValue];
     [ptCommandBuffer->tCmdBuffer commit];
+    gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
 
     return true;
 }
@@ -3430,43 +3400,59 @@ pl__garbage_collect(plDevice* ptDevice)
         pl_sb_push(ptDevice->sbtSamplerFreeIndices, iResourceIndex);
     }
 
+    uint64_t uSignaledValue = ptFrame->tFrameBoundaryEvent.signaledValue;
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
     {
         const uint16_t uTextureIndex = ptGarbage->sbtTextures[i].uIndex;
-        plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[uTextureIndex];
-        [ptMetalTexture->tTexture release];
-        ptMetalTexture->tTexture = nil;
-        pl_sb_push(ptDevice->sbtTextureFreeIndices, uTextureIndex);
+        if( uSignaledValue > ptDevice->sbtTexturesCold[uTextureIndex]._uFrameBoundaryValueForDeletion)
+        {
+            plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[uTextureIndex];
+            [ptMetalTexture->tTexture release];
+            ptMetalTexture->tTexture = nil;
+            pl_sb_push(ptDevice->sbtTextureFreeIndices, uTextureIndex);
+            pl_sb_del(ptGarbage->sbtTextures, i);
+            i--;
+        }
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
     {
         const uint16_t iBufferIndex = ptGarbage->sbtBuffers[i].uIndex;
-        [ptDevice->sbtBuffersHot[iBufferIndex].tBuffer release];
-        ptDevice->sbtBuffersHot[iBufferIndex].tBuffer = nil;
-        pl_sb_push(ptDevice->sbtBufferFreeIndices, iBufferIndex);
-        pl_log_debug_f(gptLog, uLogChannelGraphics, "Delete buffer %u for deletion frame %llu", iBufferIndex, gptIO->ulFrameCount);
+        if( uSignaledValue > ptDevice->sbtBuffersCold[iBufferIndex]._uFrameBoundaryValueForDeletion)
+        {
+            [ptDevice->sbtBuffersHot[iBufferIndex].tBuffer release];
+            ptDevice->sbtBuffersHot[iBufferIndex].tBuffer = nil;
+            pl_sb_push(ptDevice->sbtBufferFreeIndices, iBufferIndex);
+            pl_log_debug_f(gptLog, uLogChannelGraphics, "Delete buffer %u for deletion frame %llu", iBufferIndex, gptIO->ulFrameCount);
+            pl_sb_del(ptGarbage->sbtBuffers, i);
+            i--;
+        }
     }
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtMemory); i++)
     {
-        if(ptGarbage->sbtMemory[i].ptAllocator)
+        if( uSignaledValue > ptGarbage->sbtMemory[i]._uFrameBoundaryValueForDeletion)
         {
-            ptGarbage->sbtMemory[i].ptAllocator->free(ptGarbage->sbtMemory[i].ptAllocator->ptInst, &ptGarbage->sbtMemory[i]);
-        }
-        else
-        {
-            pl_free_memory(ptDevice, &ptGarbage->sbtMemory[i]);
+            if(ptGarbage->sbtMemory[i].ptAllocator)
+            {
+                ptGarbage->sbtMemory[i].ptAllocator->free(ptGarbage->sbtMemory[i].ptAllocator->ptInst, &ptGarbage->sbtMemory[i]);
+            }
+            else
+            {
+                pl_free_memory(ptDevice, &ptGarbage->sbtMemory[i]);
+            }
+            pl_sb_del(ptGarbage->sbtMemory, i);
+            i--;
         }
     }
 
-    pl_sb_reset(ptGarbage->sbtTextures);
+    // pl_sb_reset(ptGarbage->sbtTextures);
     pl_sb_reset(ptGarbage->sbtShaders);
     pl_sb_reset(ptGarbage->sbtComputeShaders);
     pl_sb_reset(ptGarbage->sbtRenderPasses);
     pl_sb_reset(ptGarbage->sbtRenderPassLayouts);
-    pl_sb_reset(ptGarbage->sbtMemory);
-    pl_sb_reset(ptGarbage->sbtBuffers);
+    // pl_sb_reset(ptGarbage->sbtMemory);
+    // pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);
     pl_end_cpu_sample(gptProfile, 0);
 }

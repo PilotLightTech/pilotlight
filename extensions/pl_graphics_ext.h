@@ -568,6 +568,9 @@ typedef struct _plDeviceMemoryAllocation
     uint64_t                  ulSize;       // actual size of allocation
     char*                     pHostMapped;  // host mapped memory if host visible
     plDeviceMemoryAllocatorI* ptAllocator;  // if allocated from user allocator, this should be set so cleanup can delegate
+
+        // [INTERNAL]
+    uint64_t _uFrameBoundaryValueForDeletion;
 } plDeviceMemoryAllocation;
 
 typedef struct _plDeviceMemoryAllocatorI
@@ -601,6 +604,7 @@ typedef struct _plSampler
 
     // [INTERNAL]
     uint16_t _uGeneration;
+    uint64_t _uFrameBoundaryValueForDeletion;
 } plSampler;
 
 typedef struct _plTextureDesc
@@ -636,6 +640,7 @@ typedef struct _plTexture
 
     // [INTERNAL]
     uint16_t _uGeneration;
+    uint64_t _uFrameBoundaryValueForDeletion;
 } plTexture;
 
 typedef struct _plBufferDesc
@@ -653,6 +658,7 @@ typedef struct _plBuffer
 
     // [INTERNAL]
     uint16_t _uGeneration;
+    uint64_t _uFrameBoundaryValueForDeletion;
 } plBuffer;
 
 //-----------------------------bind groups-------------------------------------
@@ -788,6 +794,7 @@ typedef struct _plBindGroup
 
     // [INTERNAL]
     uint16_t _uGeneration;
+    uint64_t _uFrameBoundaryValueForDeletion;
     plTextureHandle* _sbtTextures;
 } plBindGroup;
 
@@ -797,6 +804,7 @@ typedef struct _plBindGroupLayout
 
     // [INTERNAL]
     uint16_t _uGeneration;
+    uint64_t _uFrameBoundaryValueForDeletion;
     uint32_t _uTextureBindingCount;
     uint32_t _uBufferBindingCount;
     uint32_t _uSamplerBindingCount;
@@ -839,6 +847,7 @@ typedef struct _plComputeShader
 
     // [INTERNAL]
     uint16_t _uGeneration;
+    uint64_t _uFrameBoundaryValueForDeletion;
 } plComputeShader;
 
 typedef struct _plBlendState
@@ -930,6 +939,7 @@ typedef struct _plShader
 
     // [INTERNAL]
     uint16_t _uGeneration;
+    uint64_t _uFrameBoundaryValueForDeletion;
 } plShader;
 
 //----------------------------render passes------------------------------------
@@ -981,6 +991,7 @@ typedef struct _plRenderPassLayout
     // [INTERNAL]
     uint32_t _uAttachmentCount;
     uint16_t _uGeneration;
+    uint64_t _uFrameBoundaryValueForDeletion;
 } plRenderPassLayout;
 
 typedef struct _plRenderPassAttachments
@@ -1026,6 +1037,7 @@ typedef struct _plRenderPass
 
     // [INTERNAL]
     uint16_t _uGeneration;
+    uint64_t _uFrameBoundaryValueForDeletion;
 } plRenderPass;
 
 //---------------------------command buffers-----------------------------------

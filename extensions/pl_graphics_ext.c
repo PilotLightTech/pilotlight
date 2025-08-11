@@ -231,7 +231,9 @@ pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
         plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
         pl_sb_push(ptGarbage->sbtBuffers, tHandle);
         pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation);
+        ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
         ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
+        ptDevice->sbtBuffersCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
         // pl_log_trace_f(gptLog, uLogChannelGraphics, "Queue buffer %u for deletion frame %llu", tHandle.uIndex, gptIO->ulFrameCount);
         pl_log_debug_f(gptLog, uLogChannelGraphics, "queue buffer %s for deletion (%u)", ptDevice->sbtBuffersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
@@ -250,9 +252,11 @@ pl_queue_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
         pl_sb_push(ptGarbage->sbtTextures, tHandle);
         if(ptDevice->sbtTexturesHot[tHandle.uIndex].bOriginalView)
         {
+            ptDevice->sbtTexturesCold[tHandle.uIndex].tMemoryAllocation._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
             pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtTexturesCold[tHandle.uIndex].tMemoryAllocation);
         }
         ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
+        ptDevice->sbtTexturesCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
         pl_log_debug_f(gptLog, uLogChannelGraphics, "queue texture %s for deletion (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
     else
@@ -269,6 +273,7 @@ pl_queue_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle
         plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
         pl_sb_push(ptGarbage->sbtRenderPasses, tHandle);
         ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration++;
+        ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
     }
     else
     {
@@ -284,6 +289,7 @@ pl_queue_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutH
         plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
         pl_sb_push(ptGarbage->sbtRenderPassLayouts, tHandle);
         ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration++;
+        ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
     }
     else
     {
@@ -299,6 +305,7 @@ pl_queue_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
         plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
         pl_sb_push(ptGarbage->sbtShaders, tHandle);
         ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration++;
+        ptDevice->sbtShadersCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
         pl_log_debug_f(gptLog, uLogChannelGraphics, "queue shader %s for deletion (%u)", ptDevice->sbtShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
     else
@@ -315,6 +322,7 @@ pl_queue_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle t
         plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
         pl_sb_push(ptGarbage->sbtComputeShaders, tHandle);
         ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration++;
+        ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
         pl_log_debug_f(gptLog, uLogChannelGraphics, "queue compute shader %s for deletion (%u)", ptDevice->sbtComputeShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
     else
@@ -331,6 +339,7 @@ pl_queue_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
         plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
         pl_sb_push(ptGarbage->sbtBindGroups, tHandle);
         ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration++;
+        ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
     }
     else
     {
@@ -347,6 +356,7 @@ pl_queue_bind_group_layout_for_deletion(plDevice* ptDevice, plBindGroupLayoutHan
         plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
         pl_sb_push(ptGarbage->sbtBindGroupLayouts, tHandle);
         ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration++;
+        ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
     }
     else
     {
@@ -362,6 +372,7 @@ pl_queue_sampler_for_deletion(plDevice* ptDevice, plSamplerHandle tHandle)
         plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
         pl_sb_push(ptGarbage->sbtSamplers, tHandle);
         ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration++;
+        ptDevice->sbtSamplersCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
     }
     else
     {

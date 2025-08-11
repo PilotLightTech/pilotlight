@@ -115,7 +115,6 @@ typedef struct _plStarterContext
     plFont*                  ptDefaultFont;
     plTimelineSemaphore*     aptSemaphores[PL_MAX_FRAMES_IN_FLIGHT];
     uint64_t                 aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
-    uint64_t                 aulStartTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
     plCommandPool*           atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
     plRenderPassHandle       tRenderPass;
     plRenderPassLayoutHandle tRenderPassLayout;
@@ -365,10 +364,7 @@ pl_starter_resize(void)
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
-        if(uOldValue >= gptStarterCtx->aulStartTimelineValue[gptGfx->get_current_frame_index()])
-            gptGfx->destroy_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
-        else
-            gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
+        gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
 
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {
@@ -684,7 +680,6 @@ pl_starter_end_main_pass(void)
         .atSignalSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]},
     };
-    gptStarterCtx->aulStartTimelineValue[uCurrentFrameIndex] = tSubmitInfo.auSignalSemaphoreValues[0];
 
     if(!gptGfx->present(ptCurrentCommandBuffer, &tSubmitInfo, &gptStarterCtx->ptSwapchain, 1))
     {

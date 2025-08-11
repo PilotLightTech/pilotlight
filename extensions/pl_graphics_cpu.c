@@ -172,6 +172,7 @@ typedef struct _plFrameContext
 
     // dynamic buffer stuff
     uint16_t               uCurrentBufferIndex;
+    uint64_t               uNextValue;
     // plCpuDynamicBuffer* sbtDynamicBuffers;
 } plFrameContext;
 
