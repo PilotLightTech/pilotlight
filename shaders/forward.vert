@@ -89,7 +89,8 @@ void main()
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0))   { inColor0 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_1))   { inColor1 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
 
-    tShaderIn.tWorldNormal = mat3(tTransform) * normalize(inNormal);
+    // tShaderIn.tWorldNormal = normalize((tTransform * vec4(normalize(inNormal), 0.0)).xyz);
+    tShaderIn.tWorldNormal = normalize((tTransform * vec4(normalize(inNormal), 0.0)).xyz);
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
     {
 

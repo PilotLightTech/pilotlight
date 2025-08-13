@@ -16,6 +16,7 @@ layout(constant_id = 2) const int iMaterialFlags = 0;
 layout(constant_id = 3) const int iRenderingFlags = 0;
 layout(constant_id = 4) const int iLightCount = 0;
 layout(constant_id = 5) const int iProbeCount = 0;
+layout(constant_id = 6) const int tShaderDebugMode = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -60,11 +61,11 @@ pl_get_normal_info(int iUVSet)
     vec2 uv_dx = dFdx(UV);
     vec2 uv_dy = dFdy(UV);
 
-    // if (length(uv_dx) <= 1e-2) {
+    // if (length(uv_dx) <= 0.0001) {
     //   uv_dx = vec2(1.0, 0.0);
     // }
 
-    // if (length(uv_dy) <= 1e-2) {
+    // if (length(uv_dy) <= 0.0001) {
     //   uv_dy = vec2(0.0, 1.0);
     // }
 
@@ -193,16 +194,19 @@ void main()
     vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.iBaseColorUVSet);
     vec3 color = vec3(0);
 
-    if(tBaseColor.a <  material.fAlphaCutoff)
+    if(tShaderDebugMode != PL_SHADER_DEBUG_ALPHA)
     {
-        discard;
+        if(tBaseColor.a <  material.fAlphaCutoff)
+        {
+            discard;
+        }
     }
 
     NormalInfo tNormalInfo = pl_get_normal_info(material.iNormalUVSet);
 
     vec3 n = tNormalInfo.n;
     vec3 t = tNormalInfo.t;
-    vec3 b = tNormalInfo.b;
+    // vec3 b = tNormalInfo.b;
 
     MaterialInfo materialInfo;
     materialInfo.baseColor = tBaseColor.rgb;
@@ -276,10 +280,10 @@ void main()
 
     // ambient occlusion
     
+    float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
         float u_OcclusionStrength = 1.0;
-        float ao = 1.0;
         ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.iOcclusionTexIdx)], tSamplerLinearRepeat), tShaderIn.tUV[material.iOcclusionUVSet]).r;
         color = color * (1.0 + u_OcclusionStrength * (ao - 1.0)); 
     }
@@ -524,7 +528,81 @@ void main()
     }
 
     color = f_emissive + color;
-    outColor = vec4(color.rgb, tBaseColor.a);
+
+    outColor.a = tBaseColor.a;
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
+    {
+        outColor.rgb = color.rgb;
+    }
+    
+    if(tShaderDebugMode == PL_SHADER_DEBUG_BASE_COLOR)
+    {
+        outColor = tBaseColor;
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_SHADING_NORMAL)
+    {
+        outColor = vec4((n + 1.0) / 2.0, tBaseColor.a);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_NORMAL)
+    {
+        outColor = vec4((tNormalInfo.ng + 1.0) / 2.0, tBaseColor.a);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_TANGENT)
+    {
+        outColor = vec4((tNormalInfo.t + 1.0) / 2.0, tBaseColor.a);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_BITANGENT)
+    {
+        outColor.rgb = (tNormalInfo.b + 1.0) / 2.0;
+        outColor.a = 1.0;
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_TEXTURE_NORMAL)
+    {
+        if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP))
+        {
+            outColor = vec4((tNormalInfo.ntex + 1.0) / 2.0, tBaseColor.a);
+        }
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_METALLIC)
+    {
+        outColor.rgb = vec3(materialInfo.metallic);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_ROUGHNESS)
+    {
+        outColor.rgb = vec3(materialInfo.perceptualRoughness);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_UV0)
+    {
+        if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0))
+        {
+            outColor.rgb = vec3(tShaderIn.tUV[0], 0.0);
+        }
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_ALPHA)
+    {
+        outColor.rgb = vec3(tBaseColor.a);
+        outColor.a = 1.0;
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_EMMISSIVE)
+    {
+        outColor.rgb = pl_linear_to_srgb(f_emissive);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_OCCLUSION)
+    {
+        outColor.rgb = vec3(ao);
+    }
 
     // if(gl_FragCoord.x < 600.0)
     // {

@@ -32,6 +32,7 @@ Index of this file:
 layout(constant_id = 0) const int iMeshVariantFlags = 0;
 layout(constant_id = 1) const int iTextureMappingFlags = 0;
 layout(constant_id = 2) const int iMaterialFlags = 0;
+layout(constant_id = 3) const int tShaderDebugMode = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -211,9 +212,12 @@ void main()
     NormalInfo tNormalInfo = pl_get_normal_info(material.iNormalUVSet);
     vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.iBaseColorUVSet);
 
-    if(tBaseColor.a <  material.fAlphaCutoff)
+    if(tShaderDebugMode != PL_SHADER_DEBUG_ALPHA)
     {
-        discard;
+        if(tBaseColor.a <  material.fAlphaCutoff)
+        {
+            discard;
+        }
     }
     
     MaterialInfo materialInfo;
@@ -247,4 +251,34 @@ void main()
     outAlbedo = tBaseColor;
     outNormal = Encode(tNormalInfo.n);
     outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_UV0)
+    {
+        if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0))
+            outAlbedo.rgb = vec3(tShaderIn.tUV[0], 0.0);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_NORMAL)
+    {
+        outAlbedo.rgb = vec3((1.0 + tNormalInfo.ng) / 2.0);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_TANGENT)
+    {
+        outAlbedo.rgb = vec3((1.0 + tNormalInfo.t) / 2.0);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_BITANGENT)
+    {
+        outAlbedo.rgb = vec3((1.0 + tNormalInfo.b) / 2.0);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_TEXTURE_NORMAL)
+    {
+        outAlbedo.rgb = vec3(0.0);
+        if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP))
+        {
+            outAlbedo.rgb = tNormalInfo.ntex;
+        }
+    }
 }

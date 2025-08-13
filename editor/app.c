@@ -442,6 +442,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plModelLoaderData tLoaderData0 = {0};
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
     gptModelLoader->free_data(&tLoaderData0);
     gptRenderer->finalize_scene(ptAppData->ptScene);
@@ -801,16 +802,18 @@ pl__show_editor_window(plAppData* ptAppData)
                     gptStarter->deactivate_vsync();
             }
 
-            bool abTonemap[3] = {0};
+            
             static const char* apcTonemapText[] = {
                 "None",
+                "Simple",
                 "ACES",
                 "Reinhard",
             };
+            bool abTonemap[PL_ARRAYSIZE(apcTonemapText)] = {0};
             abTonemap[ptRuntimeOptions->tTonemapMode] = true;
             if(gptUI->begin_combo("Tonemapping", apcTonemapText[ptRuntimeOptions->tTonemapMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
             {
-                for(uint32_t i = 0; i < 3; i++)
+                for(uint32_t i = 0; i < PL_ARRAYSIZE(apcTonemapText); i++)
                 {
                     if(gptUI->selectable(apcTonemapText[i], &abTonemap[i], 0))
                     {
@@ -820,6 +823,45 @@ pl__show_editor_window(plAppData* ptAppData)
                 }
                 gptUI->end_combo();
             }
+
+            bool bReloadShaders = false;
+
+            
+            static const char* apcShaderDebugModeText[] = {
+                "None",
+                "Base Color",
+                "Metallic",
+                "Roughness",
+                "Alpha",
+                "Emissive",
+                "Occlusion",
+                "Shading Normal",
+                "Texture Normal",
+                "Geometry Normal",
+                "Geometry Tangent",
+                "Geometry Bitangent",
+                "UV 0"
+            };
+            bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
+            abShaderDebugMode[ptRuntimeOptions->tShaderDebugMode] = true;
+            if(gptUI->begin_combo("Shader Debug Mode", apcShaderDebugModeText[ptRuntimeOptions->tShaderDebugMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
+            {
+                for(uint32_t i = 0; i < PL_ARRAYSIZE(apcShaderDebugModeText); i++)
+                {
+                    if(gptUI->selectable(apcShaderDebugModeText[i], &abShaderDebugMode[i], 0))
+                    {
+                        bReloadShaders = true;
+                        if(i == 0)
+                            ptRuntimeOptions->tTonemapMode = PL_TONEMAP_MODE_SIMPLE;
+                        else
+                            ptRuntimeOptions->tTonemapMode = PL_TONEMAP_MODE_NONE;
+                        ptRuntimeOptions->tShaderDebugMode = i;
+                        gptUI->close_current_popup();
+                    } 
+                }
+                gptUI->end_combo();
+            }
+
             gptUI->slider_float("Exposure", &ptRuntimeOptions->fExposure, 0.0f, 3.0f, 0);
             gptUI->slider_float("Brightness", &ptRuntimeOptions->fBrightness, -1.0f, 1.0f, 0);
             gptUI->slider_float("Contrast", &ptRuntimeOptions->fContrast, 0.0f, 2.0f, 0);
@@ -827,7 +869,7 @@ pl__show_editor_window(plAppData* ptAppData)
 
             gptUI->checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
             gptUI->checkbox("Show BVH", &ptAppData->bShowBVH);
-            bool bReloadShaders = false;
+            
             if(gptUI->checkbox("Wireframe", &ptRuntimeOptions->bWireframe)) bReloadShaders = true;
             if(gptUI->checkbox("MultiViewport Shadows", &ptRuntimeOptions->bMultiViewportShadows)) bReloadShaders = true;
             if(gptUI->checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;

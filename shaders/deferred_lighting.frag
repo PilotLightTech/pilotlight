@@ -2,6 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
+#include "pl_shader_interop_renderer.h"
 #include "bg_scene.inc"
 #include "bg_view.inc"
 #include "math.glsl"
@@ -14,6 +15,7 @@
 layout(constant_id = 0) const int iRenderingFlags = 0;
 layout(constant_id = 1) const int iLightCount = 0;
 layout(constant_id = 2) const int iProbeCount = 0;
+layout(constant_id = 3) const int tShaderDebugMode = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 2
@@ -353,15 +355,49 @@ void main()
 
     // Layer blending
 
-    outColor = vec4(color.rgb, tBaseColor.a);
+    outColor.a = tBaseColor.a;
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
+    {
+        outColor.rgb = color.rgb;
+    }
     
-    // outColor = vec4(ndcSpace.rgb, tBaseColor.a);
-    // outColor = vec4(gl_FragCoord.x, 0, 0, tBaseColor.a);
-    // outColor = vec4(v.r, v.g, v.b, tBaseColor.a);
-    // outColor = vec4(v.r, v.g, v.b, tBaseColor.a);
-    // outColor = vec4(tWorldPosition.rgb, tBaseColor.a);
-    // outColor = vec4(tViewPosition.rgb, tBaseColor.a);
-    // outColor = vec4(n, tBaseColor.a);
+    if(tShaderDebugMode == PL_SHADER_DEBUG_BASE_COLOR)
+    {
+        outColor = tBaseColor;
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_SHADING_NORMAL)
+    {
+        outColor = vec4((n + 1.0) / 2.0, tBaseColor.a);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_METALLIC)
+    {
+        outColor.rgb = vec3(materialInfo.metallic);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_ROUGHNESS)
+    {
+        outColor.rgb = vec3(materialInfo.perceptualRoughness);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_ALPHA)
+    {
+        outColor.rgb = vec3(tBaseColor.a);
+        outColor.a = 1.0;
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_OCCLUSION)
+    {
+        outColor.rgb = vec3(ao);
+    }
+
+    if(tShaderDebugMode > PL_SHADER_DEBUG_SHADING_NORMAL)
+    {
+        outColor.rgb = vec3(tBaseColor.rgb);
+        outColor.a = 1.0;
+    }
 
     // if(gl_FragCoord.x < 1400.0)
     // {

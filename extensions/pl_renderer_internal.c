@@ -3532,12 +3532,14 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             iObjectRenderingFlags,
             pl_sb_capacity(ptScene->sbtLightData),
             pl_sb_size(ptScene->sbtProbeData),
+            gptData->tRuntimeOptions.tShaderDebugMode
         };
 
         int aiGBufferFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
-            PL_INFO_MATERIAL_METALLICROUGHNESS
+            PL_INFO_MATERIAL_METALLICROUGHNESS,
+            gptData->tRuntimeOptions.tShaderDebugMode
         };
 
         int aiVertexConstantData0[] = {

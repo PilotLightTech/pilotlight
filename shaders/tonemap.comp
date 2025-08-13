@@ -102,11 +102,17 @@ main()
 
     vec4 tLinearColor = imageLoad(inputImage, tCenter);
 
+    if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_NONE)
+    {
+        imageStore(inputImage, tCenter, tLinearColor);
+        return;
+    }
+
     tLinearColor.rgb *= tDynamicData.tData.fExposure;
 
     vec3 tTonemappedColor;
 
-    if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_NONE)
+    if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_SIMPLE)
     {
         tTonemappedColor = tLinearColor.rgb;
     }
@@ -129,4 +135,5 @@ main()
 
     vec4 tFinalColor = vec4(sRGB, tLinearColor.a);
     imageStore(inputImage, tCenter, tFinalColor);
+    
 }

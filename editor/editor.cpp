@@ -1033,10 +1033,29 @@ pl__show_editor_window(plAppData* ptAppData)
             }
             static const char* apcTonemapText[] = {
                 "None",
+                "Simple",
                 "ACES",
                 "Reinhard",
             };
-            ImGui::Combo("Tonemapping", &ptRuntimeOptions->tTonemapMode, apcTonemapText, 3);
+            ImGui::Combo("Tonemapping", &ptRuntimeOptions->tTonemapMode, apcTonemapText, PL_ARRAYSIZE(apcTonemapText));
+
+            static const char* apcShaderDebugModeText[] = {
+                "None",
+                "Base Color",
+                "Metallic",
+                "Roughness",
+                "Alpha",
+                "Emissive",
+                "Occlusion",
+                "Shading Normal",
+                "Texture Normal",
+                "Geometry Normal",
+                "Geometry Tangent",
+                "Geometry Bitangent",
+                "UV 0"
+            };
+            bool bReloadShaders = false;
+            if(ImGui::Combo("Shader Debug Mode", &ptRuntimeOptions->tShaderDebugMode, apcShaderDebugModeText, PL_ARRAYSIZE(apcShaderDebugModeText))) bReloadShaders = true;
             ImGui::SliderFloat("Exposure", &ptRuntimeOptions->fExposure, 0.0f, 3.0f);
             ImGui::SliderFloat("Brightness", &ptRuntimeOptions->fBrightness, -1.0f, 1.0f);
             ImGui::SliderFloat("Contrast", &ptRuntimeOptions->fContrast, 0.0f, 2.0f);
@@ -1044,7 +1063,6 @@ pl__show_editor_window(plAppData* ptAppData)
             ImGui::Checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
             ImGui::Checkbox("Show BVH", &ptAppData->bShowBVH);
             ImGui::Checkbox("Show Skybox", &ptAppData->bShowSkybox);
-            bool bReloadShaders = false;
             if(ImGui::Checkbox("Wireframe", &ptRuntimeOptions->bWireframe)) bReloadShaders = true;
             if(ImGui::Checkbox("MultiViewport Shadows", &ptRuntimeOptions->bMultiViewportShadows)) bReloadShaders = true;
             if(ImGui::Checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;

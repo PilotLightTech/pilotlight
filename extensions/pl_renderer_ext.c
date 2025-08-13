@@ -261,7 +261,7 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tRuntimeOptions.fBrightness = 0.0f;
     gptData->tRuntimeOptions.fContrast = 1.0f;
     gptData->tRuntimeOptions.fSaturation = 1.0f;
-    gptData->tRuntimeOptions.tTonemapMode = PL_TONEMAP_MODE_NONE;
+    gptData->tRuntimeOptions.tTonemapMode = PL_TONEMAP_MODE_SIMPLE;
 
     gptResource->initialize((plResourceManagerInit){.ptDevice = gptData->ptDevice, .uMaxTextureResolution = tSettings.uMaxTextureResolution});
 
@@ -1771,12 +1771,14 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
             iObjectRenderingFlags,
             pl_sb_capacity(ptScene->sbtLightData),
             pl_sb_capacity(ptScene->sbtProbeData),
+            gptData->tRuntimeOptions.tShaderDebugMode
         };
 
         int aiGBufferFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
-            PL_INFO_MATERIAL_METALLICROUGHNESS
+            PL_INFO_MATERIAL_METALLICROUGHNESS,
+            gptData->tRuntimeOptions.tShaderDebugMode
         };
 
         int aiVertexConstantData0[] = {
@@ -1881,7 +1883,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
 
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
-    int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData), gptData->tRuntimeOptions.tShaderDebugMode};
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
     ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
@@ -1967,7 +1969,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
 
     // create lighting shader
-    int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData)};
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData), gptData->tRuntimeOptions.tShaderDebugMode};
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
     ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);

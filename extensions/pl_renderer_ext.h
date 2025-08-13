@@ -229,16 +229,17 @@ typedef struct _plRendererSettings
 
 typedef struct _plRendererRuntimeOptions
 {
-    bool     bShowProbes;
-    bool     bWireframe;
-    bool     bShowOrigin;
-    bool     bShowSelectedBoundingBox;
-    bool     bMultiViewportShadows;
-    bool     bImageBasedLighting;
-    bool     bPunctualLighting;
-    float    fShadowConstantDepthBias;
-    float    fShadowSlopeDepthBias;
-    uint32_t uOutlineWidth;
+    bool              bShowProbes;
+    bool              bWireframe;
+    bool              bShowOrigin;
+    bool              bShowSelectedBoundingBox;
+    bool              bMultiViewportShadows;
+    bool              bImageBasedLighting;
+    bool              bPunctualLighting;
+    float             fShadowConstantDepthBias;
+    float             fShadowSlopeDepthBias;
+    uint32_t          uOutlineWidth;
+    plShaderDebugMode tShaderDebugMode;
 
     // tonemapping
     plTonemapMode   tTonemapMode;
@@ -246,6 +247,7 @@ typedef struct _plRendererRuntimeOptions
     float           fBrightness;
     float           fContrast;
     float           fSaturation;
+
 } plRendererRuntimeOptions;
 
 typedef struct _plTextureMap

@@ -267,6 +267,7 @@
             "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
@@ -307,6 +308,7 @@
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
@@ -514,6 +516,7 @@
                 { "bBlendEnabled": false }
             ],
             "atFragmentConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
