@@ -528,6 +528,9 @@ pl_app_update(plAppData* ptAppData)
         if(ptAppData->bShowSkybox)
             gptRenderer->show_skybox(ptAppData->ptView);
 
+        if(ptAppData->bShowGrid)
+            gptRenderer->show_grid(ptAppData->ptView);
+
         if(ptAppData->bShowBVH)
             gptRenderer->debug_draw_bvh(ptAppData->ptView);
     
@@ -1065,6 +1068,7 @@ pl__show_editor_window(plAppData* ptAppData)
             ImGui::Checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
             ImGui::Checkbox("Show BVH", &ptAppData->bShowBVH);
             ImGui::Checkbox("Show Skybox", &ptAppData->bShowSkybox);
+            ImGui::Checkbox("Show Grid", &ptAppData->bShowGrid);
             if(ImGui::Checkbox("Wireframe", &ptRuntimeOptions->bWireframe)) bReloadShaders = true;
             if(ImGui::Checkbox("MultiViewport Shadows", &ptRuntimeOptions->bMultiViewportShadows)) bReloadShaders = true;
             if(ImGui::Checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;

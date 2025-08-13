@@ -178,6 +178,7 @@ typedef struct _plAppData
     bool  bShowImGuiDemo;
     bool  bContinuousBVH;
     bool  bShowSkybox;
+    bool  bShowGrid;
     bool  bShowPlotDemo;
     bool  bShowUiDemo;
     bool  bShowUiDebug;

@@ -274,6 +274,7 @@ typedef struct _plView
     plScene* ptParentScene;
 
     bool bShowSkybox;
+    bool bShowGrid;
 
     // renderpasses
     plRenderPassHandle tRenderPass;

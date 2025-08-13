@@ -264,6 +264,11 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tRuntimeOptions.fSaturation = 1.0f;
     gptData->tRuntimeOptions.tTonemapMode = PL_TONEMAP_MODE_SIMPLE;
 
+    gptData->tRuntimeOptions.fGridCellSize = 0.025f;
+    gptData->tRuntimeOptions.fGridMinPixelsBetweenCells = 2.0f;
+    gptData->tRuntimeOptions.tGridColorThin = (plVec4){0.5f, 0.5f, 0.5f, 1.0f};
+    gptData->tRuntimeOptions.tGridColorThick = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
+
     gptResource->initialize((plResourceManagerInit){.ptDevice = gptData->ptDevice, .uMaxTextureResolution = tSettings.uMaxTextureResolution});
 
     if(gptData->tDeviceInfo.tCapabilities & PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS)
@@ -2789,6 +2794,33 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     }
     gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
 
+    if(ptView->bShowGrid)
+    {
+        plShaderHandle tGridShader = gptShaderVariant->get_shader("grid", NULL, NULL, NULL, &gptData->tRenderPassLayout);
+        gptGfx->bind_shader(ptSceneEncoder, tGridShader);
+
+        plDynamicBinding tGridDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+        plGpuDynGrid* ptGridDynamicData = (plGpuDynGrid*)tGridDynamicBinding.pcData;
+        const float fGridFactor = pl_squaref(ptCamera->fFarZ) - pl_squaref(ptCamera->tPos.y);
+        ptGridDynamicData->fGridSize = fGridFactor > 0.0f ? sqrtf(fGridFactor) : 100.0f;
+        ptGridDynamicData->fGridCellSize = gptData->tRuntimeOptions.fGridCellSize;
+        ptGridDynamicData->fGridMinPixelsBetweenCells = gptData->tRuntimeOptions.fGridMinPixelsBetweenCells;
+        ptGridDynamicData->tGridColorThin = gptData->tRuntimeOptions.tGridColorThin;
+        ptGridDynamicData->tGridColorThick = gptData->tRuntimeOptions.tGridColorThick;
+        ptGridDynamicData->fCameraXPos = ptCamera->tPos.x;
+        ptGridDynamicData->fCameraZPos = ptCamera->tPos.z;
+        ptGridDynamicData->tCameraViewProjection = tMVP;
+        
+        gptGfx->bind_graphics_bind_groups(ptSceneEncoder, tGridShader, 0, 0, NULL, 1, &tGridDynamicBinding);
+
+        plDraw tGridDraw = {
+            .uVertexCount   = 6,
+            .uInstanceCount = 1,
+        };
+        *gptData->pdDrawCalls += 1.0;
+        gptGfx->draw(ptSceneEncoder, 1, &tGridDraw);
+    }
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~debug drawing~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // bounding boxes
@@ -3706,6 +3738,12 @@ pl_renderer_show_skybox(plView* ptView)
     ptView->bShowSkybox = true;
 }
 
+void
+pl_renderer_show_grid(plView* ptView)
+{
+    ptView->bShowGrid = true;
+}
+
 static void
 pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
 {
@@ -3999,6 +4037,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi.debug_draw_all_bound_boxes    = pl_renderer_debug_draw_all_bound_boxes;
     tApi.debug_draw_bvh                = pl_renderer_debug_draw_bvh;
     tApi.show_skybox                   = pl_renderer_show_skybox;
+    tApi.show_grid                     = pl_renderer_show_grid;
     tApi.register_ecs_system                = pl_renderer_register_system;
     tApi.create_material                    = pl_renderer_create_material;
     tApi.create_skin                        = pl_renderer_create_skin;

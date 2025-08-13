@@ -161,6 +161,7 @@ typedef struct _plRendererI
     
     // per frame options
     void (*show_skybox)               (plView*);
+    void (*show_grid)                 (plView*);
     void (*debug_draw_lights)         (plView*, const plLightComponent*, uint32_t lightCount);
     void (*debug_draw_all_bound_boxes)(plView*);
     void (*debug_draw_bvh)            (plView*);
@@ -248,6 +249,12 @@ typedef struct _plRendererRuntimeOptions
     float           fBrightness;
     float           fContrast;
     float           fSaturation;
+
+    // grid
+    float fGridCellSize;
+    float fGridMinPixelsBetweenCells;
+    plVec4 tGridColorThin;
+    plVec4 tGridColorThick;
 
 } plRendererRuntimeOptions;
 

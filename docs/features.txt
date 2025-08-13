@@ -97,6 +97,7 @@ Reference Renderer:
     * Tonemapping
     * gltf model loading
     * stl model loading
+    * grid renderer
 
 Wishlist:
     * Morph target animation (with sparse accessor)

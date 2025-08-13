@@ -149,6 +149,7 @@ typedef struct _plAppData
     bool  bContinuousBVH;
     bool  bFrustumCulling;
     bool  bShowSkybox;
+    bool  bShowGrid;
     bool  bShowBVH;
     bool  bEditorAttached;
     bool  bShowEntityWindow;
@@ -693,6 +694,9 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowBVH)
         gptRenderer->debug_draw_bvh(ptAppData->ptView);
 
+    if(ptAppData->bShowGrid)
+        gptRenderer->show_grid(ptAppData->ptView);
+
     // render scene
     gptRenderer->prepare_scene(ptAppData->ptScene);
     gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
@@ -781,7 +785,6 @@ pl__show_editor_window(plAppData* ptAppData)
             gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
             gptUI->checkbox("Show Debug Lights", &ptAppData->bShowDebugLights);
             gptUI->checkbox("Show Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
-            gptUI->checkbox("Show Skybox", &ptAppData->bShowSkybox);
 
             gptUI->vertical_spacing();
 
@@ -871,6 +874,8 @@ pl__show_editor_window(plAppData* ptAppData)
 
             gptUI->checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
             gptUI->checkbox("Show BVH", &ptAppData->bShowBVH);
+            gptUI->checkbox("Show Skybox", &ptAppData->bShowSkybox);
+            gptUI->checkbox("Show Grid", &ptAppData->bShowGrid);
             
             if(gptUI->checkbox("Wireframe", &ptRuntimeOptions->bWireframe)) bReloadShaders = true;
             if(gptUI->checkbox("MultiViewport Shadows", &ptRuntimeOptions->bMultiViewportShadows)) bReloadShaders = true;

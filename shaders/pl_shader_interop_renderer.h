@@ -11,6 +11,7 @@ Index of this file:
 // [SECTION] common
 // [SECTION] scene
 // [SECTION] view
+// [SECTION] grid
 // [SECTION] tonemapping
 // [SECTION] environment filtering
 // [SECTION] shadows
@@ -158,6 +159,36 @@ PL_BEGIN_STRUCT(plGpuViewData)
 
     // ~~~~~~~~~~~~~~~~224 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuViewData)
+
+//-----------------------------------------------------------------------------
+// [SECTION] grid
+//-----------------------------------------------------------------------------
+
+PL_BEGIN_STRUCT(plGpuDynGrid)
+
+    float fCameraXPos;
+    float fCameraZPos;
+    float fGridSize;
+    float fGridCellSize;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    float fGridMinPixelsBetweenCells;
+    int   _iUnused0;
+    int   _iUnused1;
+    int   _iUnused2;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec4 tGridColorThin;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec4 tGridColorThick;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    mat4 tCameraViewProjection;
+    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~128 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuDynGrid)
 
 //-----------------------------------------------------------------------------
 // [SECTION] tonemapping
