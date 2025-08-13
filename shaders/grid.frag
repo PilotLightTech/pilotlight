@@ -12,7 +12,7 @@ layout (location=1) in vec2 camPos;
 layout (location=0) out vec4 fragColor;
 
 float
-log10(float x)
+pl_log10(float x)
 {
   return log(x) / log(10.0);
 }
@@ -43,7 +43,7 @@ gridColor(vec2 uv, vec2 camPos)
     length(vec2(dFdx(uv.y), dFdy(uv.y)))
   );
 
-  float lodLevel = max(0.0, log10((length(dudv) * tObjectInfo.tData.fGridMinPixelsBetweenCells) / tObjectInfo.tData.fGridCellSize) + 1.0);
+  float lodLevel = max(0.0, pl_log10((length(dudv) * tObjectInfo.tData.fGridMinPixelsBetweenCells) / tObjectInfo.tData.fGridCellSize) + 1.0);
   float lodFade = fract(lodLevel);
 
   // cell sizes for lod0, lod1 and lod2

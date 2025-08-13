@@ -3404,7 +3404,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtTextures); i++)
     {
         const uint16_t uTextureIndex = ptGarbage->sbtTextures[i].uIndex;
-        if( uSignaledValue > ptDevice->sbtTexturesCold[uTextureIndex]._uFrameBoundaryValueForDeletion)
+        if( uSignaledValue > ptDevice->sbtTexturesCold[uTextureIndex]._uFrameBoundaryValueForDeletion + 1)
         {
             plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[uTextureIndex];
             [ptMetalTexture->tTexture release];
@@ -3418,7 +3418,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtBuffers); i++)
     {
         const uint16_t iBufferIndex = ptGarbage->sbtBuffers[i].uIndex;
-        if( uSignaledValue > ptDevice->sbtBuffersCold[iBufferIndex]._uFrameBoundaryValueForDeletion)
+        if( uSignaledValue > ptDevice->sbtBuffersCold[iBufferIndex]._uFrameBoundaryValueForDeletion + 1)
         {
             [ptDevice->sbtBuffersHot[iBufferIndex].tBuffer release];
             ptDevice->sbtBuffersHot[iBufferIndex].tBuffer = nil;
@@ -3431,7 +3431,7 @@ pl__garbage_collect(plDevice* ptDevice)
 
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtMemory); i++)
     {
-        if( uSignaledValue > ptGarbage->sbtMemory[i]._uFrameBoundaryValueForDeletion)
+        if( uSignaledValue > ptGarbage->sbtMemory[i]._uFrameBoundaryValueForDeletion + 1)
         {
             if(ptGarbage->sbtMemory[i].ptAllocator)
             {
