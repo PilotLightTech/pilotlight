@@ -482,7 +482,7 @@ pl_app_shutdown(plAppData* ptAppData)
     // PL_ASSERT(gptPak->add_from_disk(ptPak, "filter_environment.comp.spv", "../out-temp/filter_environment.comp.spv",false));
     // PL_ASSERT(gptPak->add_from_disk(ptPak, "forward.frag.spv", "../out-temp/forward.frag.spv",false));
     // PL_ASSERT(gptPak->add_from_disk(ptPak, "forward.vert.spv", "../out-temp/forward.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "full_quad.vert.spv", "../out-temp/full_quad.vert.spv",false));
+    // PL_ASSERT(gptPak->add_from_disk(ptPak, "full_screen.vert.spv", "../out-temp/full_screen.vert.spv",false));
     // PL_ASSERT(gptPak->add_from_disk(ptPak, "gbuffer_fill.frag.spv", "../out-temp/gbuffer_fill.frag.spv",false));
     // PL_ASSERT(gptPak->add_from_disk(ptPak, "gbuffer_fill.vert.spv", "../out-temp/gbuffer_fill.vert.spv",false));
     // PL_ASSERT(gptPak->add_from_disk(ptPak, "jumpfloodalgo.comp.spv", "../out-temp/jumpfloodalgo.comp.spv",false));

@@ -165,7 +165,7 @@
     "graphics shaders": [
         {
             "pcName": "jumpfloodalgo2",
-            "tVertexShader":    { "file": "full_quad.vert"},
+            "tVertexShader":    { "file": "full_screen.vert"},
             "tFragmentShader":  { "file": "jumpfloodalgo.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled": false,
@@ -181,14 +181,6 @@
                 "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
                 "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "atVertexBufferLayouts": [
-                {
-                    "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" }
-                    ]
-                }
-            ],
             "uSubpassIndex": 0,
             "atBlendStates": [
                 { "bBlendEnabled": false }
@@ -324,7 +316,7 @@
         },
         {
             "pcName": "uvmap",
-            "tVertexShader":    { "file": "uvmap.vert"},
+            "tVertexShader":    { "file": "full_screen.vert"},
             "tFragmentShader":  { "file": "uvmap.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
@@ -340,14 +332,6 @@
                 "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
                 "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "atVertexBufferLayouts": [
-                {
-                    "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" }
-                    ]
-                }
-            ],
             "atBlendStates": [
                 { "bBlendEnabled": false }
             ]
@@ -488,7 +472,7 @@
         },
         {
             "pcName": "deferred_lighting",
-            "tVertexShader":    { "file": "deferred_lighting.vert"},
+            "tVertexShader":    { "file": "full_screen.vert"},
             "tFragmentShader":  { "file": "deferred_lighting.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
@@ -505,14 +489,6 @@
                 "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
             "uSubpassIndex": 1,
-            "atVertexBufferLayouts": [
-                {
-                    "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" }
-                    ]
-                }
-            ],
             "atBlendStates": [
                 { "bBlendEnabled": false }
             ],

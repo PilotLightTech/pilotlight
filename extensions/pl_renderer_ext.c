@@ -585,28 +585,6 @@ pl_renderer_initialize(plRendererSettings tSettings)
 
     pl_temp_allocator_reset(&gptData->tTempAllocator);
 
-    // create full quad
-    const uint32_t auFullQuadIndexBuffer[] = {0, 1, 2, 0, 2, 3};
-    const plBufferDesc tFullQuadIndexBufferDesc = {
-        .tUsage     = PL_BUFFER_USAGE_INDEX,
-        .szByteSize = sizeof(uint32_t) * 6,
-        .pcDebugName = "Renderer Quad Index Buffer"
-    };
-    gptData->tFullQuadIndexBuffer = pl__renderer_create_local_buffer(&tFullQuadIndexBufferDesc, "full quad index buffer", 0, auFullQuadIndexBuffer, tFullQuadIndexBufferDesc.szByteSize);
-
-    const float afFullQuadVertexBuffer[] = {
-        -1.0f, -1.0f, 0.0f, 0.0f,
-        -1.0f,  1.0f, 0.0f, 1.0f,
-         1.0f,  1.0f, 1.0f, 1.0f,
-         1.0f, -1.0f, 1.0f, 0.0f
-    };
-    const plBufferDesc tFullQuadVertexBufferDesc = {
-        .tUsage     = PL_BUFFER_USAGE_VERTEX,
-        .szByteSize = sizeof(float) * 16,
-        .pcDebugName = "Renderer Quad Vertex Buffer"
-    };
-    gptData->tFullQuadVertexBuffer = pl__renderer_create_local_buffer(&tFullQuadVertexBufferDesc, "full quad vertex buffer", 0, afFullQuadVertexBuffer, tFullQuadVertexBufferDesc.szByteSize);
-
     // create semaphores
     gptData->ptClickSemaphore = gptGfx->create_semaphore(gptData->ptDevice, false);
 };
@@ -2710,10 +2688,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .auDynamicBuffers = {
             tLightingDynamicData.uBufferHandle
         },
-        .atVertexBuffers = {
-            gptData->tFullQuadVertexBuffer
-        },
-        .tIndexBuffer   = gptData->tFullQuadIndexBuffer,
         .uIndexOffset   = 0,
         .uTriangleCount = 2,
         .atBindGroups = {
@@ -2951,15 +2925,13 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     // submit nonindexed draw using basic API
     plShaderHandle tUVShader = gptShaderVariant->get_shader("uvmap", NULL, NULL, NULL, &gptData->tUVRenderPassLayout);
     gptGfx->bind_shader(ptUVEncoder, tUVShader);
-    gptGfx->bind_vertex_buffer(ptUVEncoder, gptData->tFullQuadVertexBuffer);
 
-    plDrawIndex tDraw = {
-        .tIndexBuffer   = gptData->tFullQuadIndexBuffer,
-        .uIndexCount    = 6,
+    plDraw tDraw = {
+        .uVertexCount   = 3,
         .uInstanceCount = 1,
     };
     *gptData->pdDrawCalls += 1.0;
-    gptGfx->draw_indexed(ptUVEncoder, 1, &tDraw);
+    gptGfx->draw(ptUVEncoder, 1, &tDraw);
 
     // end render pass
     gptGfx->end_render_pass(ptUVEncoder);

@@ -6,9 +6,7 @@
 //-----------------------------------------------------------------------------
 
 // input
-layout(location = 0) in struct plShaderIn {
-    vec2 tUV;
-} tShaderIn;
+layout(location = 0) in vec2 tUV;
 
 // output
 layout(location = 0) out vec2 outColor;
@@ -19,5 +17,5 @@ layout(location = 0) out vec2 outColor;
 
 void main() 
 {
-    outColor = vec2(tShaderIn.tUV);
+    outColor = vec2(tUV);
 }

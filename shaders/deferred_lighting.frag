@@ -41,10 +41,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 
 layout(location = 0) out vec4 outColor;
 
-// output
-layout(location = 0) in struct plShaderIn {
-    vec2 tUV;
-} tShaderIn;
+layout(location = 0) in vec2 tUV;
 
 #include "lighting.glsl"
 #include "material_info.glsl"

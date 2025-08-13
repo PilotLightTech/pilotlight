@@ -24,9 +24,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 // [SECTION] input
 //-----------------------------------------------------------------------------
 
-layout(location = 0) in struct plShaderOut {
-    vec2 tUV;
-} tShaderIn;
+layout(location = 0) in vec2 tUV;
 
 //-----------------------------------------------------------------------------
 // [SECTION] output
@@ -42,13 +40,13 @@ void
 main() 
 {
 
-    vec4 color = texture(sampler2D(tColorTexture, tSamplerLinearRepeat), tShaderIn.tUV);
-    vec2 closestSeed = texture(sampler2D(tMaskTexture, tSamplerLinearRepeat), tShaderIn.tUV).xy;
-    vec2 h = closestSeed - tShaderIn.tUV;
+    vec4 color = texture(sampler2D(tColorTexture, tSamplerLinearRepeat), tUV);
+    vec2 closestSeed = texture(sampler2D(tMaskTexture, tSamplerLinearRepeat), tUV).xy;
+    vec2 h = closestSeed - tUV;
     float xdist = h.x * float(textureSize(sampler2D(tColorTexture, tSamplerLinearRepeat),0).x);
     float ydist = h.y * float(textureSize(sampler2D(tColorTexture, tSamplerLinearRepeat),0).y);
     float tdist2 = xdist * xdist + ydist * ydist;
-    float dist = distance(closestSeed, tShaderIn.tUV);
+    float dist = distance(closestSeed, tUV);
     if (closestSeed.x > 0 && closestSeed.y > 0 && dist > 0.0001 && tdist2 < tObjectInfo.tData.fTargetWidth * tObjectInfo.tData.fTargetWidth)
     {
         color = tObjectInfo.tData.tOutlineColor;

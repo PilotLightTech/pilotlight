@@ -452,10 +452,6 @@ typedef struct _plRefRendererData
     plBindGroupPool* ptBindGroupPool;
     plBindGroupPool* aptTempGroupPools[PL_MAX_FRAMES_IN_FLIGHT];
 
-    // full quad
-    plBufferHandle tFullQuadVertexBuffer;
-    plBufferHandle tFullQuadIndexBuffer;
-
     // main renderpass layout (used as a template for views)
     plRenderPassLayoutHandle tRenderPassLayout;
     plRenderPassLayoutHandle tPostProcessRenderPassLayout;

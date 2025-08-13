@@ -1909,10 +1909,9 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
 
     plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tPostProcessRenderPass, NULL);
 
-    plDrawIndex tDraw = {
-        .tIndexBuffer   = gptData->tFullQuadIndexBuffer,
-        .uIndexCount    = 6,
+    plDraw tDraw = {
         .uInstanceCount = 1,
+        .uVertexCount   = 3
     };
 
     // create bind groups
@@ -1960,11 +1959,10 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
 
     plShaderHandle tTonemapShader = gptShaderVariant->get_shader("jumpfloodalgo2", NULL, NULL, NULL, &gptData->tPostProcessRenderPassLayout);
     gptGfx->bind_shader(ptEncoder, tTonemapShader);
-    gptGfx->bind_vertex_buffer(ptEncoder, gptData->tFullQuadVertexBuffer);
     plBindGroupHandle atBindGroups[] = {ptScene->atBindGroups[uFrameIdx], tJFABindGroup0};
     gptGfx->bind_graphics_bind_groups(ptEncoder, tTonemapShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
     *gptData->pdDrawCalls += 1.0;
-    gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
+    gptGfx->draw(ptEncoder, 1, &tDraw);
 
     gptDrawBackend->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
 
@@ -3005,12 +3003,8 @@ pl__renderer_update_probes(plScene* ptScene)
                 .auDynamicBuffers = {
                     tLightingDynamicData.uBufferHandle
                 },
-                .atVertexBuffers = {
-                    gptData->tFullQuadVertexBuffer
-                },
-                .tIndexBuffer         = gptData->tFullQuadIndexBuffer,
-                .uIndexOffset         = 0,
-                .uTriangleCount       = 2,
+                .uIndexOffset   = 0,
+                .uTriangleCount = 2,
                 .atBindGroups = {
                     ptScene->atBindGroups[uFrameIdx],
                     tViewBG,
