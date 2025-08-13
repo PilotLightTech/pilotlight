@@ -1069,6 +1069,7 @@ pl__show_editor_window(plAppData* ptAppData)
             if(ImGui::Checkbox("MultiViewport Shadows", &ptRuntimeOptions->bMultiViewportShadows)) bReloadShaders = true;
             if(ImGui::Checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;
             if(ImGui::Checkbox("Punctual Lighting", &ptRuntimeOptions->bPunctualLighting)) bReloadShaders = true;
+            if(ImGui::Checkbox("Normal Mapping", &ptRuntimeOptions->bNormalMapping)) bReloadShaders = true;
             ImGui::Checkbox("Show Probes", &ptRuntimeOptions->bShowProbes);
 
             if(bReloadShaders)

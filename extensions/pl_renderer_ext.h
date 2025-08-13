@@ -235,6 +235,7 @@ typedef struct _plRendererRuntimeOptions
     bool              bShowSelectedBoundingBox;
     bool              bMultiViewportShadows;
     bool              bImageBasedLighting;
+    bool              bNormalMapping;
     bool              bPunctualLighting;
     float             fShadowConstantDepthBias;
     float             fShadowSlopeDepthBias;

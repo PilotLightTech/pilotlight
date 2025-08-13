@@ -876,6 +876,7 @@ pl__show_editor_window(plAppData* ptAppData)
             if(gptUI->checkbox("MultiViewport Shadows", &ptRuntimeOptions->bMultiViewportShadows)) bReloadShaders = true;
             if(gptUI->checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;
             if(gptUI->checkbox("Punctual Lighting", &ptRuntimeOptions->bPunctualLighting)) bReloadShaders = true;
+            if(gptUI->checkbox("Normal Mapping", &ptRuntimeOptions->bNormalMapping)) bReloadShaders = true;
             gptUI->checkbox("Show Probes", &ptRuntimeOptions->bShowProbes);
             if(gptUI->checkbox("UI MSAA", &ptAppData->bMSAA))
             {

@@ -50,9 +50,10 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 PL_BEGIN_ENUM(plRenderingFlags)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_PUNCTUAL, 1 << 0)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_IBL,      1 << 1)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_SHADOWS,      1 << 2)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_PUNCTUAL,   1 << 0)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_IBL,        1 << 1)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_SHADOWS,        1 << 2)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_NORMAL_MAPS,    1 << 3)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plMeshFormatFlags)

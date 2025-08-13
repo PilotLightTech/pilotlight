@@ -113,7 +113,7 @@ pl_get_normal_info(int iUVSet)
     // Compute normals:
     NormalInfo info;
     info.ng = ng;
-    if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP)) 
+    if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP) && bool(iRenderingFlags & PL_RENDERING_FLAG_USE_NORMAL_MAPS)) 
     {
         plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
         info.ntex = texture(sampler2D(at2DTextures[nonuniformEXT(material.iNormalTexIdx)], tSamplerLinearRepeat), UV).rgb * 2.0 - vec3(1.0);

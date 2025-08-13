@@ -3480,6 +3480,8 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
     if(gptData->tRuntimeOptions.bImageBasedLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+    if(gptData->tRuntimeOptions.bNormalMapping)
+        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
@@ -3539,7 +3541,8 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
             PL_INFO_MATERIAL_METALLICROUGHNESS,
-            gptData->tRuntimeOptions.tShaderDebugMode
+            gptData->tRuntimeOptions.tShaderDebugMode,
+            iObjectRenderingFlags
         };
 
         int aiVertexConstantData0[] = {

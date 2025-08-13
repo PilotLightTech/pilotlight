@@ -255,6 +255,7 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tRuntimeOptions.bShowSelectedBoundingBox = true;
     gptData->tRuntimeOptions.bImageBasedLighting = true;
     gptData->tRuntimeOptions.bPunctualLighting = true;
+    gptData->tRuntimeOptions.bNormalMapping = true;
     gptData->tRuntimeOptions.fShadowConstantDepthBias = -1.25f;
     gptData->tRuntimeOptions.fShadowSlopeDepthBias = -10.75f;
     gptData->tRuntimeOptions.fExposure = 1.0f;
@@ -1692,6 +1693,8 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
     if(gptData->tRuntimeOptions.bImageBasedLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+    if(gptData->tRuntimeOptions.bNormalMapping)
+        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
 
     // reset old entities
     const uint32_t uOldSelectedEntityCount = pl_sb_size(ptScene->sbtOutlinedEntities);
@@ -1778,7 +1781,8 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
             PL_INFO_MATERIAL_METALLICROUGHNESS,
-            gptData->tRuntimeOptions.tShaderDebugMode
+            gptData->tRuntimeOptions.tShaderDebugMode,
+            iObjectRenderingFlags
         };
 
         int aiVertexConstantData0[] = {
@@ -1880,6 +1884,8 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
     if(gptData->tRuntimeOptions.bImageBasedLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+    if(gptData->tRuntimeOptions.bNormalMapping)
+        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
 
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
@@ -1967,6 +1973,8 @@ pl_renderer_finalize_scene(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
     if(gptData->tRuntimeOptions.bImageBasedLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+    if(gptData->tRuntimeOptions.bNormalMapping)
+        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
 
     // create lighting shader
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData), gptData->tRuntimeOptions.tShaderDebugMode};
