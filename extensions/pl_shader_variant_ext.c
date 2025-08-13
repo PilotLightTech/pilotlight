@@ -871,7 +871,7 @@ pl_shader_tool_unload_manifest(const char* pcPath)
             pl_sb_free(ptVariant->sbtVariantHandles);
             pl_hm64_free(&ptVariant->tVariantHashmap);
 
-            pl_hm32_remove(&gptShaderVariantCtx->tParentHashmap, tParentHandle.uData);
+            pl_hm32_remove(&gptShaderVariantCtx->tComputeParentHashmap, tParentHandle.uData);
 
             gptShaderVariantCtx->dComputeVariantsCount -= uVariantCount;
             gptShaderVariantCtx->dParentComputeShaderCount--;
