@@ -806,7 +806,9 @@ pl__show_editor_window(plAppData* ptAppData)
             static const char* apcTonemapText[] = {
                 "None",
                 "Simple",
-                "ACES",
+                "ACES Filmic (Narkowicz)",
+                "ACES Filmic (Hill)",
+                "ACES Filmic (Hill Exposure Boost)",
                 "Reinhard",
             };
             bool abTonemap[PL_ARRAYSIZE(apcTonemapText)] = {0};

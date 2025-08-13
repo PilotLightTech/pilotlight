@@ -7,11 +7,11 @@
 //simple fit from: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
 vec3 ACESFilmApproximate(vec3 x)
 {
-    float a = 2.51f;
-    float b = 0.03f;
-    float c = 2.43f;
-    float d = 0.59f;
-    float e = 0.14f;
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
     return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0, 1);
 }
 
@@ -39,15 +39,19 @@ vec3 RRTAndODTFit(vec3 v)
     return a / b;
 }
 
-//matrices are transposed because they are from HLSL code
-vec3 ACESFitted(vec3 color)
+// tone mapping
+vec3 toneMapACES_Hill(vec3 color)
 {
     color = transpose(ACESInputMat) * color;
 
     // Apply RRT and ODT
     color = RRTAndODTFit(color);
+
     color = transpose(ACESOutputMat) * color;
-    color = clamp(color, 0, 1);
+
+    // Clamp to [0, 1]
+    color = clamp(color, 0.0, 1.0);
+
     return color;
 }
 
@@ -116,9 +120,18 @@ main()
     {
         tTonemappedColor = tLinearColor.rgb;
     }
-    else if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_ACES)
+    else if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_ACES_NARKOWICZ)
     {
-        tTonemappedColor = ACESFitted(tLinearColor.rgb);
+        tTonemappedColor = ACESFilmApproximate(tLinearColor.rgb);
+    }
+    else if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_ACES_HILL)
+    {
+        tTonemappedColor = toneMapACES_Hill(tLinearColor.rgb);
+    }
+    else if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_ACES_HILL_EXPOSURE_BOOST)
+    {
+        tLinearColor.rgb /= 0.6;
+        tTonemappedColor = toneMapACES_Hill(tLinearColor.rgb);
     }
     else if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_REINHARD)
     {

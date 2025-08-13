@@ -1034,7 +1034,9 @@ pl__show_editor_window(plAppData* ptAppData)
             static const char* apcTonemapText[] = {
                 "None",
                 "Simple",
-                "ACES",
+                "ACES Filmic (Narkowicz)",
+                "ACES Filmic (Hill)",
+                "ACES Filmic (Hill Exposure Boost)",
                 "Reinhard",
             };
             ImGui::Combo("Tonemapping", &ptRuntimeOptions->tTonemapMode, apcTonemapText, PL_ARRAYSIZE(apcTonemapText));
