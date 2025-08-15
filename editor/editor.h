@@ -73,6 +73,9 @@ Index of this file:
 #include "pl_bvh_ext.h"
 #include "pl_shader_variant_ext.h"
 
+// shaders
+#include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
+
 // dear imgui
 #include "pl_dear_imgui_ext.h"
 #include "imgui.h"

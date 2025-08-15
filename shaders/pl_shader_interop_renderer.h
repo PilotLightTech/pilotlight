@@ -178,6 +178,9 @@ PL_BEGIN_STRUCT(plGpuDynGrid)
     int   _iUnused2;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
+    vec4 tViewDirection;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
     vec4 tGridColorThin;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 

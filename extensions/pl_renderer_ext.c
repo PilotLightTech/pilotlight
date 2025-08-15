@@ -267,7 +267,7 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tRuntimeOptions.fGridCellSize = 0.025f;
     gptData->tRuntimeOptions.fGridMinPixelsBetweenCells = 2.0f;
     gptData->tRuntimeOptions.tGridColorThin = (plVec4){0.5f, 0.5f, 0.5f, 1.0f};
-    gptData->tRuntimeOptions.tGridColorThick = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
+    gptData->tRuntimeOptions.tGridColorThick = (plVec4){0.75f, 0.75f, 0.75f, 1.0f};
 
     gptResource->initialize((plResourceManagerInit){.ptDevice = gptData->ptDevice, .uMaxTextureResolution = tSettings.uMaxTextureResolution});
 
@@ -2796,6 +2796,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     if(ptView->bShowGrid)
     {
+        ptView->bShowGrid = false;
+        
         plShaderHandle tGridShader = gptShaderVariant->get_shader("grid", NULL, NULL, NULL, &gptData->tRenderPassLayout);
         gptGfx->bind_shader(ptSceneEncoder, tGridShader);
 
@@ -2807,6 +2809,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         ptGridDynamicData->fGridMinPixelsBetweenCells = gptData->tRuntimeOptions.fGridMinPixelsBetweenCells;
         ptGridDynamicData->tGridColorThin = gptData->tRuntimeOptions.tGridColorThin;
         ptGridDynamicData->tGridColorThick = gptData->tRuntimeOptions.tGridColorThick;
+        ptGridDynamicData->tViewDirection.xyz = ptCamera->_tForwardVec;
         ptGridDynamicData->fCameraXPos = ptCamera->tPos.x;
         ptGridDynamicData->fCameraZPos = ptCamera->tPos.z;
         ptGridDynamicData->tCameraViewProjection = tMVP;

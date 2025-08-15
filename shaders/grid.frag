@@ -52,7 +52,7 @@ gridColor(vec2 uv, vec2 camPos)
   float lod2 = lod1 * 10.0;
 
   // each anti-aliased line covers up to 4 pixels
-  dudv *= 4.0;
+  dudv *= 2.0;
 
   // set grid coordinates to the centers of anti-aliased lines for subsequent alpha calculations
   uv += dudv * 0.5;
@@ -64,11 +64,16 @@ gridColor(vec2 uv, vec2 camPos)
 
   uv -= camPos;
 
+  vec3 view_dir = normalize(tObjectInfo.tData.tViewDirection.xyz);
+  float op_gracing = 1.f - pow(1.0 - abs(dot(view_dir, vec3(0.0, 1.0, 0.0))), 16);
+  // float op_gracing = 1.0;
+
   // blend between falloff colors to handle LOD transition
   vec4 c = lod2a > 0.0 ? tObjectInfo.tData.tGridColorThick : lod1a > 0.0 ? mix(tObjectInfo.tData.tGridColorThick, tObjectInfo.tData.tGridColorThin, lodFade) : tObjectInfo.tData.tGridColorThin;
 
   // calculate opacity falloff based on distance to grid extents
   float opacityFalloff = (1.0 - satf(length(uv) / tObjectInfo.tData.fGridSize));
+  opacityFalloff *= op_gracing;
 
   // blend between LOD level alphas and scale with opacity falloff
   c.a *= (lod2a > 0.0 ? lod2a : lod1a > 0.0 ? lod1a : (lod0a * (1.0-lodFade))) * opacityFalloff;

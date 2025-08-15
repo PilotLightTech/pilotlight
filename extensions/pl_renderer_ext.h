@@ -67,10 +67,9 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "pl_ecs_ext.inl"               // plEntity
-#include "pl_resource_ext.inl"          // plResourceHandle
-#include "pl_math.h"                    // plVec3, plMat4
-#include "pl_shader_interop_renderer.h" // plLightType
+#include "pl_ecs_ext.inl"      // plEntity
+#include "pl_resource_ext.inl" // plResourceHandle
+#include "pl_math.h"           // plVec3, plMat4
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -114,12 +113,17 @@ typedef struct _plRenderEncoder    plRenderEncoder;    // pl_graphics_ext.h
 typedef union  plRenderPassHandle  plRenderPassHandle; // pl_graphics_ext.h
 typedef union  plBindGroupHandle   plBindGroupHandle;  // pl_graphics_ext.h
 typedef void* plTextureId;                             // pl_ui.h
-typedef int plDrawFlags;                               // pl_draw_ext.h
+
 
 // external (pl_ecs_ext.h)
 typedef struct _plComponentLibrary plComponentLibrary;
 typedef struct _plCamera           plCamera;
 typedef struct _plLightComponent   plLightComponent;
+
+// external
+typedef int plShaderDebugMode; // pl_shader_interop_renderer.h
+typedef int plLightType;       // pl_shader_interop_renderer.h
+typedef int plDrawFlags;       // pl_draw_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -213,8 +217,6 @@ typedef struct _plRendererI
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
-
-
 
 typedef struct _plSceneInit
 {

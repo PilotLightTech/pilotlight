@@ -32,6 +32,9 @@ Index of this file:
 #include "pl_renderer_ext.h"
 #include "pl_vfs_ext.h"
 
+// shaders
+#include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
+
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
 #else
