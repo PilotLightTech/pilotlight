@@ -230,8 +230,8 @@ pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
     {
         plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
         pl_sb_push(ptGarbage->sbtBuffers, tHandle);
-        pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation);
         ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
+        pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation);
         ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
         ptDevice->sbtBuffersCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
         // pl_log_trace_f(gptLog, uLogChannelGraphics, "Queue buffer %u for deletion frame %llu", tHandle.uIndex, gptIO->ulFrameCount);
