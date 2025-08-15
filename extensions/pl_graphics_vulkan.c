@@ -290,6 +290,9 @@ typedef struct _plDevice
     PFN_vkCmdDebugMarkerBeginEXT      vkCmdDebugMarkerBegin;
     PFN_vkCmdDebugMarkerEndEXT        vkCmdDebugMarkerEnd;
     PFN_vkCmdDebugMarkerInsertEXT     vkCmdDebugMarkerInsert;
+    PFN_vkCmdBeginDebugUtilsLabelEXT  vkCmdBeginDebugUtilsLabel;
+    PFN_vkCmdEndDebugUtilsLabelEXT    vkCmdEndDebugUtilsLabel;
+    PFN_vkCmdInsertDebugUtilsLabelEXT vkCmdInsertDebugUtilsLabel;
 
     // memory blocks
     plDeviceMemoryAllocation* sbtMemoryBlocks;
@@ -1978,6 +1981,150 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
 }
 
 void
+pl_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
+{
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+
+    if(ptDevice->vkCmdInsertDebugUtilsLabel == NULL)
+        return;
+
+    VkDebugUtilsLabelEXT tLabel = {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        .pNext = NULL,
+        .pLabelName = pcLabel,
+        .color = {
+            tColor.r,
+            tColor.g,
+            tColor.b,
+            tColor.a
+        }
+    };
+    ptDevice->vkCmdInsertDebugUtilsLabel(ptCmdBuffer->tCmdBuffer, &tLabel);
+}
+
+void
+pl_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
+{
+
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+
+    if(ptDevice->vkCmdBeginDebugUtilsLabel == NULL)
+        return;
+
+    VkDebugUtilsLabelEXT tLabel = {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        .pNext = NULL,
+        .pLabelName = pcLabel,
+        .color = {
+            tColor.r,
+            tColor.g,
+            tColor.b,
+            tColor.a
+        }
+    };
+    ptDevice->vkCmdBeginDebugUtilsLabel(ptCmdBuffer->tCmdBuffer, &tLabel);
+}
+
+void
+pl_pop_debug_group(plCommandBuffer* ptCmdBuffer)
+{
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    if(ptDevice->vkCmdEndDebugUtilsLabel)
+        ptDevice->vkCmdEndDebugUtilsLabel(ptCmdBuffer->tCmdBuffer);
+}
+
+void
+pl_push_render_debug_group(plRenderEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+{
+
+    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
+
+    if(ptDevice->vkCmdBeginDebugUtilsLabel == NULL)
+        return;
+
+    VkDebugUtilsLabelEXT tLabel = {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        .pNext = NULL,
+        .pLabelName = pcLabel,
+        .color = {
+            tColor.r,
+            tColor.g,
+            tColor.b,
+            tColor.a
+        }
+    };
+    ptDevice->vkCmdBeginDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer, &tLabel);
+}
+
+void
+pl_pop_render_debug_group(plRenderEncoder* ptEncoder)
+{
+    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
+    if(ptDevice->vkCmdEndDebugUtilsLabel)
+        ptDevice->vkCmdEndDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer);
+}
+
+void
+pl_push_blit_debug_group(plBlitEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+{
+    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
+
+    if(ptDevice->vkCmdBeginDebugUtilsLabel == NULL)
+        return;
+
+    VkDebugUtilsLabelEXT tLabel = {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        .pNext = NULL,
+        .pLabelName = pcLabel,
+        .color = {
+            tColor.r,
+            tColor.g,
+            tColor.b,
+            tColor.a
+        }
+    };
+    ptDevice->vkCmdBeginDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer, &tLabel);
+}
+
+void
+pl_pop_blit_debug_group(plBlitEncoder* ptEncoder)
+{
+    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
+    if(ptDevice->vkCmdEndDebugUtilsLabel)
+        ptDevice->vkCmdEndDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer);
+}
+
+void
+pl_push_compute_debug_group(plComputeEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+{
+    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
+
+    if(ptDevice->vkCmdBeginDebugUtilsLabel == NULL)
+        return;
+
+    VkDebugUtilsLabelEXT tLabel = {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        .pNext = NULL,
+        .pLabelName = pcLabel,
+        .color = {
+            tColor.r,
+            tColor.g,
+            tColor.b,
+            tColor.a
+        }
+    };
+    ptDevice->vkCmdBeginDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer, &tLabel);
+}
+
+void
+pl_pop_compute_debug_group(plComputeEncoder* ptEncoder)
+{
+    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
+    if(ptDevice->vkCmdEndDebugUtilsLabel)
+        ptDevice->vkCmdEndDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer);
+}
+
+void
 pl_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginCommandInfo* ptBeginInfo)
 {
     const VkCommandBufferBeginInfo tBeginInfo = {
@@ -1995,9 +2142,23 @@ pl_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginComman
 plRenderEncoder*
 pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, const plPassResources* ptResource)
 {
-    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[tPass.uIndex];
+
+    // VkDebugUtilsLabelEXT tLabel = {
+    //     .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+    //     .pNext = NULL,
+    //     .pLabelName = ptRenderPass->tDesc.pcDebugName,
+    //     .color[0] = 0.33f,
+    //     .color[1] = 0.02f,
+    //     .color[2] = 0.10f,
+    //     .color[3] = 1.0f
+    // };
+
+    // if(ptDevice->vkCmdBeginDebugUtilsLabel)
+    //     ptDevice->vkCmdBeginDebugUtilsLabel(ptCmdBuffer->tCmdBuffer, &tLabel);
+
     plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[tPass.uIndex];
     plRenderPassLayout* ptLayout = &ptDevice->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
 
@@ -2135,6 +2296,9 @@ pl_end_render_pass(plRenderEncoder* ptEncoder)
         ptEncoder->uCurrentSubpass++;
     }
     vkCmdEndRenderPass(ptCmdBuffer->tCmdBuffer);
+
+    // if(ptDevice->vkCmdEndDebugUtilsLabel)
+    //     ptDevice->vkCmdEndDebugUtilsLabel(ptCmdBuffer->tCmdBuffer);
 
     pl__return_render_encoder(ptEncoder);
 }
@@ -3124,11 +3288,14 @@ pl_create_device(const plDeviceInit* ptInit)
 
     if (gptGraphics->bValidationActive)
     {
-        ptDevice->vkDebugMarkerSetObjectTag = (PFN_vkDebugMarkerSetObjectTagEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkDebugMarkerSetObjectTagEXT");
+        ptDevice->vkDebugMarkerSetObjectTag  = (PFN_vkDebugMarkerSetObjectTagEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkDebugMarkerSetObjectTagEXT");
         ptDevice->vkDebugMarkerSetObjectName = (PFN_vkDebugMarkerSetObjectNameEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkDebugMarkerSetObjectNameEXT");
-        ptDevice->vkCmdDebugMarkerBegin = (PFN_vkCmdDebugMarkerBeginEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdDebugMarkerBeginEXT");
-        ptDevice->vkCmdDebugMarkerEnd = (PFN_vkCmdDebugMarkerEndEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdDebugMarkerEndEXT");
-        ptDevice->vkCmdDebugMarkerInsert = (PFN_vkCmdDebugMarkerInsertEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdDebugMarkerInsertEXT");
+        ptDevice->vkCmdDebugMarkerBegin      = (PFN_vkCmdDebugMarkerBeginEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdDebugMarkerBeginEXT");
+        ptDevice->vkCmdDebugMarkerEnd        = (PFN_vkCmdDebugMarkerEndEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdDebugMarkerEndEXT");
+        ptDevice->vkCmdDebugMarkerInsert     = (PFN_vkCmdDebugMarkerInsertEXT)vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdDebugMarkerInsertEXT");
+        ptDevice->vkCmdBeginDebugUtilsLabel  = (PFN_vkCmdBeginDebugUtilsLabelEXT) vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdBeginDebugUtilsLabelEXT");
+        ptDevice->vkCmdEndDebugUtilsLabel    = (PFN_vkCmdEndDebugUtilsLabelEXT) vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdEndDebugUtilsLabelEXT");
+        ptDevice->vkCmdInsertDebugUtilsLabel = (PFN_vkCmdInsertDebugUtilsLabelEXT) vkGetDeviceProcAddr(ptDevice->tLogicalDevice, "vkCmdInsertDebugUtilsLabelEXT");
     }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~main descriptor pool~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -2892,6 +2892,59 @@ pl_cleanup_device(plDevice* ptDevice)
     pl__cleanup_common_device(ptDevice);
 }
 
+void
+pl_push_render_debug_group(plRenderEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+{
+    [ptEncoder->tEncoder pushDebugGroup:[NSString stringWithUTF8String:pcLabel]];
+}
+
+void
+pl_pop_render_debug_group(plRenderEncoder* ptEncoder)
+{
+    [ptEncoder->tEncoder popDebugGroup];
+}
+
+void
+pl_push_blit_debug_group(plBlitEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+{
+    [ptEncoder->tEncoder pushDebugGroup:[NSString stringWithUTF8String:pcLabel]];
+}
+
+void
+pl_pop_blit_debug_group(plBlitEncoder* ptEncoder)
+{
+    [ptEncoder->tEncoder popDebugGroup];
+}
+
+void
+pl_push_compute_debug_group(plComputeEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+{
+    [ptEncoder->tEncoder pushDebugGroup:[NSString stringWithUTF8String:pcLabel]];
+}
+
+void
+pl_pop_compute_debug_group(plComputeEncoder* ptEncoder)
+{
+    [ptEncoder->tEncoder popDebugGroup];
+}
+
+void
+pl_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
+{
+}
+
+void
+pl_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
+{
+    [ptCmdBuffer->tCmdBuffer pushDebugGroup:[NSString stringWithUTF8String:pcLabel]];
+}
+
+void
+pl_pop_debug_group(plCommandBuffer* ptCmdBuffer)
+{
+    [ptCmdBuffer->tCmdBuffer popDebugGroup];
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------

@@ -2228,9 +2228,11 @@ pl_renderer_prepare_scene(plScene* ptScene)
     gptGfx->begin_command_recording(ptShadowCmdBuffer, &tShadowBeginInfo);
 
     plRenderEncoder* ptShadowEncoder = gptGfx->begin_render_pass(ptShadowCmdBuffer, ptScene->tFirstShadowRenderPass, NULL);
+    gptGfx->push_render_debug_group(ptShadowEncoder, "First Shadow", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
     pl__renderer_generate_shadow_maps(ptShadowEncoder, ptShadowCmdBuffer, ptScene);
 
+    gptGfx->pop_render_debug_group(ptShadowEncoder);
     gptGfx->end_render_pass(ptShadowEncoder);
     gptGfx->end_command_recording(ptShadowCmdBuffer);
 
@@ -2299,9 +2301,11 @@ pl_renderer_prepare_scene(plScene* ptScene)
             gptGfx->begin_command_recording(ptCSMCommandBuffer, &tBeginCSMInfo);
 
             plRenderEncoder* ptCSMEncoder = gptGfx->begin_render_pass(ptCSMCommandBuffer, ptScene->tShadowRenderPass, NULL);
+            gptGfx->push_render_debug_group(ptCSMEncoder, "Probe CSM", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
             pl__renderer_generate_cascaded_shadow_map(ptCSMEncoder, ptCSMCommandBuffer, ptScene, uFace, uProbeIndex, 1, &ptProbe->tDirectionLightShadowData,  &atEnvironmentCamera[uFace]);
 
+            gptGfx->pop_render_debug_group(ptCSMEncoder);
             gptGfx->end_render_pass(ptCSMEncoder);
             gptGfx->end_command_recording(ptCSMCommandBuffer);
 
@@ -2402,8 +2406,10 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
     plRenderEncoder* ptCSMEncoder = gptGfx->begin_render_pass(ptCSMCmdBuffer, ptScene->tShadowRenderPass, NULL);
     
     uint32_t uViewIndex = 0;
+    gptGfx->push_render_debug_group(ptCSMEncoder, "View CSM", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
     pl__renderer_generate_cascaded_shadow_map(ptCSMEncoder, ptCSMCmdBuffer, ptScene, uViewIndex, 0, 0, &ptView->tDirectionLightShadowData,  ptCamera);
 
+    gptGfx->pop_render_debug_group(ptCSMEncoder);
     gptGfx->end_render_pass(ptCSMEncoder);
     gptGfx->end_command_recording(ptCSMCmdBuffer);
 
@@ -2611,6 +2617,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     plRenderEncoder* ptSceneEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tRenderPass, NULL);
+    gptGfx->push_render_debug_group(ptSceneEncoder, "G-Buffer Fill", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
     gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
 
     const uint32_t uVisibleDeferredDrawCount = pl_sb_size(ptView->sbuVisibleDeferredEntities);
@@ -2662,7 +2669,9 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 1 - lighting~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    gptGfx->pop_render_debug_group(ptSceneEncoder);
     gptGfx->next_subpass(ptSceneEncoder, NULL);
+    gptGfx->push_render_debug_group(ptSceneEncoder, "Deferred Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
 
     const plBindGroupUpdateBufferData atViewBGBufferData[] = 
     {
@@ -2710,7 +2719,9 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    gptGfx->pop_render_debug_group(ptSceneEncoder);
     gptGfx->next_subpass(ptSceneEncoder, NULL);
+    gptGfx->push_render_debug_group(ptSceneEncoder, "Forward Pass", (plVec4){0.33f, 0.20f, 0.10f, 1.0f});
 
     if(ptScene->tSkyboxTexture.uIndex != 0 && ptView->bShowSkybox)
     {
@@ -2797,6 +2808,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     if(ptView->bShowGrid)
     {
         ptView->bShowGrid = false;
+
+        gptGfx->insert_debug_label(ptSceneCmdBuffer, "Grid Stuff", (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
         
         plShaderHandle tGridShader = gptShaderVariant->get_shader("grid", NULL, NULL, NULL, &gptData->tRenderPassLayout);
         gptGfx->bind_shader(ptSceneEncoder, tGridShader);
@@ -2823,6 +2836,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         *gptData->pdDrawCalls += 1.0;
         gptGfx->draw(ptSceneEncoder, 1, &tGridDraw);
     }
+    gptGfx->pop_render_debug_group(ptSceneEncoder);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~debug drawing~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2956,6 +2970,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->begin_command_recording(ptUVCmdBuffer, &tUVBeginInfo);
 
     plRenderEncoder* ptUVEncoder = gptGfx->begin_render_pass(ptUVCmdBuffer, ptView->tUVRenderPass, NULL);
+    gptGfx->push_render_debug_group(ptUVEncoder, "UV Map", (plVec4){0.33f, 0.72f, 0.10f, 1.0f});
 
     // submit nonindexed draw using basic API
     plShaderHandle tUVShader = gptShaderVariant->get_shader("uvmap", NULL, NULL, NULL, &gptData->tUVRenderPassLayout);
@@ -2969,6 +2984,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->draw(ptUVEncoder, 1, &tDraw);
 
     // end render pass
+    gptGfx->pop_render_debug_group(ptUVEncoder);
     gptGfx->end_render_pass(ptUVEncoder);
 
     gptGfx->end_command_recording(ptUVCmdBuffer);
@@ -3076,6 +3092,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
         // begin main renderpass (directly to swapchain)
         plComputeEncoder* ptJumpEncoder = gptGfx->begin_compute_pass(ptJumpCmdBuffer, NULL);
+        gptGfx->push_compute_debug_group(ptJumpEncoder, "JFA", (plVec4){0.73f, 0.02f, 0.80f, 1.0f});
         gptGfx->pipeline_barrier_compute(ptJumpEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
         ptView->tLastUVMask = (i % 2 == 0) ? ptView->atUVMaskTexture1 : ptView->atUVMaskTexture0;
@@ -3094,6 +3111,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
         // end render pass
         gptGfx->pipeline_barrier_compute(ptJumpEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
+        gptGfx->pop_compute_debug_group(ptJumpEncoder);
         gptGfx->end_compute_pass(ptJumpEncoder);
 
         // end recording
@@ -3174,6 +3192,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
 
     plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
+    gptGfx->push_compute_debug_group(ptPostEncoder, "Tonemap Compute", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
     gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
     plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
@@ -3201,6 +3220,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
 
     gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
+    gptGfx->pop_compute_debug_group(ptPostEncoder);
     gptGfx->end_compute_pass(ptPostEncoder);
 
     plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);

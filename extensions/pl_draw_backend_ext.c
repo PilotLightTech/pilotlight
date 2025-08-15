@@ -669,6 +669,8 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
     if(pl_sb_size(ptDrawlist->sbtVertexBuffer) == 0u)
         return;
 
+    gptGfx->push_render_debug_group(ptEncoder, "2D Draw", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
+
     plDevice* ptDevice = gptDrawBackendCtx->ptDevice;
 
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -853,11 +855,15 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
     // bump vertex & index buffer offset
     ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
     gptDrawBackendCtx->auIndexBufferOffset[uFrameIdx] += uIdxBufSzNeeded;
+
+    gptGfx->pop_render_debug_group(ptEncoder);
 }
 
 static void
 pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags tFlags, uint32_t uMSAASampleCount)
 {
+    gptGfx->push_render_debug_group(ptEncoder, "3D Draw", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
+
     plDevice* ptDevice = gptDrawBackendCtx->ptDevice;
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
@@ -1078,6 +1084,7 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 
     gptDraw->submit_2d_layer(ptDrawlist->ptLayer);
     pl_submit_2d_drawlist(ptDrawlist->pt2dDrawlist, ptEncoder, fWidth, fHeight, uMSAASampleCount);
+    gptGfx->pop_render_debug_group(ptEncoder);
 }
 
 plBindGroupPool*

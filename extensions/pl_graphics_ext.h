@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 3, 0}
+#define plGraphicsI_version {1, 4, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -503,6 +503,18 @@ typedef struct _plGraphicsI
     bool                            (*flush_memory)     (plDevice*, uint32_t rangeCount, const plDeviceMemoryRange*); // call after writing from host on non-coherent memory
     bool                            (*invalidate_memory)(plDevice*, uint32_t rangeCount, const plDeviceMemoryRange*); // call after writing from device on non-coherent memory
     const plDeviceMemoryAllocation* (*get_allocations)(plDevice*, uint32_t* sizeOut);
+
+    //------------------------------DEBUGGING--------------------------------------
+
+    void (*push_render_debug_group) (plRenderEncoder*, const char*, plVec4 color);
+    void (*pop_render_debug_group)  (plRenderEncoder*);
+    void (*push_blit_debug_group)   (plBlitEncoder*, const char*, plVec4 color);
+    void (*pop_blit_debug_group)    (plBlitEncoder*);
+    void (*push_compute_debug_group)(plComputeEncoder*, const char*, plVec4 color);
+    void (*pop_compute_debug_group) (plComputeEncoder*);
+    void (*push_debug_group)        (plCommandBuffer*, const char*, plVec4 color);
+    void (*pop_debug_group)         (plCommandBuffer*);
+    void (*insert_debug_label)      (plCommandBuffer*, const char*, plVec4 color); // vulkan only
 
     //---------------------------------MISC----------------------------------------
 

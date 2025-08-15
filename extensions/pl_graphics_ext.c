@@ -1185,6 +1185,15 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .invalidate_memory                      = pl_gfx_invalidate_memory,
         .flush_memory                           = pl_gfx_flush_memory,
         .get_data_type_size                     = pl_get_data_type_size,
+        .push_debug_group                       = pl_push_debug_group,
+        .pop_debug_group                        = pl_pop_debug_group,
+        .push_render_debug_group                = pl_push_render_debug_group,
+        .pop_render_debug_group                 = pl_pop_render_debug_group,
+        .push_blit_debug_group                  = pl_push_blit_debug_group,
+        .pop_blit_debug_group                   = pl_pop_blit_debug_group,
+        .push_compute_debug_group               = pl_push_compute_debug_group,
+        .pop_compute_debug_group                = pl_pop_compute_debug_group,
+        .insert_debug_label                     = pl_insert_debug_label,
 
         #if defined(PL_GRAPHICS_EXPOSE_VULKAN) && defined(PL_VULKAN_BACKEND)
         .get_vulkan_instance        = pl_get_vulkan_instance,

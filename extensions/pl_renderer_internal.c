@@ -645,6 +645,7 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
         };
 
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
+        gptGfx->push_compute_debug_group(ptComputeEncoder, "Skinning Compute", (plVec4){1.0f, 0.0f, 1.0f, 1.0f});
         gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
         const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
         for(uint32_t i = 0; i < uSkinCount; i++)
@@ -677,6 +678,7 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
             gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
         }
         gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
+        gptGfx->pop_compute_debug_group(ptComputeEncoder);
         gptGfx->end_compute_pass(ptComputeEncoder);
     }
     pl_end_cpu_sample(gptProfile, 0);
@@ -1908,6 +1910,7 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
     const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tPostProcessRenderPass)->tDesc.tDimensions;
 
     plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tPostProcessRenderPass, NULL);
+    gptGfx->push_render_debug_group(ptEncoder, "Outline", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
     plDraw tDraw = {
         .uInstanceCount = 1,
@@ -1966,6 +1969,7 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
 
     gptDrawBackend->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
 
+    gptGfx->pop_render_debug_group(ptEncoder);
     gptGfx->end_render_pass(ptEncoder);
     pl_end_cpu_sample(gptProfile, 0);
 }

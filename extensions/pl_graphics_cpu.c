@@ -886,6 +886,52 @@ pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
 }
 
+void
+pl_push_render_debug_group(plRenderEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+{
+}
+
+void
+pl_pop_render_debug_group(plRenderEncoder* ptEncoder)
+{
+}
+
+void
+pl_push_blit_debug_group(plBlitEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+{
+}
+
+void
+pl_pop_blit_debug_group(plBlitEncoder* ptEncoder)
+{
+}
+
+void
+pl_push_compute_debug_group(plComputeEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+{
+}
+
+void
+pl_pop_compute_debug_group(plComputeEncoder* ptEncoder)
+{
+}
+
+void
+pl_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
+{
+
+}
+
+void
+pl_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
+{
+}
+
+void
+pl_pop_debug_group(plCommandBuffer* ptCmdBuffer)
+{
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
