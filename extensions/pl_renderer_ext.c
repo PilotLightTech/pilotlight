@@ -3020,11 +3020,11 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         uJumpSteps = 1;
 
     const plDispatch tDispach = {
-        .uGroupCountX     = (uint32_t)ceilf(tDimensions.x / 8.0f),
-        .uGroupCountY     = (uint32_t)ceilf(tDimensions.y / 8.0f),
+        .uGroupCountX     = (uint32_t)ceilf(tDimensions.x / 32.0f),
+        .uGroupCountY     = (uint32_t)ceilf(tDimensions.y / 32.0f),
         .uGroupCountZ     = 1,
-        .uThreadPerGroupX = 8,
-        .uThreadPerGroupY = 8,
+        .uThreadPerGroupX = 32,
+        .uThreadPerGroupY = 32,
         .uThreadPerGroupZ = 1
     };
 
@@ -3210,11 +3210,11 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     plTexture* ptFinalTexture = gptGfx->get_texture(gptData->ptDevice, ptView->tFinalTexture);
     
     plDispatch tTonemapDispatch = {
-        .uGroupCountX     = (uint32_t)(ceilf(ptFinalTexture->tDesc.tDimensions.x / 8.0f)),
-        .uGroupCountY     = (uint32_t)(ceilf(ptFinalTexture->tDesc.tDimensions.y / 8.0f)),
+        .uGroupCountX     = (uint32_t)(ceilf(ptFinalTexture->tDesc.tDimensions.x / 32.0f)),
+        .uGroupCountY     = (uint32_t)(ceilf(ptFinalTexture->tDesc.tDimensions.y / 32.0f)),
         .uGroupCountZ     = 1,
-        .uThreadPerGroupX = 8,
-        .uThreadPerGroupY = 8,
+        .uThreadPerGroupX = 32,
+        .uThreadPerGroupY = 32,
         .uThreadPerGroupZ = 1
     };
     gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);

@@ -51,12 +51,12 @@ jump(vec3 minSeed, ivec2 current, ivec2 offset)
 // [SECTION] entry
 //-----------------------------------------------------------------------------
 
-layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+layout (local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 void main() 
 {
-    const int iXCoord = int(gl_WorkGroupID.x * 8 + gl_LocalInvocationID.x);
-    const int iYCoord = int(gl_WorkGroupID.y * 8 + gl_LocalInvocationID.y);
+    const int iXCoord = int(gl_WorkGroupID.x * 32 + gl_LocalInvocationID.x);
+    const int iYCoord = int(gl_WorkGroupID.y * 32 + gl_LocalInvocationID.y);
 
     if(iXCoord >= tDynamicData.tJumpDistance.x || iYCoord >= tDynamicData.tJumpDistance.y)
         return;
