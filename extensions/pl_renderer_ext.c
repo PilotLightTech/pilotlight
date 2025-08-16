@@ -3282,7 +3282,7 @@ pl_renderer_debug_draw_lights(plView* ptView, const plLightComponent* sbtLights,
             else if(sbtLights[i].tType == PL_LIGHT_TYPE_SPOT)
             {
                 plCone tCone0 = {
-                    .fRadius = tanf(sbtLights[i].fOuterConeAngle) * sbtLights[i].fRange,
+                    .fRadius = tanf(sbtLights[i].fOuterConeAngle * 0.5f) * sbtLights[i].fRange,
                     .tTipPos = sbtLights[i].tPosition,
                     .tBasePos = pl_add_vec3(sbtLights[i].tPosition, pl_mul_vec3_scalarf(sbtLights[i].tDirection, sbtLights[i].fRange))
                 };

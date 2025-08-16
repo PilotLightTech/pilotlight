@@ -4,16 +4,14 @@
 #include "pl_shader_interop_renderer.h"
 
 float
-getRangeAttenuation(float range2, float dist2)
+getRangeAttenuation(float range, float distance)
 {
-    if (range2 <= 0.0)
+    if (range <= 0.0)
     {
         // negative range means unlimited
-        return 1.0 / dist2;
+        return 1.0 / pow(distance, 2.0);
     }
-    float dist_per_range = dist2 / range2;
-    dist_per_range *= dist_per_range;
-    return max(min(1.0 - dist_per_range, 1.0), 0.0) / dist2;
+    return max(min(1.0 - pow(distance / range, 4.0), 1.0), 0.0) / pow(distance, 2.0);
 }
 
 // https://github.com/KhronosGroup/glTF/blob/master/extensions/2.0/Khronos/KHR_lights_punctual/README.md#inner-and-outer-cone-angles
@@ -39,11 +37,11 @@ getLightIntensity(plGpuLight light, vec3 pointToLight)
     float rangeAttenuation = 1.0;
     float spotAttenuation = 1.0;
 
-    if (light.iType != 0)
+    if (light.iType != PL_LIGHT_TYPE_DIRECTIONAL)
     {
-        rangeAttenuation = getRangeAttenuation(light.fRange * light.fRange, pointToLight.x * pointToLight.x + pointToLight.y * pointToLight.y + pointToLight.z * pointToLight.z);
+        rangeAttenuation = getRangeAttenuation(light.fRange, length(pointToLight));
     }
-    if (light.iType == 2)
+    if (light.iType == PL_LIGHT_TYPE_SPOT)
     {
         spotAttenuation = getSpotAttenuation(pointToLight, light.tDirection, light.fOuterConeCos, light.fInnerConeCos);
     }

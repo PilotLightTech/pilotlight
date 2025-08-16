@@ -113,16 +113,19 @@ filterPCF(vec4 sc, vec2 offset, int textureIndex)
 	float dy = scale * 1.0 / (float(texDim.y));
 
 	float shadowFactor = 0.0;
-	int count = 0;
+	// int count = 0;
 	int range = 1;
 	
-	for (int x = -range; x <= range; x++) {
-		for (int y = -range; y <= range; y++) {
+	for (int x = -range; x <= range; x++)
+    {
+		for (int y = -range; y <= range; y++)
+        {
 			shadowFactor += textureProj(sc, vec2(dx*x, dy*y) + offset, textureIndex);
-			count++;
+			// count++;
 		}
 	}
-	return shadowFactor / count;
+	// return shadowFactor / count;
+	return shadowFactor / 4.0;
 }
 
 float
@@ -134,16 +137,19 @@ filterPCF2(vec4 sc, vec2 offset, int textureIndex)
 	float dy = scale * 1.0 / (float(texDim.y));
 
 	float shadowFactor = 0.0;
-	int count = 0;
+	// int count = 0;
 	int range = 1;
 	
-	for (int x = -range; x <= range; x++) {
-		for (int y = -range; y <= range; y++) {
+	for (int x = -range; x <= range; x++)
+    {
+		for (int y = -range; y <= range; y++)
+        {
 			shadowFactor += textureProj2(sc, vec2(dx*x, dy*y) + offset, textureIndex);
-			count++;
+			// count++;
 		}
 	}
-	return shadowFactor / count;
+	// return shadowFactor / count;
+	return shadowFactor / 4.0;
 }
 
 #endif // LIGHTING_GLSL
