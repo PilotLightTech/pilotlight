@@ -400,9 +400,9 @@ PL_END_STRUCT(plGpuLightShadow)
 PL_BEGIN_STRUCT(plGpuDynDeferredLighting)
     
     uint uGlobalIndex;
+    int  iLightIndex;
+    int  iProbeIndex;
     uint _uUnused0;
-    uint _uUnused1;
-    uint _uUnused2;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynDeferredLighting)
 

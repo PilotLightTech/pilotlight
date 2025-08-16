@@ -2994,32 +2994,68 @@ pl__renderer_update_probes(plScene* ptScene)
 
             // create lighting dynamic bind group
 
-            plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
-            plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
-            ptLightingDynamicData->uGlobalIndex = uFace;
+            const uint32_t uLightCount = pl_sb_size(ptScene->sbtLightData);
 
-            
-            gptGfx->reset_draw_stream(ptStream, 1);
-            *gptData->pdDrawCalls += 1.0;
-            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+            gptGfx->reset_draw_stream(ptStream, uLightCount);
+            for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
             {
-                .tShader        = ptScene->tEnvLightingShader,
-                .auDynamicBuffers = {
-                    tLightingDynamicData.uBufferHandle
-                },
-                .uIndexOffset   = 0,
-                .uTriangleCount = 2,
-                .atBindGroups = {
-                    ptScene->atBindGroups[uFrameIdx],
-                    tViewBG,
-                    ptProbe->atLightingBindGroup[uFace]
-                },
-                .auDynamicBufferOffsets = {
-                    tLightingDynamicData.uByteOffset
-                },
-                .uInstanceOffset = 0,
-                .uInstanceCount = 1
-            });
+                plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
+                plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
+                ptLightingDynamicData->uGlobalIndex = uFace;
+                ptLightingDynamicData->iLightIndex = (int)uLightIndex;
+                ptLightingDynamicData->iProbeIndex = -1;
+
+                if(ptScene->sbtLightData[uLightIndex].iType == PL_LIGHT_TYPE_DIRECTIONAL)
+                {
+                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    {
+                        .tShader = ptScene->tEnvLightingShader,
+                        .auDynamicBuffers = {
+                            tLightingDynamicData.uBufferHandle
+                        },
+                        .uIndexOffset   = 0,
+                        .uTriangleCount = 1,
+                        .atBindGroups = {
+                            ptScene->atBindGroups[uFrameIdx],
+                            tViewBG,
+                            ptProbe->atLightingBindGroup[uFace]
+                        },
+                        .auDynamicBufferOffsets = {
+                            tLightingDynamicData.uByteOffset
+                        },
+                        .uInstanceOffset = 0,
+                        .uInstanceCount  = 1
+                    });
+                }
+                else
+                {
+                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    {
+                        .tShader = ptScene->tEnvLightingVolumeShader,
+                        .auDynamicBuffers = {
+                            tLightingDynamicData.uBufferHandle
+                        },
+                        .atVertexBuffers = {
+                            ptScene->tVertexBuffer,
+                        },
+                        .tIndexBuffer   = ptScene->tIndexBuffer,
+                        .uIndexOffset   = ptScene->tUnitSphereDrawable.uIndexOffset,
+                        .uTriangleCount = ptScene->tUnitSphereDrawable.uTriangleCount,
+                        .uVertexOffset  = ptScene->tUnitSphereDrawable.uVertexOffset,
+                        .atBindGroups = {
+                            ptScene->atBindGroups[uFrameIdx],
+                            tViewBG,
+                            ptProbe->atLightingBindGroup[uFace]
+                        },
+                        .auDynamicBufferOffsets = {
+                            tLightingDynamicData.uByteOffset
+                        },
+                        .uInstanceOffset = 0,
+                        .uInstanceCount  = 1
+                    });
+                }
+            }
+            *gptData->pdDrawCalls += (double)uLightCount;
             gptGfx->draw_stream(ptProbeEncoder, 1, &tArea);
             
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

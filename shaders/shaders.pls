@@ -490,7 +490,15 @@
             },
             "uSubpassIndex": 1,
             "atBlendStates": [
-                { "bBlendEnabled": false }
+                {
+                    "bBlendEnabled":   true,
+                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE",
+                    "tColorOp":        "PL_BLEND_OP_ADD",
+                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
+                    "tAlphaOp":        "PL_BLEND_OP_ADD"
+                }
             ],
             "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
@@ -510,6 +518,56 @@
                         { "uSlot": 3, "tType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] }
                     ]
                 }
+                
+            ]
+        },
+        {
+            "pcName": "deferred_lighting_volume",
+            "tVertexShader":    { "file": "deferred_lighting.vert"},
+            "tFragmentShader":  { "file": "deferred_lighting.frag"},
+            "tGraphicsState": {
+                "ulDepthWriteEnabled":  false,
+                "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "ulCullMode":           "PL_CULL_MODE_CULL_FRONT",
+                "ulWireframe":          false,
+                "ulDepthClampEnabled":  false,
+                "ulStencilTestEnabled": false,
+                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "ulStencilRef":         255,
+                "ulStencilMask":        255,
+                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+            },
+            "uSubpassIndex": 1,
+            "atVertexBufferLayouts": [
+                {
+                    "atAttributes": [
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                    ]
+                }
+            ],
+            "atBlendStates": [
+                {
+                    "bBlendEnabled":   true,
+                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE",
+                    "tColorOp":        "PL_BLEND_OP_ADD",
+                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
+                    "tAlphaOp":        "PL_BLEND_OP_ADD"
+                }
+            ],
+            "atFragmentConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atBindGroupLayouts": [ 
+                { "pcName": "scene" },
+                { "pcName": "view" },
+                { "pcName": "deferred lighting 1" }
                 
             ]
         },

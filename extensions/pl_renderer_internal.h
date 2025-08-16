@@ -336,7 +336,9 @@ typedef struct _plScene
     const char* pcName;
     bool           bActive;
     plShaderHandle tLightingShader;
+    plShaderHandle tDeferredLightingVolumeShader;
     plShaderHandle tEnvLightingShader;
+    plShaderHandle tEnvLightingVolumeShader;
     uint64_t uLastSemValueForShadow;
 
     // skybox resources (optional)
@@ -438,6 +440,10 @@ typedef struct _plScene
     plBVH tBvh;
     plAABB* sbtBvhAABBs;
     plBVHNode** sbtNodeStack;
+
+    // light volumes
+    plDrawable tUnitSphereDrawable;
+    plEntity   tUnitSphereMesh;
 } plScene;
 
 typedef struct _plRefRendererData
