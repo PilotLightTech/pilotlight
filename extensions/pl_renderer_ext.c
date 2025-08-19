@@ -971,6 +971,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     plView* ptView = PL_ALLOC(sizeof(plView));
     memset(ptView, 0, sizeof(plView));
 
+    ptView->uIndex = pl_sb_size(ptScene->sbptViews);
     pl_sb_push(ptScene->sbptViews, ptView);
 
     ptView->ptParentScene = ptScene;
@@ -1325,14 +1326,29 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     return ptView;
 }
 
+plVec2
+pl_renderer_get_view_color_texture_max_uv(plView* ptView)
+{
+    plTexture* ptTexture = gptGfx->get_texture(gptData->ptDevice, ptView->tFinalTexture);
+    return (plVec2){ptView->tTargetSize.x / ptTexture->tDesc.tDimensions.x, ptView->tTargetSize.y / ptTexture->tDesc.tDimensions.y};
+}
+
 void
 pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
 {
-    // for convience
-    plDevice* ptDevice = gptData->ptDevice;
+
+    plTexture* ptTexture = gptGfx->get_texture(gptData->ptDevice, ptView->tFinalTexture);
 
     // update offscreen size to match viewport
     ptView->tTargetSize = tDimensions;
+
+    if(tDimensions.x <= ptTexture->tDesc.tDimensions.x && tDimensions.y <= ptTexture->tDesc.tDimensions.y)
+    {
+        return;
+    }
+
+    // for convience
+    plDevice* ptDevice = gptData->ptDevice;
 
     // recreate offscreen color & depth textures
     const plTextureDesc tRawOutputTextureDesc = {
@@ -2449,9 +2465,8 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
 
     plRenderEncoder* ptCSMEncoder = gptGfx->begin_render_pass(ptCSMCmdBuffer, ptScene->tShadowRenderPass, NULL);
     
-    uint32_t uViewIndex = 0;
     gptGfx->push_render_debug_group(ptCSMEncoder, "View CSM", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
-    pl__renderer_generate_cascaded_shadow_map(ptCSMEncoder, ptCSMCmdBuffer, ptScene, uViewIndex, 0, 0, &ptView->tDirectionLightShadowData,  ptCamera);
+    pl__renderer_generate_cascaded_shadow_map(ptCSMEncoder, ptCSMCmdBuffer, ptScene, ptView->uIndex, 0, 0, &ptView->tDirectionLightShadowData,  ptCamera);
 
     gptGfx->pop_render_debug_group(ptCSMEncoder);
     gptGfx->end_render_pass(ptCSMEncoder);
@@ -2628,7 +2643,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     *gptData->pdDrawCalls += (double)(pl_sb_size(ptView->sbuVisibleDeferredEntities) + pl_sb_size(ptView->sbuVisibleForwardEntities) + 1);
 
-    const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tRenderPass)->tDesc.tDimensions;
+    // const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tRenderPass)->tDesc.tDimensions;
+    const plVec2 tDimensions = ptView->tTargetSize;
 
     plDrawArea tArea = {
         .ptDrawStream = ptStream,
@@ -2865,8 +2881,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     }
 
     gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
-
-
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2980,6 +2994,9 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         
         gptGfx->bind_graphics_bind_groups(ptSceneEncoder, tGridShader, 0, 0, NULL, 1, &tGridDynamicBinding);
 
+        gptGfx->set_scissor_region(ptSceneEncoder, tArea.atScissors);
+        gptGfx->set_viewport(ptSceneEncoder, tArea.atViewports);
+
         plDraw tGridDraw = {
             .uVertexCount   = 6,
             .uInstanceCount = 1,
@@ -3044,6 +3061,9 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         gptGfx->set_depth_bias(ptPickEncoder, 0.0f, 0.0f, 0.0f);
         gptGfx->bind_shader(ptPickEncoder, tPickShader);
         gptGfx->bind_vertex_buffer(ptPickEncoder, ptScene->tVertexBuffer);
+
+        gptGfx->set_scissor_region(ptPickEncoder, tArea.atScissors);
+        gptGfx->set_viewport(ptPickEncoder, tArea.atViewports);
 
         plBindGroupHandle atBindGroups[2] = {tViewBG, ptView->atPickBindGroup[uFrameIdx]};
         gptGfx->bind_graphics_bind_groups(ptPickEncoder, tPickShader, 0, 2, atBindGroups, 0, NULL);
@@ -3126,6 +3146,9 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     // submit nonindexed draw using basic API
     plShaderHandle tUVShader = gptShaderVariant->get_shader("uvmap", NULL, NULL, NULL, &gptData->tUVRenderPassLayout);
     gptGfx->bind_shader(ptUVEncoder, tUVShader);
+
+    // gptGfx->set_scissor_region(ptUVEncoder, tArea.atScissors);
+    // gptGfx->set_viewport(ptUVEncoder, tArea.atViewports);
 
     plDraw tDraw = {
         .uVertexCount   = 3,
@@ -3358,11 +3381,9 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
     gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
 
-    plTexture* ptFinalTexture = gptGfx->get_texture(gptData->ptDevice, ptView->tFinalTexture);
-    
     plDispatch tTonemapDispatch = {
-        .uGroupCountX     = (uint32_t)(ceilf(ptFinalTexture->tDesc.tDimensions.x / 32.0f)),
-        .uGroupCountY     = (uint32_t)(ceilf(ptFinalTexture->tDesc.tDimensions.y / 32.0f)),
+        .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 32.0f)),
+        .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 32.0f)),
         .uGroupCountZ     = 1,
         .uThreadPerGroupX = 32,
         .uThreadPerGroupY = 32,
@@ -4200,6 +4221,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi.prepare_view                  = pl_renderer_prepare_view;
     tApi.render_view                   = pl_renderer_render_view;
     tApi.get_view_color_texture        = pl_renderer_get_view_color_texture;
+    tApi.get_view_color_texture_max_uv = pl_renderer_get_view_color_texture_max_uv;
     tApi.resize_view                   = pl_renderer_resize_view;
     tApi.get_debug_drawlist            = pl_renderer_get_debug_drawlist;
     tApi.get_gizmo_drawlist            = pl_renderer_get_gizmo_drawlist;

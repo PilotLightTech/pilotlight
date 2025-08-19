@@ -155,6 +155,7 @@ typedef struct _plRendererI
     plView*           (*create_view)(plScene*, plVec2 tDimensions);
     void              (*cleanup_view)(plView*);
     plBindGroupHandle (*get_view_color_texture)(plView*);
+    plVec2            (*get_view_color_texture_max_uv)(plView*);
     void              (*resize_view)(plView*, plVec2 tDimensions);
 
     // per frame

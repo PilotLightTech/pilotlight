@@ -40,13 +40,16 @@ void
 main() 
 {
 
-    vec4 color = texture(sampler2D(tColorTexture, tSamplerLinearRepeat), tUV);
-    vec2 closestSeed = texture(sampler2D(tMaskTexture, tSamplerLinearRepeat), tUV).xy;
-    vec2 h = closestSeed - tUV;
+    vec2 tUVMod = tUV;
+    tUVMod.x *= tObjectInfo.tData.fXScale;
+    tUVMod.y *= tObjectInfo.tData.fYScale;
+    vec4 color = texture(sampler2D(tColorTexture, tSamplerLinearRepeat), tUVMod);
+    vec2 closestSeed = texture(sampler2D(tMaskTexture, tSamplerLinearRepeat), tUVMod).xy;
+    vec2 h = closestSeed - tUVMod;
     float xdist = h.x * float(textureSize(sampler2D(tColorTexture, tSamplerLinearRepeat),0).x);
     float ydist = h.y * float(textureSize(sampler2D(tColorTexture, tSamplerLinearRepeat),0).y);
     float tdist2 = xdist * xdist + ydist * ydist;
-    float dist = distance(closestSeed, tUV);
+    float dist = distance(closestSeed, tUVMod);
     if (closestSeed.x > 0 && closestSeed.y > 0 && dist > 0.0001 && tdist2 < tObjectInfo.tData.fTargetWidth * tObjectInfo.tData.fTargetWidth)
     {
         color = tObjectInfo.tData.tOutlineColor;

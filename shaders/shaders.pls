@@ -530,7 +530,7 @@
                 "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
                 "ulCullMode":           "PL_CULL_MODE_CULL_FRONT",
                 "ulWireframe":          false,
-                "ulDepthClampEnabled":  false,
+                "ulDepthClampEnabled":  true,
                 "ulStencilTestEnabled": false,
                 "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
                 "ulStencilRef":         255,

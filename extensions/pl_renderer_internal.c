@@ -1907,7 +1907,25 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
     plScene*      ptScene    = ptView->ptParentScene;
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
-    const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tPostProcessRenderPass)->tDesc.tDimensions;
+    const plVec2 tDimensions = ptView->tTargetSize;
+
+    plDrawArea tArea = {
+        .atScissors = 
+        {
+            {
+                .uWidth  = (uint32_t)tDimensions.x,
+                .uHeight = (uint32_t)tDimensions.y,
+            }
+        },
+        .atViewports =
+        {
+            {
+                .fWidth  = tDimensions.x,
+                .fHeight = tDimensions.y,
+                .fMaxDepth = 1.0f
+            }
+        }
+    };
 
     plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptView->tPostProcessRenderPass, NULL);
     gptGfx->push_render_debug_group(ptEncoder, "Outline", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
@@ -1959,11 +1977,16 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
     const plVec4 tOutlineColor = (plVec4){(float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
     ptDynamicData->fTargetWidth = (float)gptData->tRuntimeOptions.uOutlineWidth * tOutlineColor.r + 1.0f;
     ptDynamicData->tOutlineColor = tOutlineColor;
+    ptDynamicData->fXScale = pl_renderer_get_view_color_texture_max_uv(ptView).x;
+    ptDynamicData->fYScale = pl_renderer_get_view_color_texture_max_uv(ptView).y;
 
     plShaderHandle tTonemapShader = gptShaderVariant->get_shader("jumpfloodalgo2", NULL, NULL, NULL, &gptData->tPostProcessRenderPassLayout);
     gptGfx->bind_shader(ptEncoder, tTonemapShader);
     plBindGroupHandle atBindGroups[] = {ptScene->atBindGroups[uFrameIdx], tJFABindGroup0};
     gptGfx->bind_graphics_bind_groups(ptEncoder, tTonemapShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
+    gptGfx->set_scissor_region(ptEncoder, tArea.atScissors);
+    gptGfx->set_viewport(ptEncoder, tArea.atViewports);
+
     *gptData->pdDrawCalls += 1.0;
     gptGfx->draw(ptEncoder, 1, &tDraw);
 

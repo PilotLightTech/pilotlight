@@ -176,6 +176,7 @@ typedef struct _plAppData
     bool bVSync;
 
     // ui options
+    bool  bSecondaryViewActive;
     bool  bShowBVH;
     bool  bFrustumCulling;
     bool  bShowImGuiDemo;
@@ -200,12 +201,14 @@ typedef struct _plAppData
     bool     bFreezeCullCamera;
     plEntity tCullCamera;
     plEntity tMainCamera;
+    plEntity tSecondaryCamera;
     bool     bMainViewHovered;
 
     // scenes/views
     plComponentLibrary* ptCompLibrary;
     plScene* ptScene;
     plView*  ptView;
+    plView*  ptSecondaryView;
     plVec2 tView0Offset;
     plVec2 tView0Scale;
 

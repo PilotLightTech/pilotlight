@@ -296,9 +296,9 @@ PL_END_STRUCT(plGpuDynSkybox)
 PL_BEGIN_STRUCT(plGpuDynPost)
 
     float fTargetWidth;
+    float fXScale;
+    float fYScale;
     uint  _unused0;
-    uint  _unused1;
-    uint  _unused2;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     vec4 tOutlineColor;

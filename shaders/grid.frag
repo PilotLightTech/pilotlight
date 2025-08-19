@@ -65,7 +65,8 @@ gridColor(vec2 uv, vec2 camPos)
   uv -= camPos;
 
   vec3 view_dir = normalize(tObjectInfo.tData.tViewDirection.xyz);
-  float op_gracing = 1.f - pow(1.0 - abs(dot(view_dir, vec3(0.0, 1.0, 0.0))), 16);
+  // float op_gracing = 1.0 - pow(1.0 - abs(dot(view_dir, vec3(0.0, 1.0, 0.0))), 16);
+  float op_gracing = satf(abs(dot(view_dir, vec3(0.0, 1.0, 0.0))) + 0.25f);
   // float op_gracing = 1.0;
 
   // blend between falloff colors to handle LOD transition

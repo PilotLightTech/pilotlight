@@ -149,6 +149,7 @@ typedef struct _plAppData
     bool bResize;
 
     // ui options
+    bool  bSecondaryViewActive;
     bool  bContinuousBVH;
     bool  bFrustumCulling;
     bool  bShowSkybox;
@@ -167,10 +168,12 @@ typedef struct _plAppData
 
     // scene
     plEntity tMainCamera;
+    plEntity tSecondaryCamera;
 
     // scenes/views
     plScene* ptScene;
     plView*  ptView;
+    plView*  ptSecondaryView;
 
     // drawing
     plDrawLayer2D* ptDrawLayer;
@@ -400,6 +403,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
     ptAppData->ptScene = gptRenderer->create_scene(tSceneInit);
     ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, ptIO->tMainViewportSize);
+    ptAppData->ptSecondaryView = gptRenderer->create_view(ptAppData->ptScene, (plVec2){500.0f, 500.0f});
 
     // create main camera
     plCamera* ptMainCamera = NULL;
@@ -407,6 +411,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptCamera->set_pitch_yaw(ptMainCamera, -0.465f, 1.341f);
     gptCamera->update(ptMainCamera);
     gptEcs->attach_script(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
+
+    // create secondary camera
+    plCamera* ptSecondaryCamera = NULL;
+    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "secondary camera", pl_create_vec3(-4.012f, 2.984f, -1.109f), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
+    gptCamera->set_pitch_yaw(ptSecondaryCamera, -0.465f, 1.341f);
+    gptCamera->update(ptSecondaryCamera);
 
     // create lights
     plLightComponent* ptLight = NULL;
@@ -520,6 +530,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptConsole->cleanup();
 
     gptRenderer->cleanup_view(ptAppData->ptView);
+    gptRenderer->cleanup_view(ptAppData->ptSecondaryView);
     gptRenderer->cleanup_scene(ptAppData->ptScene);
     
     gptEcs->cleanup();
@@ -576,6 +587,9 @@ pl_app_update(plAppData* ptAppData)
     gptShaderVariant->update_stats();
 
     plCamera* ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCamera->get_ecs_type_key(), ptAppData->tMainCamera);
+    plCamera* ptSecondaryCamera = (plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCamera->get_ecs_type_key(), ptAppData->tSecondaryCamera);
+
+    gptCamera->update(ptSecondaryCamera);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~selection stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -686,24 +700,42 @@ pl_app_update(plAppData* ptAppData)
         plLightComponent* ptLights = NULL;
         const uint32_t uLightCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptRenderer->get_ecs_type_key_light(), (void**)&ptLights, NULL);
         gptRenderer->debug_draw_lights(ptAppData->ptView, ptLights, uLightCount);
+        gptRenderer->debug_draw_lights(ptAppData->ptSecondaryView, ptLights, uLightCount);
     }
 
     if(ptAppData->bDrawAllBoundingBoxes)
+    {
         gptRenderer->debug_draw_all_bound_boxes(ptAppData->ptView);
+        gptRenderer->debug_draw_all_bound_boxes(ptAppData->ptSecondaryView);
+    }
 
     if(ptAppData->bShowSkybox)
+    {
         gptRenderer->show_skybox(ptAppData->ptView);
+        gptRenderer->show_skybox(ptAppData->ptSecondaryView);
+    }
 
     if(ptAppData->bShowBVH)
+    {
         gptRenderer->debug_draw_bvh(ptAppData->ptView);
+        gptRenderer->debug_draw_bvh(ptAppData->ptSecondaryView);
+    }
 
     if(ptAppData->bShowGrid)
+    {
         gptRenderer->show_grid(ptAppData->ptView);
+        gptRenderer->show_grid(ptAppData->ptSecondaryView);
+    }
 
     // render scene
     gptRenderer->prepare_scene(ptAppData->ptScene);
     gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
     gptRenderer->render_view(ptAppData->ptView, ptCamera, ptAppData->bFrustumCulling ? ptCamera : NULL);
+    if(ptAppData->bSecondaryViewActive)
+    {
+        gptRenderer->prepare_view(ptAppData->ptSecondaryView, ptSecondaryCamera);
+        gptRenderer->render_view(ptAppData->ptSecondaryView, ptSecondaryCamera, ptSecondaryCamera);
+    }
 
     // main "editor" debug window
     if(ptAppData->bShowPilotLightTool)
@@ -712,12 +744,31 @@ pl_app_update(plAppData* ptAppData)
     // add full screen quad for offscreen render
     if(ptAppData->ptScene)
     {
-        plVec2 tStartPos = {0};
-        plVec2 tEndPos = ptIO->tMainViewportSize;
-        gptDraw->add_image(ptAppData->ptDrawLayer,
-            gptRenderer->get_view_color_texture(ptAppData->ptView).uData,
-            tStartPos,
-            tEndPos);
+        {
+            plVec2 tStartPos = {0};
+            plVec2 tEndPos = ptIO->tMainViewportSize;
+            gptDraw->add_image_ex(ptAppData->ptDrawLayer,
+                gptRenderer->get_view_color_texture(ptAppData->ptView).uData,
+                tStartPos,
+                tEndPos,
+                (plVec2){0},
+                gptRenderer->get_view_color_texture_max_uv(ptAppData->ptView),
+                PL_COLOR_32_WHITE);
+        }
+
+        if(ptAppData->bSecondaryViewActive)
+        {
+            plVec2 tStartPos = { 0.75f * ptIO->tMainViewportSize.x, 0.0f};
+            plVec2 tEndPos = {ptIO->tMainViewportSize.x, 0.25f * ptIO->tMainViewportSize.y};
+            gptDraw->add_image_ex(ptAppData->ptDrawLayer,
+                gptRenderer->get_view_color_texture(ptAppData->ptSecondaryView).uData,
+                tStartPos,
+                tEndPos,
+                (plVec2){0},
+                gptRenderer->get_view_color_texture_max_uv(ptAppData->ptSecondaryView),
+                PL_COLOR_32_WHITE);
+            gptCamera->set_aspect(ptSecondaryCamera, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
+        }
     }
 
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
@@ -788,6 +839,7 @@ pl__show_editor_window(plAppData* ptAppData)
             gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
             gptUI->checkbox("Show Debug Lights", &ptAppData->bShowDebugLights);
             gptUI->checkbox("Show Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
+            gptUI->checkbox("Secondary View", &ptAppData->bSecondaryViewActive);
 
             gptUI->vertical_spacing();
 

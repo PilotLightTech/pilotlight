@@ -272,6 +272,7 @@ typedef struct _plEnvironmentProbeData
 typedef struct _plView
 {
     plScene* ptParentScene;
+    uint32_t uIndex;
 
     bool bShowSkybox;
     bool bShowGrid;
