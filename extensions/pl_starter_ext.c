@@ -360,68 +360,85 @@ pl_starter_resize(void)
 
     plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
 
-    uint64_t uOldValue = gptGfx->get_semaphore_value(gptStarterCtx->ptDevice, gptStarterCtx->aptSemaphores[gptGfx->get_current_frame_index()]);
-
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
-        gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
-
-        const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {
+        plVec3 tNewDimensions = {
                 gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x,
                 gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y,
-                1},
-            .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
-            .uLayers       = 1,
-            .uMips         = 1,
-            .tType         = PL_TEXTURE_TYPE_2D,
-            .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-            .pcDebugName   = "offscreen depth texture",
-            .tSampleCount  = tInfo.tSampleCount
-        };
+                1};
 
-        plTexture* ptDepthTexture = NULL;
-        gptStarterCtx->tDepthTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptDepthTexture);
+        plTexture* ptTexture = gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
 
-        const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
-            ptDepthTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_FLAGS_DEVICE_LOCAL,
-            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
-            "depth texture memory");
+        if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.tSampleCount != tInfo.tSampleCount)
+        {
+            gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
 
-        gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
+            const plTextureDesc tDepthTextureDesc = {
+                .tDimensions   = tNewDimensions,
+                .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
+                .uLayers       = 1,
+                .uMips         = 1,
+                .tType         = PL_TEXTURE_TYPE_2D,
+                .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                .pcDebugName   = "offscreen depth texture",
+                .tSampleCount  = tInfo.tSampleCount
+            };
 
-        gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
+            plTexture* ptDepthTexture = NULL;
+            gptStarterCtx->tDepthTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptDepthTexture);
+
+            const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
+                ptDepthTexture->tMemoryRequirements.ulSize,
+                PL_MEMORY_FLAGS_DEVICE_LOCAL,
+                ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
+                "depth texture memory");
+
+            gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
+
+            gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
+        }
     }
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
     {
-        gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
-        const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {
+        plVec3 tNewDimensions = {
                 (float)tInfo.uWidth,
                 (float)tInfo.uHeight,
-                1},
-            .tFormat       = tInfo.tFormat,
-            .uLayers       = 1,
-            .uMips         = 1,
-            .tType         = PL_TEXTURE_TYPE_2D,
-            .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-            .pcDebugName   = "MSAA texture",
-            .tSampleCount  = tInfo.tSampleCount
-        };
+                1};
 
-        plTexture* ptResolveTexture = NULL;
-        gptStarterCtx->tResolveTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptResolveTexture);
+        plTexture* ptTexture = gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
-        const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
-            ptResolveTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_FLAGS_DEVICE_LOCAL,
-            ptResolveTexture->tMemoryRequirements.uMemoryTypeBits,
-            "msaa texture memory");
+        if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.tSampleCount != tInfo.tSampleCount)
+        {
 
-        gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
-        gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tResolveTexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
+            gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
+
+            const plTextureDesc tDepthTextureDesc = {
+                .tDimensions   = {
+                    (float)tInfo.uWidth,
+                    (float)tInfo.uHeight,
+                    1},
+                .tFormat       = tInfo.tFormat,
+                .uLayers       = 1,
+                .uMips         = 1,
+                .tType         = PL_TEXTURE_TYPE_2D,
+                .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .pcDebugName   = "MSAA texture",
+                .tSampleCount  = tInfo.tSampleCount
+            };
+
+            plTexture* ptResolveTexture = NULL;
+            gptStarterCtx->tResolveTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptResolveTexture);
+
+            const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
+                ptResolveTexture->tMemoryRequirements.ulSize,
+                PL_MEMORY_FLAGS_DEVICE_LOCAL,
+                ptResolveTexture->tMemoryRequirements.uMemoryTypeBits,
+                "msaa texture memory");
+
+            gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
+            gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tResolveTexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
+        }
 
     }
 
