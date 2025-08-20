@@ -1074,6 +1074,60 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     ptView->tFinalTexture            = pl__renderer_create_texture(&tRawOutputTextureDesc,  "offscreen final", 0, PL_TEXTURE_USAGE_SAMPLED);
     ptView->tFinalTextureHandle      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture);
 
+
+    const plBindGroupDesc tJFABindGroupDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("jumpfloodalgo", 0),
+        .pcDebugName = "temp jfa bind group"
+    };
+
+    ptView->atJFABindGroups[0] = gptGfx->create_bind_group(gptData->ptDevice, &tJFABindGroupDesc);
+    ptView->atJFABindGroups[1] = gptGfx->create_bind_group(gptData->ptDevice, &tJFABindGroupDesc);
+
+    const plBindGroupUpdateTextureData atJFATextureData0[] = 
+    {
+        {
+            .tTexture = ptView->atUVMaskTexture0,
+            .uSlot    = 0,
+            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
+        },
+        {
+            .tTexture = ptView->atUVMaskTexture1,
+            .uSlot    = 1,
+            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
+        }
+    };
+
+    const plBindGroupUpdateTextureData atJFATextureData1[] = 
+    {
+        {
+            .tTexture = ptView->atUVMaskTexture1,
+            .uSlot    = 0,
+            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
+        },
+        {
+            .tTexture = ptView->atUVMaskTexture0,
+            .uSlot    = 1,
+            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
+        }
+    };
+
+    const plBindGroupUpdateData tJFABGData0 = {
+        .uTextureCount = 2,
+        .atTextureBindings = atJFATextureData0
+    };
+    const plBindGroupUpdateData tJFABGData1 = {
+        .uTextureCount = 2,
+        .atTextureBindings = atJFATextureData1
+    };
+
+    gptGfx->update_bind_group(gptData->ptDevice, ptView->atJFABindGroups[0], &tJFABGData0);
+    gptGfx->update_bind_group(gptData->ptDevice, ptView->atJFABindGroups[1], &tJFABGData1);
+
     // lighting bind group
     const plBindGroupDesc tLightingBindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
@@ -1114,7 +1168,6 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-
         const plBufferDesc tPickBufferDesc = {
             .tUsage     = PL_BUFFER_USAGE_STAGING | PL_BUFFER_USAGE_STORAGE,
             .szByteSize = sizeof(uint32_t) * 2,
@@ -1143,6 +1196,25 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
         // buffers
         ptView->atView2Buffers[i] = pl__renderer_create_staging_buffer(&atView2BuffersDesc, "scene", i);
         
+        const plBindGroupDesc tDeferredBG1Desc = {
+            .ptPool      = gptData->ptBindGroupPool,
+            .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("gbuffer_fill", 1),
+            .pcDebugName = "view specific bindgroup"
+        };
+
+        const plBindGroupUpdateBufferData tView2BufferBGData = {
+            .tBuffer       = ptView->atView2Buffers[i],
+            .uSlot         = 0,
+            .szBufferRange = sizeof(plGpuViewData)
+        };
+
+        plBindGroupUpdateData tView2BGData = {
+            .uBufferCount    = 1,
+            .atBufferBindings = &tView2BufferBGData
+        };
+        
+        ptView->atDeferredBG1[i] = gptGfx->create_bind_group(gptData->ptDevice, &tDeferredBG1Desc);
+        gptGfx->update_bind_group(gptData->ptDevice, ptView->atDeferredBG1[i], &tView2BGData);
 
         pl_temp_allocator_reset(&gptData->tTempAllocator);
 
@@ -1411,6 +1483,8 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     gptGfx->queue_texture_for_deletion(ptDevice, ptView->tDepthTexture);
     gptGfx->queue_texture_for_deletion(ptDevice, ptView->tPickTexture);
     gptGfx->queue_bind_group_for_deletion(ptDevice, ptView->tLightingBindGroup);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, ptView->atJFABindGroups[0]);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, ptView->atJFABindGroups[1]);
     ptView->tPickTexture = pl__renderer_create_texture(&tPickTextureDesc, "pick", 0, PL_TEXTURE_USAGE_SAMPLED);
 
     // textures
@@ -1423,6 +1497,59 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     ptView->atUVMaskTexture1         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 1", 0, PL_TEXTURE_USAGE_STORAGE);
     ptView->tFinalTexture            = pl__renderer_create_texture(&tRawOutputTextureDesc,  "offscreen final", 0, PL_TEXTURE_USAGE_SAMPLED);
     ptView->tFinalTextureHandle      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture);
+
+    const plBindGroupDesc tJFABindGroupDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("jumpfloodalgo", 0),
+        .pcDebugName = "temp jfa bind group"
+    };
+
+    ptView->atJFABindGroups[0] = gptGfx->create_bind_group(gptData->ptDevice, &tJFABindGroupDesc);
+    ptView->atJFABindGroups[1] = gptGfx->create_bind_group(gptData->ptDevice, &tJFABindGroupDesc);
+
+    const plBindGroupUpdateTextureData atJFATextureData0[] = 
+    {
+        {
+            .tTexture = ptView->atUVMaskTexture0,
+            .uSlot    = 0,
+            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
+        },
+        {
+            .tTexture = ptView->atUVMaskTexture1,
+            .uSlot    = 1,
+            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
+        }
+    };
+
+    const plBindGroupUpdateTextureData atJFATextureData1[] = 
+    {
+        {
+            .tTexture = ptView->atUVMaskTexture1,
+            .uSlot    = 0,
+            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
+        },
+        {
+            .tTexture = ptView->atUVMaskTexture0,
+            .uSlot    = 1,
+            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
+            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
+        }
+    };
+
+    const plBindGroupUpdateData tJFABGData0 = {
+        .uTextureCount = 2,
+        .atTextureBindings = atJFATextureData0
+    };
+    const plBindGroupUpdateData tJFABGData1 = {
+        .uTextureCount = 2,
+        .atTextureBindings = atJFATextureData1
+    };
+
+    gptGfx->update_bind_group(gptData->ptDevice, ptView->atJFABindGroups[0], &tJFABGData0);
+    gptGfx->update_bind_group(gptData->ptDevice, ptView->atJFABindGroups[1], &tJFABGData1);
 
     // lighting bind group
     const plBindGroupDesc tLightingBindGroupDesc = {
@@ -2495,36 +2622,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
-    // common
-    const plBindGroupUpdateSamplerData tSkyboxSamplerData = {
-        .tSampler = gptData->tSamplerLinearRepeat,
-        .uSlot    = 1
-    };
-
-    const plBindGroupDesc tDeferredBG1Desc = {
-        .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("gbuffer_fill", 1),
-        .pcDebugName = "view specific bindgroup"
-    };
-
-    const plBindGroupDesc tViewBGDesc = {
-        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-        .tLayout     = gptData->tViewBGLayout,
-        .pcDebugName = "light bind group 2"
-    };
-
-    const plBindGroupDesc tPickBGDesc = {
-        .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
-        .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("picking", 0),
-        .pcDebugName = "temp pick bind group"
-    };
-
-    const plBindGroupDesc tJFABindGroupDesc = {
-        .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("jumpfloodalgo", 0),
-        .pcDebugName = "temp jfa bind group"
-    };
-
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
     pl_begin_cpu_sample(gptProfile, 0, "Scene Prep");
@@ -2570,21 +2667,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .tCameraViewProjection = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat)
     };
     memcpy(gptGfx->get_buffer(ptDevice, ptView->atView2Buffers[uFrameIdx])->tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(plGpuViewData));
-
-    const plBindGroupUpdateBufferData tDeferredBG1BufferData = {
-        .tBuffer       = ptView->atView2Buffers[uFrameIdx],
-        .uSlot         = 0,
-        .szBufferRange = sizeof(plGpuViewData)
-    };
-
-    plBindGroupUpdateData tDeferredBG1Data = {
-        .uBufferCount    = 1,
-        .atBufferBindings = &tDeferredBG1BufferData
-    };
-    
-    plBindGroupHandle tDeferredBG1 = gptGfx->create_bind_group(ptDevice, &tDeferredBG1Desc);
-    gptGfx->update_bind_group(gptData->ptDevice, tDeferredBG1, &tDeferredBG1Data);
-    gptGfx->queue_bind_group_for_deletion(ptDevice, tDeferredBG1);
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~render scene~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2696,7 +2778,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
                 .uVertexOffset        = tDrawable.uStaticVertexOffset,
                 .atBindGroups = {
                     ptScene->atBindGroups[uFrameIdx],
-                    tDeferredBG1
+                    ptView->atDeferredBG1[uFrameIdx]
                 },
                 .auDynamicBufferOffsets = {
                     tDynamicBinding.uByteOffset
@@ -2729,6 +2811,13 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .uBufferCount      = 6,
         .atBufferBindings  = atViewBGBufferData,
     };
+
+    const plBindGroupDesc tViewBGDesc = {
+        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+        .tLayout     = gptData->tViewBGLayout,
+        .pcDebugName = "light bind group 2"
+    };
+
     plBindGroupHandle tViewBG = gptGfx->create_bind_group(ptDevice, &tViewBGDesc);
     gptGfx->update_bind_group(gptData->ptDevice, tViewBG, &tViewBGData);
     gptGfx->queue_bind_group_for_deletion(ptDevice, tViewBG);
@@ -3184,56 +3273,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .uThreadPerGroupZ = 1
     };
 
-    plBindGroupHandle atJFABindGroups[] = {
-        gptGfx->create_bind_group(gptData->ptDevice, &tJFABindGroupDesc),
-        gptGfx->create_bind_group(gptData->ptDevice, &tJFABindGroupDesc)
-    };
-
-    const plBindGroupUpdateTextureData atJFATextureData0[] = 
-    {
-        {
-            .tTexture = ptView->atUVMaskTexture0,
-            .uSlot    = 0,
-            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
-            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
-        },
-        {
-            .tTexture = ptView->atUVMaskTexture1,
-            .uSlot    = 1,
-            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
-            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
-        }
-    };
-
-    const plBindGroupUpdateTextureData atJFATextureData1[] = 
-    {
-        {
-            .tTexture = ptView->atUVMaskTexture1,
-            .uSlot    = 0,
-            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
-            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
-        },
-        {
-            .tTexture = ptView->atUVMaskTexture0,
-            .uSlot    = 1,
-            .tType    = PL_TEXTURE_BINDING_TYPE_STORAGE,
-            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE
-        }
-    };
-
-    const plBindGroupUpdateData tJFABGData0 = {
-        .uTextureCount = 2,
-        .atTextureBindings = atJFATextureData0
-    };
-    const plBindGroupUpdateData tJFABGData1 = {
-        .uTextureCount = 2,
-        .atTextureBindings = atJFATextureData1
-    };
-    gptGfx->update_bind_group(gptData->ptDevice, atJFABindGroups[0], &tJFABGData0);
-    gptGfx->update_bind_group(gptData->ptDevice, atJFABindGroups[1], &tJFABGData1);
-    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, atJFABindGroups[0]);
-    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, atJFABindGroups[1]);
-
     plComputeShaderHandle tJFAShader = gptShaderVariant->get_compute_shader("jumpfloodalgo", NULL);
     for(uint32_t i = 0; i < uJumpSteps; i++)
     {
@@ -3262,7 +3301,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         ptJumpDistance->y = tDimensions.y;
         ptJumpDistance->z = fJumpDistance;
 
-        gptGfx->bind_compute_bind_groups(ptJumpEncoder, tJFAShader, 0, 1, &atJFABindGroups[i % 2], 1, &tDynamicBinding);
+        gptGfx->bind_compute_bind_groups(ptJumpEncoder, tJFAShader, 0, 1, &ptView->atJFABindGroups[i % 2], 1, &tDynamicBinding);
         gptGfx->dispatch(ptJumpEncoder, 1, &tDispach);
 
         // end render pass

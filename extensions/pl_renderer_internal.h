@@ -279,6 +279,13 @@ typedef struct _plView
     bool bShowSkybox;
     bool bShowGrid;
 
+    // bind groups
+    plBindGroupHandle atPickBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle tFinalTextureHandle;
+    plBindGroupHandle tLightingBindGroup;
+    plBindGroupHandle atDeferredBG1[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle atJFABindGroups[2];
+
     // renderpasses
     plRenderPassHandle tRenderPass;
     plRenderPassHandle tPostProcessRenderPass;
@@ -286,40 +293,31 @@ typedef struct _plView
     plRenderPassHandle tUVRenderPass;
     plVec2             tTargetSize;
 
-    // g-buffer textures
-    plTextureHandle tAlbedoTexture;
-    plTextureHandle tNormalTexture;
-    plTextureHandle tAOMetalRoughnessTexture;
-    plTextureHandle tRawOutputTexture;
-    plTextureHandle tDepthTexture;
-
-    // picking
-    bool              auHoverResultProcessing[PL_MAX_FRAMES_IN_FLIGHT];
-    bool              auHoverResultReady[PL_MAX_FRAMES_IN_FLIGHT];
-    bool              bRequestHoverCheck;
-    plVec2            tHoverOffset;
-    plVec2            tHoverWindowRatio;
-    plEntity          tHoveredEntity;
-    plTextureHandle   tPickTexture;
-    plBufferHandle    atPickBuffer[PL_MAX_FRAMES_IN_FLIGHT];
-    plBindGroupHandle atPickBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
-
-    // outlining
-    plTextureHandle atUVMaskTexture0;
-    plTextureHandle atUVMaskTexture1;
-    plTextureHandle tLastUVMask;
-    
-    // output texture
-    plTextureHandle   tFinalTexture;
-    plBindGroupHandle tFinalTextureHandle;
-
-    // lighting
-    plBindGroupHandle tLightingBindGroup;
+    // textures
+    plTextureHandle tAlbedoTexture;           // g-buffer
+    plTextureHandle tNormalTexture;           // g-buffer
+    plTextureHandle tAOMetalRoughnessTexture; // g-buffer
+    plTextureHandle tRawOutputTexture;        // g-buffer
+    plTextureHandle tDepthTexture;            // g-buffer
+    plTextureHandle tFinalTexture;            // output texture
+    plTextureHandle atUVMaskTexture0;         // outlining
+    plTextureHandle atUVMaskTexture1;         // outlining
+    plTextureHandle tLastUVMask;              // outlining
+    plTextureHandle tPickTexture;             // picking
 
     // GPU buffers
+    plBufferHandle atPickBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atViewBuffers[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atView2Buffers[PL_MAX_FRAMES_IN_FLIGHT];
 
+    // picking system
+    bool     auHoverResultProcessing[PL_MAX_FRAMES_IN_FLIGHT];
+    bool     auHoverResultReady[PL_MAX_FRAMES_IN_FLIGHT];
+    bool     bRequestHoverCheck;
+    plVec2   tHoverOffset;
+    plVec2   tHoverWindowRatio;
+    plEntity tHoveredEntity;
+    
     // submitted drawables
     uint32_t* sbtVisibleDrawables;
     uint32_t* sbuVisibleDeferredEntities;
