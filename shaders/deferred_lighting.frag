@@ -13,9 +13,7 @@
 //-----------------------------------------------------------------------------
 
 layout(constant_id = 0) const int iRenderingFlags = 0;
-layout(constant_id = 1) const int iLightCount = 0;
-layout(constant_id = 2) const int iProbeCount = 0;
-layout(constant_id = 3) const int tShaderDebugMode = 0;
+layout(constant_id = 1) const int tShaderDebugMode = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 2
@@ -113,21 +111,28 @@ void main()
         //     }
         // }
 
-        f_diffuse = getDiffuseLight(n, tObjectInfo.tData.iProbeIndex) * tBaseColor.rgb;
+        // vec3 tDist = tProbeData.atData[tObjectInfo.tData.iProbeIndex].tPosition - tWorldPosition.xyz;
+        // tDist = tDist * tDist;
+        // float fDistSqr = tDist.x + tDist.y + tDist.z;
+        // if(fDistSqr <= tProbeData.atData[tObjectInfo.tData.iProbeIndex].fRangeSqr)
+        {
 
-        int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[tObjectInfo.tData.iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
-        f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips, tWorldPosition.xyz, tObjectInfo.tData.iProbeIndex);
-        f_specular_dielectric = f_specular_metal;
+            f_diffuse = getDiffuseLight(n, tObjectInfo.tData.iProbeIndex) * tBaseColor.rgb;
 
-        // Calculate fresnel mix for IBL  
+            int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[tObjectInfo.tData.iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
+            f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips, tWorldPosition.xyz, tObjectInfo.tData.iProbeIndex);
+            f_specular_dielectric = f_specular_metal;
 
-        vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, tObjectInfo.tData.iProbeIndex);
-        f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
-    
-        vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, tObjectInfo.tData.iProbeIndex);
-        f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);
+            // Calculate fresnel mix for IBL  
 
-        color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
+            vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, tObjectInfo.tData.iProbeIndex);
+            f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
+        
+            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, tObjectInfo.tData.iProbeIndex);
+            f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);
+
+            color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
+        }
     }
 
     const float ao = AORoughnessMetalnessData.r;

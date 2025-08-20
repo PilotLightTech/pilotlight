@@ -1890,7 +1890,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
 
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
-    int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData), gptData->tRuntimeOptions.tShaderDebugMode};
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode};
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tDeferredLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
@@ -2001,7 +2001,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
 
     // create lighting shader
-    int aiLightingConstantData[] = {iSceneWideRenderingFlags, pl_sb_capacity(ptScene->sbtLightData), pl_sb_size(ptScene->sbtProbeData), gptData->tRuntimeOptions.tShaderDebugMode};
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode};
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tDeferredLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
