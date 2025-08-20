@@ -271,6 +271,7 @@ typedef int plDeviceCapability;       // -> enum _plDeviceCapability       // Fl
 typedef int plCommandPoolResetFlags;  // -> enum _plCommandPoolResetFlags  // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
 typedef int plPassResourceUsageFlags; // -> enum _plPassResourceUsageFlags // Flags: resource usage (PL_PASS_RESOURCE_USAGE_XXXX)
 typedef int plGraphicsBackend;        // -> enum _plGraphicsBackend        // Enum: graphics backend (PL_GRAPHICS_BACKEND_XXXX)
+typedef int plBlendMode;              // -> enum _plBlendMode              // Enum: blend state abstraction (PL_BLEND_MODE_XXXX)
 
 // external
 typedef struct _plWindow plWindow; // pl_os.h
@@ -518,7 +519,8 @@ typedef struct _plGraphicsI
 
     //---------------------------------MISC----------------------------------------
 
-    size_t (*get_data_type_size)(plDataType);
+    size_t       (*get_data_type_size)(plDataType);
+    plBlendState (*get_blend_state)   (plBlendMode);
 
     //------------------------------NOT STABLE-------------------------------------
 
@@ -1747,6 +1749,18 @@ enum _plFormat
     PL_FORMAT_S8_UINT,
     
     PL_FORMAT_COUNT
+};
+
+enum _plBlendMode
+{
+    PL_BLEND_MODE_OPAQUE,
+    PL_BLEND_MODE_ALPHA,
+    PL_BLEND_MODE_PREMULTIPLIED,
+    PL_BLEND_MODE_ADDITIVE,
+    PL_BLEND_MODE_MULTIPLY,
+    PL_BLEND_MODE_CLIP_MASK,
+
+    PL_BLEND_MODE_COUNT
 };
 
 //-----------------------------------------------------------------------------

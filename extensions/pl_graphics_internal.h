@@ -137,5 +137,6 @@ static void pl__cleanup_common_swapchain(plSwapchain*);
 
 // misc.
 static void pl__garbage_collect(plDevice*);
+static plBlendState pl_graphics_get_blend_state(plBlendMode tBlendMode);
 
 #endif // PL_GRAPHICS_INTERNAL_EXT_H

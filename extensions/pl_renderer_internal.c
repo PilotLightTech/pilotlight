@@ -48,7 +48,7 @@ pl__renderer_cull_job(plInvocationData tInvoData, void* pData, void* pGroupShare
 
 //-----------------------------------------------------------------------------
 // [SECTION] resource creation helpers
-//---------------------------7--------------------------------------------------
+//-----------------------------------------------------------------------------
 
 static plTextureHandle
 pl__renderer_create_local_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage)
@@ -1943,11 +1943,6 @@ pl__renderer_post_process_scene(plCommandBuffer* ptCommandBuffer, plView* ptView
     };
     plBindGroupHandle tJFABindGroup0 = gptGfx->create_bind_group(gptData->ptDevice, &tOutlineBGDesc);
 
-    const plBindGroupUpdateSamplerData tOutlineSamplerData = {
-        .tSampler = gptData->tSamplerLinearRepeat,
-        .uSlot = 0
-    };
-
     // update bind group (actually point descriptors to GPU resources)
     const plBindGroupUpdateTextureData tOutlineTextureData[] = 
     {
@@ -2316,77 +2311,6 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
     ptScene->sbtDrawables[uDrawableIndex].uIndexOffset     = uIndexBufferStart;
     ptScene->sbtDrawables[uDrawableIndex].uVertexOffset    = uVertexPosStartIndex;
     ptScene->sbtDrawables[uDrawableIndex].uDataOffset      = uVertexDataStartIndex;
-}
-
-static plBlendState
-pl__renderer_get_blend_state(plBlendMode tBlendMode)
-{
-
-    static const plBlendState atStateMap[PL_BLEND_MODE_COUNT] =
-    {
-        // PL_BLEND_MODE_OPAQUE
-        { 
-            .bBlendEnabled = false,
-        },
-
-        // PL_BLEND_MODE_ALPHA
-        {
-            .bBlendEnabled   = true,
-            .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tAlphaOp        = PL_BLEND_OP_ADD
-        },
-
-        // PL_BLEND_MODE_PREMULTIPLY
-        {
-            .bBlendEnabled   = true,
-            .tSrcColorFactor = PL_BLEND_FACTOR_ONE,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tAlphaOp        = PL_BLEND_OP_ADD
-        },
-
-        // PL_BLEND_MODE_ADDITIVE
-        {
-            .bBlendEnabled   = true,
-            .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE,
-            .tAlphaOp        = PL_BLEND_OP_ADD
-        },
-
-        // PL_BLEND_MODE_MULTIPLY
-        {
-            .bBlendEnabled   = true,
-            .tSrcColorFactor = PL_BLEND_FACTOR_DST_COLOR,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_DST_ALPHA,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tAlphaOp        = PL_BLEND_OP_ADD
-        },
-
-        // PL_BLEND_MODE_CLIP_MASK
-        {
-            .bBlendEnabled   = true,
-            .tSrcColorFactor = PL_BLEND_FACTOR_ZERO,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_DST_ALPHA,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ZERO,
-            .tAlphaOp        = PL_BLEND_OP_ADD
-        }
-    };
-
-    PL_ASSERT(tBlendMode < PL_BLEND_MODE_COUNT && "blend mode out of range");
-    return atStateMap[tBlendMode];
 }
 
 static uint32_t

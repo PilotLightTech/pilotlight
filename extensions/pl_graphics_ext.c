@@ -1047,6 +1047,77 @@ pl_get_blit_encoder_command_buffer(plBlitEncoder* ptEncoder)
     return ptEncoder->ptCommandBuffer;
 }
 
+static plBlendState
+pl_graphics_get_blend_state(plBlendMode tBlendMode)
+{
+
+    static const plBlendState atStateMap[PL_BLEND_MODE_COUNT] =
+    {
+        // PL_BLEND_MODE_OPAQUE
+        { 
+            .bBlendEnabled = false,
+        },
+
+        // PL_BLEND_MODE_ALPHA
+        {
+            .bBlendEnabled   = true,
+            .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .tColorOp        = PL_BLEND_OP_ADD,
+            .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .tAlphaOp        = PL_BLEND_OP_ADD
+        },
+
+        // PL_BLEND_MODE_PREMULTIPLY
+        {
+            .bBlendEnabled   = true,
+            .tSrcColorFactor = PL_BLEND_FACTOR_ONE,
+            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .tColorOp        = PL_BLEND_OP_ADD,
+            .tSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
+            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .tAlphaOp        = PL_BLEND_OP_ADD
+        },
+
+        // PL_BLEND_MODE_ADDITIVE
+        {
+            .bBlendEnabled   = true,
+            .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+            .tDstColorFactor = PL_BLEND_FACTOR_ONE,
+            .tColorOp        = PL_BLEND_OP_ADD,
+            .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE,
+            .tAlphaOp        = PL_BLEND_OP_ADD
+        },
+
+        // PL_BLEND_MODE_MULTIPLY
+        {
+            .bBlendEnabled   = true,
+            .tSrcColorFactor = PL_BLEND_FACTOR_DST_COLOR,
+            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .tColorOp        = PL_BLEND_OP_ADD,
+            .tSrcAlphaFactor = PL_BLEND_FACTOR_DST_ALPHA,
+            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .tAlphaOp        = PL_BLEND_OP_ADD
+        },
+
+        // PL_BLEND_MODE_CLIP_MASK
+        {
+            .bBlendEnabled   = true,
+            .tSrcColorFactor = PL_BLEND_FACTOR_ZERO,
+            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .tColorOp        = PL_BLEND_OP_ADD,
+            .tSrcAlphaFactor = PL_BLEND_FACTOR_DST_ALPHA,
+            .tDstAlphaFactor = PL_BLEND_FACTOR_ZERO,
+            .tAlphaOp        = PL_BLEND_OP_ADD
+        }
+    };
+
+    PL_ASSERT(tBlendMode < PL_BLEND_MODE_COUNT && "blend mode out of range");
+    return atStateMap[tBlendMode];
+}
+
 PL_EXPORT void
 pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
@@ -1152,6 +1223,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_bind_group                         = pl__get_bind_group,
         .get_shader                             = pl__get_shader,
         .get_compute_shader                     = pl__get_compute_shader,
+        .get_blend_state                        = pl_graphics_get_blend_state,
         .allocate_memory                        = pl_allocate_memory,
         .free_memory                            = pl_free_memory,
         .get_allocations                        = pl_get_gfx_allocations,
