@@ -109,6 +109,7 @@ extensions = [
     "pl_dds_ext",
     "pl_dxt_ext",
     "pl_material_ext",
+    "pl_script_ext",
     "pl_ui_ext"
 ]
 

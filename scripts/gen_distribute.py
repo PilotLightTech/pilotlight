@@ -134,6 +134,7 @@ with pl.project("pilotlight deploy"):
         "pl_dds_ext",
         "pl_dxt_ext",
         "pl_pak_ext",
+        "pl_script_ext",
         "pl_material_ext",
     ]
 

@@ -26,6 +26,7 @@ Index of this file:
 #include "pl_physics_ext.h"
 #include "pl_mesh_ext.h"
 #include "pl_material_ext.h"
+#include "pl_script_ext.h"
 #include "pl_shader_interop_renderer.h"
 
 #ifdef PL_UNITY_BUILD
@@ -41,6 +42,7 @@ static const plPhysicsI*  gptPhysics = NULL;
 static const plCameraI*   gptCamera = NULL;
 static const plMeshI*     gptMesh = NULL;
 static const plMaterialI* gptMaterial = NULL;
+static const plScriptI*   gptScript = NULL;
 
 #ifndef PL_DS_ALLOC
     
@@ -143,7 +145,7 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
         const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
         const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
         const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
-        const plEcsTypeKey tScriptComponentType = gptECS->get_ecs_type_key_script();
+        const plEcsTypeKey tScriptComponentType = gptScript->get_ecs_type_key();
         const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
         const plEcsTypeKey tForceFieldComponentType = gptPhysics->get_ecs_type_key_force_field();
 
@@ -987,6 +989,7 @@ pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptAnimation = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
     gptMaterial  = pl_get_api_latest(ptApiRegistry, plMaterialI);
+    gptScript    = pl_get_api_latest(ptApiRegistry, plScriptI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 

@@ -58,6 +58,7 @@ static const struct _plCompressI*          gptCompress      = 0;
 static const struct _plDdsI*               gptDds           = 0;
 static const struct _plDxtI*               gptDxt           = 0;
 static const struct _plMaterialI*          gptMaterial      = 0;
+static const struct _plScriptI*            gptScript        = 0;
 
 // context
 static struct _plIO* gptIO = 0;

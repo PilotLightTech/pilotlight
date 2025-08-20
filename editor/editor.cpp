@@ -90,6 +90,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
         gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
         gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
+        gptScript        = pl_get_api_latest(ptApiRegistry, plScriptI);
 
         ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
 
@@ -244,6 +245,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // initialize ecs component library
     gptEcs->initialize({});
     gptRenderer->register_ecs_system();
+    gptScript->register_ecs_system();
     gptAnimation->register_ecs_system();
     gptCamera->register_ecs_system();
     gptMesh->register_ecs_system();
@@ -441,7 +443,7 @@ pl_app_update(plAppData* ptAppData)
 
         // run ecs system
         pl_begin_cpu_sample(gptProfile, 0, "Run ECS");
-        gptEcs->run_script_update_system(ptAppData->ptCompLibrary);
+        gptScript->run_update_system(ptAppData->ptCompLibrary);
         gptAnimation->run_animation_update_system(ptAppData->ptCompLibrary, ptIO->fDeltaTime);
         gptPhysics->update(ptIO->fDeltaTime, ptAppData->ptCompLibrary);
         gptEcs->run_transform_update_system(ptAppData->ptCompLibrary);

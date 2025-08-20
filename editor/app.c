@@ -77,6 +77,7 @@ Index of this file:
 #include "pl_shader_variant_ext.h"
 #include "pl_vfs_ext.h"
 #include "pl_compress_ext.h"
+#include "pl_script_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
@@ -122,6 +123,7 @@ const plPakI*               gptPak           = NULL;
 const plDateTimeI*          gptDateTime      = NULL;
 const plCompressI*          gptCompress      = NULL;
 const plMaterialI*          gptMaterial      = NULL;
+const plScriptI*            gptScript        = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -392,6 +394,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     gptEcs->initialize((plEcsInit){0});
     gptRenderer->register_ecs_system();
+    gptScript->register_ecs_system();
     gptCamera->register_ecs_system();
     gptAnimation->register_ecs_system();
     gptMesh->register_ecs_system();
@@ -413,7 +416,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3(-4.012f, 2.984f, -1.109f), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, -0.465f, 1.341f);
     gptCamera->update(ptMainCamera);
-    gptEcs->attach_script(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
+    gptScript->attach(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
 
     // create secondary camera
     plCamera* ptSecondaryCamera = NULL;
@@ -618,7 +621,7 @@ pl_app_update(plAppData* ptAppData)
 
     // run ecs system
     pl_begin_cpu_sample(gptProfile, 0, "Run ECS");
-    gptEcs->run_script_update_system(ptAppData->ptComponentLibrary);
+    gptScript->run_update_system(ptAppData->ptComponentLibrary);
     gptAnimation->run_animation_update_system(ptAppData->ptComponentLibrary, ptIO->fDeltaTime);
     gptPhysics->update(ptIO->fDeltaTime, ptAppData->ptComponentLibrary);
     gptEcs->run_transform_update_system(ptAppData->ptComponentLibrary);
@@ -1065,6 +1068,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
     gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
     gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
+    gptScript        = pl_get_api_latest(ptApiRegistry, plScriptI);
 }
 
 

@@ -11,6 +11,7 @@ Index of this file:
 // [SECTION] public api structs
 // [SECTION] components
 // [SECTION] structs
+// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------
@@ -38,7 +39,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plEcsI_version {0, 3, 1}
+#define plEcsI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -61,11 +62,9 @@ typedef struct _plTagComponent       plTagComponent;
 typedef struct _plLayerComponent     plLayerComponent;
 typedef struct _plTransformComponent plTransformComponent;
 typedef struct _plHierarchyComponent plHierarchyComponent;
-typedef struct _plScriptComponent    plScriptComponent;
 
 // flags
 typedef int plTransformFlags;
-typedef int plScriptFlags;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -112,15 +111,10 @@ typedef struct _plEcsI
     plEcsTypeKey (*get_ecs_type_key_layer)    (void);
     plEcsTypeKey (*get_ecs_type_key_transform)(void);
     plEcsTypeKey (*get_ecs_type_key_hierarchy)(void);
-    plEcsTypeKey (*get_ecs_type_key_script)   (void);
 
-    // entity helpers (creates entity and necessary components)
+    // transforms
     //   - do NOT store out parameter; use it immediately
     plEntity (*create_transform)(plComponentLibrary*, const char* name, plTransformComponent**);
-
-    // scripts
-    plEntity (*create_script)(plComponentLibrary*, const char* file, plScriptFlags, plScriptComponent**);
-    void     (*attach_script)(plComponentLibrary*, const char* file, plScriptFlags, plEntity, plScriptComponent**);
 
     // hierarchy
     void   (*attach_component)        (plComponentLibrary*, plEntity, plEntity tParent);
@@ -130,7 +124,6 @@ typedef struct _plEcsI
     // systems
     void (*run_transform_update_system)(plComponentLibrary*);
     void (*run_hierarchy_update_system)(plComponentLibrary*);
-    void (*run_script_update_system)   (plComponentLibrary*);
 
 } plEcsI;
 
@@ -165,15 +158,6 @@ typedef struct _plTransformComponent
     plTransformFlags tFlags;
 } plTransformComponent;
 
-typedef struct _plScriptComponent
-{
-    plScriptFlags tFlags;
-    char          acFile[PL_MAX_PATH_LENGTH];
-
-    // [INTERNAL]
-    const struct _plScriptI* _ptApi;
-} plScriptComponent;
-
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -206,14 +190,6 @@ enum _plTransformFlags
 {
     PL_TRANSFORM_FLAGS_NONE  = 0,
     PL_TRANSFORM_FLAGS_DIRTY = 1 << 0,
-};
-
-enum _plScriptFlags
-{
-    PL_SCRIPT_FLAG_NONE       = 0,
-    PL_SCRIPT_FLAG_PLAYING    = 1 << 0,
-    PL_SCRIPT_FLAG_PLAY_ONCE  = 1 << 1,
-    PL_SCRIPT_FLAG_RELOADABLE = 1 << 2
 };
 
 #endif // PL_ECS_EXT_H

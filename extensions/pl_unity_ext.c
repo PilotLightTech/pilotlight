@@ -55,6 +55,7 @@ Index of this file:
 #include "pl_dds_ext.c"
 #include "pl_dxt_ext.c"
 #include "pl_material_ext.c"
+#include "pl_script_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -107,6 +108,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptDds               = pl_get_api_latest(ptApiRegistry, plDdsI);
     gptDxt               = pl_get_api_latest(ptApiRegistry, plDxtI);
     gptMaterial          = pl_get_api_latest(ptApiRegistry, plMaterialI);
+    gptScript            = pl_get_api_latest(ptApiRegistry, plScriptI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -149,6 +151,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_dds_ext(ptApiRegistry, bReload);
     pl_load_dxt_ext(ptApiRegistry, bReload);
     pl_load_material_ext(ptApiRegistry, bReload);
+    pl_load_script_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -192,6 +195,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_dds_ext(ptApiRegistry, bReload);
     pl_unload_dxt_ext(ptApiRegistry, bReload);
     pl_unload_material_ext(ptApiRegistry, bReload);
+    pl_unload_script_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------

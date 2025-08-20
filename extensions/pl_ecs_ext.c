@@ -42,10 +42,8 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static plApiRegistryI*             gptApiRegistry       = NULL;
-    static const plExtensionRegistryI* gptExtensionRegistry = NULL;
-    static const plProfileI*           gptProfile           = NULL;
-    static const plLogI*               gptLog               = NULL;
+    static const plProfileI* gptProfile = NULL;
+    static const plLogI*     gptLog     = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -81,7 +79,6 @@ typedef struct _plEcsContext
     plComponentDesc*    sbtComponentDescriptions;
     plEcsTypeKey        tTagComponentType;
     plEcsTypeKey        tLayerComponentType;
-    plEcsTypeKey        tScriptComponentType;
     plEcsTypeKey        tTransformComponentType;
     plEcsTypeKey        tHierarchyComponentType;
     plComponentLibrary* ptDefaultLibrary;
@@ -159,13 +156,6 @@ pl_ecs_initialize(plEcsInit tInit)
         .szSize = sizeof(plHierarchyComponent)
     };
     gptEcsCtx->tHierarchyComponentType = pl_ecs_register_type(tHierarchyDesc, NULL);
-
-    const plComponentDesc tScriptDesc = {
-        .pcName = "Script",
-        .szSize = sizeof(plScriptComponent)
-    };
-    gptEcsCtx->tScriptComponentType = pl_ecs_register_type(tScriptDesc, NULL);
-
 }
 
 plEcsTypeKey
@@ -190,12 +180,6 @@ plEcsTypeKey
 pl_ecs_get_ecs_type_key_hierarchy(void)
 {
     return gptEcsCtx->tHierarchyComponentType;
-}
-
-plEcsTypeKey
-pl_ecs_get_ecs_type_key_script(void)
-{
-    return gptEcsCtx->tScriptComponentType;
 }
 
 plComponentLibrary*
@@ -560,56 +544,6 @@ pl_ecs_create_entity(plComponentLibrary* ptLibrary, const char* pcName)
     return tNewEntity;
 }
 
-plEntity
-pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plScriptComponent** pptCompOut)
-{
-    if(ptLibrary == NULL)
-        ptLibrary = gptEcsCtx->ptDefaultLibrary;
-
-    pl_log_debug_f(gptLog, gptEcsCtx->uLogChannel, "created script: '%s'", pcFile);
-    plEntity tNewEntity = pl_ecs_create_entity(ptLibrary, pcFile);
-    plScriptComponent* ptScript =  pl_ecs_add_component(ptLibrary, gptEcsCtx->tScriptComponentType, tNewEntity);
-    ptScript->tFlags = tFlags;
-    strncpy(ptScript->acFile, pcFile, PL_MAX_PATH_LENGTH);
-
-    gptExtensionRegistry->load(pcFile, "pl_load_script", "pl_unload_script", tFlags & PL_SCRIPT_FLAG_RELOADABLE);
-
-    const plScriptI* ptScriptApi = gptApiRegistry->get_api(pcFile, (plVersion)plScriptI_version);
-    ptScript->_ptApi = ptScriptApi;
-    PL_ASSERT(ptScriptApi->run);
-
-    if(ptScriptApi->setup)
-        ptScriptApi->setup(ptLibrary, tNewEntity);
-
-    if(pptCompOut)
-        *pptCompOut = ptScript;
-    return tNewEntity;
-}
-
-void
-pl_ecs_attach_script(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plEntity tEntity, plScriptComponent** pptCompOut)
-{
-    if(ptLibrary == NULL)
-        ptLibrary = gptEcsCtx->ptDefaultLibrary;
-
-    pl_log_debug_f(gptLog, gptEcsCtx->uLogChannel, "attach script: '%s'", pcFile);
-    plScriptComponent* ptScript =  pl_ecs_add_component(ptLibrary, gptEcsCtx->tScriptComponentType, tEntity);
-    ptScript->tFlags = tFlags;
-    strncpy(ptScript->acFile, pcFile, PL_MAX_NAME_LENGTH);
-
-    gptExtensionRegistry->load(pcFile, "pl_load_script", "pl_unload_script", tFlags & PL_SCRIPT_FLAG_RELOADABLE);
-
-    const plScriptI* ptScriptApi = gptApiRegistry->get_api(pcFile, (plVersion)plScriptI_version);
-    ptScript->_ptApi = ptScriptApi;
-    PL_ASSERT(ptScriptApi->run);
-
-    if(ptScriptApi->setup)
-        ptScriptApi->setup(ptLibrary, tEntity);
-
-    if(pptCompOut)
-        *pptCompOut = ptScript;
-}
-
 plMat4
 pl_ecs_compute_parent_transform(plComponentLibrary* ptLibrary, plEntity tChildEntity)
 {
@@ -738,29 +672,6 @@ pl_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
     pl_end_cpu_sample(gptProfile, 0);
 }
 
-void
-pl_run_script_update_system(plComponentLibrary* ptLibrary)
-{
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
-
-    plScriptComponent* ptComponents = NULL;
-    const plEntity* ptEntities = NULL;
-    const uint32_t uComponentCount = pl_ecs_get_components(ptLibrary, gptEcsCtx->tScriptComponentType, (void**)&ptComponents, &ptEntities);
-
-    for(uint32_t i = 0; i < uComponentCount; i++)
-    {
-        const plEntity tEnitity = ptEntities[i];
-        if(ptComponents[i].tFlags == 0)
-            continue;
-
-        if(ptComponents[i].tFlags & PL_SCRIPT_FLAG_PLAYING)
-            ptComponents[i]._ptApi->run(ptLibrary, tEnitity);
-        if(ptComponents[i].tFlags & PL_SCRIPT_FLAG_PLAY_ONCE)
-            ptComponents[i].tFlags = PL_SCRIPT_FLAG_NONE;
-    }
-    pl_end_cpu_sample(gptProfile, 0);
-}
-
 uint64_t
 pl_ecs_get_log_channel(void)
 {
@@ -799,25 +710,19 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_ecs_type_key_tag        = pl_ecs_get_ecs_type_key_tag,
         .get_ecs_type_key_layer      = pl_ecs_get_ecs_type_key_layer,
         .create_transform            = pl_ecs_create_transform,
-        .create_script               = pl_ecs_create_script,
-        .attach_script               = pl_ecs_attach_script,
         .attach_component            = pl_ecs_attach_component,
         .deattach_component          = pl_ecs_deattach_component,
         .compute_parent_transform    = pl_ecs_compute_parent_transform,
         .run_transform_update_system = pl_run_transform_update_system,
         .run_hierarchy_update_system = pl_run_hierarchy_update_system,
-        .run_script_update_system    = pl_run_script_update_system,
         .get_ecs_type_key_transform  = pl_ecs_get_ecs_type_key_transform,
-        .get_ecs_type_key_hierarchy  = pl_ecs_get_ecs_type_key_hierarchy,
-        .get_ecs_type_key_script     = pl_ecs_get_ecs_type_key_script,
+        .get_ecs_type_key_hierarchy  = pl_ecs_get_ecs_type_key_hierarchy
     };
     pl_set_api(ptApiRegistry, plEcsI, &tApi);
 
-    gptApiRegistry       = ptApiRegistry;
-    gptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
-    gptMemory            = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptProfile           = pl_get_api_latest(ptApiRegistry, plProfileI);
-    gptLog               = pl_get_api_latest(ptApiRegistry, plLogI);
+    gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptLog     = pl_get_api_latest(ptApiRegistry, plLogI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 

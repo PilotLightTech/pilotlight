@@ -35,7 +35,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
     const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
     const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
     const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
-    const plEcsTypeKey tScriptComponentType = gptEcs->get_ecs_type_key_script();
+    const plEcsTypeKey tScriptComponentType = gptScript->get_ecs_type_key();
     const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
     const plEcsTypeKey tForceFieldComponentType = gptPhysics->get_ecs_type_key_force_field();
 
