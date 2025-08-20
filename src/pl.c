@@ -235,7 +235,7 @@ plIO gtIO = {
     .tNextCursor              = PL_MOUSE_CURSOR_ARROW,
     .tMainViewportSize       = {500.0f, 500.0f},
     .bViewportSizeChanged     = true,
-    .bRunning                 = true,
+    .bRunning                 = true
 };
 #endif
 
@@ -1629,6 +1629,18 @@ pl__load_api_registry(void)
 void
 pl__load_core_apis(void)
 {
+
+    for(int i = 0; i < PL_ARRAYSIZE(gtIO._abMouseDown); i++)
+    {
+        gtIO._afMouseDownDuration[i] = -1.0f;
+        gtIO._afMouseDownDurationPrev[i] = -1.0f;
+    }
+
+    for(int i = 0; i < PL_ARRAYSIZE(gtIO._tKeyData); i++)
+    {
+        gtIO._tKeyData[i].fDownDuration = -1.0f;
+        gtIO._tKeyData[i].fDownDurationPrev = -1.0f;
+    }
 
     const plApiRegistryI* ptApiRegistry = pl__load_api_registry();
     pl_create_mutex(&gptDataMutex);
