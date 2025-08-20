@@ -148,6 +148,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
     gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
     gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
+    gptScript        = pl_get_api_latest(ptApiRegistry, plScriptI);
 
     // this path is taken only during first load, so we
     // allocate app memory here
@@ -250,6 +251,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptCamera->register_ecs_system();
     gptMesh->register_ecs_system();
     gptPhysics->register_ecs_system();
+    gptMaterial->register_ecs_system();
     gptEcs->finalize();
     ptAppData->ptCompLibrary = gptEcs->get_default_library();
 
@@ -943,6 +945,7 @@ pl__show_editor_window(plAppData* ptAppData)
                     ptAppData->ptView = nullptr;
                     ptAppData->ptSecondaryView = nullptr;
                     ptAppData->ptScene = nullptr;
+                    ptAppData->bSecondaryViewActive = false;
                 }
             }
             else
