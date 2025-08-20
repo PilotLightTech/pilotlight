@@ -1,4 +1,4 @@
-v0.5.4 WIP
+v0.6.0 WIP
 
 -----------------------------------------------------------------------------
                              Versioning
@@ -81,11 +81,11 @@ the API is complete. It just means we won't break what currently exists.
 * Date & Time         v1.0.0 (pl_datetime_ext.h)
 * Compression         v1.0.0 (pl_compress_ext.h)
 * Virtual File System v1.0.0 (pl_vfs_ext.h)
+* ECS                 v1.0.0 (pl_ecs_ext.h)
 
 ## Nearly Stable Extensions
 
 * Resource            v0.2.2 (pl_resource_ext.h)
-* ECS                 v0.3.1 (pl_ecs_ext.h)
 * Bvh                 v0.2.0 (pl_bvh_ext.h)
 * Physics             v0.2.0 (pl_physics_ext.h)
 * Collision           v0.2.0 (pl_collision_ext.h)
