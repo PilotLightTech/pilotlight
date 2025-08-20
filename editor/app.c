@@ -409,7 +409,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
     ptAppData->ptScene = gptRenderer->create_scene(tSceneInit);
     ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, ptIO->tMainViewportSize);
-    ptAppData->ptSecondaryView = gptRenderer->create_view(ptAppData->ptScene, (plVec2){500.0f, 500.0f});
 
     // create main camera
     plCamera* ptMainCamera = NULL;
@@ -536,7 +535,8 @@ pl_app_shutdown(plAppData* ptAppData)
     gptConsole->cleanup();
 
     gptRenderer->cleanup_view(ptAppData->ptView);
-    gptRenderer->cleanup_view(ptAppData->ptSecondaryView);
+    if(ptAppData->ptSecondaryView)
+        gptRenderer->cleanup_view(ptAppData->ptSecondaryView);
     gptRenderer->cleanup_scene(ptAppData->ptScene);
     
     gptEcs->cleanup();
@@ -706,19 +706,22 @@ pl_app_update(plAppData* ptAppData)
         plLightComponent* ptLights = NULL;
         const uint32_t uLightCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptRenderer->get_ecs_type_key_light(), (void**)&ptLights, NULL);
         gptRenderer->debug_draw_lights(ptAppData->ptView, ptLights, uLightCount);
-        gptRenderer->debug_draw_lights(ptAppData->ptSecondaryView, ptLights, uLightCount);
+        if(ptAppData->ptSecondaryView)
+            gptRenderer->debug_draw_lights(ptAppData->ptSecondaryView, ptLights, uLightCount);
     }
 
     if(ptAppData->bDrawAllBoundingBoxes)
     {
         gptRenderer->debug_draw_all_bound_boxes(ptAppData->ptView);
-        gptRenderer->debug_draw_all_bound_boxes(ptAppData->ptSecondaryView);
+        if(ptAppData->ptSecondaryView)
+            gptRenderer->debug_draw_all_bound_boxes(ptAppData->ptSecondaryView);
     }
 
     if(ptAppData->bShowSkybox)
     {
         gptRenderer->show_skybox(ptAppData->ptView);
-        gptRenderer->show_skybox(ptAppData->ptSecondaryView);
+        if(ptAppData->ptSecondaryView)
+            gptRenderer->show_skybox(ptAppData->ptSecondaryView);
     }
 
     if(ptAppData->bShowBVH)
@@ -730,7 +733,8 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowGrid)
     {
         gptRenderer->show_grid(ptAppData->ptView);
-        gptRenderer->show_grid(ptAppData->ptSecondaryView);
+        if(ptAppData->ptSecondaryView)
+            gptRenderer->show_grid(ptAppData->ptSecondaryView);
     }
 
     // render scene
@@ -845,7 +849,18 @@ pl__show_editor_window(plAppData* ptAppData)
             gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
             gptUI->checkbox("Show Debug Lights", &ptAppData->bShowDebugLights);
             gptUI->checkbox("Show Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
-            gptUI->checkbox("Secondary View", &ptAppData->bSecondaryViewActive);
+            if(gptUI->checkbox("Secondary View", &ptAppData->bSecondaryViewActive))
+            {
+                if(ptAppData->bSecondaryViewActive)
+                {
+                    ptAppData->ptSecondaryView = gptRenderer->create_view(ptAppData->ptScene, (plVec2){500.0f, 500.0f});
+                }
+                else
+                {
+                    gptRenderer->cleanup_view(ptAppData->ptSecondaryView);
+                    ptAppData->ptSecondaryView = NULL;
+                }
+            }
 
             gptUI->vertical_spacing();
 
