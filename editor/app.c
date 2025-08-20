@@ -61,6 +61,7 @@ Index of this file:
 
 // unstable extensions
 #include "pl_ecs_ext.h"
+#include "pl_material_ext.h"
 #include "pl_mesh_ext.h"
 #include "pl_camera_ext.h"
 #include "pl_animation_ext.h"
@@ -120,6 +121,7 @@ const plVfsI*               gptVfs           = NULL;
 const plPakI*               gptPak           = NULL;
 const plDateTimeI*          gptDateTime      = NULL;
 const plCompressI*          gptCompress      = NULL;
+const plMaterialI*          gptMaterial      = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -394,6 +396,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptAnimation->register_ecs_system();
     gptMesh->register_ecs_system();
     gptPhysics->register_ecs_system();
+    gptMaterial->register_ecs_system();
     gptEcs->finalize();
     ptAppData->ptComponentLibrary = gptEcs->get_default_library();
 
@@ -1061,6 +1064,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
     gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
     gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
+    gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
 }
 
 

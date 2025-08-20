@@ -2349,6 +2349,28 @@ pl__renderer_get_bindless_texture_index(plScene* ptScene, plTextureHandle tTextu
     return (uint32_t)ulValue;
 }
 
+void
+pl_material_fill_gpu_data(const plMaterialComponent* ptComp, plGpuMaterial* ptMaterial)
+{
+    ptMaterial->fMetallicFactor          = ptComp->fMetalness;
+    ptMaterial->fRoughnessFactor         = ptComp->fRoughness;
+    ptMaterial->tBaseColorFactor         = ptComp->tBaseColor;
+    ptMaterial->tEmissiveFactor          = ptComp->tEmissiveColor.rgb;
+    ptMaterial->fAlphaCutoff             = ptComp->fAlphaCutoff;
+    ptMaterial->fOcclusionStrength       = 1.0f;
+    ptMaterial->fEmissiveStrength        = 1.0f;
+    ptMaterial->iBaseColorUVSet          = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].uUVSet;
+    ptMaterial->iNormalUVSet             = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].uUVSet;
+    ptMaterial->iEmissiveUVSet           = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].uUVSet;
+    ptMaterial->iOcclusionUVSet          = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].uUVSet;
+    ptMaterial->iMetallicRoughnessUVSet  = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].uUVSet;
+    ptMaterial->iBaseColorTexIdx         = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource) ? 0 : -1;
+    ptMaterial->iNormalTexIdx            = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource) ? 0 : -1;
+    ptMaterial->iEmissiveTexIdx          = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource) ? 0 : -1;
+    ptMaterial->iMetallicRoughnessTexIdx = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource) ? 0 : -1;
+    ptMaterial->iOcclusionTexIdx         = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource) ? 0 : -1;
+}
+
 static uint32_t
 pl__renderer_get_bindless_cube_texture_index(plScene* ptScene, plTextureHandle tTexture)
 {
@@ -3466,6 +3488,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
+    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
     for(uint32_t i = 0; i < uDrawableCount; i++)
     {
 
@@ -3474,7 +3497,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
         // get actual components
         plObjectComponent*   ptObject   = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
         plMeshComponent*     ptMesh     = gptECS->get_component(ptScene->ptComponentLibrary, tMeshComponentType, ptObject->tMesh);
-        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, ptMesh->tMaterial);
+        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, ptMesh->tMaterial);
 
         uint64_t uMaterialIndex = UINT64_MAX;
 
@@ -3607,6 +3630,7 @@ pl__renderer_sort_drawables(plScene* ptScene)
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
+    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
     for(uint32_t i = 0; i < uDrawableCount; i++)
     {
 
@@ -3615,7 +3639,7 @@ pl__renderer_sort_drawables(plScene* ptScene)
         // get actual components
         plObjectComponent*   ptObject   = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tEntity);
         plMeshComponent*     ptMesh     = gptECS->get_component(ptScene->ptComponentLibrary, tMeshComponentType, ptObject->tMesh);
-        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, ptMesh->tMaterial);
+        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, ptMesh->tMaterial);
 
         if(ptMaterial->tFlags & PL_MATERIAL_FLAG_CAST_SHADOW && ptObject->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW)
         {
@@ -3729,6 +3753,7 @@ pl__renderer_unstage_drawables(plScene* ptScene)
     uint32_t uAdditonalVertexCount = 0;
     uint32_t uAdditonalVertexDataCount = 0;
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
+    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
     for(uint32_t i = 0; i < uDrawableCount; i++)
     {
         plEntity tEntity = ptScene->sbtStagedEntities[i];
@@ -3773,7 +3798,7 @@ pl__renderer_unstage_drawables(plScene* ptScene)
 
         plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawables[i].tEntity);
         plMeshComponent* ptMesh = gptECS->get_component(ptScene->ptComponentLibrary, tMeshComponentType, ptObject->tMesh);
-        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, ptMesh->tMaterial);
+        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, ptMesh->tMaterial);
         plEnvironmentProbeComponent* ptProbeComp = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptScene->sbtDrawables[i].tEntity);
         
         if(ptProbeComp)

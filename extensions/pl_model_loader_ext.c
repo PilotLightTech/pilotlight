@@ -31,6 +31,8 @@ Index of this file:
 #include "pl_mesh_ext.h"
 #include "pl_renderer_ext.h"
 #include "pl_vfs_ext.h"
+#include "pl_material_ext.h"
+#include "pl_graphics_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
@@ -55,6 +57,7 @@ Index of this file:
     static const plRendererI*  gptRenderer  = NULL;
     static const plMeshI*      gptMesh      = NULL;
     static const plVfsI*       gptVfs       = NULL;
+    static const plMaterialI*  gptMaterial  = NULL;
 #endif
 
 #define CGLTF_MALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
@@ -130,7 +133,7 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
 
     // create simple material
     plMaterialComponent* ptMaterial = NULL;
-    ptMesh->tMaterial = gptRenderer->create_material(ptLibrary, pcPath, &ptMaterial);
+    ptMesh->tMaterial = gptMaterial->create(ptLibrary, pcPath, &ptMaterial);
     ptMaterial->tBaseColor = tColor;
     ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
     // ptMaterial->tFlags |= PL_MATERIAL_FLAG_OUTLINE;
@@ -1040,7 +1043,7 @@ pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfL
     // check if node has attached mesh
     const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
-    const plEcsTypeKey tMaterialComponentType = gptRenderer->get_ecs_type_key_material();
+    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
     if(ptNode->mesh)
     {
         // PL_ASSERT(ptNode->mesh->primitives_count == 1);
@@ -1101,7 +1104,7 @@ pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfL
                 {
                     ulMaterialIndex = (uint64_t)pl_sb_size(ptSceneData->sbtMaterialEntities);
                     pl_hm_insert(&ptSceneData->tMaterialHashMap,(uint64_t)ptPrimitive->material, ulMaterialIndex);
-                    ptMesh->tMaterial = gptRenderer->create_material(ptLibrary, ptPrimitive->material->name, &ptMaterial);
+                    ptMesh->tMaterial = gptMaterial->create(ptLibrary, ptPrimitive->material->name, &ptMaterial);
                     pl_sb_push(ptSceneData->sbtMaterialEntities, ptMesh->tMaterial);
                     pl__refr_load_material(pcPath, pcDirectory, ptMaterial, ptPrimitive->material);
                 }
@@ -1135,13 +1138,16 @@ pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plModelLoaderI, &tApi);
 
-    gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptECS       = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptResource  = pl_get_api_latest(ptApiRegistry, plResourceI);
-    gptAnimation = pl_get_api_latest(ptApiRegistry, plAnimationI);
-    gptRenderer  = pl_get_api_latest(ptApiRegistry, plRendererI);
-    gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
-    gptVfs       = pl_get_api_latest(ptApiRegistry, plVfsI);
+    #ifndef PL_UNITY_BUILD
+        gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptECS       = pl_get_api_latest(ptApiRegistry, plEcsI);
+        gptResource  = pl_get_api_latest(ptApiRegistry, plResourceI);
+        gptAnimation = pl_get_api_latest(ptApiRegistry, plAnimationI);
+        gptRenderer  = pl_get_api_latest(ptApiRegistry, plRendererI);
+        gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
+        gptVfs       = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptMaterial  = pl_get_api_latest(ptApiRegistry, plMaterialI);
+    #endif
 }
 
 PL_EXPORT void

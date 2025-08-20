@@ -59,6 +59,7 @@ Index of this file:
 #include "pl_shader_variant_ext.h"
 #include "pl_vfs_ext.h"
 #include "pl_starter_ext.h"
+#include "pl_material_ext.h"
 
 // shader interop
 #include "pl_shader_interop_renderer.h"
@@ -113,6 +114,7 @@ Index of this file:
     static const plAnimationI*     gptAnimation     = NULL;
     static const plMeshI*          gptMesh          = NULL;
     static const plShaderVariantI* gptShaderVariant = NULL;
+    static const plMaterialI*      gptMaterial      = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
@@ -515,7 +517,6 @@ typedef struct _plRefRendererData
     double* pdDrawCalls;
 
     // ecs
-    plEcsTypeKey tMaterialComponentType;
     plEcsTypeKey tSkinComponentType;
     plEcsTypeKey tLightComponentType;
     plEcsTypeKey tEnvironmentProbeComponentType;
@@ -575,6 +576,7 @@ static void                    pl__renderer_add_drawable_data_to_global_buffer(p
 static plBlendState            pl__renderer_get_blend_state(plBlendMode tBlendMode);
 static uint32_t                pl__renderer_get_bindless_texture_index(plScene*, plTextureHandle);
 static uint32_t                pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);
+void pl_material_fill_gpu_data(const plMaterialComponent* ptComp, plGpuMaterial* ptMaterial);
 
 // drawable ops
 static void pl__renderer_add_skybox_drawable(plScene*);
@@ -602,5 +604,7 @@ static void pl__renderer_sort_drawables(plScene*);
 static void pl__renderer_create_probe_data(plScene*, plEntity tProbeHandle);
 static void pl__renderer_update_probes(plScene*);
 static void pl__renderer_create_environment_map_from_texture(plScene*, plEnvironmentProbeData* ptProbe);
+
+plVec2 pl_renderer_get_view_color_texture_max_uv(plView*);
 
 #endif // PL_RENDERER_INTERNAL_H

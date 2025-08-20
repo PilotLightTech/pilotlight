@@ -89,6 +89,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
         gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
         gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
+        gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
 
         ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
 
@@ -145,6 +146,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
     gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
     gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
+    gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
 
     // this path is taken only during first load, so we
     // allocate app memory here

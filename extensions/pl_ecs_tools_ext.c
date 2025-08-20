@@ -25,6 +25,7 @@ Index of this file:
 #include "pl_ui_ext.h"
 #include "pl_physics_ext.h"
 #include "pl_mesh_ext.h"
+#include "pl_material_ext.h"
 #include "pl_shader_interop_renderer.h"
 
 #ifdef PL_UNITY_BUILD
@@ -39,6 +40,7 @@ static const plRendererI* gptRenderer = NULL;
 static const plPhysicsI*  gptPhysics = NULL;
 static const plCameraI*   gptCamera = NULL;
 static const plMeshI*     gptMesh = NULL;
+static const plMaterialI* gptMaterial = NULL;
 
 #ifndef PL_DS_ALLOC
     
@@ -133,7 +135,7 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
         const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
         const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
         const plEcsTypeKey tHierarchyComponentType = gptECS->get_ecs_type_key_hierarchy();
-        const plEcsTypeKey tMaterialComponentType = gptRenderer->get_ecs_type_key_material();
+        const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
         const plEcsTypeKey tSkinComponentType = gptRenderer->get_ecs_type_key_skin();
         const plEcsTypeKey tCameraComponentType = gptCamera->get_ecs_type_key();
         const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
@@ -808,8 +810,6 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                     if(gptUI->input_float("Roughness", &ptMaterialComp->fRoughness, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Metalness", &ptMaterialComp->fMetalness, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Normal Map Strength", &ptMaterialComp->fNormalMapStrength, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float("Occulusion Map Strength", &ptMaterialComp->fOcclusionMapStrength, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float4("Base Factor", ptMaterialComp->tBaseColor.d, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float4("Emmissive Factor", ptMaterialComp->tEmissiveColor.d, NULL, 0)) bMaterialModified = true;
 
@@ -978,14 +978,15 @@ pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plEcsToolsI, &tApi);
 
-    gptMemory   = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptRenderer = pl_get_api_latest(ptApiRegistry, plRendererI);
-    gptUI       = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptECS      = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptPhysics  = pl_get_api_latest(ptApiRegistry, plPhysicsI);
-    gptCamera   = pl_get_api_latest(ptApiRegistry, plCameraI);
-    gptAnimation  = pl_get_api_latest(ptApiRegistry, plAnimationI);
-    gptMesh     = pl_get_api_latest(ptApiRegistry, plMeshI);
+    gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptRenderer  = pl_get_api_latest(ptApiRegistry, plRendererI);
+    gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptECS       = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptPhysics   = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+    gptCamera    = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptAnimation = pl_get_api_latest(ptApiRegistry, plAnimationI);
+    gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
+    gptMaterial  = pl_get_api_latest(ptApiRegistry, plMaterialI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 

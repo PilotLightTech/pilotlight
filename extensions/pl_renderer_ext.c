@@ -156,21 +156,6 @@ pl_renderer_copy_object(plComponentLibrary* ptLibrary, const char* pcName, plEnt
 }
 
 plEntity
-pl_renderer_create_material(plComponentLibrary* ptLibrary, const char* pcName, plMaterialComponent** pptCompOut)
-{
-    pcName = pcName ? pcName : "unnamed material";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created material: '%s'", pcName);
-    plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
-
-    plMaterialComponent* ptCompOut = gptECS->add_component(ptLibrary, gptData->tMaterialComponentType, tNewEntity);
-
-    if(pptCompOut)
-        *pptCompOut = ptCompOut;
-
-    return tNewEntity;    
-}
-
-plEntity
 pl_renderer_create_skin(plComponentLibrary* ptLibrary, const char* pcName, plSkinComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed skin";
@@ -189,12 +174,6 @@ plEcsTypeKey
 pl_renderer_get_ecs_type_key_object(void)
 {
     return gptData->tObjectComponentType;
-}
-
-plEcsTypeKey
-pl_renderer_get_ecs_type_key_material(void)
-{
-    return gptData->tMaterialComponentType;
 }
 
 plEcsTypeKey
@@ -695,7 +674,7 @@ pl_renderer_create_scene(plSceneInit tInit)
 
     // create probe material & mesh
     plMaterialComponent* ptMaterial = NULL;
-    plEntity tMaterial = pl_renderer_create_material(ptScene->ptComponentLibrary, "environment probe material", &ptMaterial);
+    plEntity tMaterial = gptMaterial->create(ptScene->ptComponentLibrary, "environment probe material", &ptMaterial);
     ptMaterial->tBlendMode = PL_BLEND_MODE_OPAQUE;
     ptMaterial->tShaderType = PL_SHADER_TYPE_PBR;
     ptMaterial->tFlags = PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW;
@@ -1708,6 +1687,8 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
 
+    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
+
     int iSceneWideRenderingFlags = 0;
     if(gptData->tRuntimeOptions.bPunctualLighting)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
@@ -1760,7 +1741,7 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
         if(ptObject == NULL)
             continue;
         plMeshComponent*     ptMesh     = gptECS->get_component(ptScene->ptComponentLibrary, tMeshComponentType, ptObject->tMesh);
-        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, ptMesh->tMaterial);
+        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, ptMesh->tMaterial);
 
         ptMaterial->tFlags |= PL_MATERIAL_FLAG_OUTLINE;
 
@@ -1949,6 +1930,8 @@ pl_renderer_finalize_scene(plScene* ptScene)
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
 
+    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
+
     const plEntity* ptProbes = NULL;
     const uint32_t uProbeCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, NULL, &ptProbes);
 
@@ -1959,7 +1942,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
 
     plMaterialComponent* ptMaterials = NULL;
     const plEntity* ptMaterialEntities = NULL;
-    const uint32_t uMaterialCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, (void**)&ptMaterials, &ptMaterialEntities);
+    const uint32_t uMaterialCount = gptECS->get_components(ptScene->ptComponentLibrary, tMaterialComponentType, (void**)&ptMaterials, &ptMaterialEntities);
     pl_renderer_add_materials_to_scene(ptScene, uMaterialCount, ptMaterialEntities);
 
     plLightComponent* ptLights = NULL;
@@ -2643,7 +2626,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     *gptData->pdDrawCalls += (double)(pl_sb_size(ptView->sbuVisibleDeferredEntities) + pl_sb_size(ptView->sbuVisibleForwardEntities) + 1);
 
-    // const plVec2 tDimensions = gptGfx->get_render_pass(ptDevice, ptView->tRenderPass)->tDesc.tDimensions;
     const plVec2 tDimensions = ptView->tTargetSize;
 
     plDrawArea tArea = {
@@ -3705,10 +3687,13 @@ void
 pl_renderer_update_scene_materials(plScene* ptScene, uint32_t uMaterialCount, const plEntity* atMaterials)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+
+    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
+
     for(uint32_t i = 0; i < uMaterialCount; i++)
     {
         const plEntity tMaterialComp = atMaterials[i];
-        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, tMaterialComp);
+        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, tMaterialComp);
 
         uint32_t uMaterialIndex = (uint32_t)pl_hm_lookup(&ptScene->tMaterialHashmap, tMaterialComp.uData);
         if(uMaterialIndex == UINT32_MAX)
@@ -3717,54 +3702,21 @@ pl_renderer_update_scene_materials(plScene* ptScene, uint32_t uMaterialCount, co
         }
         else
         {
+            plGpuMaterial* ptGPUMaterial = &ptScene->sbtMaterialBuffer[uMaterialIndex];
+            pl_material_fill_gpu_data(ptMaterial, ptGPUMaterial);
+
             // load textures
-            plTextureHandle tBaseColorTex = gptData->tDummyTexture;
-            plTextureHandle tNormalTex = gptData->tDummyTexture;
-            plTextureHandle tEmissiveTex = gptData->tDummyTexture;
-            plTextureHandle tMetallicRoughnessTex = gptData->tDummyTexture;
-            plTextureHandle tOcclusionTex = gptData->tDummyTexture;
+            plTextureHandle tBaseColorTex = ptGPUMaterial->iBaseColorTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource); 
+            plTextureHandle tNormalTex = ptGPUMaterial->iNormalTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource);
+            plTextureHandle tEmissiveTex = ptGPUMaterial->iEmissiveTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource);
+            plTextureHandle tMetallicRoughnessTex = ptGPUMaterial->iMetallicRoughnessTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource);
+            plTextureHandle tOcclusionTex = ptGPUMaterial->iOcclusionTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource);
 
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource))
-                tBaseColorTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource);
-
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource))
-                tNormalTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource);
-
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
-                tEmissiveTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource);
-
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource))
-                tMetallicRoughnessTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource);
-
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource))
-                tOcclusionTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource);
-
-            int iBaseColorTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tBaseColorTex);
-            int iNormalTexIdx            = (int)pl__renderer_get_bindless_texture_index(ptScene, tNormalTex);
-            int iEmissiveTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tEmissiveTex);
-            int iMetallicRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
-            int iOcclusionTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
-
-            plGpuMaterial tGPUMaterial = {
-                .fMetallicFactor          = ptMaterial->fMetalness,
-                .fRoughnessFactor         = ptMaterial->fRoughness,
-                .tBaseColorFactor         = ptMaterial->tBaseColor,
-                .tEmissiveFactor          = ptMaterial->tEmissiveColor.rgb,
-                .fAlphaCutoff             = ptMaterial->fAlphaCutoff,
-                .fOcclusionStrength       = 1.0f,
-                .fEmissiveStrength        = 1.0f,
-                .iBaseColorUVSet          = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].uUVSet,
-                .iNormalUVSet             = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].uUVSet,
-                .iEmissiveUVSet           = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].uUVSet,
-                .iOcclusionUVSet          = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].uUVSet,
-                .iMetallicRoughnessUVSet  = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].uUVSet,
-                .iBaseColorTexIdx         = iBaseColorTexIdx,
-                .iNormalTexIdx            = iNormalTexIdx,
-                .iEmissiveTexIdx          = iEmissiveTexIdx,
-                .iMetallicRoughnessTexIdx = iMetallicRoughnessTexIdx,
-                .iOcclusionTexIdx         = iOcclusionTexIdx
-            };
-            ptScene->sbtMaterialBuffer[uMaterialIndex] = tGPUMaterial;
+            ptGPUMaterial->iBaseColorTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tBaseColorTex);
+            ptGPUMaterial->iNormalTexIdx            = (int)pl__renderer_get_bindless_texture_index(ptScene, tNormalTex);
+            ptGPUMaterial->iEmissiveTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tEmissiveTex);
+            ptGPUMaterial->iMetallicRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
+            ptGPUMaterial->iOcclusionTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
         }
     }
     ptScene->uGPUMaterialDirty = gptGfx->get_frames_in_flight();
@@ -3813,11 +3765,13 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
+    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
+
     pl_sb_reset(ptScene->sbtMaterialBuffer);
     for(uint32_t i = 0; i < uMaterialCount; i++)
     {
         const plEntity tMaterialComp = atMaterials[i];
-        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tMaterialComponentType, tMaterialComp);
+        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, tMaterialComp);
 
         // load textures from disk
         for(uint32_t uTextureSlot = 0; uTextureSlot < PL_TEXTURE_SLOT_COUNT; uTextureSlot++)
@@ -3827,8 +3781,6 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
             {
                 plTextureHandle tTextureHandle = gptResource->get_texture(ptMaterial->atTextureMaps[uTextureSlot].tResource);
                 plTexture* ptTexture = gptGfx->get_texture(gptData->ptDevice, tTextureHandle);
-                ptMaterial->atTextureMaps[uTextureSlot].uWidth = (uint32_t)ptTexture->tDesc.tDimensions.x;
-                ptMaterial->atTextureMaps[uTextureSlot].uHeight = (uint32_t)ptTexture->tDesc.tDimensions.y;
             }
         }
 
@@ -3846,55 +3798,21 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
 
             uMaterialIndex = ulValue;
 
+            plGpuMaterial* ptGPUMaterial = &ptScene->sbtMaterialBuffer[uMaterialIndex];
+            pl_material_fill_gpu_data(ptMaterial, ptGPUMaterial);
+
             // load textures
-            plTextureHandle tBaseColorTex = gptData->tDummyTexture;
-            plTextureHandle tNormalTex = gptData->tDummyTexture;
-            plTextureHandle tEmissiveTex = gptData->tDummyTexture;
-            plTextureHandle tMetallicRoughnessTex = gptData->tDummyTexture;
-            plTextureHandle tOcclusionTex = gptData->tDummyTexture;
+            plTextureHandle tBaseColorTex = ptGPUMaterial->iBaseColorTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource); 
+            plTextureHandle tNormalTex = ptGPUMaterial->iNormalTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource);
+            plTextureHandle tEmissiveTex = ptGPUMaterial->iEmissiveTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource);
+            plTextureHandle tMetallicRoughnessTex = ptGPUMaterial->iMetallicRoughnessTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource);
+            plTextureHandle tOcclusionTex = ptGPUMaterial->iOcclusionTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource);
 
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource))
-                tBaseColorTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource);
-
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource))
-                tNormalTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource);
-
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
-                tEmissiveTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource);
-
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource))
-                tMetallicRoughnessTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource);
-
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource))
-                tOcclusionTex = gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource);
-
-            int iBaseColorTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tBaseColorTex);
-            int iNormalTexIdx            = (int)pl__renderer_get_bindless_texture_index(ptScene, tNormalTex);
-            int iEmissiveTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tEmissiveTex);
-            int iMetallicRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
-            int iOcclusionTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
-
-            // create GPU material
-            plGpuMaterial tGPUMaterial = {
-                .fMetallicFactor          = ptMaterial->fMetalness,
-                .fRoughnessFactor         = ptMaterial->fRoughness,
-                .tBaseColorFactor         = ptMaterial->tBaseColor,
-                .tEmissiveFactor          = ptMaterial->tEmissiveColor.rgb,
-                .fAlphaCutoff             = ptMaterial->fAlphaCutoff,
-                .fOcclusionStrength       = 1.0f,
-                .fEmissiveStrength        = 1.0f,
-                .iBaseColorUVSet          = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].uUVSet,
-                .iNormalUVSet             = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].uUVSet,
-                .iEmissiveUVSet           = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].uUVSet,
-                .iOcclusionUVSet          = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].uUVSet,
-                .iMetallicRoughnessUVSet  = (int)ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].uUVSet,
-                .iBaseColorTexIdx         = iBaseColorTexIdx,
-                .iNormalTexIdx            = iNormalTexIdx,
-                .iEmissiveTexIdx          = iEmissiveTexIdx,
-                .iMetallicRoughnessTexIdx = iMetallicRoughnessTexIdx,
-                .iOcclusionTexIdx         = iOcclusionTexIdx
-            };
-            ptScene->sbtMaterialBuffer[uMaterialIndex] = tGPUMaterial;
+            ptGPUMaterial->iBaseColorTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tBaseColorTex);
+            ptGPUMaterial->iNormalTexIdx            = (int)pl__renderer_get_bindless_texture_index(ptScene, tNormalTex);
+            ptGPUMaterial->iEmissiveTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tEmissiveTex);
+            ptGPUMaterial->iMetallicRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
+            ptGPUMaterial->iOcclusionTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
             pl_hm_insert(&ptScene->tMaterialHashmap, tMaterialComp.uData, ulValue);
         }
     }
@@ -4083,26 +4001,6 @@ pl_renderer_register_system(void)
     };
     gptData->tObjectComponentType = gptECS->register_type(tObjectDesc, &tObjectComponentDefault);
 
-    const plComponentDesc tMaterialDesc = {
-        .pcName = "Material",
-        .szSize = sizeof(plMaterialComponent)
-    };
-
-    static const plMaterialComponent tMaterialComponentDefault = {
-        .tBlendMode            = PL_BLEND_MODE_OPAQUE,
-        .tFlags                = PL_MATERIAL_FLAG_CAST_SHADOW | PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW,
-        .tShaderType           = PL_SHADER_TYPE_PBR,
-        .tBaseColor            = {1.0f, 1.0f, 1.0f, 1.0f},
-        .tEmissiveColor        = {0.0f, 0.0f, 0.0f, 0.0f},
-        .fRoughness            = 1.0f,
-        .fMetalness            = 1.0f,
-        .fNormalMapStrength    = 1.0f,
-        .fOcclusionMapStrength = 1.0f,
-        .fAlphaCutoff          = 0.5f,
-        .atTextureMaps         = {0}
-    };
-    gptData->tMaterialComponentType = gptECS->register_type(tMaterialDesc, &tMaterialComponentDefault);
-
     const plComponentDesc tSkinDesc = {
         .pcName = "Skin",
         .szSize = sizeof(plSkinComponent),
@@ -4235,7 +4133,6 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi.show_skybox                   = pl_renderer_show_skybox;
     tApi.show_grid                     = pl_renderer_show_grid;
     tApi.register_ecs_system                = pl_renderer_register_system;
-    tApi.create_material                    = pl_renderer_create_material;
     tApi.create_skin                        = pl_renderer_create_skin;
     tApi.create_directional_light           = pl_renderer_create_directional_light;
     tApi.create_point_light                 = pl_renderer_create_point_light;
@@ -4243,7 +4140,6 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi.create_environment_probe           = pl_renderer_create_environment_probe;
     tApi.create_object                      = pl_renderer_create_object;
     tApi.copy_object                        = pl_renderer_copy_object;
-    tApi.get_ecs_type_key_material          = pl_renderer_get_ecs_type_key_material;
     tApi.get_ecs_type_key_skin              = pl_renderer_get_ecs_type_key_skin;
     tApi.get_ecs_type_key_light             = pl_renderer_get_ecs_type_key_light;
     tApi.get_ecs_type_key_environment_probe = pl_renderer_get_ecs_type_key_environment_probe;
@@ -4280,9 +4176,10 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptBvh           = pl_get_api_latest(ptApiRegistry, plBVHI);
         gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
         gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
-        gptShaderVariant   = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+        gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
         gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
     #endif
 
     if(bReload)

@@ -85,18 +85,13 @@ typedef struct _plView                   plView;
 // ecs components
 typedef struct _plObjectComponent           plObjectComponent;
 typedef struct _plSkinComponent             plSkinComponent;
-typedef struct _plMaterialComponent         plMaterialComponent;
 typedef struct _plLightComponent            plLightComponent;
 typedef struct _plEnvironmentProbeComponent plEnvironmentProbeComponent;
 
 // enums & flags
-typedef int plShaderType;
-typedef int plMaterialFlags;
-typedef int plBlendMode;
 typedef int plLightFlags;
 typedef int plEnvironmentProbeFlags;
 typedef int plObjectFlags;
-typedef int plTextureSlot;
 typedef int plTonemapMode;
 
 // external 
@@ -190,7 +185,6 @@ typedef struct _plRendererI
     // entity helpers (creates entity and necessary components)
     //   - do NOT store out parameter; use it immediately
     plEntity (*create_object)             (plComponentLibrary*, const char* pcName, plObjectComponent**);
-    plEntity (*create_material)           (plComponentLibrary*, const char* pcName, plMaterialComponent**);
     plEntity (*create_skin)               (plComponentLibrary*, const char* pcName, plSkinComponent**);
     plEntity (*create_directional_light)  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
     plEntity (*create_point_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
@@ -208,7 +202,6 @@ typedef struct _plRendererI
 
     // ecs types
     plEcsTypeKey (*get_ecs_type_key_object)(void);
-    plEcsTypeKey (*get_ecs_type_key_material)(void);
     plEcsTypeKey (*get_ecs_type_key_skin)(void);
     plEcsTypeKey (*get_ecs_type_key_light)(void);
     plEcsTypeKey (*get_ecs_type_key_environment_probe)(void);
@@ -261,58 +254,9 @@ typedef struct _plRendererRuntimeOptions
 
 } plRendererRuntimeOptions;
 
-typedef struct _plTextureMap
-{
-    char             acName[PL_MAX_PATH_LENGTH];
-    plResourceHandle tResource;
-    uint32_t         uUVSet;
-    uint32_t         uWidth;
-    uint32_t         uHeight;
-} plTextureMap;
-
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
-
-enum _plTextureSlot
-{
-    PL_TEXTURE_SLOT_BASE_COLOR_MAP,
-    PL_TEXTURE_SLOT_NORMAL_MAP,
-    PL_TEXTURE_SLOT_EMISSIVE_MAP,
-    PL_TEXTURE_SLOT_OCCLUSION_MAP,
-    PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP,
-    
-    PL_TEXTURE_SLOT_COUNT
-};
-
-enum _plShaderType
-{
-    PL_SHADER_TYPE_PBR,
-    PL_SHADER_TYPE_CUSTOM,
-    
-    PL_SHADER_TYPE_COUNT
-};
-
-enum _plMaterialFlags
-{
-    PL_MATERIAL_FLAG_NONE                = 0,
-    PL_MATERIAL_FLAG_DOUBLE_SIDED        = 1 << 0,
-    PL_MATERIAL_FLAG_OUTLINE             = 1 << 1,
-    PL_MATERIAL_FLAG_CAST_SHADOW         = 1 << 2,
-    PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW = 1 << 3
-};
-
-enum _plBlendMode
-{
-    PL_BLEND_MODE_OPAQUE,
-    PL_BLEND_MODE_ALPHA,
-    PL_BLEND_MODE_PREMULTIPLIED,
-    PL_BLEND_MODE_ADDITIVE,
-    PL_BLEND_MODE_MULTIPLY,
-    PL_BLEND_MODE_CLIP_MASK,
-
-    PL_BLEND_MODE_COUNT
-};
 
 enum _plLightFlags
 {
@@ -384,21 +328,5 @@ typedef struct _plLightComponent
     float        afCascadeSplits[PL_MAX_SHADOW_CASCADES];
     uint32_t     uCascadeCount;
 } plLightComponent;
-
-typedef struct _plMaterialComponent
-{
-    plBlendMode     tBlendMode;
-    plMaterialFlags tFlags;
-    plShaderType    tShaderType;
-    plVec4          tBaseColor;
-    plVec4          tEmissiveColor;
-    float           fAlphaCutoff;
-    float           fRoughness;
-    float           fMetalness;
-    float           fNormalMapStrength;
-    float           fOcclusionMapStrength;
-    plTextureMap    atTextureMaps[PL_TEXTURE_SLOT_COUNT];
-    uint32_t        uLayerMask;
-} plMaterialComponent;
 
 #endif // PL_RENDERER_EXT_H

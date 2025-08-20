@@ -27,7 +27,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
     const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
     const plEcsTypeKey tHierarchyComponentType = gptEcs->get_ecs_type_key_hierarchy();
-    const plEcsTypeKey tMaterialComponentType = gptRenderer->get_ecs_type_key_material();
+    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
     const plEcsTypeKey tSkinComponentType = gptRenderer->get_ecs_type_key_skin();
     const plEcsTypeKey tCameraComponentType = gptCamera->get_ecs_type_key();
     const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
@@ -466,8 +466,6 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 if(ImGui::InputFloat("Roughness", &ptMaterialComp->fRoughness)) bMaterialModified = true;
                 if(ImGui::InputFloat("Metalness", &ptMaterialComp->fMetalness)) bMaterialModified = true;
                 if(ImGui::InputFloat("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff)) bMaterialModified = true;
-                if(ImGui::InputFloat("Normal Map Strength", &ptMaterialComp->fNormalMapStrength)) bMaterialModified = true;
-                if(ImGui::InputFloat("Occulusion Map Strength", &ptMaterialComp->fOcclusionMapStrength)) bMaterialModified = true;
                 if(ImGui::InputFloat4("Base Factor", ptMaterialComp->tBaseColor.d)) bMaterialModified = true;
                 if(ImGui::InputFloat4("Emmissive Factor", ptMaterialComp->tEmissiveColor.d)) bMaterialModified = true;
 

@@ -72,6 +72,7 @@ Index of this file:
 #include "pl_collision_ext.h"
 #include "pl_bvh_ext.h"
 #include "pl_shader_variant_ext.h"
+#include "pl_material_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
@@ -122,6 +123,7 @@ const plVfsI*           gptVfs           = nullptr;
 const plPakI*           gptPak           = nullptr;
 const plDateTimeI*      gptDateTime      = nullptr;
 const plCompressI*      gptCompress      = nullptr;
+const plMaterialI*      gptMaterial      = nullptr;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(nullptr, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
