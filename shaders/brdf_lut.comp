@@ -20,7 +20,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     plGpuDynFilterSpec tData;
 } tDynamicData;
 
-layout (local_size_x = 16, local_size_y = 16, local_size_z = 3) in;
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 void
 main()
@@ -30,7 +30,7 @@ main()
 
     const float fLutxinc = 1.0 / float(tDynamicData.tData.iResolution);
     const float fLutyinc = 1.0 / float(tDynamicData.tData.iResolution);
-    vec2 tLutUV = vec2(fXCoord * fLutxinc, fYCoord * fLutyinc);
+    vec2 tLutUV = vec2(max(fXCoord * fLutxinc, 0.0001), max(fYCoord * fLutyinc, 0.1));
     const int iCurrentLUTPixel = int(fXCoord + fYCoord * float(tDynamicData.tData.iResolution));
 
     float fNdotV = tLutUV.x;
@@ -86,8 +86,8 @@ main()
     vec3 tColor =  vec3(4.0 * fA, 4.0 * fB, 4.0 * 2.0 * PL_PI * fC) / float(tDynamicData.tData.iSampleCount);
 
     tLUTOut.atPixelData[iCurrentLUTPixel] = vec4(tColor, 1.0);
-    if(iCurrentLUTPixel == 0)
-    {
-        tLUTOut.atPixelData[0] = tLUTOut.atPixelData[1];
-    } 
+    // if(iCurrentLUTPixel == 0)
+    // {
+    //     tLUTOut.atPixelData[0] = tLUTOut.atPixelData[1];
+    // } 
 }

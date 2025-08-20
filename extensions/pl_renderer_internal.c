@@ -3255,6 +3255,15 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
 
     {
 
+        const plDispatch tDispach0 = {
+            .uGroupCountX     = (uint32_t)iResolution / 16,
+            .uGroupCountY     = (uint32_t)iResolution / 16,
+            .uGroupCountZ     = 1,
+            .uThreadPerGroupX = 16,
+            .uThreadPerGroupY = 16,
+            .uThreadPerGroupZ = 1
+        };
+
         const plDispatch tDispach = {
             .uGroupCountX     = (uint32_t)iResolution / 16,
             .uGroupCountY     = (uint32_t)iResolution / 16,
@@ -3271,6 +3280,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
         };
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo0);
+        gptGfx->push_debug_group(ptCommandBuffer, "Env Filtering", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
         const plPassBufferResource atPassBuffers[] = {
             { .tHandle = ptScene->atFilterWorkingBuffers[0], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
@@ -3300,13 +3310,15 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
         gptGfx->bind_compute_bind_groups(ptComputeEncoder, tBrdfLutShader, 0, 2, atPartialBindGroupHandles, 1, &tDynamicBinding);
         gptGfx->bind_compute_shader(ptComputeEncoder, tBrdfLutShader);
-        gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
+        gptGfx->dispatch(ptComputeEncoder, 1, &tDispach0);
 
         gptGfx->bind_compute_bind_groups(ptComputeEncoder, tCubeFilterDiffuseShader, 0, 2, atFullBindGroupHandles, 1, &tDynamicBinding);
         gptGfx->bind_compute_shader(ptComputeEncoder, tCubeFilterDiffuseShader);
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
         gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
         gptGfx->end_compute_pass(ptComputeEncoder);
+
+        gptGfx->pop_debug_group(ptCommandBuffer);
         gptGfx->end_command_recording(ptCommandBuffer);
 
         const plSubmitInfo tSubmitInfo0 = {
