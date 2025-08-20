@@ -2364,7 +2364,7 @@ pl_material_fill_gpu_data(const plMaterialComponent* ptComp, plGpuMaterial* ptMa
     ptMaterial->iEmissiveUVSet           = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].uUVSet;
     ptMaterial->iOcclusionUVSet          = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].uUVSet;
     ptMaterial->iMetallicRoughnessUVSet  = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].uUVSet;
-    ptMaterial->iBaseColorTexIdx         = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource) ? 0 : -1;
+    ptMaterial->iBaseColorTexIdx         = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource) ? 0 : -1;
     ptMaterial->iNormalTexIdx            = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource) ? 0 : -1;
     ptMaterial->iEmissiveTexIdx          = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource) ? 0 : -1;
     ptMaterial->iMetallicRoughnessTexIdx = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource) ? 0 : -1;
