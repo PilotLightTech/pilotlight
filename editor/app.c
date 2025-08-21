@@ -428,9 +428,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptRenderer->create_directional_light(ptAppData->ptComponentLibrary, "direction light", pl_create_vec3(0.0f, -1.0f, -0.085f), &ptLight);
     ptLight->uCascadeCount = 4;
     ptLight->fIntensity = 1.0f;
-    ptLight->uShadowResolution = 1024;
-    ptLight->afCascadeSplits[0] = 0.05f;
-    ptLight->afCascadeSplits[1] = 0.15f;
+    ptLight->uShadowResolution = 1024 * 2;
+    ptLight->afCascadeSplits[0] = 0.10f;
+    ptLight->afCascadeSplits[1] = 0.25f;
     ptLight->afCascadeSplits[2] = 0.50f;
     ptLight->afCascadeSplits[3] = 1.00f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;

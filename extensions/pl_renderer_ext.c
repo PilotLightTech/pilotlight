@@ -707,7 +707,7 @@ pl_renderer_create_scene(plSceneInit tInit)
     memcpy(&ptScene->sbuIndexBuffer[uIndexStart], ptMesh->puIndices, sizeof(uint32_t) * ptMesh->szIndexCount);
 
     // create shadow atlas
-    ptScene->uShadowAtlasResolution = 1024 * 8;
+    ptScene->uShadowAtlasResolution = 1024 * 8 * 2;
     const plTextureDesc tShadowDepthTextureDesc = {
         .tDimensions   = {(float)ptScene->uShadowAtlasResolution, (float)ptScene->uShadowAtlasResolution, 1},
         .tFormat       = PL_FORMAT_D16_UNORM,
