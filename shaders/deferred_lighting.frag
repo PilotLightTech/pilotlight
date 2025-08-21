@@ -354,42 +354,53 @@ void main()
     {
         outColor.rgb = color.rgb;
     }
+    else
+    {
+
+        outColor = vec4(1.0);
+        {
+            float frequency = 0.02;
+            float gray = 0.9;
+
+            vec2 v1 = step(0.5, fract(frequency * gl_FragCoord.xy));
+            vec2 v2 = step(0.5, vec2(1.0) - fract(frequency * gl_FragCoord.xy));
+            outColor.rgb *= gray + v1.x * v1.y + v2.x * v2.y;
+        }
     
-    if(tShaderDebugMode == PL_SHADER_DEBUG_BASE_COLOR)
-    {
-        outColor = tBaseColor;
-    }
+        if(tShaderDebugMode == PL_SHADER_DEBUG_BASE_COLOR)
+        {
+            outColor = tBaseColor;
+        }
 
-    if(tShaderDebugMode == PL_SHADER_DEBUG_SHADING_NORMAL)
-    {
-        outColor = vec4((n + 1.0) / 2.0, tBaseColor.a);
-    }
+        if(tShaderDebugMode == PL_SHADER_DEBUG_SHADING_NORMAL)
+        {
+            outColor = vec4((n + 1.0) / 2.0, tBaseColor.a);
+        }
 
-    if(tShaderDebugMode == PL_SHADER_DEBUG_METALLIC)
-    {
-        outColor.rgb = vec3(materialInfo.metallic);
-    }
+        if(tShaderDebugMode == PL_SHADER_DEBUG_METALLIC)
+        {
+            outColor.rgb = vec3(materialInfo.metallic);
+        }
 
-    if(tShaderDebugMode == PL_SHADER_DEBUG_ROUGHNESS)
-    {
-        outColor.rgb = vec3(materialInfo.perceptualRoughness);
-    }
+        if(tShaderDebugMode == PL_SHADER_DEBUG_ROUGHNESS)
+        {
+            outColor.rgb = vec3(materialInfo.perceptualRoughness);
+        }
 
-    if(tShaderDebugMode == PL_SHADER_DEBUG_ALPHA)
-    {
-        outColor.rgb = vec3(tBaseColor.a);
-        outColor.a = 1.0;
-    }
+        if(tShaderDebugMode == PL_SHADER_DEBUG_ALPHA)
+        {
+            outColor.rgb = vec3(tBaseColor.a);
+        }
 
-    if(tShaderDebugMode == PL_SHADER_DEBUG_OCCLUSION)
-    {
-        outColor.rgb = vec3(ao);
-    }
+        if(tShaderDebugMode == PL_SHADER_DEBUG_OCCLUSION)
+        {
+            outColor.rgb = vec3(ao);
+        }
 
-    if(tShaderDebugMode > PL_SHADER_DEBUG_SHADING_NORMAL)
-    {
-        outColor.rgb = vec3(tBaseColor.rgb);
-        outColor.a = 1.0;
+        if(tShaderDebugMode > PL_SHADER_DEBUG_SHADING_NORMAL)
+        {
+            outColor.rgb = vec3(tBaseColor.rgb);
+        }
     }
 
     // if(gl_FragCoord.x < 1400.0)

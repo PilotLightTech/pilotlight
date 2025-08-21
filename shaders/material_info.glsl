@@ -3,6 +3,7 @@
 
 struct MaterialInfo
 {
+    float ior;
     float perceptualRoughness;
     vec3 f0_dielectric;
     float alphaRoughness;
@@ -14,6 +15,13 @@ struct MaterialInfo
 
     // KHR_materials_specular 
     float specularWeight; // product of specularFactor and specularTexture.a
+
+    // clearcoat
+    vec3 clearcoatF0;
+    vec3 clearcoatF90;
+    float clearcoatFactor;
+    vec3 clearcoatNormal;
+    float clearcoatRoughness;
 
 };
 

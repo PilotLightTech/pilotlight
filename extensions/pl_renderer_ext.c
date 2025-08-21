@@ -1898,17 +1898,20 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
         int aiForwardFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
-            PL_INFO_MATERIAL_METALLICROUGHNESS,
+            PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS,
             iObjectRenderingFlags,
             pl_sb_capacity(ptScene->sbtLightData),
             pl_sb_capacity(ptScene->sbtProbeData),
             gptData->tRuntimeOptions.tShaderDebugMode
         };
 
+        if(ptMaterial->tShaderType == PL_SHADER_TYPE_PBR_CLEARCOAT)
+            aiForwardFragmentConstantData0[2] |= PL_MATERIAL_SHADER_FLAG_CLEARCOAT;
+
         int aiGBufferFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
-            PL_INFO_MATERIAL_METALLICROUGHNESS,
+            PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS,
             gptData->tRuntimeOptions.tShaderDebugMode,
             iObjectRenderingFlags
         };
@@ -3749,12 +3752,18 @@ pl_renderer_update_scene_materials(plScene* ptScene, uint32_t uMaterialCount, co
             plTextureHandle tEmissiveTex = ptGPUMaterial->iEmissiveTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource);
             plTextureHandle tMetallicRoughnessTex = ptGPUMaterial->iMetallicRoughnessTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource);
             plTextureHandle tOcclusionTex = ptGPUMaterial->iOcclusionTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource);
+            plTextureHandle tClearcoatTex = ptGPUMaterial->iClearcoatTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_MAP].tResource);
+            plTextureHandle tClearcoatRoughnessTex = ptGPUMaterial->iClearcoatRoughnessTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP].tResource);
+            plTextureHandle tClearcoatNormalTex = ptGPUMaterial->iClearcoatNormalTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP].tResource);
 
-            ptGPUMaterial->iBaseColorTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tBaseColorTex);
-            ptGPUMaterial->iNormalTexIdx            = (int)pl__renderer_get_bindless_texture_index(ptScene, tNormalTex);
-            ptGPUMaterial->iEmissiveTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tEmissiveTex);
-            ptGPUMaterial->iMetallicRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
-            ptGPUMaterial->iOcclusionTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
+            ptGPUMaterial->iBaseColorTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tBaseColorTex);
+            ptGPUMaterial->iNormalTexIdx             = (int)pl__renderer_get_bindless_texture_index(ptScene, tNormalTex);
+            ptGPUMaterial->iEmissiveTexIdx           = (int)pl__renderer_get_bindless_texture_index(ptScene, tEmissiveTex);
+            ptGPUMaterial->iMetallicRoughnessTexIdx  = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
+            ptGPUMaterial->iOcclusionTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
+            ptGPUMaterial->iClearcoatTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatTex);
+            ptGPUMaterial->iClearcoatRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatRoughnessTex);
+            ptGPUMaterial->iClearcoatNormalTexIdx    = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatNormalTex);
         }
     }
     ptScene->uGPUMaterialDirty = gptGfx->get_frames_in_flight();
@@ -3845,12 +3854,19 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
             plTextureHandle tEmissiveTex = ptGPUMaterial->iEmissiveTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource);
             plTextureHandle tMetallicRoughnessTex = ptGPUMaterial->iMetallicRoughnessTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource);
             plTextureHandle tOcclusionTex = ptGPUMaterial->iOcclusionTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource);
+            plTextureHandle tClearcoatTex = ptGPUMaterial->iClearcoatTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_MAP].tResource);
+            plTextureHandle tClearcoatRoughnessTex = ptGPUMaterial->iClearcoatRoughnessTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP].tResource);
+            plTextureHandle tClearcoatNormalTex = ptGPUMaterial->iClearcoatNormalTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP].tResource);
 
-            ptGPUMaterial->iBaseColorTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tBaseColorTex);
-            ptGPUMaterial->iNormalTexIdx            = (int)pl__renderer_get_bindless_texture_index(ptScene, tNormalTex);
-            ptGPUMaterial->iEmissiveTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tEmissiveTex);
-            ptGPUMaterial->iMetallicRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
-            ptGPUMaterial->iOcclusionTexIdx         = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
+            ptGPUMaterial->iBaseColorTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tBaseColorTex);
+            ptGPUMaterial->iNormalTexIdx             = (int)pl__renderer_get_bindless_texture_index(ptScene, tNormalTex);
+            ptGPUMaterial->iEmissiveTexIdx           = (int)pl__renderer_get_bindless_texture_index(ptScene, tEmissiveTex);
+            ptGPUMaterial->iMetallicRoughnessTexIdx  = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
+            ptGPUMaterial->iOcclusionTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
+            ptGPUMaterial->iClearcoatTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatTex);
+            ptGPUMaterial->iClearcoatRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatRoughnessTex);
+            ptGPUMaterial->iClearcoatNormalTexIdx    = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatNormalTex);
+            
             pl_hm_insert(&ptScene->tMaterialHashmap, tMaterialComp.uData, ulValue);
         }
     }

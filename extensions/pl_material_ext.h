@@ -104,6 +104,9 @@ enum _plTextureSlot
     PL_TEXTURE_SLOT_EMISSIVE_MAP,
     PL_TEXTURE_SLOT_OCCLUSION_MAP,
     PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP,
+    PL_TEXTURE_SLOT_CLEARCOAT_MAP,
+    PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP,
+    PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP,
     
     PL_TEXTURE_SLOT_COUNT
 };
@@ -111,6 +114,7 @@ enum _plTextureSlot
 enum _plShaderType
 {
     PL_SHADER_TYPE_PBR,
+    PL_SHADER_TYPE_PBR_CLEARCOAT,
     PL_SHADER_TYPE_CUSTOM,
     
     PL_SHADER_TYPE_COUNT
@@ -142,14 +146,16 @@ typedef struct _plTextureMap
 
 typedef struct _plMaterialComponent
 {
-    plMaterialFlags tFlags;         // default: PL_MATERIAL_FLAG_CAST_SHADOW | PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW
-    plShaderType    tShaderType;    // default: PL_SHADER_TYPE_PBR
-    plBlendMode     tBlendMode;     // default: PL_BLEND_MODE_OPAQUE
-    plVec4          tBaseColor;     // default: {1.0f, 1.0f, 1.0f, 1.0f}
-    plVec4          tEmissiveColor; // default: {0.0f, 0.0f, 0.0f, 0.0f}
-    float           fAlphaCutoff;   // default: 0.5f
-    float           fRoughness;     // default: 1.0f
-    float           fMetalness;     // default: 1.0f
+    plMaterialFlags tFlags;              // default: PL_MATERIAL_FLAG_CAST_SHADOW | PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW
+    plShaderType    tShaderType;         // default: PL_SHADER_TYPE_PBR
+    plBlendMode     tBlendMode;          // default: PL_BLEND_MODE_OPAQUE
+    plVec4          tBaseColor;          // default: {1.0f, 1.0f, 1.0f, 1.0f}
+    plVec4          tEmissiveColor;      // default: {0.0f, 0.0f, 0.0f, 0.0f}
+    float           fAlphaCutoff;        // default: 0.5f
+    float           fRoughness;          // default: 1.0f
+    float           fMetalness;          // default: 1.0f
+    float           fClearcoat;          // default: 0.0f
+    float           fClearcoatRoughness; // default: 0.0f
     plTextureMap    atTextureMaps[PL_TEXTURE_SLOT_COUNT];
 } plMaterialComponent;
 

@@ -51,13 +51,13 @@ vec4 getBaseColor(vec4 u_ColorFactor, int iUVSet)
 {
     vec4 baseColor = vec4(1);
 
-    if(bool(iMaterialFlags & PL_INFO_MATERIAL_METALLICROUGHNESS))
+    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
     {
         // baseColor = u_BaseColorFactor;
         baseColor = u_ColorFactor;
     }
 
-    if(bool(iMaterialFlags & PL_INFO_MATERIAL_METALLICROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
+    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
     {
         plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
         baseColor *= texture(sampler2D(at2DTextures[nonuniformEXT(material.iBaseColorTexIdx)], tSamplerLinearRepeat), tShaderIn.tUV[iUVSet]);

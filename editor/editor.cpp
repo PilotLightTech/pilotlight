@@ -1109,7 +1109,10 @@ pl__show_editor_window(plAppData* ptAppData)
                 "Geometry Normal",
                 "Geometry Tangent",
                 "Geometry Bitangent",
-                "UV 0"
+                "UV 0",
+                "Clearcoat",
+                "Clearcoat Roughness",
+                "Clearcoat Normal",
             };
             bool bReloadShaders = false;
             if(ImGui::Combo("Shader Debug Mode", &ptRuntimeOptions->tShaderDebugMode, apcShaderDebugModeText, PL_ARRAYSIZE(apcShaderDebugModeText))) bReloadShaders = true;
@@ -1234,8 +1237,8 @@ pl__create_scene(plAppData* ptAppData)
     ptLight->fIntensity = 1.0f;
     ptLight->fRange = 1.0f;
     ptLight->uShadowResolution = 1024;
-    ptLight->afCascadeSplits[0] = 0.01f;
-    ptLight->afCascadeSplits[1] = 0.25f;
+    ptLight->afCascadeSplits[0] = 0.05f;
+    ptLight->afCascadeSplits[1] = 0.15f;
     ptLight->afCascadeSplits[2] = 0.50f;
     ptLight->afCascadeSplits[3] = 1.00f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
@@ -1244,7 +1247,7 @@ pl__create_scene(plAppData* ptAppData)
     ptLight->uShadowResolution = 1024;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
     plTransformComponent* ptPLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptCompLibrary, gptEcs->get_ecs_type_key_transform(), tPointLight);
-    ptPLightTransform->tTranslation = pl_create_vec3(0.0f, 1.497f, 2.0f);
+    ptPLightTransform->tTranslation = pl_create_vec3(9.316f, 1.497f, -1.042f);
 
     plEntity tSpotLight = gptRenderer->create_spot_light(ptAppData->ptCompLibrary, "spot light", pl_create_vec3(0.0f, 4.0f, -1.18f), pl_create_vec3(0.0, -1.0f, 0.376f), &ptLight);
     ptLight->uShadowResolution = 1024;

@@ -921,7 +921,10 @@ pl__show_editor_window(plAppData* ptAppData)
                 "Geometry Normal",
                 "Geometry Tangent",
                 "Geometry Bitangent",
-                "UV 0"
+                "UV 0",
+                "Clearcoat",
+                "Clearcoat Roughness",
+                "Clearcoat Normal",
             };
             bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
             abShaderDebugMode[ptRuntimeOptions->tShaderDebugMode] = true;

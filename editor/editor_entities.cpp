@@ -465,6 +465,8 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 bool bMaterialModified = false;
                 if(ImGui::InputFloat("Roughness", &ptMaterialComp->fRoughness)) bMaterialModified = true;
                 if(ImGui::InputFloat("Metalness", &ptMaterialComp->fMetalness)) bMaterialModified = true;
+                if(ImGui::InputFloat("Clearcoat", &ptMaterialComp->fClearcoat)) bMaterialModified = true;
+                if(ImGui::InputFloat("Clearcoat Roughness", &ptMaterialComp->fClearcoatRoughness)) bMaterialModified = true;
                 if(ImGui::InputFloat("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff)) bMaterialModified = true;
                 if(ImGui::InputFloat4("Base Factor", ptMaterialComp->tBaseColor.d)) bMaterialModified = true;
                 if(ImGui::InputFloat4("Emmissive Factor", ptMaterialComp->tEmissiveColor.d)) bMaterialModified = true;
@@ -486,7 +488,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 static const char* apcShaderNames[] = 
                 {
                     "PL_SHADER_TYPE_PBR",
-                    "PL_SHADER_TYPE_UNLIT",
+                    "PL_SHADER_TYPE_PBR_CLEARCOAT",
                     "PL_SHADER_TYPE_CUSTOM"
                 };
                 ImGui::LabelText("Shader Type", "%s", apcShaderNames[ptMaterialComp->tShaderType]);

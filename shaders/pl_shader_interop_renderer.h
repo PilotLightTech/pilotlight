@@ -44,17 +44,20 @@ Index of this file:
 #define PL_MAX_BINDLESS_TEXTURE_SLOT 8
 #define PL_MAX_BINDLESS_CUBE_TEXTURE_SLOT PL_MAX_BINDLESS_TEXTURES + PL_MAX_BINDLESS_TEXTURE_SLOT
 
-#define PL_INFO_MATERIAL_METALLICROUGHNESS 1
-
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
+PL_BEGIN_ENUM(plMaterialShaderFlags)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS, 1 << 0)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_CLEARCOAT,          1 << 1)
+PL_END_ENUM
+
 PL_BEGIN_ENUM(plRenderingFlags)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_PUNCTUAL,   1 << 0)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_IBL,        1 << 1)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_SHADOWS,        1 << 2)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_NORMAL_MAPS,    1 << 3)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_PUNCTUAL,    1 << 0)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_IBL,         1 << 1)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_SHADOWS,         1 << 2)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_NORMAL_MAPS, 1 << 3)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plMeshFormatFlags)
@@ -90,11 +93,14 @@ PL_BEGIN_ENUM(plLightType)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plTextureMappingFlags)
-    PL_ENUM_ITEM(PL_HAS_BASE_COLOR_MAP,         1 << 0)
-    PL_ENUM_ITEM(PL_HAS_NORMAL_MAP,             1 << 1)
-    PL_ENUM_ITEM(PL_HAS_EMISSIVE_MAP,           1 << 2)
-    PL_ENUM_ITEM(PL_HAS_OCCLUSION_MAP,          1 << 3)
-    PL_ENUM_ITEM(PL_HAS_METALLIC_ROUGHNESS_MAP, 1 << 4)
+    PL_ENUM_ITEM(PL_HAS_BASE_COLOR_MAP,          1 << 0)
+    PL_ENUM_ITEM(PL_HAS_NORMAL_MAP,              1 << 1)
+    PL_ENUM_ITEM(PL_HAS_EMISSIVE_MAP,            1 << 2)
+    PL_ENUM_ITEM(PL_HAS_OCCLUSION_MAP,           1 << 3)
+    PL_ENUM_ITEM(PL_HAS_METALLIC_ROUGHNESS_MAP,  1 << 4)
+    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_MAP,           1 << 5)
+    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_ROUGHNESS_MAP, 1 << 6)
+    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_NORMAL_MAP,    1 << 7)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plShaderDebugMode)
@@ -111,6 +117,9 @@ PL_BEGIN_ENUM(plShaderDebugMode)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_GEOMETRY_TANGENT, 10)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_GEOMETRY_BITANGENT, 11)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_UV0, 12)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_CLEARCOAT, 13)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_CLEARCOAT_ROUGHNESS, 14)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_CLEARCOAT_NORMAL, 15)
 PL_END_ENUM
 
 //-----------------------------------------------------------------------------
@@ -423,8 +432,8 @@ PL_BEGIN_STRUCT(plGpuMaterial)
 
     float fMetallicFactor;
     float fRoughnessFactor;
-    int _unused0;
-    int _unused1;
+    float fClearcoatFactor;
+    float fClearcoatRoughnessFactor;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     vec4 tBaseColorFactor;
@@ -452,7 +461,19 @@ PL_BEGIN_STRUCT(plGpuMaterial)
     int iOcclusionTexIdx;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~96 bytes~~~~~~~~~~~~~~~~
+    int iClearcoatTexIdx;
+    int iClearcoatRoughnessTexIdx;
+    int iClearcoatNormalTexIdx;
+    int iClearcoatUVSet;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    int iClearcoatRoughnessUVSet;
+    int iClearcoatNormalUVSet;
+    int _iUnused0;
+    int _iUnused1;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~128 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuMaterial)
 
 #endif // PL_SHADER_INTEROP_RENDERER_H

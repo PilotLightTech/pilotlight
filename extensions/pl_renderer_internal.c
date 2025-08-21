@@ -2352,23 +2352,31 @@ pl__renderer_get_bindless_texture_index(plScene* ptScene, plTextureHandle tTextu
 void
 pl_material_fill_gpu_data(const plMaterialComponent* ptComp, plGpuMaterial* ptMaterial)
 {
-    ptMaterial->fMetallicFactor          = ptComp->fMetalness;
-    ptMaterial->fRoughnessFactor         = ptComp->fRoughness;
-    ptMaterial->tBaseColorFactor         = ptComp->tBaseColor;
-    ptMaterial->tEmissiveFactor          = ptComp->tEmissiveColor.rgb;
-    ptMaterial->fAlphaCutoff             = ptComp->fAlphaCutoff;
-    ptMaterial->fOcclusionStrength       = 1.0f;
-    ptMaterial->fEmissiveStrength        = 1.0f;
-    ptMaterial->iBaseColorUVSet          = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].uUVSet;
-    ptMaterial->iNormalUVSet             = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].uUVSet;
-    ptMaterial->iEmissiveUVSet           = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].uUVSet;
-    ptMaterial->iOcclusionUVSet          = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].uUVSet;
-    ptMaterial->iMetallicRoughnessUVSet  = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].uUVSet;
-    ptMaterial->iBaseColorTexIdx         = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource) ? 0 : -1;
-    ptMaterial->iNormalTexIdx            = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource) ? 0 : -1;
-    ptMaterial->iEmissiveTexIdx          = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource) ? 0 : -1;
-    ptMaterial->iMetallicRoughnessTexIdx = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource) ? 0 : -1;
-    ptMaterial->iOcclusionTexIdx         = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource) ? 0 : -1;
+    ptMaterial->fMetallicFactor           = ptComp->fMetalness;
+    ptMaterial->fRoughnessFactor          = ptComp->fRoughness;
+    ptMaterial->tBaseColorFactor          = ptComp->tBaseColor;
+    ptMaterial->tEmissiveFactor           = ptComp->tEmissiveColor.rgb;
+    ptMaterial->fAlphaCutoff              = ptComp->fAlphaCutoff;
+    ptMaterial->fClearcoatFactor          = ptComp->fClearcoat;
+    ptMaterial->fClearcoatRoughnessFactor = ptComp->fClearcoatRoughness;
+    ptMaterial->fOcclusionStrength        = 1.0f;
+    ptMaterial->fEmissiveStrength         = 1.0f;
+    ptMaterial->iBaseColorUVSet           = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].uUVSet;
+    ptMaterial->iNormalUVSet              = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].uUVSet;
+    ptMaterial->iEmissiveUVSet            = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].uUVSet;
+    ptMaterial->iOcclusionUVSet           = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].uUVSet;
+    ptMaterial->iMetallicRoughnessUVSet   = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].uUVSet;
+    ptMaterial->iClearcoatUVSet           = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_MAP].uUVSet;
+    ptMaterial->iClearcoatRoughnessUVSet  = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP].uUVSet;
+    ptMaterial->iClearcoatNormalUVSet     = (int)ptComp->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP].uUVSet;
+    ptMaterial->iBaseColorTexIdx          = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource) ? 0 : -1;
+    ptMaterial->iNormalTexIdx             = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource) ? 0 : -1;
+    ptMaterial->iEmissiveTexIdx           = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource) ? 0 : -1;
+    ptMaterial->iMetallicRoughnessTexIdx  = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource) ? 0 : -1;
+    ptMaterial->iOcclusionTexIdx          = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource) ? 0 : -1;
+    ptMaterial->iClearcoatTexIdx          = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_MAP].tResource) ? 0 : -1;
+    ptMaterial->iClearcoatRoughnessTexIdx = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP].tResource) ? 0 : -1;
+    ptMaterial->iClearcoatNormalTexIdx    = gptResource->is_valid(ptComp->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP].tResource) ? 0 : -1;
 }
 
 static uint32_t
@@ -3546,17 +3554,20 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
         int aiForwardFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
-            PL_INFO_MATERIAL_METALLICROUGHNESS,
+            PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS,
             iObjectRenderingFlags,
             pl_sb_capacity(ptScene->sbtLightData),
             pl_sb_size(ptScene->sbtProbeData),
             gptData->tRuntimeOptions.tShaderDebugMode
         };
 
+        if(ptMaterial->tShaderType == PL_SHADER_TYPE_PBR_CLEARCOAT)
+            aiForwardFragmentConstantData0[2] |= PL_MATERIAL_SHADER_FLAG_CLEARCOAT;
+
         int aiGBufferFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
-            PL_INFO_MATERIAL_METALLICROUGHNESS,
+            PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS,
             gptData->tRuntimeOptions.tShaderDebugMode,
             iObjectRenderingFlags
         };
@@ -3826,6 +3837,9 @@ pl__renderer_unstage_drawables(plScene* ptScene)
                 bForward = true;
 
             if(gptResource->is_valid(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource))
+                bForward = true;
+
+            if(ptMaterial->tShaderType == PL_SHADER_TYPE_PBR_CLEARCOAT)
                 bForward = true;
 
             if(bForward)

@@ -487,7 +487,19 @@ pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialCo
 
         if(ptGltfMaterial->pbr_metallic_roughness.metallic_roughness_texture.texture)
             pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP, &ptGltfMaterial->pbr_metallic_roughness.metallic_roughness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
-        
+    }
+
+    if(ptGltfMaterial->has_clearcoat)
+    {
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_CLEARCOAT;
+        ptMaterial->fClearcoat = ptGltfMaterial->clearcoat.clearcoat_factor;
+        ptMaterial->fClearcoatRoughness = ptGltfMaterial->clearcoat.clearcoat_roughness_factor;
+        if(ptGltfMaterial->clearcoat.clearcoat_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_CLEARCOAT_MAP, &ptGltfMaterial->clearcoat.clearcoat_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+        if(ptGltfMaterial->clearcoat.clearcoat_roughness_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP, &ptGltfMaterial->clearcoat.clearcoat_roughness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+        if(ptGltfMaterial->clearcoat.clearcoat_normal_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP, &ptGltfMaterial->clearcoat.clearcoat_normal_texture, pcDirectory, ptGltfMaterial, ptMaterial);
     }
 }
 
