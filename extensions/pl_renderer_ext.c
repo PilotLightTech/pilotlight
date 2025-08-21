@@ -3196,7 +3196,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
-    ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
     gptGfx->submit_command_buffer(ptSceneCmdBuffer, &tSceneSubmitInfo);
     gptGfx->return_command_buffer(ptSceneCmdBuffer);
 
@@ -3427,7 +3426,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
         .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
     };
-
+    ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
     gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
     gptGfx->return_command_buffer(ptPostCmdBuffer);
 

@@ -1934,6 +1934,7 @@ pl_begin_frame(plDevice* ptDevice)
     // Wait until the inflight command buffer has completed its work
     // gptGraphics->tSwapchain.uCurrentImageIndex = gptGraphics->uCurrentFrameIndex;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
+    ptFrame->uCurrentBufferIndex = 0;
     [ptFrame->tFrameBoundaryEvent waitUntilSignaledValue:ptFrame->uNextValue timeoutMS:10000];
 
     pl__garbage_collect(ptDevice); 
@@ -2017,7 +2018,6 @@ pl_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubmitInfo, p
         }
     }
     
-    ptFrame->uCurrentBufferIndex = 0;
     [ptCommandBuffer->tCmdBuffer encodeSignalEvent:ptFrame->tFrameBoundaryEvent value:++ptFrame->uNextValue];
     [ptCommandBuffer->tCmdBuffer commit];
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
