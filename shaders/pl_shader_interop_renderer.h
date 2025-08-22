@@ -58,6 +58,7 @@ PL_BEGIN_ENUM(plRenderingFlags)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_IBL,         1 << 1)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_SHADOWS,         1 << 2)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_NORMAL_MAPS, 1 << 3)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_PCF_SHADOWS,     1 << 4)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plMeshFormatFlags)
@@ -391,9 +392,6 @@ PL_END_STRUCT(plGpuProbe)
 
 PL_BEGIN_STRUCT(plGpuLightShadow)
     
-    vec4 cascadeSplits;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-	
     mat4 viewProjMat[6];
     // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
 
@@ -403,7 +401,7 @@ PL_BEGIN_STRUCT(plGpuLightShadow)
     float fYOffset;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
     
-    // ~~~~~~~~~~~~~~~~416 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~400 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuLightShadow)
 
 PL_BEGIN_STRUCT(plGpuDynDeferredLighting)

@@ -2017,7 +2017,9 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
     if(gptData->tRuntimeOptions.bNormalMapping)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
-
+    if(gptData->tRuntimeOptions.bPcfShadows)
+        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
+        
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode};
@@ -2129,6 +2131,8 @@ pl_renderer_finalize_scene(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
     if(gptData->tRuntimeOptions.bNormalMapping)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
+    if(gptData->tRuntimeOptions.bPcfShadows)
+        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
 
     // create lighting shader
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode};

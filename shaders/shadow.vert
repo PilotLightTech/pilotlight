@@ -106,8 +106,8 @@ void main()
     gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex] * pos;
     gl_ViewportIndex = uViewportIndex;
 
-    if(tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex][3][3] == 1.0) // orthographic
-        gl_Position.z = 1.0 - gl_Position.z;
+    // if(tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex][3][3] == 1.0) // orthographic
+    //     gl_Position.z = 1.0 - gl_Position.z;
 
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;

@@ -1433,14 +1433,10 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
         // copy GPU light shadow data
         plGpuLightShadow* ptShadowData = &ptDShadowData->sbtDLightShadowData[uDataOffset];
-        ptShadowData->iShadowMapTexIdx    = ptScene->atShadowTextureBindlessIndices;
-        ptShadowData->fFactor             = (float)ptLight->uShadowResolution / (float)ptScene->uShadowAtlasResolution;
-        ptShadowData->fXOffset            = (float)ptRect->iX / (float)ptScene->uShadowAtlasResolution;
-        ptShadowData->fYOffset            = (float)ptRect->iY / (float)ptScene->uShadowAtlasResolution;
-        ptShadowData->cascadeSplits.d[0] = 10000.0f;
-        ptShadowData->cascadeSplits.d[1] = 10000.0f;
-        ptShadowData->cascadeSplits.d[2] = 10000.0f;
-        ptShadowData->cascadeSplits.d[3] = 10000.0f;
+        ptShadowData->iShadowMapTexIdx = ptScene->atShadowTextureBindlessIndices;
+        ptShadowData->fFactor          = (float)ptLight->uShadowResolution / (float)ptScene->uShadowAtlasResolution;
+        ptShadowData->fXOffset         = (float)ptRect->iX / (float)ptScene->uShadowAtlasResolution;
+        ptShadowData->fYOffset         = (float)ptRect->iY / (float)ptScene->uShadowAtlasResolution;
 
         plMat4 atCamViewProjs[PL_MAX_SHADOW_CASCADES] = {0};
         float fLastSplitDist = 0.0f;
@@ -1457,7 +1453,6 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
         for(uint32_t uCascade = 0; uCascade < uCascadeCount; uCascade++)
         {
             float fSplitDist = afCascadeSplits[uCascade] * ptSceneCamera->fFarZ;
-            ptShadowData->cascadeSplits.d[uCascade] = fSplitDist;
 
             // camera space
             plVec3 atCameraCorners2[] = {
@@ -1492,8 +1487,8 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             gptCamera->look_at(&tShadowCamera, (plVec3){0}, tDirection);
             tShadowCamera.fWidth  = fD;
             tShadowCamera.fHeight = fD;
-            tShadowCamera.fNearZ  = -fD;
-            tShadowCamera.fFarZ   = fD;
+            tShadowCamera.fNearZ  = fD * 2.0f;
+            tShadowCamera.fFarZ   = -fD * 2.0f;
             gptCamera->update(&tShadowCamera);
 
             for(uint32_t i = 0; i < 8; i++)
@@ -1522,7 +1517,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             const plVec4 tLightPosLightSpace = { 
                 fUnitPerTexel * floorf((fXMax + fXMin) / (fUnitPerTexel * 2.0f)), // texel snapping
                 fUnitPerTexel * floorf((fYMax + fYMin) / (fUnitPerTexel * 2.0f)), // texel snapping
-                -fD,
+                fD * 2.0f,
                 1.0f
             };
 
@@ -3505,6 +3500,8 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
     if(gptData->tRuntimeOptions.bNormalMapping)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
+    if(gptData->tRuntimeOptions.bPcfShadows)
+        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
@@ -3638,7 +3635,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
                 .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
                 .ulStencilOpPass      = PL_STENCIL_OP_KEEP
             };
-            ptScene->sbtDrawables[i].tShadowShader = gptShaderVariant->get_shader("alphashadow", &tShadowVariant, aiVertexConstantData0, aiGBufferFragmentConstantData0, &gptData->tDepthRenderPassLayout);
+            ptScene->sbtDrawables[i].tShadowShader = gptShaderVariant->get_shader("alphashadow", &tShadowVariant, aiVertexConstantData0, &aiForwardFragmentConstantData0[1], &gptData->tDepthRenderPassLayout);
         }
     }
 }

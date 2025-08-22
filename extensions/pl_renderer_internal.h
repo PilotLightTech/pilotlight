@@ -217,11 +217,11 @@ typedef struct _plDrawable
 
 typedef struct _plDirectionLightShadowData
 {
-    plBufferHandle     atDShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferHandle     atDLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle    atDShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle    atDLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plGpuLightShadow* sbtDLightShadowData;
-    uint32_t           uOffset;
-    uint32_t           uOffsetIndex;
+    uint32_t          uOffset;
+    uint32_t          uOffsetIndex;
 } plDirectionLightShadowData;
 
 typedef struct _plEnvironmentProbeData

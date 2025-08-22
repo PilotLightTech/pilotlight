@@ -149,7 +149,7 @@ void main()
     vec3 f_metal_brdf = vec3(0.0);
 
     // punctual stuff
-    uint cascadeIndex = 0;
+    uint cascadeIndex = 4;
     const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL) && tObjectInfo.tData.iLightIndex != -1)
     {
@@ -164,28 +164,56 @@ void main()
             if(bShadows && tLightData.iCastShadow > 0)
             {
                 plGpuLightShadow tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
-
-                // Get cascade index for the current fragment's view position
                 
-                
-                for(int j = 0; j < tLightData.iCascadeCount - 1; ++j)
-                {
-                    if(tViewPosition.z > tShadowData.cascadeSplits[j])
-                    {	
-                        cascadeIndex = j + 1;
-                    }
-                }  
-
                 // Depth compare for shadowing
                 mat4 abiasMat = biasMat;
                 abiasMat[0][0] *= tShadowData.fFactor;
                 abiasMat[1][1] *= tShadowData.fFactor;
                 abiasMat[3][0] *= tShadowData.fFactor;
                 abiasMat[3][1] *= tShadowData.fFactor;
-                vec4 shadowCoord = (abiasMat * tShadowData.viewProjMat[cascadeIndex]) * vec4(tWorldPosition.xyz, 1.0);
                 shadow = 0;
-                // shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-                shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(cascadeIndex * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+
+                // Get cascade index for the current fragment's view position
+                
+                
+                for(int j = 0; j < tLightData.iCascadeCount; j++)
+                {
+                    
+
+                    vec4 rawshadowCoord = biasMat * tShadowData.viewProjMat[j] * vec4(tWorldPosition.xyz, 1.0);
+
+                    if(abs(rawshadowCoord.x - pl_saturate(rawshadowCoord.x)) < 0.00001 && abs(rawshadowCoord.y - pl_saturate(rawshadowCoord.y)) < 0.00001)
+                    {
+                        vec4 shadowCoord = (abiasMat * tShadowData.viewProjMat[j]) * vec4(tWorldPosition.xyz, 1.0);
+                        cascadeIndex = j;
+                    
+                        if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                        {
+                            shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(j * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                        }
+                        else
+                        {
+                            shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(j * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                        }
+
+                        const vec3 shadow_box = vec3(rawshadowCoord.xy * 2.0 - 1.0, rawshadowCoord.z * 2.0 - 1.0);
+                        const vec3 cascade_edgefactor = clamp(clamp(abs(shadow_box), 0.0, 1.0) - 0.8, 0.0, 1.0) * 5.0; // fade will be on edge and inwards 10%
+                        const float cascade_fade = pl_max3(cascade_edgefactor);
+
+                        if(cascade_fade > 0 && j < (tLightData.iCascadeCount - 1))
+                        {
+
+                            shadowCoord = (abiasMat * tShadowData.viewProjMat[j + 1]) * vec4(tWorldPosition.xyz, 1.0);
+                            float shadowfallback = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2((j + 1.0) * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+
+                            shadow = mix(shadow, shadowfallback, cascade_fade);
+                            // shadow = 100.0;
+                        }
+
+                        break;
+                    }
+                }  
+
             }
 
             // BSTF
@@ -248,8 +276,14 @@ void main()
                     shadowCoord.xyz /= shadowCoord.w;
                     result.xy *= tShadowData.fFactor;
                     shadowCoord.xy = result.xy;
-                    shadow = textureProj2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
-                    // shadow = filterPCF2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                    if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                    {
+                        shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                    }
+                    else
+                    {
+                        shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                    }
                 }
             }
 
@@ -304,8 +338,14 @@ void main()
                     shadowCoord.y = shadowCoord.y/2 + 0.5;
                     shadowCoord.xy *= tShadowData.fFactor;
 
-                    // shadow = textureProj2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
-                    shadow = filterPCF2(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                    {
+                        shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    }
+                    else
+                    {
+                        shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    }
                 }
             }
 
@@ -403,21 +443,30 @@ void main()
         }
     }
 
-    // if(gl_FragCoord.x < 1400.0)
+    // if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL) && tObjectInfo.tData.iLightIndex != -1)
     // {
-    //     switch(cascadeIndex) {
-    //         case 0 : 
-    //             outColor.rgb *= vec3(1.0f, 0.25f, 0.25f);
-    //             break;
-    //         case 1 : 
-    //             outColor.rgb *= vec3(0.25f, 1.0f, 0.25f);
-    //             break;
-    //         case 2 : 
-    //             outColor.rgb *= vec3(0.25f, 0.25f, 1.0f);
-    //             break;
-    //         case 3 : 
-    //             outColor.rgb *= vec3(1.0f, 1.0f, 0.25f);
-    //             break;
+    //     plGpuLight tLightData = tLightInfo.atData[tObjectInfo.tData.iLightIndex];
+
+    //     if(tLightData.iType == PL_LIGHT_TYPE_DIRECTIONAL)
+    //     {
+    //         if(gl_FragCoord.x < 1400.0)
+    //         {
+    //             switch(cascadeIndex) {
+    //                 case 0 : 
+    //                     outColor.rgb *= vec3(1.0f, 0.25f, 0.25f);
+    //                     break;
+    //                 case 1 : 
+    //                     outColor.rgb *= vec3(0.25f, 1.0f, 0.25f);
+    //                     break;
+    //                 case 2 : 
+    //                     outColor.rgb *= vec3(0.25f, 0.25f, 1.0f);
+    //                     break;
+    //                 case 3 : 
+    //                     outColor.rgb *= vec3(1.0f, 1.0f, 0.25f);
+    //                     break;
+    //             }
+    //         }
     //     }
     // }
+
 }

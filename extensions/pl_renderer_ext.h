@@ -234,6 +234,7 @@ typedef struct _plRendererRuntimeOptions
     bool              bImageBasedLighting;
     bool              bNormalMapping;
     bool              bPunctualLighting;
+    bool              bPcfShadows;
     float             fShadowConstantDepthBias;
     float             fShadowSlopeDepthBias;
     uint32_t          uOutlineWidth;

@@ -78,23 +78,6 @@ textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
     {
-		float dist = 1.0 - texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), comp2).r * shadowCoord.w;
-		if (shadowCoord.w > 0 && dist < shadowCoord.z)
-        {
-			shadow = 0.0; // ambient
-		}
-	}
-	return shadow;
-}
-
-float
-textureProj2(vec4 shadowCoord, vec2 offset, int textureIndex)
-{
-	float shadow = 1.0;
-    vec2 comp2 = shadowCoord.st + offset;
-
-	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 )
-    {
 		float dist = texture(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), comp2).r;
 		if (shadowCoord.w > 0 && dist > shadowCoord.z)
         {
@@ -125,31 +108,7 @@ filterPCF(vec4 sc, vec2 offset, int textureIndex)
 		}
 	}
 	// return shadowFactor / count;
-	return shadowFactor / 4.0;
-}
-
-float
-filterPCF2(vec4 sc, vec2 offset, int textureIndex)
-{
-	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), 0).xy;
-	float scale = 1.0;
-	float dx = scale * 1.0 / (float(texDim.x));
-	float dy = scale * 1.0 / (float(texDim.y));
-
-	float shadowFactor = 0.0;
-	// int count = 0;
-	int range = 1;
-	
-	for (int x = -range; x <= range; x++)
-    {
-		for (int y = -range; y <= range; y++)
-        {
-			shadowFactor += textureProj2(sc, vec2(dx*x, dy*y) + offset, textureIndex);
-			// count++;
-		}
-	}
-	// return shadowFactor / count;
-	return shadowFactor / 4.0;
+	return shadowFactor / 9.0;
 }
 
 #endif // LIGHTING_GLSL

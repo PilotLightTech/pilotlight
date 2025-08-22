@@ -412,7 +412,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create main camera
     plCamera* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3(-4.012f, 2.984f, -1.109f), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
+    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3(-4.012f, 2.984f, -1.109f), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 30.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, -0.465f, 1.341f);
     gptCamera->update(ptMainCamera);
     gptScript->attach(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
@@ -436,13 +436,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
     plEntity tPointLight = gptRenderer->create_point_light(ptAppData->ptComponentLibrary, "point light", pl_create_vec3(0.0f, 2.0f, 2.0f), &ptLight);
-    ptLight->uShadowResolution = 1024;
+    ptLight->uShadowResolution = 512;
+    ptLight->tColor = (plVec3){0.0f, 1.0f, 0.0f};
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
     plTransformComponent* ptPLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tPointLight);
     ptPLightTransform->tTranslation = pl_create_vec3(9.316f, 1.497f, -1.042f);
 
     plEntity tSpotLight = gptRenderer->create_spot_light(ptAppData->ptComponentLibrary, "spot light", pl_create_vec3(0.0f, 4.0f, -1.18f), pl_create_vec3(0.0, -0.390f, 0.368f), &ptLight);
-    ptLight->uShadowResolution = 1024;
+    ptLight->uShadowResolution = 512;
+    ptLight->tColor = (plVec3){1.0f, 0.0f, 1.0f};
     ptLight->fRange = 10.0f;
     ptLight->fRadius = 0.025f;
     ptLight->fIntensity = 20.0f;
@@ -451,10 +453,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptSLightTransform->tTranslation = pl_create_vec3(0.0f, 4.0f, -1.18f);
 
     plEnvironmentProbeComponent* ptProbe = NULL;
-    gptRenderer->create_environment_probe(ptAppData->ptComponentLibrary, "Main Probe", pl_create_vec3(0.0f, 3.0f, 0.0f), &ptProbe);
-    ptProbe->fRange = 30.0f;
-    ptProbe->uResolution = 128;
-    ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+    plVec3 atProbeLocations[] = {
+        pl_create_vec3(0.0f, 3.0f, 0.0f),
+        // pl_create_vec3(-8.7f, 1.5f, 0.0f),
+        // pl_create_vec3(8.8f, 1.5f, 0.0f),
+    };
+
+    for(uint32_t i = 0; i < PL_ARRAYSIZE(atProbeLocations); i++)
+    {
+        gptRenderer->create_environment_probe(ptAppData->ptComponentLibrary, "Probe", atProbeLocations[i], &ptProbe);
+        ptProbe->fRange = 30.0f;
+        ptProbe->uResolution = 128;
+        ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+    }
 
     gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/helipad.hdr", 1024);
 
@@ -961,6 +972,7 @@ pl__show_editor_window(plAppData* ptAppData)
             if(gptUI->checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;
             if(gptUI->checkbox("Punctual Lighting", &ptRuntimeOptions->bPunctualLighting)) bReloadShaders = true;
             if(gptUI->checkbox("Normal Mapping", &ptRuntimeOptions->bNormalMapping)) bReloadShaders = true;
+            if(gptUI->checkbox("PCF Shadows", &ptRuntimeOptions->bPcfShadows)) bReloadShaders = true;
             gptUI->checkbox("Show Probes", &ptRuntimeOptions->bShowProbes);
             if(gptUI->checkbox("UI MSAA", &ptAppData->bMSAA))
             {

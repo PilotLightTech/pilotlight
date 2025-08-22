@@ -31,10 +31,26 @@ pl_srgb_to_linear(vec4 color)
     return vec4(pl_srgb_to_linear(color.rgb), color.a);
 }
 
+float pl_max3(vec3 v)
+{
+	return max(max(v.x, v.y), v.z);
+}
+
+float pl_min3(vec3 v)
+{
+	return min(min(v.x, v.y), v.z);
+}
+
 float
 pl_saturate(float fV)
 {
     return clamp(fV, 0.0, 1.0);
+}
+
+vec2
+pl_saturate(vec2 v)
+{
+    return vec2(clamp(v.x, 0.0, 1.0), clamp(v.y, 0.0, 1.0));
 }
 
 float
