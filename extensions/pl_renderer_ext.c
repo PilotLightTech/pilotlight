@@ -889,7 +889,7 @@ pl_renderer_create_scene(plSceneInit tInit)
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
     gptGfx->return_command_buffer(ptCommandBuffer);
 
-#if 0
+#if 1
     plComputeShaderHandle tCharlieLutShader = gptShaderVariant->get_compute_shader("sheen_lut", NULL);
     ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 2");
     const plBeginCommandInfo tBeginInfo2 = {
@@ -1014,6 +1014,7 @@ pl_renderer_cleanup_scene(plScene* ptScene)
         return;
 
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tBrdfLutTexture);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tCharlieLutTexture);
     for(uint32_t j = 0; j < pl_sb_size(ptScene->sbtProbeData); j++)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];

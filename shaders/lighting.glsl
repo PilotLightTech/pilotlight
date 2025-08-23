@@ -16,6 +16,15 @@ getSpecularSample(vec3 reflection, float lod, int iProbeIndex)
     return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerLinearClamp), reflection, lod);
 }
 
+vec4
+getSheenSample(vec3 reflection, float lod, int iProbeIndex)
+{
+    // vec4 textureSample =  textureLod(u_CharlieEnvSampler, u_EnvRotation * reflection, lod);
+    // textureSample.rgb *= u_EnvIntensity;
+    // return textureSample;
+    return textureLod(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uCharlieEnvSampler)], tSamplerLinearClamp), reflection, lod);
+}
+
 vec3
 getIBLGGXFresnel(vec3 n, vec3 v, float roughness, vec3 F0, float specularWeight, int iProbeIndex)
 {
@@ -68,6 +77,21 @@ vec3 getIBLRadianceGGX(vec3 n, vec3 v, float roughness, int u_MipCount, vec3 tWo
     vec3 specularLight = specularSample.rgb;
 
     return specularLight;
+}
+
+vec3
+getIBLRadianceCharlie(vec3 n, vec3 v, float sheenRoughness, vec3 sheenColor, int u_MipCount, int iProbeIndex)
+{
+    float NdotV = clampedDot(n, v);
+    float lod = sheenRoughness * float(u_MipCount - 1);
+    vec3 reflection = normalize(reflect(-v, n));
+
+    vec2 brdfSamplePoint = clamp(vec2(NdotV, sheenRoughness), vec2(0.0, 0.0), vec2(1.0, 1.0));
+    float brdf = texture(sampler2D(at2DTextures[nonuniformEXT(tGpuScene.tData.iCharlieLutIndex)], tSamplerLinearClamp), brdfSamplePoint).b;
+    vec4 sheenSample = getSheenSample(reflection, lod, iProbeIndex);
+
+    vec3 sheenLight = sheenSample.rgb;
+    return sheenLight * sheenColor * brdf;
 }
 
 float

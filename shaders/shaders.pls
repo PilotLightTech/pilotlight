@@ -106,6 +106,17 @@
             ]
         },
         {
+            "pcName": "sheen_lut",
+            "tShader": { "file": "sheen_lut.comp"},
+            "atBindGroupLayouts": [
+                {
+                    "atBufferBindings": [
+                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
+        },
+        {
             "pcName": "cube_filter_specular",
             "tShader": { "file": "cube_filter_specular.comp"},
             "atBindGroupLayouts": [
@@ -116,6 +127,14 @@
         {
             "pcName": "cube_filter_diffuse",
             "tShader": { "file": "cube_filter_diffuse.comp"},
+            "atBindGroupLayouts": [
+                { "pcName": "cube_filter_set_0" },
+                { "pcName": "cube_filter_set_1" }
+            ]
+        },
+        {
+            "pcName": "cube_filter_sheen",
+            "tShader": { "file": "cube_filter_sheen.comp"},
             "atBindGroupLayouts": [
                 { "pcName": "cube_filter_set_0" },
                 { "pcName": "cube_filter_set_1" }
