@@ -812,8 +812,10 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                     if(gptUI->input_float("Roughness", &ptMaterialComp->fRoughness, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Metalness", &ptMaterialComp->fMetalness, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float4("Base Factor", ptMaterialComp->tBaseColor.d, NULL, 0)) bMaterialModified = true;
-                    if(gptUI->input_float4("Emmissive Factor", ptMaterialComp->tEmissiveColor.d, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float4("Base Color", ptMaterialComp->tBaseColor.d, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float4("Emmissive Color", ptMaterialComp->tEmissiveColor.d, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Clearcoat", &ptMaterialComp->fClearcoat, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Clearcoat Roughness", &ptMaterialComp->fClearcoatRoughness, NULL, 0)) bMaterialModified = true;
 
                     if(bMaterialModified)
                         gptRenderer->update_scene_materials(ptScene, 1, ptSelectedEntity);
@@ -832,7 +834,7 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                     static const char* apcShaderNames[] = 
                     {
                         "PL_SHADER_TYPE_PBR",
-                        "PL_SHADER_TYPE_UNLIT",
+                        "PL_SHADER_TYPE_PBR_CLEARCOAT",
                         "PL_SHADER_TYPE_CUSTOM"
                     };
                     gptUI->labeled_text("Shader Type", "%s", apcShaderNames[ptMaterialComp->tShaderType]);

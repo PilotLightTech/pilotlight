@@ -3571,7 +3571,6 @@ pl_renderer_begin_frame(void)
     // perform GPU buffer updates
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
-    uint64_t ulValue = gptStarter->get_current_timeline_value();
     plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
 
     for(uint32_t uSceneIndex = 0; uSceneIndex < pl_sb_size(gptData->sbptScenes); uSceneIndex++)
@@ -3603,7 +3602,7 @@ pl_renderer_begin_frame(void)
             const plBeginCommandInfo tSkinUpdateBeginInfo = {
                 .uWaitSemaphoreCount   = 1,
                 .atWaitSempahores      = {tSemHandle},
-                .auWaitSemaphoreValues = {ulValue},
+                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
             };
         
             plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "material upload");
@@ -3624,7 +3623,7 @@ pl_renderer_begin_frame(void)
             const plSubmitInfo tSkinUpdateSubmitInfo = {
                 .uSignalSemaphoreCount   = 1,
                 .atSignalSempahores      = {tSemHandle},
-                .auSignalSemaphoreValues = {++ulValue}
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
             gptGfx->submit_command_buffer(ptCommandBuffer, &tSkinUpdateSubmitInfo);
             

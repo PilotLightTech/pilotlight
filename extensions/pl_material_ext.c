@@ -86,6 +86,8 @@ pl_material_register_system(void)
         .tBaseColor            = {1.0f, 1.0f, 1.0f, 1.0f},
         .tEmissiveColor        = {0.0f, 0.0f, 0.0f, 0.0f},
         .fRoughness            = 1.0f,
+        .fClearcoat            = 0.0f,
+        .fClearcoatRoughness   = 0.0f,
         .fMetalness            = 1.0f,
         .fAlphaCutoff          = 0.5f,
         .atTextureMaps         = {0}

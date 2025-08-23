@@ -13,10 +13,22 @@ clampedDot(vec3 x, vec3 y)
     return clamp(dot(x, y), 0.0, 1.0);
 }
 
+float
+pl_linear_to_srgb(float color)
+{
+    return pow(color, INV_GAMMA);
+}
+
 vec3
 pl_linear_to_srgb(vec3 color)
 {
     return pow(color, vec3(INV_GAMMA));
+}
+
+float
+pl_srgb_to_linear(float color)
+{
+    return pow(color, GAMMA);
 }
 
 vec3
@@ -31,12 +43,14 @@ pl_srgb_to_linear(vec4 color)
     return vec4(pl_srgb_to_linear(color.rgb), color.a);
 }
 
-float pl_max3(vec3 v)
+float
+pl_max3(vec3 v)
 {
 	return max(max(v.x, v.y), v.z);
 }
 
-float pl_min3(vec3 v)
+float
+pl_min3(vec3 v)
 {
 	return min(min(v.x, v.y), v.z);
 }
