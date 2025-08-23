@@ -759,6 +759,199 @@ pl_renderer_create_scene(plSceneInit tInit)
     ptScene->tShadowRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tDepthRenderPassDesc, atShadowAttachmentSets);
     ptScene->tFirstShadowRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tFirstDepthRenderPassDesc, atShadowAttachmentSets);
 
+    const plTextureDesc tLutTextureDesc = {
+        .tDimensions = {(float)1024, (float)1024, 1},
+        .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+        .uLayers     = 1,
+        .uMips       = 1,
+        .tType       = PL_TEXTURE_TYPE_2D,
+        .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+    };
+    ptScene->tBrdfLutTexture = pl__renderer_create_texture(&tLutTextureDesc, "lut texture", 0, PL_TEXTURE_USAGE_SAMPLED);
+    ptScene->tCharlieLutTexture = pl__renderer_create_texture(&tLutTextureDesc, "charlie lut texture", 0, PL_TEXTURE_USAGE_SAMPLED);
+    ptScene->tSceneData.iBrdfLutIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tBrdfLutTexture);
+    ptScene->tSceneData.iCharlieLutIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tCharlieLutTexture);
+
+    plResourceHandle tSheenLut = gptResource->load("../data/lut_sheen_E.png", 0);
+    ptScene->tSheenLutTexture = gptResource->get_texture(tSheenLut);
+    ptScene->tSceneData.iSheenLutIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tSheenLutTexture);
+
+    const plBindGroupDesc tBrdfBGSet1Desc = {
+        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("brdf_lut", 0),
+        .pcDebugName = "brdf_lut_set_1"
+    };
+    plBindGroupHandle tBrdfBGSet1 = gptGfx->create_bind_group(gptData->ptDevice, &tBrdfBGSet1Desc);
+    
+    const size_t uFaceSize = ((size_t)1024 * (size_t)1024) * 4 * sizeof(float);
+
+    const plBindGroupUpdateBufferData tBrdfBGSet1BufferData[] = {
+        { .uSlot = 0, .tBuffer = ptScene->atFilterWorkingBuffers[0], .szBufferRange = uFaceSize}
+    };
+
+    const plBindGroupUpdateData tBrdfBGSet1Data = {
+        .uBufferCount = 1,
+        .atBufferBindings = tBrdfBGSet1BufferData,
+    };
+    gptGfx->update_bind_group(gptData->ptDevice, tBrdfBGSet1, &tBrdfBGSet1Data);
+    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tBrdfBGSet1);
+
+    plComputeShaderHandle tBrdfLutShader = gptShaderVariant->get_compute_shader("brdf_lut", NULL);
+    
+    const plDispatch tDispach0 = {
+        .uGroupCountX     = (uint32_t)1024 / 16,
+        .uGroupCountY     = (uint32_t)1024 / 16,
+        .uGroupCountZ     = 1,
+        .uThreadPerGroupX = 16,
+        .uThreadPerGroupY = 16,
+        .uThreadPerGroupZ = 1
+    };
+
+    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
+    plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
+
+    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 2");
+    const plBeginCommandInfo tBeginInfo0 = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {tSemHandle},
+        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+    };
+    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo0);
+
+    const plPassBufferResource atPassBuffers[] = {
+        { .tHandle = ptScene->atFilterWorkingBuffers[0], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+    };
+
+    const plPassResources tPassResources = {
+        .uBufferCount = 1,
+        .atBuffers = atPassBuffers
+    };
+
+    gptData->tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(gptData->ptDevice);
+
+    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(gptData->ptDevice);
+    plGpuDynFilterSpec* ptDynamicData = (plGpuDynFilterSpec*)tDynamicBinding.pcData;
+    ptDynamicData->iResolution = 1024;
+    ptDynamicData->fRoughness = 0.0f;
+    ptDynamicData->iSampleCount = (int)1024;
+    ptDynamicData->iWidth = 0;
+    ptDynamicData->fLodBias = 0.0f;
+    ptDynamicData->iCurrentMipLevel = 0;
+
+    plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
+    gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
+    gptGfx->bind_compute_bind_groups(ptComputeEncoder, tBrdfLutShader, 0, 1, &tBrdfBGSet1, 1, &tDynamicBinding);
+    gptGfx->bind_compute_shader(ptComputeEncoder, tBrdfLutShader);
+    gptGfx->dispatch(ptComputeEncoder, 1, &tDispach0);
+
+    gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
+    gptGfx->end_compute_pass(ptComputeEncoder);
+
+    gptGfx->end_command_recording(ptCommandBuffer);
+
+    const plSubmitInfo tSubmitInfo0 = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {tSemHandle},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+
+    ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 3");
+    const plBeginCommandInfo tBeginInfo1 = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {tSemHandle},
+        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+    };
+    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo1);
+    plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+
+    const plBufferImageCopy tBufferImageCopy0 = {
+        .uImageWidth = 1024,
+        .uImageHeight = 1024,
+        .uImageDepth = 1,
+        .uLayerCount = 1,
+        .szBufferOffset = 0,
+        .uBaseArrayLayer = 0,
+    };
+    gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[0], ptScene->tBrdfLutTexture, 1, &tBufferImageCopy0);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->end_blit_pass(ptBlitEncoder);
+    gptGfx->end_command_recording(ptCommandBuffer);
+    const plSubmitInfo tSubmitInfo = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {tSemHandle},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+
+#if 0
+    plComputeShaderHandle tCharlieLutShader = gptShaderVariant->get_compute_shader("sheen_lut", NULL);
+    ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 2");
+    const plBeginCommandInfo tBeginInfo2 = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {tSemHandle},
+        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+    };
+    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo2);
+
+    plDynamicBinding tDynamicBinding2 = pl__allocate_dynamic_data(gptData->ptDevice);
+    plGpuDynFilterSpec* ptDynamicData2 = (plGpuDynFilterSpec*)tDynamicBinding2.pcData;
+    ptDynamicData2->iResolution = 1024;
+    ptDynamicData2->fRoughness = 0.0f;
+    ptDynamicData2->iSampleCount = (int)64;
+    ptDynamicData2->iWidth = 0;
+    ptDynamicData2->fLodBias = 0.0f;
+    ptDynamicData2->iCurrentMipLevel = 0;
+
+    ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
+    gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
+    gptGfx->bind_compute_bind_groups(ptComputeEncoder, tCharlieLutShader, 0, 1, &tBrdfBGSet1, 1, &tDynamicBinding2);
+    gptGfx->bind_compute_shader(ptComputeEncoder, tCharlieLutShader);
+    gptGfx->dispatch(ptComputeEncoder, 1, &tDispach0);
+
+    gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
+    gptGfx->end_compute_pass(ptComputeEncoder);
+
+    gptGfx->end_command_recording(ptCommandBuffer);
+
+    const plSubmitInfo tSubmitInfo2 = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {tSemHandle},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo2);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+
+    ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 3");
+    const plBeginCommandInfo tBeginInfo3 = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {tSemHandle},
+        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+    };
+    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo3);
+    ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+
+    gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[0], ptScene->tCharlieLutTexture, 1, &tBufferImageCopy0);
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->end_blit_pass(ptBlitEncoder);
+    gptGfx->end_command_recording(ptCommandBuffer);
+    const plSubmitInfo tSubmitInfo4 = {
+        .uSignalSemaphoreCount   = 1,
+        .atSignalSempahores      = {tSemHandle},
+        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+    };
+    gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo4);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
+#endif
+
     return ptScene;
 }
 
@@ -820,13 +1013,14 @@ pl_renderer_cleanup_scene(plScene* ptScene)
     if(ptScene == NULL)
         return;
 
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tBrdfLutTexture);
     for(uint32_t j = 0; j < pl_sb_size(ptScene->sbtProbeData); j++)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];
-        
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tBrdfLutTexture);
+            
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tSheenEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tAlbedoTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tNormalTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tAOMetalRoughnessTexture);
@@ -1908,6 +2102,9 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
         if(ptMaterial->tShaderType == PL_SHADER_TYPE_PBR_CLEARCOAT)
             aiForwardFragmentConstantData0[2] |= PL_MATERIAL_SHADER_FLAG_CLEARCOAT;
 
+        if(ptMaterial->tShaderType == PL_SHADER_TYPE_PBR_SHEEN)
+            aiForwardFragmentConstantData0[2] |= PL_MATERIAL_SHADER_FLAG_SHEEN;
+
         int aiGBufferFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
@@ -2282,8 +2479,8 @@ pl_renderer_prepare_scene(plScene* ptScene)
         }
     }
 
-    // plBuffer* ptSceneBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSceneBuffer[uFrameIdx]);
-    // memcpy(ptSceneBuffer->tMemoryAllocation.pHostMapped, &ptScene->tSceneBuffer, sizeof(plGpuSceneData));
+    plBuffer* ptSceneBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSceneBuffer[uFrameIdx]);
+    memcpy(ptSceneBuffer->tMemoryAllocation.pHostMapped, &ptScene->tSceneData, sizeof(plGpuSceneData));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2529,7 +2726,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
             .fRangeSqr              = ptProbe->fRange * ptProbe->fRange,
             .uGGXEnvSampler         = ptScene->sbtProbeData[i].uGGXEnvSampler,
             .uLambertianEnvSampler  = ptScene->sbtProbeData[i].uLambertianEnvSampler,
-            .tBrdfLutIndex                = ptScene->sbtProbeData[i].tBrdfLutIndex,
+            .uCharlieEnvSampler     = ptScene->sbtProbeData[i].uSheenEnvSampler,
             .tMin.xyz               = ptObject->tAABB.tMin,
             .tMax.xyz               = ptObject->tAABB.tMax,
             .iParallaxCorrection    = (int)(ptProbe->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX)
@@ -3747,26 +3944,31 @@ pl_renderer_update_scene_materials(plScene* ptScene, uint32_t uMaterialCount, co
         else
         {
             plGpuMaterial* ptGPUMaterial = &ptScene->sbtMaterialBuffer[uMaterialIndex];
-            pl_material_fill_gpu_data(ptMaterial, ptGPUMaterial);
 
-            // load textures
-            plTextureHandle tBaseColorTex = ptGPUMaterial->iBaseColorTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource); 
-            plTextureHandle tNormalTex = ptGPUMaterial->iNormalTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource);
-            plTextureHandle tEmissiveTex = ptGPUMaterial->iEmissiveTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource);
-            plTextureHandle tMetallicRoughnessTex = ptGPUMaterial->iMetallicRoughnessTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource);
-            plTextureHandle tOcclusionTex = ptGPUMaterial->iOcclusionTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource);
-            plTextureHandle tClearcoatTex = ptGPUMaterial->iClearcoatTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_MAP].tResource);
-            plTextureHandle tClearcoatRoughnessTex = ptGPUMaterial->iClearcoatRoughnessTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP].tResource);
-            plTextureHandle tClearcoatNormalTex = ptGPUMaterial->iClearcoatNormalTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP].tResource);
+            ptGPUMaterial->fMetallicFactor           = ptMaterial->fMetalness;
+            ptGPUMaterial->fRoughnessFactor          = ptMaterial->fRoughness;
+            ptGPUMaterial->tBaseColorFactor          = ptMaterial->tBaseColor;
+            ptGPUMaterial->tEmissiveFactor           = ptMaterial->tEmissiveColor.rgb;
+            ptGPUMaterial->fAlphaCutoff              = ptMaterial->fAlphaCutoff;
+            ptGPUMaterial->fClearcoatFactor          = ptMaterial->fClearcoat;
+            ptGPUMaterial->fClearcoatRoughnessFactor = ptMaterial->fClearcoatRoughness;
+            ptGPUMaterial->fSheenRoughnessFactor     = ptMaterial->fSheenRoughness;
+            ptGPUMaterial->tSheenColorFactor         = ptMaterial->tSheenColor;
+            ptGPUMaterial->fOcclusionStrength        = 1.0f;
+            ptGPUMaterial->fEmissiveStrength         = 1.0f;
 
-            ptGPUMaterial->iBaseColorTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tBaseColorTex);
-            ptGPUMaterial->iNormalTexIdx             = (int)pl__renderer_get_bindless_texture_index(ptScene, tNormalTex);
-            ptGPUMaterial->iEmissiveTexIdx           = (int)pl__renderer_get_bindless_texture_index(ptScene, tEmissiveTex);
-            ptGPUMaterial->iMetallicRoughnessTexIdx  = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
-            ptGPUMaterial->iOcclusionTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
-            ptGPUMaterial->iClearcoatTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatTex);
-            ptGPUMaterial->iClearcoatRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatRoughnessTex);
-            ptGPUMaterial->iClearcoatNormalTexIdx    = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatNormalTex);
+            const int iDummyIndex = (int)pl__renderer_get_bindless_texture_index(ptScene, gptData->tDummyTexture);
+            for(uint32_t uTextureIndex = 0; uTextureIndex < PL_TEXTURE_SLOT_COUNT; uTextureIndex++)
+            {
+                ptGPUMaterial->aiTextureUVSet[uTextureIndex]   = (int)ptMaterial->atTextureMaps[uTextureIndex].uUVSet;
+                if(gptResource->is_valid(ptMaterial->atTextureMaps[uTextureIndex].tResource))
+                {
+                    plTextureHandle tValidTexture = gptResource->get_texture(ptMaterial->atTextureMaps[uTextureIndex].tResource);
+                    ptGPUMaterial->aiTextureIndices[uTextureIndex] = (int)pl__renderer_get_bindless_texture_index(ptScene, tValidTexture);
+                }
+                else
+                    ptGPUMaterial->aiTextureIndices[uTextureIndex] = iDummyIndex;
+            }
         }
     }
     ptScene->uGPUMaterialDirty = gptGfx->get_frames_in_flight();
@@ -3823,17 +4025,6 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
         const plEntity tMaterialComp = atMaterials[i];
         plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, tMaterialComp);
 
-        // load textures from disk
-        for(uint32_t uTextureSlot = 0; uTextureSlot < PL_TEXTURE_SLOT_COUNT; uTextureSlot++)
-        {
-
-            if(gptResource->is_valid(ptMaterial->atTextureMaps[uTextureSlot].tResource))
-            {
-                plTextureHandle tTextureHandle = gptResource->get_texture(ptMaterial->atTextureMaps[uTextureSlot].tResource);
-                plTexture* ptTexture = gptGfx->get_texture(gptData->ptDevice, tTextureHandle);
-            }
-        }
-
         uint64_t uMaterialIndex = UINT64_MAX;
 
         // see if material already exists
@@ -3849,27 +4040,32 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
             uMaterialIndex = ulValue;
 
             plGpuMaterial* ptGPUMaterial = &ptScene->sbtMaterialBuffer[uMaterialIndex];
-            pl_material_fill_gpu_data(ptMaterial, ptGPUMaterial);
 
-            // load textures
-            plTextureHandle tBaseColorTex = ptGPUMaterial->iBaseColorTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_BASE_COLOR_MAP].tResource); 
-            plTextureHandle tNormalTex = ptGPUMaterial->iNormalTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_NORMAL_MAP].tResource);
-            plTextureHandle tEmissiveTex = ptGPUMaterial->iEmissiveTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_EMISSIVE_MAP].tResource);
-            plTextureHandle tMetallicRoughnessTex = ptGPUMaterial->iMetallicRoughnessTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_METAL_ROUGHNESS_MAP].tResource);
-            plTextureHandle tOcclusionTex = ptGPUMaterial->iOcclusionTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_OCCLUSION_MAP].tResource);
-            plTextureHandle tClearcoatTex = ptGPUMaterial->iClearcoatTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_MAP].tResource);
-            plTextureHandle tClearcoatRoughnessTex = ptGPUMaterial->iClearcoatRoughnessTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP].tResource);
-            plTextureHandle tClearcoatNormalTex = ptGPUMaterial->iClearcoatNormalTexIdx == -1 ? gptData->tDummyTexture : gptResource->get_texture(ptMaterial->atTextureMaps[PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP].tResource);
+            ptGPUMaterial->fMetallicFactor           = ptMaterial->fMetalness;
+            ptGPUMaterial->fRoughnessFactor          = ptMaterial->fRoughness;
+            ptGPUMaterial->tBaseColorFactor          = ptMaterial->tBaseColor;
+            ptGPUMaterial->tEmissiveFactor           = ptMaterial->tEmissiveColor.rgb;
+            ptGPUMaterial->fAlphaCutoff              = ptMaterial->fAlphaCutoff;
+            ptGPUMaterial->fClearcoatFactor          = ptMaterial->fClearcoat;
+            ptGPUMaterial->fClearcoatRoughnessFactor = ptMaterial->fClearcoatRoughness;
+            ptGPUMaterial->fSheenRoughnessFactor     = ptMaterial->fSheenRoughness;
+            ptGPUMaterial->tSheenColorFactor         = ptMaterial->tSheenColor;
+            ptGPUMaterial->fOcclusionStrength        = 1.0f;
+            ptGPUMaterial->fEmissiveStrength         = 1.0f;
 
-            ptGPUMaterial->iBaseColorTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tBaseColorTex);
-            ptGPUMaterial->iNormalTexIdx             = (int)pl__renderer_get_bindless_texture_index(ptScene, tNormalTex);
-            ptGPUMaterial->iEmissiveTexIdx           = (int)pl__renderer_get_bindless_texture_index(ptScene, tEmissiveTex);
-            ptGPUMaterial->iMetallicRoughnessTexIdx  = (int)pl__renderer_get_bindless_texture_index(ptScene, tMetallicRoughnessTex);
-            ptGPUMaterial->iOcclusionTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tOcclusionTex);
-            ptGPUMaterial->iClearcoatTexIdx          = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatTex);
-            ptGPUMaterial->iClearcoatRoughnessTexIdx = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatRoughnessTex);
-            ptGPUMaterial->iClearcoatNormalTexIdx    = (int)pl__renderer_get_bindless_texture_index(ptScene, tClearcoatNormalTex);
-            
+            const int iDummyIndex = (int)pl__renderer_get_bindless_texture_index(ptScene, gptData->tDummyTexture);
+            for(uint32_t uTextureIndex = 0; uTextureIndex < PL_TEXTURE_SLOT_COUNT; uTextureIndex++)
+            {
+                ptGPUMaterial->aiTextureUVSet[uTextureIndex]   = (int)ptMaterial->atTextureMaps[uTextureIndex].uUVSet;
+                if(gptResource->is_valid(ptMaterial->atTextureMaps[uTextureIndex].tResource))
+                {
+                    plTextureHandle tValidTexture = gptResource->get_texture(ptMaterial->atTextureMaps[uTextureIndex].tResource);
+                    ptGPUMaterial->aiTextureIndices[uTextureIndex] = (int)pl__renderer_get_bindless_texture_index(ptScene, tValidTexture);
+                }
+                else
+                    ptGPUMaterial->aiTextureIndices[uTextureIndex] = iDummyIndex;
+            }
+
             pl_hm_insert(&ptScene->tMaterialHashmap, tMaterialComp.uData, ulValue);
         }
     }

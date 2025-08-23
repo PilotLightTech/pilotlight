@@ -13,6 +13,10 @@ struct MaterialInfo
     float metallic;
     vec3 baseColor;
 
+    // sheen
+    float sheenRoughnessFactor;
+    vec3 sheenColorFactor;
+
     // KHR_materials_specular 
     float specularWeight; // product of specularFactor and specularTexture.a
 

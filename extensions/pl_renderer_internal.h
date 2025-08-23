@@ -260,12 +260,12 @@ typedef struct _plEnvironmentProbeData
     plDirectionLightShadowData tDirectionLightShadowData;
 
     // textures
-    plTextureHandle tBrdfLutTexture;
-    uint32_t        tBrdfLutIndex;
     plTextureHandle tLambertianEnvTexture;
     uint32_t        uLambertianEnvSampler;
     plTextureHandle tGGXEnvTexture;
     uint32_t        uGGXEnvSampler;
+    plTextureHandle tSheenEnvTexture;
+    uint32_t        uSheenEnvSampler;
 
     // intervals
     uint32_t uCurrentFace;
@@ -335,12 +335,18 @@ typedef struct _plView
 typedef struct _plScene
 {
     const char* pcName;
+    plGpuSceneData tSceneData;
     bool           bActive;
     plShaderHandle tLightingShader;
     plShaderHandle tDeferredLightingVolumeShader;
     plShaderHandle tEnvLightingShader;
     plShaderHandle tEnvLightingVolumeShader;
     uint64_t uLastSemValueForShadow;
+
+    // brdf luts
+    plTextureHandle tBrdfLutTexture;
+    plTextureHandle tCharlieLutTexture;
+    plTextureHandle tSheenLutTexture;
 
     // skybox resources (optional)
     plDrawable        tSkyboxDrawable;
@@ -574,7 +580,6 @@ static void                    pl__renderer_add_drawable_data_to_global_buffer(p
 static plBlendState            pl__renderer_get_blend_state(plBlendMode tBlendMode);
 static uint32_t                pl__renderer_get_bindless_texture_index(plScene*, plTextureHandle);
 static uint32_t                pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);
-void pl_material_fill_gpu_data(const plMaterialComponent* ptComp, plGpuMaterial* ptMaterial);
 
 // drawable ops
 static void pl__renderer_add_skybox_drawable(plScene*);

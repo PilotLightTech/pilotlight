@@ -7,9 +7,7 @@
 #include "pl_shader_interop.h"
 #include "pl_shader_interop_renderer.h"
 
-layout(set = 0, binding = 0)  uniform sampler tDefaultSampler;
-layout(set = 0, binding = 1) uniform textureCube uCubeMap;
-layout(std140, set = 1, binding = 0) buffer _tBufferOut{ vec4 atPixelData[]; } tLUTOut;
+layout(std140, set = 0, binding = 0) buffer _tBufferOut{ vec4 atPixelData[]; } tLUTOut;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -30,7 +28,7 @@ main()
 
     const float fLutxinc = 1.0 / float(tDynamicData.tData.iResolution);
     const float fLutyinc = 1.0 / float(tDynamicData.tData.iResolution);
-    vec2 tLutUV = vec2(max(fXCoord * fLutxinc, 0.0001), max(fYCoord * fLutyinc, 0.1));
+    vec2 tLutUV = vec2(max(fXCoord * fLutxinc, 0.1), max(fYCoord * fLutyinc, 0.0001));
     const int iCurrentLUTPixel = int(fXCoord + fYCoord * float(tDynamicData.tData.iResolution));
 
     float fNdotV = tLutUV.x;
@@ -73,6 +71,7 @@ main()
             // Shadertoy: https://www.shadertoy.com/view/3lXXDB
             // Terms besides V are from the GGX PDF we're dividing by.
             float fVPdf = pl_masking_shadowing_ggx(fNdotL, fNdotV, fRoughness) * fVdotH * fNdotL / fNdotH;
+            // fVPdf /= 4.0;
             float fFc = pow(1.0 - fVdotH, 5.0);
             fA += (1.0 - fFc) * fVPdf;
             fB += fFc * fVPdf;
@@ -86,8 +85,4 @@ main()
     vec3 tColor =  vec3(4.0 * fA, 4.0 * fB, 4.0 * 2.0 * PL_PI * fC) / float(tDynamicData.tData.iSampleCount);
 
     tLUTOut.atPixelData[iCurrentLUTPixel] = vec4(tColor, 1.0);
-    // if(iCurrentLUTPixel == 0)
-    // {
-    //     tLUTOut.atPixelData[0] = tLUTOut.atPixelData[1];
-    // } 
 }

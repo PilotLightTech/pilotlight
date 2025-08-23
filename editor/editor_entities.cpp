@@ -489,6 +489,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 {
                     "PL_SHADER_TYPE_PBR",
                     "PL_SHADER_TYPE_PBR_CLEARCOAT",
+                    "PL_SHADER_TYPE_PBR_SHEEN",
                     "PL_SHADER_TYPE_CUSTOM"
                 };
                 ImGui::LabelText("Shader Type", "%s", apcShaderNames[ptMaterialComp->tShaderType]);

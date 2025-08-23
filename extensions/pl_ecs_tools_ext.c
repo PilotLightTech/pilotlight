@@ -814,6 +814,8 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                     if(gptUI->input_float("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float4("Base Color", ptMaterialComp->tBaseColor.d, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float4("Emmissive Color", ptMaterialComp->tEmissiveColor.d, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float3("Sheen Color", ptMaterialComp->tSheenColor.d, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Sheen Roughness", &ptMaterialComp->fSheenRoughness, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Clearcoat", &ptMaterialComp->fClearcoat, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Clearcoat Roughness", &ptMaterialComp->fClearcoatRoughness, NULL, 0)) bMaterialModified = true;
 
@@ -835,6 +837,7 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                     {
                         "PL_SHADER_TYPE_PBR",
                         "PL_SHADER_TYPE_PBR_CLEARCOAT",
+                        "PL_SHADER_TYPE_PBR_SHEEN",
                         "PL_SHADER_TYPE_CUSTOM"
                     };
                     gptUI->labeled_text("Shader Type", "%s", apcShaderNames[ptMaterialComp->tShaderType]);

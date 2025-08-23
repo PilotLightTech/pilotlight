@@ -107,6 +107,8 @@ enum _plTextureSlot
     PL_TEXTURE_SLOT_CLEARCOAT_MAP,
     PL_TEXTURE_SLOT_CLEARCOAT_ROUGHNESS_MAP,
     PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP,
+    PL_TEXTURE_SLOT_SHEEN_COLOR_MAP,
+    PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP,
     
     PL_TEXTURE_SLOT_COUNT
 };
@@ -115,6 +117,7 @@ enum _plShaderType
 {
     PL_SHADER_TYPE_PBR,
     PL_SHADER_TYPE_PBR_CLEARCOAT,
+    PL_SHADER_TYPE_PBR_SHEEN,
     PL_SHADER_TYPE_CUSTOM,
     
     PL_SHADER_TYPE_COUNT
@@ -156,6 +159,8 @@ typedef struct _plMaterialComponent
     float           fMetalness;          // default: 1.0f
     float           fClearcoat;          // default: 0.0f
     float           fClearcoatRoughness; // default: 0.0f
+    float           fSheenRoughness;     // default: 0.0f
+    plVec3          tSheenColor;         // default: {1.0f, 1.0f, 1.0f, 1.0f}
     plTextureMap    atTextureMaps[PL_TEXTURE_SLOT_COUNT];
 } plMaterialComponent;
 

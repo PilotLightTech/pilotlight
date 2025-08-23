@@ -51,6 +51,7 @@ Index of this file:
 PL_BEGIN_ENUM(plMaterialShaderFlags)
     PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS, 1 << 0)
     PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_CLEARCOAT,          1 << 1)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_SHEEN,              1 << 2)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plRenderingFlags)
@@ -93,17 +94,6 @@ PL_BEGIN_ENUM(plLightType)
     PL_ENUM_ITEM(PL_LIGHT_TYPE_SPOT,        2)
 PL_END_ENUM
 
-PL_BEGIN_ENUM(plTextureMappingFlags)
-    PL_ENUM_ITEM(PL_HAS_BASE_COLOR_MAP,          1 << 0)
-    PL_ENUM_ITEM(PL_HAS_NORMAL_MAP,              1 << 1)
-    PL_ENUM_ITEM(PL_HAS_EMISSIVE_MAP,            1 << 2)
-    PL_ENUM_ITEM(PL_HAS_OCCLUSION_MAP,           1 << 3)
-    PL_ENUM_ITEM(PL_HAS_METALLIC_ROUGHNESS_MAP,  1 << 4)
-    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_MAP,           1 << 5)
-    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_ROUGHNESS_MAP, 1 << 6)
-    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_NORMAL_MAP,    1 << 7)
-PL_END_ENUM
-
 PL_BEGIN_ENUM(plShaderDebugMode)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_MODE_NONE, 0)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_BASE_COLOR, 1)
@@ -121,6 +111,38 @@ PL_BEGIN_ENUM(plShaderDebugMode)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_CLEARCOAT, 13)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_CLEARCOAT_ROUGHNESS, 14)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_CLEARCOAT_NORMAL, 15)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_SHEEN_COLOR, 16)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_SHEEN_ROUGHNESS, 17)
+PL_END_ENUM
+
+PL_BEGIN_ENUM(plShaderTextureSlot)
+    PL_ENUM_ITEM(PL_TEXTURE_BASE_COLOR,          0)
+    PL_ENUM_ITEM(PL_TEXTURE_NORMAL,              1)
+    PL_ENUM_ITEM(PL_TEXTURE_EMISSIVE,            2)
+    PL_ENUM_ITEM(PL_TEXTURE_OCCLUSION,           3)
+
+    PL_ENUM_ITEM(PL_TEXTURE_METAL_ROUGHNESS,     4)
+    PL_ENUM_ITEM(PL_TEXTURE_CLEARCOAT,           5)
+    PL_ENUM_ITEM(PL_TEXTURE_CLEARCOAT_ROUGHNESS, 6)
+    PL_ENUM_ITEM(PL_TEXTURE_CLEARCOAT_NORMAL,    7)
+
+    PL_ENUM_ITEM(PL_TEXTURE_SHEEN_COLOR,         8)
+    PL_ENUM_ITEM(PL_TEXTURE_SHEEN_ROUGHNESS,     9)
+
+    PL_ENUM_ITEM(PL_TEXTURE_COUNT,               12)
+PL_END_ENUM
+
+PL_BEGIN_ENUM(plTextureMappingFlags)
+    PL_ENUM_ITEM(PL_HAS_BASE_COLOR_MAP,          1 << 0)
+    PL_ENUM_ITEM(PL_HAS_NORMAL_MAP,              1 << 1)
+    PL_ENUM_ITEM(PL_HAS_EMISSIVE_MAP,            1 << 2)
+    PL_ENUM_ITEM(PL_HAS_OCCLUSION_MAP,           1 << 3)
+    PL_ENUM_ITEM(PL_HAS_METALLIC_ROUGHNESS_MAP,  1 << 4)
+    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_MAP,           1 << 5)
+    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_ROUGHNESS_MAP, 1 << 6)
+    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_NORMAL_MAP,    1 << 7)
+    PL_ENUM_ITEM(PL_HAS_SHEEN_COLOR_MAP,         1 << 8)
+    PL_ENUM_ITEM(PL_HAS_SHEEN_ROUGHNESS_MAP,     1 << 9)
 PL_END_ENUM
 
 //-----------------------------------------------------------------------------
@@ -140,7 +162,10 @@ PL_END_STRUCT(plGpuDynData)
 
 PL_BEGIN_STRUCT(plGpuSceneData)
 
-    vec4 tUnused;
+    int iBrdfLutIndex;
+    int iCharlieLutIndex;
+    int iSheenLutIndex;
+    int _iUnused0;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     // ~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
@@ -377,17 +402,23 @@ PL_BEGIN_STRUCT(plGpuProbe)
     float fRangeSqr;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    uint  uLambertianEnvSampler;
-    uint  uGGXEnvSampler;
-    uint  tBrdfLutIndex;
-    int   iParallaxCorrection;
+    uint uLambertianEnvSampler;
+    uint uGGXEnvSampler;
+    int  uCharlieEnvSampler;
+    int  iParallaxCorrection;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     vec4 tMin;
     vec4 tMax;
     // ~~~~~~~~~~~~~~~~32 bytes~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+    int _unused0;
+    int _unused1;
+    int _unused2;
+    int _unused3;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~80 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuProbe)
 
 PL_BEGIN_STRUCT(plGpuLightShadow)
@@ -440,38 +471,22 @@ PL_BEGIN_STRUCT(plGpuMaterial)
     vec3 tEmissiveFactor;
     float fEmissiveStrength;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec3 tSheenColorFactor;
+    float fSheenRoughnessFactor;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
     
     float fAlphaCutoff;
     float fOcclusionStrength;
-    int iBaseColorUVSet;
-    int iNormalUVSet;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-
-    int iEmissiveUVSet;
-    int iOcclusionUVSet;
-    int iMetallicRoughnessUVSet;
-    int iBaseColorTexIdx;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-
-    int iNormalTexIdx;
-    int iEmissiveTexIdx;
-    int iMetallicRoughnessTexIdx;
-    int iOcclusionTexIdx;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-
-    int iClearcoatTexIdx;
-    int iClearcoatRoughnessTexIdx;
-    int iClearcoatNormalTexIdx;
-    int iClearcoatUVSet;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-
-    int iClearcoatRoughnessUVSet;
-    int iClearcoatNormalUVSet;
     int _iUnused0;
     int _iUnused1;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~128 bytes~~~~~~~~~~~~~~~~
+    int aiTextureUVSet[PL_TEXTURE_COUNT];
+    int aiTextureIndices[PL_TEXTURE_COUNT];
+    // ~~~~~~~~~~~~~~~~96 bytes~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~144 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuMaterial)
 
 #endif // PL_SHADER_INTEROP_RENDERER_H

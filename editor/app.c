@@ -936,6 +936,8 @@ pl__show_editor_window(plAppData* ptAppData)
                 "Clearcoat",
                 "Clearcoat Roughness",
                 "Clearcoat Normal",
+                "Sheen Color",
+                "Sheen Roughness",
             };
             bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
             abShaderDebugMode[ptRuntimeOptions->tShaderDebugMode] = true;

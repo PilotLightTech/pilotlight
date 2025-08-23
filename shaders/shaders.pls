@@ -98,10 +98,9 @@
             "pcName": "brdf_lut",
             "tShader": { "file": "brdf_lut.comp"},
             "atBindGroupLayouts": [
-                { "pcName": "cube_filter_set_0" },
                 {
                     "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 }
             ]

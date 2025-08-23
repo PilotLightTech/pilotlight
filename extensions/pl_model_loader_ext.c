@@ -501,6 +501,21 @@ pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialCo
         if(ptGltfMaterial->clearcoat.clearcoat_normal_texture.texture)
 			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP, &ptGltfMaterial->clearcoat.clearcoat_normal_texture, pcDirectory, ptGltfMaterial, ptMaterial);
     }
+
+    if(ptGltfMaterial->has_sheen)
+    {
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_SHEEN;
+        ptMaterial->fSheenRoughness = ptGltfMaterial->sheen.sheen_roughness_factor;
+
+        ptMaterial->tSheenColor.r = ptGltfMaterial->sheen.sheen_color_factor[0];
+        ptMaterial->tSheenColor.g = ptGltfMaterial->sheen.sheen_color_factor[1];
+        ptMaterial->tSheenColor.b = ptGltfMaterial->sheen.sheen_color_factor[2];
+
+        if(ptGltfMaterial->sheen.sheen_color_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_SHEEN_COLOR_MAP, &ptGltfMaterial->sheen.sheen_color_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+        if(ptGltfMaterial->sheen.sheen_roughness_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP, &ptGltfMaterial->sheen.sheen_roughness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+    }
 }
 
 static void
