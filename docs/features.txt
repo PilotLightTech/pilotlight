@@ -98,6 +98,8 @@ Reference Renderer:
     * gltf model loading
     * stl model loading
     * grid renderer
+    * Sheen Materials
+    * Clearcoat Materials
 
 Wishlist:
     * Morph target animation (with sparse accessor)

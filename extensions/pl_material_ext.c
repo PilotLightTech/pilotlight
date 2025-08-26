@@ -92,6 +92,7 @@ pl_material_register_system(void)
         .fSheenRoughness       = 0.0f,
         .fMetalness            = 1.0f,
         .fAlphaCutoff          = 0.5f,
+        .fNormalMapStrength    = 1.0f,
         .atTextureMaps         = {0}
     };
     gptMaterialCtx->tComponentType = gptECS->register_type(tMaterialDesc, &tMaterialComponentDefault);

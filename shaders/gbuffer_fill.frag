@@ -136,8 +136,7 @@ pl_get_normal_info(int iUVSet)
     {
         plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
         info.ntex = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_NORMAL])], tSamplerLinearRepeat), UV).rgb * 2.0 - vec3(1.0);
-        // info.ntex *= vec3(0.2, 0.2, 1.0);
-        // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
+        info.ntex *= vec3(material.fNormalMapStrength, material.fNormalMapStrength, 1.0);
         info.ntex = normalize(info.ntex);
         info.n = normalize(mat3(t, b, ng) * info.ntex);
     }

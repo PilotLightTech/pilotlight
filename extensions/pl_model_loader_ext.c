@@ -455,7 +455,10 @@ pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialCo
         ptMaterial->tBlendMode = PL_BLEND_MODE_CLIP_MASK;
 
 	if(ptGltfMaterial->normal_texture.texture)
+    {
 		pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_NORMAL_MAP, &ptGltfMaterial->normal_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+        ptMaterial->fNormalMapStrength = ptGltfMaterial->normal_texture.scale;
+    }
 
     ptMaterial->tEmissiveColor.r = ptGltfMaterial->emissive_factor[0];
     ptMaterial->tEmissiveColor.g = ptGltfMaterial->emissive_factor[1];

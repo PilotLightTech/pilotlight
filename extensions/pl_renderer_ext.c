@@ -3885,6 +3885,7 @@ pl_renderer_update_scene_materials(plScene* ptScene, uint32_t uMaterialCount, co
             ptGPUMaterial->fClearcoatFactor          = ptMaterial->fClearcoat;
             ptGPUMaterial->fClearcoatRoughnessFactor = ptMaterial->fClearcoatRoughness;
             ptGPUMaterial->fSheenRoughnessFactor     = ptMaterial->fSheenRoughness;
+            ptGPUMaterial->fNormalMapStrength        = ptMaterial->fNormalMapStrength;
             ptGPUMaterial->tSheenColorFactor         = ptMaterial->tSheenColor;
             ptGPUMaterial->fOcclusionStrength        = 1.0f;
             ptGPUMaterial->fEmissiveStrength         = 1.0f;
@@ -3981,6 +3982,7 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
             ptGPUMaterial->fClearcoatFactor          = ptMaterial->fClearcoat;
             ptGPUMaterial->fClearcoatRoughnessFactor = ptMaterial->fClearcoatRoughness;
             ptGPUMaterial->fSheenRoughnessFactor     = ptMaterial->fSheenRoughness;
+            ptGPUMaterial->fNormalMapStrength        = ptMaterial->fNormalMapStrength;
             ptGPUMaterial->tSheenColorFactor         = ptMaterial->tSheenColor;
             ptGPUMaterial->fOcclusionStrength        = 1.0f;
             ptGPUMaterial->fEmissiveStrength         = 1.0f;

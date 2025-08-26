@@ -160,6 +160,7 @@ typedef struct _plMaterialComponent
     float           fClearcoat;          // default: 0.0f
     float           fClearcoatRoughness; // default: 0.0f
     float           fSheenRoughness;     // default: 0.0f
+    float           fNormalMapStrength;  // default: 1.0f
     plVec3          tSheenColor;         // default: {1.0f, 1.0f, 1.0f, 1.0f}
     plTextureMap    atTextureMaps[PL_TEXTURE_SLOT_COUNT];
 } plMaterialComponent;

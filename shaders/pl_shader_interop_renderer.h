@@ -479,7 +479,7 @@ PL_BEGIN_STRUCT(plGpuMaterial)
     
     float fAlphaCutoff;
     float fOcclusionStrength;
-    int _iUnused0;
+    float fNormalMapStrength;
     int _iUnused1;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
