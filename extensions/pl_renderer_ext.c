@@ -2742,7 +2742,8 @@ pl_renderer_prepare_scene(plScene* ptScene)
     }
 
     // update environment probes
-    pl__renderer_update_probes(ptScene);
+    if(uFrameIdx == 0) // multiple frames in flight may fight
+        pl__renderer_update_probes(ptScene);
 
     pl_end_cpu_sample(gptProfile, 0);
 }
