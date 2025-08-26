@@ -3886,9 +3886,9 @@ pl_renderer_update_scene_materials(plScene* ptScene, uint32_t uMaterialCount, co
             ptGPUMaterial->fClearcoatRoughnessFactor = ptMaterial->fClearcoatRoughness;
             ptGPUMaterial->fSheenRoughnessFactor     = ptMaterial->fSheenRoughness;
             ptGPUMaterial->fNormalMapStrength        = ptMaterial->fNormalMapStrength;
+            ptGPUMaterial->fEmissiveStrength         = ptMaterial->fEmissiveStrength;
             ptGPUMaterial->tSheenColorFactor         = ptMaterial->tSheenColor;
             ptGPUMaterial->fOcclusionStrength        = 1.0f;
-            ptGPUMaterial->fEmissiveStrength         = 1.0f;
 
             const int iDummyIndex = (int)pl__renderer_get_bindless_texture_index(ptScene, gptData->tDummyTexture);
             for(uint32_t uTextureIndex = 0; uTextureIndex < PL_TEXTURE_SLOT_COUNT; uTextureIndex++)
@@ -3983,9 +3983,9 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
             ptGPUMaterial->fClearcoatRoughnessFactor = ptMaterial->fClearcoatRoughness;
             ptGPUMaterial->fSheenRoughnessFactor     = ptMaterial->fSheenRoughness;
             ptGPUMaterial->fNormalMapStrength        = ptMaterial->fNormalMapStrength;
+            ptGPUMaterial->fEmissiveStrength         = ptMaterial->fEmissiveStrength;
             ptGPUMaterial->tSheenColorFactor         = ptMaterial->tSheenColor;
             ptGPUMaterial->fOcclusionStrength        = 1.0f;
-            ptGPUMaterial->fEmissiveStrength         = 1.0f;
 
             const int iDummyIndex = (int)pl__renderer_get_bindless_texture_index(ptScene, gptData->tDummyTexture);
             for(uint32_t uTextureIndex = 0; uTextureIndex < PL_TEXTURE_SLOT_COUNT; uTextureIndex++)

@@ -743,7 +743,7 @@ void main()
     }
 
     // emissive
-    f_emissive = material.tEmissiveFactor;
+    f_emissive = material.tEmissiveFactor * material.fEmissiveStrength;
     if(bool(iTextureMappingFlags & PL_HAS_EMISSIVE_MAP))
     {
         f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_EMISSIVE])], tSamplerLinearRepeat), tShaderIn.tUV[material.aiTextureUVSet[PL_TEXTURE_EMISSIVE]]).rgb);

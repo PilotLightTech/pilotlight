@@ -460,6 +460,8 @@ pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialCo
         ptMaterial->fNormalMapStrength = ptGltfMaterial->normal_texture.scale;
     }
 
+    if(ptGltfMaterial->has_emissive_strength)
+        ptMaterial->fEmissiveStrength = ptGltfMaterial->emissive_strength.emissive_strength;
     ptMaterial->tEmissiveColor.r = ptGltfMaterial->emissive_factor[0];
     ptMaterial->tEmissiveColor.g = ptGltfMaterial->emissive_factor[1];
     ptMaterial->tEmissiveColor.b = ptGltfMaterial->emissive_factor[2];
