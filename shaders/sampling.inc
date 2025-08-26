@@ -80,4 +80,21 @@ pl_get_importance_sample_cosine(vec2 tXi, vec3 tN)
     return tDirection;
 }
 
+vec3
+pl_get_importance_sample_charlie(vec2 tXi, vec3 tN, float fRoughness)
+{
+    const float fAlpha = fRoughness * fRoughness;
+
+    float fSinTheta = pow(tXi.y, fAlpha / (2.0 * fAlpha + 1.0));
+    float fCosTheta = sqrt(1.0 - fSinTheta * fSinTheta);
+    float fPhi = 2.0 * PL_PI * tXi.x;
+
+    // transform the hemisphere sample to the normal coordinate frame
+    // i.e. rotate the hemisphere to the normal direction
+    const vec3 tLocalSpaceDirection = normalize(vec3(fSinTheta * cos(fPhi), fSinTheta * sin(fPhi), fCosTheta));
+    mat3 tTBN = pl_generate_tbn(tN);
+    vec3 tDirection = tTBN * tLocalSpaceDirection;
+    return tDirection;
+}
+
 #endif // SAMPLING_INC

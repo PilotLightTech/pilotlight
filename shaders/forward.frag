@@ -116,6 +116,8 @@ pl_get_normal_info(int iUVSet)
     if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP) && bool(iRenderingFlags & PL_RENDERING_FLAG_USE_NORMAL_MAPS)) 
     {
         plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+        // UV.x *= 3.0;
+        // UV.y *= 3.0;
         info.ntex = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_NORMAL])], tSamplerLinearRepeat), UV).rgb * 2.0 - vec3(1.0);
         // info.ntex *= vec3(0.2, 0.2, 1.0);
         // info.ntex *= vec3(u_NormalScale, u_NormalScale, 1.0);
@@ -143,7 +145,6 @@ getBaseColor(vec4 u_ColorFactor, int iUVSet)
     // else if(bool(MATERIAL_METALLICROUGHNESS))
     if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
     {
-        // baseColor = u_BaseColorFactor;
         baseColor = u_ColorFactor;
     }
 
@@ -183,6 +184,28 @@ getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_Roug
     return info;
 }
 
+MaterialInfo
+getSheenInfo(MaterialInfo info, vec3 u_SheenColorFactor, float u_SheenRoughnessFactor, int UVSet0, int UVSet1)
+{
+
+    info.sheenColorFactor = u_SheenColorFactor;
+    info.sheenRoughnessFactor = u_SheenRoughnessFactor;
+    plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
+
+    if(bool(iTextureMappingFlags & PL_HAS_SHEEN_COLOR_MAP))
+    {
+        vec4 sheenColorSample = pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_SHEEN_COLOR])], tSamplerLinearRepeat), tShaderIn.tUV[UVSet0]));
+        info.sheenColorFactor *= sheenColorSample.rgb;
+    }
+
+    if(bool(iTextureMappingFlags & PL_HAS_SHEEN_ROUGHNESS_MAP))
+    {
+        vec4 sheenRoughnessSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_SHEEN_ROUGHNESS])], tSamplerLinearRepeat), tShaderIn.tUV[UVSet1]);
+        info.sheenRoughnessFactor *= sheenRoughnessSample.a;
+    }
+    return info;
+}
+
 vec3
 getPunctualRadianceClearCoat(vec3 clearcoatNormal, vec3 v, vec3 l, vec3 h, float VdotH, vec3 f0, vec3 f90, float clearcoatRoughness)
 {
@@ -190,6 +213,20 @@ getPunctualRadianceClearCoat(vec3 clearcoatNormal, vec3 v, vec3 l, vec3 h, float
     float NdotV = clampedDot(clearcoatNormal, v);
     float NdotH = clampedDot(clearcoatNormal, h);
     return NdotL * pl_brdf_specular(clearcoatRoughness * clearcoatRoughness, NdotL, NdotV, NdotH);
+}
+
+vec3
+getPunctualRadianceSheen(vec3 sheenColor, float sheenRoughness, float NdotL, float NdotV, float NdotH)
+{
+    return NdotL * BRDF_specularSheen(sheenColor, sheenRoughness, NdotL, NdotV, NdotH);
+}
+
+float
+albedoSheenScalingLUT(float NdotV, float sheenRoughnessFactor)
+{
+  float c = 1.0 - NdotV;
+  float c3 = c * c * c;
+  return 0.65584461 * c3 + 1.0 / (4.16526551 + exp(-7.97291361 * sqrt(sheenRoughnessFactor) + 6.33516894));
 }
 
 vec3
@@ -279,6 +316,11 @@ void main()
         materialInfo = getMetallicRoughnessInfo(materialInfo, material.fMetallicFactor, material.fRoughnessFactor, material.aiTextureUVSet[PL_TEXTURE_METAL_ROUGHNESS]);
     }
 
+    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+    {
+        materialInfo = getSheenInfo(materialInfo, material.tSheenColorFactor, material.fSheenRoughnessFactor, material.aiTextureUVSet[PL_TEXTURE_SHEEN_COLOR], material.aiTextureUVSet[PL_TEXTURE_SHEEN_ROUGHNESS]);
+    }
+
     if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
     {
         materialInfo = getClearCoatInfo(materialInfo, tNormalInfo, material.fClearcoatFactor,
@@ -354,6 +396,12 @@ void main()
             if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
             {
                 clearcoat_brdf = getIBLRadianceGGX(materialInfo.clearcoatNormal, v, materialInfo.clearcoatRoughness, iMips, tShaderIn.tWorldPosition.xyz, iProbeIndex);
+            }
+
+            if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+            {
+                f_sheen = getIBLRadianceCharlie(n, v, materialInfo.sheenRoughnessFactor, materialInfo.sheenColorFactor, iMips, iProbeIndex);
+                albedoSheenScaling = 1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor);
             }
 
             color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
@@ -500,6 +548,13 @@ void main()
                             materialInfo.clearcoatF0, materialInfo.clearcoatF90, materialInfo.clearcoatRoughness);
                     }
 
+                    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+                    {
+                        l_sheen = intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
+                        l_albedoSheenScaling = min(1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor),
+                            1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotL, materialInfo.sheenRoughnessFactor));
+                    }
+
                     vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
                     l_color = l_sheen + l_color * l_albedoSheenScaling;
                     l_color = mix(l_color, l_clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
@@ -579,6 +634,13 @@ void main()
                     {
                         l_clearcoat_brdf = intensity * getPunctualRadianceClearCoat(materialInfo.clearcoatNormal, v, l, h, VdotH,
                             materialInfo.clearcoatF0, materialInfo.clearcoatF90, materialInfo.clearcoatRoughness);
+                    }
+
+                    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+                    {
+                        l_sheen = intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
+                        l_albedoSheenScaling = min(1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor),
+                            1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotL, materialInfo.sheenRoughnessFactor));
                     }
 
                     vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
@@ -662,6 +724,13 @@ void main()
                             materialInfo.clearcoatF0, materialInfo.clearcoatF90, materialInfo.clearcoatRoughness);
                     }
 
+                    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+                    {
+                        l_sheen = intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
+                        l_albedoSheenScaling = min(1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor),
+                            1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotL, materialInfo.sheenRoughnessFactor));
+                    }
+
                     vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
                     l_color = l_sheen + l_color * l_albedoSheenScaling;
                     l_color = mix(l_color, l_clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
@@ -683,7 +752,7 @@ void main()
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
     {
-        color = f_emissive + color;
+        color = f_emissive * (1.0 - clearcoatFactor * clearcoatFresnel) + color;
         outColor.rgb = color.rgb;
         outColor.a = tBaseColor.a;
     }
@@ -707,7 +776,8 @@ void main()
 
         if(tShaderDebugMode == PL_SHADER_DEBUG_SHADING_NORMAL)
         {
-            outColor = vec4((n + 1.0) / 2.0, tBaseColor.a);
+            // outColor = vec4((n + 1.0) / 2.0, tBaseColor.a);
+            outColor = vec4(vec3(albedoSheenScaling), tBaseColor.a);
         }
 
         if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_NORMAL)

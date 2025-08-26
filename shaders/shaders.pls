@@ -122,6 +122,14 @@
             ]
         },
         {
+            "pcName": "cube_filter_sheen",
+            "tShader": { "file": "cube_filter_sheen.comp"},
+            "atBindGroupLayouts": [
+                { "pcName": "cube_filter_set_0" },
+                { "pcName": "cube_filter_set_1" }
+            ]
+        },
+        {
             "pcName": "skinning",
             "tShader": { "file": "skinning.comp"},
             "atConstants": [

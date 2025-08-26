@@ -768,13 +768,7 @@ pl_renderer_create_scene(plSceneInit tInit)
         .tUsage      = PL_TEXTURE_USAGE_SAMPLED
     };
     ptScene->tBrdfLutTexture = pl__renderer_create_texture(&tLutTextureDesc, "lut texture", 0, PL_TEXTURE_USAGE_SAMPLED);
-    ptScene->tCharlieLutTexture = pl__renderer_create_texture(&tLutTextureDesc, "charlie lut texture", 0, PL_TEXTURE_USAGE_SAMPLED);
     ptScene->tSceneData.iBrdfLutIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tBrdfLutTexture);
-    ptScene->tSceneData.iCharlieLutIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tCharlieLutTexture);
-
-    plResourceHandle tSheenLut = gptResource->load("../data/lut_sheen_E.png", 0);
-    ptScene->tSheenLutTexture = gptResource->get_texture(tSheenLut);
-    ptScene->tSceneData.iSheenLutIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tSheenLutTexture);
 
     const plBindGroupDesc tBrdfBGSet1Desc = {
         .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
@@ -888,69 +882,6 @@ pl_renderer_create_scene(plSceneInit tInit)
     gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
     gptGfx->return_command_buffer(ptCommandBuffer);
-
-#if 0
-    plComputeShaderHandle tCharlieLutShader = gptShaderVariant->get_compute_shader("sheen_lut", NULL);
-    ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 2");
-    const plBeginCommandInfo tBeginInfo2 = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {tSemHandle},
-        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-    };
-    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo2);
-
-    plDynamicBinding tDynamicBinding2 = pl__allocate_dynamic_data(gptData->ptDevice);
-    plGpuDynFilterSpec* ptDynamicData2 = (plGpuDynFilterSpec*)tDynamicBinding2.pcData;
-    ptDynamicData2->iResolution = 1024;
-    ptDynamicData2->fRoughness = 0.0f;
-    ptDynamicData2->iSampleCount = (int)64;
-    ptDynamicData2->iWidth = 0;
-    ptDynamicData2->fLodBias = 0.0f;
-    ptDynamicData2->iCurrentMipLevel = 0;
-
-    ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
-    gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
-    gptGfx->bind_compute_bind_groups(ptComputeEncoder, tCharlieLutShader, 0, 1, &tBrdfBGSet1, 1, &tDynamicBinding2);
-    gptGfx->bind_compute_shader(ptComputeEncoder, tCharlieLutShader);
-    gptGfx->dispatch(ptComputeEncoder, 1, &tDispach0);
-
-    gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
-    gptGfx->end_compute_pass(ptComputeEncoder);
-
-    gptGfx->end_command_recording(ptCommandBuffer);
-
-    const plSubmitInfo tSubmitInfo2 = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {tSemHandle},
-        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-    };
-    gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo2);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
-
-    ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 3");
-    const plBeginCommandInfo tBeginInfo3 = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {tSemHandle},
-        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-    };
-    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo3);
-    ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-
-    gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[0], ptScene->tCharlieLutTexture, 1, &tBufferImageCopy0);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-    gptGfx->end_blit_pass(ptBlitEncoder);
-    gptGfx->end_command_recording(ptCommandBuffer);
-    const plSubmitInfo tSubmitInfo4 = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {tSemHandle},
-        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-    };
-    gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo4);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
-#endif
 
     return ptScene;
 }

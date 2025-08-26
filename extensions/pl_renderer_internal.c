@@ -2677,6 +2677,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
 
     tProbeData.uLambertianEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tLambertianEnvTexture);
     tProbeData.uGGXEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tGGXEnvTexture);
+    tProbeData.uSheenEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tSheenEnvTexture);
 
     pl_sb_push(ptScene->sbtProbeData, tProbeData);
 
@@ -3109,6 +3110,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
     
     plComputeShaderHandle tCubeFilterSpecularShader = gptShaderVariant->get_compute_shader("cube_filter_specular", NULL);
     plComputeShaderHandle tCubeFilterDiffuseShader = gptShaderVariant->get_compute_shader("cube_filter_diffuse", NULL);
+    plComputeShaderHandle tCubeFilterSheenShader = gptShaderVariant->get_compute_shader("cube_filter_sheen", NULL);
 
     plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptProbe->tRawOutputTexture);
     const int iResolution = (int)(ptTexture->tDesc.tDimensions.x);
@@ -3389,6 +3391,116 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
                     .uMipLevel       = i
                 };
                 gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[j], ptProbe->tGGXEnvTexture, 1, &tBufferImageCopy);
+            }
+            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+            gptGfx->end_blit_pass(ptBlitEncoder);
+            gptGfx->end_command_recording(ptCommandBuffer);
+            const plSubmitInfo tSubmitInfo0 = {
+                .uSignalSemaphoreCount   = 1,
+                .atSignalSempahores      = {tSemHandle},
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+            };
+            gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo0);
+            // gptGfx->wait_on_command_buffer(ptCommandBuffer);
+            gptGfx->return_command_buffer(ptCommandBuffer);
+
+        }
+    }
+
+    // sheen
+    {
+
+        const size_t uMaxFaceSize = (size_t)iResolution * (size_t)iResolution * 4 * sizeof(float);
+
+        const plPassBufferResource atInnerPassBuffers[] = {
+            { .tHandle = ptScene->atFilterWorkingBuffers[0], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[1], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[2], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[3], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[4], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[5], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atFilterWorkingBuffers[6], .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+        };
+
+        const plPassResources tInnerPassResources = {
+            .uBufferCount = 7,
+            .atBuffers = atInnerPassBuffers
+        };
+
+        plTexture* ptEnvTexture = gptGfx->get_texture(ptDevice, ptProbe->tSheenEnvTexture);
+        for(int i = ptEnvTexture->tDesc.uMips - 1; i != -1; i--)
+        {
+            int currentWidth = iResolution >> i;
+
+            if(currentWidth < 16)
+                continue;
+
+            // const size_t uCurrentFaceSize = (size_t)currentWidth * (size_t)currentWidth * 4 * sizeof(float);
+
+            const plDispatch tDispach = {
+                .uGroupCountX     = (uint32_t)currentWidth / 16,
+                .uGroupCountY     = (uint32_t)currentWidth / 16,
+                .uGroupCountZ     = 2,
+                .uThreadPerGroupX = 16,
+                .uThreadPerGroupY = 16,
+                .uThreadPerGroupZ = 3
+            };
+
+            plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 4");
+            const plBeginCommandInfo tBeginInfo = {
+                .uWaitSemaphoreCount   = 1,
+                .atWaitSempahores      = {tSemHandle},
+                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+            };
+            gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
+
+            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+            plGpuDynFilterSpec* ptDynamicData = (plGpuDynFilterSpec*)tDynamicBinding.pcData;
+            ptDynamicData->iResolution = iResolution;
+            ptDynamicData->fRoughness = (float)i / (float)(ptEnvTexture->tDesc.uMips - 1);
+            ptDynamicData->iSampleCount = i == 0 ? 1 : (int)ptProbeComp->uSamples;
+            ptDynamicData->iWidth = currentWidth;
+            ptDynamicData->fLodBias = 0.0f;
+            ptDynamicData->iCurrentMipLevel = i;
+
+            plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tInnerPassResources);
+            gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
+            gptGfx->bind_compute_bind_groups(ptComputeEncoder, tCubeFilterSheenShader, 0, 2, atFullBindGroupHandles, 1, &tDynamicBinding);
+            gptGfx->bind_compute_shader(ptComputeEncoder, tCubeFilterSheenShader);
+            gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
+            gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
+            gptGfx->end_compute_pass(ptComputeEncoder);
+            gptGfx->end_command_recording(ptCommandBuffer);
+            const plSubmitInfo tSubmitInfo = {
+                .uSignalSemaphoreCount   = 1,
+                .atSignalSempahores      = {tSemHandle},
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+            };
+            gptGfx->submit_command_buffer(ptCommandBuffer, &tSubmitInfo);
+            gptGfx->return_command_buffer(ptCommandBuffer);
+
+            ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 5");
+            const plBeginCommandInfo tBeginInfo2 = {
+                .uWaitSemaphoreCount   = 1,
+                .atWaitSempahores      = {tSemHandle},
+                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+            };
+            gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo2);
+            plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+
+            for(uint32_t j = 0; j < 6; j++)
+            {
+                const plBufferImageCopy tBufferImageCopy = {
+                    .uImageWidth = currentWidth,
+                    .uImageHeight = currentWidth,
+                    .uImageDepth = 1,
+                    .uLayerCount     = 1,
+                    .szBufferOffset  = 0,
+                    .uBaseArrayLayer = j,
+                    .uMipLevel       = i
+                };
+                gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[j], ptProbe->tSheenEnvTexture, 1, &tBufferImageCopy);
             }
             gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
             gptGfx->end_blit_pass(ptBlitEncoder);

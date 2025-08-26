@@ -345,8 +345,6 @@ typedef struct _plScene
 
     // brdf luts
     plTextureHandle tBrdfLutTexture;
-    plTextureHandle tCharlieLutTexture;
-    plTextureHandle tSheenLutTexture;
 
     // skybox resources (optional)
     plDrawable        tSkyboxDrawable;

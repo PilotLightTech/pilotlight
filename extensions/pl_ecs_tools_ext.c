@@ -570,7 +570,9 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                         128,
                         256,
                         512,
-                        1024
+                        1024,
+                        2048,
+                        4096,
                     };
                     int iSelection = 0;
                     if(ptProbeComp->uSamples == 32)        iSelection = 0;
@@ -579,6 +581,8 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                     else if(ptProbeComp->uSamples == 256)  iSelection = 3;
                     else if(ptProbeComp->uSamples == 512)  iSelection = 4;
                     else if(ptProbeComp->uSamples == 1024) iSelection = 5;
+                    else if(ptProbeComp->uSamples == 2048) iSelection = 6;
+                    else if(ptProbeComp->uSamples == 4096) iSelection = 7;
                     gptUI->separator_text("Samples");
                     gptUI->radio_button("32", &iSelection, 0);
                     gptUI->radio_button("64", &iSelection, 1);
@@ -586,6 +590,8 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                     gptUI->radio_button("256", &iSelection, 3);
                     gptUI->radio_button("512", &iSelection, 4);
                     gptUI->radio_button("1024", &iSelection, 5);
+                    gptUI->radio_button("2048", &iSelection, 6);
+                    gptUI->radio_button("4096", &iSelection, 7);
                     ptProbeComp->uSamples = auSamples[iSelection];
 
                     gptUI->separator_text("Intervals");

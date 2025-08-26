@@ -463,15 +463,25 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     {
         gptRenderer->create_environment_probe(ptAppData->ptComponentLibrary, "Probe", atProbeLocations[i], &ptProbe);
         ptProbe->fRange = 30.0f;
+        // ptProbe->uResolution = 128 * 8;
+        // ptProbe->uSamples = 1024 * 4;
+        ptProbe->uInterval = 6;
         ptProbe->uResolution = 128;
+        ptProbe->uSamples = 1024;
         ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
     }
 
     gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/helipad.hdr", 1024);
+    // gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/footprint_court.hdr", 1024);
 
     plModelLoaderData tLoaderData0 = {0};
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/SheenTestGrid/glTF/SheenTestGrid.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/EnvironmentTest/glTF/EnvironmentTest.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/ClearCoatCarPaint/glTF/ClearCoatCarPaint.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/SheenCloth/glTF/SheenCloth.gltf", NULL, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
     gptModelLoader->free_data(&tLoaderData0);

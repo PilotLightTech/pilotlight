@@ -164,9 +164,9 @@ PL_END_STRUCT(plGpuDynData)
 PL_BEGIN_STRUCT(plGpuSceneData)
 
     int iBrdfLutIndex;
-    int iCharlieLutIndex;
-    int iSheenLutIndex;
     int _iUnused0;
+    int _iUnused1;
+    int _iUnused2;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     // ~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~

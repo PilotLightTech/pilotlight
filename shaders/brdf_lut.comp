@@ -7,6 +7,11 @@
 #include "pl_shader_interop.h"
 #include "pl_shader_interop_renderer.h"
 
+float V_Ashikhmin(float NdotL, float NdotV)
+{
+    return clamp(1.0 / (4.0 * (NdotL + NdotV - NdotL * NdotV)), 0.0, 1.0);
+}
+
 layout(std140, set = 0, binding = 0) buffer _tBufferOut{ vec4 atPixelData[]; } tLUTOut;
 
 //-----------------------------------------------------------------------------
@@ -76,6 +81,35 @@ main()
             fA += (1.0 - fFc) * fVPdf;
             fB += fFc * fVPdf;
             fC += 0.0;
+        }
+    }
+
+    const float fAlpha = fRoughness * fRoughness;
+
+    for(int i = 0; i < tDynamicData.tData.iSampleCount; ++i)
+    {
+        // generate a quasi monte carlo point in the unit square [0.1)^2
+        vec2 tXi = pl_hammersley_2d(i, tDynamicData.tData.iSampleCount);
+        vec3 tSampleDirection = pl_get_importance_sample_charlie(tXi, tN, fRoughness);
+        vec3 tL = normalize(reflect(-tV, tSampleDirection));
+
+        float fSinTheta = pow(tXi.y, fAlpha / (2.0 * fAlpha + 1.0));
+        float fCosTheta = sqrt(1.0 - fSinTheta * fSinTheta);
+
+        float fNdotL = pl_saturate(tL.z);
+        // float fNdotH = pl_saturate(tSampleDirection.z);
+        float fVdotH = pl_saturate(dot(tV, tSampleDirection));
+        if (fNdotL > 0.0)
+        {
+
+            // LUT for Charlie distribution.
+            float sheenDistribution = D_Charlie(fRoughness, fCosTheta);
+            // sheenDistribution /= 4.0;
+            float sheenVisibility = V_Ashikhmin(fNdotL, fNdotV);
+
+            fA += 0.0;
+            fB += 0.0;
+            fC += sheenVisibility * sheenDistribution * fNdotL * fVdotH;
         }
     }
 
