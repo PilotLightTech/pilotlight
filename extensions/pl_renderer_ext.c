@@ -241,7 +241,7 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tRuntimeOptions.fBrightness = 0.0f;
     gptData->tRuntimeOptions.fContrast = 1.0f;
     gptData->tRuntimeOptions.fSaturation = 1.0f;
-    gptData->tRuntimeOptions.tTonemapMode = PL_TONEMAP_MODE_SIMPLE;
+    gptData->tRuntimeOptions.tTonemapMode = PL_TONEMAP_MODE_KHRONOS_PBR_NEUTRAL;
 
     gptData->tRuntimeOptions.fGridCellSize = 0.025f;
     gptData->tRuntimeOptions.fGridMinPixelsBetweenCells = 2.0f;

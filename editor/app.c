@@ -900,6 +900,7 @@ pl__show_editor_window(plAppData* ptAppData)
                 "ACES Filmic (Hill)",
                 "ACES Filmic (Hill Exposure Boost)",
                 "Reinhard",
+                "Khronos PBR Neutral",
             };
             bool abTonemap[PL_ARRAYSIZE(apcTonemapText)] = {0};
             abTonemap[ptRuntimeOptions->tTonemapMode] = true;

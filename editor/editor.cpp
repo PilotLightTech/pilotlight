@@ -1093,6 +1093,7 @@ pl__show_editor_window(plAppData* ptAppData)
                 "ACES Filmic (Hill)",
                 "ACES Filmic (Hill Exposure Boost)",
                 "Reinhard",
+                "Khronos PBR Neutral",
             };
             ImGui::Combo("Tonemapping", &ptRuntimeOptions->tTonemapMode, apcTonemapText, PL_ARRAYSIZE(apcTonemapText));
 

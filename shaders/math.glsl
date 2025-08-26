@@ -25,6 +25,12 @@ pl_linear_to_srgb(vec3 color)
     return pow(color, vec3(INV_GAMMA));
 }
 
+vec4
+pl_linear_to_srgb(vec4 color)
+{
+    return vec4(pl_linear_to_srgb(color.rgb), color.a);
+}
+
 float
 pl_srgb_to_linear(float color)
 {

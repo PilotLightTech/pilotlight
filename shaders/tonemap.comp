@@ -72,6 +72,26 @@ mat3 saturationMatrix(float saturation)
 	return mat3(red, green, blue);
 }
 
+vec3 toneMap_KhronosPbrNeutral( vec3 color )
+{
+    const float startCompression = 0.8 - 0.04;
+    const float desaturation = 0.15;
+
+    float x = min(color.r, min(color.g, color.b));
+    float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+    color -= offset;
+
+    float peak = max(color.r, max(color.g, color.b));
+    if (peak < startCompression) return color;
+
+    const float d = 1. - startCompression;
+    float newPeak = 1. - d * d / (peak + d - startCompression);
+    color *= newPeak / peak;
+
+    float g = 1. - 1. / (desaturation * (peak - newPeak) + 1.);
+    return mix(color, newPeak * vec3(1, 1, 1), g);
+}
+
 layout (set = 0, binding = 0, rgba16f) uniform image2D inputImage;
 
 //-----------------------------------------------------------------------------
@@ -120,20 +140,24 @@ main()
     {
         tTonemappedColor = tLinearColor.rgb;
     }
-    else if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_ACES_NARKOWICZ)
+    if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_KHRONOS_PBR_NEUTRAL)
+    {
+        tTonemappedColor = toneMap_KhronosPbrNeutral(tLinearColor.rgb);
+    }
+    if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_ACES_NARKOWICZ)
     {
         tTonemappedColor = ACESFilmApproximate(tLinearColor.rgb);
     }
-    else if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_ACES_HILL)
+    if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_ACES_HILL)
     {
         tTonemappedColor = toneMapACES_Hill(tLinearColor.rgb);
     }
-    else if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_ACES_HILL_EXPOSURE_BOOST)
+    if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_ACES_HILL_EXPOSURE_BOOST)
     {
         tLinearColor.rgb /= 0.6;
         tTonemappedColor = toneMapACES_Hill(tLinearColor.rgb);
     }
-    else if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_REINHARD)
+    if(tDynamicData.tData.iMode == PL_TONEMAP_MODE_REINHARD)
     {
         tTonemappedColor = tLinearColor.rgb / (tLinearColor.rgb + vec3(1));
     }
