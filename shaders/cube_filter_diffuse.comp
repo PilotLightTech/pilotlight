@@ -58,7 +58,7 @@ main()
         float fPdf = NoL;
 
         // mipmap filtered samples (GPU Gems 3, 20.4)
-        float fLod = 0.5 * log2( 6.0 * float(tDynamicData.tData.iWidth) * float(tDynamicData.tData.iWidth) / (float(tDynamicData.tData.iSampleCount) * fPdf));
+        float fLod = 0.5 * log2( 6.0 * float(tDynamicData.tData.iResolution) * float(tDynamicData.tData.iResolution) / (float(tDynamicData.tData.iSampleCount) * fPdf));
 
         // apply the bias to the lod
         fLod += tDynamicData.tData.fLodBias;
@@ -75,7 +75,7 @@ main()
     }
 
     tColor /= float(tDynamicData.tData.iSampleCount);
-    tColor *= PL_PI;
+    // tColor *= PL_PI;
 
     const vec4 tColorOut = vec4(tColor.rgb, 1.0);
 

@@ -74,10 +74,10 @@ main()
         // Typically you'd have the following:
         // float pdf = pl_distribution_ggx(NoH, roughness) * NoH / (4.0 * VoH);
         // but since V = N => VoH == NoH
-        fPdf /= 4.0;
+        // fPdf /= 4.0;
 
         // mipmap filtered samples (GPU Gems 3, 20.4)
-        float fLod = 0.5 * log2( 6.0 * float(tDynamicData.tData.iWidth) * float(tDynamicData.tData.iWidth) / (float(tDynamicData.tData.iSampleCount) * fPdf));
+        float fLod = 0.5 * log2( 6.0 * float(tDynamicData.tData.iResolution) * float(tDynamicData.tData.iResolution) / (float(tDynamicData.tData.iSampleCount) * fPdf));
 
         // apply the bias to the lod
         fLod += tDynamicData.tData.fLodBias;
