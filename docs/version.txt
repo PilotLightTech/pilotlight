@@ -56,7 +56,7 @@ the API is complete. It just means we won't break what currently exists.
 * Log                 v1.0.0 (pl_log_ext.h)
 * Config              v1.1.0 (pl_config_ext.h)
 * Console             v1.0.0 (pl_console_ext.h)
-* Draw                v1.2.0 (pl_draw_ext.h)
+* Draw                v1.2.1 (pl_draw_ext.h)
 * Draw Backend        v1.0.1 (pl_draw_backend_ext.h)
 * DXT                 v1.0.0 (pl_dxt_ext.h)
 * GPU Allocators      v1.0.0 (pl_gpu_allocators_ext.h)

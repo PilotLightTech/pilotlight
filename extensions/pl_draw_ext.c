@@ -455,9 +455,51 @@ pl_request_3d_drawlist(void)
 }
 
 static void
+pl_return_2d_drawlist(plDrawList2D* ptDrawlist)
+{
+    pl_sb_free(ptDrawlist->sbtVertexBuffer);
+    pl_sb_free(ptDrawlist->_sbtLayerCache);
+    pl_sb_free(ptDrawlist->_sbtSubmittedLayers)
+
+    for(uint32_t j = 0; j < pl_sb_size(ptDrawlist->_sbtLayersCreated); j++)
+    {
+        pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtCommandBuffer);
+        pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbtPath);
+        pl_sb_free(ptDrawlist->_sbtLayersCreated[j]->sbuIndexBuffer);
+        PL_FREE(ptDrawlist->_sbtLayersCreated[j]);
+    }
+    pl_sb_free(ptDrawlist->_sbtLayersCreated);
+
+    uint32_t uCurrentIndex = 0;
+    for(uint32_t i = 0; i < gptDrawCtx->uDrawlistCount2D; i++)
+    {
+        if(gptDrawCtx->aptDrawlists2D[i] != ptDrawlist) // skip returning drawlist
+        {
+            plDrawList2D* ptCurrentDrawlist = gptDrawCtx->aptDrawlists2D[i];
+            gptDrawCtx->aptDrawlists2D[uCurrentIndex] = ptCurrentDrawlist;
+            uCurrentIndex++;
+        }
+    }
+    pl_pool_allocator_free(&gptDrawCtx->tDrawlistPool2D, ptDrawlist);
+    gptDrawCtx->uDrawlistCount2D--;
+}
+
+static void
+pl_return_2d_layer(plDrawLayer2D* ptLayer)
+{
+    ptLayer->ptLastCommand = NULL;
+    ptLayer->uVertexCount = 0;
+    pl_sb_reset(ptLayer->sbtCommandBuffer);
+    pl_sb_reset(ptLayer->sbuIndexBuffer);
+    pl_sb_reset(ptLayer->sbtPath);
+    pl_sb_push(ptLayer->ptDrawlist->_sbtLayerCache, ptLayer);
+}
+
+static void
 pl_return_3d_drawlist(plDrawList3D* ptDrawlist)
 {
-
+    pl_return_2d_layer(ptDrawlist->ptLayer);
+    pl_return_2d_drawlist(ptDrawlist->pt2dDrawlist);
     pl_sb_free(ptDrawlist->sbtLineIndexBuffer);
     pl_sb_free(ptDrawlist->sbtLineVertexBuffer);
     pl_sb_free(ptDrawlist->sbtSolidIndexBuffer);
@@ -475,25 +517,6 @@ pl_return_3d_drawlist(plDrawList3D* ptDrawlist)
     }
     pl_pool_allocator_free(&gptDrawCtx->tDrawlistPool3D, ptDrawlist);
     gptDrawCtx->uDrawlistCount3D--;
-}
-
-static void
-pl_return_2d_drawlist(plDrawList2D* ptDrawlist)
-{
-    pl_sb_free(ptDrawlist->sbtVertexBuffer);
-
-    uint32_t uCurrentIndex = 0;
-    for(uint32_t i = 0; i < gptDrawCtx->uDrawlistCount2D; i++)
-    {
-        if(gptDrawCtx->aptDrawlists2D[i] != ptDrawlist) // skip returning drawlist
-        {
-            plDrawList2D* ptCurrentDrawlist = gptDrawCtx->aptDrawlists2D[i];
-            gptDrawCtx->aptDrawlists2D[uCurrentIndex] = ptCurrentDrawlist;
-            uCurrentIndex++;
-        }
-    }
-    pl_pool_allocator_free(&gptDrawCtx->tDrawlistPool2D, ptDrawlist);
-    gptDrawCtx->uDrawlistCount2D--;
 }
 
 static void
@@ -543,17 +566,6 @@ pl_prepare_2d_drawlist(plDrawList2D* ptDrawlist)
         }    
         uGlobalIdxBufferIndexOffset += pl_sb_size(ptLayer->sbuIndexBuffer);    
     }
-}
-
-static void
-pl_return_2d_layer(plDrawLayer2D* ptLayer)
-{
-    ptLayer->ptLastCommand = NULL;
-    ptLayer->uVertexCount = 0;
-    pl_sb_reset(ptLayer->sbtCommandBuffer);
-    pl_sb_reset(ptLayer->sbuIndexBuffer);
-    pl_sb_reset(ptLayer->sbtPath);
-    pl_sb_push(ptLayer->ptDrawlist->_sbtLayerCache, ptLayer);
 }
 
 static void
