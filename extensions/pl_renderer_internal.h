@@ -153,10 +153,11 @@ typedef int plDrawableFlags;
 
 enum _plDrawableFlags
 {
-    PL_DRAWABLE_FLAG_NONE     = 0,
-    PL_DRAWABLE_FLAG_FORWARD  = 1 << 0,
-    PL_DRAWABLE_FLAG_DEFERRED = 1 << 1,
-    PL_DRAWABLE_FLAG_PROBE    = 1 << 2
+    PL_DRAWABLE_FLAG_NONE         = 0,
+    PL_DRAWABLE_FLAG_FORWARD      = 1 << 0,
+    PL_DRAWABLE_FLAG_DEFERRED     = 1 << 1,
+    PL_DRAWABLE_FLAG_TRANSMISSION = 1 << 2,
+    PL_DRAWABLE_FLAG_PROBE        = 1 << 3
 };
 
 //-----------------------------------------------------------------------------
@@ -230,6 +231,7 @@ typedef struct _plEnvironmentProbeData
     plVec2 tTargetSize;
 
     plRenderPassHandle atRenderPasses[6];
+    plRenderPassHandle atTransparentRenderPasses[6];
 
     // g-buffer textures
     plTextureHandle tAlbedoTexture;
@@ -255,6 +257,7 @@ typedef struct _plEnvironmentProbeData
     // submitted drawables
     uint32_t* sbuVisibleDeferredEntities[6];
     uint32_t* sbuVisibleForwardEntities[6];
+    uint32_t* sbuVisibleTransmissionEntities[6];
 
     // shadows
     plDirectionLightShadowData tDirectionLightShadowData;
@@ -275,6 +278,7 @@ typedef struct _plView
 {
     plScene* ptParentScene;
     uint32_t uIndex;
+    plGpuViewData tData;
 
     bool bShowSkybox;
     bool bShowGrid;
@@ -288,6 +292,7 @@ typedef struct _plView
 
     // renderpasses
     plRenderPassHandle tRenderPass;
+    plRenderPassHandle tTransparentRenderPass;
     plRenderPassHandle tPostProcessRenderPass;
     plRenderPassHandle tPickRenderPass;
     plRenderPassHandle tUVRenderPass;
@@ -299,6 +304,7 @@ typedef struct _plView
     plTextureHandle tAOMetalRoughnessTexture; // g-buffer
     plTextureHandle tRawOutputTexture;        // g-buffer
     plTextureHandle tDepthTexture;            // g-buffer
+    plTextureHandle tTransmissionTexture;     // transmission texture
     plTextureHandle tFinalTexture;            // output texture
     plTextureHandle atUVMaskTexture0;         // outlining
     plTextureHandle atUVMaskTexture1;         // outlining
@@ -322,6 +328,7 @@ typedef struct _plView
     uint32_t* sbtVisibleDrawables;
     uint32_t* sbuVisibleDeferredEntities;
     uint32_t* sbuVisibleForwardEntities;
+    uint32_t* sbuVisibleTransmissionEntities;
 
     // drawing api
     plDrawList3D* pt3DGizmoDrawList;
@@ -337,7 +344,10 @@ typedef struct _plScene
     const char* pcName;
     plGpuSceneData tSceneData;
     bool           bActive;
+    bool           bTransmissionRequired;
+    bool           bSheenRequired;
     plShaderHandle tLightingShader;
+    plShaderHandle tProbeLightingShader;
     plShaderHandle tDeferredLightingVolumeShader;
     plShaderHandle tEnvLightingShader;
     plShaderHandle tEnvLightingVolumeShader;
@@ -456,7 +466,6 @@ typedef struct _plRefRendererData
     plDevice* ptDevice;
     plDeviceInfo tDeviceInfo;
     plSwapchain* ptSwap;
-    // plSurface* ptSurface;
     plTempAllocator tTempAllocator;
     uint32_t uMaxTextureResolution;
 
@@ -466,6 +475,7 @@ typedef struct _plRefRendererData
 
     // main renderpass layout (used as a template for views)
     plRenderPassLayoutHandle tRenderPassLayout;
+    plRenderPassLayoutHandle tTransparentRenderPassLayout;
     plRenderPassLayoutHandle tPostProcessRenderPassLayout;
     plRenderPassLayoutHandle tUVRenderPassLayout;
     plRenderPassLayoutHandle tDepthRenderPassLayout;

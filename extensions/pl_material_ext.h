@@ -69,13 +69,10 @@ typedef struct _plMaterialComponent plMaterialComponent;
 typedef int plShaderType;
 typedef int plMaterialFlags;
 typedef int plTextureSlot;
+typedef int plAlphaMode;
 
 // external
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
-typedef struct _plGpuMaterial      plGpuMaterial;      // pl_shader_interop_renderer.h
-
-// external enums
-typedef int plBlendMode; // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -97,6 +94,13 @@ typedef struct _plMaterialI
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
+enum _plAlphaMode
+{
+    PL_MATERIAL_ALPHA_MODE_OPAQUE,
+    PL_MATERIAL_ALPHA_MODE_MASK,
+    PL_MATERIAL_ALPHA_MODE_BLEND
+};
+
 enum _plTextureSlot
 {
     PL_TEXTURE_SLOT_BASE_COLOR_MAP = 0,
@@ -109,6 +113,13 @@ enum _plTextureSlot
     PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP,
     PL_TEXTURE_SLOT_SHEEN_COLOR_MAP,
     PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP,
+    PL_TEXTURE_SLOT_IRIDESCENCE_MAP,
+    PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP,
+    PL_TEXTURE_SLOT_ANISOTROPY_MAP,
+    PL_TEXTURE_SLOT_TRANSMISSION_MAP,
+    PL_TEXTURE_SLOT_THICKNESS_MAP,
+    PL_TEXTURE_SLOT_DIFFUSE_TRANSMISSION_MAP,
+    PL_TEXTURE_SLOT_DIFFUSE_TRANSMISSION_COLOR_MAP,
     
     PL_TEXTURE_SLOT_COUNT
 };
@@ -116,9 +127,7 @@ enum _plTextureSlot
 enum _plShaderType
 {
     PL_SHADER_TYPE_PBR,
-    PL_SHADER_TYPE_PBR_CLEARCOAT,
-    PL_SHADER_TYPE_PBR_SHEEN,
-    PL_SHADER_TYPE_CUSTOM,
+    PL_SHADER_TYPE_PBR_ADVANCED,
     
     PL_SHADER_TYPE_COUNT
 };
@@ -126,10 +135,21 @@ enum _plShaderType
 enum _plMaterialFlags
 {
     PL_MATERIAL_FLAG_NONE                = 0,
-    PL_MATERIAL_FLAG_DOUBLE_SIDED        = 1 << 0,
-    PL_MATERIAL_FLAG_OUTLINE             = 1 << 1,
-    PL_MATERIAL_FLAG_CAST_SHADOW         = 1 << 2,
-    PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW = 1 << 3
+
+    PL_MATERIAL_FLAG_METALLIC_ROUGHNESS   = 1 << 0,
+    PL_MATERIAL_FLAG_CLEARCOAT            = 1 << 1,
+    PL_MATERIAL_FLAG_SHEEN                = 1 << 2,
+    PL_MATERIAL_FLAG_IRIDESCENCE          = 1 << 3,
+    PL_MATERIAL_FLAG_ANISOTROPY           = 1 << 4,
+    PL_MATERIAL_FLAG_TRANSMISSION         = 1 << 5,
+    PL_MATERIAL_FLAG_VOLUME               = 1 << 6,
+    PL_MATERIAL_FLAG_DISPERSION           = 1 << 7,
+    PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION = 1 << 8,
+
+    PL_MATERIAL_FLAG_DOUBLE_SIDED         = 1 << 20,
+    PL_MATERIAL_FLAG_OUTLINE              = 1 << 21,
+    PL_MATERIAL_FLAG_CAST_SHADOW          = 1 << 22,
+    PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW  = 1 << 23
 };
 
 //-----------------------------------------------------------------------------
@@ -141,6 +161,7 @@ typedef struct _plTextureMap
     char             acName[PL_MAX_PATH_LENGTH];
     plResourceHandle tResource;
     uint32_t         uUVSet;
+    plMat4           tTransform;
 } plTextureMap;
 
 //-----------------------------------------------------------------------------
@@ -149,20 +170,35 @@ typedef struct _plTextureMap
 
 typedef struct _plMaterialComponent
 {
-    plMaterialFlags tFlags;              // default: PL_MATERIAL_FLAG_CAST_SHADOW | PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW
-    plShaderType    tShaderType;         // default: PL_SHADER_TYPE_PBR
-    plBlendMode     tBlendMode;          // default: PL_BLEND_MODE_OPAQUE
-    plVec4          tBaseColor;          // default: {1.0f, 1.0f, 1.0f, 1.0f}
-    plVec4          tEmissiveColor;      // default: {0.0f, 0.0f, 0.0f, 0.0f}
-    float           fAlphaCutoff;        // default: 0.5f
-    float           fRoughness;          // default: 1.0f
-    float           fMetalness;          // default: 1.0f
-    float           fClearcoat;          // default: 0.0f
-    float           fClearcoatRoughness; // default: 0.0f
-    float           fSheenRoughness;     // default: 0.0f
-    float           fNormalMapStrength;  // default: 1.0f
-    float           fEmissiveStrength;   // default: 1.0f
-    plVec3          tSheenColor;         // default: {1.0f, 1.0f, 1.0f, 1.0f}
+    plMaterialFlags tFlags;                    // default: PL_MATERIAL_FLAG_CAST_SHADOW | PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW | PL_MATERIAL_FLAG_METALLIC_ROUGHNESS
+    plShaderType    tShaderType;               // default: PL_SHADER_TYPE_PBR
+    plAlphaMode     tAlphaMode;                // default: PL_BLEND_MODE_OPAQUE
+    plVec4          tBaseColor;                // default: {1.0f, 1.0f, 1.0f, 1.0f}
+    plVec4          tEmissiveColor;            // default: {0.0f, 0.0f, 0.0f, 0.0f}
+    float           fAlphaCutoff;              // default: 0.5f
+    float           fRoughness;                // default: 1.0f
+    float           fMetalness;                // default: 1.0f
+    float           fClearcoat;                // default: 0.0f
+    float           fClearcoatRoughness;       // default: 0.0f
+    float           fSheenRoughness;           // default: 0.0f
+    float           fNormalMapStrength;        // default: 1.0f
+    float           fEmissiveStrength;         // default: 1.0f
+    float           fOcclusionStrength;        // default: 1.0f
+    plVec3          tSheenColor;               // default: {1.0f, 1.0f, 1.0f, 1.0f}
+    float           fIridescenceFactor;        // default: 0.0f
+    float           fIridescenceIor;           // default: 0.0f
+    float           fIridescenceThicknessMax;  // default: 0.0f
+    float           fIridescenceThicknessMin;  // default: 0.0f
+    float           fAnisotropyRotation;       // default: 0.0f
+    float           fAnisotropyStrength;       // default: 0.0f
+    float           fIor;                      // default: 1.5f
+    float           fDispersion;               // default: 0.0f
+    float           fThickness;                // default: 0.0f
+    float           fAttenuationDistance;      // default: 0.0f
+    plVec3          tAttenuationColor;         // default: {0.0f, 0.0f, 0.0f}
+    float           fTransmissionFactor;       // default: 0.0f
+    float           fDiffuseTransmission;      // default: 0.0f
+    plVec3          tDiffuseTransmissionColor; // default: {0.0f, 0.0f, 0.0f}
     plTextureMap    atTextureMaps[PL_TEXTURE_SLOT_COUNT];
 } plMaterialComponent;
 

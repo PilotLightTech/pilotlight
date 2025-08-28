@@ -1114,6 +1114,16 @@ pl__show_editor_window(plAppData* ptAppData)
                 "Clearcoat",
                 "Clearcoat Roughness",
                 "Clearcoat Normal",
+                "Sheen Color",
+                "Sheen Roughness",
+                "Iridescence Factor",
+                "Iridescence Thickness",
+                "Anisotropy Strength",
+                "Anisotropy Direction",
+                "Transmission Strength",
+                "Volume Thickness",
+                "Diffuse Transmission Strength",
+                "Diffuse Transmission Color",
             };
             bool bReloadShaders = false;
             if(ImGui::Combo("Shader Debug Mode", &ptRuntimeOptions->tShaderDebugMode, apcShaderDebugModeText, PL_ARRAYSIZE(apcShaderDebugModeText))) bReloadShaders = true;

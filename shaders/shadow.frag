@@ -74,8 +74,12 @@ void main()
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
     vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.aiTextureUVSet[PL_TEXTURE_BASE_COLOR]);
 
-    if(tBaseColor.a <  material.fAlphaCutoff)
+    if(material.tAlphaMode == PL_SHADER_ALPHA_MODE_MASK)
     {
-        discard;
+        if(tBaseColor.a <  material.fAlphaCutoff)
+        {
+            discard;
+        }
+        tBaseColor.a = 1.0;
     }
 }

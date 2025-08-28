@@ -207,7 +207,7 @@
             "tVertexShader":    { "file": "skybox.vert"},
             "tFragmentShader":  { "file": "skybox.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled": false,
+                "ulDepthWriteEnabled":  false,
                 "ulDepthMode":          "PL_COMPARE_MODE_EQUAL",
                 "ulCullMode":           "PL_CULL_MODE_NONE",
                 "ulWireframe":          false,
@@ -301,6 +301,39 @@
                     "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
                     "tAlphaOp":        "PL_BLEND_OP_ADD"
                 }
+            ],
+            "atVertexConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atFragmentConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atBindGroupLayouts": [
+                { "pcName": "scene" },
+                { "pcName": "view"  }
+            ]
+        },
+        {
+            "pcName": "transmission",
+            "tVertexShader":    { "file": "forward.vert"},
+            "tFragmentShader":  { "file": "forward.frag"},
+            "atVertexBufferLayouts": [
+                {
+                    "atAttributes": [
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                    ]
+                }
+            ],
+            "atBlendStates": [
+                { "bBlendEnabled": false }
             ],
             "atVertexConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
@@ -509,6 +542,7 @@
             ],
             "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
@@ -565,6 +599,7 @@
             ],
             "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
@@ -592,7 +627,7 @@
                 "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
                 "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "uSubpassIndex": 2,
+            "uSubpassIndex": 0,
             "atBlendStates": [
                 {
                     "bBlendEnabled":   true,

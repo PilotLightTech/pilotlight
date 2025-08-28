@@ -815,36 +815,87 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                 if(ptMaterialComp && gptUI->begin_collapsing_header("Material", 0))
                 {
                     bool bMaterialModified = false;
+                    bool bShadersModified = false;
                     if(gptUI->input_float("Roughness", &ptMaterialComp->fRoughness, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Metalness", &ptMaterialComp->fMetalness, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float4("Base Color", ptMaterialComp->tBaseColor.d, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float4("Emmissive Color", ptMaterialComp->tEmissiveColor.d, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Anisotropy Strength", &ptMaterialComp->fAnisotropyStrength, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Anisotropy Rotation", &ptMaterialComp->fAnisotropyRotation, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float3("Sheen Color", ptMaterialComp->tSheenColor.d, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Sheen Roughness", &ptMaterialComp->fSheenRoughness, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Clearcoat", &ptMaterialComp->fClearcoat, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Clearcoat Roughness", &ptMaterialComp->fClearcoatRoughness, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Iridescence Factor", &ptMaterialComp->fIridescenceFactor, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Iridescence IOR", &ptMaterialComp->fIridescenceIor, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Iridescence Thickness Max", &ptMaterialComp->fIridescenceThicknessMax, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Iridescence Thickness Min", &ptMaterialComp->fIridescenceThicknessMin, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Normal Strength", &ptMaterialComp->fNormalMapStrength, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Emissive Strength", &ptMaterialComp->fEmissiveStrength, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("IOR", &ptMaterialComp->fIor, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Dispersion", &ptMaterialComp->fDispersion, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Thickness", &ptMaterialComp->fThickness, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Attenuation Distance", &ptMaterialComp->fAttenuationDistance, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float3("Attenuation Color", ptMaterialComp->tAttenuationColor.d, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float3("Diffuse Transmission Color", ptMaterialComp->tDiffuseTransmissionColor.d, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Diffuse Transmission", &ptMaterialComp->fDiffuseTransmission, NULL, 0)) bMaterialModified = true;
+                    if(gptUI->input_float("Transmission", &ptMaterialComp->fTransmissionFactor, NULL, 0)) bMaterialModified = true;
+
+                    bool bClearCoat = ptMaterialComp->tFlags & PL_MATERIAL_FLAG_CLEARCOAT;
+                    if(gptUI->checkbox("Clearcoat##1", &bClearCoat))
+                    {
+                        bShadersModified = true;
+                        bMaterialModified = true;
+                        if(bClearCoat) ptMaterialComp->tFlags |= PL_MATERIAL_FLAG_CLEARCOAT;
+                        else           ptMaterialComp->tFlags &= ~PL_MATERIAL_FLAG_CLEARCOAT;
+                    }
+
+                    bool bVolume = ptMaterialComp->tFlags & PL_MATERIAL_FLAG_VOLUME;
+                    if(gptUI->checkbox("Volume", &bVolume))
+                    {
+                        bShadersModified = true;
+                        bMaterialModified = true;
+                        if(bVolume) ptMaterialComp->tFlags |= PL_MATERIAL_FLAG_VOLUME;
+                        else           ptMaterialComp->tFlags &= ~PL_MATERIAL_FLAG_VOLUME;
+                    }
+
+                    bool bTransmission = ptMaterialComp->tFlags & PL_MATERIAL_FLAG_TRANSMISSION;
+                    if(gptUI->checkbox("Transmission##1", &bTransmission))
+                    {
+                        bShadersModified = true;
+                        bMaterialModified = true;
+                        if(bTransmission) ptMaterialComp->tFlags |= PL_MATERIAL_FLAG_TRANSMISSION;
+                        else           ptMaterialComp->tFlags &= ~PL_MATERIAL_FLAG_TRANSMISSION;
+                    }
+
+                    bool bDiffuseTransmission = ptMaterialComp->tFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION;
+                    if(gptUI->checkbox("Diffuse Transmission##1", &bDiffuseTransmission))
+                    {
+                        bShadersModified = true;
+                        bMaterialModified = true;
+                        if(bDiffuseTransmission) ptMaterialComp->tFlags |= PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION;
+                        else                     ptMaterialComp->tFlags &= ~PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION;
+                    }
 
                     if(bMaterialModified)
                         gptRenderer->update_scene_materials(ptScene, 1, ptSelectedEntity);
 
+                    if(bShadersModified)
+                        gptRenderer->reload_scene_shaders(ptScene);
+
                     static const char* apcBlendModeNames[] = 
                     {
-                        "PL_MATERIAL_BLEND_MODE_OPAQUE",
-                        "PL_MATERIAL_BLEND_MODE_ALPHA",
-                        "PL_MATERIAL_BLEND_MODE_PREMULTIPLIED",
-                        "PL_MATERIAL_BLEND_MODE_ADDITIVE",
-                        "PL_MATERIAL_BLEND_MODE_MULTIPLY",
-                        "PL_MATERIAL_BLEND_MODE_CLIP_MASK"
+                        "PL_MATERIAL_ALPHA_MODE_OPAQUE",
+                        "PL_MATERIAL_ALPHA_MODE_MASK",
+                        "PL_MATERIAL_ALPHA_MODE_BLEND"
                     };
-                    gptUI->labeled_text("Blend Mode", "%s", apcBlendModeNames[ptMaterialComp->tBlendMode]);
+                    gptUI->labeled_text("Alpha Mode", "%s", apcBlendModeNames[ptMaterialComp->tAlphaMode]);
 
                     static const char* apcShaderNames[] = 
                     {
                         "PL_SHADER_TYPE_PBR",
-                        "PL_SHADER_TYPE_PBR_CLEARCOAT",
-                        "PL_SHADER_TYPE_PBR_SHEEN",
-                        "PL_SHADER_TYPE_CUSTOM"
+                        "PL_SHADER_TYPE_PBR_ADVANCED",
                     };
                     gptUI->labeled_text("Shader Type", "%s", apcShaderNames[ptMaterialComp->tShaderType]);
                     gptUI->labeled_text("Double Sided", "%s", ptMaterialComp->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED ? "true" : "false");
@@ -853,7 +904,7 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                     gptUI->text("Texture Maps");
                     gptUI->indent(15.0f);
 
-                    static const char* apcTextureSlotNames[] = 
+                    static const char* apcTextureSlotNames[PL_TEXTURE_SLOT_COUNT] = 
                     {
                         "PL_TEXTURE_SLOT_BASE_COLOR_MAP",
                         "PL_TEXTURE_SLOT_NORMAL_MAP",
@@ -865,18 +916,17 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                         "PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP",
                         "PL_TEXTURE_SLOT_SHEEN_COLOR_MAP",
                         "PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP",
-                        "PL_TEXTURE_SLOT_TRANSMISSION_MAP",
-                        "PL_TEXTURE_SLOT_SPECULAR_MAP",
-                        "PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP",
-                        "PL_TEXTURE_SLOT_ANISOTROPY_MAP",
-                        "PL_TEXTURE_SLOT_SURFACE_MAP",
                         "PL_TEXTURE_SLOT_IRIDESCENCE_MAP",
                         "PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP"
+                        "PL_TEXTURE_SLOT_ANISOTROPY_MAP",
+                        "PL_TEXTURE_SLOT_TRANSMISSION_MAP",
+                        "PL_TEXTURE_SLOT_THICKNESS_MAP",
                     };
 
                     for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
                     {
-                        gptUI->text("%s: %s", apcTextureSlotNames[i], ptMaterialComp->atTextureMaps[i].acName[0] == 0 ? " " : "present");
+                        if(ptMaterialComp->atTextureMaps[i].acName[0] != 0)
+                            gptUI->text("%s", apcTextureSlotNames[i]);
                     }
                     gptUI->unindent(15.0f);
                     gptUI->end_collapsing_header();

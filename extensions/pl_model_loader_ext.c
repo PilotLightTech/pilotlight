@@ -135,7 +135,7 @@ pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, c
     plMaterialComponent* ptMaterial = NULL;
     ptMesh->tMaterial = gptMaterial->create(ptLibrary, pcPath, &ptMaterial);
     ptMaterial->tBaseColor = tColor;
-    ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
+    ptMaterial->tAlphaMode = PL_MATERIAL_ALPHA_MODE_OPAQUE;
     // ptMaterial->tFlags |= PL_MATERIAL_FLAG_OUTLINE;
     
     // load STL model
@@ -387,6 +387,28 @@ static void
 pl__load_gltf_texture(const char* pcPath, plTextureSlot tSlot, const cgltf_texture_view* ptTexture, const char* pcDirectory, const cgltf_material* ptGltfMaterial, plMaterialComponent* ptMaterial)
 {
     ptMaterial->atTextureMaps[tSlot].uUVSet = ptTexture->texcoord;
+    ptMaterial->atTextureMaps[tSlot].tTransform = pl_identity_mat4();
+
+    if(ptTexture->has_transform)
+    {
+        const float fSin = sinf(ptTexture->transform.rotation);
+        const float fCos = cosf(ptTexture->transform.rotation);
+        plMat3 tRotation = pl_create_mat3_diag(fCos, fCos, 1.0f);
+        tRotation.x12 = fSin;
+        tRotation.x21 = -fSin;
+
+        const plMat3 tScale = pl_create_mat3_diag(ptTexture->transform.scale[0], ptTexture->transform.scale[1], 1.0f);
+
+        plMat3 tTranslation = pl_create_mat3_diag(1.0f, 1.0f, 1.0f);
+        tTranslation.x13 = ptTexture->transform.offset[0];
+        tTranslation.x23 = ptTexture->transform.offset[1];
+
+        plMat3 tTransform = pl_mul_mat3(&tRotation, &tScale);
+        tTransform = pl_mul_mat3(&tTranslation, &tTransform);
+        memcpy(&ptMaterial->atTextureMaps[tSlot].tTransform.col[0], &tTransform.col[0], sizeof(plVec3));
+        memcpy(&ptMaterial->atTextureMaps[tSlot].tTransform.col[1], &tTransform.col[1], sizeof(plVec3));
+        memcpy(&ptMaterial->atTextureMaps[tSlot].tTransform.col[2], &tTransform.col[2], sizeof(plVec3));
+    }
 
     if(ptTexture->texture->image->buffer_view)
     {
@@ -445,14 +467,19 @@ pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialCo
     ptMaterial->tShaderType = PL_SHADER_TYPE_PBR;
     ptMaterial->tFlags |= ptGltfMaterial->double_sided ? PL_MATERIAL_FLAG_DOUBLE_SIDED : PL_MATERIAL_FLAG_NONE;
     ptMaterial->fAlphaCutoff = ptGltfMaterial->alpha_cutoff;
+    
+    if(ptGltfMaterial->has_ior)
+    {
+        ptMaterial->fIor = ptGltfMaterial->ior.ior;
+    }
 
     // blend mode
     if(ptGltfMaterial->alpha_mode == cgltf_alpha_mode_opaque)
-        ptMaterial->tBlendMode = PL_BLEND_MODE_OPAQUE;
+        ptMaterial->tAlphaMode = PL_MATERIAL_ALPHA_MODE_OPAQUE;
     else if(ptGltfMaterial->alpha_mode == cgltf_alpha_mode_blend)
-        ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
+        ptMaterial->tAlphaMode = PL_MATERIAL_ALPHA_MODE_BLEND;
     else
-        ptMaterial->tBlendMode = PL_BLEND_MODE_CLIP_MASK;
+        ptMaterial->tAlphaMode = PL_MATERIAL_ALPHA_MODE_MASK;
 
 	if(ptGltfMaterial->normal_texture.texture)
     {
@@ -466,19 +493,25 @@ pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialCo
     ptMaterial->tEmissiveColor.g = ptGltfMaterial->emissive_factor[1];
     ptMaterial->tEmissiveColor.b = ptGltfMaterial->emissive_factor[2];
     if(ptMaterial->tEmissiveColor.r != 0.0f || ptMaterial->tEmissiveColor.g != 0.0f || ptMaterial->tEmissiveColor.b != 0.0f)
+    {
         ptMaterial->tEmissiveColor.a = 1.0f;
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_ADVANCED;
+    }
 	if(ptGltfMaterial->emissive_texture.texture)
     {
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_ADVANCED;
 		pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_EMISSIVE_MAP, &ptGltfMaterial->emissive_texture, pcDirectory, ptGltfMaterial, ptMaterial);
     }
 
 	if(ptGltfMaterial->occlusion_texture.texture)
     {
 		pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_OCCLUSION_MAP, &ptGltfMaterial->occlusion_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+        ptMaterial->fOcclusionStrength = ptGltfMaterial->occlusion_texture.scale;
     }
 
     if(ptGltfMaterial->has_pbr_metallic_roughness)
     {
+        ptMaterial->tFlags |= PL_MATERIAL_FLAG_METALLIC_ROUGHNESS;
         ptMaterial->tBaseColor.x = ptGltfMaterial->pbr_metallic_roughness.base_color_factor[0];
         ptMaterial->tBaseColor.y = ptGltfMaterial->pbr_metallic_roughness.base_color_factor[1];
         ptMaterial->tBaseColor.z = ptGltfMaterial->pbr_metallic_roughness.base_color_factor[2];
@@ -496,7 +529,8 @@ pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialCo
 
     if(ptGltfMaterial->has_clearcoat)
     {
-        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_CLEARCOAT;
+        ptMaterial->tFlags |= PL_MATERIAL_FLAG_CLEARCOAT;
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_ADVANCED;
         ptMaterial->fClearcoat = ptGltfMaterial->clearcoat.clearcoat_factor;
         ptMaterial->fClearcoatRoughness = ptGltfMaterial->clearcoat.clearcoat_roughness_factor;
         if(ptGltfMaterial->clearcoat.clearcoat_texture.texture)
@@ -509,7 +543,8 @@ pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialCo
 
     if(ptGltfMaterial->has_sheen)
     {
-        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_SHEEN;
+        ptMaterial->tFlags |= PL_MATERIAL_FLAG_SHEEN;
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_ADVANCED;
         ptMaterial->fSheenRoughness = ptGltfMaterial->sheen.sheen_roughness_factor;
 
         ptMaterial->tSheenColor.r = ptGltfMaterial->sheen.sheen_color_factor[0];
@@ -520,6 +555,75 @@ pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialCo
 			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_SHEEN_COLOR_MAP, &ptGltfMaterial->sheen.sheen_color_texture, pcDirectory, ptGltfMaterial, ptMaterial);
         if(ptGltfMaterial->sheen.sheen_roughness_texture.texture)
 			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP, &ptGltfMaterial->sheen.sheen_roughness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+    }
+
+    if(ptGltfMaterial->has_iridescence)
+    {
+        ptMaterial->tFlags |= PL_MATERIAL_FLAG_IRIDESCENCE;
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_ADVANCED;
+        ptMaterial->fIridescenceFactor = ptGltfMaterial->iridescence.iridescence_factor;
+        ptMaterial->fIridescenceIor = ptGltfMaterial->iridescence.iridescence_ior;
+        ptMaterial->fIridescenceThicknessMin = ptGltfMaterial->iridescence.iridescence_thickness_min;
+        ptMaterial->fIridescenceThicknessMax = ptGltfMaterial->iridescence.iridescence_thickness_max;
+
+        if(ptGltfMaterial->iridescence.iridescence_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_IRIDESCENCE_MAP, &ptGltfMaterial->iridescence.iridescence_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+        if(ptGltfMaterial->iridescence.iridescence_thickness_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP, &ptGltfMaterial->iridescence.iridescence_thickness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+    }
+
+    if(ptGltfMaterial->has_anisotropy)
+    {
+        ptMaterial->tFlags |= PL_MATERIAL_FLAG_ANISOTROPY;
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_ADVANCED;
+        ptMaterial->fAnisotropyRotation = ptGltfMaterial->anisotropy.anisotropy_rotation;
+        ptMaterial->fAnisotropyStrength = ptGltfMaterial->anisotropy.anisotropy_strength;
+        if(ptGltfMaterial->anisotropy.anisotropy_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_ANISOTROPY_MAP, &ptGltfMaterial->anisotropy.anisotropy_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+    }
+
+    if(ptGltfMaterial->has_transmission)
+    {
+        ptMaterial->tFlags |= PL_MATERIAL_FLAG_TRANSMISSION;
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_ADVANCED;
+        ptMaterial->fTransmissionFactor = ptGltfMaterial->transmission.transmission_factor;
+        if(ptGltfMaterial->transmission.transmission_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_TRANSMISSION_MAP, &ptGltfMaterial->transmission.transmission_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+    }
+
+    if(ptGltfMaterial->has_volume)
+    {
+        ptMaterial->tFlags |= PL_MATERIAL_FLAG_VOLUME;
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_ADVANCED;
+        ptMaterial->fThickness = ptGltfMaterial->volume.thickness_factor;
+        ptMaterial->fAttenuationDistance = ptGltfMaterial->volume.attenuation_distance;
+        ptMaterial->tAttenuationColor.r = ptGltfMaterial->volume.attenuation_color[0];
+        ptMaterial->tAttenuationColor.g = ptGltfMaterial->volume.attenuation_color[1];
+        ptMaterial->tAttenuationColor.b = ptGltfMaterial->volume.attenuation_color[2];
+        if(ptGltfMaterial->volume.thickness_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_THICKNESS_MAP, &ptGltfMaterial->volume.thickness_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+    }
+
+    if(ptGltfMaterial->has_diffuse_transmission)
+    {
+        ptMaterial->tFlags |= PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION;
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_ADVANCED;
+        ptMaterial->fDiffuseTransmission = ptGltfMaterial->diffuse_transmission.diffuse_transmission_factor;
+        ptMaterial->tDiffuseTransmissionColor.r = ptGltfMaterial->diffuse_transmission.diffuse_transmission_color_factor[0];
+        ptMaterial->tDiffuseTransmissionColor.g = ptGltfMaterial->diffuse_transmission.diffuse_transmission_color_factor[1];
+        ptMaterial->tDiffuseTransmissionColor.b = ptGltfMaterial->diffuse_transmission.diffuse_transmission_color_factor[2];
+        if(ptGltfMaterial->diffuse_transmission.diffuse_transmission_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_DIFFUSE_TRANSMISSION_MAP, &ptGltfMaterial->diffuse_transmission.diffuse_transmission_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+        if(ptGltfMaterial->diffuse_transmission.diffuse_transmission_color_texture.texture)
+			pl__load_gltf_texture(pcPath, PL_TEXTURE_SLOT_DIFFUSE_TRANSMISSION_COLOR_MAP, &ptGltfMaterial->diffuse_transmission.diffuse_transmission_color_texture, pcDirectory, ptGltfMaterial, ptMaterial);
+    }
+
+    ptMaterial->fDispersion = 0;
+    if(ptGltfMaterial->has_dispersion)
+    {
+        ptMaterial->tFlags |= PL_MATERIAL_FLAG_DISPERSION;
+        ptMaterial->tShaderType = PL_SHADER_TYPE_PBR_ADVANCED;
+        ptMaterial->fDispersion = ptGltfMaterial->dispersion.dispersion;
     }
 }
 
@@ -1142,7 +1246,7 @@ pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfL
                 }
 
                 if(ptPrimitive->material->has_transmission)
-                    ptMaterial->tBlendMode = PL_BLEND_MODE_ALPHA;
+                    ptMaterial->tAlphaMode = PL_MATERIAL_ALPHA_MODE_BLEND;
 
                 pl_sb_push(ptData->atObjects, tNewObject);
             }

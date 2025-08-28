@@ -80,8 +80,8 @@ pl_material_register_system(void)
     };
 
     static const plMaterialComponent tMaterialComponentDefault = {
-        .tBlendMode            = PL_BLEND_MODE_OPAQUE,
-        .tFlags                = PL_MATERIAL_FLAG_CAST_SHADOW | PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW,
+        .tAlphaMode            = PL_MATERIAL_ALPHA_MODE_OPAQUE,
+        .tFlags                = PL_MATERIAL_FLAG_CAST_SHADOW | PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW | PL_MATERIAL_FLAG_METALLIC_ROUGHNESS,
         .tShaderType           = PL_SHADER_TYPE_PBR,
         .tBaseColor            = {1.0f, 1.0f, 1.0f, 1.0f},
         .tSheenColor           = {1.0f, 1.0f, 1.0f},
@@ -94,6 +94,8 @@ pl_material_register_system(void)
         .fAlphaCutoff          = 0.5f,
         .fNormalMapStrength    = 1.0f,
         .fEmissiveStrength     = 1.0f,
+        .fOcclusionStrength    = 1.0f,
+        .fIor                  = 1.5f,
         .atTextureMaps         = {0}
     };
     gptMaterialCtx->tComponentType = gptECS->register_type(tMaterialDesc, &tMaterialComponentDefault);

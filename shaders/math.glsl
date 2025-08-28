@@ -67,10 +67,36 @@ pl_saturate(float fV)
     return clamp(fV, 0.0, 1.0);
 }
 
+float sq(float t)
+{
+    return t * t;
+}
+
+vec2 sq(vec2 t)
+{
+    return t * t;
+}
+
+vec3 sq(vec3 t)
+{
+    return t * t;
+}
+
+vec4 sq(vec4 t)
+{
+    return t * t;
+}
+
 vec2
 pl_saturate(vec2 v)
 {
     return vec2(clamp(v.x, 0.0, 1.0), clamp(v.y, 0.0, 1.0));
+}
+vec3
+pl_rgb_mix(vec3 base, vec3 layer, vec3 rgb_alpha)
+{
+    float rgb_alpha_max = max(rgb_alpha.r, max(rgb_alpha.g, rgb_alpha.b));
+    return (1.0 - rgb_alpha_max) * base + rgb_alpha * layer;
 }
 
 float

@@ -48,10 +48,22 @@ Index of this file:
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
+PL_BEGIN_ENUM(plShaderAlphaMode)
+    PL_ENUM_ITEM(PL_SHADER_ALPHA_MODE_OPAQUE, 0)
+    PL_ENUM_ITEM(PL_SHADER_ALPHA_MODE_MASK, 1)
+    PL_ENUM_ITEM(PL_SHADER_ALPHA_MODE_BLEND, 2)
+PL_END_ENUM
+
 PL_BEGIN_ENUM(plMaterialShaderFlags)
-    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS, 1 << 0)
-    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_CLEARCOAT,          1 << 1)
-    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_SHEEN,              1 << 2)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS,   1 << 0)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_CLEARCOAT,            1 << 1)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_SHEEN,                1 << 2)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_IRIDESCENCE,          1 << 3)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_ANISOTROPY,           1 << 4)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_TRANSMISSION,         1 << 5)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_VOLUME,               1 << 6)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_DISPERSION,           1 << 7)
+    PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION, 1 << 8)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plRenderingFlags)
@@ -114,36 +126,60 @@ PL_BEGIN_ENUM(plShaderDebugMode)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_CLEARCOAT_NORMAL, 15)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_SHEEN_COLOR, 16)
     PL_ENUM_ITEM(PL_SHADER_DEBUG_SHEEN_ROUGHNESS, 17)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_IRIDESCENCE_FACTOR, 18)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_IRIDESCENCE_THICKNESS, 19)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_ANISOTROPY_STRENGTH, 20)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_ANISOTROPY_DIRECTION, 21)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_TRANSMISSION_STRENGTH, 22)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_VOLUME_THICKNESS, 23)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_DIFFUSE_TRANSMISSION_STRENGTH, 24)
+    PL_ENUM_ITEM(PL_SHADER_DEBUG_DIFFUSE_TRANSMISSION_COLOR, 25)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plShaderTextureSlot)
-    PL_ENUM_ITEM(PL_TEXTURE_BASE_COLOR,          0)
-    PL_ENUM_ITEM(PL_TEXTURE_NORMAL,              1)
-    PL_ENUM_ITEM(PL_TEXTURE_EMISSIVE,            2)
-    PL_ENUM_ITEM(PL_TEXTURE_OCCLUSION,           3)
+    PL_ENUM_ITEM(PL_TEXTURE_BASE_COLOR,             0)
+    PL_ENUM_ITEM(PL_TEXTURE_NORMAL,                 1)
+    PL_ENUM_ITEM(PL_TEXTURE_EMISSIVE,               2)
+    PL_ENUM_ITEM(PL_TEXTURE_OCCLUSION,              3)
 
-    PL_ENUM_ITEM(PL_TEXTURE_METAL_ROUGHNESS,     4)
-    PL_ENUM_ITEM(PL_TEXTURE_CLEARCOAT,           5)
-    PL_ENUM_ITEM(PL_TEXTURE_CLEARCOAT_ROUGHNESS, 6)
-    PL_ENUM_ITEM(PL_TEXTURE_CLEARCOAT_NORMAL,    7)
+    PL_ENUM_ITEM(PL_TEXTURE_METAL_ROUGHNESS,        4)
+    PL_ENUM_ITEM(PL_TEXTURE_CLEARCOAT,              5)
+    PL_ENUM_ITEM(PL_TEXTURE_CLEARCOAT_ROUGHNESS,    6)
+    PL_ENUM_ITEM(PL_TEXTURE_CLEARCOAT_NORMAL,       7)
 
-    PL_ENUM_ITEM(PL_TEXTURE_SHEEN_COLOR,         8)
-    PL_ENUM_ITEM(PL_TEXTURE_SHEEN_ROUGHNESS,     9)
+    PL_ENUM_ITEM(PL_TEXTURE_SHEEN_COLOR,            8)
+    PL_ENUM_ITEM(PL_TEXTURE_SHEEN_ROUGHNESS,        9)
+    PL_ENUM_ITEM(PL_TEXTURE_IRIDESCENCE,           10)
+    PL_ENUM_ITEM(PL_TEXTURE_IRIDESCENCE_THICKNESS, 11)
 
-    PL_ENUM_ITEM(PL_TEXTURE_COUNT,               12)
+    PL_ENUM_ITEM(PL_TEXTURE_ANISOTROPY,            12)
+    PL_ENUM_ITEM(PL_TEXTURE_TRANSMISSION,          13)
+    PL_ENUM_ITEM(PL_TEXTURE_THICKNESS,             14)
+    PL_ENUM_ITEM(PL_TEXTURE_DIFFUSE_TRANSMISSION,  15)
+
+    PL_ENUM_ITEM(PL_TEXTURE_DIFFUSE_TRANSMISSION_COLOR, 16)
+
+    PL_ENUM_ITEM(PL_TEXTURE_COUNT, 20)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plTextureMappingFlags)
-    PL_ENUM_ITEM(PL_HAS_BASE_COLOR_MAP,          1 << 0)
-    PL_ENUM_ITEM(PL_HAS_NORMAL_MAP,              1 << 1)
-    PL_ENUM_ITEM(PL_HAS_EMISSIVE_MAP,            1 << 2)
-    PL_ENUM_ITEM(PL_HAS_OCCLUSION_MAP,           1 << 3)
-    PL_ENUM_ITEM(PL_HAS_METALLIC_ROUGHNESS_MAP,  1 << 4)
-    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_MAP,           1 << 5)
-    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_ROUGHNESS_MAP, 1 << 6)
-    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_NORMAL_MAP,    1 << 7)
-    PL_ENUM_ITEM(PL_HAS_SHEEN_COLOR_MAP,         1 << 8)
-    PL_ENUM_ITEM(PL_HAS_SHEEN_ROUGHNESS_MAP,     1 << 9)
+    PL_ENUM_ITEM(PL_HAS_BASE_COLOR_MAP,                 1 <<  0)
+    PL_ENUM_ITEM(PL_HAS_NORMAL_MAP,                     1 <<  1)
+    PL_ENUM_ITEM(PL_HAS_EMISSIVE_MAP,                   1 <<  2)
+    PL_ENUM_ITEM(PL_HAS_OCCLUSION_MAP,                  1 <<  3)
+    PL_ENUM_ITEM(PL_HAS_METALLIC_ROUGHNESS_MAP,         1 <<  4)
+    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_MAP,                  1 <<  5)
+    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_ROUGHNESS_MAP,        1 <<  6)
+    PL_ENUM_ITEM(PL_HAS_CLEARCOAT_NORMAL_MAP,           1 <<  7)
+    PL_ENUM_ITEM(PL_HAS_SHEEN_COLOR_MAP,                1 <<  8)
+    PL_ENUM_ITEM(PL_HAS_SHEEN_ROUGHNESS_MAP,            1 <<  9)
+    PL_ENUM_ITEM(PL_HAS_IRIDESCENCE_MAP,                1 << 10)
+    PL_ENUM_ITEM(PL_HAS_IRIDESCENCE_THICKNESS_MAP,      1 << 11)
+    PL_ENUM_ITEM(PL_HAS_ANISOTROPY_MAP,                 1 << 12)
+    PL_ENUM_ITEM(PL_HAS_TRANSMISSION_MAP,               1 << 13)
+    PL_ENUM_ITEM(PL_HAS_THICKNESS_MAP,                  1 << 14)
+    PL_ENUM_ITEM(PL_HAS_DIFFUSE_TRANSMISSION_MAP,       1 << 15)
+    PL_ENUM_ITEM(PL_HAS_DIFFUSE_TRANSMISSION_COLOR_MAP, 1 << 16)
 PL_END_ENUM
 
 //-----------------------------------------------------------------------------
@@ -177,6 +213,12 @@ PL_END_STRUCT(plGpuSceneData)
 //-----------------------------------------------------------------------------
 
 PL_BEGIN_STRUCT(plGpuViewData)
+
+    int iTransmissionFrameBufferIndex;
+    int _iUnused0;
+    int _iUnused1;
+    int _iUnused2;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     vec4 tViewportSize;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
@@ -480,12 +522,38 @@ PL_BEGIN_STRUCT(plGpuMaterial)
     float fAlphaCutoff;
     float fOcclusionStrength;
     float fNormalMapStrength;
-    int _iUnused1;
+    float fThickness;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec3  tAttenuationColor;
+    float fAttenuationDistance;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    float fIridescenceFactor;
+    float fIridescenceIor;
+    float fIridescenceThicknessMax;
+    float fIridescenceThicknessMin;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec3 tAnisotropy;
+    float fTransmissionFactor;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    float fDispersion;
+    float fIor;
+    int   tAlphaMode;
+    uint _uUnused0;
+
+    vec3 tDiffuseTransmissionColor;
+    float fDiffuseTransmission;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     int aiTextureUVSet[PL_TEXTURE_COUNT];
     int aiTextureIndices[PL_TEXTURE_COUNT];
     // ~~~~~~~~~~~~~~~~96 bytes~~~~~~~~~~~~~~~~
+
+    mat4 atTextureTransforms[PL_TEXTURE_COUNT];
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     // ~~~~~~~~~~~~~~~~144 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuMaterial)

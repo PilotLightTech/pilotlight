@@ -5,6 +5,22 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
+- v0.6.1 (2025-xx-xx) (renderer) add iridescence support
+                      (renderer) add CSM blending
+                      (renderer) add anisotropy support
+                      (renderer) add clearcoat support
+                      (renderer) add transmission support
+                      (renderer) add volume transmission support
+                      (renderer) add diffuse transmission support
+                      (renderer) add index of refraction support
+                      (renderer) add dispersion support
+                      (renderer) add texture UV transforms
+                      (renderer) add normal & emissive strength paramaters
+                      (renderer) fix alpha mode support
+                      (renderer) fix IBL filtering
+                      (renderer) fix environment probe update schedule
+                      (renderer) fix metal sync issues
+                      (draw)     fix draw layer cleanup
 - v0.6.0 (2025-08-19) (ecs)      finalize ECS extension to 1.0
                       (material) add new material extension
                       (script)   add new script extension

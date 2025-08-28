@@ -63,143 +63,9 @@ layout(location = 0) in struct plShaderIn {
 } tShaderIn;
 
 #include "math.glsl"
+#define PL_INCLUDE_MATERIAL_FUNCTIONS
 #include "material_info.glsl"
 
-struct NormalInfo {
-    vec3 ng;   // Geometry normal
-    vec3 t;    // Geometry tangent
-    vec3 b;    // Geometry bitangent
-    vec3 n;    // Shading normal
-    vec3 ntex; // Normal from texture, scaling is accounted for.
-};
-
-NormalInfo
-pl_get_normal_info(int iUVSet)
-{
-    vec2 UV = tShaderIn.tUV[iUVSet];
-    vec2 uv_dx = dFdx(UV);
-    vec2 uv_dy = dFdy(UV);
-
-    // if (length(uv_dx) <= 1e-2) {
-    //   uv_dx = vec2(1.0, 0.0);
-    // }
-
-    // if (length(uv_dy) <= 1e-2) {
-    //   uv_dy = vec2(0.0, 1.0);
-    // }
-
-    vec3 t_ = (uv_dy.t * dFdx(tShaderIn.tWorldPosition) - uv_dx.t * dFdy(tShaderIn.tWorldPosition)) /
-        (uv_dx.s * uv_dy.t - uv_dy.s * uv_dx.t);
-
-    vec3 n, t, b, ng;
-
-    // Compute geometrical TBN:
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_NORMAL))
-    {
-
-        if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TANGENT))
-        {
-            // Trivial TBN computation, present as vertex attribute.
-            // Normalize eigenvectors as matrix is linearly interpolated.
-            t = normalize(tShaderIn.tTBN[0]);
-            b = normalize(tShaderIn.tTBN[1]);
-            ng = normalize(tShaderIn.tTBN[2]);
-        }
-        else
-        {
-            // Normals are either present as vertex attributes or approximated.
-            ng = normalize(tShaderIn.tWorldNormal);
-            t = normalize(t_ - ng * dot(ng, t_));
-            b = cross(ng, t);
-        }
-    }
-    else
-    {
-        ng = normalize(cross(dFdx(tShaderIn.tWorldPosition), dFdy(tShaderIn.tWorldPosition)));
-        t = normalize(t_ - ng * dot(ng, t_));
-        b = cross(ng, t);
-    }
-
-
-    // For a back-facing surface, the tangential basis vectors are negated.
-    if (gl_FrontFacing == false)
-    {
-        t *= -1.0;
-        b *= -1.0;
-        ng *= -1.0;
-    }
-
-    // Compute normals:
-    NormalInfo info;
-    info.ng = ng;
-    if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP) && bool(iRenderingFlags & PL_RENDERING_FLAG_USE_NORMAL_MAPS)) 
-    {
-        plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-        info.ntex = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_NORMAL])], tSamplerLinearRepeat), UV).rgb * 2.0 - vec3(1.0);
-        info.ntex *= vec3(material.fNormalMapStrength, material.fNormalMapStrength, 1.0);
-        info.ntex = normalize(info.ntex);
-        info.n = normalize(mat3(t, b, ng) * info.ntex);
-    }
-    else
-    {
-        info.n = ng;
-    }
-    info.t = t;
-    info.b = b;
-    return info;
-}
-
-vec4
-getBaseColor(vec4 u_ColorFactor, int iUVSet)
-{
-    vec4 baseColor = vec4(1);
-
-    // if(bool(MATERIAL_SPECULARGLOSSINESS))
-    // {
-    //     baseColor = u_DiffuseFactor;
-    // }
-    // else if(bool(MATERIAL_METALLICROUGHNESS))
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
-    {
-        // baseColor = u_BaseColorFactor;
-        baseColor = u_ColorFactor;
-    }
-
-    // if(bool(MATERIAL_SPECULARGLOSSINESS) && bool(HAS_DIFFUSE_MAP))
-    // {
-    //     // baseColor *= texture(u_DiffuseSampler, getDiffuseUV());
-    //     baseColor *= texture(u_DiffuseSampler, tShaderIn.tUV);
-    // }
-    // else if(bool(MATERIAL_METALLICROUGHNESS) && bool(HAS_BASE_COLOR_MAP))
-    if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS) && bool(iTextureMappingFlags & PL_HAS_BASE_COLOR_MAP))
-    {
-        plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-        baseColor *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_BASE_COLOR])], tSamplerLinearRepeat), tShaderIn.tUV[iUVSet]));
-    }
-    return baseColor * tShaderIn.tColor;
-}
-
-MaterialInfo
-getMetallicRoughnessInfo(MaterialInfo info, float u_MetallicFactor, float u_RoughnessFactor, int UVSet)
-{
-    info.metallic = u_MetallicFactor;
-    info.perceptualRoughness = u_RoughnessFactor;
-
-    if(bool(iTextureMappingFlags & PL_HAS_METALLIC_ROUGHNESS_MAP))
-    {
-        // Roughness is stored in the 'g' channel, metallic is stored in the 'b' channel.
-        // This layout intentionally reserves the 'r' channel for (optional) occlusion map data
-        plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-        vec4 mrSample = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_METAL_ROUGHNESS])], tSamplerLinearRepeat), tShaderIn.tUV[UVSet]);
-        info.perceptualRoughness *= mrSample.g;
-        info.metallic *= mrSample.b;
-    }
-
-    // Achromatic f0 based on IOR.
-    info.c_diff = mix(info.baseColor.rgb,  vec3(0), info.metallic);
-    info.f0_dielectric = mix(info.f0_dielectric, info.baseColor.rgb, info.metallic);
-    return info;
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry
@@ -209,15 +75,12 @@ void main()
 {
     
     plGpuMaterial material = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex];
-    NormalInfo tNormalInfo = pl_get_normal_info(material.aiTextureUVSet[PL_TEXTURE_NORMAL]);
+    NormalInfo tNormalInfo = pl_get_normal_info();
     vec4 tBaseColor = getBaseColor(material.tBaseColorFactor, material.aiTextureUVSet[PL_TEXTURE_BASE_COLOR]);
 
-    if(tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
+    if(material.tAlphaMode == PL_SHADER_ALPHA_MODE_OPAQUE)
     {
-        if(tBaseColor.a <  material.fAlphaCutoff)
-        {
-            discard;
-        }
+        tBaseColor.a = 1.0;
     }
     
     MaterialInfo materialInfo;
@@ -226,7 +89,7 @@ void main()
     
     if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS))
     {
-        materialInfo = getMetallicRoughnessInfo(materialInfo, material.fMetallicFactor, material.fRoughnessFactor, material.aiTextureUVSet[PL_TEXTURE_METAL_ROUGHNESS]);
+        materialInfo = getMetallicRoughnessInfo(materialInfo, material.fMetallicFactor, material.fRoughnessFactor);
     }
 
     materialInfo.perceptualRoughness = clamp(materialInfo.perceptualRoughness, 0.0, 1.0);
@@ -244,7 +107,21 @@ void main()
     float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
-        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), tShaderIn.tUV[material.aiTextureUVSet[PL_TEXTURE_OCCLUSION]]).r;
+        ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION)).r;
+        ao = (1.0 + material.fOcclusionStrength * (ao - 1.0)); 
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
+    {
+
+        if(material.tAlphaMode == PL_SHADER_ALPHA_MODE_MASK)
+        {
+            if(tBaseColor.a <  material.fAlphaCutoff)
+            {
+                discard;
+            }
+            tBaseColor.a = 1.0;
+        }
     }
 
     // fill g-buffer

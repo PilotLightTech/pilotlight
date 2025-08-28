@@ -14,6 +14,7 @@
 
 layout(constant_id = 0) const int iRenderingFlags = 0;
 layout(constant_id = 1) const int tShaderDebugMode = 0;
+layout(constant_id = 2) const int iProbeCount = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 2
@@ -41,6 +42,7 @@ layout(location = 0) out vec4 outColor;
 
 // layout(location = 0) in vec2 tUV;
 
+const int iMaterialFlags = 0;
 #include "lighting.glsl"
 #include "material_info.glsl"
 
@@ -95,40 +97,36 @@ void main()
     vec3 v = normalize(tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
 
     // Calculate lighting contribution from image based lighting source (IBL)
-    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && tObjectInfo.tData.iProbeIndex != -1)
+    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
     {
-        // int iProbeIndex = 0;
-        // float fCurrentDistance = 10000.0;
-        // for(int i = iProbeCount - 1; i > -1; i--)
-        // {
-        //     vec3 tDist = tProbeData.atData[i].tPosition - tWorldPosition.xyz;
-        //     tDist = tDist * tDist;
-        //     float fDistSqr = tDist.x + tDist.y + tDist.z;
-        //     if(fDistSqr <= tProbeData.atData[i].fRangeSqr && fDistSqr < fCurrentDistance)
-        //     {
-        //         iProbeIndex = i;
-        //         fCurrentDistance = fDistSqr;
-        //     }
-        // }
-
-        // vec3 tDist = tProbeData.atData[tObjectInfo.tData.iProbeIndex].tPosition - tWorldPosition.xyz;
-        // tDist = tDist * tDist;
-        // float fDistSqr = tDist.x + tDist.y + tDist.z;
-        // if(fDistSqr <= tProbeData.atData[tObjectInfo.tData.iProbeIndex].fRangeSqr)
+        int iProbeIndex = 0;
+        float fCurrentDistance = 10000.0;
+        for(int i = iProbeCount - 1; i > -1; i--)
+        {
+            vec3 tDist = tProbeData.atData[i].tPosition - tWorldPosition.xyz;
+            tDist = tDist * tDist;
+            float fDistSqr = tDist.x + tDist.y + tDist.z;
+            if(fDistSqr <= tProbeData.atData[i].fRangeSqr && fDistSqr < fCurrentDistance)
+            {
+                iProbeIndex = i;
+                fCurrentDistance = fDistSqr;
+            }
+        }
+        if(iProbeIndex > -1)
         {
 
-            f_diffuse = getDiffuseLight(n, tObjectInfo.tData.iProbeIndex) * tBaseColor.rgb;
+            f_diffuse = getDiffuseLight(n, iProbeIndex) * tBaseColor.rgb;
 
-            int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[tObjectInfo.tData.iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
-            f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips, tWorldPosition.xyz, tObjectInfo.tData.iProbeIndex);
+            int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
+            f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips, tWorldPosition.xyz, iProbeIndex);
             f_specular_dielectric = f_specular_metal;
 
             // Calculate fresnel mix for IBL  
 
-            vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, tObjectInfo.tData.iProbeIndex);
+            vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, iProbeIndex);
             f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
         
-            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, tObjectInfo.tData.iProbeIndex);
+            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, iProbeIndex);
             f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);
 
             color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
@@ -154,12 +152,12 @@ void main()
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL) && tObjectInfo.tData.iLightIndex != -1)
     {
         plGpuLight tLightData = tLightInfo.atData[tObjectInfo.tData.iLightIndex];
-
         float shadow = 1.0;
 
+        vec3 pointToLight;
         if(tLightData.iType == PL_LIGHT_TYPE_DIRECTIONAL)
         {
-            vec3 pointToLight = -tLightData.tDirection;
+            pointToLight = -tLightData.tDirection;
 
             if(bShadows && tLightData.iCastShadow > 0)
             {
@@ -215,45 +213,10 @@ void main()
                 }  
 
             }
-
-            // BSTF
-            vec3 l = normalize(pointToLight);   // Direction from surface point to light
-            vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-            float NdotL = clampedDot(n, l);
-            float NdotV = clampedDot(n, v);
-            float NdotH = clampedDot(n, h);
-            float LdotH = clampedDot(l, h);
-            float VdotH = clampedDot(v, h);
-
-            vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
-            vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
-
-
-            if (NdotL > 0.0 || NdotV > 0.0)
-            {
-
-                vec3 intensity = getLightIntensity(tLightData, pointToLight);
-
-                vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
-                vec3 l_specular_dielectric = vec3(0.0);
-                vec3 l_specular_metal = vec3(0.0);
-                vec3 l_dielectric_brdf = vec3(0.0);
-                vec3 l_metal_brdf = vec3(0.0);
-
-                l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
-                l_specular_dielectric = l_specular_metal;
-
-                l_metal_brdf = metal_fresnel * l_specular_metal;
-                l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
-        
-                vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
-                color += l_color;
-            }
         }
-
-        else if(tLightData.iType == PL_LIGHT_TYPE_POINT)
+        if(tLightData.iType == PL_LIGHT_TYPE_POINT)
         {
-            vec3 pointToLight = tLightData.tPosition - tWorldPosition.xyz;
+            pointToLight = tLightData.tPosition - tWorldPosition.xyz;
 
             if(bShadows && tLightData.iCastShadow > 0)
             {
@@ -287,44 +250,11 @@ void main()
                 }
             }
 
-            // BSTF
-            vec3 l = normalize(pointToLight);   // Direction from surface point to light
-            vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-            float NdotL = clampedDot(n, l);
-            float NdotV = clampedDot(n, v);
-            float NdotH = clampedDot(n, h);
-            float LdotH = clampedDot(l, h);
-            float VdotH = clampedDot(v, h);
-
-            vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
-            vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
-
-
-            if (NdotL > 0.0 || NdotV > 0.0)
-            {
-
-                vec3 intensity = getLightIntensity(tLightData, pointToLight);
-
-                vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
-                vec3 l_specular_dielectric = vec3(0.0);
-                vec3 l_specular_metal = vec3(0.0);
-                vec3 l_dielectric_brdf = vec3(0.0);
-                vec3 l_metal_brdf = vec3(0.0);
-
-                l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
-                l_specular_dielectric = l_specular_metal;
-
-                l_metal_brdf = metal_fresnel * l_specular_metal;
-                l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
-        
-                vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
-                color += l_color;
-            }
         }
-
-        else if(tLightData.iType == PL_LIGHT_TYPE_SPOT)
+        
+        if(tLightData.iType == PL_LIGHT_TYPE_SPOT)
         {
-            vec3 pointToLight = tLightData.tPosition - tWorldPosition.xyz;
+            pointToLight = tLightData.tPosition - tWorldPosition.xyz;
             if(bShadows && tLightData.iCastShadow > 0)
             {
                 plGpuLightShadow tShadowData = tShadowData.atData[tLightData.iShadowIndex];
@@ -349,41 +279,41 @@ void main()
                 }
             }
 
-            // BSTF
-            vec3 l = normalize(pointToLight);   // Direction from surface point to light
-            vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
-            float NdotL = clampedDot(n, l);
-            float NdotV = clampedDot(n, v);
-            float NdotH = clampedDot(n, h);
-            float LdotH = clampedDot(l, h);
-            float VdotH = clampedDot(v, h);
-
-            vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
-            vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
-
-
-            if (NdotL > 0.0 || NdotV > 0.0)
-            {
-
-                vec3 intensity = getLightIntensity(tLightData, pointToLight);
-
-                vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
-                vec3 l_specular_dielectric = vec3(0.0);
-                vec3 l_specular_metal = vec3(0.0);
-                vec3 l_dielectric_brdf = vec3(0.0);
-                vec3 l_metal_brdf = vec3(0.0);
-
-                l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
-                l_specular_dielectric = l_specular_metal;
-
-                l_metal_brdf = metal_fresnel * l_specular_metal;
-                l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
-        
-                vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
-                color += l_color;
-            }
         }
-        
+
+        // BSTF
+        vec3 l = normalize(pointToLight);   // Direction from surface point to light
+        vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
+        float NdotL = clampedDot(n, l);
+        float NdotV = clampedDot(n, v);
+        float NdotH = clampedDot(n, h);
+        float LdotH = clampedDot(l, h);
+        float VdotH = clampedDot(v, h);
+
+        vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
+        vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
+
+
+        if (NdotL > 0.0 || NdotV > 0.0)
+        {
+
+            vec3 intensity = getLightIntensity(tLightData, pointToLight);
+
+            vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
+            vec3 l_specular_dielectric = vec3(0.0);
+            vec3 l_specular_metal = vec3(0.0);
+            vec3 l_dielectric_brdf = vec3(0.0);
+            vec3 l_metal_brdf = vec3(0.0);
+
+            l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+            l_specular_dielectric = l_specular_metal;
+
+            l_metal_brdf = metal_fresnel * l_specular_metal;
+            l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
+    
+            vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
+            color += l_color;
+        }    
     }
 
     // Layer blending

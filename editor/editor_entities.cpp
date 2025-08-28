@@ -465,32 +465,46 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 bool bMaterialModified = false;
                 if(ImGui::InputFloat("Roughness", &ptMaterialComp->fRoughness)) bMaterialModified = true;
                 if(ImGui::InputFloat("Metalness", &ptMaterialComp->fMetalness)) bMaterialModified = true;
-                if(ImGui::InputFloat("Clearcoat", &ptMaterialComp->fClearcoat)) bMaterialModified = true;
-                if(ImGui::InputFloat("Clearcoat Roughness", &ptMaterialComp->fClearcoatRoughness)) bMaterialModified = true;
                 if(ImGui::InputFloat("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff)) bMaterialModified = true;
                 if(ImGui::InputFloat4("Base Factor", ptMaterialComp->tBaseColor.d)) bMaterialModified = true;
-                if(ImGui::InputFloat4("Emmissive Factor", ptMaterialComp->tEmissiveColor.d)) bMaterialModified = true;
+                if(ImGui::InputFloat4("Emmissive Color", ptMaterialComp->tEmissiveColor.d)) bMaterialModified = true;
+                if(ImGui::InputFloat("Anisotropy Strength", &ptMaterialComp->fAnisotropyStrength)) bMaterialModified = true;
+                if(ImGui::InputFloat("Anisotropy Rotation", &ptMaterialComp->fAnisotropyRotation)) bMaterialModified = true;
+                if(ImGui::InputFloat3("Sheen Color", ptMaterialComp->tSheenColor.d)) bMaterialModified = true;
+                if(ImGui::InputFloat("Sheen Roughness", &ptMaterialComp->fSheenRoughness)) bMaterialModified = true;
+                if(ImGui::InputFloat("Clearcoat", &ptMaterialComp->fClearcoat)) bMaterialModified = true;
+                if(ImGui::InputFloat("Clearcoat Roughness", &ptMaterialComp->fClearcoatRoughness)) bMaterialModified = true;
+                if(ImGui::InputFloat("Iridescence Factor", &ptMaterialComp->fIridescenceFactor)) bMaterialModified = true;
+                if(ImGui::InputFloat("Iridescence IOR", &ptMaterialComp->fIridescenceIor)) bMaterialModified = true;
+                if(ImGui::InputFloat("Iridescence Thickness Max", &ptMaterialComp->fIridescenceThicknessMax)) bMaterialModified = true;
+                if(ImGui::InputFloat("Iridescence Thickness Min", &ptMaterialComp->fIridescenceThicknessMin)) bMaterialModified = true;
+                if(ImGui::InputFloat("Normal Strength", &ptMaterialComp->fNormalMapStrength)) bMaterialModified = true;
+                if(ImGui::InputFloat("Emissive Strength", &ptMaterialComp->fEmissiveStrength)) bMaterialModified = true;
+                if(ImGui::InputFloat("IOR", &ptMaterialComp->fIor)) bMaterialModified = true;
+                if(ImGui::InputFloat("Dispersion", &ptMaterialComp->fDispersion)) bMaterialModified = true;
+                if(ImGui::InputFloat("Thickness", &ptMaterialComp->fThickness)) bMaterialModified = true;
+                if(ImGui::InputFloat("Attenuation Distance", &ptMaterialComp->fAttenuationDistance)) bMaterialModified = true;
+                if(ImGui::InputFloat3("Attenuation Color", ptMaterialComp->tAttenuationColor.d)) bMaterialModified = true;
+
 
                 if(bMaterialModified)
                     gptRenderer->update_scene_materials(ptScene, 1, &tEntity);
 
                 static const char* apcBlendModeNames[] = 
                 {
-                    "PL_MATERIAL_BLEND_MODE_OPAQUE",
-                    "PL_MATERIAL_BLEND_MODE_ALPHA",
-                    "PL_MATERIAL_BLEND_MODE_PREMULTIPLIED",
+                    "PL_MATERIAL_ALPHA_MODE_OPAQUE",
+                    "PL_MATERIAL_ALPHA_MODE_MASK",
+                    "PL_MATERIAL_ALPHA_MODE_BLEND",
                     "PL_MATERIAL_BLEND_MODE_ADDITIVE",
                     "PL_MATERIAL_BLEND_MODE_MULTIPLY",
                     "PL_MATERIAL_BLEND_MODE_CLIP_MASK"
                 };
-                ImGui::LabelText("Blend Mode", "%s", apcBlendModeNames[ptMaterialComp->tBlendMode]);
+                ImGui::LabelText("Alpha Mode", "%s", apcBlendModeNames[ptMaterialComp->tAlphaMode]);
 
                 static const char* apcShaderNames[] = 
                 {
                     "PL_SHADER_TYPE_PBR",
-                    "PL_SHADER_TYPE_PBR_CLEARCOAT",
-                    "PL_SHADER_TYPE_PBR_SHEEN",
-                    "PL_SHADER_TYPE_CUSTOM"
+                    "PL_SHADER_TYPE_PBR_ADVANCED"
                 };
                 ImGui::LabelText("Shader Type", "%s", apcShaderNames[ptMaterialComp->tShaderType]);
                 ImGui::LabelText("Double Sided", "%s", ptMaterialComp->tFlags & PL_MATERIAL_FLAG_DOUBLE_SIDED ? "true" : "false");
@@ -499,7 +513,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 ImGui::Text("Texture Maps");
                 ImGui::Indent();
 
-                static const char* apcTextureSlotNames[] = 
+                static const char* apcTextureSlotNames[PL_TEXTURE_SLOT_COUNT] = 
                 {
                     "PL_TEXTURE_SLOT_BASE_COLOR_MAP",
                     "PL_TEXTURE_SLOT_NORMAL_MAP",
@@ -511,18 +525,17 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                     "PL_TEXTURE_SLOT_CLEARCOAT_NORMAL_MAP",
                     "PL_TEXTURE_SLOT_SHEEN_COLOR_MAP",
                     "PL_TEXTURE_SLOT_SHEEN_ROUGHNESS_MAP",
-                    "PL_TEXTURE_SLOT_TRANSMISSION_MAP",
-                    "PL_TEXTURE_SLOT_SPECULAR_MAP",
-                    "PL_TEXTURE_SLOT_SPECULAR_COLOR_MAP",
-                    "PL_TEXTURE_SLOT_ANISOTROPY_MAP",
-                    "PL_TEXTURE_SLOT_SURFACE_MAP",
                     "PL_TEXTURE_SLOT_IRIDESCENCE_MAP",
                     "PL_TEXTURE_SLOT_IRIDESCENCE_THICKNESS_MAP"
+                    "PL_TEXTURE_SLOT_ANISOTROPY_MAP",
+                    "PL_TEXTURE_SLOT_TRANSMISSION_MAP",
+                    "PL_TEXTURE_SLOT_THICKNESS_MAP",
                 };
 
                 for(uint32_t i = 0; i < PL_TEXTURE_SLOT_COUNT; i++)
                 {
-                    ImGui::Text("%s: %s", apcTextureSlotNames[i], ptMaterialComp->atTextureMaps[i].acName[0] == 0 ? " " : "present");
+                    if(ptMaterialComp->atTextureMaps[i].acName[0] != 0)
+                        ImGui::Text("%s", apcTextureSlotNames[i]);
                 }
                 ImGui::Unindent();
             }

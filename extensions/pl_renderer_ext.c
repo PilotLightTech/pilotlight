@@ -52,7 +52,7 @@ plEntity
 pl_renderer_create_directional_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tDirection, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed directional light";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created directional light: '%s'", pcName);
+    pl_log_debug_f(gptLog, gptData->uLogChannel, "created directional light: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
     plLightComponent* ptLight =  gptECS->add_component(ptLibrary, gptData->tLightComponentType, tNewEntity);
     ptLight->tDirection = tDirection;
@@ -67,7 +67,7 @@ plEntity
 pl_renderer_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed point light";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created point light: '%s'", pcName);
+    pl_log_debug_f(gptLog, gptData->uLogChannel, "created point light: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
     plLightComponent* ptLight =  gptECS->add_component(ptLibrary, gptData->tLightComponentType, tNewEntity);
     ptLight->tPosition = tPosition;
@@ -82,7 +82,7 @@ plEntity
 pl_renderer_create_environment_probe(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plEnvironmentProbeComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed environment probe";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created environment probe: '%s'", pcName);
+    pl_log_debug_f(gptLog, gptData->uLogChannel, "created environment probe: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plTransformComponent* ptProbeTransform = gptECS->add_component(ptLibrary, gptECS->get_ecs_type_key_transform(), tNewEntity);
@@ -99,7 +99,7 @@ plEntity
 pl_renderer_create_spot_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed spot light";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created spot light: '%s'", pcName);
+    pl_log_debug_f(gptLog, gptData->uLogChannel, "created spot light: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
     plLightComponent* ptLight =  gptECS->add_component(ptLibrary, gptData->tLightComponentType, tNewEntity);
     ptLight->tPosition = tPosition;
@@ -115,7 +115,7 @@ plEntity
 pl_renderer_create_object(plComponentLibrary* ptLibrary, const char* pcName, plObjectComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed object";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created object: '%s'", pcName);
+    pl_log_debug_f(gptLog, gptData->uLogChannel, "created object: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plObjectComponent* ptObject = gptECS->add_component(ptLibrary, gptData->tObjectComponentType, tNewEntity);
@@ -135,7 +135,7 @@ plEntity
 pl_renderer_copy_object(plComponentLibrary* ptLibrary, const char* pcName, plEntity tOriginalObject, plObjectComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed object copy";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "copied object: '%s'", pcName);
+    pl_log_debug_f(gptLog, gptData->uLogChannel, "copied object: '%s'", pcName);
 
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
@@ -159,7 +159,7 @@ plEntity
 pl_renderer_create_skin(plComponentLibrary* ptLibrary, const char* pcName, plSkinComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed skin";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created skin: '%s'", pcName);
+    pl_log_debug_f(gptLog, gptData->uLogChannel, "created skin: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plSkinComponent* ptSkin = gptECS->add_component(ptLibrary, gptData->tSkinComponentType, tNewEntity);
@@ -432,10 +432,44 @@ pl_renderer_initialize(plRendererSettings tSettings)
                 .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
                 .tSourceAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
                 .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
+            }
         }
     };
     gptData->tRenderPassLayout = gptGfx->create_render_pass_layout(gptData->ptDevice, &tRenderPassLayoutDesc);
+
+    const plRenderPassLayoutDesc tTransparentRenderPassLayoutDesc = {
+        .atRenderTargets = {
+            { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true },  // depth buffer
+            { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT }, // final output
+        },
+        .atSubpasses = {
+            { // transparencies
+                .uRenderTargetCount = 2,
+                .auRenderTargets = {0, 1},
+                .uSubpassInputCount = 0,
+                .auSubpassInputs = {0},
+            },
+        },
+        .atSubpassDependencies = {
+           {
+                .uSourceSubpass = UINT32_MAX,
+                .uDestinationSubpass = 0,
+                .tSourceStageMask = PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
+                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
+                .tSourceAccessMask = PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE,
+                .tDestinationAccessMask = PL_ACCESS_INPUT_ATTACHMENT_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE,
+            },
+            {
+                .uSourceSubpass = 0,
+                .uDestinationSubpass = UINT32_MAX,
+                .tSourceStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
+                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
+                .tSourceAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
+                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
+            },
+        }
+    };
+    gptData->tTransparentRenderPassLayout = gptGfx->create_render_pass_layout(gptData->ptDevice, &tTransparentRenderPassLayoutDesc);
 
     // create depth render pass layout
     const plRenderPassLayoutDesc tDepthRenderPassLayoutDesc = {
@@ -584,6 +618,8 @@ pl_renderer_create_scene(plSceneInit tInit)
     ptScene->ptComponentLibrary = tInit.ptComponentLibrary;
     ptScene->pcName = "unnamed scene";
     ptScene->bActive                    = true;
+    // ptScene->bSheenRequired             = true;
+    // ptScene->bTransmissionRequired      = true;
     ptScene->tIndexBuffer               = (plBufferHandle){.uData = UINT32_MAX};
     ptScene->tVertexBuffer              = (plBufferHandle){.uData = UINT32_MAX};
     ptScene->tStorageBuffer             = (plBufferHandle){.uData = UINT32_MAX};
@@ -675,9 +711,10 @@ pl_renderer_create_scene(plSceneInit tInit)
     // create probe material & mesh
     plMaterialComponent* ptMaterial = NULL;
     plEntity tMaterial = gptMaterial->create(ptScene->ptComponentLibrary, "environment probe material", &ptMaterial);
-    ptMaterial->tBlendMode = PL_BLEND_MODE_OPAQUE;
+    ptMaterial->tAlphaMode = PL_MATERIAL_ALPHA_MODE_OPAQUE;
     ptMaterial->tShaderType = PL_SHADER_TYPE_PBR;
-    ptMaterial->tFlags = PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW;
+    ptMaterial->tFlags |= PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW;
+    ptMaterial->tFlags &= ~PL_MATERIAL_FLAG_CAST_SHADOW;
     ptMaterial->tBaseColor = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
     ptMaterial->fRoughness = 0.0f;
     ptMaterial->fMetalness = 1.0f;
@@ -893,6 +930,7 @@ pl_renderer_cleanup_view(plView* ptView)
     pl_sb_free(ptView->sbtVisibleDrawables);
     pl_sb_free(ptView->sbuVisibleDeferredEntities);
     pl_sb_free(ptView->sbuVisibleForwardEntities);
+    pl_sb_free(ptView->sbuVisibleTransmissionEntities);
     pl_sb_free(ptView->tDirectionLightShadowData.sbtDLightShadowData);
 
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAlbedoTexture);
@@ -903,6 +941,8 @@ pl_renderer_cleanup_view(plView* ptView)
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture0);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->atUVMaskTexture1);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tFinalTexture);
+    if(ptView->ptParentScene->bTransmissionRequired)
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tTransmissionTexture);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tRenderPass);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tPostProcessRenderPass);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tPickRenderPass);
@@ -951,7 +991,8 @@ pl_renderer_cleanup_scene(plScene* ptScene)
             
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tSheenEnvTexture);
+        if(ptScene->bSheenRequired)
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tSheenEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tAlbedoTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tNormalTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tAOMetalRoughnessTexture);
@@ -981,6 +1022,7 @@ pl_renderer_cleanup_scene(plScene* ptScene)
         {
             pl_sb_free(ptProbe->sbuVisibleDeferredEntities[k]);
             pl_sb_free(ptProbe->sbuVisibleForwardEntities[k]);
+            pl_sb_free(ptProbe->sbuVisibleTransmissionEntities[k]);
         }
         pl_sb_free(ptProbe->tDirectionLightShadowData.sbtDLightShadowData);
     }
@@ -1080,6 +1122,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
 
     ptView->ptParentScene = ptScene;
     ptView->tTargetSize = tDimensions;
+    ptView->tData.tViewportSize.xy = tDimensions;
 
     // picking defaults
     ptView->tHoveredEntity.uData = 0;
@@ -1095,6 +1138,8 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
         .pcDebugName   = "offscreen final"
     };
+
+
 
     const plTextureDesc tPickTextureDesc = {
         .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
@@ -1418,6 +1463,31 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     };
     ptView->tRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tRenderPassDesc, atAttachmentSets);
 
+    const plRenderPassDesc tTransparentRenderPassDesc = {
+        .tLayout = gptData->tTransparentRenderPassLayout,
+        .tDepthTarget = {
+                .tLoadOp         = PL_LOAD_OP_LOAD,
+                .tStoreOp        = PL_STORE_OP_STORE,
+                .tStencilLoadOp  = PL_LOAD_OP_LOAD,
+                .tStencilStoreOp = PL_STORE_OP_STORE,
+                .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
+                .fClearZ         = 0.0f
+        },
+        .atColorTargets = {
+            {
+                .tLoadOp       = PL_LOAD_OP_LOAD,
+                .tStoreOp      = PL_STORE_OP_STORE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
+                .tClearColor   = {0.0f, 0.0f, 0.0f, 0.0f}
+            }
+        },
+        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y},
+        .pcDebugName = "Main 2"
+    };
+    ptView->tTransparentRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tTransparentRenderPassDesc, atAttachmentSets);
+
     const plRenderPassDesc tPickRenderPassDesc = {
         .tLayout = gptData->tPickRenderPassLayout,
         .tDepthTarget = {
@@ -1517,7 +1587,8 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
 
     // update offscreen size to match viewport
     ptView->tTargetSize = tDimensions;
-
+    ptView->tData.tViewportSize.xy = ptView->tTargetSize;
+    
     if(tDimensions.x <= ptTexture->tDesc.tDimensions.x && tDimensions.y <= ptTexture->tDesc.tDimensions.y)
     {
         return;
@@ -1532,6 +1603,15 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
         .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
         .uLayers       = 1,
         .uMips         = 1,
+        .tType         = PL_TEXTURE_TYPE_2D,
+        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE
+    };
+
+    const plTextureDesc tRawOutput2TextureDesc = {
+        .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
+        .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .uLayers       = 1,
+        .uMips         = 0,
         .tType         = PL_TEXTURE_TYPE_2D,
         .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE
     };
@@ -1597,8 +1677,8 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     plRenderPassAttachments atPostProcessAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
     plRenderPassAttachments atPickAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
 
-
     gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFinalTexture);
+    
     gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture0);
     gptGfx->queue_texture_for_deletion(ptDevice, ptView->atUVMaskTexture1);
     gptGfx->queue_texture_for_deletion(ptDevice, ptView->tRawOutputTexture);
@@ -1622,6 +1702,30 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     ptView->atUVMaskTexture1         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 1", 0, PL_TEXTURE_USAGE_STORAGE);
     ptView->tFinalTexture            = pl__renderer_create_texture(&tRawOutputTextureDesc,  "offscreen final", 0, PL_TEXTURE_USAGE_SAMPLED);
     ptView->tFinalTextureHandle      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture);
+
+    if(ptView->ptParentScene->bTransmissionRequired)
+    {
+        gptGfx->queue_texture_for_deletion(ptDevice, ptView->tTransmissionTexture);
+        ptView->tTransmissionTexture = pl__renderer_create_texture(&tRawOutput2TextureDesc,  "transmission offscreen", 0, PL_TEXTURE_USAGE_SAMPLED);
+        const plBindGroupUpdateTextureData tGlobalTextureData[] = {
+            {
+                .tTexture = ptView->tTransmissionTexture,
+                .uSlot    = PL_MAX_BINDLESS_TEXTURE_SLOT,
+                .uIndex   = (uint32_t)ptView->tData.iTransmissionFrameBufferIndex,
+                .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            },
+        };
+
+        plBindGroupUpdateData tGlobalBindGroupData = {
+            .uTextureCount = 1,
+            .atTextureBindings = tGlobalTextureData
+        };
+
+        for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+            gptGfx->update_bind_group(gptData->ptDevice, ptView->ptParentScene->atBindGroups[i], &tGlobalBindGroupData);
+    }
+
+
 
     const plBindGroupDesc tJFABindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
@@ -1730,6 +1834,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
         atUVAttachmentSets[i].atViewAttachments[1] = ptView->atUVMaskTexture0;
     }
     gptGfx->update_render_pass_attachments(ptDevice, ptView->tRenderPass, ptView->tTargetSize, atAttachmentSets);
+    gptGfx->update_render_pass_attachments(ptDevice, ptView->tTransparentRenderPass, ptView->tTargetSize, atAttachmentSets);
     gptGfx->update_render_pass_attachments(ptDevice, ptView->tPostProcessRenderPass, ptView->tTargetSize, atPostProcessAttachmentSets);
     gptGfx->update_render_pass_attachments(ptDevice, ptView->tPickRenderPass, ptView->tTargetSize, atPickAttachmentSets);
     gptGfx->update_render_pass_attachments(ptDevice, ptView->tUVRenderPass, ptView->tTargetSize, atUVAttachmentSets);
@@ -2023,23 +2128,17 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
         int aiForwardFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
-            PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS,
+            ptMaterial->tFlags,
             iObjectRenderingFlags,
             pl_sb_capacity(ptScene->sbtLightData),
             pl_sb_capacity(ptScene->sbtProbeData),
             gptData->tRuntimeOptions.tShaderDebugMode
         };
 
-        if(ptMaterial->tShaderType == PL_SHADER_TYPE_PBR_CLEARCOAT)
-            aiForwardFragmentConstantData0[2] |= PL_MATERIAL_SHADER_FLAG_CLEARCOAT;
-
-        if(ptMaterial->tShaderType == PL_SHADER_TYPE_PBR_SHEEN)
-            aiForwardFragmentConstantData0[2] |= PL_MATERIAL_SHADER_FLAG_SHEEN;
-
         int aiGBufferFragmentConstantData0[] = {
             (int)ptMesh->ulVertexStreamMask,
             iTextureMappingFlags,
-            PL_MATERIAL_SHADER_FLAG_METALLIC_ROUGHNESS,
+            ptMaterial->tFlags,
             gptData->tRuntimeOptions.tShaderDebugMode,
             iObjectRenderingFlags
         };
@@ -2069,7 +2168,9 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
             pl_sb_push(ptScene->sbtOutlineDrawablesOldShaders, ptDrawable->tShader);
             pl_sb_push(ptScene->sbtOutlineDrawablesOldEnvShaders, ptDrawable->tEnvShader);
 
-            if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_FORWARD)
+            if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_TRANSMISSION)
+                ptDrawable->tShader = gptShaderVariant->get_shader("transmission", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, NULL);
+            else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_FORWARD)
                 ptDrawable->tShader = gptShaderVariant->get_shader("forward", &tVariantTemp, aiVertexConstantData0, aiForwardFragmentConstantData0, NULL);
             else if(ptDrawable->tFlags & PL_DRAWABLE_FLAG_DEFERRED)
                 ptDrawable->tShader = gptShaderVariant->get_shader("gbuffer_fill", &tVariantTemp, aiVertexConstantData0, aiGBufferFragmentConstantData0, NULL);
@@ -2150,10 +2251,13 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
         
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
-    int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode};
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tDeferredLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    aiLightingConstantData[2] = pl_sb_capacity(ptScene->sbtProbeData);
+    ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+    aiLightingConstantData[2] = 0;
     ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tEnvLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
 
@@ -2263,10 +2367,13 @@ pl_renderer_finalize_scene(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
 
     // create lighting shader
-    int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode};
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tDeferredLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    aiLightingConstantData[2] = pl_sb_capacity(ptScene->sbtProbeData);
+    ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+    aiLightingConstantData[2] = 0;
     ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tEnvLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
 
@@ -2324,6 +2431,44 @@ pl_renderer_prepare_scene(plScene* ptScene)
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
+
+    if(ptScene->bTransmissionRequired)
+    {
+        for(uint32_t i = 0; i < pl_sb_size(ptScene->sbptViews); i++)
+        {
+            plView* ptView = ptScene->sbptViews[i];
+
+            if(!gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))
+            {
+                pl_log_info(gptLog, gptData->uLogChannel, "creating required transmission texture");
+                const plTextureDesc tRawOutput2TextureDesc = {
+                    .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
+                    .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+                    .uLayers       = 1,
+                    .uMips         = 0,
+                    .tType         = PL_TEXTURE_TYPE_2D,
+                    .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
+                    .pcDebugName   = "offscreen transmission"
+                };
+                ptView->tTransmissionTexture     = pl__renderer_create_texture(&tRawOutput2TextureDesc,  "transmission offscreen", 0, PL_TEXTURE_USAGE_SAMPLED);
+                ptView->tData.iTransmissionFrameBufferIndex = pl__renderer_get_bindless_texture_index(ptScene, ptView->tTransmissionTexture);
+                
+            }
+        }
+    }
+    else
+    {
+        for(uint32_t i = 0; i < pl_sb_size(ptScene->sbptViews); i++)
+        {
+            plView* ptView = ptScene->sbptViews[i];
+
+            if(gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))
+            {
+                pl_log_info(gptLog, gptData->uLogChannel, "freeing unneeded transmission texture");
+                gptGfx->queue_texture_for_deletion(ptDevice, ptView->tTransmissionTexture);
+            }
+        }
+    }
 
     //~~~~~~~~~~~~~~~~~~~~~~transform & instance buffer update~~~~~~~~~~~~~~~~~~~~~
 
@@ -2557,6 +2702,28 @@ pl_renderer_prepare_scene(plScene* ptScene)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
         plEnvironmentProbeComponent* ptProbeComp = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
+
+        if(ptScene->bSheenRequired && !gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
+        {
+            pl_log_info(gptLog, gptData->uLogChannel, "creating required sheen env texture");
+            const plTextureDesc tTextureDesc = {
+                .tDimensions = {(float)ptProbeComp->uResolution, (float)ptProbeComp->uResolution, 1},
+                .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+                .uLayers     = 6,
+                .uMips       = (uint32_t)floorf(log2f((float)ptProbeComp->uResolution)) - 3, // guarantee final dispatch during filtering is 16 threads
+                .tType       = PL_TEXTURE_TYPE_CUBE,
+                .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+            };
+            ptProbe->tSheenEnvTexture = pl__renderer_create_texture(&tTextureDesc, "sheen texture", 0, PL_TEXTURE_USAGE_SAMPLED);
+            ptProbe->uSheenEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, ptProbe->tSheenEnvTexture);
+            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+        }
+        else if(!ptScene->bSheenRequired && gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
+        {
+            pl_log_info(gptLog, gptData->uLogChannel, "freeing unneeded sheen env texture");
+            gptGfx->queue_texture_for_deletion(ptDevice, ptProbe->tSheenEnvTexture);
+        }
+
         
         if(!((ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME) || (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY)))
         {
@@ -2741,6 +2908,10 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
         }
     }
 
+    plBuffer* ptViewBuffer = gptGfx->get_buffer(ptDevice, ptView->atViewBuffers[uFrameIdx]);
+    memcpy(ptViewBuffer->tMemoryAllocation.pHostMapped, &ptView->tData, sizeof(plGpuViewData));
+
+
     pl_end_cpu_sample(gptProfile, 0);
 }
 
@@ -2812,6 +2983,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     {
         pl_sb_reset(ptView->sbuVisibleDeferredEntities);
         pl_sb_reset(ptView->sbuVisibleForwardEntities);
+        pl_sb_reset(ptView->sbuVisibleTransmissionEntities);
         pl_sb_reset(ptView->sbtVisibleDrawables);
 
         for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
@@ -2837,12 +3009,17 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
                     pl_sb_push(ptView->sbuVisibleForwardEntities, uDrawableIndex);
                     pl_sb_push(ptView->sbtVisibleDrawables, uDrawableIndex);
                 }
+                else if(tDrawable.tFlags & PL_DRAWABLE_FLAG_TRANSMISSION)
+                {
+                    pl_sb_push(ptView->sbuVisibleTransmissionEntities, uDrawableIndex);
+                    pl_sb_push(ptView->sbtVisibleDrawables, uDrawableIndex);
+                }
                 
             }
         }
     }
 
-    *gptData->pdDrawCalls += (double)(pl_sb_size(ptView->sbuVisibleDeferredEntities) + pl_sb_size(ptView->sbuVisibleForwardEntities) + 1);
+    *gptData->pdDrawCalls += (double)(pl_sb_size(ptView->sbuVisibleDeferredEntities) + pl_sb_size(ptView->sbuVisibleForwardEntities) + pl_sb_size(ptView->sbuVisibleTransmissionEntities) + 1);
 
     const plVec2 tDimensions = ptView->tTargetSize;
 
@@ -2892,7 +3069,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
             
             plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-
             plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
             ptDynamicData->iDataOffset = tDrawable.uDataOffset;
             ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
@@ -2926,12 +3102,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     }
 
     gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
-    
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 1 - lighting~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    gptGfx->pop_render_debug_group(ptSceneEncoder);
-    gptGfx->next_subpass(ptSceneEncoder, NULL);
-    gptGfx->push_render_debug_group(ptSceneEncoder, "Deferred Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
 
     const plBindGroupUpdateBufferData atViewBGBufferData[] = 
     {
@@ -2957,13 +3127,19 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     plBindGroupHandle tViewBG = gptGfx->create_bind_group(ptDevice, &tViewBGDesc);
     gptGfx->update_bind_group(gptData->ptDevice, tViewBG, &tViewBGData);
     gptGfx->queue_bind_group_for_deletion(ptDevice, tViewBG);
+    
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 1 - lighting~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    gptGfx->pop_render_debug_group(ptSceneEncoder);
+    gptGfx->next_subpass(ptSceneEncoder, NULL);
+    gptGfx->push_render_debug_group(ptSceneEncoder, "Deferred Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
 
     if(gptData->tRuntimeOptions.tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
     {
-        const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
+        
         const uint32_t uLightCount = pl_sb_size(ptScene->sbtLightData);
 
-        gptGfx->reset_draw_stream(ptStream, uLightCount + uProbeCount);
+        gptGfx->reset_draw_stream(ptStream, uLightCount);
         for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
         {
             plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
@@ -3022,28 +3198,27 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
                 });
             }
         }
+        gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
 
-        for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
+        const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
+
+        if(uProbeCount > 0)
         {
+            gptGfx->reset_draw_stream(ptStream, 1);
             plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
             plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
             ptLightingDynamicData->uGlobalIndex = 0;
             ptLightingDynamicData->iLightIndex = -1;
-            ptLightingDynamicData->iProbeIndex = (int)uProbeIndex;
+            ptLightingDynamicData->iProbeIndex = -1;
 
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
-                .tShader = ptScene->tDeferredLightingVolumeShader,
+                .tShader = ptScene->tProbeLightingShader,
                 .auDynamicBuffers = {
                     tLightingDynamicData.uBufferHandle
                 },
-                .atVertexBuffers = {
-                    ptScene->tVertexBuffer,
-                },
-                .tIndexBuffer   = ptScene->tIndexBuffer,
-                .uIndexOffset   = ptScene->tUnitSphereDrawable.uIndexOffset,
-                .uTriangleCount = ptScene->tUnitSphereDrawable.uTriangleCount,
-                .uVertexOffset  = ptScene->tUnitSphereDrawable.uVertexOffset,
+                .uIndexOffset   = 0,
+                .uTriangleCount = 1,
                 .atBindGroups = {
                     ptScene->atBindGroups[uFrameIdx],
                     tViewBG,
@@ -3055,6 +3230,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
                 .uInstanceOffset = 0,
                 .uInstanceCount  = 1
             });
+            gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
         }
     }
     else
@@ -3085,15 +3261,13 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             .uInstanceOffset = 0,
             .uInstanceCount  = 1
         });
+        gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
     }
 
-    gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
     
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
     gptGfx->pop_render_debug_group(ptSceneEncoder);
+
     gptGfx->next_subpass(ptSceneEncoder, NULL);
-    gptGfx->push_render_debug_group(ptSceneEncoder, "Forward Pass", (plVec4){0.33f, 0.20f, 0.10f, 1.0f});
 
     if(ptScene->tSkyboxTexture.uIndex != 0 && ptView->bShowSkybox)
     {
@@ -3131,11 +3305,109 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
     }
     
+
     const uint32_t uVisibleForwardDrawCount = pl_sb_size(ptView->sbuVisibleForwardEntities);
     gptGfx->reset_draw_stream(ptStream, uVisibleForwardDrawCount);
     for(uint32_t i = 0; i < uVisibleForwardDrawCount; i++)
     {
         const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbuVisibleForwardEntities[i]];
+
+        if(tDrawable.uInstanceCount != 0)
+        {
+            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
+            plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
+            
+            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+            plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
+            ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+            ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+            ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+            ptDynamicData->uGlobalIndex = 0;
+
+            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+            {
+                .tShader        = tDrawable.tShader,
+                .auDynamicBuffers = {
+                    tDynamicBinding.uBufferHandle
+                },
+                .atVertexBuffers = {
+                    ptScene->tVertexBuffer,
+                },
+                .tIndexBuffer   = tDrawable.tIndexBuffer,
+                .uIndexOffset   = tDrawable.uIndexOffset,
+                .uTriangleCount = tDrawable.uTriangleCount,
+                .uVertexOffset  = tDrawable.uStaticVertexOffset,
+                .atBindGroups = {
+                    ptScene->atBindGroups[uFrameIdx],
+                    tViewBG
+                },
+                .auDynamicBufferOffsets = {
+                    tDynamicBinding.uByteOffset
+                },
+                .uInstanceOffset = tDrawable.uTransformIndex,
+                .uInstanceCount = tDrawable.uInstanceCount
+            });
+        }
+    }
+    gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
+
+    gptGfx->end_render_pass(ptSceneEncoder);
+
+
+
+    if(ptView->ptParentScene->bTransmissionRequired)
+    {
+
+        gptGfx->end_command_recording(ptSceneCmdBuffer);
+
+        const plSubmitInfo tScenePreSubmitInfo = {
+            .uSignalSemaphoreCount   = 1,
+            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+        };
+        gptGfx->submit_command_buffer(ptSceneCmdBuffer, &tScenePreSubmitInfo);
+        gptGfx->return_command_buffer(ptSceneCmdBuffer);
+
+        const plBeginCommandInfo tSceneBlitBeginInfo = {
+            .uWaitSemaphoreCount   = 1,
+            .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+        };
+
+        ptSceneCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "main scene blit");
+        gptGfx->begin_command_recording(ptSceneCmdBuffer, &tSceneBeginInfo);
+
+        plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptSceneCmdBuffer);
+        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+
+        plImageCopy tFrameCopy = {
+
+            .uSourceExtentX = (uint32_t)ptView->tTargetSize.x,
+            .uSourceExtentY = (uint32_t)ptView->tTargetSize.y,
+            .uSourceExtentZ = 1,
+            .uSourceLayerCount = 1,
+            .tSourceImageUsage = PL_TEXTURE_USAGE_SAMPLED,
+            .tDestinationImageUsage = PL_TEXTURE_USAGE_SAMPLED,
+            .uDestinationLayerCount = 1,
+        };
+        gptGfx->copy_texture(ptBlitEncoder, ptView->tRawOutputTexture, ptView->tTransmissionTexture, 1, &tFrameCopy);
+        gptGfx->generate_mipmaps(ptBlitEncoder, ptView->tTransmissionTexture);
+        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+        gptGfx->end_blit_pass(ptBlitEncoder);
+    }
+
+    ptSceneEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tTransparentRenderPass, NULL);
+    gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
+    
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    gptGfx->push_render_debug_group(ptSceneEncoder, "Forward Pass", (plVec4){0.33f, 0.20f, 0.10f, 1.0f});
+
+    const uint32_t uVisibleTransmissionDrawCount = pl_sb_size(ptView->sbuVisibleTransmissionEntities);
+    gptGfx->reset_draw_stream(ptStream, uVisibleTransmissionDrawCount);
+    for(uint32_t i = 0; i < uVisibleTransmissionDrawCount; i++)
+    {
+        const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbuVisibleTransmissionEntities[i]];
 
         if(tDrawable.uInstanceCount != 0)
         {
@@ -3183,7 +3455,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
         gptGfx->insert_debug_label(ptSceneCmdBuffer, "Grid Stuff", (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
         
-        plShaderHandle tGridShader = gptShaderVariant->get_shader("grid", NULL, NULL, NULL, &gptData->tRenderPassLayout);
+        plShaderHandle tGridShader = gptShaderVariant->get_shader("grid", NULL, NULL, NULL, &gptData->tTransparentRenderPassLayout);
         gptGfx->bind_shader(ptSceneEncoder, tGridShader);
 
         plDynamicBinding tGridDynamicBinding = pl__allocate_dynamic_data(ptDevice);
@@ -3888,12 +4160,29 @@ pl_renderer_update_scene_materials(plScene* ptScene, uint32_t uMaterialCount, co
             ptGPUMaterial->fNormalMapStrength        = ptMaterial->fNormalMapStrength;
             ptGPUMaterial->fEmissiveStrength         = ptMaterial->fEmissiveStrength;
             ptGPUMaterial->tSheenColorFactor         = ptMaterial->tSheenColor;
-            ptGPUMaterial->fOcclusionStrength        = 1.0f;
+            ptGPUMaterial->fIridescenceFactor        = ptMaterial->fIridescenceFactor;
+            ptGPUMaterial->fIridescenceIor           = ptMaterial->fIridescenceIor;
+            ptGPUMaterial->fIridescenceThicknessMin  = ptMaterial->fIridescenceThicknessMin;
+            ptGPUMaterial->fIridescenceThicknessMax  = ptMaterial->fIridescenceThicknessMax;
+            ptGPUMaterial->tAnisotropy.x             = cosf(ptMaterial->fAnisotropyRotation);
+            ptGPUMaterial->tAnisotropy.y             = sinf(ptMaterial->fAnisotropyRotation);
+            ptGPUMaterial->tAnisotropy.z             = ptMaterial->fAnisotropyStrength;
+            ptGPUMaterial->fOcclusionStrength        = ptMaterial->fOcclusionStrength;
+            ptGPUMaterial->tAlphaMode                = ptMaterial->tAlphaMode;
+            ptGPUMaterial->fTransmissionFactor       = ptMaterial->fTransmissionFactor;
+            ptGPUMaterial->fThickness                = ptMaterial->fThickness;
+            ptGPUMaterial->fAttenuationDistance      = ptMaterial->fAttenuationDistance;
+            ptGPUMaterial->tAttenuationColor         = ptMaterial->tAttenuationColor;
+            ptGPUMaterial->fDispersion               = ptMaterial->fDispersion;
+            ptGPUMaterial->fIor                      = ptMaterial->fIor;
+            ptGPUMaterial->fDiffuseTransmission      = ptMaterial->fDiffuseTransmission;
+            ptGPUMaterial->tDiffuseTransmissionColor = ptMaterial->tDiffuseTransmissionColor;
 
             const int iDummyIndex = (int)pl__renderer_get_bindless_texture_index(ptScene, gptData->tDummyTexture);
             for(uint32_t uTextureIndex = 0; uTextureIndex < PL_TEXTURE_SLOT_COUNT; uTextureIndex++)
             {
-                ptGPUMaterial->aiTextureUVSet[uTextureIndex]   = (int)ptMaterial->atTextureMaps[uTextureIndex].uUVSet;
+                ptGPUMaterial->aiTextureUVSet[uTextureIndex] = (int)ptMaterial->atTextureMaps[uTextureIndex].uUVSet;
+                ptGPUMaterial->atTextureTransforms[uTextureIndex] = ptMaterial->atTextureMaps[uTextureIndex].tTransform;
                 if(gptResource->is_valid(ptMaterial->atTextureMaps[uTextureIndex].tResource))
                 {
                     plTextureHandle tValidTexture = gptResource->get_texture(ptMaterial->atTextureMaps[uTextureIndex].tResource);
@@ -3985,12 +4274,29 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
             ptGPUMaterial->fNormalMapStrength        = ptMaterial->fNormalMapStrength;
             ptGPUMaterial->fEmissiveStrength         = ptMaterial->fEmissiveStrength;
             ptGPUMaterial->tSheenColorFactor         = ptMaterial->tSheenColor;
-            ptGPUMaterial->fOcclusionStrength        = 1.0f;
+            ptGPUMaterial->fIridescenceFactor        = ptMaterial->fIridescenceFactor;
+            ptGPUMaterial->fIridescenceIor           = ptMaterial->fIridescenceIor;
+            ptGPUMaterial->fIridescenceThicknessMin  = ptMaterial->fIridescenceThicknessMin;
+            ptGPUMaterial->fIridescenceThicknessMax  = ptMaterial->fIridescenceThicknessMax;
+            ptGPUMaterial->tAnisotropy.x             = cosf(ptMaterial->fAnisotropyRotation);
+            ptGPUMaterial->tAnisotropy.y             = sinf(ptMaterial->fAnisotropyRotation);
+            ptGPUMaterial->tAnisotropy.z             = ptMaterial->fAnisotropyStrength;
+            ptGPUMaterial->fOcclusionStrength        = ptMaterial->fOcclusionStrength;
+            ptGPUMaterial->tAlphaMode                = ptMaterial->tAlphaMode;
+            ptGPUMaterial->fTransmissionFactor       = ptMaterial->fTransmissionFactor;
+            ptGPUMaterial->fThickness                = ptMaterial->fThickness;
+            ptGPUMaterial->fAttenuationDistance      = ptMaterial->fAttenuationDistance;
+            ptGPUMaterial->tAttenuationColor         = ptMaterial->tAttenuationColor;
+            ptGPUMaterial->fDispersion               = ptMaterial->fDispersion;
+            ptGPUMaterial->fIor                      = ptMaterial->fIor;
+            ptGPUMaterial->fDiffuseTransmission      = ptMaterial->fDiffuseTransmission;
+            ptGPUMaterial->tDiffuseTransmissionColor = ptMaterial->tDiffuseTransmissionColor;
 
             const int iDummyIndex = (int)pl__renderer_get_bindless_texture_index(ptScene, gptData->tDummyTexture);
             for(uint32_t uTextureIndex = 0; uTextureIndex < PL_TEXTURE_SLOT_COUNT; uTextureIndex++)
             {
-                ptGPUMaterial->aiTextureUVSet[uTextureIndex]   = (int)ptMaterial->atTextureMaps[uTextureIndex].uUVSet;
+                ptGPUMaterial->aiTextureUVSet[uTextureIndex] = (int)ptMaterial->atTextureMaps[uTextureIndex].uUVSet;
+                ptGPUMaterial->atTextureTransforms[uTextureIndex] = ptMaterial->atTextureMaps[uTextureIndex].tTransform;
                 if(gptResource->is_valid(ptMaterial->atTextureMaps[uTextureIndex].tResource))
                 {
                     plTextureHandle tValidTexture = gptResource->get_texture(ptMaterial->atTextureMaps[uTextureIndex].tResource);
@@ -4000,6 +4306,11 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
                     ptGPUMaterial->aiTextureIndices[uTextureIndex] = iDummyIndex;
             }
 
+            if(ptMaterial->tFlags & PL_MATERIAL_FLAG_SHEEN)
+                ptScene->bSheenRequired = true;
+
+            if(ptMaterial->tFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->tFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->tFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
+                ptScene->bTransmissionRequired = true;
             pl_hm_insert(&ptScene->tMaterialHashmap, tMaterialComp.uData, ulValue);
         }
     }

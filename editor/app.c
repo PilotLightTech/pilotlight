@@ -334,7 +334,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plRendererSettings tRenderSettings = {
         .ptDevice = ptAppData->ptDevice,
         .ptSwap = gptStarter->get_swapchain(),
-        .uMaxTextureResolution = 1024,
+        .uMaxTextureResolution = 1024 * 2,
     };
     gptRenderer->initialize(tRenderSettings);
 
@@ -463,25 +463,26 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     {
         gptRenderer->create_environment_probe(ptAppData->ptComponentLibrary, "Probe", atProbeLocations[i], &ptProbe);
         ptProbe->fRange = 30.0f;
-        // ptProbe->uResolution = 128 * 8;
-        // ptProbe->uSamples = 1024 * 4;
-        ptProbe->uInterval = 6;
         ptProbe->uResolution = 128;
         ptProbe->uSamples = 1024;
+        ptProbe->uInterval = 6;
         ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
     }
 
     gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/helipad.hdr", 1024);
-    // gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/footprint_court.hdr", 1024);
 
     plModelLoaderData tLoaderData0 = {0};
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/SheenTestGrid/glTF/SheenTestGrid.gltf", NULL, &tLoaderData0);
+    // plMat4 tRotation = pl_mat4_rotate_xyz(-PL_PI_2, 0.0f, 1.0f, 0.0f);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/CarConcept/glTF/CarConcept.gltf", &tRotation, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/EnvironmentTest/glTF/EnvironmentTest.gltf", NULL, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/ClearCoatCarPaint/glTF/ClearCoatCarPaint.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/SheenCloth/glTF/SheenCloth.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/SheenChair/glTF/SheenChair.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformTest/glTF/TextureTransformTest.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformMultiTest/glTF/TextureTransformMultiTest.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TransmissionTest/glTF/TransmissionTest.gltf", NULL, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
     gptModelLoader->free_data(&tLoaderData0);
@@ -949,6 +950,14 @@ pl__show_editor_window(plAppData* ptAppData)
                 "Clearcoat Normal",
                 "Sheen Color",
                 "Sheen Roughness",
+                "Iridescence Factor",
+                "Iridescence Thickness",
+                "Anisotropy Strength",
+                "Anisotropy Direction",
+                "Transmission Strength",
+                "Volume Thickness",
+                "Diffuse Transmission Strength",
+                "Diffuse Transmission Color",
             };
             bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
             abShaderDebugMode[ptRuntimeOptions->tShaderDebugMode] = true;

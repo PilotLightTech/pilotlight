@@ -79,6 +79,16 @@ Custom gpu allocators:
 
 Reference Renderer:
     * Physics based rendering
+        - Metallic workflow
+        - Clear coat
+        - Anisotropic lighting
+        - Cloth/fabric/sheen Shading
+        - Emissivity
+        - Iridescence
+        - Transmission
+        - Volume Transmission
+        - Diffuse Transmission
+        - Dispersion
     * Normal mapping
     * Edge outline (Jump flood with compute shaders)
     * Pixel perfect picking
@@ -86,7 +96,7 @@ Reference Renderer:
     * Point lights + cubemap shadows
     * Spot lights + shadows
     * Soft shadows (PCF)
-    * Deferred + forward rendering
+    * Deferred (light volumes) + forward rendering
     * Reversed Z-buffer
     * Vertex skinning (compute shaders)
     * Panorama to cubemap calculations (compute shaders)
@@ -94,12 +104,11 @@ Reference Renderer:
     * Parallax-corrected environment maps
     * Dynamic environment mapping
     * Cube map reflections (static and real time)
-    * Tonemapping
+    * Tonemapping (ACES, Reinhard, etc.)
+    * Gamma correct, HDR rendering
     * gltf model loading
     * stl model loading
     * grid renderer
-    * Sheen Materials
-    * Clearcoat Materials
 
 Wishlist:
     * Morph target animation (with sparse accessor)
@@ -127,7 +136,6 @@ Wishlist:
     * 3D Audio
     * Input: controller (rawinput, xinput), touch
     * Controller feedback (vibration, LED)
-    * Gamma correct, HDR rendering
     * Screen Space Ambient Occlusion (SSAO, HBAO, MSAO)
     * Stochastic Screen Space Reflections
     * Color Grading

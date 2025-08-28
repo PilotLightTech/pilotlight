@@ -10,7 +10,7 @@
 
 layout(set = PL_VIEW_SET_LOCATION, binding = 0) readonly uniform _plViewInfo
 {
-    plGpuViewData data[];
+    plGpuViewData tData;
 } tViewInfo;
 
 layout(set = PL_VIEW_SET_LOCATION, binding = 1) readonly buffer _tViewInfo2
