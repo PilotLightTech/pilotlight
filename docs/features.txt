@@ -109,6 +109,8 @@ Reference Renderer:
     * gltf model loading
     * stl model loading
     * grid renderer
+    * bloom
+    * linear & exponential fog
 
 Wishlist:
     * Morph target animation (with sparse accessor)
@@ -118,7 +120,6 @@ Wishlist:
     * Real time planar reflections
     * Refractions (screen space, blurred)
     * Interactive Water
-    * Bloom
     * Motion Blur
     * Lens Flare
     * Light shafts

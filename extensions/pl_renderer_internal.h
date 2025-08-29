@@ -299,17 +299,19 @@ typedef struct _plView
     plVec2             tTargetSize;
 
     // textures
-    plTextureHandle tAlbedoTexture;           // g-buffer
-    plTextureHandle tNormalTexture;           // g-buffer
-    plTextureHandle tAOMetalRoughnessTexture; // g-buffer
-    plTextureHandle tRawOutputTexture;        // g-buffer
-    plTextureHandle tDepthTexture;            // g-buffer
-    plTextureHandle tTransmissionTexture;     // transmission texture
-    plTextureHandle tFinalTexture;            // output texture
-    plTextureHandle atUVMaskTexture0;         // outlining
-    plTextureHandle atUVMaskTexture1;         // outlining
-    plTextureHandle tLastUVMask;              // outlining
-    plTextureHandle tPickTexture;             // picking
+    plTextureHandle  tAlbedoTexture;           // g-buffer
+    plTextureHandle  tNormalTexture;           // g-buffer
+    plTextureHandle  tAOMetalRoughnessTexture; // g-buffer
+    plTextureHandle  tRawOutputTexture;        // g-buffer
+    plTextureHandle  tDepthTexture;            // g-buffer
+    plTextureHandle  tTransmissionTexture;     // transmission texture
+    plTextureHandle  tFinalTexture;            // output texture
+    plTextureHandle  atUVMaskTexture0;         // outlining
+    plTextureHandle  atUVMaskTexture1;         // outlining
+    plTextureHandle  tLastUVMask;              // outlining
+    plTextureHandle  tPickTexture;             // picking
+    plTextureHandle* sbtBloomDownChain; // transmission texture
+    plTextureHandle* sbtBloomUpChain; // transmission texture
 
     // GPU buffers
     plBufferHandle atPickBuffer[PL_MAX_FRAMES_IN_FLIGHT];

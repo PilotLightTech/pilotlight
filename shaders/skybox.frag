@@ -34,4 +34,5 @@ main()
 {
     vec3 tVectorOut = normalize(tShaderIn.tWorldPosition);
     outColor = vec4(texture(samplerCube(samplerCubeMap, tSamplerLinearRepeat), tVectorOut).rgb, 1.0);
+    outColor.rgb = outColor.rgb * (1.0 - tViewInfo.tData.fFogMaxOpacity) + tViewInfo.tData.fFogMaxOpacity * tViewInfo.tData.tFogColor;
 }

@@ -20,8 +20,6 @@ layout(constant_id = 4) const int iLightCount = 0;
 layout(constant_id = 5) const int iProbeCount = 0;
 layout(constant_id = 6) const int tShaderDebugMode = 0;
 
-#include "lighting.glsl"
-
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
 //-----------------------------------------------------------------------------
@@ -50,6 +48,7 @@ layout(location = 0) in struct plShaderIn {
 
 #include "math.glsl"
 #include "lighting.glsl"
+#include "fog.glsl"
 
 #define PL_INCLUDE_MATERIAL_FUNCTIONS
 #include "material_info.glsl"
@@ -202,7 +201,8 @@ void main()
     vec3 t = tNormalInfo.t;
     // vec3 b = tNormalInfo.b;
 
-    vec3 v = normalize(tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tShaderIn.tWorldPosition.xyz);
+    vec3 vraw = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tShaderIn.tWorldPosition.xyz;
+    vec3 v = normalize(vraw);
 
     float NdotV = clampedDot(n, v);
     // float TdotV = clampedDot(t, v);
@@ -707,6 +707,15 @@ void main()
         color = f_emissive * (1.0 - clearcoatFactor * clearcoatFresnel) + color;
         outColor.rgb = color.rgb;
         outColor.a = tBaseColor.a;
+
+        if(bool(iRenderingFlags & PL_RENDERING_FLAG_HEIGHT_FOG))
+        {
+            outColor = fog(outColor, vraw);
+        }
+        if(bool(iRenderingFlags & PL_RENDERING_FLAG_LINEAR_FOG))
+        {
+            outColor = fogLinear(outColor, vraw);
+        }
     }
     else
     {

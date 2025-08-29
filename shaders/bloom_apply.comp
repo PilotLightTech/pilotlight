@@ -1,0 +1,66 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+#include "pl_shader_interop_renderer.h"
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(set=0, binding = 0, rgba16f) uniform image2D target;
+layout(set=0, binding = 1) uniform texture2D bloomTexture;
+layout(set = 0, binding = 2)  uniform sampler tSamplerLinearClamp;
+
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
+{
+    plGpuDynBloomData tData;
+} tDynamicData;
+
+layout(push_constant) uniform PushConstants {
+    float bloomStrength;
+};
+
+void main(){
+    ivec2 iUV = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 targetResolution = imageSize(target);
+
+    if(iUV.x >= targetResolution.x || iUV.y >= targetResolution.y)
+        return;
+
+    vec2 uv = (iUV + 0.5f) / vec2(targetResolution);
+    vec3 bloom = textureLod(sampler2D(bloomTexture, tSamplerLinearClamp), uv, 0).rgb;
+    vec3 scene = imageLoad(target, iUV).rgb;
+
+    vec3 color = mix(scene, bloom, tDynamicData.tData.bloomStrength);
+
+    imageStore(target, iUV, vec4(color, 1.0));
+}
+
+// //-----------------------------------------------------------------------------
+// // [SECTION] bind group 0
+// //-----------------------------------------------------------------------------
+
+// layout (set = 0, binding = 0, rgba16f) uniform image2D outputImage;
+// layout (set = 0, binding = 1, rgba16f) uniform image2D inputImage;
+
+
+// //-----------------------------------------------------------------------------
+// // [SECTION] entry
+// //-----------------------------------------------------------------------------
+
+// layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+// void main() 
+// {
+//     const int iXCoord = int(gl_WorkGroupID.x * 8 + gl_LocalInvocationID.x);
+//     const int iYCoord = int(gl_WorkGroupID.y * 8 + gl_LocalInvocationID.y);
+
+//     const ivec2 tImageSize = imageSize(inputImage);
+    
+//     if(iXCoord >= tImageSize.x || iYCoord >= tImageSize.y)
+//         return;
+
+// 	ivec2 tOrigin = ivec2(iXCoord, iYCoord);
+// 	vec3 FragColor = imageLoad(inputImage, tOrigin).rgb;
+// 	vec4 CurrentFragColor = imageLoad(outputImage, tOrigin);
+//     imageStore(outputImage, tOrigin, vec4(CurrentFragColor.rgb, CurrentFragColor.a));
+//     // imageStore(outputImage, tOrigin, vec4(FragColor + CurrentFragColor.rgb, CurrentFragColor.a));
+// }

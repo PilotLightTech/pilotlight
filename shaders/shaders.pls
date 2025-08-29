@@ -95,6 +95,66 @@
             ]
         },
         {
+            "pcName": "gaussian_blur",
+            "tShader": { "file": "gaussian_blur.comp"},
+            "atConstants": [
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atBindGroupLayouts": [
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
+        },
+        {
+            "pcName": "bloom_apply",
+            "tShader": { "file": "bloom_apply.comp"},
+            "atBindGroupLayouts": [
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ],
+                    "atSamplerBindings": [
+                        { "uSlot": 2, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
+        },
+        {
+            "pcName": "bloom_downsample",
+            "tShader": { "file": "bloom_downsample.comp"},
+            "atBindGroupLayouts": [
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ],
+                    "atSamplerBindings": [
+                        { "uSlot": 2, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
+        },
+        {
+            "pcName": "bloom_upsample",
+            "tShader": { "file": "bloom_upsample.comp"},
+            "atBindGroupLayouts": [
+                {
+                    "atTextureBindings": [
+                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 2, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ],
+                    "atSamplerBindings": [
+                        { "uSlot": 3, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                    ]
+                }
+            ]
+        },
+        {
             "pcName": "brdf_lut",
             "tShader": { "file": "brdf_lut.comp"},
             "atBindGroupLayouts": [

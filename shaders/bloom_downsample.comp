@@ -1,0 +1,51 @@
+#version 460
+#extension GL_ARB_separate_shader_objects : enable
+
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, rgba16f) uniform image2D target;
+layout(set = 0, binding = 1) uniform texture2D source;
+layout(set = 0, binding = 2)  uniform sampler tSamplerLinearClamp;
+
+void main()
+{
+    ivec2 iUV = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 targetResolution = imageSize(target);
+
+
+    if(iUV.x >= targetResolution.x || iUV.y >= targetResolution.y)
+        return;
+
+    vec2 uv = (iUV + 0.5f) / vec2(targetResolution);
+
+    ivec2 srcResolution = textureSize(sampler2D(source, tSamplerLinearClamp), 0);
+    vec2 texelSize = 1.f / vec2(srcResolution);
+
+    vec3 color = vec3(0);
+
+    //sampling pattern from "Next Generation Post Processing in Call of Duty Advanced Warfare"
+    //center 
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv,   0).rgb * 0.125;
+
+    //center pixel corners
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(0.5, 0.5),   0).rgb * 0.125;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(0.5, -0.5),  0).rgb * 0.125;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(-0.5, 0.5),  0).rgb * 0.125;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(-0.5, -0.5), 0).rgb * 0.125;
+
+    //left, rigth, up and down
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2( 1.5, 0),  0).rgb * 0.0625;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(-1.5, 0),  0).rgb * 0.0625;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(0,  1.5),  0).rgb * 0.0625;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(0, -1.5),  0).rgb * 0.0625;
+
+    //diagonal corners
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2( 1.5,  1.5),  0).rgb * 0.03125;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2( 1.5, -1.5),  0).rgb * 0.03125;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(-1.5,  1.5),  0).rgb * 0.03125;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + texelSize * vec2(-1.5, -1.5),  0).rgb * 0.03125;
+
+    color = clamp(color, 0.0, 100.0);
+    imageStore(target, iUV, vec4(color, 0));
+}

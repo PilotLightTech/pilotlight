@@ -242,11 +242,23 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tRuntimeOptions.fContrast = 1.0f;
     gptData->tRuntimeOptions.fSaturation = 1.0f;
     gptData->tRuntimeOptions.tTonemapMode = PL_TONEMAP_MODE_KHRONOS_PBR_NEUTRAL;
+    gptData->tRuntimeOptions.bBloomActive = false;
+    gptData->tRuntimeOptions.fBloomRadius = 1.5f;
+    gptData->tRuntimeOptions.fBloomStrength = 0.05f;
+    gptData->tRuntimeOptions.uBloomChainLength = 5;
 
     gptData->tRuntimeOptions.fGridCellSize = 0.025f;
     gptData->tRuntimeOptions.fGridMinPixelsBetweenCells = 2.0f;
     gptData->tRuntimeOptions.tGridColorThin = (plVec4){0.5f, 0.5f, 0.5f, 1.0f};
     gptData->tRuntimeOptions.tGridColorThick = (plVec4){0.75f, 0.75f, 0.75f, 1.0f};
+
+    gptData->tRuntimeOptions.fFogDensity = 0.1f;
+    gptData->tRuntimeOptions.fFogHeight = 0.0f;
+    gptData->tRuntimeOptions.fFogStart = 1.0f;
+    gptData->tRuntimeOptions.fFogCutOffDistance = 1000.0f;
+    gptData->tRuntimeOptions.fFogMaxOpacity = 0.1f;
+    gptData->tRuntimeOptions.fFogHeightFalloff = 0.1f;
+    gptData->tRuntimeOptions.tFogColor = (plVec3){1.0f, 1.0f, 1.0f};
 
     gptResource->initialize((plResourceManagerInit){.ptDevice = gptData->ptDevice, .uMaxTextureResolution = tSettings.uMaxTextureResolution});
 
@@ -949,6 +961,14 @@ pl_renderer_cleanup_view(plView* ptView)
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tUVRenderPass);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tFinalTextureHandle);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tLightingBindGroup);
+
+    for(uint32_t i = 0; i < pl_sb_size(ptView->sbtBloomDownChain); i++)
+    {
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->sbtBloomDownChain[i]);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->sbtBloomUpChain[i]);
+    }
+    pl_sb_free(ptView->sbtBloomDownChain);
+    pl_sb_free(ptView->sbtBloomUpChain);
     
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tPickTexture);
 
@@ -1243,7 +1263,6 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     ptView->atUVMaskTexture1         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 1", 0, PL_TEXTURE_USAGE_STORAGE);
     ptView->tFinalTexture            = pl__renderer_create_texture(&tRawOutputTextureDesc,  "offscreen final", 0, PL_TEXTURE_USAGE_SAMPLED);
     ptView->tFinalTextureHandle      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture);
-
 
     const plBindGroupDesc tJFABindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
@@ -1588,6 +1607,14 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     // update offscreen size to match viewport
     ptView->tTargetSize = tDimensions;
     ptView->tData.tViewportSize.xy = ptView->tTargetSize;
+
+    for(uint32_t i = 0; i < pl_sb_size(ptView->sbtBloomDownChain); i++)
+    {
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->sbtBloomDownChain[i]);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->sbtBloomUpChain[i]);
+    }
+    pl_sb_reset(ptView->sbtBloomDownChain);
+    pl_sb_reset(ptView->sbtBloomUpChain);
     
     if(tDimensions.x <= ptTexture->tDesc.tDimensions.x && tDimensions.y <= ptTexture->tDesc.tDimensions.y)
     {
@@ -2054,6 +2081,15 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
     if(gptData->tRuntimeOptions.bNormalMapping)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
 
+    if(gptData->tRuntimeOptions.bFog)
+    {
+        if(gptData->tRuntimeOptions.bLinearFog)
+            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_LINEAR_FOG;
+        else
+            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_HEIGHT_FOG;
+    }
+        
+
     // reset old entities
     const uint32_t uOldSelectedEntityCount = pl_sb_size(ptScene->sbtOutlinedEntities);
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
@@ -2248,6 +2284,14 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
     if(gptData->tRuntimeOptions.bPcfShadows)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
+
+    if(gptData->tRuntimeOptions.bFog)
+    {
+        if(gptData->tRuntimeOptions.bLinearFog)
+            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_LINEAR_FOG;
+        else
+            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_HEIGHT_FOG;
+    }
         
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
@@ -2365,6 +2409,14 @@ pl_renderer_finalize_scene(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
     if(gptData->tRuntimeOptions.bPcfShadows)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
+
+    if(gptData->tRuntimeOptions.bFog)
+    {
+        if(gptData->tRuntimeOptions.bLinearFog)
+            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_LINEAR_FOG;
+        else
+            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_HEIGHT_FOG;
+    }
 
     // create lighting shader
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
@@ -2861,6 +2913,18 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
     ptScene->uDShadowIndex = 0;
     ptScene->uDShadowOffset = 0;
 
+    ptView->tData.fFogHeight = gptData->tRuntimeOptions.fFogHeight;
+    ptView->tData.fFogCutOffDistance = gptData->tRuntimeOptions.fFogCutOffDistance;
+    ptView->tData.fFogMaxOpacity = gptData->tRuntimeOptions.fFogMaxOpacity;
+    ptView->tData.fFogStart = gptData->tRuntimeOptions.fFogStart;
+    ptView->tData.fFogHeightFalloff = pl_maxf(0.0f, gptData->tRuntimeOptions.fFogHeightFalloff);
+    ptView->tData.tFogColor = gptData->tRuntimeOptions.tFogColor;
+    ptView->tData.fFogLinearParam0 = 1.0f / (ptView->tData.fFogCutOffDistance - ptView->tData.fFogStart);
+    ptView->tData.fFogLinearParam1 = -ptView->tData.fFogStart / (ptView->tData.fFogCutOffDistance - ptView->tData.fFogStart);
+    
+    const float fFogDensity = -(float)(ptView->tData.fFogHeightFalloff * (ptCamera->tPos.y - ptView->tData.fFogHeight));
+    ptView->tData.tFogDensity = (plVec3){gptData->tRuntimeOptions.fFogDensity, fFogDensity, gptData->tRuntimeOptions.fFogDensity * expf(fFogDensity)};
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~generate CSMs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plBeginCommandInfo tCSMBeginInfo = {
@@ -2910,6 +2974,45 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
 
     plBuffer* ptViewBuffer = gptGfx->get_buffer(ptDevice, ptView->atViewBuffers[uFrameIdx]);
     memcpy(ptViewBuffer->tMemoryAllocation.pHostMapped, &ptView->tData, sizeof(plGpuViewData));
+    uint32_t uBloomTextureCount = pl_sb_size(ptView->sbtBloomDownChain);
+
+    if(gptData->tRuntimeOptions.bBloomActive && uBloomTextureCount < gptData->tRuntimeOptions.uBloomChainLength)
+    {
+
+        uint32_t uNewTexturesNeeded = gptData->tRuntimeOptions.uBloomChainLength - uBloomTextureCount;
+
+        plTextureDesc tBloomTextureDesc = {
+            .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
+            .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+            .uLayers       = 1,
+            .uMips         = 1,
+            .tType         = PL_TEXTURE_TYPE_2D,
+            .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_STORAGE,
+            .pcDebugName   = "bloom"
+        };
+    
+        tBloomTextureDesc.tDimensions.x *= powf(0.5f, (float)uBloomTextureCount);
+        tBloomTextureDesc.tDimensions.y *= powf(0.5f, (float)uBloomTextureCount);
+
+        for(uint32_t i = 0; i < uNewTexturesNeeded; i++)
+        {
+
+            if(tBloomTextureDesc.tDimensions.x < 1.0f || tBloomTextureDesc.tDimensions.y < 1.0f)
+            {
+                gptData->tRuntimeOptions.uBloomChainLength -= uNewTexturesNeeded - i;
+                break;
+            }
+
+            plTextureHandle tBloomUpTexture = pl__renderer_create_texture(&tBloomTextureDesc,  "bloom", i, PL_TEXTURE_USAGE_SAMPLED);
+            plTextureHandle tBloomDownTexture = pl__renderer_create_texture(&tBloomTextureDesc,  "bloom", i, PL_TEXTURE_USAGE_SAMPLED);
+
+            pl_sb_push(ptView->sbtBloomDownChain, tBloomDownTexture);
+            pl_sb_push(ptView->sbtBloomUpChain, tBloomUpTexture);
+
+            tBloomTextureDesc.tDimensions.x *= 0.5f;
+            tBloomTextureDesc.tDimensions.y *= 0.5f;
+        }
+    }
 
 
     pl_end_cpu_sample(gptProfile, 0);
@@ -3756,87 +3859,399 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~post process~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plBindGroupDesc tTonemapBGDesc = {
-        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-        .tLayout     = gptShaderVariant->get_compute_bind_group_layout("tonemap", 0),
-        .pcDebugName = "temp bind group c0"
-    };
-    plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
-
-    const plBindGroupUpdateTextureData tTonemapTextureData[] = 
+    if(gptData->tRuntimeOptions.bBloomActive && pl_sb_size(ptView->sbtBloomDownChain) >= gptData->tRuntimeOptions.uBloomChainLength)
     {
+        pl_begin_cpu_sample(gptProfile, 0, "bloom");
+
+        for(uint32_t i = 0; i < gptData->tRuntimeOptions.uBloomChainLength - 1; i++)
         {
-            .tTexture      = ptView->tFinalTexture,
-            .uSlot         = 0,
-            .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
-            .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
+
+            const int sourceMip = i;
+            const int targetMip = i + 1;
+
+            const plBindGroupDesc tTonemapBGDesc = {
+                .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+                .tLayout     = gptShaderVariant->get_compute_bind_group_layout("bloom_downsample", 0),
+                .pcDebugName = "temp bind group c0"
+            };
+            plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
+
+            const plBindGroupUpdateTextureData tTonemapTextureData[] = 
+            {
+                { // target
+                    .tTexture      = ptView->sbtBloomDownChain[targetMip],
+                    .uSlot         = 0,
+                    .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
+                    .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
+                },
+                { // source
+                    .tTexture      = i == 0 ? ptView->tFinalTexture : ptView->sbtBloomDownChain[sourceMip],
+                    .uSlot         = 1,
+                    .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
+                    .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                }
+            };
+
+            plBindGroupUpdateSamplerData tGlobalSamplerData[] = {
+                { .uSlot = 2, .tSampler = gptData->tSamplerLinearClamp }
+            };
+
+            const plBindGroupUpdateData tTonemapBGData = {
+                .uTextureCount = 2,
+                .atTextureBindings = tTonemapTextureData,
+                .uSamplerCount = 1,
+                .atSamplerBindings = tGlobalSamplerData
+            };
+            gptGfx->update_bind_group(gptData->ptDevice, tTonemapBG, &tTonemapBGData);
+            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tTonemapBG);
+
+            const plBeginCommandInfo tPostBeginInfo = {
+                .uWaitSemaphoreCount   = 1,
+                .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+            };
+
+            plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "bloom_downsample");
+            gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
+
+            plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
+            gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
+
+            plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
+            gptGfx->push_compute_debug_group(ptPostEncoder, "bloom_downsample", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
+            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
+
+            plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_downsample", NULL);
+            gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
+            gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 0, NULL);
+
+            plTexture* ptTargetTexture = gptGfx->get_texture(ptDevice, tTonemapTextureData[0].tTexture);
+
+            plDispatch tTonemapDispatch = {
+                .uGroupCountX     = (uint32_t)(ceilf(ptTargetTexture->tDesc.tDimensions.x / 8.0f)),
+                .uGroupCountY     = (uint32_t)(ceilf(ptTargetTexture->tDesc.tDimensions.y / 8.0f)),
+                .uGroupCountZ     = 1,
+                .uThreadPerGroupX = 8,
+                .uThreadPerGroupY = 8,
+                .uThreadPerGroupZ = 1
+            };
+            gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
+
+            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
+            gptGfx->pop_compute_debug_group(ptPostEncoder);
+            gptGfx->end_compute_pass(ptPostEncoder);
+
+            plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
+            gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
+
+            gptGfx->end_command_recording(ptPostCmdBuffer);
+
+            const plSubmitInfo tPostSubmitInfo = {
+                .uSignalSemaphoreCount   = 1,
+                .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+            };
+            ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
+            gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
+            gptGfx->return_command_buffer(ptPostCmdBuffer);
         }
-    };
 
-    const plBindGroupUpdateData tTonemapBGData = {
-        .uTextureCount = 1,
-        .atTextureBindings = tTonemapTextureData
-    };
-    gptGfx->update_bind_group(gptData->ptDevice, tTonemapBG, &tTonemapBGData);
-    gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tTonemapBG);
+        for(uint32_t i = 0; i < gptData->tRuntimeOptions.uBloomChainLength - 1; i++)
+        {
 
-    const plBeginCommandInfo tPostBeginInfo = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-    };
+            const int targetMip = gptData->tRuntimeOptions.uBloomChainLength - 2 - i;
+            const int sourceMip = targetMip + 1;
 
-    plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
-    gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
+            const plBindGroupDesc tTonemapBGDesc = {
+                .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+                .tLayout     = gptShaderVariant->get_compute_bind_group_layout("bloom_upsample", 0),
+                .pcDebugName = "temp bind group c0"
+            };
+            plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
 
-    plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-    gptGfx->set_texture_usage(ptTonemapPrepEncoder0, ptView->tFinalTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
-    gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
+            const plBindGroupUpdateTextureData tTonemapTextureData[] = 
+            {
+                { // target
+                    .tTexture      = ptView->sbtBloomUpChain[targetMip],
+                    .uSlot         = 0,
+                    .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
+                    .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
+                },
+                { // target previous mip
+                    .tTexture      = ptView->sbtBloomUpChain[sourceMip],
+                    .uSlot         = 1,
+                    .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
+                    .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                },
+                { // source
+                    .tTexture      = ptView->sbtBloomDownChain[sourceMip],
+                    .uSlot         = 2,
+                    .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
+                    .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                }
+            };
 
-    plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
-    gptGfx->push_compute_debug_group(ptPostEncoder, "Tonemap Compute", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
-    gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
+            plBindGroupUpdateSamplerData tGlobalSamplerData[] = {
+                { .uSlot = 3, .tSampler = gptData->tSamplerLinearClamp }
+            };
 
-    plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-    plGpuDynTonemap* ptTonemapData = (plGpuDynTonemap*)tTonemapDynamicBinding.pcData;
-    ptTonemapData->iMode = gptData->tRuntimeOptions.tTonemapMode;
-    ptTonemapData->fExposure = gptData->tRuntimeOptions.fExposure;
-    ptTonemapData->fBrightness = gptData->tRuntimeOptions.fBrightness;
-    ptTonemapData->fContrast = gptData->tRuntimeOptions.fContrast;
-    ptTonemapData->fSaturation = gptData->tRuntimeOptions.fSaturation;
+            const plBindGroupUpdateData tTonemapBGData = {
+                .uTextureCount = 3,
+                .atTextureBindings = tTonemapTextureData,
+                .uSamplerCount = 1,
+                .atSamplerBindings = tGlobalSamplerData
+            };
+            gptGfx->update_bind_group(gptData->ptDevice, tTonemapBG, &tTonemapBGData);
+            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tTonemapBG);
 
-    plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("tonemap", NULL);
-    gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
-    gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
+            const plBeginCommandInfo tPostBeginInfo = {
+                .uWaitSemaphoreCount   = 1,
+                .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+            };
 
-    plDispatch tTonemapDispatch = {
-        .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 32.0f)),
-        .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 32.0f)),
-        .uGroupCountZ     = 1,
-        .uThreadPerGroupX = 32,
-        .uThreadPerGroupY = 32,
-        .uThreadPerGroupZ = 1
-    };
-    gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
+            plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "bloom_upsample");
+            gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
 
-    gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
-    gptGfx->pop_compute_debug_group(ptPostEncoder);
-    gptGfx->end_compute_pass(ptPostEncoder);
+            plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
 
-    plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-    gptGfx->set_texture_usage(ptTonemapPrepEncoder1, ptView->tFinalTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-    gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
+            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
+            
+            gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
 
-    gptGfx->end_command_recording(ptPostCmdBuffer);
+            plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
+            gptGfx->push_compute_debug_group(ptPostEncoder, "upscale", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
+            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
-    const plSubmitInfo tPostSubmitInfo = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-    };
-    ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
-    gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
-    gptGfx->return_command_buffer(ptPostCmdBuffer);
+            plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+            plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
+            ptTonemapData->bloomStrength = gptData->tRuntimeOptions.fBloomStrength;
+            ptTonemapData->blurRadius = gptData->tRuntimeOptions.fBloomRadius;
+            ptTonemapData->isLowestMip = i == 0 ? 1 : 0;
+
+            plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_upsample", NULL);
+            gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
+            gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
+
+            plTexture* ptTargetTexture = gptGfx->get_texture(ptDevice, tTonemapTextureData[0].tTexture);
+
+            plDispatch tTonemapDispatch = {
+                .uGroupCountX     = (uint32_t)(ceilf(ptTargetTexture->tDesc.tDimensions.x / 8.0f)),
+                .uGroupCountY     = (uint32_t)(ceilf(ptTargetTexture->tDesc.tDimensions.y / 8.0f)),
+                .uGroupCountZ     = 1,
+                .uThreadPerGroupX = 8,
+                .uThreadPerGroupY = 8,
+                .uThreadPerGroupZ = 1
+            };
+            gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
+
+            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
+            gptGfx->pop_compute_debug_group(ptPostEncoder);
+            gptGfx->end_compute_pass(ptPostEncoder);
+
+            plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+            // gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[1].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
+            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
+            gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
+
+            gptGfx->end_command_recording(ptPostCmdBuffer);
+
+            const plSubmitInfo tPostSubmitInfo = {
+                .uSignalSemaphoreCount   = 1,
+                .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+            };
+            ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
+            gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
+            gptGfx->return_command_buffer(ptPostCmdBuffer);
+        }
+
+        {
+            const plBindGroupDesc tTonemapBGDesc = {
+                .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+                .tLayout     = gptShaderVariant->get_compute_bind_group_layout("bloom_apply", 0),
+                .pcDebugName = "temp bind group c0"
+            };
+            plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
+
+            const plBindGroupUpdateTextureData tTonemapTextureData[] = 
+            {
+                { // target
+                    .tTexture      = ptView->tFinalTexture,
+                    .uSlot         = 0,
+                    .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
+                    .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
+                },
+                { // target previous mip
+                    .tTexture      = ptView->sbtBloomUpChain[0],
+                    .uSlot         = 1,
+                    .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
+                    .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                }
+            };
+
+            plBindGroupUpdateSamplerData tGlobalSamplerData[] = {
+                { .uSlot = 2, .tSampler = gptData->tSamplerLinearClamp }
+            };
+
+            const plBindGroupUpdateData tTonemapBGData = {
+                .uTextureCount = 2,
+                .atTextureBindings = tTonemapTextureData,
+                .uSamplerCount = 1,
+                .atSamplerBindings = tGlobalSamplerData
+            };
+            gptGfx->update_bind_group(gptData->ptDevice, tTonemapBG, &tTonemapBGData);
+            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tTonemapBG);
+
+            const plBeginCommandInfo tPostBeginInfo = {
+                .uWaitSemaphoreCount   = 1,
+                .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+            };
+
+            plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "bloom_apply");
+            gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
+
+            plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+
+            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
+            
+            // if(i > 0)
+                
+            gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
+
+            plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
+            gptGfx->push_compute_debug_group(ptPostEncoder, "bloom_apply", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
+            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
+
+            plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+            plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
+            ptTonemapData->bloomStrength = gptData->tRuntimeOptions.fBloomStrength;
+            ptTonemapData->blurRadius = gptData->tRuntimeOptions.fBloomRadius;
+
+            plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_apply", NULL);
+            gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
+            gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
+
+            plDispatch tTonemapDispatch = {
+                .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 8.0f)),
+                .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 8.0f)),
+                .uGroupCountZ     = 1,
+                .uThreadPerGroupX = 8,
+                .uThreadPerGroupY = 8,
+                .uThreadPerGroupZ = 1
+            };
+            gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
+
+            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
+            gptGfx->pop_compute_debug_group(ptPostEncoder);
+            gptGfx->end_compute_pass(ptPostEncoder);
+
+            plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+            // gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[1].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
+            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
+            gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
+
+            gptGfx->end_command_recording(ptPostCmdBuffer);
+
+            const plSubmitInfo tPostSubmitInfo = {
+                .uSignalSemaphoreCount   = 1,
+                .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+            };
+            ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
+            gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
+            gptGfx->return_command_buffer(ptPostCmdBuffer);
+        }
+
+        pl_end_cpu_sample(gptProfile, 0);
+    }
+
+    {
+        const plBindGroupDesc tTonemapBGDesc = {
+            .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
+            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("tonemap", 0),
+            .pcDebugName = "temp bind group c0"
+        };
+        plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
+
+        const plBindGroupUpdateTextureData tTonemapTextureData[] = 
+        {
+            { // target
+                .tTexture      = ptView->tFinalTexture,
+                .uSlot         = 0,
+                .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
+            }
+        };
+
+        const plBindGroupUpdateData tTonemapBGData = {
+            .uTextureCount = 1,
+            .atTextureBindings = tTonemapTextureData
+        };
+        gptGfx->update_bind_group(gptData->ptDevice, tTonemapBG, &tTonemapBGData);
+        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tTonemapBG);
+
+        const plBeginCommandInfo tPostBeginInfo = {
+            .uWaitSemaphoreCount   = 1,
+            .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+        };
+
+        plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
+        gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
+
+        plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+        gptGfx->set_texture_usage(ptTonemapPrepEncoder0, ptView->tFinalTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
+        gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
+
+        plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
+        gptGfx->push_compute_debug_group(ptPostEncoder, "Tonemap Compute", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
+        gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
+
+        plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+        plGpuDynTonemap* ptTonemapData = (plGpuDynTonemap*)tTonemapDynamicBinding.pcData;
+        ptTonemapData->iMode = gptData->tRuntimeOptions.tTonemapMode;
+        ptTonemapData->fExposure = gptData->tRuntimeOptions.fExposure;
+        ptTonemapData->fBrightness = gptData->tRuntimeOptions.fBrightness;
+        ptTonemapData->fContrast = gptData->tRuntimeOptions.fContrast;
+        ptTonemapData->fSaturation = gptData->tRuntimeOptions.fSaturation;
+
+        plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("tonemap", NULL);
+        gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
+        gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
+
+        plDispatch tTonemapDispatch = {
+            .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 32.0f)),
+            .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 32.0f)),
+            .uGroupCountZ     = 1,
+            .uThreadPerGroupX = 32,
+            .uThreadPerGroupY = 32,
+            .uThreadPerGroupZ = 1
+        };
+        gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
+
+        gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
+        gptGfx->pop_compute_debug_group(ptPostEncoder);
+        gptGfx->end_compute_pass(ptPostEncoder);
+
+        plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+        gptGfx->set_texture_usage(ptTonemapPrepEncoder1, ptView->tFinalTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
+        gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
+
+        gptGfx->end_command_recording(ptPostCmdBuffer);
+
+        const plSubmitInfo tPostSubmitInfo = {
+            .uSignalSemaphoreCount   = 1,
+            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+        };
+        ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
+        gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
+        gptGfx->return_command_buffer(ptPostCmdBuffer);
+    }
 
     // update stats
     static double* pdVisibleOpaqueObjects = NULL;

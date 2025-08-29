@@ -247,11 +247,28 @@ typedef struct _plRendererRuntimeOptions
     float           fContrast;
     float           fSaturation;
 
+    // bloom
+    bool bBloomActive;
+    float fBloomStrength;
+    float fBloomRadius;
+    uint32_t uBloomChainLength;
+
     // grid
     float fGridCellSize;
     float fGridMinPixelsBetweenCells;
     plVec4 tGridColorThin;
     plVec4 tGridColorThick;
+
+    // fog
+    bool  bFog;
+    bool  bLinearFog;
+    float fFogDensity;
+    float fFogHeight;
+    float fFogStart;
+    float fFogCutOffDistance;
+    float fFogMaxOpacity;
+    float fFogHeightFalloff;
+    plVec3 tFogColor;
 
 } plRendererRuntimeOptions;
 

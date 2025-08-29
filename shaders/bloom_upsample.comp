@@ -1,0 +1,57 @@
+#version 460
+#extension GL_ARB_separate_shader_objects : enable
+
+#include "pl_shader_interop_renderer.h"
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, rgba16f) uniform image2D target;
+layout(set = 0, binding = 1) uniform texture2D targetPreviousMip;
+layout(set = 0, binding = 2) uniform texture2D source;
+layout(set = 0, binding = 3)  uniform sampler tSamplerLinearClamp;
+
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
+{
+    plGpuDynBloomData tData;
+} tDynamicData;
+
+void main(){
+    ivec2 iUV = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 targetResolution = imageSize(target);
+
+    if(iUV.x >= targetResolution.x || iUV.y >= targetResolution.y)
+        return;
+
+    ivec2 srcResolution = textureSize(sampler2D(source, tSamplerLinearClamp), 0);
+    vec2 texelSize = 1.f / vec2(srcResolution);
+    vec2 sampleStepSize = tDynamicData.tData.blurRadius * texelSize;
+
+    vec2 uv = (iUV + 0.5f) / vec2(targetResolution);
+
+    //blur current downscaled mip level
+    vec3 color = vec3(0);
+
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv, 0).rgb * 0.25f;
+
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + sampleStepSize * vec2( 1,  0), 0).rgb * 0.125f;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + sampleStepSize * vec2(-1,  0), 0).rgb * 0.125f;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + sampleStepSize * vec2( 0,  1), 0).rgb * 0.125f;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + sampleStepSize * vec2( 0, -1), 0).rgb * 0.125f;
+
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + sampleStepSize * vec2( 1,  1), 0).rgb * 0.0625f;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + sampleStepSize * vec2( 1, -1), 0).rgb * 0.0625f;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + sampleStepSize * vec2(-1,  1), 0).rgb * 0.0625f;
+    color += textureLod(sampler2D(source, tSamplerLinearClamp), uv + sampleStepSize * vec2(-1, -1), 0).rgb * 0.0625f;
+
+    if(tDynamicData.tData.isLowestMip != 1)
+    {
+        //add previous upscaled mip level
+        //use repeated box filter for good upscaling quality
+        color += textureLod(sampler2D(targetPreviousMip, tSamplerLinearClamp), uv + texelSize * vec2( 0.5,  0.5), 0).rgb * 0.25;
+        color += textureLod(sampler2D(targetPreviousMip, tSamplerLinearClamp), uv + texelSize * vec2( 0.5, -0.5), 0).rgb * 0.25;
+        color += textureLod(sampler2D(targetPreviousMip, tSamplerLinearClamp), uv + texelSize * vec2(-0.5,  0.5), 0).rgb * 0.25;
+        color += textureLod(sampler2D(targetPreviousMip, tSamplerLinearClamp), uv + texelSize * vec2(-0.5, -0.5), 0).rgb * 0.25;
+    }
+
+    imageStore(target, iUV, vec4(color, 0));
+}

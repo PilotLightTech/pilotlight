@@ -45,6 +45,7 @@ layout(location = 0) out vec4 outColor;
 const int iMaterialFlags = 0;
 #include "lighting.glsl"
 #include "material_info.glsl"
+#include "fog.glsl"
 
 void main() 
 {
@@ -94,7 +95,8 @@ void main()
     vec3 f_metal_brdf_ibl = vec3(0.0);
     vec3 f_emissive = vec3(0.0);
    
-    vec3 v = normalize(tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
+    vec3 vraw = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz;
+    vec3 v = normalize(vraw);
 
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
@@ -322,7 +324,20 @@ void main()
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
     {
+        
         outColor.rgb = color.rgb;
+
+        if(iProbeCount > 0)
+        {
+            if(bool(iRenderingFlags & PL_RENDERING_FLAG_HEIGHT_FOG))
+            {
+                outColor = fog(outColor, vraw);
+            }
+            if(bool(iRenderingFlags & PL_RENDERING_FLAG_LINEAR_FOG))
+            {
+                outColor = fogLinear(outColor, vraw);
+            }
+        }
     }
     else
     {

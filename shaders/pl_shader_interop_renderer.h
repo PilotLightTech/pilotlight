@@ -12,7 +12,7 @@ Index of this file:
 // [SECTION] scene
 // [SECTION] view
 // [SECTION] grid
-// [SECTION] tonemapping
+// [SECTION] post processing
 // [SECTION] environment filtering
 // [SECTION] shadows
 // [SECTION] skinning
@@ -72,6 +72,8 @@ PL_BEGIN_ENUM(plRenderingFlags)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_SHADOWS,         1 << 2)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_NORMAL_MAPS, 1 << 3)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_PCF_SHADOWS,     1 << 4)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_HEIGHT_FOG,      1 << 5)
+    PL_ENUM_ITEM(PL_RENDERING_FLAG_LINEAR_FOG,      1 << 6)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plMeshFormatFlags)
@@ -217,7 +219,21 @@ PL_BEGIN_STRUCT(plGpuViewData)
     int iTransmissionFrameBufferIndex;
     int _iUnused0;
     int _iUnused1;
-    int _iUnused2;
+    float fFogHeight;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    float fFogStart;
+    float fFogCutOffDistance;
+    float fFogMaxOpacity;
+    float fFogHeightFalloff;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec3 tFogDensity;
+    float fFogLinearParam0;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec3 tFogColor;
+    float fFogLinearParam1;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     vec4 tViewportSize;
@@ -272,8 +288,14 @@ PL_BEGIN_STRUCT(plGpuDynGrid)
 PL_END_STRUCT(plGpuDynGrid)
 
 //-----------------------------------------------------------------------------
-// [SECTION] tonemapping
+// [SECTION] post processing
 //-----------------------------------------------------------------------------
+
+PL_BEGIN_STRUCT(plGpuDynBloomData)
+    float blurRadius;
+    float bloomStrength;
+    int isLowestMip;
+PL_END_STRUCT(plGpuDynBloomData)
 
 PL_BEGIN_STRUCT(plGpuDynTonemap)
 

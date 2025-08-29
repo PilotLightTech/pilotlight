@@ -208,7 +208,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tStarterInit.tFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
     tStarterInit.tFlags |= PL_STARTER_FLAGS_DRAW_EXT;
     tStarterInit.tFlags |= PL_STARTER_FLAGS_UI_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
+    // tStarterInit.tFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
 
     // initial flags
     tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
@@ -303,6 +303,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptUI->set_default_font(ptAppData->tDefaultFont);
 
     gptStarter->finalize();
+
+    gptScreenLog->initialize({ptAppData->tDefaultFont});
+
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~app stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -689,6 +692,11 @@ pl_app_update(plAppData* ptAppData)
 
     plRenderEncoder* ptRenderEncoder = gptStarter->begin_main_pass();
     gptDearImGui->render(ptRenderEncoder, gptGfx->get_encoder_command_buffer(ptRenderEncoder));
+
+    float fWidth = ptIO->tMainViewportSize.x;
+    float fHeight = ptIO->tMainViewportSize.y;
+    plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(tLogOffset.x, tLogOffset.y, fWidth * 0.2f, fHeight);
+    gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
     gptStarter->end_main_pass();
     pl_end_cpu_sample(gptProfile, 0);
     gptStarter->end_frame();
@@ -1076,6 +1084,8 @@ pl__show_editor_window(plAppData* ptAppData)
             }
         }
 
+        bool bReloadShaders = false;
+
         if(ImGui::CollapsingHeader(ICON_FA_DICE_D6 " Graphics"))
         {
             plRendererRuntimeOptions* ptRuntimeOptions = gptRenderer->get_runtime_options();
@@ -1086,16 +1096,6 @@ pl__show_editor_window(plAppData* ptAppData)
                 else
                     gptStarter->deactivate_vsync();
             }
-            static const char* apcTonemapText[] = {
-                "None",
-                "Simple",
-                "ACES Filmic (Narkowicz)",
-                "ACES Filmic (Hill)",
-                "ACES Filmic (Hill Exposure Boost)",
-                "Reinhard",
-                "Khronos PBR Neutral",
-            };
-            ImGui::Combo("Tonemapping", &ptRuntimeOptions->tTonemapMode, apcTonemapText, PL_ARRAYSIZE(apcTonemapText));
 
             static const char* apcShaderDebugModeText[] = {
                 "None",
@@ -1125,12 +1125,8 @@ pl__show_editor_window(plAppData* ptAppData)
                 "Diffuse Transmission Strength",
                 "Diffuse Transmission Color",
             };
-            bool bReloadShaders = false;
+            
             if(ImGui::Combo("Shader Debug Mode", &ptRuntimeOptions->tShaderDebugMode, apcShaderDebugModeText, PL_ARRAYSIZE(apcShaderDebugModeText))) bReloadShaders = true;
-            ImGui::SliderFloat("Exposure", &ptRuntimeOptions->fExposure, 0.0f, 3.0f);
-            ImGui::SliderFloat("Brightness", &ptRuntimeOptions->fBrightness, -1.0f, 1.0f);
-            ImGui::SliderFloat("Contrast", &ptRuntimeOptions->fContrast, 0.0f, 2.0f);
-            ImGui::SliderFloat("Saturation", &ptRuntimeOptions->fSaturation, 0.0f, 2.0f);
             ImGui::Checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
             ImGui::Checkbox("Show BVH", &ptAppData->bShowBVH);
             ImGui::Checkbox("Show Skybox", &ptAppData->bShowSkybox);
@@ -1140,12 +1136,9 @@ pl__show_editor_window(plAppData* ptAppData)
             if(ImGui::Checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;
             if(ImGui::Checkbox("Punctual Lighting", &ptRuntimeOptions->bPunctualLighting)) bReloadShaders = true;
             if(ImGui::Checkbox("Normal Mapping", &ptRuntimeOptions->bNormalMapping)) bReloadShaders = true;
+            if(ImGui::Checkbox("PCF Shadows", &ptRuntimeOptions->bPcfShadows)) bReloadShaders = true;
             ImGui::Checkbox("Show Probes", &ptRuntimeOptions->bShowProbes);
 
-            if(bReloadShaders)
-            {
-                gptRenderer->reload_scene_shaders(ptAppData->ptScene);
-            }
             ImGui::Checkbox("Frustum Culling", &ptAppData->bFrustumCulling);
             ImGui::Checkbox("Selected Bounding Box", &ptRuntimeOptions->bShowSelectedBoundingBox);
             
@@ -1167,6 +1160,64 @@ pl__show_editor_window(plAppData* ptAppData)
                     ImGui::TreePop();
                 }
             }
+        }
+
+        if(ImGui::CollapsingHeader(ICON_FA_FILE_IMAGE " Post Process"))
+        {
+            plRendererRuntimeOptions* ptRuntimeOptions = gptRenderer->get_runtime_options();
+
+            static const char* apcTonemapText[] = {
+                "None",
+                "Simple",
+                "ACES Filmic (Narkowicz)",
+                "ACES Filmic (Hill)",
+                "ACES Filmic (Hill Exposure Boost)",
+                "Reinhard",
+                "Khronos PBR Neutral",
+            };
+            ImGui::Combo("Tonemapping", &ptRuntimeOptions->tTonemapMode, apcTonemapText, PL_ARRAYSIZE(apcTonemapText));
+
+            ImGui::SliderFloat("Exposure", &ptRuntimeOptions->fExposure, 0.0f, 3.0f);
+            ImGui::SliderFloat("Brightness", &ptRuntimeOptions->fBrightness, -1.0f, 1.0f);
+            ImGui::SliderFloat("Contrast", &ptRuntimeOptions->fContrast, 0.0f, 2.0f);
+            ImGui::SliderFloat("Saturation", &ptRuntimeOptions->fSaturation, 0.0f, 2.0f);
+
+            ImGui::SeparatorText("Bloom");
+            ImGui::Checkbox("Bloom", &ptRuntimeOptions->bBloomActive);
+
+            if(ptRuntimeOptions->bBloomActive)
+            {
+                ImGui::SliderFloat("Bloom Radius", &ptRuntimeOptions->fBloomRadius, 0.0f, 10.0f, 0);
+                ImGui::SliderFloat("Bloom Strength", &ptRuntimeOptions->fBloomStrength, 0.0f, 10.0f, 0);
+                int iBloomChainLength = (int)ptRuntimeOptions->uBloomChainLength;
+                if(ImGui::SliderInt("Bloom Chain", &iBloomChainLength, 2, 10, 0))
+                    ptRuntimeOptions->uBloomChainLength = (uint32_t)iBloomChainLength;
+            }
+
+            ImGui::SeparatorText("Fog");
+
+            if(ImGui::Checkbox("Fog", &ptRuntimeOptions->bFog))
+                bReloadShaders = true;
+            if(ptRuntimeOptions->bFog)
+            {
+                if(ImGui::Checkbox("Linear Fog", &ptRuntimeOptions->bLinearFog))
+                    bReloadShaders = true;
+                ImGui::SliderFloat("Fog Start", &ptRuntimeOptions->fFogStart, 0.0f, 100.0f);
+                ImGui::SliderFloat("Fog End", &ptRuntimeOptions->fFogCutOffDistance, 0.0f, 10000.0f);
+                ImGui::SliderFloat("Fog Max Opacity", &ptRuntimeOptions->fFogMaxOpacity, 0.0f, 1.0f);
+                ImGui::ColorEdit3("Fog Color", ptRuntimeOptions->tFogColor.d);
+                if(!ptRuntimeOptions->bLinearFog)
+                {
+                    ImGui::SliderFloat("Fog Density", &ptRuntimeOptions->fFogDensity, 0.0f, 1.0f);
+                    ImGui::SliderFloat("Fog Height", &ptRuntimeOptions->fFogHeight, -100.0f, 100.0f);
+                    ImGui::SliderFloat("Fog Height Falloff", &ptRuntimeOptions->fFogHeightFalloff, 0.0f, 1.0f);
+                }  
+            }
+        }
+
+        if(bReloadShaders)
+        {
+            gptRenderer->reload_scene_shaders(ptAppData->ptScene);
         }
 
         if(ImGui::CollapsingHeader(ICON_FA_BOXES_STACKED " Physics", 0))
