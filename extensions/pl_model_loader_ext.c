@@ -1245,9 +1245,6 @@ pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfL
                     pl__refr_load_material(pcPath, pcDirectory, ptMaterial, ptPrimitive->material);
                 }
 
-                if(ptPrimitive->material->has_transmission)
-                    ptMaterial->tAlphaMode = PL_MATERIAL_ALPHA_MODE_BLEND;
-
                 pl_sb_push(ptData->atObjects, tNewObject);
             }
         }
