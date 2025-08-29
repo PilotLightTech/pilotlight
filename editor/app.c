@@ -334,7 +334,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plRendererSettings tRenderSettings = {
         .ptDevice = ptAppData->ptDevice,
         .ptSwap = gptStarter->get_swapchain(),
-        .uMaxTextureResolution = 1024 * 2,
+        .uMaxTextureResolution = 1024,
     };
     gptRenderer->initialize(tRenderSettings);
 

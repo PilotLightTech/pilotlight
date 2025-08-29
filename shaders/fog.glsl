@@ -3,7 +3,7 @@ vec4
 fog(vec4 color, vec3 view)
 {
     float height = tViewInfo.tData.fFogHeight;
-    float fHeightFalloff = tViewInfo.tData.fFogHeightFalloff;
+    float fHeightFalloff = -tViewInfo.tData.fFogHeightFalloff;
 
     float iblLuminance = 1.0;
     float fogStart = tViewInfo.tData.fFogStart;

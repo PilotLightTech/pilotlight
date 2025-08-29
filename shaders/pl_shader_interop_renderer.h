@@ -218,7 +218,7 @@ PL_BEGIN_STRUCT(plGpuViewData)
 
     int iTransmissionFrameBufferIndex;
     int _iUnused0;
-    int _iUnused1;
+    int iFogActive;
     float fFogHeight;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
@@ -347,10 +347,7 @@ PL_BEGIN_STRUCT(plGpuDynShadow)
     int iMaterialIndex;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tInverseWorld;
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
-
-    // ~~~~~~~~~~~~~~~~80 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynShadow)
 
 //-----------------------------------------------------------------------------

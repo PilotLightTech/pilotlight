@@ -2388,7 +2388,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
 
     const plBufferDesc tInstanceBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = sizeof(uint32_t) * 10000 * 2,
+        .szByteSize = sizeof(plShadowInstanceBufferData) * 10000,
         .pcDebugName = "instance buffer"
     };
 
@@ -2913,6 +2913,7 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
     ptScene->uDShadowIndex = 0;
     ptScene->uDShadowOffset = 0;
 
+    ptView->tData.iFogActive = (int)gptData->tRuntimeOptions.bFog;
     ptView->tData.fFogHeight = gptData->tRuntimeOptions.fFogHeight;
     ptView->tData.fFogCutOffDistance = gptData->tRuntimeOptions.fFogCutOffDistance;
     ptView->tData.fFogMaxOpacity = gptData->tRuntimeOptions.fFogMaxOpacity;
@@ -4628,8 +4629,7 @@ pl_renderer_remove_objects_from_scene(plScene* ptScene, uint32_t uObjectCount, c
             {
                 pl_hm_remove(&ptScene->tDrawableHashmap, tObject.uData);
                 pl_sb_del_swap(ptScene->sbtStagedEntities, j);
-                j--;
-                uDrawableCount--;
+                break;
             }
         }
     }

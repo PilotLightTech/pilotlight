@@ -107,7 +107,13 @@ void main()
     gl_ViewportIndex = uViewportIndex;
 
     // if(tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex][3][3] == 1.0) // orthographic
-    //     gl_Position.z = 1.0 - gl_Position.z;
+    // {
+    //     // gl_Position.z = 1.0 - gl_Position.z;
+    //     if(gl_Position.z > 1.0)
+    //     {
+    //         gl_Position.z = 0.0;
+    //     }
+    // }
 
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;

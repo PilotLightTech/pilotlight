@@ -898,7 +898,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
         {
             .tBuffer       = ptScene->atInstanceBuffer[uFrameIdx],
             .uSlot         = 1,
-            .szBufferRange = sizeof(uint32_t) * 2 * 10000
+            .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
         }
     };
 
@@ -1570,7 +1570,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
         {
             .tBuffer       = ptScene->atInstanceBuffer[uFrameIdx],
             .uSlot         = 1,
-            .szBufferRange = sizeof(uint32_t) * 2 * 10000
+            .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
         }
     };
 
@@ -2319,6 +2319,7 @@ pl__renderer_get_bindless_texture_index(plScene* ptScene, plTextureHandle tTextu
     uint64_t ulValue = pl_hm_get_free_index(&ptScene->tTextureIndexHashmap);
     if(ulValue == PL_DS_HASH_INVALID)
     {
+        PL_ASSERT(ptScene->uTextureIndexCount < PL_MAX_BINDLESS_TEXTURES);
         ulValue = ptScene->uTextureIndexCount++;
 
         // TODO: handle when greater than 4096
@@ -3751,6 +3752,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
                 .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
                 .ulCullMode           = PL_CULL_MODE_NONE,
                 .ulWireframe          = 0,
+                .ulDepthClampEnabled  = 1,
                 .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
                 .ulStencilRef         = 0xff,
                 .ulStencilMask        = 0xff,

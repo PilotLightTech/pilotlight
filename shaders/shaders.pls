@@ -479,7 +479,7 @@
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  true,
                 "ulDepthMode":          "PL_COMPARE_MODE_GREATER_OR_EQUAL",
-                "ulCullMode":           "PL_CULL_MODE_CULL_BACK",
+                "ulCullMode":           "PL_CULL_MODE_NONE",
                 "ulWireframe":          false,
                 "ulDepthClampEnabled":  true,
                 "ulStencilTestEnabled": false,
@@ -498,15 +498,7 @@
                 }
             ],
             "atBlendStates": [
-                {
-                    "bBlendEnabled":   true,
-                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
-                    "tColorOp":        "PL_BLEND_OP_ADD",
-                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
-                    "tAlphaOp":        "PL_BLEND_OP_ADD"
-                }
+                { "bBlendEnabled":   false }
             ],
             "atVertexConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
