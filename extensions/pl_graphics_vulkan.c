@@ -1246,6 +1246,8 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTexture **p
     };
     PL_VULKAN(vkCreateImage(ptDevice->tLogicalDevice, &tImageInfo, gptGraphics->ptAllocationCallbacks, &tVulkanTexture.tImage));
 
+    pl__set_vulkan_object_name(ptDevice, (uint64_t)tVulkanTexture.tImage, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT, ptTexture->tDesc.pcDebugName);
+
     // get memory requirements
     VkMemoryRequirements tMemoryRequirements = {0};
     vkGetImageMemoryRequirements(ptDevice->tLogicalDevice, tVulkanTexture.tImage, &tMemoryRequirements);
