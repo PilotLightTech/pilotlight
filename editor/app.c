@@ -749,7 +749,8 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowBVH)
     {
         gptRenderer->debug_draw_bvh(ptAppData->ptView);
-        gptRenderer->debug_draw_bvh(ptAppData->ptSecondaryView);
+        if(ptAppData->ptSecondaryView)
+            gptRenderer->debug_draw_bvh(ptAppData->ptSecondaryView);
     }
 
     if(ptAppData->bShowGrid)
