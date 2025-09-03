@@ -37,7 +37,7 @@ main()
     vec3 tVectorOut = normalize(tShaderIn.tWorldPosition);
     outColor = vec4(texture(samplerCube(samplerCubeMap, tSamplerLinearRepeat), tVectorOut).rgb, 1.0);
     
-    if(bool(tViewInfo.tData.iFogActive))
+    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_HEIGHT_FOG) || bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_LINEAR_FOG))
     {
         tVectorOut.y *= -1.0;
         outColor = fog(outColor, tVectorOut * tViewInfo.tData.fFogCutOffDistance * 0.75);

@@ -329,11 +329,11 @@ void main()
 
         if(iProbeCount > 0)
         {
-            if(bool(iRenderingFlags & PL_RENDERING_FLAG_HEIGHT_FOG))
+            if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_HEIGHT_FOG))
             {
                 outColor = fog(outColor, vraw);
             }
-            if(bool(iRenderingFlags & PL_RENDERING_FLAG_LINEAR_FOG))
+            else if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_LINEAR_FOG))
             {
                 outColor = fogLinear(outColor, vraw);
             }

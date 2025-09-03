@@ -2081,15 +2081,6 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
     if(gptData->tRuntimeOptions.bNormalMapping)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
 
-    if(gptData->tRuntimeOptions.bFog)
-    {
-        if(gptData->tRuntimeOptions.bLinearFog)
-            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_LINEAR_FOG;
-        else
-            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_HEIGHT_FOG;
-    }
-        
-
     // reset old entities
     const uint32_t uOldSelectedEntityCount = pl_sb_size(ptScene->sbtOutlinedEntities);
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
@@ -2284,14 +2275,6 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
     if(gptData->tRuntimeOptions.bPcfShadows)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
-
-    if(gptData->tRuntimeOptions.bFog)
-    {
-        if(gptData->tRuntimeOptions.bLinearFog)
-            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_LINEAR_FOG;
-        else
-            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_HEIGHT_FOG;
-    }
         
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
@@ -2409,14 +2392,6 @@ pl_renderer_finalize_scene(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
     if(gptData->tRuntimeOptions.bPcfShadows)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
-
-    if(gptData->tRuntimeOptions.bFog)
-    {
-        if(gptData->tRuntimeOptions.bLinearFog)
-            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_LINEAR_FOG;
-        else
-            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_HEIGHT_FOG;
-    }
 
     // create lighting shader
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
@@ -2608,6 +2583,20 @@ pl_renderer_prepare_scene(plScene* ptScene)
     }
 
     plBuffer* ptSceneBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSceneBuffer[uFrameIdx]);
+
+    if(gptData->tRuntimeOptions.bFog)
+    {
+        if(gptData->tRuntimeOptions.bLinearFog)
+            ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_LINEAR_FOG;
+        else
+            ptScene->tSceneData.iSceneFlags |= PL_SCENE_FLAG_HEIGHT_FOG;
+    }
+    else
+    {
+        ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_LINEAR_FOG;
+        ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_HEIGHT_FOG;
+    }
+
     memcpy(ptSceneBuffer->tMemoryAllocation.pHostMapped, &ptScene->tSceneData, sizeof(plGpuSceneData));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2913,7 +2902,6 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
     ptScene->uDShadowIndex = 0;
     ptScene->uDShadowOffset = 0;
 
-    ptView->tData.iFogActive = (int)gptData->tRuntimeOptions.bFog;
     ptView->tData.fFogHeight = gptData->tRuntimeOptions.fFogHeight;
     ptView->tData.fFogCutOffDistance = gptData->tRuntimeOptions.fFogCutOffDistance;
     ptView->tData.fFogMaxOpacity = gptData->tRuntimeOptions.fFogMaxOpacity;

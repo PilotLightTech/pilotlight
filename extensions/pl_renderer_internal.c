@@ -3597,15 +3597,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
     if(gptData->tRuntimeOptions.bPcfShadows)
         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
-
-    if(gptData->tRuntimeOptions.bFog)
-    {
-        if(gptData->tRuntimeOptions.bLinearFog)
-            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_LINEAR_FOG;
-        else
-            iSceneWideRenderingFlags |= PL_RENDERING_FLAG_HEIGHT_FOG;
-    }
-
+        
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();

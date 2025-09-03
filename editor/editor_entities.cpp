@@ -385,11 +385,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 }
 
                 ImGui::InputFloat3("Position", ptLightComp->tPosition.d);
-
-                ImGui::SeparatorText("Color");
-                ImGui::SliderFloat("r", &ptLightComp->tColor.x, 0.0f, 1.0f);
-                ImGui::SliderFloat("g", &ptLightComp->tColor.y, 0.0f, 1.0f);
-                ImGui::SliderFloat("b", &ptLightComp->tColor.z, 0.0f, 1.0f);
+                ImGui::ColorEdit3("Color", ptLightComp->tColor.d);
 
                 ImGui::SliderFloat("Intensity", &ptLightComp->fIntensity, 0.0f, 20.0f, 0);
 
@@ -463,14 +459,14 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
             if(ptMaterialComp && ImGui::CollapsingHeader(PL_ICON_FA_PALETTE " Material"))
             {
                 bool bMaterialModified = false;
-                if(ImGui::InputFloat("Roughness", &ptMaterialComp->fRoughness)) bMaterialModified = true;
-                if(ImGui::InputFloat("Metalness", &ptMaterialComp->fMetalness)) bMaterialModified = true;
+                if(ImGui::SliderFloat("Roughness", &ptMaterialComp->fRoughness, 0.0f, 1.0f)) bMaterialModified = true;
+                if(ImGui::SliderFloat("Metalness", &ptMaterialComp->fMetalness, 0.0f, 1.0f)) bMaterialModified = true;
                 if(ImGui::InputFloat("Alpha Cutoff", &ptMaterialComp->fAlphaCutoff)) bMaterialModified = true;
-                if(ImGui::InputFloat4("Base Factor", ptMaterialComp->tBaseColor.d)) bMaterialModified = true;
-                if(ImGui::InputFloat4("Emmissive Color", ptMaterialComp->tEmissiveColor.d)) bMaterialModified = true;
-                if(ImGui::InputFloat("Anisotropy Strength", &ptMaterialComp->fAnisotropyStrength)) bMaterialModified = true;
+                if(ImGui::ColorEdit4("Base Factor", ptMaterialComp->tBaseColor.d)) bMaterialModified = true;
+                if(ImGui::ColorEdit4("Emmissive Color", ptMaterialComp->tEmissiveColor.d)) bMaterialModified = true;
+                if(ImGui::SliderFloat("Anisotropy Strength", &ptMaterialComp->fAnisotropyStrength, 0.0f, 1.0f)) bMaterialModified = true;
                 if(ImGui::InputFloat("Anisotropy Rotation", &ptMaterialComp->fAnisotropyRotation)) bMaterialModified = true;
-                if(ImGui::InputFloat3("Sheen Color", ptMaterialComp->tSheenColor.d)) bMaterialModified = true;
+                if(ImGui::ColorEdit3("Sheen Color", ptMaterialComp->tSheenColor.d)) bMaterialModified = true;
                 if(ImGui::InputFloat("Sheen Roughness", &ptMaterialComp->fSheenRoughness)) bMaterialModified = true;
                 if(ImGui::InputFloat("Clearcoat", &ptMaterialComp->fClearcoat)) bMaterialModified = true;
                 if(ImGui::InputFloat("Clearcoat Roughness", &ptMaterialComp->fClearcoatRoughness)) bMaterialModified = true;
@@ -484,7 +480,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 if(ImGui::InputFloat("Dispersion", &ptMaterialComp->fDispersion)) bMaterialModified = true;
                 if(ImGui::InputFloat("Thickness", &ptMaterialComp->fThickness)) bMaterialModified = true;
                 if(ImGui::InputFloat("Attenuation Distance", &ptMaterialComp->fAttenuationDistance)) bMaterialModified = true;
-                if(ImGui::InputFloat3("Attenuation Color", ptMaterialComp->tAttenuationColor.d)) bMaterialModified = true;
+                if(ImGui::ColorEdit3("Attenuation Color", ptMaterialComp->tAttenuationColor.d)) bMaterialModified = true;
 
 
                 if(bMaterialModified)

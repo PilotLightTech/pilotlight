@@ -422,6 +422,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "secondary camera", pl_create_vec3(-4.012f, 2.984f, -1.109f), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
     gptCamera->set_pitch_yaw(ptSecondaryCamera, -0.465f, 1.341f);
     gptCamera->update(ptSecondaryCamera);
+    plTransformComponent* ptSecondaryCameraTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSecondaryCamera);
+    ptSecondaryCameraTransform->tTranslation = pl_create_vec3(-4.012f, 2.984f, -1.109f);
 
     // create lights
     plLightComponent* ptLight = NULL;
@@ -760,6 +762,19 @@ pl_app_update(plAppData* ptAppData)
             gptRenderer->show_grid(ptAppData->ptSecondaryView);
     }
 
+    if(ptAppData->bSecondaryViewActive)
+    {
+        plDrawFrustumDesc tFrustumDesc = {0};
+        tFrustumDesc.fAspectRatio = ptSecondaryCamera->fAspectRatio;
+        tFrustumDesc.fFarZ        = ptSecondaryCamera->fFarZ;
+        tFrustumDesc.fNearZ       = ptSecondaryCamera->fNearZ;
+        tFrustumDesc.fYFov        = ptSecondaryCamera->fFieldOfView;
+        plDrawLineOptions tDrawCamOptions = {0};
+        tDrawCamOptions.uColor = PL_COLOR_32_YELLOW;
+        tDrawCamOptions.fThickness = 0.02f;
+        gptDraw->add_3d_frustum(gptRenderer->get_debug_drawlist(ptAppData->ptView), &ptSecondaryCamera->tTransformMat, tFrustumDesc, tDrawCamOptions);
+    }
+
     // render scene
     gptRenderer->prepare_scene(ptAppData->ptScene);
     gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
@@ -1038,12 +1053,10 @@ pl__show_editor_window(plAppData* ptAppData)
             }
 
             gptUI->separator_text("Fog");
-            if(gptUI->checkbox("Fog", &ptRuntimeOptions->bFog))
-                bReloadShaders = true;
+            gptUI->checkbox("Fog", &ptRuntimeOptions->bFog);
             if(ptRuntimeOptions->bFog)
             {
-                if(gptUI->checkbox("Linear Fog", &ptRuntimeOptions->bLinearFog)) 
-                    bReloadShaders = true;
+                gptUI->checkbox("Linear Fog", &ptRuntimeOptions->bLinearFog);
                 gptUI->slider_float("Fog Start", &ptRuntimeOptions->fFogStart, 0.0f, 100.0f, 0);
                 gptUI->slider_float("Fog End", &ptRuntimeOptions->fFogCutOffDistance, 0.0f, 10000.0f, 0);
                 gptUI->slider_float("Fog Max Opacity", &ptRuntimeOptions->fFogMaxOpacity, 0.0f, 1.0f, 0);

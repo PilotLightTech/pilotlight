@@ -66,14 +66,17 @@ PL_BEGIN_ENUM(plMaterialShaderFlags)
     PL_ENUM_ITEM(PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION, 1 << 8)
 PL_END_ENUM
 
+PL_BEGIN_ENUM(plSceneFlags)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_HEIGHT_FOG, 1 << 0)
+    PL_ENUM_ITEM(PL_SCENE_FLAG_LINEAR_FOG, 1 << 1)
+PL_END_ENUM
+
 PL_BEGIN_ENUM(plRenderingFlags)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_PUNCTUAL,    1 << 0)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_IBL,         1 << 1)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_SHADOWS,         1 << 2)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_NORMAL_MAPS, 1 << 3)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_PCF_SHADOWS,     1 << 4)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_HEIGHT_FOG,      1 << 5)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_LINEAR_FOG,      1 << 6)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plMeshFormatFlags)
@@ -202,7 +205,7 @@ PL_END_STRUCT(plGpuDynData)
 PL_BEGIN_STRUCT(plGpuSceneData)
 
     int iBrdfLutIndex;
-    int _iUnused0;
+    int iSceneFlags;
     int _iUnused1;
     int _iUnused2;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
@@ -218,7 +221,7 @@ PL_BEGIN_STRUCT(plGpuViewData)
 
     int iTransmissionFrameBufferIndex;
     int _iUnused0;
-    int iFogActive;
+    int _iUnused1;
     float fFogHeight;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 

@@ -559,6 +559,19 @@ pl_app_update(plAppData* ptAppData)
             gptRenderer->debug_draw_bvh(ptAppData->ptView);
             gptRenderer->debug_draw_bvh(ptAppData->ptSecondaryView);
         }
+
+        if(ptAppData->bSecondaryViewActive)
+        {
+            plDrawFrustumDesc tFrustumDesc = {};
+            tFrustumDesc.fAspectRatio = ptSecondaryCamera->fAspectRatio;
+            tFrustumDesc.fFarZ        = ptSecondaryCamera->fFarZ;
+            tFrustumDesc.fNearZ       = ptSecondaryCamera->fNearZ;
+            tFrustumDesc.fYFov        = ptSecondaryCamera->fFieldOfView;
+            plDrawLineOptions tDrawCamOptions = {};
+            tDrawCamOptions.uColor = PL_COLOR_32_YELLOW;
+            tDrawCamOptions.fThickness = 0.02f;
+            gptDraw->add_3d_frustum(gptRenderer->get_debug_drawlist(ptAppData->ptView), &ptSecondaryCamera->tTransformMat, tFrustumDesc, tDrawCamOptions);
+        }
     
         // render scene
         gptRenderer->prepare_scene(ptAppData->ptScene);
@@ -1196,12 +1209,10 @@ pl__show_editor_window(plAppData* ptAppData)
 
             ImGui::SeparatorText("Fog");
 
-            if(ImGui::Checkbox("Fog", &ptRuntimeOptions->bFog))
-                bReloadShaders = true;
+            ImGui::Checkbox("Fog", &ptRuntimeOptions->bFog);
             if(ptRuntimeOptions->bFog)
             {
-                if(ImGui::Checkbox("Linear Fog", &ptRuntimeOptions->bLinearFog))
-                    bReloadShaders = true;
+                ImGui::Checkbox("Linear Fog", &ptRuntimeOptions->bLinearFog);
                 ImGui::SliderFloat("Fog Start", &ptRuntimeOptions->fFogStart, 0.0f, 100.0f);
                 ImGui::SliderFloat("Fog End", &ptRuntimeOptions->fFogCutOffDistance, 0.0f, 10000.0f);
                 ImGui::SliderFloat("Fog Max Opacity", &ptRuntimeOptions->fFogMaxOpacity, 0.0f, 1.0f);
