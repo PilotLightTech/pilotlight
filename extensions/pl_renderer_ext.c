@@ -3911,9 +3911,13 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             gptGfx->push_compute_debug_group(ptPostEncoder, "bloom_downsample", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
             gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
+            plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+            plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
+            ptTonemapData->iMipLevel = i;
+
             plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_downsample", NULL);
             gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
-            gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 0, NULL);
+            gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
 
             plTexture* ptTargetTexture = gptGfx->get_texture(ptDevice, tTonemapTextureData[0].tTexture);
 

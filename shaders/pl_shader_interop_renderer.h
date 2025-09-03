@@ -298,6 +298,7 @@ PL_BEGIN_STRUCT(plGpuDynBloomData)
     float blurRadius;
     float bloomStrength;
     int isLowestMip;
+    int iMipLevel;
 PL_END_STRUCT(plGpuDynBloomData)
 
 PL_BEGIN_STRUCT(plGpuDynTonemap)

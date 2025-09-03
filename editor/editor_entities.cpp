@@ -479,6 +479,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                 if(ImGui::InputFloat("IOR", &ptMaterialComp->fIor)) bMaterialModified = true;
                 if(ImGui::InputFloat("Dispersion", &ptMaterialComp->fDispersion)) bMaterialModified = true;
                 if(ImGui::InputFloat("Thickness", &ptMaterialComp->fThickness)) bMaterialModified = true;
+                if(ImGui::SliderFloat("Transmission", &ptMaterialComp->fTransmissionFactor, 0.0f, 1.0f)) bMaterialModified = true;
                 if(ImGui::InputFloat("Attenuation Distance", &ptMaterialComp->fAttenuationDistance)) bMaterialModified = true;
                 if(ImGui::ColorEdit3("Attenuation Color", ptMaterialComp->tAttenuationColor.d)) bMaterialModified = true;
 
