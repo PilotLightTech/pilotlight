@@ -294,6 +294,7 @@ typedef struct _plView
     plRenderPassHandle tRenderPass;
     plRenderPassHandle tTransparentRenderPass;
     plRenderPassHandle tPostProcessRenderPass;
+    plRenderPassHandle tFinalRenderPass;
     plRenderPassHandle tPickRenderPass;
     plRenderPassHandle tUVRenderPass;
     plVec2             tTargetSize;
@@ -479,6 +480,7 @@ typedef struct _plRefRendererData
     plRenderPassLayoutHandle tRenderPassLayout;
     plRenderPassLayoutHandle tTransparentRenderPassLayout;
     plRenderPassLayoutHandle tPostProcessRenderPassLayout;
+    plRenderPassLayoutHandle tFinalRenderPassLayout;
     plRenderPassLayoutHandle tUVRenderPassLayout;
     plRenderPassLayoutHandle tDepthRenderPassLayout;
     plRenderPassLayoutHandle tPickRenderPassLayout;

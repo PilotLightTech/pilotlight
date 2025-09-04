@@ -551,6 +551,38 @@ pl_renderer_initialize(plRendererSettings tSettings)
     // create post processing render pass
     const plRenderPassLayoutDesc tPostProcessRenderPassLayoutDesc = {
         .atRenderTargets = {
+            { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT },
+        },
+        .atSubpasses = {
+            {
+                .uRenderTargetCount = 1,
+                .auRenderTargets = {0},
+            },
+        },
+        .atSubpassDependencies = {
+            {
+                .uSourceSubpass = UINT32_MAX,
+                .uDestinationSubpass = 0,
+                .tSourceStageMask = PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
+                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
+                .tSourceAccessMask = PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
+                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
+            },
+            {
+                .uSourceSubpass = 0,
+                .uDestinationSubpass = UINT32_MAX,
+                .tSourceStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
+                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
+                .tSourceAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
+                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
+            },
+        }
+    };
+    gptData->tPostProcessRenderPassLayout = gptGfx->create_render_pass_layout(gptData->ptDevice, &tPostProcessRenderPassLayoutDesc);
+
+    // create post processing render pass
+    const plRenderPassLayoutDesc tFinalRenderPassLayoutDesc = {
+        .atRenderTargets = {
             { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true }, // depth
             { .tFormat = PL_FORMAT_R16G16B16A16_FLOAT },
         },
@@ -579,7 +611,7 @@ pl_renderer_initialize(plRendererSettings tSettings)
             },
         }
     };
-    gptData->tPostProcessRenderPassLayout = gptGfx->create_render_pass_layout(gptData->ptDevice, &tPostProcessRenderPassLayoutDesc);
+    gptData->tFinalRenderPassLayout = gptGfx->create_render_pass_layout(gptData->ptDevice, &tFinalRenderPassLayoutDesc);
 
     const plRenderPassLayoutDesc tUVRenderPassLayoutDesc = {
         .atRenderTargets = {
@@ -959,6 +991,7 @@ pl_renderer_cleanup_view(plView* ptView)
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tPostProcessRenderPass);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tPickRenderPass);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tUVRenderPass);
+    gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptView->tFinalRenderPass);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tFinalTextureHandle);
     gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->tLightingBindGroup);
 
@@ -1250,6 +1283,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     plRenderPassAttachments atAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
     plRenderPassAttachments atUVAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
     plRenderPassAttachments atPostProcessAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
+    plRenderPassAttachments atFinalAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
     plRenderPassAttachments atShadowAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
 
     // pick bind group
@@ -1420,8 +1454,10 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
         atUVAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture;
         atUVAttachmentSets[i].atViewAttachments[1] = ptView->atUVMaskTexture0;
         
-        atPostProcessAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture;
-        atPostProcessAttachmentSets[i].atViewAttachments[1] = ptView->tFinalTexture;
+        atPostProcessAttachmentSets[i].atViewAttachments[0] = ptView->tFinalTexture;
+        
+        atFinalAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture;
+        atFinalAttachmentSets[i].atViewAttachments[1] = ptView->tFinalTexture;
 
         ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[i] = pl__renderer_create_staging_buffer(&atLightShadowDataBufferDesc, "d shadow", i);
         ptView->tDirectionLightShadowData.atDShadowCameraBuffers[i] = pl__renderer_create_staging_buffer(&atCameraBuffersDesc, "d shadow buffer", i);
@@ -1534,15 +1570,6 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
 
     const plRenderPassDesc tPostProcessRenderPassDesc = {
         .tLayout = gptData->tPostProcessRenderPassLayout,
-        .tDepthTarget = {
-                .tLoadOp         = PL_LOAD_OP_CLEAR,
-                .tStoreOp        = PL_STORE_OP_DONT_CARE,
-                .tStencilLoadOp  = PL_LOAD_OP_LOAD,
-                .tStencilStoreOp = PL_STORE_OP_STORE,
-                .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
-                .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
-                .fClearZ         = 0.0f
-        },
         .atColorTargets = {
             {
                 .tLoadOp       = PL_LOAD_OP_CLEAR,
@@ -1557,6 +1584,31 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     };
     ptView->tPostProcessRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tPostProcessRenderPassDesc, atPostProcessAttachmentSets);
 
+    const plRenderPassDesc tFinalRenderPassDesc = {
+        .tLayout = gptData->tFinalRenderPassLayout,
+        .tDepthTarget = {
+                .tLoadOp         = PL_LOAD_OP_LOAD,
+                .tStoreOp        = PL_STORE_OP_STORE,
+                .tStencilLoadOp  = PL_LOAD_OP_LOAD,
+                .tStencilStoreOp = PL_STORE_OP_STORE,
+                .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
+                .fClearZ         = 0.0f
+        },
+        .atColorTargets = {
+            {
+                .tLoadOp       = PL_LOAD_OP_LOAD,
+                .tStoreOp      = PL_STORE_OP_STORE,
+                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
+                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+            }
+        },
+        .tDimensions = {.x = ptView->tTargetSize.x, .y = ptView->tTargetSize.y},
+        .pcDebugName = "Final"
+    };
+    ptView->tFinalRenderPass = gptGfx->create_render_pass(gptData->ptDevice, &tFinalRenderPassDesc, atFinalAttachmentSets);
+
     // register debug 3D drawlist
     ptView->pt3DDrawList = gptDraw->request_3d_drawlist();
     ptView->pt3DGizmoDrawList = gptDraw->request_3d_drawlist();
@@ -1566,8 +1618,8 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     const plRenderPassDesc tUVRenderPass0Desc = {
         .tLayout = gptData->tUVRenderPassLayout,
         .tDepthTarget = {
-                .tLoadOp         = PL_LOAD_OP_CLEAR,
-                .tStoreOp        = PL_STORE_OP_DONT_CARE,
+                .tLoadOp         = PL_LOAD_OP_LOAD,
+                .tStoreOp        = PL_STORE_OP_STORE,
                 .tStencilLoadOp  = PL_LOAD_OP_LOAD,
                 .tStencilStoreOp = PL_STORE_OP_STORE,
                 .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
@@ -1703,6 +1755,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     plRenderPassAttachments atUVAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
     plRenderPassAttachments atPostProcessAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
     plRenderPassAttachments atPickAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
+    plRenderPassAttachments atFinalAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
 
     gptGfx->queue_texture_for_deletion(ptDevice, ptView->tFinalTexture);
     
@@ -1854,8 +1907,10 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
         atAttachmentSets[i].atViewAttachments[3] = ptView->tNormalTexture;
         atAttachmentSets[i].atViewAttachments[4] = ptView->tAOMetalRoughnessTexture;
         
-        atPostProcessAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture;
-        atPostProcessAttachmentSets[i].atViewAttachments[1] = ptView->tFinalTexture;
+        atPostProcessAttachmentSets[i].atViewAttachments[0] = ptView->tFinalTexture;
+
+        atFinalAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture;
+        atFinalAttachmentSets[i].atViewAttachments[1] = ptView->tFinalTexture;
 
         atUVAttachmentSets[i].atViewAttachments[0] = ptView->tDepthTexture;
         atUVAttachmentSets[i].atViewAttachments[1] = ptView->atUVMaskTexture0;
@@ -1865,6 +1920,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     gptGfx->update_render_pass_attachments(ptDevice, ptView->tPostProcessRenderPass, ptView->tTargetSize, atPostProcessAttachmentSets);
     gptGfx->update_render_pass_attachments(ptDevice, ptView->tPickRenderPass, ptView->tTargetSize, atPickAttachmentSets);
     gptGfx->update_render_pass_attachments(ptDevice, ptView->tUVRenderPass, ptView->tTargetSize, atUVAttachmentSets);
+    gptGfx->update_render_pass_attachments(ptDevice, ptView->tFinalRenderPass, ptView->tTargetSize, atFinalAttachmentSets);
 }
 
 void
@@ -3609,8 +3665,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tTransformMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
     }
 
-    gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
-    gptDrawBackend->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
     gptGfx->end_render_pass(ptSceneEncoder);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity selection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -4160,6 +4214,33 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         }
 
         pl_end_cpu_sample(gptProfile, 0);
+    }
+
+    {
+        const plBeginCommandInfo tPostBeginInfo = {
+            .uWaitSemaphoreCount   = 1,
+            .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+        };
+
+        plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
+        gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
+
+        ptSceneEncoder = gptGfx->begin_render_pass(ptPostCmdBuffer, ptView->tFinalRenderPass, NULL);
+        gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
+        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
+        gptDrawBackend->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
+        gptGfx->end_render_pass(ptSceneEncoder);
+
+        gptGfx->end_command_recording(ptPostCmdBuffer);
+
+        const plSubmitInfo tPostSubmitInfo = {
+            .uSignalSemaphoreCount   = 1,
+            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+        };
+        gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
+        gptGfx->return_command_buffer(ptPostCmdBuffer);
     }
 
     {

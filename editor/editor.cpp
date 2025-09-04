@@ -1201,7 +1201,7 @@ pl__show_editor_window(plAppData* ptAppData)
             if(ptRuntimeOptions->bBloomActive)
             {
                 ImGui::SliderFloat("Bloom Radius", &ptRuntimeOptions->fBloomRadius, 0.0f, 10.0f, 0);
-                ImGui::SliderFloat("Bloom Strength", &ptRuntimeOptions->fBloomStrength, 0.0f, 10.0f, 0);
+                ImGui::SliderFloat("Bloom Strength", &ptRuntimeOptions->fBloomStrength, 0.0f, 1.0f, 0);
                 int iBloomChainLength = (int)ptRuntimeOptions->uBloomChainLength;
                 if(ImGui::SliderInt("Bloom Chain", &iBloomChainLength, 2, 10, 0))
                     ptRuntimeOptions->uBloomChainLength = (uint32_t)iBloomChainLength;

@@ -1048,7 +1048,7 @@ pl__show_editor_window(plAppData* ptAppData)
             if(ptRuntimeOptions->bBloomActive)
             {
                 gptUI->slider_float("Bloom Radius", &ptRuntimeOptions->fBloomRadius, 0.0f, 10.0f, 0);
-                gptUI->slider_float("Bloom Strength", &ptRuntimeOptions->fBloomStrength, 0.0f, 10.0f, 0);
+                gptUI->slider_float("Bloom Strength", &ptRuntimeOptions->fBloomStrength, 0.0f, 1.0f, 0);
                 gptUI->slider_uint("Bloom Chain", &ptRuntimeOptions->uBloomChainLength, 1, 10, 0);
             }
 
