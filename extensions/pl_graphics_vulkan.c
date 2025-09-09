@@ -198,6 +198,13 @@ typedef struct _plTimelineSemaphore
     plTimelineSemaphore* ptNext; // for linked list
 } plTimelineSemaphore;
 
+typedef struct _plTimelineEvent
+{
+    plDevice* ptDevice; // for convience
+    VkEvent   tEvent;
+    plTimelineEvent* ptNext; // for linked list
+} plTimelineEvent;
+
 typedef struct _plFrameContext
 {
     VkFence        tInFlight;
@@ -226,6 +233,9 @@ typedef struct _plDevice
     
     // timeline semaphore free list
     plTimelineSemaphore* ptSemaphoreFreeList;
+
+    // timeline evene free list
+    plTimelineEvent* ptEventFreeList;
 
     // render pass layout generation pool
     plVulkanRenderPassLayout* sbtRenderPassLayoutsHot;
@@ -464,6 +474,56 @@ pl_get_semaphore_value(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
     uint64_t ulValue = 0;
     vkGetSemaphoreCounterValue(ptDevice->tLogicalDevice, ptSemaphore->tSemaphore, &ulValue);
     return ulValue;
+}
+
+plTimelineEvent*
+pl_create_event(plDevice* ptDevice)
+{
+    plTimelineEvent* ptEvent = pl__get_new_event(ptDevice);
+
+    VkEventCreateInfo tCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,
+        .flags = 0,
+    };
+    PL_VULKAN(vkCreateEvent(ptDevice->tLogicalDevice, &tCreateInfo, gptGraphics->ptAllocationCallbacks, &ptEvent->tEvent));
+    return ptEvent;
+}
+
+void
+pl_cleanup_event(plTimelineEvent* ptEvent)
+{
+    pl__return_event(ptEvent->ptDevice, ptEvent);
+    vkDestroyEvent(ptEvent->ptDevice->tLogicalDevice, ptEvent->tEvent, gptGraphics->ptAllocationCallbacks);
+    ptEvent->tEvent = VK_NULL_HANDLE;
+}
+
+void
+pl_reset_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tSrcStages)
+{
+    vkCmdResetEvent(ptCmdBuffer->tCmdBuffer, ptEvent->tEvent, pl_vulkan_pipeline_stage_flags(tSrcStages));
+}
+
+void
+pl_set_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tFlags)
+{
+    vkCmdSetEvent(ptCmdBuffer->tCmdBuffer, ptEvent->tEvent, pl_vulkan_pipeline_stage_flags(tFlags));
+}
+
+void
+pl_wait_for_events(plCommandBuffer* ptCmdBuffer, plTimelineEvent** atEvents, uint32_t uEventCount, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages)
+{
+    VkEvent* atVkEvents = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkEvent) * uEventCount);
+
+    for(uint32_t i = 0; i < uEventCount; i++)
+    {
+        atVkEvents[i] = atEvents[i]->tEvent;
+    }
+
+    vkCmdWaitEvents(ptCmdBuffer->tCmdBuffer, uEventCount, atVkEvents,
+        pl_vulkan_pipeline_stage_flags(tSrcStages),
+        pl_vulkan_pipeline_stage_flags(tDstStages),
+        0, NULL, 0, NULL, 0, NULL);
+    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 }
 
 plBufferHandle
@@ -3924,6 +3984,21 @@ pl_cleanup_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtRenderPassLayoutsHot);
 
     pl__cleanup_common_device(ptDevice);
+}
+
+void
+pl_pipeline_barrier(plCommandBuffer* ptCommandBuffer, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
+{
+    VkMemoryBarrier tMemoryBarrier = {
+        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .srcAccessMask = pl__vulkan_access_flags(beforeAccesses),
+        .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
+    };
+
+    VkPipelineStageFlagBits tSrcStageMask = pl_vulkan_pipeline_stage_flags(beforeStages);
+    VkPipelineStageFlagBits tDstStageMask = pl_vulkan_pipeline_stage_flags(afterStages);
+
+    vkCmdPipelineBarrier(ptCommandBuffer->tCmdBuffer, tSrcStageMask, tDstStageMask, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
 }
 
 void

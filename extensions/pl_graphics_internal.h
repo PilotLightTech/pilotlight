@@ -95,11 +95,13 @@ static plRenderEncoder*         pl__get_new_render_encoder(void);
 static plComputeEncoder*        pl__get_new_compute_encoder(void);
 static plBlitEncoder*           pl__get_new_blit_encoder(void);
 static plTimelineSemaphore*     pl__get_new_semaphore(plDevice*);
+static plTimelineEvent*         pl__get_new_event(plDevice*);
 
 static void pl__return_render_encoder(plRenderEncoder*);
 static void pl__return_compute_encoder(plComputeEncoder*);
 static void pl__return_blit_encoder(plBlitEncoder*);
 static void pl__return_semaphore(plDevice*, plTimelineSemaphore*);
+static void pl__return_event(plDevice*, plTimelineEvent*);
 
 // deletion
 static plFrameGarbage* pl__get_frame_garbage(plDevice*);

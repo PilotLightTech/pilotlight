@@ -36,6 +36,8 @@ typedef struct _plCommandBuffer
     plBeginCommandInfo   tBeginInfo;
     plDevice*            ptDevice;
     id<MTLCommandBuffer> tCmdBuffer;
+    id<MTLEvent>         tEvent;
+    uint64_t             uEventValue;
     plCommandBuffer*     ptNext;
 } plCommandBuffer;
 
@@ -141,6 +143,14 @@ typedef struct _plTimelineSemaphore
     plTimelineSemaphore* ptNext;
 } plTimelineSemaphore;
 
+typedef struct _plTimelineEvent
+{
+    plDevice* ptDevice; // for convience
+    id<MTLEvent> tEvent;
+    plTimelineEvent* ptNext; // for linked list
+    uint64_t uValue;
+} plTimelineEvent;
+
 typedef struct _plMetalBindGroup
 {
     id<MTLBuffer>         tShaderArgumentBuffer;
@@ -207,6 +217,9 @@ typedef struct _plDevice
     size_t szDynamicArgumentBufferSize;
 
     plTimelineSemaphore* ptSemaphoreFreeList;
+
+    // timeline evene free list
+    plTimelineEvent* ptEventFreeList;
 
     // render pass layouts
     plMetalRenderPassLayout* sbtRenderPassLayoutsHot;
@@ -736,6 +749,41 @@ pl_get_semaphore_value(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
         return ptSemaphore->tSharedEvent.signaledValue;
     }
     return 0;
+}
+
+plTimelineEvent*
+pl_create_event(plDevice* ptDevice)
+{
+    plTimelineEvent* ptEvent = pl__get_new_event(ptDevice);
+    ptEvent->tEvent = [ptDevice->tDevice newEvent];
+    return ptEvent;
+}
+
+void
+pl_cleanup_event(plTimelineEvent* ptEvent)
+{
+    pl__return_event(ptEvent->ptDevice, ptEvent);
+}
+
+void
+pl_reset_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tSrcStages)
+{
+    ptEvent->uValue++;
+}
+
+void
+pl_set_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tFlags)
+{
+    [ptCmdBuffer->tCmdBuffer encodeSignalEvent:ptEvent->tEvent value:ptEvent->uValue];
+}
+
+void
+pl_wait_for_events(plCommandBuffer* ptCmdBuffer, plTimelineEvent** atEvents, uint32_t uEventCount, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages)
+{
+    for(uint32_t i = 0; i < uEventCount; i++)
+    {
+        [ptCmdBuffer->tCmdBuffer encodeWaitForEvent:atEvents[i]->tEvent value:atEvents[i]->uValue];
+    }
 }
 
 static plBufferHandle
@@ -1876,6 +1924,7 @@ pl_cleanup_command_pool(plCommandPool* ptPool)
     while(ptCurrentCommandBuffer)
     {
         plCommandBuffer* ptNextCommandBuffer = ptCurrentCommandBuffer->ptNext;
+        ptCurrentCommandBuffer->tEvent = nil;
         PL_FREE(ptCurrentCommandBuffer);
         ptCurrentCommandBuffer = ptNextCommandBuffer;
     }
@@ -2254,9 +2303,20 @@ pl_end_blit_pass(plBlitEncoder* ptEncoder)
 }
 
 void
+pl_pipeline_barrier(plCommandBuffer* ptCommandBuffer, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
+{
+    if(ptCommandBuffer->tEvent == nil)
+    {
+        ptCommandBuffer->tEvent = [ptCommandBuffer->ptDevice->tDevice newEvent];
+    }
+
+    [ptCommandBuffer->tCmdBuffer encodeSignalEvent:ptCommandBuffer->tEvent value:++ptCommandBuffer->uEventValue];
+    [ptCommandBuffer->tCmdBuffer encodeWaitForEvent:ptCommandBuffer->tEvent value:ptCommandBuffer->uEventValue];
+}
+
+void
 pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
-
 }
 
 void

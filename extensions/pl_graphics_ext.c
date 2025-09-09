@@ -968,6 +968,24 @@ pl__get_new_semaphore(plDevice* ptDevice)
     return ptSemaphore;
 }
 
+static plTimelineEvent*
+pl__get_new_event(plDevice* ptDevice)
+{
+    plTimelineEvent* ptEvent = ptDevice->ptEventFreeList;
+    if(ptEvent)
+    {
+        ptDevice->ptEventFreeList = ptEvent->ptNext;
+    }
+    else
+    {
+        ptEvent = PL_ALLOC(sizeof(plTimelineEvent));
+        memset(ptEvent, 0, sizeof(plTimelineEvent));
+    }
+    ptEvent->ptDevice = ptDevice;
+    ptEvent->ptNext = NULL;
+    return ptEvent;
+}
+
 static void
 pl__return_render_encoder(plRenderEncoder* ptEncoder)
 {
@@ -994,6 +1012,13 @@ pl__return_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
 {
     ptSemaphore->ptNext = ptDevice->ptSemaphoreFreeList;
     ptDevice->ptSemaphoreFreeList = ptSemaphore;
+}
+
+static void
+pl__return_event(plDevice* ptDevice, plTimelineEvent* ptEvent)
+{
+    ptEvent->ptNext = ptDevice->ptEventFreeList;
+    ptDevice->ptEventFreeList = ptEvent;
 }
 
 static plRenderPassHandle
@@ -1240,6 +1265,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_bind_group_pool                 = pl_create_bind_group_pool,
         .cleanup_bind_group_pool                = pl_cleanup_bind_group_pool,
         .reset_bind_group_pool                  = pl_reset_bind_group_pool,
+        .pipeline_barrier                       = pl_pipeline_barrier,
         .pipeline_barrier_blit                  = pl_pipeline_barrier_blit,
         .pipeline_barrier_render                = pl_pipeline_barrier_render,
         .pipeline_barrier_compute               = pl_pipeline_barrier_compute,
@@ -1266,6 +1292,11 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .push_compute_debug_group               = pl_push_compute_debug_group,
         .pop_compute_debug_group                = pl_pop_compute_debug_group,
         .insert_debug_label                     = pl_insert_debug_label,
+        .create_event                           = pl_create_event,
+        .cleanup_event                          = pl_cleanup_event,
+        .reset_event                            = pl_reset_event,
+        .set_event                              = pl_set_event,
+        .wait_for_events                        = pl_wait_for_events,
 
         #if defined(PL_GRAPHICS_EXPOSE_VULKAN) && defined(PL_VULKAN_BACKEND)
         .get_vulkan_instance        = pl_get_vulkan_instance,

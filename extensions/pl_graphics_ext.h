@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 4, 1}
+#define plGraphicsI_version {1, 5, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -149,6 +149,7 @@ typedef struct _plSampler           plSampler;           // sampler resource
 typedef struct _plTexture           plTexture;           // texture resource
 typedef struct _plBuffer            plBuffer;            // buffer resource
 typedef struct _plTimelineSemaphore plTimelineSemaphore; // timeline semaphore
+typedef struct _plTimelineEvent     plTimelineEvent;     // timeline event
 
 // swapchains
 typedef struct _plSwapchain     plSwapchain;     // swapchain
@@ -360,6 +361,13 @@ typedef struct _plGraphicsI
     void             (*end_command_recording)  (plCommandBuffer*);
     void             (*submit_command_buffer)  (plCommandBuffer*, const plSubmitInfo*);
 
+    // timeline events
+    plTimelineEvent* (*create_event)   (plDevice*);
+    void             (*cleanup_event)  (plTimelineEvent*);
+    void             (*reset_event)    (plCommandBuffer*, plTimelineEvent*, plPipelineStageFlags srcStages);
+    void             (*set_event)      (plCommandBuffer*, plTimelineEvent*, plPipelineStageFlags srcStages);
+    void             (*wait_for_events)(plCommandBuffer*, plTimelineEvent**, uint32_t eventCount, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages);
+
     // render encoder
     plRenderEncoder*   (*begin_render_pass)         (plCommandBuffer*, plRenderPassHandle, const plPassResources*); // do not store
     void               (*next_subpass)              (plRenderEncoder*, const plPassResources*);
@@ -409,9 +417,10 @@ typedef struct _plGraphicsI
     plCommandBuffer* (*get_blit_encoder_command_buffer)(plBlitEncoder*);
 
     // global barriers
-    void (*pipeline_barrier_blit)   (plBlitEncoder*,    plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses);
-    void (*pipeline_barrier_compute)(plComputeEncoder*, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses);
-    void (*pipeline_barrier_render) (plRenderEncoder*,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses);
+    void (*pipeline_barrier)        (plCommandBuffer*,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses);
+    void (*pipeline_barrier_blit)   (plBlitEncoder*,    plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
+    void (*pipeline_barrier_compute)(plComputeEncoder*, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
+    void (*pipeline_barrier_render) (plRenderEncoder*,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
 
     //-----------------------------------------------------------------------------
 

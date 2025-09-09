@@ -164,6 +164,12 @@ typedef struct _plTimelineSemaphore
     plTimelineSemaphore* ptNext; // for linked list
 } plTimelineSemaphore;
 
+typedef struct _plTimelineEvent
+{
+    plDevice* ptDevice; // for convience
+    plTimelineEvent* ptNext; // for linked list
+} plTimelineEvent;
+
 typedef struct _plFrameContext
 {
     // VkSemaphore    tRenderFinish;
@@ -187,6 +193,9 @@ typedef struct _plDevice
     
     // timeline semaphore free list
     plTimelineSemaphore* ptSemaphoreFreeList;
+
+    // timeline evene free list
+    plTimelineEvent* ptEventFreeList;
 
     // render pass layout generation pool
     plCpuRenderPassLayout* sbtRenderPassLayoutsHot;
@@ -325,6 +334,35 @@ pl_get_semaphore_value(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
     uint64_t ulValue = 0;
     return ulValue;
 }
+
+plTimelineEvent*
+pl_create_event(plDevice* ptDevice)
+{
+    plTimelineEvent* ptEvent = pl__get_new_event(ptDevice);
+    return ptEvent;
+}
+
+void
+pl_cleanup_event(plTimelineEvent* ptEvent)
+{
+    pl__return_event(ptEvent->ptDevice, ptEvent);
+}
+
+void
+pl_reset_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tSrcStages)
+{
+}
+
+void
+pl_set_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tFlags)
+{
+}
+
+void
+pl_wait_for_events(plCommandBuffer* ptCmdBuffer, plTimelineEvent** atEvents, uint32_t uEventCount, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages)
+{
+}
+
 
 plBufferHandle
 pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer **ptBufferOut)
@@ -698,6 +736,11 @@ void
 pl_cleanup_device(plDevice* ptDevice)
 {
     pl__cleanup_common_device(ptDevice);
+}
+
+void
+pl_pipeline_barrier(plCommandBuffer* ptCommandBuffer, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
+{
 }
 
 void
