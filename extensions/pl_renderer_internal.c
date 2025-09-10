@@ -325,7 +325,7 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
         {
             const plBufferDesc tStagingBufferDesc = {
                 .tUsage      = PL_BUFFER_USAGE_STAGING,
-                .szByteSize  = 268435456,
+                .szByteSize  = pl_max(268435456, szSize),
                 .pcDebugName = "Renderer Staging Buffer"
             };
 
@@ -333,6 +333,24 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
             tStagingBuffer = gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle;
             gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].szOffset = 0;
             gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].szSize = tStagingBufferDesc.szByteSize;
+        }
+        else
+        {
+            plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
+            if(ptStagingBuffer->tDesc.szByteSize < szSize)
+            {
+                gptGfx->queue_buffer_for_deletion(ptDevice, tStagingBuffer);
+                const plBufferDesc tStagingBufferDesc = {
+                    .tUsage      = PL_BUFFER_USAGE_STAGING,
+                    .szByteSize  = szSize,
+                    .pcDebugName = "Renderer Staging Buffer"
+                };
+
+                gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle = pl__renderer_create_staging_buffer(&tStagingBufferDesc, "staging", gptGfx->get_current_frame_index());
+                tStagingBuffer = gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle;
+                gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].szOffset = 0;
+                gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].szSize = tStagingBufferDesc.szByteSize;
+            }
         }
         gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].dLastTimeActive = gptIO->dTime;
 
