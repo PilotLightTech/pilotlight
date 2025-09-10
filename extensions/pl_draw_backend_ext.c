@@ -871,6 +871,20 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 
     const float fAspectRatio = fWidth / fHeight;
 
+    const plScissor tScissor = {
+        .uWidth = (uint32_t)fWidth,
+        .uHeight = (uint32_t)fHeight
+    };
+
+    const plRenderViewport tViewport = {
+        .fWidth = fWidth,
+        .fHeight = fHeight,
+        .fMaxDepth = 1.0f
+    };
+
+    gptGfx->set_scissor_region(ptEncoder, &tScissor);
+    gptGfx->set_viewport(ptEncoder, &tViewport);
+
     // regular 3D
     if(pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) > 0)
     {
