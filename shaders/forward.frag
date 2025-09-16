@@ -333,26 +333,88 @@ void main()
             tBaseColor.rgb, tShaderIn.tWorldPosition, u_ModelMatrix, u_ViewMatrix, u_ProjectionMatrix,
             materialInfo.ior, materialInfo.thickness, materialInfo.attenuationColor, materialInfo.attenuationDistance, materialInfo.dispersion);
     }
-    
+
+
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
     {
-        int iProbeIndex = 0;
-        float fCurrentDistance = 10000.0;
-        for(int i = iProbeCount - 1; i > -1; i--)
+
+        int aiActiveProbes[3];
+        aiActiveProbes[0] = -1;
+        aiActiveProbes[1] = -1;
+        aiActiveProbes[2] = -1;
+
+        float weights[3];
+        weights[0] = 0.0;
+        weights[1] = 0.0;
+        weights[2] = 0.0;
+
+        float distances[3];
+        distances[0] = 10000.0;
+        distances[1] = 10000.0;
+        distances[2] = 10000.0;
+
+        int K = 0;
+
+        for(int i = 0; i < iProbeCount; i++)
         {
             vec3 tDist = tProbeData.atData[i].tPosition - tShaderIn.tWorldPosition.xyz;
             tDist = tDist * tDist;
             float fDistSqr = tDist.x + tDist.y + tDist.z;
-            if(fDistSqr <= tProbeData.atData[i].fRangeSqr && fDistSqr < fCurrentDistance)
+            
+            if(fDistSqr <= tProbeData.atData[i].fRangeSqr)
             {
-                iProbeIndex = i;
-                fCurrentDistance = fDistSqr;
+                
+                int iFurthest = 0;
+                for(int j = 0; j < 3; j++)
+                {
+                    if(distances[j] > distances[iFurthest])
+                    {
+                        iFurthest = j;
+                    }
+                }
+
+                if(distances[iFurthest] > fDistSqr)
+                {
+                    K++;
+                    aiActiveProbes[iFurthest] = i;
+                    distances[iFurthest] = fDistSqr;
+                }
             }
         }
 
-        if(iProbeIndex > -1)
+        int iClosestIndex = 0;
+        float maxDis = distances[0];
+        for(int j = 0; j < 3; j++)
         {
+            if(distances[j] < distances[iClosestIndex])
+            {
+                iClosestIndex = j;
+            }
+        }
+
+        K = min(K, 3);
+        vec3 R = reflect(-v, n);
+        float summing = computeProbeWeights(tShaderIn.tWorldPosition.xyz, R, 2.0, K, aiActiveProbes, weights);
+        int iClosestProbeIndex = aiActiveProbes[iClosestIndex];
+
+        int iMips2 = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iClosestProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
+        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+        {
+            f_specular_metal = getIBLRadianceAnisotropy(n, v, materialInfo.perceptualRoughness, materialInfo.anisotropyStrength, materialInfo.anisotropicB, iMips2, tShaderIn.tWorldPosition.xyz, iClosestProbeIndex);
+            f_specular_dielectric = f_specular_metal;
+        }
+        else
+        {
+            f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips2, tShaderIn.tWorldPosition.xyz, iClosestProbeIndex);
+            f_specular_dielectric = f_specular_metal;
+        }
+
+        for(int i = 0; i < K; i++)
+        {
+            int iProbeIndex = aiActiveProbes[i];
+            
+
             f_diffuse = getDiffuseLight(n, iProbeIndex) * tBaseColor.rgb;
 
             int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
@@ -373,16 +435,7 @@ void main()
                 f_diffuse = mix(f_diffuse, f_specular_transmission, materialInfo.transmissionFactor);
             }
 
-            if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
-            {
-                f_specular_metal = getIBLRadianceAnisotropy(n, v, materialInfo.perceptualRoughness, materialInfo.anisotropyStrength, materialInfo.anisotropicB, iMips, tShaderIn.tWorldPosition.xyz, iProbeIndex);
-                f_specular_dielectric = f_specular_metal;
-            }
-            else
-            {
-                f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips, tShaderIn.tWorldPosition.xyz, iProbeIndex);
-                f_specular_dielectric = f_specular_metal;
-            }
+
 
             // Calculate fresnel mix for IBL  
 
@@ -409,9 +462,10 @@ void main()
                 albedoSheenScaling = 1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor);
             }
 
-            color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
-            color = f_sheen + color * albedoSheenScaling;
-            color = mix(color, clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
+            vec3 icolor = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
+            icolor = f_sheen + icolor * albedoSheenScaling;
+            icolor = mix(icolor, clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
+            color += icolor * weights[i];
         }
     }
 

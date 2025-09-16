@@ -3084,40 +3084,45 @@ pl__renderer_update_probes(plScene* ptScene)
             for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
             {
                 const plDrawable* ptDrawable = &ptScene->sbtDrawables[ptProbe->sbuVisibleForwardEntities[uFace][i]];
-                plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawable->tEntity);
-                plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
-                
-                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
 
-                plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
-                ptDynamicData->iDataOffset = ptDrawable->uDataOffset;
-                ptDynamicData->iVertexOffset = ptDrawable->uDynamicVertexOffset;
-                ptDynamicData->iMaterialIndex = ptDrawable->uMaterialIndex;
-                ptDynamicData->uGlobalIndex = uFace;
-
-                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                if(ptDrawable->uInstanceCount != 0)
                 {
-                    .tShader        = ptDrawable->tEnvShader,
-                    .auDynamicBuffers = {
-                        tDynamicBinding.uBufferHandle
-                    },
-                    .atVertexBuffers = {
-                        ptScene->tVertexBuffer,
-                    },
-                    .tIndexBuffer         = ptDrawable->tIndexBuffer,
-                    .uIndexOffset         = ptDrawable->uIndexOffset,
-                    .uTriangleCount       = ptDrawable->uTriangleCount,
-                    .uVertexOffset        = ptDrawable->uStaticVertexOffset,
-                    .atBindGroups = {
-                        ptScene->atBindGroups[uFrameIdx],
-                        tViewBG
-                    },
-                    .auDynamicBufferOffsets = {
-                        tDynamicBinding.uByteOffset
-                    },
-                    .uInstanceOffset = ptDrawable->uTransformIndex,
-                    .uInstanceCount = ptDrawable->uInstanceCount
-                });
+
+                    plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptDrawable->tEntity);
+                    plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
+                    
+                    plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                    plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
+                    ptDynamicData->iDataOffset = ptDrawable->uDataOffset;
+                    ptDynamicData->iVertexOffset = ptDrawable->uDynamicVertexOffset;
+                    ptDynamicData->iMaterialIndex = ptDrawable->uMaterialIndex;
+                    ptDynamicData->uGlobalIndex = uFace;
+
+                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    {
+                        .tShader        = ptDrawable->tEnvShader,
+                        .auDynamicBuffers = {
+                            tDynamicBinding.uBufferHandle
+                        },
+                        .atVertexBuffers = {
+                            ptScene->tVertexBuffer,
+                        },
+                        .tIndexBuffer         = ptDrawable->tIndexBuffer,
+                        .uIndexOffset         = ptDrawable->uIndexOffset,
+                        .uTriangleCount       = ptDrawable->uTriangleCount,
+                        .uVertexOffset        = ptDrawable->uStaticVertexOffset,
+                        .atBindGroups = {
+                            ptScene->atBindGroups[uFrameIdx],
+                            tViewBG
+                        },
+                        .auDynamicBufferOffsets = {
+                            tDynamicBinding.uByteOffset
+                        },
+                        .uInstanceOffset = ptDrawable->uTransformIndex,
+                        .uInstanceCount = ptDrawable->uInstanceCount
+                    });
+                }
             }
 
             for(uint32_t i = 0; i < uVisibleTransmissionDrawCount; i++)

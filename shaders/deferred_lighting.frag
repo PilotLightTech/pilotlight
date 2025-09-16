@@ -101,37 +101,88 @@ void main()
     // Calculate lighting contribution from image based lighting source (IBL)
     if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
     {
-        int iProbeIndex = 0;
-        float fCurrentDistance = 10000.0;
-        for(int i = iProbeCount - 1; i > -1; i--)
+
+        int aiActiveProbes[3];
+        aiActiveProbes[0] = -1;
+        aiActiveProbes[1] = -1;
+        aiActiveProbes[2] = -1;
+
+        float weights[3];
+        weights[0] = 0.0;
+        weights[1] = 0.0;
+        weights[2] = 0.0;
+
+        float distances[3];
+        distances[0] = 10000.0;
+        distances[1] = 10000.0;
+        distances[2] = 10000.0;
+
+        int K = 0;
+
+        for(int i = 0; i < iProbeCount; i++)
         {
             vec3 tDist = tProbeData.atData[i].tPosition - tWorldPosition.xyz;
             tDist = tDist * tDist;
             float fDistSqr = tDist.x + tDist.y + tDist.z;
-            if(fDistSqr <= tProbeData.atData[i].fRangeSqr && fDistSqr < fCurrentDistance)
+            
+            if(fDistSqr <= tProbeData.atData[i].fRangeSqr)
             {
-                iProbeIndex = i;
-                fCurrentDistance = fDistSqr;
+                
+                int iFurthest = 0;
+                for(int j = 0; j < 3; j++)
+                {
+                    if(distances[j] > distances[iFurthest])
+                    {
+                        iFurthest = j;
+                    }
+                }
+
+                if(distances[iFurthest] > fDistSqr)
+                {
+                    K++;
+                    aiActiveProbes[iFurthest] = i;
+                    distances[iFurthest] = fDistSqr;
+                }
             }
         }
-        if(iProbeIndex > -1)
-        {
 
+        int iClosestIndex = 0;
+        float maxDis = distances[0];
+        for(int j = 0; j < 3; j++)
+        {
+            if(distances[j] < distances[iClosestIndex])
+            {
+                iClosestIndex = j;
+            }
+        }
+
+
+        K = min(K, 3);
+        vec3 R = reflect(-v, n);
+        float summing = computeProbeWeights(tWorldPosition.xyz, R, 2.0, K, aiActiveProbes, weights);
+
+        int iClosestProbeIndex = aiActiveProbes[iClosestIndex];
+        int iMips2 = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iClosestProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
+
+        f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips2, tWorldPosition.xyz, iClosestProbeIndex);
+        f_specular_dielectric = f_specular_metal;
+
+        for(int i = 0; i < K; i++)
+        {
+            int iProbeIndex = aiActiveProbes[i];
             f_diffuse = getDiffuseLight(n, iProbeIndex) * tBaseColor.rgb;
 
             int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
-            f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips, tWorldPosition.xyz, iProbeIndex);
-            f_specular_dielectric = f_specular_metal;
 
             // Calculate fresnel mix for IBL  
 
             vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, tBaseColor.rgb, 1.0, iProbeIndex);
             f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
         
-            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, iProbeIndex);
+            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, i);
             f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric,  f_dielectric_fresnel_ibl);
 
-            color = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
+            color += weights[i] * mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
         }
     }
 

@@ -345,4 +345,65 @@ filterPCF(vec4 sc, vec2 offset, int textureIndex)
 	return shadowFactor / 9.0;
 }
 
+
+// Smooth 0..1 falloff between inner..outer, 1 inside inner, 0 beyond outer
+float smoothFalloff(float d, float inner, float outer)
+{
+    float t = clamp((d - inner) / max(outer - inner, 1e-4), 0.0, 1.0);
+    // smoothstep(0,1,t) but inverted (1 near, 0 far)
+    return 1.0 - (t * t * (3.0 - 2.0 * t));
+}
+
+// Optional: gentle specular alignment so the "forward" probe wins a bit.
+// Set alignPow=0 to disable (or pass 0 from the call site).
+float specularAlign(vec3 P, vec3 R, vec3 probeCenter, float alignPow)
+{
+    if (alignPow <= 0.0) return 1.0;
+    vec3 toProbe = normalize(probeCenter - P);
+    return pow(max(dot(R, toProbe), 0.0), alignPow); // small power like 2
+}
+
+// Compute unnormalized weight for a probe at point P (and reflection R if using alignment)
+float probeWeightAt(in plGpuProbe p, vec3 P, vec3 R, float alignPow)
+{
+    float d   = distance(P, p.tPosition);
+    float w   = smoothFalloff(d * d, 0, p.fRangeSqr);
+    // float w   = smoothFalloff(d, p.inner, p.outer);
+    // w        *= p.intensity * p.occlusion;       // authorable scalars
+    // w        *= max(p.priority, 0.0);            // optional bias
+    // w        *= specularAlign(P, R, p.tPosition, alignPow); // optional directional bias
+    return max(w, 0.0);
+}
+
+// Fill 'weights' with normalized contributions. Returns sum before normalization.
+float computeProbeWeights(vec3 P, vec3 R, float alignPow, int count, in int aiActiveProbes[3], out float weights[3])
+{
+    float W = 0.0;
+    int K = count;
+    for (int i = 0; i < K; ++i)
+    {
+        weights[i] = probeWeightAt(tProbeData.atData[aiActiveProbes[i]], P, R, alignPow);
+        W += weights[i];
+    }
+
+    // Normalize (energy-safe). If all zero, leave equal tiny weights or keep zeros—your choice.
+    if (W > 1e-6)
+    {
+        float invW = 1.0 / W;
+        for (int i = 0; i < K; ++i)
+        {
+            weights[i] *= invW;
+        }
+    }
+    else
+    {
+        // fallback: distribute evenly or favor your global/sky probe slot
+        for (int i = 0; i < K; ++i)
+        {
+            weights[i] = (1.0 / float(K));
+        }
+    }
+    return W;
+}
+
 #endif // LIGHTING_GLSL

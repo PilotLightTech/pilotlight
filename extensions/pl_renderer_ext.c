@@ -2213,8 +2213,8 @@ pl_renderer_outline_entities(plScene* ptScene, uint32_t uCount, plEntity* atEnti
             iTextureMappingFlags,
             ptMaterial->tFlags,
             iObjectRenderingFlags,
-            pl_sb_capacity(ptScene->sbtLightData),
-            pl_sb_capacity(ptScene->sbtProbeData),
+            pl_sb_size(ptScene->sbtLightData),
+            pl_sb_size(ptScene->sbtProbeData),
             gptData->tRuntimeOptions.tShaderDebugMode
         };
 
@@ -2337,7 +2337,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tDeferredLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    aiLightingConstantData[2] = pl_sb_capacity(ptScene->sbtProbeData);
+    aiLightingConstantData[2] = pl_sb_size(ptScene->sbtProbeData);
     ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
     aiLightingConstantData[2] = 0;
@@ -2453,7 +2453,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tDeferredLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    aiLightingConstantData[2] = pl_sb_capacity(ptScene->sbtProbeData);
+    aiLightingConstantData[2] = pl_sb_size(ptScene->sbtProbeData);
     ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
     aiLightingConstantData[2] = 0;
@@ -3013,7 +3013,13 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
             plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
             plEnvironmentProbeComponent* ptProbeComp = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
             plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptProbe->tEntity);
+            plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptObject->tTransform);
             gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_RGB(0.0f, 1.0f, 0.0f), .fThickness = 0.02f});
+            plSphere tSphere = {
+                .fRadius = ptProbeComp->fRange,
+                .tCenter = ptTransform->tTranslation
+            };
+            gptDraw->add_3d_sphere(ptView->pt3DDrawList, tSphere, 6, 6, (plDrawLineOptions){.uColor = PL_COLOR_32_LIGHT_GREY, .fThickness = 0.005f});
         }
     }
 
@@ -4217,33 +4223,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     }
 
     {
-        const plBeginCommandInfo tPostBeginInfo = {
-            .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-        };
-
-        plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
-        gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
-
-        ptSceneEncoder = gptGfx->begin_render_pass(ptPostCmdBuffer, ptView->tFinalRenderPass, NULL);
-        gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
-        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
-        gptDrawBackend->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
-        gptGfx->end_render_pass(ptSceneEncoder);
-
-        gptGfx->end_command_recording(ptPostCmdBuffer);
-
-        const plSubmitInfo tPostSubmitInfo = {
-            .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-        };
-        gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
-        gptGfx->return_command_buffer(ptPostCmdBuffer);
-    }
-
-    {
         const plBindGroupDesc tTonemapBGDesc = {
             .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
             .tLayout     = gptShaderVariant->get_compute_bind_group_layout("tonemap", 0),
@@ -4323,6 +4302,33 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
         };
         ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
+        gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
+        gptGfx->return_command_buffer(ptPostCmdBuffer);
+    }
+
+    {
+        const plBeginCommandInfo tPostBeginInfo = {
+            .uWaitSemaphoreCount   = 1,
+            .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+        };
+
+        plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
+        gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
+
+        ptSceneEncoder = gptGfx->begin_render_pass(ptPostCmdBuffer, ptView->tFinalRenderPass, NULL);
+        gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
+        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
+        gptDrawBackend->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
+        gptGfx->end_render_pass(ptSceneEncoder);
+
+        gptGfx->end_command_recording(ptPostCmdBuffer);
+
+        const plSubmitInfo tPostSubmitInfo = {
+            .uSignalSemaphoreCount   = 1,
+            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+        };
         gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
         gptGfx->return_command_buffer(ptPostCmdBuffer);
     }
