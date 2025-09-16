@@ -943,7 +943,7 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
     plSampler* ptSampler = pl_get_sampler(ptDevice, tHandle);
     ptSampler->tDesc = *ptDesc;
 
-    const VkSamplerCreateInfo tSamplerInfo = {
+    VkSamplerCreateInfo tSamplerInfo = {
         .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .minFilter               = pl__vulkan_filter(ptDesc->tMinFilter),
         .magFilter               = pl__vulkan_filter(ptDesc->tMagFilter),
@@ -952,15 +952,26 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
         .addressModeW            = pl__vulkan_wrap(ptDesc->tWAddressMode),
         .anisotropyEnable        = (bool)(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY),
         .maxAnisotropy           = ptDesc->fMaxAnisotropy == 0 ? (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY) : ptDesc->fMaxAnisotropy,
-        .borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
         .unnormalizedCoordinates = ptDesc->bUnnormalizedCoordinates ? VK_TRUE : VK_FALSE,
         .compareEnable           = ptDesc->tCompare == 0 ? VK_FALSE : VK_TRUE,
         .compareOp               = pl__vulkan_compare(ptDesc->tCompare),
         .mipmapMode              = ptDesc->tMipmapMode == PL_MIPMAP_MODE_LINEAR ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST,
-        .mipLodBias              = 0.0f,
+        .mipLodBias              = ptDesc->fMipBias,
         .minLod                  = ptDesc->fMinMip,
         .maxLod                  = ptDesc->fMaxMip,
     };
+
+    switch(ptDesc->tBorderColor)
+    {
+        case PL_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK: tSamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK; break;
+        case PL_BORDER_COLOR_FLOAT_OPAQUE_BLACK:      tSamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK; break;
+        case PL_BORDER_COLOR_FLOAT_OPAQUE_WHITE:      tSamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE; break;
+        case PL_BORDER_COLOR_INT_TRANSPARENT_BLACK:   tSamplerInfo.borderColor = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK; break;
+        case PL_BORDER_COLOR_INT_OPAQUE_BLACK:        tSamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK; break;
+        case PL_BORDER_COLOR_INT_OPAQUE_WHITE:        tSamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE; break;
+        default:
+            tSamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    }
 
     VkSampler tVkSampler = VK_NULL_HANDLE;
     PL_VULKAN(vkCreateSampler(ptDevice->tLogicalDevice, &tSamplerInfo, gptGraphics->ptAllocationCallbacks, &tVkSampler));
@@ -5238,8 +5249,10 @@ pl__vulkan_wrap(plAddressMode tWrap)
         case PL_ADDRESS_MODE_UNSPECIFIED:
         case PL_ADDRESS_MODE_WRAP:
             return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        case PL_ADDRESS_MODE_CLAMP:
+        case PL_ADDRESS_MODE_CLAMP_TO_EDGE:
             return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        case PL_ADDRESS_MODE_CLAMP_TO_BORDER:
+            return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
         case PL_ADDRESS_MODE_MIRROR:
             return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
     }

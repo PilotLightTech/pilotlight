@@ -949,12 +949,26 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
     samplerDesc.sAddressMode = pl__metal_wrap(ptDesc->tUAddressMode);
     samplerDesc.tAddressMode = pl__metal_wrap(ptDesc->tVAddressMode);
     samplerDesc.rAddressMode = pl__metal_wrap(ptDesc->tWAddressMode);
-    samplerDesc.borderColor = MTLSamplerBorderColorTransparentBlack;
     samplerDesc.compareFunction = pl__metal_compare(ptDesc->tCompare);
     samplerDesc.lodMinClamp = ptDesc->fMinMip;
     samplerDesc.lodMaxClamp = ptDesc->fMaxMip;
-    // samplerDesc.lodAverage = NO;
+    // samplerDesc.lodBias = ptDesc->fMipBias; // not available until MacOS 26
     samplerDesc.label = [NSString stringWithUTF8String:ptDesc->pcDebugName];
+
+    switch(ptDesc->tBorderColor)
+    {
+        case PL_BORDER_COLOR_INT_TRANSPARENT_BLACK:
+        case PL_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK: samplerDesc.borderColor = MTLSamplerBorderColorTransparentBlack; break;
+
+        case PL_BORDER_COLOR_INT_OPAQUE_BLACK:
+        case PL_BORDER_COLOR_FLOAT_OPAQUE_BLACK: samplerDesc.borderColor = MTLSamplerBorderColorOpaqueBlack; break;
+
+        case PL_BORDER_COLOR_FLOAT_OPAQUE_WHITE:
+        case PL_BORDER_COLOR_INT_OPAQUE_WHITE:   samplerDesc.borderColor = MTLSamplerBorderColorOpaqueWhite; break;
+        
+        default:
+            samplerDesc.borderColor = MTLSamplerBorderColorTransparentBlack;
+    }
 
     if(ptDesc->fMaxAnisotropy == 0.0f)
         samplerDesc.maxAnisotropy = 16.0f;
@@ -3174,9 +3188,10 @@ pl__metal_wrap(plAddressMode tWrap)
     switch(tWrap)
     {
         case PL_ADDRESS_MODE_UNSPECIFIED:
-        case PL_ADDRESS_MODE_WRAP:   return MTLSamplerAddressModeRepeat;
-        case PL_ADDRESS_MODE_CLAMP:  return MTLSamplerAddressModeClampToEdge;
-        case PL_ADDRESS_MODE_MIRROR: return MTLSamplerAddressModeMirrorRepeat;
+        case PL_ADDRESS_MODE_WRAP:            return MTLSamplerAddressModeRepeat;
+        case PL_ADDRESS_MODE_CLAMP_TO_EDGE:   return MTLSamplerAddressModeClampToEdge;
+        case PL_ADDRESS_MODE_MIRROR:          return MTLSamplerAddressModeMirrorRepeat;
+        case PL_ADDRESS_MODE_CLAMP_TO_BORDER: return MTLSamplerAddressModeClampToBorderColor;
     }
 
     PL_ASSERT(false && "Unsupported wrap mode");

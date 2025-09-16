@@ -273,6 +273,7 @@ typedef int plCommandPoolResetFlags;  // -> enum _plCommandPoolResetFlags  // Fl
 typedef int plPassResourceUsageFlags; // -> enum _plPassResourceUsageFlags // Flags: resource usage (PL_PASS_RESOURCE_USAGE_XXXX)
 typedef int plGraphicsBackend;        // -> enum _plGraphicsBackend        // Enum: graphics backend (PL_GRAPHICS_BACKEND_XXXX)
 typedef int plBlendMode;              // -> enum _plBlendMode              // Enum: blend state abstraction (PL_BLEND_MODE_XXXX)
+typedef int plBorderColor;            // -> enum _plBorderColor             // Enum: texture border color (PL_BORDER_COLOR_XXXX)
 
 // external
 typedef struct _plWindow plWindow; // pl_os.h
@@ -609,6 +610,7 @@ typedef struct _plSamplerDesc
 {
     float         fMinMip;
     float         fMaxMip;
+    float         fMipBias; // Vulkan only until MacOS 26+
     float         fMaxAnisotropy;
     bool          bUnnormalizedCoordinates;
     plFilter      tMagFilter;
@@ -618,6 +620,7 @@ typedef struct _plSamplerDesc
     plAddressMode tUAddressMode;
     plAddressMode tVAddressMode;
     plAddressMode tWAddressMode;
+    plBorderColor tBorderColor;
     const char*   pcDebugName; // default: "unnamed sampler"
 } plSamplerDesc;
 
@@ -1311,8 +1314,13 @@ enum _plAddressMode
 {
     PL_ADDRESS_MODE_UNSPECIFIED,
     PL_ADDRESS_MODE_WRAP,
-    PL_ADDRESS_MODE_CLAMP,
-    PL_ADDRESS_MODE_MIRROR
+    PL_ADDRESS_MODE_CLAMP_TO_EDGE,
+    PL_ADDRESS_MODE_CLAMP_TO_BORDER,
+    PL_ADDRESS_MODE_MIRROR,
+    
+    #ifndef PL_DISABLE_OBSOLETE
+    PL_ADDRESS_MODE_CLAMP = PL_ADDRESS_MODE_CLAMP_TO_EDGE
+    #endif
 };
 
 enum _plSampleCount
@@ -1770,6 +1778,16 @@ enum _plBlendMode
     PL_BLEND_MODE_CLIP_MASK,
 
     PL_BLEND_MODE_COUNT
+};
+
+enum _plBorderColor
+{
+    PL_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+    PL_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
+    PL_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+    PL_BORDER_COLOR_INT_TRANSPARENT_BLACK,
+    PL_BORDER_COLOR_INT_OPAQUE_BLACK,
+    PL_BORDER_COLOR_INT_OPAQUE_WHITE
 };
 
 //-----------------------------------------------------------------------------

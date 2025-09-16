@@ -351,8 +351,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .tMinFilter    = PL_FILTER_LINEAR,
         .fMinMip       = 0.0f,
         .fMaxMip       = 1.0f,
-        .tVAddressMode = PL_ADDRESS_MODE_CLAMP,
-        .tUAddressMode = PL_ADDRESS_MODE_CLAMP,
+        .tVAddressMode = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .tUAddressMode = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
         .pcDebugName   = "sampler"
     };
     ptAppData->tSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);

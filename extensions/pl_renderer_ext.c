@@ -341,9 +341,9 @@ pl_renderer_initialize(plRendererSettings tSettings)
         .tMinFilter      = PL_FILTER_LINEAR,
         .fMinMip         = 0.0f,
         .fMaxMip         = 64.0f,
-        .tVAddressMode   = PL_ADDRESS_MODE_CLAMP,
-        .tUAddressMode   = PL_ADDRESS_MODE_CLAMP,
-        .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
+        .tVAddressMode   = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .tUAddressMode   = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .tMipmapMode     = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
         .pcDebugName     = "linear clamp"
     };
     gptData->tSamplerLinearClamp = gptGfx->create_sampler(gptData->ptDevice, &tSamplerLinearClampDesc);
@@ -353,8 +353,8 @@ pl_renderer_initialize(plRendererSettings tSettings)
         .tMinFilter      = PL_FILTER_NEAREST,
         .fMinMip         = 0.0f,
         .fMaxMip         = 64.0f,
-        .tVAddressMode   = PL_ADDRESS_MODE_CLAMP,
-        .tUAddressMode   = PL_ADDRESS_MODE_CLAMP,
+        .tVAddressMode   = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .tUAddressMode   = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
         .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
         .pcDebugName     = "nearest clamp"
     };
