@@ -48,7 +48,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawI_version {1, 2, 1}
+#define plDrawI_version {1, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -275,10 +275,11 @@ typedef struct _plDrawSolidOptions
 typedef struct _plDrawTextOptions
 {
     plFont*     ptFont;
-    float       fSize;     // if zero, will use loaded size
+    float       fSize;      // if zero, will use loaded size
     uint32_t    uColor;
-    float       fWrap;     // 0.0f, no wrap
-    const char* pcTextEnd; // if null terminated, set to NULL
+    float       fWrap;      // 0.0f, no wrap
+    const char* pcTextEnd;  // if null terminated, set to NULL
+    plMat3      tTransform; // default: identity
 } plDrawTextOptions;
 
 typedef struct _plFontRange

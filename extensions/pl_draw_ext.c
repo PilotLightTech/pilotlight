@@ -646,6 +646,7 @@ pl_add_text_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTextO
     float fLineSpacing = fScale * ptFont->_fLineSpacing;
     const plVec2 tOriginalPosition = p;
     bool bFirstCharacter = true;
+    bool bNoTransform = tOptions.tTransform.x11 == 0;
 
     while(pcText < pcTextEnd)
     {
@@ -668,7 +669,7 @@ pl_add_text_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTextO
         {
             // do nothing
         }
-        else
+        else if(bNoTransform)
         {
 
             const plFontGlyph* ptGlyph = pl__find_glyph(ptFont, c);
@@ -718,6 +719,56 @@ pl_add_text_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTextO
                 pl__add_index(ptLayer, uVtxStart, 2, 0, 3);
             }
         }
+        else
+        {
+
+            const plFontGlyph* ptGlyph = pl__find_glyph(ptFont, c);
+      
+            float x0,y0,s0,t0; // top-left
+            float x1,y1,s1,t1; // bottom-right
+
+            // adjust for left side bearing if first char
+            if(bFirstCharacter)
+            {
+                if(ptGlyph->fLeftBearing > 0.0f) p.x += ptGlyph->fLeftBearing * fScale;
+                bFirstCharacter = false;
+            }
+
+            x0 = p.x + ptGlyph->x0 * fScale;
+            x1 = p.x + ptGlyph->x1 * fScale;
+            y0 = p.y + ptGlyph->y0 * fScale;
+            y1 = p.y + ptGlyph->y1 * fScale;
+
+            if(tOptions.fWrap > 0.0f && x1 > tOriginalPosition.x + tOptions.fWrap)
+            {
+                x0 = tOriginalPosition.x + ptGlyph->x0 * fScale;
+                y0 = y0 + fLineSpacing;
+                x1 = tOriginalPosition.x + ptGlyph->x1 * fScale;
+                y1 = y1 + fLineSpacing;
+
+                p.x = tOriginalPosition.x;
+                p.y += fLineSpacing;
+            }
+            s0 = ptGlyph->u0;
+            t0 = ptGlyph->v0;
+            s1 = ptGlyph->u1;
+            t1 = ptGlyph->v1;
+
+            p.x += ptGlyph->fXAdvance * fScale;
+            if(c != ' ')
+            {
+                pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, (bool)ptGlyph->iSDF);
+                pl__reserve_triangles(ptLayer, 6, 4);
+                const uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+                pl__add_vertex(ptLayer, pl_add_vec2(tOriginalPosition, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){x0 - tOriginalPosition.x, y0 - tOriginalPosition.y, 1.0f}).xy), tOptions.uColor, (plVec2){s0, t0});
+                pl__add_vertex(ptLayer, pl_add_vec2(tOriginalPosition, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){x1 - tOriginalPosition.x, y0 - tOriginalPosition.y, 1.0f}).xy), tOptions.uColor, (plVec2){s1, t0});
+                pl__add_vertex(ptLayer, pl_add_vec2(tOriginalPosition, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){x1 - tOriginalPosition.x, y1 - tOriginalPosition.y, 1.0f}).xy), tOptions.uColor, (plVec2){s1, t1});
+                pl__add_vertex(ptLayer, pl_add_vec2(tOriginalPosition, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){x0 - tOriginalPosition.x, y1 - tOriginalPosition.y, 1.0f}).xy), tOptions.uColor, (plVec2){s0, t1});
+
+                pl__add_index(ptLayer, uVtxStart, 1, 0, 2);
+                pl__add_index(ptLayer, uVtxStart, 2, 0, 3);
+            }
+        }
     }
 }
 
@@ -744,6 +795,7 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plV
     float fLineSpacing = fScale * ptFont->_fLineSpacing;
     const plVec2 tOriginalPosition = p;
     bool bFirstCharacter = true;
+    bool bNoTransform = tOptions.tTransform.x11 == 0;
 
     while(pcText < pcTextEnd)
     {
@@ -766,7 +818,7 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plV
         {
             // do nothing
         }
-        else
+        else if(bNoTransform)
         {
             const plFontGlyph* ptGlyph = pl__find_glyph(ptFont, c);
 
@@ -811,6 +863,60 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plV
                 pl__add_vertex(ptLayer, (plVec2){x1, y0}, tOptions.uColor, (plVec2){s1, t0});
                 pl__add_vertex(ptLayer, (plVec2){x1, y1}, tOptions.uColor, (plVec2){s1, t1});
                 pl__add_vertex(ptLayer, (plVec2){x0, y1}, tOptions.uColor, (plVec2){s0, t1});
+
+                pl__add_index(ptLayer, uVtxStart, 1, 0, 2);
+                pl__add_index(ptLayer, uVtxStart, 2, 0, 3);
+            }
+        }
+        else
+        {
+            const plFontGlyph* ptGlyph = pl__find_glyph(ptFont, c);
+
+            float x0,y0,s0,t0; // top-left
+            float x1,y1,s1,t1; // bottom-right
+
+            // adjust for left side bearing if first char
+            if(bFirstCharacter)
+            {
+                if(ptGlyph->fLeftBearing > 0.0f)
+                    p.x += ptGlyph->fLeftBearing * fScale;
+                bFirstCharacter = false;
+            }
+
+            x0 = p.x + ptGlyph->x0 * fScale;
+            x1 = p.x + ptGlyph->x1 * fScale;
+            y0 = p.y + ptGlyph->y0 * fScale;
+            y1 = p.y + ptGlyph->y1 * fScale;
+
+            if(tOptions.fWrap > 0.0f && x1 > tOriginalPosition.x + tOptions.fWrap)
+            {
+                x0 = tOriginalPosition.x + ptGlyph->x0 * fScale;
+                y0 = y0 + fLineSpacing;
+                x1 = tOriginalPosition.x + ptGlyph->x1 * fScale;
+                y1 = y1 + fLineSpacing;
+
+                p.x = tOriginalPosition.x;
+                p.y += fLineSpacing;
+            }
+            s0 = ptGlyph->u0;
+            t0 = ptGlyph->v0;
+            s1 = ptGlyph->u1;
+            t1 = ptGlyph->v1;
+
+            p.x += ptGlyph->fXAdvance * fScale;
+
+            plVec2 tPoint1 = pl_add_vec2(tOriginalPosition, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){x0 - tOriginalPosition.x, y0 - tOriginalPosition.y, 1.0f}).xy);
+            plVec2 tPoint2 = pl_add_vec2(tOriginalPosition, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){x1 - tOriginalPosition.x, y1 - tOriginalPosition.y, 1.0f}).xy);
+
+            if(c != ' ' && pl_rect_contains_point(&tClipRect, tPoint1) && pl_rect_contains_point(&tClipRect, tPoint2))
+            {
+                pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, (bool)ptGlyph->iSDF);
+                pl__reserve_triangles(ptLayer, 6, 4);
+                const uint32_t uVtxStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+                pl__add_vertex(ptLayer, tPoint1, tOptions.uColor, (plVec2){s0, t0});
+                pl__add_vertex(ptLayer, pl_add_vec2(tOriginalPosition, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){x1 - tOriginalPosition.x, y0 - tOriginalPosition.y, 1.0f}).xy), tOptions.uColor, (plVec2){s1, t0});
+                pl__add_vertex(ptLayer, tPoint2, tOptions.uColor, (plVec2){s1, t1});
+                pl__add_vertex(ptLayer, pl_add_vec2(tOriginalPosition, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){x0 - tOriginalPosition.x, y1 - tOriginalPosition.y, 1.0f}).xy), tOptions.uColor, (plVec2){s0, t1});
 
                 pl__add_index(ptLayer, uVtxStart, 1, 0, 2);
                 pl__add_index(ptLayer, uVtxStart, 2, 0, 3);
@@ -1585,6 +1691,7 @@ pl_calculate_text_size(const char* pcText, plDrawTextOptions tOptions)
     const float fLineSpacing = fScale * ptFont->_fLineSpacing;
     plVec2 tOriginalPosition = {FLT_MAX, FLT_MAX};
     bool bFirstCharacter = true;
+    bool bNoTransform = tOptions.tTransform.x11 == 0;
 
     while(pcText < pcTextEnd)
     {
@@ -1659,7 +1766,20 @@ pl_calculate_text_size(const char* pcText, plDrawTextOptions tOptions)
             tCursor.x += ptGlyph->fXAdvance * fScale;
         }   
     }
-    return pl_sub_vec2(tResult, tOriginalPosition);
+    plVec2 tTextSize = pl_sub_vec2(tResult, tOriginalPosition);
+    if(bNoTransform)
+        return tTextSize;
+    else
+    {
+        plVec2 tOriginalPosition2 = pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){0.0f, 0.0f, 1.0f}).xy;
+        plVec2 tMin = pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){tTextSize.x, 0.0f, 1.0f}).xy;
+        // plVec2 tMid = pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){tTextSize.x, tTextSize.y * 0.5f, 1.0f}).xy;
+        plVec2 tMax = pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){tTextSize.x, tTextSize.y, 1.0f}).xy;
+
+        float fLength = pl_length_vec2(pl_sub_vec2(tMin, tOriginalPosition2));
+        float fHeight = pl_length_vec2(pl_sub_vec2(tMax, tMin));
+        return (plVec2){fLength, fHeight};
+    }
 }
 
 static plRect
@@ -1682,8 +1802,10 @@ pl_calculate_text_bb(plVec2 tP, const char* pcText, plDrawTextOptions tOptions)
     const float fScale = fSize > 0.0f ? fSize / ptFont->fSize : 1.0f;
 
     float fLineSpacing = fScale * ptFont->_fLineSpacing;
+    const plVec2 tOriginalPosition2 = tP;
     plVec2 tOriginalPosition = {FLT_MAX, FLT_MAX};
     bool bFirstCharacter = true;
+    bool bNoTransform = tOptions.tTransform.x11 == 0;
 
     while(pcText < pcTextEnd)
     {
@@ -1756,12 +1878,42 @@ pl_calculate_text_bb(plVec2 tP, const char* pcText, plDrawTextOptions tOptions)
                 tTextSize.y = y1;
 
             tCursor.x += ptGlyph->fXAdvance * fScale;
-        }   
+        }
     }
 
     tTextSize = pl_sub_vec2(tTextSize, tOriginalPosition);
     const plVec2 tStartOffset = pl_add_vec2(tP, tOriginalPosition);
-    const plRect tResult = pl_calculate_rect(tStartOffset, tTextSize);
+    plRect tResult = pl_calculate_rect(tStartOffset, tTextSize);
+    if(!bNoTransform)
+    {
+
+        plVec2 tTopLeft = pl_rect_top_left(&tResult);                             
+        plVec2 tTopRight = pl_rect_top_right(&tResult);
+        plVec2 tBottomLeft = pl_rect_bottom_left(&tResult);
+        plVec2 tBottomRight = pl_rect_bottom_right(&tResult);    
+
+        tTopLeft = pl_add_vec2(tOriginalPosition2, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){tTopLeft.x - tOriginalPosition2.x, tTopLeft.y - tOriginalPosition2.y, 1.0f}).xy);
+        tTopRight = pl_add_vec2(tOriginalPosition2, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){tTopRight.x - tOriginalPosition2.x, tTopRight.y - tOriginalPosition2.y, 1.0f}).xy);
+        tBottomLeft = pl_add_vec2(tOriginalPosition2, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){tBottomLeft.x - tOriginalPosition2.x, tBottomLeft.y - tOriginalPosition2.y, 1.0f}).xy);
+        tBottomRight = pl_add_vec2(tOriginalPosition2, pl_mul_mat3_vec3(&tOptions.tTransform, (plVec3){tBottomRight.x - tOriginalPosition2.x, tBottomRight.y - tOriginalPosition2.y, 1.0f}).xy);
+        
+        tResult.tMin = tTopLeft;
+        tResult.tMax = tTopLeft;
+
+        if(tTopRight.x < tResult.tMin.x)    tResult.tMin.x = tTopRight.x;
+        if(tTopRight.x > tResult.tMax.x)    tResult.tMax.x = tTopRight.x;
+        if(tBottomLeft.x < tResult.tMin.x)  tResult.tMin.x = tBottomLeft.x;
+        if(tBottomLeft.x > tResult.tMax.x)  tResult.tMax.x = tBottomLeft.x;
+        if(tBottomRight.x < tResult.tMin.x) tResult.tMin.x = tBottomRight.x;
+        if(tBottomRight.x > tResult.tMax.x) tResult.tMax.x = tBottomRight.x;
+
+        if(tTopRight.y < tResult.tMin.y)    tResult.tMin.y = tTopRight.y;
+        if(tTopRight.y > tResult.tMax.y)    tResult.tMax.y = tTopRight.y;
+        if(tBottomLeft.y < tResult.tMin.y)  tResult.tMin.y = tBottomLeft.y;
+        if(tBottomLeft.y > tResult.tMax.y)  tResult.tMax.y = tBottomLeft.y;
+        if(tBottomRight.y < tResult.tMin.y) tResult.tMin.y = tBottomRight.y;
+        if(tBottomRight.y > tResult.tMax.y) tResult.tMax.y = tBottomRight.y;
+    }
     return tResult;
 }
 
