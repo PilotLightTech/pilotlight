@@ -5,7 +5,7 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-- v0.6.1 (2025-xx-xx) (renderer) add iridescence support
+- v0.6.1 (2025-09-26) (renderer) add iridescence support
                       (renderer) add linear & exp height fog
                       (renderer) add bloom
                       (renderer) add CSM blending
@@ -22,7 +22,12 @@ away, please see git history for details.
                       (renderer) fix IBL filtering
                       (renderer) fix environment probe update schedule
                       (renderer) fix metal sync issues
+                      (renderer) fix staging buffer size issues
+                      (renderer) add first pass of environment probe blending
                       (draw)     fix draw layer cleanup
+                      (draw)     fix draw scissor issue
+                      (graphics) add events & raw pipeline barriers
+                      (graphics) add border color options to samplers
 - v0.6.0 (2025-08-19) (ecs)      finalize ECS extension to 1.0
                       (material) add new material extension
                       (script)   add new script extension
