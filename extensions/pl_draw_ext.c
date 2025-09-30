@@ -588,6 +588,8 @@ pl_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawLi
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 6 * uCount, 4 * uCount);
 
+    const float fThickness = tOptions.fThickness / 2.0f;
+
     for(uint32_t i = 0; i < uCount; i++)
     {
         float dx = atPoints[i + 1].x - atPoints[i].x;
@@ -595,16 +597,16 @@ pl_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawLi
         PL_NORMALIZE2F_OVER_ZERO(dx, dy);
 
         const plVec2 tNormalVector = {
-            .x = dy,
-            .y = -dx
+            .x = dy * fThickness,
+            .y = -dx * fThickness
         };
 
         const plVec2 atCornerPoints[4] = 
         {
-            pl__subtract_vec2(atPoints[i],     pl__mul_vec2_f(tNormalVector, tOptions.fThickness / 2.0f)),
-            pl__subtract_vec2(atPoints[i + 1], pl__mul_vec2_f(tNormalVector, tOptions.fThickness / 2.0f)),
-            pl__add_vec2(     atPoints[i + 1], pl__mul_vec2_f(tNormalVector, tOptions.fThickness / 2.0f)),
-            pl__add_vec2(     atPoints[i],     pl__mul_vec2_f(tNormalVector, tOptions.fThickness / 2.0f))
+            pl__subtract_vec2(atPoints[i],     tNormalVector),
+            pl__subtract_vec2(atPoints[i + 1], tNormalVector),
+            pl__add_vec2(     atPoints[i + 1], tNormalVector),
+            pl__add_vec2(     atPoints[i],     tNormalVector)
         };
 
         const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
@@ -2445,19 +2447,23 @@ static void
 pl__add_3d_centered_box_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plDrawSolidOptions tOptions)
 {
 
-    const plVec3 tWidthVec  = {fWidth / 2.0f, 0.0f, 0.0f};
-    const plVec3 tHeightVec = {0.0f, fHeight / 2.0f, 0.0f};
-    const plVec3 tDepthVec  = {0.0f, 0.0f, fDepth / 2.0f};
+    const float fHalfWidth = fWidth / 2.0f;
+    const float fHalfHeight = fHeight / 2.0f;
+    const float fHalfDepth = fDepth / 2.0f;
+
+    const plVec3 tWidthVec  = {fHalfWidth, 0.0f, 0.0f};
+    const plVec3 tHeightVec = {0.0f, fHalfHeight, 0.0f};
+    const plVec3 tDepthVec  = {0.0f, 0.0f, fHalfDepth};
 
     const plVec3 atVerticies[8] = {
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z + fDepth / 2.0f}
+        {  tCenter.x - fHalfWidth,  tCenter.y + fHalfHeight, tCenter.z - fHalfDepth},
+        {  tCenter.x - fHalfWidth,  tCenter.y - fHalfHeight, tCenter.z - fHalfDepth},
+        {  tCenter.x + fHalfWidth,  tCenter.y - fHalfHeight, tCenter.z - fHalfDepth},
+        {  tCenter.x + fHalfWidth,  tCenter.y + fHalfHeight, tCenter.z - fHalfDepth},
+        {  tCenter.x - fHalfWidth,  tCenter.y + fHalfHeight, tCenter.z + fHalfDepth},
+        {  tCenter.x - fHalfWidth,  tCenter.y - fHalfHeight, tCenter.z + fHalfDepth},
+        {  tCenter.x + fHalfWidth,  tCenter.y - fHalfHeight, tCenter.z + fHalfDepth},
+        {  tCenter.x + fHalfWidth,  tCenter.y + fHalfHeight, tCenter.z + fHalfDepth}
     };
 
     const uint32_t auIndices[] = {
@@ -2483,14 +2489,17 @@ static void
 pl__add_3d_plane_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plDrawSolidOptions tOptions)
 {
 
-    const plVec3 tWidthVec  = {fWidth / 2.0f, 0.0f, 0.0f};
-    const plVec3 tHeightVec = {0.0f, fHeight / 2.0f, 0.0f};
+    const float fHalfWidth = fWidth / 2.0f;
+    const float fHalfHeight = fHeight / 2.0f;
+
+    const plVec3 tWidthVec  = {fHalfWidth, 0.0f, 0.0f};
+    const plVec3 tHeightVec = {0.0f, fHalfHeight, 0.0f};
 
     const plVec3 atVerticies[] = {
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y, tCenter.z - fHeight / 2.0f},
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y, tCenter.z + fHeight / 2.0f},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y, tCenter.z + fHeight / 2.0f},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y, tCenter.z - fHeight / 2.0f}
+        {  tCenter.x - fHalfWidth,  tCenter.y, tCenter.z - fHalfHeight},
+        {  tCenter.x - fHalfWidth,  tCenter.y, tCenter.z + fHalfHeight},
+        {  tCenter.x + fHalfWidth,  tCenter.y, tCenter.z + fHalfHeight},
+        {  tCenter.x + fHalfWidth,  tCenter.y, tCenter.z - fHalfHeight}
     };
 
     const uint32_t auIndices[] = {
@@ -2506,14 +2515,17 @@ static void
 pl__add_3d_plane_xy_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plDrawSolidOptions tOptions)
 {
 
-    const plVec3 tWidthVec  = {fWidth / 2.0f, 0.0f, 0.0f};
-    const plVec3 tHeightVec = {0.0f, fHeight / 2.0f, 0.0f};
+    const float fHalfWidth = fWidth / 2.0f;
+    const float fHalfHeight = fHeight / 2.0f;
+
+    const plVec3 tWidthVec  = {fHalfWidth, 0.0f, 0.0f};
+    const plVec3 tHeightVec = {0.0f, fHalfHeight, 0.0f};
 
     const plVec3 atVerticies[] = {
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z},
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z}
+        {  tCenter.x - fHalfWidth,  tCenter.y - fHalfHeight, tCenter.z},
+        {  tCenter.x - fHalfWidth,  tCenter.y + fHalfHeight, tCenter.z},
+        {  tCenter.x + fHalfWidth,  tCenter.y + fHalfHeight, tCenter.z},
+        {  tCenter.x + fHalfWidth,  tCenter.y - fHalfHeight, tCenter.z}
     };
 
     const uint32_t auIndices[] = {
@@ -2846,13 +2858,14 @@ pl__add_3d_text(plDrawList3D* ptDrawlist, plVec3 tP, const char* pcText, plDrawT
 static void
 pl__add_3d_cross(plDrawList3D* ptDrawlist, plVec3 tP, float fLength, plDrawLineOptions tOptions)
 {
+    const float fHalfLength = fLength / 2.0f;
     const plVec3 aatVerticies[6] = {
-        {  tP.x - fLength / 2.0f,  tP.y, tP.z},
-        {  tP.x + fLength / 2.0f,  tP.y, tP.z},
-        {  tP.x,  tP.y - fLength / 2.0f, tP.z},
-        {  tP.x,  tP.y + fLength / 2.0f, tP.z},
-        {  tP.x,  tP.y, tP.z - fLength / 2.0f},
-        {  tP.x,  tP.y, tP.z + fLength / 2.0f}
+        {  tP.x - fHalfLength,  tP.y, tP.z},
+        {  tP.x + fHalfLength,  tP.y, tP.z},
+        {  tP.x,  tP.y - fHalfLength, tP.z},
+        {  tP.x,  tP.y + fHalfLength, tP.z},
+        {  tP.x,  tP.y, tP.z - fHalfLength},
+        {  tP.x,  tP.y, tP.z + fHalfLength}
     };
     pl__add_3d_lines(ptDrawlist, 3, aatVerticies, tOptions);
 }
@@ -3196,19 +3209,24 @@ pl__add_3d_circle_xz(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius, ui
 static void
 pl__add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plDrawLineOptions tOptions)
 {
-    const plVec3 tWidthVec  = {fWidth / 2.0f, 0.0f, 0.0f};
-    const plVec3 tHeightVec = {0.0f, fHeight / 2.0f, 0.0f};
-    const plVec3 tDepthVec  = {0.0f, 0.0f, fDepth / 2.0f};
+
+    const float fHalfWidth = fWidth / 2.0f;
+    const float fHalfHeight = fHeight / 2.0f;
+    const float fHalfDepth = fDepth / 2.0f;
+
+    const plVec3 tWidthVec  = {fHalfWidth, 0.0f, 0.0f};
+    const plVec3 tHeightVec = {0.0f, fHalfHeight, 0.0f};
+    const plVec3 tDepthVec  = {0.0f, 0.0f, fHalfDepth};
 
     const plVec3 atVerticies[8] = {
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z - fDepth / 2.0f},
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
-        {  tCenter.x - fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y - fHeight / 2.0f, tCenter.z + fDepth / 2.0f},
-        {  tCenter.x + fWidth / 2.0f,  tCenter.y + fHeight / 2.0f, tCenter.z + fDepth / 2.0f}
+        {  tCenter.x - fHalfWidth,  tCenter.y + fHalfHeight, tCenter.z - fHalfDepth},
+        {  tCenter.x - fHalfWidth,  tCenter.y - fHalfHeight, tCenter.z - fHalfDepth},
+        {  tCenter.x + fHalfWidth,  tCenter.y - fHalfHeight, tCenter.z - fHalfDepth},
+        {  tCenter.x + fHalfWidth,  tCenter.y + fHalfHeight, tCenter.z - fHalfDepth},
+        {  tCenter.x - fHalfWidth,  tCenter.y + fHalfHeight, tCenter.z + fHalfDepth},
+        {  tCenter.x - fHalfWidth,  tCenter.y - fHalfHeight, tCenter.z + fHalfDepth},
+        {  tCenter.x + fHalfWidth,  tCenter.y - fHalfHeight, tCenter.z + fHalfDepth},
+        {  tCenter.x + fHalfWidth,  tCenter.y + fHalfHeight, tCenter.z + fHalfDepth}
     };
 
     const uint32_t auIndices[] = {
