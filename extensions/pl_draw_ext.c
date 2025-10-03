@@ -2543,10 +2543,10 @@ pl__add_3d_plane_yz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidt
     const float fHalfWidth = fWidth / 2.0f;
     const float fHalfHeight = fHeight / 2.0f;
     const plVec3 atVerticies[] = {
-        {  tCenter.x, tCenter.y - fHalfWidth,  tCenter.z - fHalfHeight},
-        {  tCenter.x, tCenter.y - fHalfWidth,  tCenter.z + fHalfHeight},
-        {  tCenter.x, tCenter.y + fHalfWidth,  tCenter.z + fHalfHeight},
-        {  tCenter.x, tCenter.y + fHalfWidth,  tCenter.z - fHalfHeight}
+        {  tCenter.x, tCenter.y - fHalfHeight,  tCenter.z - fHalfWidth},
+        {  tCenter.x, tCenter.y - fHalfHeight,  tCenter.z + fHalfWidth},
+        {  tCenter.x, tCenter.y + fHalfHeight,  tCenter.z + fHalfWidth},
+        {  tCenter.x, tCenter.y + fHalfHeight,  tCenter.z - fHalfWidth}
     };
 
     const uint32_t auIndices[] = {
