@@ -47,7 +47,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plJobI_version {2, 1, 0}
+#define plJobI_version {2, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

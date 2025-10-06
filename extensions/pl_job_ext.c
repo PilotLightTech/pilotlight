@@ -78,6 +78,7 @@ typedef struct _plJobContext
     plThread*    aptThreads[PL_MAX_JOB_THREADS];
     plThreadKey* ptThreadLocalKey;
     size_t       szSharedMemorySize;
+    void*        pThreadLocalData;
 
     // counter free list data
     plAtomicCounterNode* sbtNodes;
@@ -414,7 +415,29 @@ pl_job_wait_for_counter(plAtomicCounter* ptCounter)
         const int64_t ilLoadedValue = gptAtomics->atomic_load(ptCounter);
         if(ilLoadedValue <= (int64_t)uValue)
             break;
+
         gptThreads->wake_condition_variable(gptJobCtx->ptConditionVariable);
+
+        // check for available batch (instead of wasting main thread)
+        plSubmittedBatch tBatch = {0};
+        if(pl__pop_batch_off_queue(&tBatch))
+        {
+            // run tasks
+            plInvocationData tInvocationData = tBatch.tInvocationData;
+            for(uint32_t i = 0; i < tBatch.tInvocationData.uBatchSize; i++)
+            {
+                // set per job invocation members
+                tInvocationData.uLocalIndex = i;
+                tInvocationData.uGlobalIndex = tBatch.tInvocationData.uGlobalIndex + i;
+
+                // run actual job
+                tBatch.task(tInvocationData, tBatch.pData, gptJobCtx->pThreadLocalData);
+            }
+
+            // decrement atomic counter
+            if(tBatch.ptCounter)
+                gptAtomics->atomic_decrement(tBatch.ptCounter);
+        }
     }
 
     // try to unlock (spin lock)
@@ -494,6 +517,12 @@ pl_job_initialize(plJobSystemInit tInit)
     if(gptJobCtx->szSharedMemorySize > 0)
         gptThreads->allocate_thread_local_key(&gptJobCtx->ptThreadLocalKey);
 
+    if(gptJobCtx->szSharedMemorySize > 0)
+    {
+        gptJobCtx->pThreadLocalData = gptThreads->allocate_thread_local_data(gptJobCtx->ptThreadLocalKey, gptJobCtx->szSharedMemorySize);
+        memset(gptJobCtx->pThreadLocalData, 0, gptJobCtx->szSharedMemorySize);
+    }
+
     for(uint32_t i = 0; i < tInit.uThreadCount; i++)
     {
         gptThreads->create_thread(pl__thread_procedure, NULL, &gptJobCtx->aptThreads[i]);
@@ -509,6 +538,9 @@ pl_job_cleanup(void)
     {
         gptThreads->destroy_thread(&gptJobCtx->aptThreads[i]);
     }
+
+    if(gptJobCtx->szSharedMemorySize > 0)
+        gptThreads->free_thread_local_data(gptJobCtx->ptThreadLocalKey, gptJobCtx->pThreadLocalData);
 
     // free thread local key if needed
     if(gptJobCtx->szSharedMemorySize > 0)
