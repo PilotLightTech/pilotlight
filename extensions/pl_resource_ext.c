@@ -188,7 +188,7 @@ pl_resource_cleanup(void)
 }
 
 void
-pl__resource_create_staging_buffer(void)
+pl__resource_create_staging_buffer(size_t szSize)
 {
     plDevice* ptDevice = gptResourceManager->tDesc.ptDevice;
 
@@ -197,7 +197,7 @@ pl__resource_create_staging_buffer(void)
     // create staging buffers
     const plBufferDesc tStagingBufferDesc = {
         .tUsage     = PL_BUFFER_USAGE_STAGING,
-        .szByteSize = 268435456,
+        .szByteSize = pl_max(268435456, szSize),
         .pcDebugName = "Resource Staging Buffer"
     };
 
@@ -412,10 +412,12 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
 
                     size_t szRequiredStagingSize = tImageInfo.iWidth * tImageInfo.iHeight * 4 * sizeof(float);
                     if(!gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
-                        pl__resource_create_staging_buffer();
+                        pl__resource_create_staging_buffer(szRequiredStagingSize);
                     else if(gptResourceManager->tStagingBuffer.szOffset + szRequiredStagingSize >= gptResourceManager->tStagingBuffer.szSize)
                     {
                         pl_resource_new_frame();
+                        pl_resource_new_frame();
+                        pl__resource_create_staging_buffer(szRequiredStagingSize);
                     }
 
                     plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
@@ -432,10 +434,12 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
   
                     size_t szRequiredStagingSize = tImageInfo.iWidth * tImageInfo.iHeight * 4 * sizeof(short);
                     if(!gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
-                        pl__resource_create_staging_buffer();
+                        pl__resource_create_staging_buffer(szRequiredStagingSize);
                     else if(gptResourceManager->tStagingBuffer.szOffset + szRequiredStagingSize >= gptResourceManager->tStagingBuffer.szSize)
                     {
                         pl_resource_new_frame();
+                        pl_resource_new_frame();
+                        pl__resource_create_staging_buffer(szRequiredStagingSize);
                     }
 
                     plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
@@ -461,10 +465,12 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
 
                     size_t szRequiredStagingSize = tImageInfo.iWidth * tImageInfo.iHeight * 4;
                     if(!gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
-                        pl__resource_create_staging_buffer();
+                        pl__resource_create_staging_buffer(szRequiredStagingSize);
                     else if(gptResourceManager->tStagingBuffer.szOffset + szRequiredStagingSize >= gptResourceManager->tStagingBuffer.szSize)
                     {
                         pl_resource_new_frame();
+                        pl_resource_new_frame();
+                        pl__resource_create_staging_buffer(szRequiredStagingSize);
                     }
 
                     plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
