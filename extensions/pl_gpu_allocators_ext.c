@@ -914,6 +914,12 @@ pl_get_staging_cached_allocator(plDevice* ptDevice)
 static void
 pl_cleanup_allocators(plDevice* ptDevice)
 {
+    static bool bCleanedUp = false;
+
+    if(bCleanedUp)
+        return;
+    
+    bCleanedUp = true;
     plDeviceMemoryAllocatorI* ptAllocator = pl_get_local_buddy_allocator(ptDevice);
     plDeviceAllocatorData* ptAllocatorData = (plDeviceAllocatorData*)ptAllocator->ptInst;
 
