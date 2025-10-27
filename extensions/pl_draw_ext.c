@@ -161,7 +161,7 @@ static const plFontGlyph* pl__find_glyph(plFont* ptFont, uint32_t c);
 
 // stateful drawing
 #define pl__submit_path(ptLayer, tOptions)\
-    pl_add_lines((ptLayer), (ptLayer)->sbtPath, pl_sb_size((ptLayer)->sbtPath) - 1, (tOptions));\
+    pl_add_lines((ptLayer), (ptLayer)->sbtPath, pl_sb_size((ptLayer)->sbtPath), (tOptions));\
     pl_sb_reset((ptLayer)->sbtPath);
 
 #define PL_NORMALIZE2F_OVER_ZERO(VX,VY) \
@@ -585,12 +585,13 @@ pl_submit_2d_layer(plDrawLayer2D* ptLayer)
 static void
 pl_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawLineOptions tOptions)
 {
+    uint32_t uSegmentCount = uCount - 1;
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
-    pl__reserve_triangles(ptLayer, 6 * uCount, 4 * uCount);
+    pl__reserve_triangles(ptLayer, 6 * uSegmentCount, 4 * uSegmentCount);
 
     const float fThickness = tOptions.fThickness / 2.0f;
 
-    for(uint32_t i = 0; i < uCount; i++)
+    for(uint32_t i = 0; i < uSegmentCount; i++)
     {
         float dx = atPoints[i + 1].x - atPoints[i].x;
         float dy = atPoints[i + 1].y - atPoints[i].y;
