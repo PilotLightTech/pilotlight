@@ -48,7 +48,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawI_version {1, 3, 2}
+#define plDrawI_version {1, 4, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -67,6 +67,7 @@ typedef struct _plFontAtlas   plFontAtlas;   // font atlas data
 typedef struct _plDrawList2D  plDrawList2D;  // drawlist data for 2D
 typedef struct _plDrawList3D  plDrawList3D;  // drawlist data for 3D
 typedef struct _plDrawLayer2D plDrawLayer2D; // opaque type for 2D draw layers
+typedef struct _plDrawCommand plDrawCommand; // opaque type for 2D draw layers
 
 // vertex buffer types
 typedef struct _plDrawVertex        plDrawVertex;        // vertex type (LAYOUT & PADDING MATTERS)
@@ -87,6 +88,10 @@ typedef struct _plFontConfig     plFontConfig;     // configuration for loading 
 typedef struct _plFontChar       plFontChar;       // internal type
 typedef struct _plFontGlyph      plFontGlyph;      // internal type
 typedef struct _plFontCustomRect plFontCustomRect; // internal type
+
+// advanced callbacks (you probably shouldn't be using this, mostly for backends)
+typedef void (*plDrawCallback)(const plDrawList2D*, const plDrawCommand*);
+#define plDrawCallbackResetRenderState (plDrawCallback)(-8)
 
 // character types
 typedef uint16_t plUiWChar;
@@ -173,6 +178,9 @@ typedef struct _plDrawI
     void          (*push_clip_rect)   (plDrawList2D*, plRect, bool bAccumulate);
     void          (*pop_clip_rect)    (plDrawList2D*);
     const plRect* (*get_clip_rect)    (plDrawList2D*);
+
+    // advanced (you probably shouldn't be using this, mostly for backends)
+    void (*add_callback)(plDrawLayer2D*, plDrawCallback, void* userData, uint32_t userDataSize); // userDataSize not setup yet
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3D~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -401,12 +409,15 @@ typedef struct _plDrawList3D
 
 typedef struct _plDrawCommand
 {
-    uint32_t    uVertexOffset;
-    uint32_t    uIndexOffset;
-    uint32_t    uElementCount;
-    plTextureID tTextureId;
-    plRect      tClip;
-    bool        bSdf;
+    uint32_t       uVertexOffset;
+    uint32_t       uIndexOffset;
+    uint32_t       uElementCount;
+    plTextureID    tTextureId;
+    plRect         tClip;
+    bool           bSdf;
+    plDrawCallback tUserCallback;
+    void*          pUserCallbackData;
+    uint32_t       uUserCallbackDataSize;
 } plDrawCommand;
 
 typedef struct _plDrawList2D

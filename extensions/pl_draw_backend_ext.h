@@ -21,7 +21,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawBackendI_version {1, 0, 2}
+#define plDrawBackendI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -38,6 +38,7 @@ Index of this file:
 typedef struct _plFontAtlas     plFontAtlas;       // pl_draw_ext.h
 typedef struct _plDrawList2D    plDrawList2D;      // pl_draw_ext.h
 typedef struct _plDrawList3D    plDrawList3D;      // pl_draw_ext.h
+typedef struct _plDrawLayer2D   plDrawLayer2D;     // pl_draw_ext.h
 typedef int    plDrawFlags;                        // pl_draw_ext.h
 typedef struct _plDevice        plDevice;          // pl_graphics_ext.h
 typedef struct _plRenderEncoder plRenderEncoder;   // pl_graphics_ext.h
@@ -67,6 +68,9 @@ typedef struct _plDrawBackendI
     void (*submit_2d_drawlist)(plDrawList2D*, plRenderEncoder*, float fWidth, float fHeight, uint32_t sampleCount);
     void (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t sampleCount);
 
+    // misc.
+    void (*use_nearest_sampler)(plDrawLayer2D*);
+    void (*use_linear_sampler) (plDrawLayer2D*);
 } plDrawBackendI;
 
 #endif // PL_DRAW_BACKEND_EXT_H

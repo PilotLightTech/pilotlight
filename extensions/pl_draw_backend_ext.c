@@ -82,7 +82,10 @@ typedef struct _plDrawBackendContext
     plDevice*            ptDevice;
     plTempAllocator      tTempAllocator;
     plSamplerHandle      tFontSampler;
+    plSamplerHandle      tNearSampler;
     plBindGroupHandle    tFontSamplerBindGroup;
+    plBindGroupHandle    tNearSamplerBindGroup;
+    plBindGroupHandle    tCurrentSamplerBindGroup;
     plPipelineEntry*     sbt3dPipelineEntries;
     plPipelineEntry*     sbt2dPipelineEntries;
     plBindGroupPool*     ptBindGroupPool;
@@ -124,7 +127,7 @@ static plBindGroupHandle      pl_create_bind_group_for_texture(plTextureHandle);
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-static void
+void
 pl_initialize_draw_backend(plDevice* ptDevice)
 {
     gptDrawBackendCtx->ptDevice = ptDevice;
@@ -171,6 +174,19 @@ pl_initialize_draw_backend(plDevice* ptDevice)
     };
     gptDrawBackendCtx->tFontSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);
 
+    const plSamplerDesc tNearSamplerDesc = {
+        .tMagFilter      = PL_FILTER_NEAREST,
+        .tMinFilter      = PL_FILTER_NEAREST,
+        .fMinMip         = -1000.0f,
+        .fMaxMip         = 1000.0f,
+        .fMaxAnisotropy  = 1.0f,
+        .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
+        .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
+        .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
+        .pcDebugName     = "2D Drawing Near Sampler"
+    };
+    gptDrawBackendCtx->tNearSampler = gptGfx->create_sampler(ptDevice, &tNearSamplerDesc);
+
     const plBindGroupPoolDesc tPoolDesc = {
         .tFlags = PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET,
         .szSamplerBindings = 10,
@@ -192,24 +208,45 @@ pl_initialize_draw_backend(plDevice* ptDevice)
     };
     gptDrawBackendCtx->tTextureBindGroupLayout = gptGfx->create_bind_group_layout(ptDevice, &tDrawingBindGroup);
 
-    const plBindGroupDesc tSamplerBindGroupDesc = {
-        .ptPool      = gptDrawBackendCtx->ptBindGroupPool,
-        .tLayout     = gptDrawBackendCtx->tSamplerBindGroupLayout,
-        .pcDebugName = "font sampler bind group"
-    };
-    gptDrawBackendCtx->tFontSamplerBindGroup = gptGfx->create_bind_group(ptDevice, &tSamplerBindGroupDesc);
-    const plBindGroupUpdateSamplerData atSamplerData[] = {
-        { .uSlot = 0, .tSampler = gptDrawBackendCtx->tFontSampler}
-    };
+    {
+        const plBindGroupDesc tSamplerBindGroupDesc = {
+            .ptPool      = gptDrawBackendCtx->ptBindGroupPool,
+            .tLayout     = gptDrawBackendCtx->tSamplerBindGroupLayout,
+            .pcDebugName = "font sampler bind group"
+        };
+        gptDrawBackendCtx->tFontSamplerBindGroup = gptGfx->create_bind_group(ptDevice, &tSamplerBindGroupDesc);
+        gptDrawBackendCtx->tCurrentSamplerBindGroup = gptDrawBackendCtx->tFontSamplerBindGroup;
+        const plBindGroupUpdateSamplerData atSamplerData[] = {
+            { .uSlot = 0, .tSampler = gptDrawBackendCtx->tFontSampler}
+        };
 
-    plBindGroupUpdateData tBGData0 = {
-        .uSamplerCount = 1,
-        .atSamplerBindings = atSamplerData,
-    };
-    gptGfx->update_bind_group(ptDevice, gptDrawBackendCtx->tFontSamplerBindGroup, &tBGData0);
+        plBindGroupUpdateData tBGData0 = {
+            .uSamplerCount = 1,
+            .atSamplerBindings = atSamplerData,
+        };
+        gptGfx->update_bind_group(ptDevice, gptDrawBackendCtx->tFontSamplerBindGroup, &tBGData0);
+    }
+
+    {
+        const plBindGroupDesc tSamplerBindGroupDesc = {
+            .ptPool      = gptDrawBackendCtx->ptBindGroupPool,
+            .tLayout     = gptDrawBackendCtx->tSamplerBindGroupLayout,
+            .pcDebugName = "near sampler bind group"
+        };
+        gptDrawBackendCtx->tNearSamplerBindGroup = gptGfx->create_bind_group(ptDevice, &tSamplerBindGroupDesc);
+        const plBindGroupUpdateSamplerData atSamplerData[] = {
+            { .uSlot = 0, .tSampler = gptDrawBackendCtx->tNearSampler}
+        };
+
+        plBindGroupUpdateData tBGData0 = {
+            .uSamplerCount = 1,
+            .atSamplerBindings = atSamplerData,
+        };
+        gptGfx->update_bind_group(ptDevice, gptDrawBackendCtx->tNearSamplerBindGroup, &tBGData0);
+    }
 }
 
-static void
+void
 pl_cleanup_draw_backend(void)
 {
     plDevice* ptDevice = gptDrawBackendCtx->ptDevice;
@@ -230,7 +267,7 @@ pl_cleanup_draw_backend(void)
     gptDraw->cleanup();
 }
 
-static void
+void
 pl_new_draw_frame(void)
 {
 
@@ -259,7 +296,7 @@ pl_new_draw_frame(void)
     }
 }
 
-static bool
+bool
 pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
 {
 
@@ -334,7 +371,7 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     return true;
 }
 
-static void
+void
 pl_cleanup_font_atlas_backend(plFontAtlas* ptAtlas)
 {
     if(ptAtlas == NULL)
@@ -628,7 +665,7 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
     return ptEntry;
 }
 
-static plBindGroupHandle
+plBindGroupHandle
 pl_create_bind_group_for_texture(plTextureHandle tTexture)
 {
     const plBindGroupLayoutDesc tDrawingBindGroup = {
@@ -661,6 +698,24 @@ pl_create_bind_group_for_texture(plTextureHandle tTexture)
 }
 
 static void
+pl__use_nearest_sampler(const plDrawList2D* ptDrawlist, const plDrawCommand* tCmd)
+{
+    gptDrawBackendCtx->tCurrentSamplerBindGroup = gptDrawBackendCtx->tNearSamplerBindGroup;
+}
+
+void
+pl_use_nearest_sampler(plDrawLayer2D* ptLayer)
+{
+    gptDraw->add_callback(ptLayer, pl__use_nearest_sampler, NULL, 0);
+}
+
+void
+pl_use_linear_sampler(plDrawLayer2D* ptLayer)
+{
+    gptDraw->add_callback(ptLayer, plDrawCallbackResetRenderState, NULL, 0);
+}
+
+void
 pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
 {
     gptGfx->set_depth_bias( ptEncoder, 0.0f, 0.0f, 0.0f);
@@ -800,56 +855,72 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
             bSdf = false;
         }
 
-        if(pl_rect_width(&cmd.tClip) == 0)
+        if(cmd.tUserCallback != NULL)
         {
-            const plScissor tScissor = {
-                .uWidth = (uint32_t)(fWidth),
-                .uHeight = (uint32_t)(fHeight),
-            };
-            gptGfx->set_scissor_region(ptEncoder, &tScissor);
+            if(cmd.tUserCallback == plDrawCallbackResetRenderState)
+            {
+                gptGfx->set_viewport(ptEncoder, &tViewport);
+                gptGfx->bind_vertex_buffer(ptEncoder, ptBufferInfo->tVertexBuffer);
+                gptGfx->bind_shader(ptEncoder, tCurrentShader);
+                gptDrawBackendCtx->tCurrentSamplerBindGroup = gptDrawBackendCtx->tFontSamplerBindGroup;
+                
+            }
+            else
+                cmd.tUserCallback(ptDrawlist, &cmd);
         }
         else
         {
 
-            cmd.tClip.tMin.x = tClipScale.x * cmd.tClip.tMin.x;
-            cmd.tClip.tMax.x = tClipScale.x * cmd.tClip.tMax.x;
-            cmd.tClip.tMin.y = tClipScale.y * cmd.tClip.tMin.y;
-            cmd.tClip.tMax.y = tClipScale.y * cmd.tClip.tMax.y;
+            if(pl_rect_width(&cmd.tClip) == 0)
+            {
+                const plScissor tScissor = {
+                    .uWidth = (uint32_t)(fWidth),
+                    .uHeight = (uint32_t)(fHeight),
+                };
+                gptGfx->set_scissor_region(ptEncoder, &tScissor);
+            }
+            else
+            {
 
-            // clamp to viewport
-            if (cmd.tClip.tMin.x < 0.0f)   { cmd.tClip.tMin.x = 0.0f; }
-            if (cmd.tClip.tMin.y < 0.0f)   { cmd.tClip.tMin.y = 0.0f; }
-            if (cmd.tClip.tMax.x > fWidth)  { cmd.tClip.tMax.x = (float)fWidth; }
-            if (cmd.tClip.tMax.y > fHeight) { cmd.tClip.tMax.y = (float)fHeight; }
-            if (cmd.tClip.tMax.x <= cmd.tClip.tMin.x || cmd.tClip.tMax.y <= cmd.tClip.tMin.y)
-                continue;
+                cmd.tClip.tMin.x = tClipScale.x * cmd.tClip.tMin.x;
+                cmd.tClip.tMax.x = tClipScale.x * cmd.tClip.tMax.x;
+                cmd.tClip.tMin.y = tClipScale.y * cmd.tClip.tMin.y;
+                cmd.tClip.tMax.y = tClipScale.y * cmd.tClip.tMax.y;
 
-            const plScissor tScissor = {
-                .iOffsetX  = (uint32_t) (cmd.tClip.tMin.x < 0 ? 0 : cmd.tClip.tMin.x),
-                .iOffsetY  = (uint32_t) (cmd.tClip.tMin.y < 0 ? 0 : cmd.tClip.tMin.y),
-                .uWidth    = (uint32_t)pl_rect_width(&cmd.tClip),
-                .uHeight   = (uint32_t)pl_rect_height(&cmd.tClip)
+                // clamp to viewport
+                if (cmd.tClip.tMin.x < 0.0f)   { cmd.tClip.tMin.x = 0.0f; }
+                if (cmd.tClip.tMin.y < 0.0f)   { cmd.tClip.tMin.y = 0.0f; }
+                if (cmd.tClip.tMax.x > fWidth)  { cmd.tClip.tMax.x = (float)fWidth; }
+                if (cmd.tClip.tMax.y > fHeight) { cmd.tClip.tMax.y = (float)fHeight; }
+                if (cmd.tClip.tMax.x <= cmd.tClip.tMin.x || cmd.tClip.tMax.y <= cmd.tClip.tMin.y)
+                    continue;
+
+                const plScissor tScissor = {
+                    .iOffsetX  = (uint32_t) (cmd.tClip.tMin.x < 0 ? 0 : cmd.tClip.tMin.x),
+                    .iOffsetY  = (uint32_t) (cmd.tClip.tMin.y < 0 ? 0 : cmd.tClip.tMin.y),
+                    .uWidth    = (uint32_t)pl_rect_width(&cmd.tClip),
+                    .uHeight   = (uint32_t)pl_rect_height(&cmd.tClip)
+                };
+                gptGfx->set_scissor_region(ptEncoder, &tScissor);
+            }
+
+            plBindGroupHandle tTexture = {.uData = cmd.tTextureId};
+            plBindGroupHandle atBindGroups[] = {
+                gptDrawBackendCtx->tCurrentSamplerBindGroup,
+                tTexture
             };
-            gptGfx->set_scissor_region(ptEncoder, &tScissor);
+            gptGfx->bind_graphics_bind_groups(ptEncoder, tCurrentShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
+
+            const plDrawIndex tDraw = {
+                .tIndexBuffer   = gptDrawBackendCtx->atIndexBuffer[uFrameIdx],
+                .uIndexCount    = cmd.uElementCount,
+                .uIndexStart    = cmd.uIndexOffset + iIndexOffset,
+                .uInstance      = 0,
+                .uInstanceCount = 1,
+                .uVertexStart   = iVertexOffset
+            };
+            gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
         }
-
-        plBindGroupHandle tTexture = {.uData = cmd.tTextureId};
-        plBindGroupHandle atBindGroups[] = {
-            gptDrawBackendCtx->tFontSamplerBindGroup,
-            tTexture
-        };
-
-        gptGfx->bind_graphics_bind_groups(ptEncoder, tCurrentShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
-
-        const plDrawIndex tDraw = {
-            .tIndexBuffer   = gptDrawBackendCtx->atIndexBuffer[uFrameIdx],
-            .uIndexCount    = cmd.uElementCount,
-            .uIndexStart    = cmd.uIndexOffset + iIndexOffset,
-            .uInstance      = 0,
-            .uInstanceCount = 1,
-            .uVertexStart   = iVertexOffset
-        };
-        gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
     }
 
     // bump vertex & index buffer offset
@@ -859,7 +930,7 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
     gptGfx->pop_render_debug_group(ptEncoder);
 }
 
-static void
+void
 pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags tFlags, uint32_t uMSAASampleCount)
 {
     gptGfx->push_render_debug_group(ptEncoder, "3D Draw", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
@@ -1116,15 +1187,17 @@ pl_load_draw_backend_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
     const plDrawBackendI tApi = {
-        .initialize         = pl_initialize_draw_backend,
-        .cleanup            = pl_cleanup_draw_backend,
-        .new_frame          = pl_new_draw_frame,
-        .build_font_atlas   = pl_build_font_atlas_backend,
-        .cleanup_font_atlas = pl_cleanup_font_atlas_backend,
-        .submit_2d_drawlist = pl_submit_2d_drawlist,
-        .submit_3d_drawlist = pl_submit_3d_drawlist,
+        .initialize                    = pl_initialize_draw_backend,
+        .cleanup                       = pl_cleanup_draw_backend,
+        .new_frame                     = pl_new_draw_frame,
+        .build_font_atlas              = pl_build_font_atlas_backend,
+        .cleanup_font_atlas            = pl_cleanup_font_atlas_backend,
+        .submit_2d_drawlist            = pl_submit_2d_drawlist,
+        .submit_3d_drawlist            = pl_submit_3d_drawlist,
         .create_bind_group_for_texture = pl_create_bind_group_for_texture,
-        .get_bind_group_pool = pl_draw_get_bind_group_pool,
+        .get_bind_group_pool           = pl_draw_get_bind_group_pool,
+        .use_nearest_sampler           = pl_use_nearest_sampler,
+        .use_linear_sampler            = pl_use_linear_sampler,
     };
     pl_set_api(ptApiRegistry, plDrawBackendI, &tApi);
 

@@ -541,7 +541,7 @@ pl_prepare_2d_drawlist(plDrawList2D* ptDrawlist)
                 // check for same texture (allows merging draw calls)
                 if(ptLastCommand->tTextureId == ptLayerCommand->tTextureId && ptLastCommand->bSdf == ptLayerCommand->bSdf)
                 {
-                    ptLastCommand->uElementCount += ptLayerCommand->uElementCount;
+                    // ptLastCommand->uElementCount += ptLayerCommand->uElementCount;
                     bCreateNewCommand = false;
                 }
 
@@ -552,6 +552,17 @@ pl_prepare_2d_drawlist(plDrawList2D* ptDrawlist)
                     ptLayerCommand->tClip.tMin.y != ptLastCommand->tClip.tMin.y)
                 {
                     bCreateNewCommand = true;
+                }
+
+                // check for same callback (allows merging draw calls)5
+                if(ptLastCommand->tUserCallback != NULL)
+                {
+                    bCreateNewCommand = true;
+                }
+
+                if(!bCreateNewCommand)
+                {
+                    ptLastCommand->uElementCount += ptLayerCommand->uElementCount;
                 }
                 
             }
@@ -619,6 +630,21 @@ pl_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawLi
         pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
         pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
     }  
+}
+
+void
+pl_add_2d_callback(plDrawLayer2D* ptLayer, plDrawCallback tCallback, void* pUserData, uint32_t uUserDataSize)
+{
+
+    plDrawCommand tNewDrawCommand = 
+    {
+        .tUserCallback         = tCallback,
+        .uUserCallbackDataSize = uUserDataSize,
+        .pUserCallbackData     = pUserData
+    };
+    pl_sb_push(ptLayer->sbtCommandBuffer, tNewDrawCommand);
+
+    ptLayer->ptLastCommand = NULL;
 }
 
 static void
@@ -3825,6 +3851,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_clip_rect              = pl_get_clip_rect,
         .add_line                   = pl_add_line,
         .add_lines                  = pl_add_lines,
+        .add_callback               = pl_add_2d_callback,
         .add_text                   = pl_add_text_ex,
         .add_text_clipped           = pl_add_text_clipped_ex,
         .add_triangle               = pl_add_triangle,
@@ -3844,6 +3871,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_image_ex               = pl_add_image_ex,
         .add_bezier_quad            = pl_add_bezier_quad,
         .add_bezier_cubic           = pl_add_bezier_cubic,
+        .add_callback               = pl_add_2d_callback
     };
     pl_set_api(ptApiRegistry, plDrawI, &tApi);
 
