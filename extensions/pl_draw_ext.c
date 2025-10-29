@@ -1385,6 +1385,29 @@ pl_add_image_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVe
     pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
 }
 
+void
+pl_add_image_quad_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec2 tUv0, plVec2 tUv1, plVec2 tUv2, plVec2 tUv3, uint32_t uColor)
+{
+    pl__prepare_draw_command(ptLayer, tTexture, false);
+    pl__reserve_triangles(ptLayer, 6, 4);
+
+
+    const uint32_t uVertexStart = pl_sb_size(ptLayer->ptDrawlist->sbtVertexBuffer);
+    pl__add_vertex(ptLayer, tP0, uColor, tUv0);
+    pl__add_vertex(ptLayer, tP1, uColor, tUv1);
+    pl__add_vertex(ptLayer, tP2, uColor, tUv2);
+    pl__add_vertex(ptLayer, tP3, uColor, tUv3);
+
+    pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
+    pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
+}
+
+void
+pl_add_image_quad(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3)
+{
+    pl_add_image_quad_ex(ptLayer, tTexture, tP0, tP1, tP2, tP3, (plVec2){0}, (plVec2){0.0f, 1.0f}, (plVec2){1.0f, 1.0f}, (plVec2){1.0f, 0.0f}, PL_COLOR_32_WHITE);
+}
+
 static void
 pl_add_image(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVec2 tPMax)
 {
@@ -3869,6 +3892,8 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_convex_polygon_filled  = pl_add_convex_polygon_filled,
         .add_image                  = pl_add_image,
         .add_image_ex               = pl_add_image_ex,
+        .add_image_quad             = pl_add_image_quad,
+        .add_image_quad_ex          = pl_add_image_quad_ex,
         .add_bezier_quad            = pl_add_bezier_quad,
         .add_bezier_cubic           = pl_add_bezier_cubic,
         .add_callback               = pl_add_2d_callback

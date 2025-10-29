@@ -168,6 +168,8 @@ typedef struct _plDrawI
     void (*add_convex_polygon_filled)(plDrawLayer2D*, plVec2* points, uint32_t count, plDrawSolidOptions);
     void (*add_image)                (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP);
     void (*add_image_ex)             (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP, plVec2 minUV, plVec2 maxUV, uint32_t color);
+    void (*add_image_quad)           (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3);
+    void (*add_image_quad_ex)        (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plVec2 p0UV, plVec2 p1UV, plVec2 p2UV, plVec2 p3UV, uint32_t color);
 
     // drawing (text)
     void (*add_text)        (plDrawLayer2D*, plVec2 p, const char* text, plDrawTextOptions);
