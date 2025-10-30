@@ -1,14 +1,10 @@
 /*
-   example_gfx_4.c
+   example_gfx_3.c
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
      - demonstrates starter extension
      - demonstrates drawing extension (2D & 3D)
-     - demonstrates render passes
-
-    Notes:
-     - We are performing offscreen rendering for this example
 */
 
 /*
@@ -28,18 +24,25 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdio.h>
+#include <string.h> // memset
 #include "pl.h"
-#include "pl_ds.h"
-#include "pl_memory.h"
+
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
+
+#include "pl_ds.h"
 
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_draw_backend_ext.h"
 #include "pl_starter_ext.h"
+
+// globe stuff
+#include "pl_mesh_ext.h"
+#include "pl_shader_ext.h"
+#include "pl_vfs_ext.h"
+#include "pl_ui_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -72,41 +75,51 @@ typedef struct _plAppData
     // window
     plWindow* ptWindow;
 
-    // drawing
-    plDrawList2D*  ptAppDrawlist;
-    plDrawLayer2D* ptFGLayer;
-
     // 3d drawing
     plCamera      tCamera;
     plDrawList3D* pt3dDrawlist;
 
-    // offscreen rendering
-    bool               bResize;
-    plSamplerHandle    tDefaultSampler;
-    plRenderPassHandle tOffscreenRenderPass;
-    plVec2             tOffscreenSize;
-    plTextureHandle    tColorTexture;
-    plBindGroupHandle  tColorTextureBg;
-    plTextureHandle    tDepthTexture;
+    // globe testing
+    uint32_t       uGlobeIndexCount;
+    uint32_t       uGlobeVertexCount;
+    plDVec3*       ptGlobeVertexBuffer;
+    plVec3*        ptGlobeVertexBuffer0;
+    plVec3*        ptGlobeVertexBuffer1;
+    uint32_t*      puGlobeIndexBuffer;
+    plBufferHandle tGlobeIndexBuffer;
+    plBufferHandle tGlobeVertexBuffer0;
+    plBufferHandle tGlobeVertexBuffer1;
+    plShaderHandle tGlobeShader;
+    plShaderHandle tGlobeWireframeShader;
 
+    // globe options
+    bool bWireframe;
 } plAppData;
+
+typedef struct _plTesselationTriangle
+{
+    plVec3   atPoints[3];
+    uint32_t uDivisionLevel;
+} plTesselationTriangle;
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-const plIOI*          gptIO          = NULL;
-const plWindowI*      gptWindows     = NULL;
-const plGraphicsI*    gptGfx         = NULL;
-const plDrawI*        gptDraw        = NULL;
-const plDrawBackendI* gptDrawBackend = NULL;
-const plStarterI*     gptStarter     = NULL;
+const plIOI*            gptIO            = NULL;
+const plWindowI*        gptWindows       = NULL;
+const plGraphicsI*      gptGfx           = NULL;
+const plDrawI*          gptDraw          = NULL;
+const plDrawBackendI*   gptDrawBackend   = NULL;
+const plStarterI*       gptStarter       = NULL;
+const plMeshBuilderI*   gptMeshBuilder   = NULL;
+const plShaderI*        gptShader        = NULL;
+const plVfsI*           gptVfs           = NULL;
+const plUiI*            gptUi            = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper function declarations
 //-----------------------------------------------------------------------------
-
-void resize_offscreen_resources(plAppData* ptAppData);
 
 // camera helpers
 void camera_translate(plCamera*, float fDx, float fDy, float fDz);
@@ -134,12 +147,17 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     {
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
-        gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
+        gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
+        
         gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
         gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
+        gptVfs         = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptMeshBuilder = pl_get_api_latest(ptApiRegistry, plMeshBuilderI);
+        gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
 
         return ptAppData;
     }
@@ -148,6 +166,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // allocate app memory here
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+
+    ptAppData->bWireframe = true;
 
     // retrieve extension registry
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
@@ -165,10 +185,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptVfs         = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptMeshBuilder = pl_get_api_latest(ptApiRegistry, plMeshBuilderI);
+    gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
+
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
-        .pcTitle = "Example GFX 4",
+        .pcTitle = "Example GFX 3",
         .iXPos   = 200,
         .iYPos   = 200,
         .uWidth  = 600,
@@ -176,195 +201,268 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
     gptWindows->show(ptAppData->ptWindow);
-    ptAppData->tOffscreenSize = (plVec2){600.0f, 600.0f};
 
-    // setup starter extension
     plStarterInit tStarterInit = {
         .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
 
+    // we want the starter extension to include a depth buffer
+    // when setting up the render pass
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
+    tStarterInit.tFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
+
     // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
     // etc. which we will get to in later examples
     gptStarter->initialize(tStarterInit);
+
+    // initialize shader extension (we are doing this ourselves so we can add additional shader directories)
+    static const plShaderOptions tDefaultShaderOptions = {
+        .apcIncludeDirectories = {
+            "../examples/shaders/"
+        },
+        .apcDirectories = {
+            "../shaders/",
+            "../examples/shaders/"
+        },
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
+    };
+    gptShader->initialize(&tDefaultShaderOptions);
 
     // give starter extension chance to do its work now that we
     // setup the shader extension
     gptStarter->finalize();
 
-    // request drawlist to render full screen quad
-    ptAppData->ptAppDrawlist = gptDraw->request_2d_drawlist();
-    ptAppData->ptFGLayer     = gptDraw->request_2d_layer(ptAppData->ptAppDrawlist);
-
-    // request 3D drawlist
-    ptAppData->pt3dDrawlist  = gptDraw->request_3d_drawlist();
-
-    // for convience
-    plDevice* ptDevice = gptStarter->get_device();
+    // request 3d drawlists
+    ptAppData->pt3dDrawlist = gptDraw->request_3d_drawlist();
 
     // create camera
     ptAppData->tCamera = (plCamera){
-        .tPos         = {5.0f, 10.0f, 10.0f},
+        .tPos         = {1737000.0, 0.0f, 0.0f},
         .fNearZ       = 0.01f,
         .fFarZ        = 50.0f,
         .fFieldOfView = PL_PI_3,
-        .fAspectRatio = ptAppData->tOffscreenSize.x / ptAppData->tOffscreenSize.y,
+        .fAspectRatio = 1.0f,
         .fYaw         = PL_PI + PL_PI_4,
         .fPitch       = -PL_PI_4,
     };
     camera_update(&ptAppData->tCamera);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~samplers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    plDevice* ptDevice = gptStarter->get_device();
 
-    // create default sampler
-    const plSamplerDesc tSamplerDesc = {
-        .tMagFilter      = PL_FILTER_LINEAR,
-        .tMinFilter      = PL_FILTER_LINEAR,
-        .fMinMip         = 0.0f,
-        .fMaxMip         = 64.0f,
-        .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .pcDebugName     = "default sampler"
-    };
-    ptAppData->tDefaultSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);
+    uint32_t uSubdivisions = 4;
 
-    // create offscreen per-frame resources
+    plMeshBuilderOptions tOptions = {0};
+    plMeshBuilder* ptBuilder = gptMeshBuilder->create(tOptions);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    plVec3 tP0 = (plVec3){ 0.0f, 1.0f, 0.0f};
+    plVec3 tP1 = (plVec3){ 0.0f, -1.0f / 3.0f, 2.0f * sqrtf(2.0f) / 3.0f};
+    plVec3 tP2 = (plVec3){-sqrtf(6.0f) / 3.0f, -1.0f / 3.0f, -sqrtf(2.0f) / 3.0f};
+    plVec3 tP3 = (plVec3){ sqrtf(6.0f) / 3.0f, -1.0f / 3.0f, -sqrtf(2.0f) / 3.0f};
 
-    const plTextureDesc tColorTextureDesc = {
-        .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-        .pcDebugName   = "offscreen color texture"
-    };
+    // plVec3 tRadi = {4.0f, 3.0f, 4.0f};
+    plVec3 tRadi = {1737000.0, 1737000.0, 1737000.0};
 
-    const plTextureDesc tDepthTextureDesc = {
-        .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
-        .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-        .pcDebugName   = "offscreen depth texture"
-    };
+    plTesselationTriangle* sbtTessTris = NULL;
+    pl_sb_push(sbtTessTris, ((plTesselationTriangle){.atPoints = {tP0, tP1, tP2}}));
+    pl_sb_push(sbtTessTris, ((plTesselationTriangle){.atPoints = {tP0, tP3, tP1}}));
+    pl_sb_push(sbtTessTris, ((plTesselationTriangle){.atPoints = {tP0, tP2, tP3}}));
+    pl_sb_push(sbtTessTris, ((plTesselationTriangle){.atPoints = {tP1, tP3, tP2}}));
 
-    // create textures
-    ptAppData->tColorTexture = gptGfx->create_texture(ptDevice, &tColorTextureDesc, NULL);
-    ptAppData->tDepthTexture = gptGfx->create_texture(ptDevice, &tDepthTextureDesc, NULL);
-
-    // retrieve textures (we aren't using the out params above since the second allocation
-    //                    could invalidate the first)
-    plTexture* ptColorTexture = gptGfx->get_texture(ptDevice, ptAppData->tColorTexture);
-    plTexture* ptDepthTexture = gptGfx->get_texture(ptDevice, ptAppData->tDepthTexture);
-
-    // allocate memory
-    const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(ptDevice, 
-        ptColorTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
-        "color texture memory");
-
-    const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(ptDevice, 
-        ptDepthTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
-        "depth texture memory");
-
-    // bind memory
-    gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tColorTexture, &tColorAllocation);
-    gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tDepthTexture, &tDepthAllocation);
-
-    // using a helper from the draw backend extension to allocate
-    // a bind group for use to use for drawing
-    ptAppData->tColorTextureBg = gptDrawBackend->create_bind_group_for_texture(ptAppData->tColorTexture);
-
-    // begin blit pass, copy buffer, end pass
-    plBlitEncoder* ptEncoder = gptStarter->get_blit_encoder();
-
-    // set the initial texture usage (this is a no-op in metal but does layout transition for vulkan)
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tColorTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
-
-    gptStarter->return_blit_encoder(ptEncoder);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~render pass stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // NOTE: even if you don't need to double buffer a texture, the number of
-    //       render pass attachment sets must equal the frames in flight
-    //       (backend implementation details require this currently)
-    //
-    // NOTE: Render passes directly map to render passes in Vulkan. In Metal
-    //       we emulate them by places appropriate barriers & fences.
-
-    plRenderPassAttachments atAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
-
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    while(pl_sb_size(sbtTessTris) > 0)
     {
-        // add textures to attachment set for render pass
-        atAttachmentSets[i].atViewAttachments[0] = ptAppData->tDepthTexture;
-        atAttachmentSets[i].atViewAttachments[1] = ptAppData->tColorTexture;
+        plTesselationTriangle tTri = pl_sb_pop(sbtTessTris);
+
+        if(tTri.uDivisionLevel < uSubdivisions)
+        {
+
+            plVec3 tP01 = pl_norm_vec3(pl_mul_vec3_scalarf(pl_add_vec3(tTri.atPoints[0], tTri.atPoints[1]), 0.5f));
+            plVec3 tP12 = pl_norm_vec3(pl_mul_vec3_scalarf(pl_add_vec3(tTri.atPoints[1], tTri.atPoints[2]), 0.5f));
+            plVec3 tP20 = pl_norm_vec3(pl_mul_vec3_scalarf(pl_add_vec3(tTri.atPoints[2], tTri.atPoints[0]), 0.5f));
+
+            plTesselationTriangle tTri0 = {
+                .atPoints       = {tP01, tTri.atPoints[1], tP12},
+                .uDivisionLevel =  tTri.uDivisionLevel + 1
+            };
+
+            plTesselationTriangle tTri1 = {
+                .atPoints       = {tTri.atPoints[0], tP01, tP20},
+                .uDivisionLevel =  tTri.uDivisionLevel + 1
+            };
+
+            plTesselationTriangle tTri2 = {
+                .atPoints       = {tP20, tP12, tTri.atPoints[2]},
+                .uDivisionLevel =  tTri.uDivisionLevel + 1
+            };
+
+            plTesselationTriangle tTri3 = {
+                .atPoints       = {tP01, tP12, tP20},
+                .uDivisionLevel =  tTri.uDivisionLevel + 1
+            };
+            
+            pl_sb_push(sbtTessTris, tTri0);
+            pl_sb_push(sbtTessTris, tTri1);
+            pl_sb_push(sbtTessTris, tTri2);
+            pl_sb_push(sbtTessTris, tTri3);
+        }
+        else
+        {
+            tTri.atPoints[0] = pl_mul_vec3(tTri.atPoints[0], tRadi);
+            tTri.atPoints[1] = pl_mul_vec3(tTri.atPoints[1], tRadi);
+            tTri.atPoints[2] = pl_mul_vec3(tTri.atPoints[2], tRadi);
+            gptMeshBuilder->add_triangle(ptBuilder, tTri.atPoints[0], tTri.atPoints[1], tTri.atPoints[2]);
+        }
     }
 
-    // create offscreen renderpass layout
-    const plRenderPassLayoutDesc tRenderPassLayoutDesc = {
-        .atRenderTargets = {
-            { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true }, // depth buffer
-            { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT } // color
-        },
-        .atSubpasses = {
-            {
-                .uRenderTargetCount = 2,
-                .auRenderTargets = {0, 1}, // these are indices into the render targets above (depth/resolve must be before colors)
-            },
-        },
-        .atSubpassDependencies = { // this map directly in Vulkan
-            {
-                .uSourceSubpass         = UINT32_MAX,
-                .uDestinationSubpass    = 0,
-                .tSourceStageMask       = PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tDestinationStageMask  = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tSourceAccessMask      = PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
-            {
-                .uSourceSubpass         = 0,
-                .uDestinationSubpass    = UINT32_MAX,
-                .tSourceStageMask       = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tDestinationStageMask  = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tSourceAccessMask      = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
-        }
+    pl_sb_free(sbtTessTris);
+
+    // build
+    gptMeshBuilder->commit(ptBuilder, NULL, NULL, &ptAppData->uGlobeIndexCount, &ptAppData->uGlobeVertexCount);
+    ptAppData->puGlobeIndexBuffer = (uint32_t*)malloc(sizeof(uint32_t) * ptAppData->uGlobeIndexCount);
+    ptAppData->ptGlobeVertexBuffer0 = (plVec3*)malloc(sizeof(plVec3) * ptAppData->uGlobeVertexCount);
+    gptMeshBuilder->commit(ptBuilder, ptAppData->puGlobeIndexBuffer, ptAppData->ptGlobeVertexBuffer0, &ptAppData->uGlobeIndexCount, &ptAppData->uGlobeVertexCount);
+    gptMeshBuilder->cleanup(ptBuilder);
+
+    // submit to GPU
+    plBufferDesc tVertexBufferDesc = {
+        .tUsage      = PL_BUFFER_USAGE_VERTEX,
+        .szByteSize  = sizeof(plVec3) * ptAppData->uGlobeVertexCount,
+        .pcDebugName = "vertex buffer",
     };
 
-    // create offscreen renderpass
-    const plRenderPassDesc tRenderPassDesc = {
-        .tLayout = gptGfx->create_render_pass_layout(ptDevice, &tRenderPassLayoutDesc),
-        .tDepthTarget = {
-                .tLoadOp         = PL_LOAD_OP_CLEAR,
-                .tStoreOp        = PL_STORE_OP_DONT_CARE,
-                .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
-                .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
-                .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .fClearZ         = 1.0f
+    plBufferDesc tIndexBufferDesc = {
+        .tUsage      = PL_BUFFER_USAGE_INDEX,
+        .szByteSize  = sizeof(uint32_t) * ptAppData->uGlobeIndexCount,
+        .pcDebugName = "index buffer",
+    };
+
+    ptAppData->tGlobeVertexBuffer0 = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
+    ptAppData->tGlobeIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, NULL);
+
+    plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tGlobeIndexBuffer);
+
+    const plDeviceMemoryAllocation tIndexMemory = gptGfx->allocate_memory(ptDevice,
+        ptIndexBuffer->tMemoryRequirements.ulSize,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
+        ptIndexBuffer->tMemoryRequirements.uMemoryTypeBits,
+        "clipmap index memory");
+
+    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tGlobeVertexBuffer0);
+
+    const plDeviceMemoryAllocation tVertexMemory = gptGfx->allocate_memory(ptDevice,
+        ptVertexBuffer->tMemoryRequirements.ulSize,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
+        ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
+        "clipmap vertex memory");
+
+    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tGlobeIndexBuffer, &tIndexMemory);
+    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tGlobeVertexBuffer0, &tVertexMemory);
+
+
+    size_t szMaxBufferSize = tVertexBufferDesc.szByteSize + tIndexBufferDesc.szByteSize;
+
+    // create staging buffer
+    plBufferDesc tStagingBufferDesc = {
+        .tUsage      = PL_BUFFER_USAGE_STAGING,
+        .szByteSize  = szMaxBufferSize,
+        .pcDebugName = "staging buffer"
+    };
+
+    plBuffer* ptStagingBuffer = NULL;
+    plBufferHandle tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, &ptStagingBuffer);
+
+    // allocate memory for the vertex buffer
+    const plDeviceMemoryAllocation tStagingBufferAllocation = gptGfx->allocate_memory(ptDevice,
+        ptStagingBuffer->tMemoryRequirements.ulSize,
+        PL_MEMORY_FLAGS_HOST_COHERENT | PL_MEMORY_FLAGS_HOST_VISIBLE,
+        ptStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
+        "staging buffer memory");
+
+    // bind the buffer to the new memory allocation
+    gptGfx->bind_buffer_to_memory(ptDevice, tStagingBuffer, &tStagingBufferAllocation);
+
+    memcpy(tStagingBufferAllocation.pHostMapped, ptAppData->puGlobeIndexBuffer, tIndexBufferDesc.szByteSize);
+    free(ptAppData->puGlobeIndexBuffer);
+    ptAppData->puGlobeIndexBuffer = NULL;
+    memcpy(&tStagingBufferAllocation.pHostMapped[tIndexBufferDesc.szByteSize], ptAppData->ptGlobeVertexBuffer0, tVertexBufferDesc.szByteSize);
+    free(ptAppData->ptGlobeVertexBuffer0);
+    ptAppData->ptGlobeVertexBuffer0 = NULL;
+
+
+    plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
+
+    plBlitEncoder* ptBlit = gptGfx->begin_blit_pass(ptCmdBuffer);
+    gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
+    gptGfx->copy_buffer(ptBlit, tStagingBuffer, ptAppData->tGlobeIndexBuffer, 0, 0, tIndexBufferDesc.szByteSize);
+    gptGfx->copy_buffer(ptBlit, tStagingBuffer, ptAppData->tGlobeVertexBuffer0, (uint32_t)tIndexBufferDesc.szByteSize, 0, tVertexBufferDesc.szByteSize);
+    gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->end_blit_pass(ptBlit);
+
+    gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
+
+    gptGfx->queue_buffer_for_deletion(ptDevice, tStagingBuffer);
+
+    plShaderDesc tGlobeShaderDesc = {
+        .tVertexShader     = gptShader->load_glsl("solid_single.vert", "main", NULL, NULL),
+        .tPixelShader      = gptShader->load_glsl("solid_single.frag", "main", NULL, NULL),
+        .tRenderPassLayout = gptStarter->get_render_pass_layout(),
+        .tMSAASampleCount  = PL_SAMPLE_COUNT_1,
+        .tGraphicsState = {
+            .ulDepthWriteEnabled  = 1,
+            .ulDepthMode          = PL_COMPARE_MODE_LESS,
+            .ulCullMode           = PL_CULL_MODE_NONE,
+            .ulWireframe          = 0,
+            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+            .ulStencilRef         = 0xff,
+            .ulStencilMask        = 0xff,
+            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
         },
-        .atColorTargets = {
+        .atVertexBufferLayouts = {
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .uByteStride = sizeof(float) * 3,
+                .atAttributes = {
+                    {.tFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                }
             }
         },
-        .tDimensions = {.x = ptAppData->tOffscreenSize.x, .y = ptAppData->tOffscreenSize.y}
+        .atBlendStates = {
+            {.bBlendEnabled = false}
+        },
     };
-    ptAppData->tOffscreenRenderPass = gptGfx->create_render_pass(ptDevice, &tRenderPassDesc, atAttachmentSets);
+    ptAppData->tGlobeShader = gptGfx->create_shader(ptDevice, &tGlobeShaderDesc);
+
+    plShaderDesc tGlobeWireframeShaderDesc = {
+        .tVertexShader     = gptShader->load_glsl("solid_single.vert", "main", NULL, NULL),
+        .tPixelShader      = gptShader->load_glsl("solid_single.frag", "main", NULL, NULL),
+        .tRenderPassLayout = gptStarter->get_render_pass_layout(),
+        .tMSAASampleCount  = PL_SAMPLE_COUNT_1,
+        .tGraphicsState = {
+            .ulDepthWriteEnabled  = 1,
+            .ulDepthMode          = PL_COMPARE_MODE_LESS,
+            .ulCullMode           = PL_CULL_MODE_NONE,
+            .ulWireframe          = 1,
+            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+            .ulStencilRef         = 0xff,
+            .ulStencilMask        = 0xff,
+            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
+        },
+        .atVertexBufferLayouts = {
+            {
+                .uByteStride = sizeof(float) * 3,
+                .atAttributes = {
+                    {.tFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                }
+            }
+        },
+        .atBlendStates = {
+            {.bBlendEnabled = false}
+        },
+    };
+    ptAppData->tGlobeWireframeShader = gptGfx->create_shader(ptDevice, &tGlobeWireframeShaderDesc);
 
     // return app memory
     return ptAppData;
@@ -378,13 +476,11 @@ PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
     plDevice* ptDevice = gptStarter->get_device();
-
-    // ensure the GPU is done with our resources
     gptGfx->flush_device(ptDevice);
-
-    // cleanup our resources
-    gptGfx->destroy_texture(ptDevice, ptAppData->tColorTexture);
-    gptGfx->destroy_texture(ptDevice, ptAppData->tDepthTexture);
+    gptGfx->destroy_buffer(ptDevice, ptAppData->tGlobeIndexBuffer);
+    gptGfx->destroy_buffer(ptDevice, ptAppData->tGlobeVertexBuffer0);
+    gptGfx->destroy_shader(ptDevice, ptAppData->tGlobeShader);
+    gptGfx->destroy_shader(ptDevice, ptAppData->tGlobeWireframeShader);
 
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
@@ -399,12 +495,6 @@ PL_EXPORT void
 pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     gptStarter->resize();
-
-    // NOTE: you could recreate the offscreen resources here but we prefer
-    //       not to do that since you could get several resize calls before
-    //       you actually get a chance to render again, so we defer until the
-    //       update.
-    ptAppData->bResize = true;
 
     plIO* ptIO = gptIO->get_io();
     ptAppData->tCamera.fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y;
@@ -423,15 +513,7 @@ pl_app_update(plAppData* ptAppData)
     // for convience
     plIO* ptIO = gptIO->get_io();
 
-    if(ptAppData->bResize)
-    {
-        ptAppData->tOffscreenSize.x = ptIO->tMainViewportSize.x;
-        ptAppData->tOffscreenSize.y = ptIO->tMainViewportSize.y;
-        resize_offscreen_resources(ptAppData);
-        ptAppData->bResize = false;
-    }
-
-    static const float fCameraTravelSpeed = 4.0f;
+    static const float fCameraTravelSpeed = 10000.0f;
     static const float fCameraRotationSpeed = 0.005f;
 
     plCamera* ptCamera = &ptAppData->tCamera;
@@ -454,77 +536,61 @@ pl_app_update(plAppData* ptAppData)
     }
     camera_update(ptCamera);
 
+    if(gptUi->begin_window("Debug", NULL, 0))
+    {
+        gptUi->checkbox("Wireframe", &ptAppData->bWireframe);
+        gptUi->end_window();
+    }
+
     // 3d drawing API usage
     const plMat4 tOrigin = pl_identity_mat4();
     gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 10.0f, (plDrawLineOptions){.fThickness = 0.2f});
 
-    plCylinder tCylinderDesc = {
-        .fRadius = 1.5f,
-        .tBasePos = {-2.5f, 1.0f, 0.0f},
-        .tTipPos  = {-2.5f, 4.0f, 0.0f}
-    };
-    gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, tCylinderDesc, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
-
-    gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
-        (plVec3){1.0f, 1.0f, 0.0f},
-        (plVec3){4.0f, 1.0f, 0.0f},
-        (plVec3){1.0f, 4.0f, 0.0f},
-        (plDrawSolidOptions){.uColor = PL_COLOR_32_YELLOW});
-
-    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist,
-        (plSphere){.fRadius = 1.0F, .tCenter = {5.5f, 2.5f, 0.0f}}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
-
-    gptDraw->add_3d_circle_xz_filled(ptAppData->pt3dDrawlist,
-        (plVec3){8.5f, 2.5f, 0.0f}, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
-
-    gptDraw->add_3d_band_xz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
-    gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 0.75f)});
-    gptDraw->add_3d_band_yz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 1.0f, 0.75f)});
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // submit our draw layers
-    gptDraw->submit_2d_layer(ptAppData->ptFGLayer);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~offscreen~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // NOTE: we are letting the starter extension handle command buffer management
-    //       and coarse syncronization (utilizing timeline semaphores to ensure
-    //       previous submissions are finished and this work finishes before the main
-    //       pass below)
-
-    // retrieve command buffer (already in recording state)
-    plCommandBuffer* ptCommandBuffer = gptStarter->get_command_buffer();
-
-    // begin offscreen renderpass
-    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tOffscreenRenderPass, NULL);
+    // start main pass & return the encoder being used
+    plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
-    // submit our 3D drawlist
+    plDevice* ptDevice = gptStarter->get_device();
+
+    plDynamicDataBlock tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(ptDevice);
+
+
+    plShaderHandle tShader = ptAppData->bWireframe ? ptAppData->tGlobeWireframeShader : ptAppData->tGlobeShader;
+
+    gptGfx->bind_shader(ptEncoder, tShader);
+    gptGfx->bind_vertex_buffer(ptEncoder, ptAppData->tGlobeVertexBuffer0);
+
+    typedef struct _plDynamicGlobeData {
+        
+        plMat4 tCameraViewProjection;
+        plVec3 tCameraPos;
+    } plDynamicGlobeData;
+
+    plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &tCurrentDynamicDataBlock);
+    plDynamicGlobeData* ptDynamicData = (plDynamicGlobeData*)tDynamicBinding.pcData;
+
+    ptDynamicData->tCameraViewProjection = tMVP;
+    ptDynamicData->tCameraPos = ptCamera->tPos;
+
+    gptGfx->bind_graphics_bind_groups(ptEncoder, tShader, 0, 0, NULL, 1, &tDynamicBinding);
+
+    plDrawIndex tDraw = {
+        .uInstanceCount = 1,
+        .uIndexCount    = ptAppData->uGlobeIndexCount,
+        .tIndexBuffer   = ptAppData->tGlobeIndexBuffer
+    };
+
+    gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
+
+    // submit 3d drawlist
     gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,
         ptEncoder,
-        ptAppData->tOffscreenSize.x,
-        ptAppData->tOffscreenSize.y,
+        ptIO->tMainViewportSize.x,
+        ptIO->tMainViewportSize.y,
         &tMVP,
-        PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
-
-    // end offscreen render pass
-    gptGfx->end_render_pass(ptEncoder);
-
-    // submit and return our command buffer
-    gptStarter->submit_command_buffer(ptCommandBuffer);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~main~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // add full screen quad for offscreen render
-    gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->tColorTextureBg.uData, (plVec2){0}, ptIO->tMainViewportSize);
-
-    // begin main renderpass (directly to swapchain)
-    plRenderEncoder* ptMainEncoder = gptStarter->begin_main_pass();
-
-    // submit drawlists
-    gptDrawBackend->submit_2d_drawlist(ptAppData->ptAppDrawlist, ptMainEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+        PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE,
+        gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();
@@ -607,92 +673,4 @@ camera_update(plCamera* ptCamera)
     ptCamera->tProjMat.col[2].w = 1.0f;
     ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
     ptCamera->tProjMat.col[3].w = 0.0f;  
-}
-
-void
-resize_offscreen_resources(plAppData* ptAppData)
-{
-    plDevice* ptDevice = gptStarter->get_device();
-
-    plBlitEncoder* ptEncoder = gptStarter->get_blit_encoder();
-
-    const plTextureDesc tColorTextureDesc = {
-        .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-        .pcDebugName   = "offscreen color texture"
-    };
-
-    const plTextureDesc tDepthTextureDesc = {
-        .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
-        .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-        .pcDebugName   = "offscreen depth texture"
-    };
-
-    // queue old resources for deletion
-    gptGfx->queue_texture_for_deletion(ptDevice, ptAppData->tColorTexture);
-    gptGfx->queue_texture_for_deletion(ptDevice, ptAppData->tDepthTexture);
-
-    // create new textures
-    ptAppData->tColorTexture = gptGfx->create_texture(ptDevice, &tColorTextureDesc, NULL);
-    ptAppData->tDepthTexture = gptGfx->create_texture(ptDevice, &tDepthTextureDesc, NULL);
-
-    // retrieve textures
-    plTexture* ptColorTexture = gptGfx->get_texture(ptDevice, ptAppData->tColorTexture);
-    plTexture* ptDepthTexture = gptGfx->get_texture(ptDevice, ptAppData->tDepthTexture);
-
-    const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(ptDevice, 
-        ptColorTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
-        "color texture memory");
-
-    const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(ptDevice, 
-        ptDepthTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
-        "depth texture memory");
-
-    // bind memory
-    gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tColorTexture, &tColorAllocation);
-    gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tDepthTexture, &tDepthAllocation);
-    
-    // set initialial usage
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tColorTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
-
-    // update our previous allocated bind group
-    const plBindGroupUpdateTextureData atBGTextureData[] = {
-        {
-            .tTexture = ptAppData->tColorTexture,
-            .uSlot    = 0,
-            .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
-        }
-    };
-    const plBindGroupUpdateData tBGData = {
-        .uTextureCount     = 1,
-        .atTextureBindings = atBGTextureData
-    };
-    gptGfx->update_bind_group(ptDevice, ptAppData->tColorTextureBg, &tBGData);
-
-    plRenderPassAttachments atAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
-
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-        // add textures to attachment set for render pass
-        atAttachmentSets[i].atViewAttachments[0] = ptAppData->tDepthTexture;
-        atAttachmentSets[i].atViewAttachments[1] = ptAppData->tColorTexture;
-    }
-
-    gptStarter->return_blit_encoder(ptEncoder);
-
-    // don't create new render pass, just update the attachments
-    gptGfx->update_render_pass_attachments(ptDevice, ptAppData->tOffscreenRenderPass, ptAppData->tOffscreenSize, atAttachmentSets);
 }

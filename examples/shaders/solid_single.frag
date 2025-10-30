@@ -6,8 +6,7 @@
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
     mat4 tCameraViewProjection;
-    vec4 tCameraPosHigh;
-    vec4 tCameraPosLow;
+    vec3 tCameraPos;
 } tObjectInfo;
 
 layout(location = 0) out vec4 outColor;
@@ -37,26 +36,33 @@ vec3 phongBRDF(vec3 lightDir, vec3 viewDir, vec3 normal, vec3 phongDiffuseCol, v
 
 void main() 
 {
-    // vec3 sunlightDirection = vec3(-1.0, -1.0, -1.0);
+    // vec3 sunlightColor = vec3(1.0, 1.0, 1.0);
+    vec3 sunlightDirection = vec3(-1.0, -1.0, -1.0);
 
-    // vec3 ambient = vec3(0);
+    // vec3 diffuse = vec3(0.7);
+    vec3 ambient = vec3(0);
 
-    // vec3 lightDir = normalize(sunlightDirection);
-    // vec3 viewDir = normalize(tShaderIn.tPosition - tObjectInfo.tCameraPosHigh.xyz);
-    // // vec3 viewDir = normalize(-tShaderIn.tPosition);
-    // vec3 n = normalize(tShaderIn.tPosition);
+    // outColor.rgb = diffuse * (max(0.0, dot(shadingNormal, w_i)) * sunlightColor + ambient) +
+    //         sunlightColor * (0.1 * pow(max(0.0, dot(shadingNormal, w_h)), 6));
 
-    // vec3 radiance = ambient;
+    // outColor.a = 1.0;
+
+    // new
+
+    vec3 lightDir = normalize(-sunlightDirection);
+    vec3 viewDir = normalize(-tObjectInfo.tCameraPos);
+    vec3 n = normalize(tShaderIn.tPosition);
+
+    vec3 radiance = ambient;
     
-    // float ddot = dot(lightDir, n);
-    // float irradiance = max(ddot, 0.0) * irradiPerp;
-    // if(irradiance > 0.0)
-    // {
-    //     vec3 brdf = phongBRDF(lightDir, viewDir, n, diffuseColor.rgb, specularColor.rgb, shininess);
-    //     radiance += brdf * irradiance * lightColor.rgb;
-    // }
+    float irradiance = max(dot(lightDir, n), 0.0) * irradiPerp;
+    if(irradiance > 0.0)
+    {
+        vec3 brdf = phongBRDF(lightDir, viewDir, n, diffuseColor.rgb, specularColor.rgb, shininess);
+        radiance += brdf * irradiance * lightColor.rgb;
+    }
 
-    // radiance = pow(radiance, vec3(1.0 / 2.2) ); // gamma correction
-    outColor.rgb = vec3(1.0);
+    radiance = pow(radiance, vec3(1.0 / 2.2) ); // gamma correction
+    outColor.rgb = radiance;
     outColor.a = 1.0;
 }

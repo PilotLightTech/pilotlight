@@ -41,6 +41,7 @@ Index of this file:
 
 #define plMeshI_version {0, 1, 0}
 #define plMeshBuilderI_version {0, 1, 0}
+#define plMeshBuilderDI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -105,6 +106,20 @@ typedef struct _plMeshBuilderI
     void (*commit)(plMeshBuilder*, uint32_t* indexBuffer, plVec3* vertexBuffer, uint32_t* indexBufferCountOut, uint32_t* vertexBufferCountOut);
 
 } plMeshBuilderI;
+
+typedef struct _plMeshBuilderDI
+{
+    // setup/shutdown
+    plMeshBuilder* (*create)(plMeshBuilderOptions);
+    void           (*cleanup)(plMeshBuilder*);
+
+    // adding
+    void (*add_triangle)(plMeshBuilder*, plDVec3, plDVec3, plDVec3);
+
+    // commit
+    void (*commit)(plMeshBuilder*, uint32_t* indexBuffer, plDVec3* vertexBuffer, uint32_t* indexBufferCountOut, uint32_t* vertexBufferCountOut);
+
+} plMeshBuilderDI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs

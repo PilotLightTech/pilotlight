@@ -50,7 +50,7 @@ Index of this file:
 
 typedef struct _plCamera
 {
-    plVec3 tPos;
+    plDVec3 tPos;
     float  fNearZ;
     float  fFarZ;
     float  fFieldOfView;
@@ -94,11 +94,14 @@ typedef struct _plAppData
 
     // globe options
     bool bWireframe;
+
+    // camera
+    float fCameraSpeed;
 } plAppData;
 
 typedef struct _plTesselationTriangle
 {
-    plVec3   atPoints[3];
+    plDVec3  atPoints[3];
     uint32_t uDivisionLevel;
 } plTesselationTriangle;
 
@@ -112,7 +115,7 @@ const plGraphicsI*      gptGfx           = NULL;
 const plDrawI*          gptDraw          = NULL;
 const plDrawBackendI*   gptDrawBackend   = NULL;
 const plStarterI*       gptStarter       = NULL;
-const plMeshBuilderI*   gptMeshBuilder   = NULL;
+const plMeshBuilderDI*  gptMeshBuilder   = NULL;
 const plShaderI*        gptShader        = NULL;
 const plVfsI*           gptVfs           = NULL;
 const plUiI*            gptUi            = NULL;
@@ -122,10 +125,29 @@ const plUiI*            gptUi            = NULL;
 //-----------------------------------------------------------------------------
 
 // camera helpers
-void camera_translate(plCamera*, float fDx, float fDy, float fDz);
+void camera_translate(plCamera*, double dDx, double dDy, double dDz);
 void camera_rotate   (plCamera*, float fDPitch, float fDYaw);
 void camera_rotate   (plCamera*, float fDPitch, float fDYaw);
 void camera_update   (plCamera*);
+
+static void
+pl__split_double(double dValue, float* ptHighOut, float* ptLowOut)
+{
+    // if(dValue >= 0.0)
+    // {
+    //     double dDoubleHigh = floor(dValue / 65536.0) * 65536.0;
+    //     *ptHighOut = (float)(dDoubleHigh);
+    //     *ptLowOut = (float)(dValue - dDoubleHigh);
+    // }
+    // else
+    // {
+    //     double dDoubleHigh = floor(-dValue / 65536.0) * 65536.0;
+    //     *ptHighOut = (float)(-dDoubleHigh);
+    //     *ptLowOut = (float)(dValue + dDoubleHigh);
+    // }
+    *ptHighOut = (float)dValue;
+    *ptLowOut = (float)(dValue - *ptHighOut);
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -156,7 +178,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
         gptVfs         = pl_get_api_latest(ptApiRegistry, plVfsI);
-        gptMeshBuilder = pl_get_api_latest(ptApiRegistry, plMeshBuilderI);
+        gptMeshBuilder = pl_get_api_latest(ptApiRegistry, plMeshBuilderDI);
         gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
 
         return ptAppData;
@@ -166,6 +188,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // allocate app memory here
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
+
+    ptAppData->bWireframe = true;
+    ptAppData->fCameraSpeed = 10000.0f;
 
     // retrieve extension registry
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
@@ -185,7 +210,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptVfs         = pl_get_api_latest(ptApiRegistry, plVfsI);
-    gptMeshBuilder = pl_get_api_latest(ptApiRegistry, plMeshBuilderI);
+    gptMeshBuilder = pl_get_api_latest(ptApiRegistry, plMeshBuilderDI);
     gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
 
 
@@ -223,7 +248,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             "../shaders/",
             "../examples/shaders/"
         },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE | PL_SHADER_FLAGS_INCLUDE_DEBUG
     };
     gptShader->initialize(&tDefaultShaderOptions);
 
@@ -236,9 +261,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create camera
     ptAppData->tCamera = (plCamera){
-        .tPos         = {5.0f, 10.0f, 10.0f},
+        .tPos         = {1737000.0, 0.0f, 0.0f},
         .fNearZ       = 0.01f,
-        .fFarZ        = 50.0f,
+        .fFarZ        = 100000.0f * 2,
         .fFieldOfView = PL_PI_3,
         .fAspectRatio = 1.0f,
         .fYaw         = PL_PI + PL_PI_4,
@@ -248,17 +273,18 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plDevice* ptDevice = gptStarter->get_device();
 
-    uint32_t uSubdivisions = 4;
+    uint32_t uSubdivisions = 6;
 
     plMeshBuilderOptions tOptions = {0};
     plMeshBuilder* ptBuilder = gptMeshBuilder->create(tOptions);
 
-    plVec3 tP0 = (plVec3){ 0.0f, 1.0f, 0.0f};
-    plVec3 tP1 = (plVec3){ 0.0f, -1.0f / 3.0f, 2.0f * sqrtf(2.0f) / 3.0f};
-    plVec3 tP2 = (plVec3){-sqrtf(6.0f) / 3.0f, -1.0f / 3.0f, -sqrtf(2.0f) / 3.0f};
-    plVec3 tP3 = (plVec3){ sqrtf(6.0f) / 3.0f, -1.0f / 3.0f, -sqrtf(2.0f) / 3.0f};
+    plDVec3 tP0 = (plDVec3){ 0.0, 1.0, 0.0};
+    plDVec3 tP1 = (plDVec3){ 0.0, -1.0 / 3.0, 2.0 * sqrt(2.0) / 3.0};
+    plDVec3 tP2 = (plDVec3){-sqrt(6.0) / 3.0, -1.0 / 3.0, -sqrt(2.0) / 3.0};
+    plDVec3 tP3 = (plDVec3){ sqrt(6.0) / 3.0, -1.0 / 3.0, -sqrt(2.0) / 3.0};
 
-    plVec3 tRadi = {4.0f, 3.0f, 4.0f};
+    // plDVec3 tRadi = {4.0, 3.0, 4.0};
+    plDVec3 tRadi = {1737000.0, 1737000.0, 1737000.0};
 
     plTesselationTriangle* sbtTessTris = NULL;
     pl_sb_push(sbtTessTris, ((plTesselationTriangle){.atPoints = {tP0, tP1, tP2}}));
@@ -273,9 +299,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         if(tTri.uDivisionLevel < uSubdivisions)
         {
 
-            plVec3 tP01 = pl_norm_vec3(pl_mul_vec3_scalarf(pl_add_vec3(tTri.atPoints[0], tTri.atPoints[1]), 0.5f));
-            plVec3 tP12 = pl_norm_vec3(pl_mul_vec3_scalarf(pl_add_vec3(tTri.atPoints[1], tTri.atPoints[2]), 0.5f));
-            plVec3 tP20 = pl_norm_vec3(pl_mul_vec3_scalarf(pl_add_vec3(tTri.atPoints[2], tTri.atPoints[0]), 0.5f));
+            plDVec3 tP01 = pl_norm_vec3_d(pl_mul_vec3_scalard(pl_add_vec3_d(tTri.atPoints[0], tTri.atPoints[1]), 0.5));
+            plDVec3 tP12 = pl_norm_vec3_d(pl_mul_vec3_scalard(pl_add_vec3_d(tTri.atPoints[1], tTri.atPoints[2]), 0.5));
+            plDVec3 tP20 = pl_norm_vec3_d(pl_mul_vec3_scalard(pl_add_vec3_d(tTri.atPoints[2], tTri.atPoints[0]), 0.5));
 
             plTesselationTriangle tTri0 = {
                 .atPoints       = {tP01, tTri.atPoints[1], tP12},
@@ -304,9 +330,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         }
         else
         {
-            tTri.atPoints[0] = pl_mul_vec3(tTri.atPoints[0], tRadi);
-            tTri.atPoints[1] = pl_mul_vec3(tTri.atPoints[1], tRadi);
-            tTri.atPoints[2] = pl_mul_vec3(tTri.atPoints[2], tRadi);
+            tTri.atPoints[0] = pl_mul_vec3_d(tTri.atPoints[0], tRadi);
+            tTri.atPoints[1] = pl_mul_vec3_d(tTri.atPoints[1], tRadi);
+            tTri.atPoints[2] = pl_mul_vec3_d(tTri.atPoints[2], tRadi);
             gptMeshBuilder->add_triangle(ptBuilder, tTri.atPoints[0], tTri.atPoints[1], tTri.atPoints[2]);
         }
     }
@@ -316,9 +342,20 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // build
     gptMeshBuilder->commit(ptBuilder, NULL, NULL, &ptAppData->uGlobeIndexCount, &ptAppData->uGlobeVertexCount);
     ptAppData->puGlobeIndexBuffer = (uint32_t*)malloc(sizeof(uint32_t) * ptAppData->uGlobeIndexCount);
-    ptAppData->ptGlobeVertexBuffer0 = (plVec3*)malloc(sizeof(plVec3) * ptAppData->uGlobeVertexCount);
-    gptMeshBuilder->commit(ptBuilder, ptAppData->puGlobeIndexBuffer, ptAppData->ptGlobeVertexBuffer0, &ptAppData->uGlobeIndexCount, &ptAppData->uGlobeVertexCount);
+    ptAppData->ptGlobeVertexBuffer = (plDVec3*)malloc(sizeof(plDVec3) * ptAppData->uGlobeVertexCount);
+    gptMeshBuilder->commit(ptBuilder, ptAppData->puGlobeIndexBuffer, ptAppData->ptGlobeVertexBuffer, &ptAppData->uGlobeIndexCount, &ptAppData->uGlobeVertexCount);
     gptMeshBuilder->cleanup(ptBuilder);
+
+    ptAppData->ptGlobeVertexBuffer0 = (plVec3*)malloc(sizeof(plVec3) * ptAppData->uGlobeVertexCount);
+    ptAppData->ptGlobeVertexBuffer1 = (plVec3*)malloc(sizeof(plVec3) * ptAppData->uGlobeVertexCount);
+
+    // split into 2 floats
+    for(uint32_t i = 0; i < ptAppData->uGlobeVertexCount; i++)
+    {
+        pl__split_double(ptAppData->ptGlobeVertexBuffer[i].x, &ptAppData->ptGlobeVertexBuffer0[i].x, &ptAppData->ptGlobeVertexBuffer1[i].x);
+        pl__split_double(ptAppData->ptGlobeVertexBuffer[i].y, &ptAppData->ptGlobeVertexBuffer0[i].y, &ptAppData->ptGlobeVertexBuffer1[i].y);
+        pl__split_double(ptAppData->ptGlobeVertexBuffer[i].z, &ptAppData->ptGlobeVertexBuffer0[i].z, &ptAppData->ptGlobeVertexBuffer1[i].z);
+    }
 
     // submit to GPU
     plBufferDesc tVertexBufferDesc = {
@@ -334,6 +371,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
 
     ptAppData->tGlobeVertexBuffer0 = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
+    ptAppData->tGlobeVertexBuffer1 = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
     ptAppData->tGlobeIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, NULL);
 
     plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tGlobeIndexBuffer);
@@ -346,14 +384,21 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tGlobeVertexBuffer0);
 
-    const plDeviceMemoryAllocation tVertexMemory = gptGfx->allocate_memory(ptDevice,
+    const plDeviceMemoryAllocation tVertexMemory0 = gptGfx->allocate_memory(ptDevice,
+        ptVertexBuffer->tMemoryRequirements.ulSize,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
+        ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
+        "clipmap vertex memory");
+
+    const plDeviceMemoryAllocation tVertexMemory1 = gptGfx->allocate_memory(ptDevice,
         ptVertexBuffer->tMemoryRequirements.ulSize,
         PL_MEMORY_FLAGS_DEVICE_LOCAL,
         ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
         "clipmap vertex memory");
 
     gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tGlobeIndexBuffer, &tIndexMemory);
-    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tGlobeVertexBuffer0, &tVertexMemory);
+    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tGlobeVertexBuffer0, &tVertexMemory0);
+    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tGlobeVertexBuffer1, &tVertexMemory1);
 
 
     size_t szMaxBufferSize = tVertexBufferDesc.szByteSize + tIndexBufferDesc.szByteSize;
@@ -389,10 +434,20 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
 
     plBlitEncoder* ptBlit = gptGfx->begin_blit_pass(ptCmdBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     gptGfx->copy_buffer(ptBlit, tStagingBuffer, ptAppData->tGlobeIndexBuffer, 0, 0, tIndexBufferDesc.szByteSize);
     gptGfx->copy_buffer(ptBlit, tStagingBuffer, ptAppData->tGlobeVertexBuffer0, (uint32_t)tIndexBufferDesc.szByteSize, 0, tVertexBufferDesc.szByteSize);
-    gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->end_blit_pass(ptBlit);
+
+    gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
+
+    memcpy(&tStagingBufferAllocation.pHostMapped[tIndexBufferDesc.szByteSize], ptAppData->ptGlobeVertexBuffer1, tVertexBufferDesc.szByteSize);
+    free(ptAppData->ptGlobeVertexBuffer1);
+    ptAppData->ptGlobeVertexBuffer1 = NULL;
+
+    ptCmdBuffer = gptStarter->get_temporary_command_buffer();
+
+    ptBlit = gptGfx->begin_blit_pass(ptCmdBuffer);
+    gptGfx->copy_buffer(ptBlit, tStagingBuffer, ptAppData->tGlobeVertexBuffer1, (uint32_t)tIndexBufferDesc.szByteSize, 0, tVertexBufferDesc.szByteSize);
     gptGfx->end_blit_pass(ptBlit);
 
     gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
@@ -406,7 +461,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .tMSAASampleCount  = PL_SAMPLE_COUNT_1,
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulWireframe          = 0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -417,6 +472,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
         },
         .atVertexBufferLayouts = {
+            {
+                .uByteStride = sizeof(float) * 3,
+                .atAttributes = {
+                    {.tFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                }
+            },
             {
                 .uByteStride = sizeof(float) * 3,
                 .atAttributes = {
@@ -437,7 +498,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .tMSAASampleCount  = PL_SAMPLE_COUNT_1,
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_LESS,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER,
             .ulCullMode           = PL_CULL_MODE_NONE,
             .ulWireframe          = 1,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
@@ -448,6 +509,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
         },
         .atVertexBufferLayouts = {
+            {
+                .uByteStride = sizeof(float) * 3,
+                .atAttributes = {
+                    {.tFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                }
+            },
             {
                 .uByteStride = sizeof(float) * 3,
                 .atAttributes = {
@@ -476,6 +543,7 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->flush_device(ptDevice);
     gptGfx->destroy_buffer(ptDevice, ptAppData->tGlobeIndexBuffer);
     gptGfx->destroy_buffer(ptDevice, ptAppData->tGlobeVertexBuffer0);
+    gptGfx->destroy_buffer(ptDevice, ptAppData->tGlobeVertexBuffer1);
     gptGfx->destroy_shader(ptDevice, ptAppData->tGlobeShader);
     gptGfx->destroy_shader(ptDevice, ptAppData->tGlobeWireframeShader);
 
@@ -510,20 +578,19 @@ pl_app_update(plAppData* ptAppData)
     // for convience
     plIO* ptIO = gptIO->get_io();
 
-    static const float fCameraTravelSpeed = 4.0f;
     static const float fCameraRotationSpeed = 0.005f;
 
     plCamera* ptCamera = &ptAppData->tCamera;
 
     // camera space
-    if(gptIO->is_key_down(PL_KEY_W)) camera_translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
-    if(gptIO->is_key_down(PL_KEY_S)) camera_translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
-    if(gptIO->is_key_down(PL_KEY_A)) camera_translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-    if(gptIO->is_key_down(PL_KEY_D)) camera_translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+    if(gptIO->is_key_down(PL_KEY_W)) camera_translate(ptCamera,  0.0f,  0.0f,  ptAppData->fCameraSpeed * ptIO->fDeltaTime);
+    if(gptIO->is_key_down(PL_KEY_S)) camera_translate(ptCamera,  0.0f,  0.0f, -ptAppData->fCameraSpeed* ptIO->fDeltaTime);
+    if(gptIO->is_key_down(PL_KEY_A)) camera_translate(ptCamera, -ptAppData->fCameraSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+    if(gptIO->is_key_down(PL_KEY_D)) camera_translate(ptCamera,  ptAppData->fCameraSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
 
     // world space
-    if(gptIO->is_key_down(PL_KEY_F)) { camera_translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
-    if(gptIO->is_key_down(PL_KEY_R)) { camera_translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+    if(gptIO->is_key_down(PL_KEY_F)) { camera_translate(ptCamera,  0.0f, -ptAppData->fCameraSpeed * ptIO->fDeltaTime,  0.0f); }
+    if(gptIO->is_key_down(PL_KEY_R)) { camera_translate(ptCamera,  0.0f,  ptAppData->fCameraSpeed * ptIO->fDeltaTime,  0.0f); }
 
     if(gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
     {
@@ -536,12 +603,14 @@ pl_app_update(plAppData* ptAppData)
     if(gptUi->begin_window("Debug", NULL, 0))
     {
         gptUi->checkbox("Wireframe", &ptAppData->bWireframe);
+        gptUi->input_float("Camera Speed", &ptAppData->fCameraSpeed, NULL, 0);
+        gptUi->input_float("Camera Far Plane", &ptAppData->tCamera.fFarZ, NULL, 0);
         gptUi->end_window();
     }
 
     // 3d drawing API usage
-    const plMat4 tOrigin = pl_identity_mat4();
-    gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 10.0f, (plDrawLineOptions){.fThickness = 0.2f});
+    // const plMat4 tOrigin = pl_identity_mat4();
+    // gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 10.0f, (plDrawLineOptions){.fThickness = 0.2f});
 
     // start main pass & return the encoder being used
     plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
@@ -557,18 +626,22 @@ pl_app_update(plAppData* ptAppData)
 
     gptGfx->bind_shader(ptEncoder, tShader);
     gptGfx->bind_vertex_buffer(ptEncoder, ptAppData->tGlobeVertexBuffer0);
+    gptGfx->bind_vertex_buffers(ptEncoder, 1, 1, &ptAppData->tGlobeVertexBuffer1, NULL);
 
     typedef struct _plDynamicGlobeData {
         
         plMat4 tCameraViewProjection;
-        plVec3 tCameraPos;
+        plVec4 tCameraPosHigh;
+        plVec4 tCameraPosLow;
     } plDynamicGlobeData;
 
     plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &tCurrentDynamicDataBlock);
     plDynamicGlobeData* ptDynamicData = (plDynamicGlobeData*)tDynamicBinding.pcData;
 
     ptDynamicData->tCameraViewProjection = tMVP;
-    ptDynamicData->tCameraPos = ptCamera->tPos;
+    pl__split_double(ptCamera->tPos.x, &ptDynamicData->tCameraPosHigh.x, &ptDynamicData->tCameraPosLow.x);
+    pl__split_double(ptCamera->tPos.y, &ptDynamicData->tCameraPosHigh.y, &ptDynamicData->tCameraPosLow.y);
+    pl__split_double(ptCamera->tPos.z, &ptDynamicData->tCameraPosHigh.z, &ptDynamicData->tCameraPosLow.z);
 
     gptGfx->bind_graphics_bind_groups(ptEncoder, tShader, 0, 0, NULL, 1, &tDynamicBinding);
 
@@ -580,14 +653,14 @@ pl_app_update(plAppData* ptAppData)
 
     gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
-    // submit 3d drawlist
-    gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,
-        ptEncoder,
-        ptIO->tMainViewportSize.x,
-        ptIO->tMainViewportSize.y,
-        &tMVP,
-        PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE,
-        gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
+    // // submit 3d drawlist
+    // gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,
+    //     ptEncoder,
+    //     ptIO->tMainViewportSize.x,
+    //     ptIO->tMainViewportSize.y,
+    //     &tMVP,
+    //     PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE,
+    //     gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();
@@ -611,11 +684,22 @@ wrap_angle(float tTheta)
 }
 
 void
-camera_translate(plCamera* ptCamera, float fDx, float fDy, float fDz)
+camera_translate(plCamera* ptCamera, double dDx, double dDy, double dDz)
 {
-    ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tRightVec, fDx));
-    ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tForwardVec, fDz));
-    ptCamera->tPos.y += fDy;
+    plDVec3 tRightVec = {
+        (double)ptCamera->_tRightVec.x,
+        (double)ptCamera->_tRightVec.y,
+        (double)ptCamera->_tRightVec.z
+    };
+
+    plDVec3 tForwardVec = {
+        (double)ptCamera->_tForwardVec.x,
+        (double)ptCamera->_tForwardVec.y,
+        (double)ptCamera->_tForwardVec.z
+    };
+    ptCamera->tPos = pl_add_vec3_d(ptCamera->tPos, pl_mul_vec3_scalard(tRightVec, dDx));
+    ptCamera->tPos = pl_add_vec3_d(ptCamera->tPos, pl_mul_vec3_scalard(tForwardVec, dDz));
+    ptCamera->tPos.y += dDy;
 }
 
 void
@@ -641,7 +725,8 @@ camera_update(plCamera* ptCamera)
     const plMat4 tXRotMat   = pl_mat4_rotate_vec3(ptCamera->fPitch, tOriginalRightVec.xyz);
     const plMat4 tYRotMat   = pl_mat4_rotate_vec3(ptCamera->fYaw, tOriginalUpVec.xyz);
     const plMat4 tZRotMat   = pl_mat4_rotate_vec3(ptCamera->fRoll, tOriginalForwardVec.xyz);
-    const plMat4 tTranslate = pl_mat4_translate_vec3((plVec3){ptCamera->tPos.x, ptCamera->tPos.y, ptCamera->tPos.z});
+    // const plMat4 tTranslate = pl_mat4_translate_vec3((plVec3){ptCamera->tPos.x, ptCamera->tPos.y, ptCamera->tPos.z});
+    const plMat4 tTranslate = pl_identity_mat4();
 
     // rotations: rotY * rotX * rotZ
     plMat4 tRotations = pl_mul_mat4t(&tXRotMat, &tZRotMat);
@@ -666,8 +751,8 @@ camera_update(plCamera* ptCamera)
     const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
     ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
     ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
-    ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
+    ptCamera->tProjMat.col[2].z = ptCamera->fNearZ / (ptCamera->fNearZ - ptCamera->fFarZ);
     ptCamera->tProjMat.col[2].w = 1.0f;
-    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
+    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
     ptCamera->tProjMat.col[3].w = 0.0f;  
 }

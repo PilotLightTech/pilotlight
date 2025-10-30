@@ -71,6 +71,7 @@ typedef struct _plMeshBuilder
 {
     plMeshBuilderOptions   tOptions;
     plVec3*                sbtVertices;
+    plDVec3*               sbtDVertices;
     plMeshBuilderTriangle* sbtTriangles;
 } plMeshBuilder;
 
@@ -702,6 +703,100 @@ pl_mesh_builder_commit(plMeshBuilder* ptBuilder, uint32_t* puIndexBuffer, plVec3
 }
 
 
+void
+pl_mesh_builder_add_triangle_double(plMeshBuilder* ptBuilder, plDVec3 tA, plDVec3 tB, plDVec3 tC)
+{
+    plMeshBuilderTriangle tTriangle;
+    tTriangle.uIndex0 = UINT32_MAX;
+    tTriangle.uIndex1 = UINT32_MAX;
+    tTriangle.uIndex2 = UINT32_MAX;
+
+    const double fWeldRadiusSqr = (double)(ptBuilder->tOptions.fWeldRadius * ptBuilder->tOptions.fWeldRadius);
+
+    const uint32_t uVertexCount = pl_sb_size(ptBuilder->sbtDVertices);
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        const plDVec3* ptVertex = &ptBuilder->sbtDVertices[i];
+
+        double fDist = pl_length_sqr_vec3_d(pl_sub_vec3_d(*ptVertex, tA));
+
+        if(fDist < fWeldRadiusSqr)
+        {
+            tTriangle.uIndex0 = i;
+            break;
+        }
+    }
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        const plDVec3* ptVertex = &ptBuilder->sbtDVertices[i];
+
+        double fDist = pl_length_sqr_vec3_d(pl_sub_vec3_d(*ptVertex, tB));
+
+        if(fDist < fWeldRadiusSqr)
+        {
+            tTriangle.uIndex1 = i;
+            break;
+        }
+    }
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        const plDVec3* ptVertex = &ptBuilder->sbtDVertices[i];
+
+        double fDist = pl_length_sqr_vec3_d(pl_sub_vec3_d(*ptVertex, tC));
+
+        if(fDist < fWeldRadiusSqr)
+        {
+            tTriangle.uIndex2 = i;
+            break;
+        }
+    }
+
+    if(tTriangle.uIndex0 == UINT32_MAX)
+    {
+        tTriangle.uIndex0 = pl_sb_size(ptBuilder->sbtDVertices);
+        pl_sb_push(ptBuilder->sbtDVertices, tA);
+    }
+
+    if(tTriangle.uIndex1 == UINT32_MAX)
+    {
+        tTriangle.uIndex1 = pl_sb_size(ptBuilder->sbtDVertices);
+        pl_sb_push(ptBuilder->sbtDVertices, tB);
+    }
+
+    if(tTriangle.uIndex2 == UINT32_MAX)
+    {
+        tTriangle.uIndex2 = pl_sb_size(ptBuilder->sbtDVertices);
+        pl_sb_push(ptBuilder->sbtDVertices, tC);
+    }
+
+    pl_sb_push(ptBuilder->sbtTriangles, tTriangle);
+}
+
+void
+pl_mesh_builder_commit_double(plMeshBuilder* ptBuilder, uint32_t* puIndexBuffer, plDVec3* ptVertexBuffer, uint32_t* puIndexBufferCountOut, uint32_t* puVertexBufferCountOut)
+{
+    const uint32_t uVertexCount = pl_sb_size(ptBuilder->sbtDVertices);
+    const uint32_t uTriangleCount = pl_sb_size(ptBuilder->sbtTriangles);
+    
+    if(puVertexBufferCountOut)
+        *puVertexBufferCountOut = uVertexCount;
+
+    if(puIndexBufferCountOut)
+        *puIndexBufferCountOut = uTriangleCount * 3;
+
+    if(puIndexBuffer && ptVertexBuffer)
+    {
+        memcpy(puIndexBuffer, ptBuilder->sbtTriangles, uTriangleCount * 3 * sizeof(uint32_t));
+        memcpy(ptVertexBuffer, ptBuilder->sbtDVertices, uVertexCount * sizeof(plDVec3));
+        pl_sb_reset(ptBuilder->sbtTriangles);
+        pl_sb_reset(ptBuilder->sbtDVertices);
+    }
+}
+
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -729,6 +824,14 @@ pl_load_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .commit       = pl_mesh_builder_commit,
     };
     pl_set_api(ptApiRegistry, plMeshBuilderI, &tApi2);
+
+    const plMeshBuilderDI tApi3 = {
+        .create       = pl_mesh_builder_create,
+        .cleanup      = pl_mesh_builder_cleanup,
+        .add_triangle = pl_mesh_builder_add_triangle_double,
+        .commit       = pl_mesh_builder_commit_double,
+    };
+    pl_set_api(ptApiRegistry, plMeshBuilderDI, &tApi3);
 
     gptECS    = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
@@ -759,4 +862,7 @@ pl_unload_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     const plMeshBuilderI* ptApi2 = pl_get_api_latest(ptApiRegistry, plMeshBuilderI);
     ptApiRegistry->remove_api(ptApi2);
+
+    const plMeshBuilderDI* ptApi3 = pl_get_api_latest(ptApiRegistry, plMeshBuilderDI);
+    ptApiRegistry->remove_api(ptApi3);
 }
