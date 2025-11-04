@@ -60,7 +60,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plStarterI_version {1, 2, 1}
+#define plStarterI_version {1, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -234,6 +234,7 @@ enum _plStarterFlags
     PL_STARTER_FLAGS_DEPTH_BUFFER = 1 << 9,
     PL_STARTER_FLAGS_MSAA         = 1 << 10,
     PL_STARTER_FLAGS_VSYNC_OFF    = 1 << 11,
+    PL_STARTER_FLAGS_REVERSE_Z    = 1 << 12,
 
     PL_STARTER_FLAGS_ALL_EXTENSIONS = PL_STARTER_FLAGS_SHADER_EXT | PL_STARTER_FLAGS_DRAW_EXT | PL_STARTER_FLAGS_UI_EXT |
                             PL_STARTER_FLAGS_CONSOLE_EXT | PL_STARTER_FLAGS_PROFILE_EXT | PL_STARTER_FLAGS_STATS_EXT |

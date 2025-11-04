@@ -1401,7 +1401,7 @@ pl__starter_create_render_pass_with_depth(void)
                 .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
                 .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .fClearZ         = 1.0f
+                .fClearZ         = gptStarterCtx->tFlags & PL_STARTER_FLAGS_REVERSE_Z ? 0.0f : 1.0f
         },
         .atColorTargets = {
             {
@@ -1493,7 +1493,7 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
                 .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
                 .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .fClearZ         = 1.0f
+                .fClearZ         = gptStarterCtx->tFlags & PL_STARTER_FLAGS_REVERSE_Z ? 0.0f : 1.0f
         },
         .tResolveTarget = { // swapchain image
             .tLoadOp       = PL_LOAD_OP_DONT_CARE,

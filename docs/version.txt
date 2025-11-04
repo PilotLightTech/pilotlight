@@ -72,7 +72,7 @@ the API is complete. It just means we won't break what currently exists.
 * Rectangle Packing   v1.0.0 (pl_rect_pack_ext.h)
 * Screen Log          v2.0.0 (pl_screen_log_ext.h)
 * Shader              v1.2.1 (pl_shader_ext.h)
-* Starter             v1.2.0 (pl_starter_ext.h)
+* Starter             v1.3.0 (pl_starter_ext.h)
 * Stats               v1.0.0 (pl_stats_ext.h)
 * String Interning    v1.0.1 (pl_string_intern_ext.h)
 * UI Tools            v1.0.0 (pl_tools_ext.h)
