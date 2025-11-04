@@ -71,6 +71,7 @@ typedef struct _plMeshBuilder
 {
     plMeshBuilderOptions   tOptions;
     plVec3*                sbtVertices;
+    plDVec3*               sbtVerticesD;
     plMeshBuilderTriangle* sbtTriangles;
 } plMeshBuilder;
 
@@ -701,6 +702,98 @@ pl_mesh_builder_commit(plMeshBuilder* ptBuilder, uint32_t* puIndexBuffer, plVec3
     }
 }
 
+void
+pl_mesh_builder_add_triangle_double(plMeshBuilder* ptBuilder, plDVec3 tA, plDVec3 tB, plDVec3 tC)
+{
+    plMeshBuilderTriangle tTriangle;
+    tTriangle.uIndex0 = UINT32_MAX;
+    tTriangle.uIndex1 = UINT32_MAX;
+    tTriangle.uIndex2 = UINT32_MAX;
+
+    const double fWeldRadiusSqr = (double)(ptBuilder->tOptions.fWeldRadius * ptBuilder->tOptions.fWeldRadius);
+
+    const uint32_t uVertexCount = pl_sb_size(ptBuilder->sbtVerticesD);
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        const plDVec3* ptVertex = &ptBuilder->sbtVerticesD[i];
+
+        double fDist = pl_length_sqr_vec3_d(pl_sub_vec3_d(*ptVertex, tA));
+
+        if(fDist < fWeldRadiusSqr)
+        {
+            tTriangle.uIndex0 = i;
+            break;
+        }
+    }
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        const plDVec3* ptVertex = &ptBuilder->sbtVerticesD[i];
+
+        double fDist = pl_length_sqr_vec3_d(pl_sub_vec3_d(*ptVertex, tB));
+
+        if(fDist < fWeldRadiusSqr)
+        {
+            tTriangle.uIndex1 = i;
+            break;
+        }
+    }
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        const plDVec3* ptVertex = &ptBuilder->sbtVerticesD[i];
+
+        double fDist = pl_length_sqr_vec3_d(pl_sub_vec3_d(*ptVertex, tC));
+
+        if(fDist < fWeldRadiusSqr)
+        {
+            tTriangle.uIndex2 = i;
+            break;
+        }
+    }
+
+    if(tTriangle.uIndex0 == UINT32_MAX)
+    {
+        tTriangle.uIndex0 = pl_sb_size(ptBuilder->sbtVerticesD);
+        pl_sb_push(ptBuilder->sbtVerticesD, tA);
+    }
+
+    if(tTriangle.uIndex1 == UINT32_MAX)
+    {
+        tTriangle.uIndex1 = pl_sb_size(ptBuilder->sbtVerticesD);
+        pl_sb_push(ptBuilder->sbtVerticesD, tB);
+    }
+
+    if(tTriangle.uIndex2 == UINT32_MAX)
+    {
+        tTriangle.uIndex2 = pl_sb_size(ptBuilder->sbtVerticesD);
+        pl_sb_push(ptBuilder->sbtVerticesD, tC);
+    }
+
+    pl_sb_push(ptBuilder->sbtTriangles, tTriangle);
+}
+
+void
+pl_mesh_builder_commit_double(plMeshBuilder* ptBuilder, uint32_t* puIndexBuffer, plDVec3* ptVertexBuffer, uint32_t* puIndexBufferCountOut, uint32_t* puVertexBufferCountOut)
+{
+    const uint32_t uVertexCount = pl_sb_size(ptBuilder->sbtVerticesD);
+    const uint32_t uTriangleCount = pl_sb_size(ptBuilder->sbtTriangles);
+    
+    if(puVertexBufferCountOut)
+        *puVertexBufferCountOut = uVertexCount;
+
+    if(puIndexBufferCountOut)
+        *puIndexBufferCountOut = uTriangleCount * 3;
+
+    if(puIndexBuffer && ptVertexBuffer)
+    {
+        memcpy(puIndexBuffer, ptBuilder->sbtTriangles, uTriangleCount * 3 * sizeof(uint32_t));
+        memcpy(ptVertexBuffer, ptBuilder->sbtVerticesD, uVertexCount * sizeof(plDVec3));
+        pl_sb_reset(ptBuilder->sbtTriangles);
+        pl_sb_reset(ptBuilder->sbtVerticesD);
+    }
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -723,10 +816,12 @@ pl_load_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plMeshI, &tApi);
 
     const plMeshBuilderI tApi2 = {
-        .create       = pl_mesh_builder_create,
-        .cleanup      = pl_mesh_builder_cleanup,
-        .add_triangle = pl_mesh_builder_add_triangle,
-        .commit       = pl_mesh_builder_commit,
+        .create              = pl_mesh_builder_create,
+        .cleanup             = pl_mesh_builder_cleanup,
+        .add_triangle        = pl_mesh_builder_add_triangle,
+        .add_triangle_double = pl_mesh_builder_add_triangle_double,
+        .commit              = pl_mesh_builder_commit,
+        .commit_double       = pl_mesh_builder_commit_double,
     };
     pl_set_api(ptApiRegistry, plMeshBuilderI, &tApi2);
 

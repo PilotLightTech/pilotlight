@@ -99,10 +99,12 @@ typedef struct _plMeshBuilderI
     void           (*cleanup)(plMeshBuilder*);
 
     // adding
-    void (*add_triangle)(plMeshBuilder*, plVec3, plVec3, plVec3);
+    void (*add_triangle)       (plMeshBuilder*, plVec3, plVec3, plVec3);
+    void (*add_triangle_double)(plMeshBuilder*, plDVec3, plDVec3, plDVec3);
 
     // commit
-    void (*commit)(plMeshBuilder*, uint32_t* indexBuffer, plVec3* vertexBuffer, uint32_t* indexBufferCountOut, uint32_t* vertexBufferCountOut);
+    void (*commit)       (plMeshBuilder*, uint32_t* indexBuffer, plVec3* vertexBuffer, uint32_t* indexBufferCountOut, uint32_t* vertexBufferCountOut);
+    void (*commit_double)(plMeshBuilder*, uint32_t* indexBuffer, plDVec3* vertexBuffer, uint32_t* indexBufferCountOut, uint32_t* vertexBufferCountOut);
 
 } plMeshBuilderI;
 
