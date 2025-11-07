@@ -20,8 +20,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_MEMORY_VERSION    "1.1.1"
-#define PL_MEMORY_VERSION_NUM 10101
+#define PL_MEMORY_VERSION    "1.1.2"
+#define PL_MEMORY_VERSION_NUM 10102
 
 /*
 Index of this file:
@@ -391,6 +391,7 @@ pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
     else
         pRequestedMemory = &ptAllocator->acStackBuffer[ptAllocator->szOffset];
 
+    szSize = (szSize + 7) & ~7;
     ptAllocator->szOffset += szSize;
     ptAllocator->szAvailableBytes -= szSize;
     return pRequestedMemory;
