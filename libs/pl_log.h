@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_LOG_VERSION    "1.0.0"
-#define PL_LOG_VERSION_NUM 10000
+#define PL_LOG_VERSION    "1.0.1"
+#define PL_LOG_VERSION_NUM 10001
 
 /*
 Index of this file:
@@ -690,13 +690,17 @@ pl__log_buffer_may_grow(plLogChannel* ptChannel, int iAdditionalSize)
     {
         char* pcOldBuffer = ptChannel->pcBuffer;
         size_t uNewCapacity = ptChannel->szBufferCapacity * 2;
+        size_t uOldCapacity = ptChannel->szBufferCapacity;
         if(uNewCapacity < ptChannel->szBufferSize + iAdditionalSize)
             uNewCapacity = (ptChannel->szBufferSize + (size_t)iAdditionalSize) * 2;
         ptChannel->pcBuffer = (char*)PL_LOG_ALLOC(uNewCapacity * 2);
         memset(ptChannel->pcBuffer, 0, uNewCapacity * 2);
-        memcpy(ptChannel->pcBuffer, pcOldBuffer, ptChannel->szBufferCapacity);
         ptChannel->szBufferCapacity = uNewCapacity;
-        PL_LOG_FREE(pcOldBuffer);
+        if(pcOldBuffer)
+        {
+            memcpy(ptChannel->pcBuffer, pcOldBuffer, uOldCapacity);
+            PL_LOG_FREE(pcOldBuffer);
+        }
     }
 }
 
