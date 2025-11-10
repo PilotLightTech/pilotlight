@@ -56,8 +56,11 @@ typedef struct _plCamera
     float  fFieldOfView;
     float  fAspectRatio;  // width/height
     plMat4 tViewMat;      // cached
+    plMat4 tViewMat2;      // cached
     plMat4 tProjMat;      // cached
+    plMat4 tProjMat2;      // cached
     plMat4 tTransformMat; // cached
+    plMat4 tTransformMat2; // cached
 
     // rotations
     float fPitch; // rotation about right vector
@@ -129,6 +132,7 @@ void camera_translate(plCamera*, double dDx, double dDy, double dDz);
 void camera_rotate   (plCamera*, float fDPitch, float fDYaw);
 void camera_rotate   (plCamera*, float fDPitch, float fDYaw);
 void camera_update   (plCamera*);
+void camera_update2   (plCamera*);
 
 static void
 pl__split_double(double dValue, float* ptHighOut, float* ptLowOut)
@@ -147,6 +151,37 @@ pl__split_double(double dValue, float* ptHighOut, float* ptLowOut)
     // }
     *ptHighOut = (float)dValue;
     *ptLowOut = (float)(dValue - *ptHighOut);
+}
+
+static void
+draw_point(plAppData* ptAppData, float fLongitude, float fLatitude, uint32_t uColor)
+{
+
+    fLongitude = pl_radiansf(fLongitude);
+    fLatitude = pl_radiansf(fLatitude);
+
+    plSphere tSphere = {
+        .fRadius = 10000.0f,
+    };
+
+    // PL COORDINATES 
+    plVec3 N = {
+        cosf(fLatitude) * sinf(fLongitude),
+        sinf(fLatitude),
+        cosf(fLatitude) * cosf(fLongitude)
+    };
+
+    float R = 1737400.0;
+    float R2 = R * R;
+
+    float v = sqrtf(R2 * pl_square(N.x) + R2 * pl_square(N.y) + R2 * pl_square(N.z));
+    plVec3 P = {
+        R2 * N.x / v,
+        R2 * N.y / v,
+        R2 * N.z / v
+    };
+    tSphere.tCenter = P;
+    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, tSphere, 0, 0, (plDrawSolidOptions){.uColor = uColor});
 }
 
 //-----------------------------------------------------------------------------
@@ -189,8 +224,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
 
-    ptAppData->bWireframe = true;
-    ptAppData->fCameraSpeed = 10000.0f;
+
+    ptAppData->bWireframe = false;
+    ptAppData->fCameraSpeed = 1000000.0f;
 
     // retrieve extension registry
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
@@ -262,9 +298,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create camera
     ptAppData->tCamera = (plCamera){
-        .tPos         = {1737000.0, 0.0f, 0.0f},
+        .tPos         = {1737500.0, 0.0f, 0.0f},
         .fNearZ       = 0.01f,
-        .fFarZ        = 100000.0f * 2,
+        .fFarZ        = 5000000.0f,
         .fFieldOfView = PL_PI_3,
         .fAspectRatio = 1.0f,
         .fYaw         = PL_PI + PL_PI_4,
@@ -285,7 +321,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plDVec3 tP3 = (plDVec3){ sqrt(6.0) / 3.0, -1.0 / 3.0, -sqrt(2.0) / 3.0};
 
     // plDVec3 tRadi = {4.0, 3.0, 4.0};
-    plDVec3 tRadi = {1737000.0, 1737000.0, 1737000.0};
+    plDVec3 tRadi = {1737400.0, 1737400.0, 1737400.0};
 
     plTesselationTriangle* sbtTessTris = NULL;
     pl_sb_push(sbtTessTris, ((plTesselationTriangle){.atPoints = {tP0, tP1, tP2}}));
@@ -334,7 +370,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             tTri.atPoints[0] = pl_mul_vec3_d(tTri.atPoints[0], tRadi);
             tTri.atPoints[1] = pl_mul_vec3_d(tTri.atPoints[1], tRadi);
             tTri.atPoints[2] = pl_mul_vec3_d(tTri.atPoints[2], tRadi);
-            gptMeshBuilder->add_triangle_double(ptBuilder, tTri.atPoints[0], tTri.atPoints[1], tTri.atPoints[2]);
+            gptMeshBuilder->add_triangle_double(ptBuilder, tTri.atPoints[2], tTri.atPoints[1], tTri.atPoints[0]);
         }
     }
 
@@ -462,8 +498,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .tMSAASampleCount  = PL_SAMPLE_COUNT_1,
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_GREATER,
-            .ulCullMode           = PL_CULL_MODE_NONE,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+            .ulCullMode           = PL_CULL_MODE_CULL_BACK,
             .ulWireframe          = 0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
@@ -487,7 +523,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             }
         },
         .atBlendStates = {
-            {.bBlendEnabled = false}
+            {
+                .bBlendEnabled   = true,
+                .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .tColorOp        = PL_BLEND_OP_ADD,
+                .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .tAlphaOp        = PL_BLEND_OP_ADD
+            }
         },
     };
     ptAppData->tGlobeShader = gptGfx->create_shader(ptDevice, &tGlobeShaderDesc);
@@ -499,8 +543,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .tMSAASampleCount  = PL_SAMPLE_COUNT_1,
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_GREATER,
-            .ulCullMode           = PL_CULL_MODE_NONE,
+            .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+            .ulCullMode           = PL_CULL_MODE_CULL_BACK,
             .ulWireframe          = 1,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
@@ -524,7 +568,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             }
         },
         .atBlendStates = {
-            {.bBlendEnabled = false}
+            {
+                .bBlendEnabled   = true,
+                .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .tColorOp        = PL_BLEND_OP_ADD,
+                .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .tAlphaOp        = PL_BLEND_OP_ADD
+            }
         },
     };
     ptAppData->tGlobeWireframeShader = gptGfx->create_shader(ptDevice, &tGlobeWireframeShaderDesc);
@@ -583,6 +635,55 @@ pl_app_update(plAppData* ptAppData)
 
     plCamera* ptCamera = &ptAppData->tCamera;
 
+    if(gptIO->is_key_pressed(PL_KEY_P, false))
+    {
+        plShaderDesc tGlobeShaderDesc = {
+            .tVertexShader     = gptShader->load_glsl("solid.vert", "main", NULL, NULL),
+            .tPixelShader      = gptShader->load_glsl("solid.frag", "main", NULL, NULL),
+            .tRenderPassLayout = gptStarter->get_render_pass_layout(),
+            .tMSAASampleCount  = PL_SAMPLE_COUNT_1,
+            .tGraphicsState = {
+                .ulDepthWriteEnabled  = 1,
+                .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
+                .ulCullMode           = PL_CULL_MODE_CULL_BACK,
+                .ulWireframe          = 0,
+                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .ulStencilRef         = 0xff,
+                .ulStencilMask        = 0xff,
+                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
+            },
+            .atVertexBufferLayouts = {
+                {
+                    .uByteStride = sizeof(float) * 3,
+                    .atAttributes = {
+                        {.tFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                },
+                {
+                    .uByteStride = sizeof(float) * 3,
+                    .atAttributes = {
+                        {.tFormat = PL_VERTEX_FORMAT_FLOAT3 }
+                    }
+                }
+            },
+            .atBlendStates = {
+                {
+                    .bBlendEnabled   = true,
+                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .tColorOp        = PL_BLEND_OP_ADD,
+                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .tAlphaOp        = PL_BLEND_OP_ADD
+                }
+            },
+        };
+        gptGfx->queue_shader_for_deletion(gptStarter->get_device(), ptAppData->tGlobeShader);
+        ptAppData->tGlobeShader = gptGfx->create_shader(gptStarter->get_device(), &tGlobeShaderDesc);
+    }
+
     // camera space
     if(gptIO->is_key_down(PL_KEY_W)) camera_translate(ptCamera,  0.0f,  0.0f,  ptAppData->fCameraSpeed * ptIO->fDeltaTime);
     if(gptIO->is_key_down(PL_KEY_S)) camera_translate(ptCamera,  0.0f,  0.0f, -ptAppData->fCameraSpeed* ptIO->fDeltaTime);
@@ -600,6 +701,7 @@ pl_app_update(plAppData* ptAppData)
         gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
     camera_update(ptCamera);
+    camera_update2(ptCamera);
 
     if(gptUi->begin_window("Debug", NULL, 0))
     {
@@ -610,13 +712,80 @@ pl_app_update(plAppData* ptAppData)
     }
 
     // 3d drawing API usage
-    // const plMat4 tOrigin = pl_identity_mat4();
-    // gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 10.0f, (plDrawLineOptions){.fThickness = 0.2f});
+    const plMat4 tOrigin = pl_identity_mat4();
+    gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 1.1f * 1737400.0f, (plDrawLineOptions){.fThickness = 1000.0f});
+
+
+    draw_point(ptAppData, 0.0f,  0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, 15.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, 30.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, 45.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, 60.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, 75.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, 90.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, -15.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, -30.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, -45.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, -60.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, -75.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 0.0f, -90.0f, PL_COLOR_32_YELLOW);
+
+    draw_point(ptAppData, 15.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 30.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 45.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 60.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 75.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, 90.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, -15.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, -30.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, -45.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, -60.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, -75.0f, 0.0f, PL_COLOR_32_YELLOW);
+    draw_point(ptAppData, -90.0f, 0.0f, PL_COLOR_32_YELLOW);
+
+    draw_point(ptAppData, -45.0f, -29.0f, PL_COLOR_32_GREEN);
+    draw_point(ptAppData, -135.0f, -29.0f, PL_COLOR_32_GREEN);
+    draw_point(ptAppData, 45.0f, -29.0f, PL_COLOR_32_GREEN);
+    draw_point(ptAppData, 135.0f, -29.0f, PL_COLOR_32_GREEN);
+
+    float fLongitude = 45.0f;
+    float fLatitude = -29.0f;
+
+    fLongitude = pl_radiansf(fLongitude);
+    fLatitude = pl_radiansf(fLatitude);
+
+    float R = 1737400.0;
+    // gptDraw->add_3d_plane_yz_filled(ptAppData->pt3dDrawlist, (plVec3){0}, R * 4.0f, R * 4.0f, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 0.5f)});
+
+    plVec3 N = {
+        cosf(fLatitude) * sinf(fLongitude),
+        sinf(fLatitude),
+        cosf(fLatitude) * cosf(fLongitude)
+    };
+
+    float R2 = R * R;
+
+    float v = sqrtf(R2 * pl_square(N.x) + R2 * pl_square(N.y) + R2 * pl_square(N.z));
+    plVec3 P = {
+        R2 * N.x / v,
+        // R2 * N.y / v,
+        // R2 * N.z / v
+    };
+
+    gptDraw->add_3d_plane_yz_filled(ptAppData->pt3dDrawlist, P, R * 2.0f, R * 2.0f, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.5f)});
+
+
+    plSphere tSphere = {
+        .fRadius = 10000.0f,
+        .tCenter = P
+    };
+    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, tSphere, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_WHITE});
 
     // start main pass & return the encoder being used
     plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
+    const plMat4 tMVP2 = pl_mul_mat4(&ptCamera->tProjMat2, &ptCamera->tViewMat2);
 
     plDevice* ptDevice = gptStarter->get_device();
 
@@ -654,14 +823,14 @@ pl_app_update(plAppData* ptAppData)
 
     gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
-    // // submit 3d drawlist
-    // gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,
-    //     ptEncoder,
-    //     ptIO->tMainViewportSize.x,
-    //     ptIO->tMainViewportSize.y,
-    //     &tMVP,
-    //     PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE,
-    //     gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
+    // submit 3d drawlist
+    gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,
+        ptEncoder,
+        ptIO->tMainViewportSize.x,
+        ptIO->tMainViewportSize.y,
+        &tMVP2,
+        PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE | PL_DRAW_FLAG_REVERSE_Z_DEPTH,
+        gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();
@@ -756,4 +925,48 @@ camera_update(plCamera* ptCamera)
     ptCamera->tProjMat.col[2].w = 1.0f;
     ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
     ptCamera->tProjMat.col[3].w = 0.0f;  
+}
+
+void
+camera_update2(plCamera* ptCamera)
+{
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // world space
+    static const plVec4 tOriginalUpVec      = {0.0f, 1.0f, 0.0f, 0.0f};
+    static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, 1.0f, 0.0f};
+    static const plVec4 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f, 0.0f};
+
+    const plMat4 tXRotMat   = pl_mat4_rotate_vec3(ptCamera->fPitch, tOriginalRightVec.xyz);
+    const plMat4 tYRotMat   = pl_mat4_rotate_vec3(ptCamera->fYaw, tOriginalUpVec.xyz);
+    const plMat4 tZRotMat   = pl_mat4_rotate_vec3(ptCamera->fRoll, tOriginalForwardVec.xyz);
+    const plMat4 tTranslate = pl_mat4_translate_vec3((plVec3){(float)ptCamera->tPos.x, (float)ptCamera->tPos.y, (float)ptCamera->tPos.z});
+
+    // rotations: rotY * rotX * rotZ
+    plMat4 tRotations = pl_mul_mat4t(&tXRotMat, &tZRotMat);
+    tRotations        = pl_mul_mat4t(&tYRotMat, &tRotations);
+
+    // update camera vectors
+    ptCamera->_tRightVec   = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalRightVec)).xyz;
+    ptCamera->_tUpVec      = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalUpVec)).xyz;
+    ptCamera->_tForwardVec = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalForwardVec)).xyz;
+
+    // update camera transform: translate * rotate
+    ptCamera->tTransformMat2 = pl_mul_mat4t(&tTranslate, &tRotations);
+
+    // update camera view matrix
+    ptCamera->tViewMat2   = pl_mat4t_invert(&ptCamera->tTransformMat2);
+
+    // flip x & y so camera looks down +z and remains right handed (+x to the right)
+    const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
+    ptCamera->tViewMat2   = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat2);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
+    ptCamera->tProjMat2.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
+    ptCamera->tProjMat2.col[1].y = fInvtanHalfFovy;
+    ptCamera->tProjMat2.col[2].z = ptCamera->fNearZ / (ptCamera->fNearZ - ptCamera->fFarZ);
+    ptCamera->tProjMat2.col[2].w = 1.0f;
+    ptCamera->tProjMat2.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
+    ptCamera->tProjMat2.col[3].w = 0.0f;  
 }

@@ -15,6 +15,7 @@ layout(location = 1) in vec3 inLowPos;
 
 layout(location = 0) out struct plShaderOut {
     vec3 tPosition;
+    vec3 tActualPosition;
 } tShaderIn;
 
 void main()
@@ -31,5 +32,6 @@ void main()
 
 
     tShaderIn.tPosition = lowDifference + highDifference;
+    tShaderIn.tActualPosition = inHighPos;
     gl_Position = tObjectInfo.tCameraViewProjection * vec4(tShaderIn.tPosition, 1.0);
 }
