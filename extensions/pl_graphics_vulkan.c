@@ -2424,9 +2424,9 @@ pl_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex *
 
     for (uint32_t i = 0; i < uCount; i++)
     {
-        if (atDraws->tIndexBuffer.uIndex != uCurrentIndexBuffer)
+        if (atDraws[i].tIndexBuffer.uIndex != uCurrentIndexBuffer)
         {
-            uCurrentIndexBuffer = atDraws->tIndexBuffer.uIndex;
+            uCurrentIndexBuffer = atDraws[i].tIndexBuffer.uIndex;
             plVulkanBuffer* ptIndexBuffer = &ptDevice->sbtBuffersHot[uCurrentIndexBuffer];
             vkCmdBindIndexBuffer(ptCmdBuffer->tCmdBuffer, ptIndexBuffer->tBuffer, 0, VK_INDEX_TYPE_UINT32);
         }
