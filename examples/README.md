@@ -69,6 +69,15 @@ Demonstrates:
 Demonstrates:
 * Dear ImGui integration
 
+### Example 2 - Starter & Draw & Collision (example_basic_6.c)
+Demonstrates:
+* loading APIs
+* loading extensions
+* starter extension
+* basic drawing extension (3D)
+* basic screen log extension
+* collision extension
+
 ## Low Level Graphics Examples
 
 ### Example 0 - Graphics Extension 0 (example_gfx_0.c)

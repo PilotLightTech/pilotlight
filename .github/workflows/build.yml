@@ -63,6 +63,7 @@ jobs:
         if not exist ../out/example_basic_2.dll exit 1
         if not exist ../out/example_basic_3.dll exit 1
         if not exist ../out/example_basic_4.dll exit 1
+        if not exist ../out/example_basic_6.dll exit 1
         if not exist ../out/example_gfx_0.dll exit 1
         if not exist ../out/example_gfx_1.dll exit 1
         if not exist ../out/example_gfx_2.dll exit 1
@@ -136,6 +137,7 @@ jobs:
         if not exist ../out/example_basic_2.dll exit 1
         if not exist ../out/example_basic_3.dll exit 1
         if not exist ../out/example_basic_4.dll exit 1
+        if not exist ../out/example_basic_6.dll exit 1
         if not exist ../out/example_gfx_0.dll exit 1
         if not exist ../out/example_gfx_1.dll exit 1
         if not exist ../out/example_gfx_2.dll exit 1
@@ -255,6 +257,7 @@ jobs:
         test -f ./out/example_basic_2.dylib || exit 1
         test -f ./out/example_basic_3.dylib || exit 1
         test -f ./out/example_basic_4.dylib || exit 1
+        test -f ./out/example_basic_6.dylib || exit 1
         test -f ./out/example_gfx_0.dylib || exit 1
         test -f ./out/example_gfx_1.dylib || exit 1
         test -f ./out/example_gfx_2.dylib || exit 1
@@ -339,6 +342,7 @@ jobs:
         test -f ./out/example_basic_2.dylib || exit 1
         test -f ./out/example_basic_3.dylib || exit 1
         test -f ./out/example_basic_4.dylib || exit 1
+        test -f ./out/example_basic_6.dylib || exit 1
         test -f ./out/example_gfx_0.dylib || exit 1
         test -f ./out/example_gfx_1.dylib || exit 1
         test -f ./out/example_gfx_2.dylib || exit 1
@@ -473,6 +477,7 @@ jobs:
         test -f ./out/example_basic_2.so || exit 1
         test -f ./out/example_basic_3.so || exit 1
         test -f ./out/example_basic_4.so || exit 1
+        test -f ./out/example_basic_6.so || exit 1
         test -f ./out/example_gfx_0.so || exit 1
         test -f ./out/example_gfx_1.so || exit 1
         test -f ./out/example_gfx_2.so || exit 1
@@ -557,6 +562,7 @@ jobs:
         test -f ./out/example_basic_2.so || exit 1
         test -f ./out/example_basic_3.so || exit 1
         test -f ./out/example_basic_4.so || exit 1
+        test -f ./out/example_basic_6.so || exit 1
         test -f ./out/example_gfx_0.so || exit 1
         test -f ./out/example_gfx_1.so || exit 1
         test -f ./out/example_gfx_2.so || exit 1

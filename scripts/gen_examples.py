@@ -51,6 +51,7 @@ with pl.project("pilotlight_examples"):
         'example_basic_2',
         'example_basic_3',
         'example_basic_4',
+        'example_basic_6',
         'example_gfx_0',
         'example_gfx_1',
         'example_gfx_2',

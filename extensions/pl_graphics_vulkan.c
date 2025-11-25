@@ -4385,7 +4385,8 @@ pl_cleanup_command_pool(plCommandPool* ptPool)
 void
 pl_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags tFlags)
 {
-    for (uint32_t i = 0; i < pl_sb_size(ptPool->sbtPendingCommandBuffers); i++)
+    const uint32_t uCommandBufferCount = pl_sb_size(ptPool->sbtPendingCommandBuffers);
+    for (uint32_t i = 0; i < uCommandBufferCount; i++)
     {
         pl_sb_push(ptPool->sbtReadyCommandBuffers, ptPool->sbtPendingCommandBuffers[i]);
     }
