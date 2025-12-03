@@ -1195,6 +1195,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .begin_blit_pass                        = pl_begin_blit_pass,
         .end_blit_pass                          = pl_end_blit_pass,
         .set_texture_usage                      = pl_set_texture_usage,
+        .set_texture_usage_ex                   = pl_set_texture_usage_ex,
         .draw_stream                            = pl_draw_stream,
         .draw                                   = pl_draw,
         .draw_indexed                           = pl_draw_indexed,

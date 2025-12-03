@@ -9,6 +9,7 @@ away, please see git history for details.
                       (draw)     add draw callbacks
                       (starter)  added reverse z depth buffer support (v1.3.0)
                       (graphics) fix draw_indexed multiple index buffers (v1.5.1)
+                      (graphics) fix new validation layer errors (v1.5.2)
 - v0.6.2 (2025-10-08) (draw) performance improvements
                       (draw) fix draw 3d plane issues
                       (draw) add text transforms

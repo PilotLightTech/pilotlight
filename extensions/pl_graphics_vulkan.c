@@ -1357,6 +1357,30 @@ pl_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextur
 }
 
 void
+pl_set_texture_usage_ex(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
+{
+    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+
+    plTexture* ptTexture = pl__get_texture(ptDevice, tHandle);
+    plVulkanTexture* ptVulkanTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
+
+    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
+        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+    VkImageSubresourceRange tRange = {
+        .baseMipLevel   = 0,
+        .levelCount     = ptTexture->tDesc.uMips,
+        .baseArrayLayer = 0,
+        .layerCount     = ptTexture->tDesc.uLayers,
+        .aspectMask     = tImageAspectFlags
+    };
+    pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptVulkanTexture->tImage, pl__vulkan_layout(tOldUsage), pl__vulkan_layout(tNewUsage), tRange, pl_vulkan_pipeline_stage_flags(tOldStages), pl_vulkan_pipeline_stage_flags(tNewStages));
+}
+
+void
 pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
 {
     plTexture* ptTexture = pl__get_texture(ptDevice, tHandle);
@@ -4937,7 +4961,8 @@ pl__transition_image_layout(VkCommandBuffer tCommandBuffer, VkImage tImage, VkIm
         // Image will be read in a shader (sampler, input attachment)
         // Make sure any writes to the image have been finished
         if (tBarrier.srcAccessMask == 0)
-            tBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+            tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            // tBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
         tBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         break;
     default:

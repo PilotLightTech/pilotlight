@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 5, 1}
+#define plGraphicsI_version {1, 5, 2}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -410,6 +410,7 @@ typedef struct _plGraphicsI
     plBlitEncoder*   (*begin_blit_pass)                (plCommandBuffer*); // do not store
     void             (*end_blit_pass)                  (plBlitEncoder*);
     void             (*set_texture_usage)              (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
+    void             (*set_texture_usage_ex)           (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages);
     void             (*copy_buffer_to_texture)         (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
     void             (*copy_texture_to_buffer)         (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
     void             (*copy_texture)                   (plBlitEncoder*, plTextureHandle src, plTextureHandle dst, uint32_t regionCount, const plImageCopy*);

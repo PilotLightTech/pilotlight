@@ -2294,6 +2294,11 @@ pl_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextur
 {
 }
 
+void
+pl_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
+{
+}
+
 static plBlitEncoder*
 pl_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
 {

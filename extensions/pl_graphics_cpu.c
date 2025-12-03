@@ -438,6 +438,11 @@ pl_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextur
 }
 
 void
+pl_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
+{
+}
+
+void
 pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
 {
 }
