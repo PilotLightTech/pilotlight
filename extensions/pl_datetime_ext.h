@@ -24,7 +24,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plDateTimeI_version {1, 0, 0}
+#define plDateTimeI_version {1, 0, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

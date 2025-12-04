@@ -438,7 +438,7 @@ pl_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextur
 }
 
 void
-pl_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
+pl_set_texture_usage_ex(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
 {
 }
 

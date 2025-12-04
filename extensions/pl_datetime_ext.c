@@ -30,7 +30,7 @@ static const char* gacMonthNames[] = {
     "ERROR",
     "JANUARY",
     "FEBRUARY",
-    "MARCK",
+    "MARCH",
     "APRIL",
     "MAY",
     "JUNE",
