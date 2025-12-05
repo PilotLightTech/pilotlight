@@ -6013,6 +6013,12 @@ pl_get_vulkan_device(plDevice* ptDevice)
     return ptDevice->tLogicalDevice;
 }
 
+VkSurfaceKHR
+pl_get_vulkan_surface(plSurface *surface)
+{
+    return surface->tSurface;
+}
+
 VkPhysicalDeviceMemoryProperties
 pl_get_vulkan_memory_properties(plDevice* ptDevice)
 {
@@ -6029,6 +6035,12 @@ VkQueue
 pl_get_vulkan_queue(plDevice* ptDevice)
 {
     return ptDevice->tGraphicsQueue;
+}
+
+VkQueue
+pl_get_vulkan_present_queue(plDevice* ptDevice)
+{
+    return ptDevice->tPresentQueue;
 }
 
 uint32_t

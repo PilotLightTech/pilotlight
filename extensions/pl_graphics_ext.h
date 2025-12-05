@@ -284,6 +284,7 @@ typedef struct _plWindow plWindow; // pl_os.h
 typedef struct VkInstance_T*       VkInstance;
 typedef struct VkPhysicalDevice_T* VkPhysicalDevice;
 typedef struct VkDevice_T*         VkDevice;
+typedef struct VkSurfaceKHR_T*     VkSurfaceKHR;
 typedef struct VkQueue_T*          VkQueue;
 typedef struct VkCommandBuffer_T*  VkCommandBuffer;
 
@@ -539,8 +540,10 @@ typedef struct _plGraphicsI
     VkInstance                       (*get_vulkan_instance)            (void);
     uint32_t                         (*get_vulkan_api_version)         (void);
     VkDevice                         (*get_vulkan_device)              (plDevice*);
+    VkSurfaceKHR                     (*get_vulkan_surface)             (plSurface*);
     VkPhysicalDevice                 (*get_vulkan_physical_device)     (plDevice*);
     VkQueue                          (*get_vulkan_queue)               (plDevice*);
+    VkQueue                          (*get_vulkan_present_queue)       (plDevice*);
     uint32_t                         (*get_vulkan_queue_family)        (plDevice*);
     VkRenderPass                     (*get_vulkan_render_pass)         (plDevice*, plRenderPassHandle);
     VkDescriptorPool                 (*get_vulkan_descriptor_pool)     (plBindGroupPool*);
