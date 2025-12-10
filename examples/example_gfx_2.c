@@ -42,6 +42,9 @@ Index of this file:
 #include "pl_shader_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_vfs_ext.h"
+#include "pl_resource_ext.h"
+#include "pl_dxt_ext.h"
+#include "pl_dds_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -56,6 +59,7 @@ typedef struct _plAppData
     plShaderHandle tShader;
 
     // buffers
+    plBufferHandle tMipStagingBuffer;
     plBufferHandle tStagingBuffer;
     plBufferHandle tIndexBuffer;
     plBufferHandle tVertexBuffer;
@@ -87,6 +91,9 @@ const plShaderI*   gptShader  = NULL;
 const plFileI*     gptFile    = NULL;
 const plStarterI*  gptStarter = NULL;
 const plVfsI*      gptVfs     = NULL;
+const plResourceI* gptResource = NULL;
+const plDxtI*      gptDxt      = NULL;
+const plDdsI*      gptDds      = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -116,6 +123,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
         gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptResource = pl_get_api_latest(ptApiRegistry, plResourceI);
+        gptDxt      = pl_get_api_latest(ptApiRegistry, plDxtI);
+        gptDds      = pl_get_api_latest(ptApiRegistry, plDdsI);
 
         return ptAppData;
     }
@@ -137,12 +147,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
 
     // load required apis (these are provided though extensions)
-    gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-    gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
-    gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
-    gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
-    gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
-    gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptGfx      = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptShader   = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptImage    = pl_get_api_latest(ptApiRegistry, plImageI);
+    gptFile     = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptStarter  = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptVfs      = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptResource = pl_get_api_latest(ptApiRegistry, plResourceI);
+    gptDxt      = pl_get_api_latest(ptApiRegistry, plDxtI);
+    gptDds      = pl_get_api_latest(ptApiRegistry, plDdsI);
 
     gptVfs->mount_directory("/assets", "../data/pilotlight-assets-master", PL_VFS_MOUNT_FLAGS_NONE);
 
@@ -171,6 +184,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptStarter->initialize(tStarterInit);
 
     plDevice* ptDevice = gptStarter->get_device();
+
+    plResourceManagerInit tResourceInit = {
+        .ptDevice = ptDevice
+    };
+    gptResource->initialize(tResourceInit);
 
     // initialize shader extension (we are doing this ourselves so we can add additional shader directories)
     static const plShaderOptions tDefaultShaderOptions = {
@@ -301,9 +319,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // create texture
     const plTextureDesc tTextureDesc = {
         .tDimensions = { (float)iImageWidth, (float)iImageHeight, 1},
-        .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
+        // .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
+        .tFormat     = PL_FORMAT_BC2_UNORM,
         .uLayers     = 1,
-        .uMips       = 1,
+        .uMips       = 0,
         .tType       = PL_TEXTURE_TYPE_2D,
         .tUsage      = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName = "texture"
@@ -312,6 +331,32 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // retrieve new texture (also could have used out param from create_texture above)
     plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptAppData->tTexture);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~mip buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // create vertex buffer
+    const plBufferDesc tMipBufferDesc = {
+        .tUsage      = PL_BUFFER_USAGE_STAGING,
+        .szByteSize  = ptTexture->tMemoryRequirements.ulSize,
+        .pcDebugName = "mip buffer"
+    };
+    ptAppData->tMipStagingBuffer = gptGfx->create_buffer(ptDevice, &tMipBufferDesc, NULL);
+    ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tStagingBuffer);
+
+    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
+    plBuffer* ptMipBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tMipStagingBuffer);
+
+    // allocate memory for the vertex buffer
+    const plDeviceMemoryAllocation tMipBufferAllocation = gptGfx->allocate_memory(ptDevice,
+        ptMipBuffer->tMemoryRequirements.ulSize,
+        PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
+        ptMipBuffer->tMemoryRequirements.uMemoryTypeBits,
+        "mip buffer memory");
+
+    // bind the buffer to the new memory allocation
+    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tMipStagingBuffer, &tMipBufferAllocation);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // allocate memory
     const plDeviceMemoryAllocation tTextureAllocation = gptGfx->allocate_memory(ptDevice,
@@ -327,18 +372,117 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptGfx->set_texture_usage(ptEncoder, ptAppData->tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
 
     // copy memory to mapped staging buffer
-    memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[2048], pucImageData, iImageWidth * iImageHeight * 4);
+    size_t szCurrentOffset = 0;
 
-    const plBufferImageCopy tBufferImageCopy = {
+    size_t szMaxBufferSize = iImageWidth * iImageHeight * 4;
+    uint8_t* auWorkingBuffer[2] = {0};
+    auWorkingBuffer[0] = malloc(szMaxBufferSize);
+    auWorkingBuffer[1] = pucImageData;
+    memset(auWorkingBuffer[0], 0, szMaxBufferSize);
+
+    size_t szCurrentSize = 0;
+
+    // compression
+    {
+        plDxtInfo tDxtInfo = {
+            .tFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
+            .uWidth    = (uint32_t)iImageWidth,
+            .uHeight   = (uint32_t)iImageHeight,
+            .uChannels = 4,
+            .puData    = pucImageData
+        };
+        size_t szRequiredStagingSize = 0;
+        gptDxt->compress(&tDxtInfo, NULL, &szRequiredStagingSize);
+        gptDxt->compress(&tDxtInfo, (uint8_t*)&ptMipBuffer->tMemoryAllocation.pHostMapped[szCurrentOffset], &szRequiredStagingSize);
+        szCurrentSize = szRequiredStagingSize;
+    }
+
+    const plBufferImageCopy tBufferImageCopy0 = {
         .uImageWidth    = (uint32_t)iImageWidth,
         .uImageHeight   = (uint32_t)iImageHeight,
         .uImageDepth    = 1,
         .uLayerCount    = 1,
-        .szBufferOffset = 2048
+        .szBufferOffset = szCurrentOffset,
+        .uMipLevel      = 0
     };
 
-    gptGfx->copy_buffer_to_texture(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tTexture, 1, &tBufferImageCopy);
+    gptGfx->copy_buffer_to_texture(ptEncoder, ptAppData->tMipStagingBuffer, ptAppData->tTexture, 1, &tBufferImageCopy0);
 
+    szCurrentOffset += szCurrentSize;
+
+    for(uint32_t uMipLevel = 1; uMipLevel < ptTexture->tDesc.uMips; uMipLevel++)
+    {
+
+        uint8_t* puSrcBuffer = auWorkingBuffer[uMipLevel % 2];
+        uint8_t* puDstBuffer = auWorkingBuffer[(uMipLevel + 1) % 2];
+
+        int iCurrentWidth = (int)iImageWidth / ((1 << (int)uMipLevel));
+        int iCurrentHeight = (int)iImageHeight / ((1 << (int)uMipLevel));
+
+        int iLastWidth = iCurrentWidth * 2;
+        int iLastHeight = iCurrentHeight * 2;
+
+        szCurrentSize = 0;
+
+        // manual mip mapping
+        for(uint32_t i = 0; i < (uint32_t)iCurrentWidth; i++)
+        {
+            for(uint32_t j = 0; j < (uint32_t)iCurrentHeight; j++)
+            {
+                uint32_t uSrcOriginX = i * 2;
+                uint32_t uSrcOriginY = j * 2;
+
+                uint8_t* ptPixel0 = &puSrcBuffer[uSrcOriginY * iLastWidth * 4 + uSrcOriginX * 4];
+                uint8_t* ptPixel1 = &puSrcBuffer[uSrcOriginY * iLastWidth * 4 + (uSrcOriginX + 1) * 4];
+                uint8_t* ptPixel2 = &puSrcBuffer[(uSrcOriginY + 1) * iLastWidth * 4 + uSrcOriginX * 4];
+                uint8_t* ptPixel3 = &puSrcBuffer[(uSrcOriginY + 1) * iLastWidth * 4 + (uSrcOriginX + 1) * 4];
+
+                uint8_t uRed   = (ptPixel0[0] + ptPixel1[0] + ptPixel2[0] + ptPixel3[0]) / 4;
+                uint8_t uGreen = (ptPixel0[1] + ptPixel1[1] + ptPixel2[1] + ptPixel3[1]) / 4;
+                uint8_t uBlue  = (ptPixel0[2] + ptPixel1[2] + ptPixel2[2] + ptPixel3[2]) / 4;
+                uint8_t uAlpha = (ptPixel0[3] + ptPixel1[3] + ptPixel2[3] + ptPixel3[3]) / 4;
+
+
+                puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 0] = uRed;
+                puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 1] = uGreen;
+                puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 2] = uBlue;
+                puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 3] = uAlpha;
+            }
+        }
+
+        // compression
+        {
+            plDxtInfo tDxtInfo = {
+                .tFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
+                .uWidth    = (uint32_t)iCurrentWidth,
+                .uHeight   = (uint32_t)iCurrentHeight,
+                .uChannels = 4,
+                .puData    = puDstBuffer
+            };
+            size_t szRequiredStagingSize = 0;
+            gptDxt->compress(&tDxtInfo, NULL, &szRequiredStagingSize);
+            gptDxt->compress(&tDxtInfo, (uint8_t*)&ptMipBuffer->tMemoryAllocation.pHostMapped[szCurrentOffset], &szRequiredStagingSize);
+            szCurrentSize = szRequiredStagingSize;
+
+            // memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[2048], pucImageData, iImageWidth * iImageHeight * 4);
+        }
+
+        // not compressed
+        // memcpy(&ptMipBuffer->tMemoryAllocation.pHostMapped[szCurrentOffset], puDstBuffer, szCurrentSize);
+
+        const plBufferImageCopy tBufferImageCopy = {
+            .uImageWidth    = (uint32_t)iCurrentWidth,
+            .uImageHeight   = (uint32_t)iCurrentHeight,
+            .uImageDepth    = 1,
+            .uLayerCount    = 1,
+            .szBufferOffset = szCurrentOffset,
+            .uMipLevel      = uMipLevel
+        };
+
+        gptGfx->copy_buffer_to_texture(ptEncoder, ptAppData->tMipStagingBuffer, ptAppData->tTexture, 1, &tBufferImageCopy);
+        szCurrentOffset += szCurrentSize;
+    }
+    
     gptStarter->return_blit_encoder(ptEncoder);
 
     // free image data
@@ -479,6 +623,8 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->destroy_texture(ptDevice, ptAppData->tTexture);
     gptGfx->cleanup_bind_group_pool(ptAppData->ptBindGroupPool);
 
+    gptResource->cleanup();
+
     gptShader->cleanup();
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
@@ -504,6 +650,8 @@ pl_app_update(plAppData* ptAppData)
 {
     if(!gptStarter->begin_frame())
         return;
+
+    gptResource->new_frame();
 
     plDevice* ptDevice = gptStarter->get_device();
 

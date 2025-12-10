@@ -27,6 +27,10 @@ Index of this file:
 #include "pl_image_ext.h"
 #include "pl_vfs_ext.h"
 
+// unstable extensions
+#include "pl_dxt_ext.h"
+#include "pl_dds_ext.h"
+
 // libs
 #include "pl_string.h"
 #include "pl_memory.h"
@@ -54,6 +58,8 @@ Index of this file:
     static const plGPUAllocatorsI* gptGpuAllocators = NULL;
     static const plImageI*         gptImage         = NULL;
     static const plVfsI*           gptVfs           = NULL;
+    static const plDdsI*           gptDds           = NULL;
+    static const plDxtI*           gptDxt           = NULL;
 #endif
 
 // libs
@@ -111,6 +117,7 @@ typedef struct _plTextureUploadJob
 {
     plTextureHandle   tTexture;
     plBufferImageCopy tBufferImageCopy;
+    bool              bGenerateMips;
 } plTextureUploadJob;
 
 typedef struct _plResourceManager
@@ -223,6 +230,7 @@ pl_resource_new_frame(void)
     const uint32_t uJobCount = pl_sb_size(gptResourceManager->sbtTextureUploadJobs);
     plDevice* ptDevice = gptResourceManager->tDesc.ptDevice;
     
+    // queue staging buffer for deletion if no longer needed
     if(uJobCount == 0)
     {
         if(gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
@@ -248,7 +256,8 @@ pl_resource_new_frame(void)
         
         gptGfx->set_texture_usage(ptBlitEncoder, ptJob->tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
         gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, ptJob->tTexture, 1, &ptJob->tBufferImageCopy);
-        gptGfx->generate_mipmaps(ptBlitEncoder, ptJob->tTexture);
+        if(ptJob->bGenerateMips)
+            gptGfx->generate_mipmaps(ptBlitEncoder, ptJob->tTexture);
     }
 
     gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
@@ -365,6 +374,8 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
             plTexture* ptTexture = NULL;
 
             bool bResizeNeeded = false;
+            bool bGenerateMips = true;
+            bool bAttemptCompression = true;
             plImageInfo tImageInfo = {0};
             size_t szStagingOffset = 0;
             if(gptImage->get_info((unsigned char*)puFileData, (int)szFileByteSize, &tImageInfo))
@@ -426,7 +437,17 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                     gptResourceManager->tStagingBuffer.szOffset += szRequiredStagingSize;
                     gptImage->free(pfRawBytes);
 
-                    tTextureFormat = PL_FORMAT_R32G32B32A32_FLOAT;
+                    // create texture
+                    const plTextureDesc tTextureDesc = {
+                        .tDimensions = {(float)tImageInfo.iWidth, (float)tImageInfo.iHeight, 1},
+                        .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+                        .uLayers     = 1,
+                        .uMips       = 0,
+                        .tType       = PL_TEXTURE_TYPE_2D,
+                        .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+                    };
+                
+                    tResource.tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, &ptTexture);
                 }
                 else if(tImageInfo.b16Bit)
                 {
@@ -450,6 +471,18 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                     gptImage->free(puRawBytes);
 
                     tTextureFormat = PL_FORMAT_R16G16B16A16_UNORM;
+
+                    // create texture
+                    const plTextureDesc tTextureDesc = {
+                        .tDimensions = {(float)tImageInfo.iWidth, (float)tImageInfo.iHeight, 1},
+                        .tFormat     = PL_FORMAT_R16G16B16A16_UNORM,
+                        .uLayers     = 1,
+                        .uMips       = 0,
+                        .tType       = PL_TEXTURE_TYPE_2D,
+                        .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+                    };
+                
+                    tResource.tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, &ptTexture);
                 }
                 else
                 {
@@ -480,21 +513,19 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
 
                     gptImage->free(puRawBytes);
 
-                    tTextureFormat = PL_FORMAT_R8G8B8A8_UNORM;
+                    // create texture
+                    const plTextureDesc tTextureDesc = {
+                        .tDimensions = {(float)tImageInfo.iWidth, (float)tImageInfo.iHeight, 1},
+                        .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
+                        .uLayers     = 1,
+                        .uMips       = 0,
+                        .tType       = PL_TEXTURE_TYPE_2D,
+                        .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+                    };
+                
+                    tResource.tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, &ptTexture);
                 }
-
-                // create texture
-                const plTextureDesc tTextureDesc = {
-                    .tDimensions = {(float)tImageInfo.iWidth, (float)tImageInfo.iHeight, 1},
-                    .tFormat     = tTextureFormat,
-                    .uLayers     = 1,
-                    .uMips       = 0,
-                    .tType       = PL_TEXTURE_TYPE_2D,
-                    .tUsage      = PL_TEXTURE_USAGE_SAMPLED
-                };
-            
-                tResource.tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, &ptTexture);
-                        
+  
                 // choose allocator
                 plDeviceMemoryAllocatorI* ptAllocator = gptResourceManager->ptLocalBuddyAllocator;
                 if(ptTexture->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
@@ -510,16 +541,17 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
             
                 // bind memory
                 gptGfx->bind_texture_to_memory(ptDevice, tResource.tTexture, &tAllocation);
-                
+
                 plTextureUploadJob tUpload = {
                     .tTexture = tResource.tTexture,
                     .tBufferImageCopy = {
-                        .uImageWidth = (uint32_t)tTextureDesc.tDimensions.x,
-                        .uImageHeight = (uint32_t)tTextureDesc.tDimensions.y,
+                        .uImageWidth = (uint32_t)ptTexture->tDesc.tDimensions.x,
+                        .uImageHeight = (uint32_t)ptTexture->tDesc.tDimensions.y,
                         .uImageDepth = 1,
                         .uLayerCount = 1,
                         .szBufferOffset = szStagingOffset
                     },
+                    .bGenerateMips = bGenerateMips
                 };
                 pl_sb_push(gptResourceManager->sbtTextureUploadJobs, tUpload);
             }
@@ -637,6 +669,8 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
         gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
         gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptDds           = pl_get_api_latest(ptApiRegistry, plDdsI);
+        gptDxt           = pl_get_api_latest(ptApiRegistry, plDxtI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
