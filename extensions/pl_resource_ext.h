@@ -28,6 +28,10 @@ Index of this file:
         * plGPUAllocatorsI (v1.x)
         * plVfsI           (v1.x)
         * plImageI         (v1.x)
+
+        unstable APIs:
+        * plDdsI
+        * plDxtI
 */
 
 //-----------------------------------------------------------------------------
