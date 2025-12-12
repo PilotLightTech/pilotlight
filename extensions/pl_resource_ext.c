@@ -382,7 +382,6 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
 
             bool bResizeNeeded = false;
             bool bGenerateMips = true;
-            bool bAttemptCompression = true;
             plImageInfo tImageInfo = {0};
             size_t szStagingOffset = 0;
             if(gptImage->get_info((unsigned char*)puFileData, (int)szFileByteSize, &tImageInfo))
@@ -488,7 +487,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                 
                     tResource.tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, &ptTexture);
                 }
-                else if(bAttemptCompression)
+                else if(tFlags & PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED)
                 {
                     unsigned char* puRawBytes = gptImage->load((unsigned char*)puFileData, (int)szFileByteSize, &iTextureWidth, &iTextureHeight, &iTextureChannels, 4);
 
@@ -503,7 +502,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                     // create texture
                     const plTextureDesc tTextureDesc = {
                         .tDimensions = {(float)tImageInfo.iWidth, (float)tImageInfo.iHeight, 1},
-                        .tFormat     = PL_FORMAT_BC2_UNORM,
+                        .tFormat     = PL_FORMAT_BC3_UNORM,
                         .uLayers     = 1,
                         .uMips       = 0,
                         .tType       = PL_TEXTURE_TYPE_2D,
@@ -548,9 +547,6 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                         pl__resource_create_staging_buffer(szRequiredStagingSize);
                     }
 
-
-        
-
                     plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
 
                     gptDxt->compress(&tDxtInfoOriginal, (uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], &szRequiredStagingSize);
@@ -561,8 +557,6 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                     auWorkingBuffer[0] = PL_ALLOC(szMaxBufferSize);
                     auWorkingBuffer[1] = puRawBytes;
                     memset(auWorkingBuffer[0], 0, szMaxBufferSize);
-
-
 
                     const plBufferImageCopy tBufferImageCopy0 = {
                         .uImageWidth    = (uint32_t)tImageInfo.iWidth,
@@ -615,7 +609,6 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                                 uint8_t uBlue  = (ptPixel0[2] + ptPixel1[2] + ptPixel2[2] + ptPixel3[2]) / 4;
                                 uint8_t uAlpha = (ptPixel0[3] + ptPixel1[3] + ptPixel2[3] + ptPixel3[3]) / 4;
 
-
                                 puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 0] = uRed;
                                 puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 1] = uGreen;
                                 puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 2] = uBlue;
@@ -647,7 +640,11 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                             .uMipLevel      = uMipLevel
                         };
 
-                        gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, tResource.tTexture, 1, &tBufferImageCopy);
+                        gptGfx->copy_buffer_to_texture(ptBlitEncoder,
+                            gptResourceManager->tStagingBuffer.tStagingBufferHandle,
+                            tResource.tTexture,
+                            1,
+                            &tBufferImageCopy);
                         szStagingOffset += szCurrentSize;
                     }
                     
@@ -702,7 +699,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                     tResource.tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, &ptTexture);
                 }
 
-                if(!bAttemptCompression)
+                if(!(tFlags & PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED))
                 {
   
                     // choose allocator
