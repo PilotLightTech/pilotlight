@@ -489,22 +489,13 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                 }
                 else if(tFlags & PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED)
                 {
-                    unsigned char* puRawBytes = gptImage->load((unsigned char*)puFileData, (int)szFileByteSize, &iTextureWidth, &iTextureHeight, &iTextureChannels, 4);
-
-                    if(bResizeNeeded)
-                    {
-                        unsigned char* puOldRawBytes = puRawBytes;
-                        puRawBytes = stbir_resize_uint8_linear(puRawBytes, iTextureWidth, iTextureHeight, 0, NULL, tImageInfo.iWidth, tImageInfo.iHeight, 0, STBIR_RGBA);
-                        PL_ASSERT(puRawBytes);
-                        gptImage->free(puOldRawBytes);
-                    }
 
                     // create texture
                     const plTextureDesc tTextureDesc = {
                         .tDimensions = {(float)tImageInfo.iWidth, (float)tImageInfo.iHeight, 1},
                         .tFormat     = PL_FORMAT_BC3_UNORM,
                         .uLayers     = 1,
-                        .uMips       = 0,
+                        .uMips       = 1,
                         .tType       = PL_TEXTURE_TYPE_2D,
                         .tUsage      = PL_TEXTURE_USAGE_SAMPLED
                     };
@@ -527,135 +518,228 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                     // bind memory
                     gptGfx->bind_texture_to_memory(ptDevice, tResource.tTexture, &tAllocation);
 
-                    plDxtInfo tDxtInfoOriginal = {
-                        .tFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
-                        .uWidth    = (uint32_t)tImageInfo.iWidth,
-                        .uHeight   = (uint32_t)tImageInfo.iHeight,
-                        .uChannels = 4,
-                        .puData    = puRawBytes
-                    };
-                    size_t szRequiredStagingSize = 0;
-                    gptDxt->compress(&tDxtInfoOriginal, NULL, &szRequiredStagingSize);
+                    char* sbtNameConcat = NULL;
+                    char acFileNameOnly[256] = {0};
+                    pl_str_get_file_name_only(pcName, acFileNameOnly, 256);
+                    pl_sb_sprintf(sbtNameConcat, "/cache/%s.dds", acFileNameOnly);
 
-
-                    if(!gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
-                        pl__resource_create_staging_buffer(szRequiredStagingSize);
-                    else if(gptResourceManager->tStagingBuffer.szOffset + szRequiredStagingSize >= gptResourceManager->tStagingBuffer.szSize)
+                    if(gptVfs->does_file_exist(sbtNameConcat))
                     {
-                        pl_resource_new_frame();
-                        pl_resource_new_frame(); // this one destroys the staging buffer
-                        pl__resource_create_staging_buffer(szRequiredStagingSize);
-                    }
+                        size_t szShaderSize = gptVfs->get_file_size_str(sbtNameConcat);
+                        uint8_t* puVertexShaderCode = PL_ALLOC(szShaderSize);
+                        plVfsFileHandle tHandle = gptVfs->open_file(sbtNameConcat, PL_VFS_FILE_MODE_READ);
+                        gptVfs->read_file(tHandle, puVertexShaderCode, &szShaderSize);
+                        gptVfs->close_file(tHandle);
 
-                    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
+                        plDdsReadInfo tDDSReadInfo = {0};
+                        gptDds->read_info(puVertexShaderCode, &tDDSReadInfo);
 
-                    gptDxt->compress(&tDxtInfoOriginal, (uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], &szRequiredStagingSize);
+                        size_t szRequiredStagingSize = tDDSReadInfo.atMipInfo[0].uSize;
 
-                    size_t szCurrentSize = szRequiredStagingSize;
-                    size_t szMaxBufferSize = tImageInfo.iWidth * tImageInfo.iHeight * 4;
-                    uint8_t* auWorkingBuffer[2] = {0};
-                    auWorkingBuffer[0] = PL_ALLOC(szMaxBufferSize);
-                    auWorkingBuffer[1] = puRawBytes;
-                    memset(auWorkingBuffer[0], 0, szMaxBufferSize);
-
-                    const plBufferImageCopy tBufferImageCopy0 = {
-                        .uImageWidth    = (uint32_t)tImageInfo.iWidth,
-                        .uImageHeight   = (uint32_t)tImageInfo.iHeight,
-                        .uImageDepth    = 1,
-                        .uLayerCount    = 1,
-                        .szBufferOffset = szStagingOffset,
-                        .uMipLevel      = 0
-                    };
-
-                    plCommandPool* ptCmdPool = gptResourceManager->atCmdPools[gptGfx->get_current_frame_index()];
-                    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "resource update");
-                    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-                    plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-                    gptGfx->set_texture_usage(ptBlitEncoder, tResource.tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-
-                    gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, tResource.tTexture, 1, &tBufferImageCopy0);
-
-                    szStagingOffset += szCurrentSize;
-
-                    for(uint32_t uMipLevel = 1; uMipLevel < ptTexture->tDesc.uMips; uMipLevel++)
-                    {
-
-                        uint8_t* puSrcBuffer = auWorkingBuffer[uMipLevel % 2];
-                        uint8_t* puDstBuffer = auWorkingBuffer[(uMipLevel + 1) % 2];
-
-                        int iCurrentWidth = (int)tImageInfo.iWidth / ((1 << (int)uMipLevel));
-                        int iCurrentHeight = (int)tImageInfo.iHeight / ((1 << (int)uMipLevel));
-
-                        int iLastWidth = iCurrentWidth * 2;
-                        int iLastHeight = iCurrentHeight * 2;
-
-                        szCurrentSize = 0;
-
-                        // manual mip mapping
-                        for(uint32_t i = 0; i < (uint32_t)iCurrentWidth; i++)
+                        if(!gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
+                            pl__resource_create_staging_buffer(szRequiredStagingSize);
+                        else if(gptResourceManager->tStagingBuffer.szOffset + szRequiredStagingSize >= gptResourceManager->tStagingBuffer.szSize)
                         {
-                            for(uint32_t j = 0; j < (uint32_t)iCurrentHeight; j++)
-                            {
-                                uint32_t uSrcOriginX = i * 2;
-                                uint32_t uSrcOriginY = j * 2;
-
-                                uint8_t* ptPixel0 = &puSrcBuffer[uSrcOriginY * iLastWidth * 4 + uSrcOriginX * 4];
-                                uint8_t* ptPixel1 = &puSrcBuffer[uSrcOriginY * iLastWidth * 4 + (uSrcOriginX + 1) * 4];
-                                uint8_t* ptPixel2 = &puSrcBuffer[(uSrcOriginY + 1) * iLastWidth * 4 + uSrcOriginX * 4];
-                                uint8_t* ptPixel3 = &puSrcBuffer[(uSrcOriginY + 1) * iLastWidth * 4 + (uSrcOriginX + 1) * 4];
-
-                                uint8_t uRed   = (ptPixel0[0] + ptPixel1[0] + ptPixel2[0] + ptPixel3[0]) / 4;
-                                uint8_t uGreen = (ptPixel0[1] + ptPixel1[1] + ptPixel2[1] + ptPixel3[1]) / 4;
-                                uint8_t uBlue  = (ptPixel0[2] + ptPixel1[2] + ptPixel2[2] + ptPixel3[2]) / 4;
-                                uint8_t uAlpha = (ptPixel0[3] + ptPixel1[3] + ptPixel2[3] + ptPixel3[3]) / 4;
-
-                                puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 0] = uRed;
-                                puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 1] = uGreen;
-                                puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 2] = uBlue;
-                                puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 3] = uAlpha;
-                            }
+                            pl_resource_new_frame();
+                            pl_resource_new_frame(); // this one destroys the staging buffer
+                            pl__resource_create_staging_buffer(szRequiredStagingSize);
                         }
 
-                        // compression
-                        {
-                            plDxtInfo tDxtInfo = {
-                                .tFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
-                                .uWidth    = (uint32_t)iCurrentWidth,
-                                .uHeight   = (uint32_t)iCurrentHeight,
-                                .uChannels = 4,
-                                .puData    = puDstBuffer
-                            };
-                            szRequiredStagingSize = 0;
-                            gptDxt->compress(&tDxtInfo, NULL, &szRequiredStagingSize);
-                            gptDxt->compress(&tDxtInfo, (uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], &szRequiredStagingSize);
-                            szCurrentSize = szRequiredStagingSize;
-                        }
+                        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
+                        memcpy((uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], &puVertexShaderCode[gptDds->get_header_size()], szRequiredStagingSize);
 
-                        const plBufferImageCopy tBufferImageCopy = {
-                            .uImageWidth    = (uint32_t)iCurrentWidth,
-                            .uImageHeight   = (uint32_t)iCurrentHeight,
+                        const plBufferImageCopy tBufferImageCopy0 = {
+                            .uImageWidth    = (uint32_t)tImageInfo.iWidth,
+                            .uImageHeight   = (uint32_t)tImageInfo.iHeight,
                             .uImageDepth    = 1,
                             .uLayerCount    = 1,
                             .szBufferOffset = szStagingOffset,
-                            .uMipLevel      = uMipLevel
+                            .uMipLevel      = 0
                         };
 
-                        gptGfx->copy_buffer_to_texture(ptBlitEncoder,
-                            gptResourceManager->tStagingBuffer.tStagingBufferHandle,
-                            tResource.tTexture,
-                            1,
-                            &tBufferImageCopy);
-                        szStagingOffset += szCurrentSize;
-                    }
-                    
-                    gptGfx->end_blit_pass(ptBlitEncoder);
-                    gptGfx->end_command_recording(ptCommandBuffer);
-                    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-                    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-                    gptGfx->return_command_buffer(ptCommandBuffer);
+                        plCommandPool* ptCmdPool = gptResourceManager->atCmdPools[gptGfx->get_current_frame_index()];
+                        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "resource update");
+                        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+                        plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+                        gptGfx->set_texture_usage(ptBlitEncoder, tResource.tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
 
-                    gptImage->free(puRawBytes);
-                    PL_FREE(auWorkingBuffer[0]);
+                        gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, tResource.tTexture, 1, &tBufferImageCopy0);
+
+                        szStagingOffset += szRequiredStagingSize;
+
+                        gptGfx->end_blit_pass(ptBlitEncoder);
+                        gptGfx->end_command_recording(ptCommandBuffer);
+                        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+                        gptGfx->wait_on_command_buffer(ptCommandBuffer);
+                        gptGfx->return_command_buffer(ptCommandBuffer);
+
+                        PL_FREE(puVertexShaderCode);
+
+                    }
+                    else
+                    {
+
+                        unsigned char* puRawBytes = gptImage->load((unsigned char*)puFileData, (int)szFileByteSize, &iTextureWidth, &iTextureHeight, &iTextureChannels, 4);
+
+                        if(bResizeNeeded)
+                        {
+                            unsigned char* puOldRawBytes = puRawBytes;
+                            puRawBytes = stbir_resize_uint8_linear(puRawBytes, iTextureWidth, iTextureHeight, 0, NULL, tImageInfo.iWidth, tImageInfo.iHeight, 0, STBIR_RGBA);
+                            PL_ASSERT(puRawBytes);
+                            gptImage->free(puOldRawBytes);
+                        }
+
+                        plDxtInfo tDxtInfoOriginal = {
+                            .tFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
+                            .uWidth    = (uint32_t)tImageInfo.iWidth,
+                            .uHeight   = (uint32_t)tImageInfo.iHeight,
+                            .uChannels = 4,
+                            .puData    = puRawBytes
+                        };
+                        size_t szRequiredStagingSize = 0;
+                        gptDxt->compress(&tDxtInfoOriginal, NULL, &szRequiredStagingSize);
+
+                        if(!gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
+                            pl__resource_create_staging_buffer(szRequiredStagingSize);
+                        else if(gptResourceManager->tStagingBuffer.szOffset + szRequiredStagingSize >= gptResourceManager->tStagingBuffer.szSize)
+                        {
+                            pl_resource_new_frame();
+                            pl_resource_new_frame(); // this one destroys the staging buffer
+                            pl__resource_create_staging_buffer(szRequiredStagingSize);
+                        }
+
+                        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
+
+                        gptDxt->compress(&tDxtInfoOriginal, (uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], &szRequiredStagingSize);
+
+
+                        plDdsWriteInfo tDDSWriteInfo = {
+                            .uWidth    = (uint32_t)tImageInfo.iWidth,
+                            .uHeight   = (uint32_t)tImageInfo.iHeight,
+                            .uDepth    = 0,
+                            .uMips     = ptTexture->tDesc.uMips,
+                            .uLayers   = 1,
+                            .tFormat   = PL_FORMAT_BC3_UNORM,
+                            .tType     = PL_TEXTURE_TYPE_2D
+                        };
+
+                        uint8_t* pcBlah = PL_ALLOC(gptDds->get_header_size() + szRequiredStagingSize);
+                        gptDds->write_info(pcBlah, &tDDSWriteInfo);
+                        memcpy(&pcBlah[gptDds->get_header_size()], (uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], szRequiredStagingSize);
+                        plVfsFileHandle tHandle = gptVfs->open_file(sbtNameConcat, PL_VFS_FILE_MODE_WRITE);
+                        gptVfs->write_file(tHandle, (uint8_t*)pcBlah, gptDds->get_header_size() + szRequiredStagingSize);
+                        gptVfs->close_file(tHandle);
+                        
+                        PL_FREE(pcBlah);
+
+                        size_t szCurrentSize = szRequiredStagingSize;
+                        size_t szMaxBufferSize = tImageInfo.iWidth * tImageInfo.iHeight * 4;
+                        uint8_t* auWorkingBuffer[2] = {0};
+                        auWorkingBuffer[0] = PL_ALLOC(szMaxBufferSize);
+                        auWorkingBuffer[1] = puRawBytes;
+                        memset(auWorkingBuffer[0], 0, szMaxBufferSize);
+
+                        const plBufferImageCopy tBufferImageCopy0 = {
+                            .uImageWidth    = (uint32_t)tImageInfo.iWidth,
+                            .uImageHeight   = (uint32_t)tImageInfo.iHeight,
+                            .uImageDepth    = 1,
+                            .uLayerCount    = 1,
+                            .szBufferOffset = szStagingOffset,
+                            .uMipLevel      = 0
+                        };
+
+                        plCommandPool* ptCmdPool = gptResourceManager->atCmdPools[gptGfx->get_current_frame_index()];
+                        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "resource update");
+                        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+                        plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+                        gptGfx->set_texture_usage(ptBlitEncoder, tResource.tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
+
+                        gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, tResource.tTexture, 1, &tBufferImageCopy0);
+
+                        szStagingOffset += szCurrentSize;
+
+                        for(uint32_t uMipLevel = 1; uMipLevel < ptTexture->tDesc.uMips; uMipLevel++)
+                        {
+
+                            uint8_t* puSrcBuffer = auWorkingBuffer[uMipLevel % 2];
+                            uint8_t* puDstBuffer = auWorkingBuffer[(uMipLevel + 1) % 2];
+
+                            int iCurrentWidth = (int)tImageInfo.iWidth / ((1 << (int)uMipLevel));
+                            int iCurrentHeight = (int)tImageInfo.iHeight / ((1 << (int)uMipLevel));
+
+                            int iLastWidth = iCurrentWidth * 2;
+                            int iLastHeight = iCurrentHeight * 2;
+
+                            szCurrentSize = 0;
+
+                            // manual mip mapping
+                            for(uint32_t i = 0; i < (uint32_t)iCurrentWidth; i++)
+                            {
+                                for(uint32_t j = 0; j < (uint32_t)iCurrentHeight; j++)
+                                {
+                                    uint32_t uSrcOriginX = i * 2;
+                                    uint32_t uSrcOriginY = j * 2;
+
+                                    uint8_t* ptPixel0 = &puSrcBuffer[uSrcOriginY * iLastWidth * 4 + uSrcOriginX * 4];
+                                    uint8_t* ptPixel1 = &puSrcBuffer[uSrcOriginY * iLastWidth * 4 + (uSrcOriginX + 1) * 4];
+                                    uint8_t* ptPixel2 = &puSrcBuffer[(uSrcOriginY + 1) * iLastWidth * 4 + uSrcOriginX * 4];
+                                    uint8_t* ptPixel3 = &puSrcBuffer[(uSrcOriginY + 1) * iLastWidth * 4 + (uSrcOriginX + 1) * 4];
+
+                                    uint8_t uRed   = (ptPixel0[0] + ptPixel1[0] + ptPixel2[0] + ptPixel3[0]) / 4;
+                                    uint8_t uGreen = (ptPixel0[1] + ptPixel1[1] + ptPixel2[1] + ptPixel3[1]) / 4;
+                                    uint8_t uBlue  = (ptPixel0[2] + ptPixel1[2] + ptPixel2[2] + ptPixel3[2]) / 4;
+                                    uint8_t uAlpha = (ptPixel0[3] + ptPixel1[3] + ptPixel2[3] + ptPixel3[3]) / 4;
+
+                                    puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 0] = uRed;
+                                    puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 1] = uGreen;
+                                    puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 2] = uBlue;
+                                    puDstBuffer[j * iCurrentWidth * 4 + i * 4 + 3] = uAlpha;
+                                }
+                            }
+
+                            // compression
+                            {
+                                plDxtInfo tDxtInfo = {
+                                    .tFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
+                                    .uWidth    = (uint32_t)iCurrentWidth,
+                                    .uHeight   = (uint32_t)iCurrentHeight,
+                                    .uChannels = 4,
+                                    .puData    = puDstBuffer
+                                };
+                                szRequiredStagingSize = 0;
+                                gptDxt->compress(&tDxtInfo, NULL, &szRequiredStagingSize);
+                                gptDxt->compress(&tDxtInfo, (uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], &szRequiredStagingSize);
+                                szCurrentSize = szRequiredStagingSize;
+                            }
+
+                            const plBufferImageCopy tBufferImageCopy = {
+                                .uImageWidth    = (uint32_t)iCurrentWidth,
+                                .uImageHeight   = (uint32_t)iCurrentHeight,
+                                .uImageDepth    = 1,
+                                .uLayerCount    = 1,
+                                .szBufferOffset = szStagingOffset,
+                                .uMipLevel      = uMipLevel
+                            };
+
+                            gptGfx->copy_buffer_to_texture(ptBlitEncoder,
+                                gptResourceManager->tStagingBuffer.tStagingBufferHandle,
+                                tResource.tTexture,
+                                1,
+                                &tBufferImageCopy);
+                            szStagingOffset += szCurrentSize;
+                        }
+                        
+                        gptGfx->end_blit_pass(ptBlitEncoder);
+                        gptGfx->end_command_recording(ptCommandBuffer);
+                        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+                        gptGfx->wait_on_command_buffer(ptCommandBuffer);
+                        gptGfx->return_command_buffer(ptCommandBuffer);
+
+                        gptImage->free(puRawBytes);
+                        PL_FREE(auWorkingBuffer[0]);
+                    }
+
+                    pl_sb_free(sbtNameConcat);
                 }
                 else
                 {

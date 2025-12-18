@@ -10,6 +10,7 @@ shader-temp/
 user/
 game/
 app/
+cache/
 
 editor/model-index.json
 
