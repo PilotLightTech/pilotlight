@@ -433,9 +433,9 @@ pl__format_stride(plFormat tFormat)
         case PL_FORMAT_EAC_R11G11_UNORM:
         case PL_FORMAT_EAC_R11G11_SNORM:
             return 64 / (4 * 8);
-
-        case PL_FORMAT_BC2_SRGB:
+            
         case PL_FORMAT_BC2_UNORM:
+        case PL_FORMAT_BC2_SRGB:
         case PL_FORMAT_BC3_UNORM:
         case PL_FORMAT_BC3_SRGB:
         case PL_FORMAT_BC5_UNORM:

@@ -28,6 +28,10 @@ Index of this file:
         * plGPUAllocatorsI (v1.x)
         * plVfsI           (v1.x)
         * plImageI         (v1.x)
+
+        unstable APIs:
+        * plDdsI
+        * plDxtI
 */
 
 //-----------------------------------------------------------------------------
@@ -41,7 +45,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plResourceI_version {0, 2, 2}
+#define plResourceI_version {0, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -109,8 +113,9 @@ typedef struct _plResourceI
 
 enum _plResourceLoadFlags
 {
-    PL_RESOURCE_LOAD_FLAG_NONE,
-    PL_RESOURCE_LOAD_FLAG_RETAIN_FILE_DATA
+    PL_RESOURCE_LOAD_FLAG_NONE             = 0,
+    PL_RESOURCE_LOAD_FLAG_RETAIN_FILE_DATA = 1 << 0,
+    PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED = 1 << 1,
 };
 
 //-----------------------------------------------------------------------------
