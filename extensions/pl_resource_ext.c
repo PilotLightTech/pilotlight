@@ -495,7 +495,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                         .tDimensions = {(float)tImageInfo.iWidth, (float)tImageInfo.iHeight, 1},
                         .tFormat     = PL_FORMAT_BC3_UNORM,
                         .uLayers     = 1,
-                        .uMips       = 1,
+                        .uMips       = 0,
                         .tType       = PL_TEXTURE_TYPE_2D,
                         .tUsage      = PL_TEXTURE_USAGE_SAMPLED
                     };
@@ -527,6 +527,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                     {
                         size_t szShaderSize = gptVfs->get_file_size_str(sbtNameConcat);
                         uint8_t* puVertexShaderCode = PL_ALLOC(szShaderSize);
+                        uint8_t* puOriginalVertexShaderCode = puVertexShaderCode;
                         plVfsFileHandle tHandle = gptVfs->open_file(sbtNameConcat, PL_VFS_FILE_MODE_READ);
                         gptVfs->read_file(tHandle, puVertexShaderCode, &szShaderSize);
                         gptVfs->close_file(tHandle);
@@ -534,7 +535,9 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                         plDdsReadInfo tDDSReadInfo = {0};
                         gptDds->read_info(puVertexShaderCode, &tDDSReadInfo);
 
-                        size_t szRequiredStagingSize = tDDSReadInfo.atMipInfo[0].uSize;
+                        size_t szRequiredStagingSize = 0;
+                        for(uint32_t i = 0; i < tDDSReadInfo.uMips; i++)
+                            szRequiredStagingSize += tDDSReadInfo.atMipInfo[i].uSize;
 
                         if(!gptGfx->is_buffer_valid(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle))
                             pl__resource_create_staging_buffer(szRequiredStagingSize);
@@ -546,16 +549,6 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                         }
 
                         plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptResourceManager->tStagingBuffer.tStagingBufferHandle);
-                        memcpy((uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], &puVertexShaderCode[gptDds->get_header_size()], szRequiredStagingSize);
-
-                        const plBufferImageCopy tBufferImageCopy0 = {
-                            .uImageWidth    = (uint32_t)tImageInfo.iWidth,
-                            .uImageHeight   = (uint32_t)tImageInfo.iHeight,
-                            .uImageDepth    = 1,
-                            .uLayerCount    = 1,
-                            .szBufferOffset = szStagingOffset,
-                            .uMipLevel      = 0
-                        };
 
                         plCommandPool* ptCmdPool = gptResourceManager->atCmdPools[gptGfx->get_current_frame_index()];
                         plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "resource update");
@@ -563,9 +556,27 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
                         gptGfx->set_texture_usage(ptBlitEncoder, tResource.tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
 
-                        gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, tResource.tTexture, 1, &tBufferImageCopy0);
+                        puVertexShaderCode += gptDds->get_header_size();
+                        for(uint32_t i = 0; i < tDDSReadInfo.uMips; i++)
+                        {
+                            memcpy((uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[szStagingOffset], puVertexShaderCode, tDDSReadInfo.atMipInfo[i].uSize);
 
-                        szStagingOffset += szRequiredStagingSize;
+                            const plBufferImageCopy tBufferImageCopy0 = {
+                                .uImageWidth    = (uint32_t)tImageInfo.iWidth,
+                                .uImageHeight   = (uint32_t)tImageInfo.iHeight,
+                                .uImageDepth    = 1,
+                                .uLayerCount    = 1,
+                                .szBufferOffset = szStagingOffset,
+                                .uMipLevel      = i
+                            };
+
+
+
+                            gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, tResource.tTexture, 1, &tBufferImageCopy0);
+
+                            szStagingOffset += tDDSReadInfo.atMipInfo[i].uSize;
+                            puVertexShaderCode += tDDSReadInfo.atMipInfo[i].uSize;
+                        }
 
                         gptGfx->end_blit_pass(ptBlitEncoder);
                         gptGfx->end_command_recording(ptCommandBuffer);
@@ -573,7 +584,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
                         gptGfx->wait_on_command_buffer(ptCommandBuffer);
                         gptGfx->return_command_buffer(ptCommandBuffer);
 
-                        PL_FREE(puVertexShaderCode);
+                        PL_FREE(puOriginalVertexShaderCode);
 
                     }
                     else
