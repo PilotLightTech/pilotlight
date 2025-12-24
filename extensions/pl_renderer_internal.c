@@ -183,7 +183,7 @@ pl__renderer_create_texture_with_data(const plTextureDesc* ptDesc, const char* p
 
         // create staging buffer
         const plBufferDesc tStagingBufferDesc = {
-            .tUsage      = PL_BUFFER_USAGE_STAGING,
+            .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
             .szByteSize  = szSize,
             .pcDebugName = "temp staging buffer"
         };
@@ -324,7 +324,7 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
         if(!gptGfx->is_buffer_valid(ptDevice, tStagingBuffer))
         {
             const plBufferDesc tStagingBufferDesc = {
-                .tUsage      = PL_BUFFER_USAGE_STAGING,
+                .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
                 .szByteSize  = pl_max(268435456, szSize),
                 .pcDebugName = "Renderer Staging Buffer"
             };
@@ -341,7 +341,7 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
             {
                 gptGfx->queue_buffer_for_deletion(ptDevice, tStagingBuffer);
                 const plBufferDesc tStagingBufferDesc = {
-                    .tUsage      = PL_BUFFER_USAGE_STAGING,
+                    .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
                     .szByteSize  = szSize,
                     .pcDebugName = "Renderer Staging Buffer"
                 };
@@ -2144,7 +2144,7 @@ pl__renderer_add_drawable_skin_data_to_global_buffers(plScene* ptScene, uint32_t
     pl_sb_resize(ptSkinComponent->sbtTextureData, pl_sb_size(ptSkinComponent->sbtJoints) * 8);
 
     const plBufferDesc tSkinBufferDesc = {
-        .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .tUsage     = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = pl_sb_size(ptSkinComponent->sbtJoints) * 8 * sizeof(plMat4),
         .pcDebugName = "skin buffer"
     };
@@ -2463,25 +2463,25 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
     };
 
     const plBufferDesc atView2BuffersDesc = {
-        .tUsage     = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+        .tUsage     = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = 4096,
         .pcDebugName = "global buffer"
     };
 
     const plBufferDesc atCameraBuffersDesc = {
-        .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .tUsage     = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = 4096,
         .pcDebugName = "camera buffers"
     };
 
     const plBufferDesc atLightShadowDataBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .tUsage    = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuLightShadow),
         .pcDebugName = "shadow data buffer"
     };
 
     const plBufferDesc atViewBuffersDesc = {
-        .tUsage     = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+        .tUsage     = PL_BUFFER_USAGE_UNIFORM,
         .szByteSize = sizeof(plGpuViewData),
         .pcDebugName = "probe view buffer"
     };
@@ -4029,25 +4029,25 @@ pl__renderer_unstage_drawables(plScene* ptScene)
     }
 
     const plBufferDesc tIndexBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_INDEX,
+        .tUsage    = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
         .szByteSize = pl_max(sizeof(uint32_t) * pl_sb_size(ptScene->sbuIndexBuffer), 1024),
         .pcDebugName = "index buffer"
     };
     
     const plBufferDesc tVertexBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STORAGE,
+        .tUsage    = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
         .szByteSize = sizeof(plVec3) * pl_sb_size(ptScene->sbtVertexPosBuffer),
         .pcDebugName = "vertex buffer"
     };
      
     const plBufferDesc tStorageBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STORAGE,
+        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
         .szByteSize = sizeof(plVec4) * pl_sb_size(ptScene->sbtVertexDataBuffer),
         .pcDebugName = "storage buffer"
     };
 
     const plBufferDesc tSkinStorageBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STORAGE,
+        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
         .szByteSize = sizeof(plVec4) * pl_sb_size(ptScene->sbtSkinVertexDataBuffer),
         .pcDebugName = "skin buffer"
     };

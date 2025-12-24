@@ -798,7 +798,11 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer** ptBu
         ptBuffer->tDesc.pcDebugName = "unnamed buffer";
 
     MTLResourceOptions tStorageMode = MTLResourceStorageModePrivate;
-    if(ptDesc->tUsage & PL_BUFFER_USAGE_STAGING)
+    if(ptDesc->tUsage & PL_BUFFER_USAGE_TRANSFER_SOURCE)
+    {
+        tStorageMode = MTLResourceStorageModeShared;
+    }
+    else if(ptDesc->tUsage & PL_BUFFER_USAGE_TRANSFER_DESTINATION)
     {
         tStorageMode = MTLResourceStorageModeShared;
     }

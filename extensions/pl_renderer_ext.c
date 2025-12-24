@@ -675,25 +675,25 @@ pl_renderer_create_scene(plSceneInit tInit)
 
     // pre-create some global buffers, later we should defer this
     const plBufferDesc atLightShadowDataBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .tUsage    = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuLightShadow),
         .pcDebugName = "shadow data buffer"
     };
 
     const plBufferDesc atCameraBuffersDesc = {
-        .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .tUsage     = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = 4096,
         .pcDebugName = "camera buffers"
     };
 
     const plBufferDesc atProbeDataBufferDesc = {
-        .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .tUsage     = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = 4096,
         .pcDebugName = "probe buffers"
     };
 
     const plBufferDesc tSceneBufferDesc = {
-        .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .tUsage     = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = sizeof(plGpuSceneData),
         .pcDebugName = "scene buffer"
     };
@@ -745,7 +745,7 @@ pl_renderer_create_scene(plSceneInit tInit)
         const size_t uMaxFaceSize = ((size_t)1024 * (size_t)1024) * 4 * sizeof(float);
 
         const plBufferDesc tInputBufferDesc = {
-            .tUsage    = PL_BUFFER_USAGE_STORAGE,
+            .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER_SOURCE,
             .szByteSize = uMaxFaceSize,
             .pcDebugName = "filter buffers"
         };
@@ -1255,25 +1255,25 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     };
 
     const plBufferDesc atView2BuffersDesc = {
-        .tUsage     = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+        .tUsage     = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = 4096,
         .pcDebugName = "view buffer"
     };
 
     const plBufferDesc atCameraBuffersDesc = {
-        .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .tUsage     = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = 4096,
         .pcDebugName = "camera buffers"
     };
 
     const plBufferDesc atLightShadowDataBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+        .tUsage    = PL_BUFFER_USAGE_STORAGE,
         .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuLightShadow),
         .pcDebugName = "shadow data buffer"
     };
 
     const plBufferDesc atViewBuffersDesc = {
-        .tUsage     = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+        .tUsage     = PL_BUFFER_USAGE_UNIFORM,
         .szByteSize = sizeof(plGpuViewData),
         .pcDebugName = "view buffer"
     };
@@ -1392,7 +1392,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
         const plBufferDesc tPickBufferDesc = {
-            .tUsage     = PL_BUFFER_USAGE_STAGING | PL_BUFFER_USAGE_STORAGE,
+            .tUsage     = PL_BUFFER_USAGE_STORAGE,
             .szByteSize = sizeof(uint32_t) * 2,
             .pcDebugName = "Picking buffer"
         };
@@ -1977,7 +1977,7 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
         plBufferHandle atComputeBuffers[7] = {0};
         const uint32_t uPanoramaSize = iPanoramaHeight * iPanoramaWidth * 4 * sizeof(float);
         const plBufferDesc tInputBufferDesc = {
-            .tUsage     = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_STAGING,
+            .tUsage     = PL_BUFFER_USAGE_STORAGE,
             .szByteSize = uPanoramaSize,
             .pcDebugName = "panorama input buffer"
         };
@@ -1988,7 +1988,7 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
         gptImage->free(pfPanoramaData);
 
         const plBufferDesc tOutputBufferDesc = {
-            .tUsage    = PL_BUFFER_USAGE_STORAGE,
+            .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER_SOURCE,
             .szByteSize = uFaceSize,
             .pcDebugName = "panorama output buffer"
         };
@@ -2408,7 +2408,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~GPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plBufferDesc tMaterialDataBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STORAGE,
+        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
         .szByteSize = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity,
         .pcDebugName = "material buffer"
     };
@@ -4483,7 +4483,7 @@ pl_renderer_begin_frame(void)
             if(!gptGfx->is_buffer_valid(ptDevice, tStagingBuffer))
             {
                 const plBufferDesc tStagingBufferDesc = {
-                    .tUsage      = PL_BUFFER_USAGE_STAGING,
+                    .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
                     .szByteSize  = 268435456,
                     .pcDebugName = "Renderer Staging Buffer"
                 };

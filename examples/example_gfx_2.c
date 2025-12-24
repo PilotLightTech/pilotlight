@@ -201,7 +201,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create vertex buffer
     const plBufferDesc tVertexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_VERTEX,
+        .tUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
         .szByteSize  = sizeof(float) * PL_ARRAYSIZE(atVertexData),
         .pcDebugName = "vertex buffer"
     };
@@ -230,7 +230,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create index buffer
     const plBufferDesc tIndexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_INDEX,
+        .tUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
         .szByteSize  = sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData),
         .pcDebugName = "index buffer"
     };
@@ -253,7 +253,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create vertex buffer
     const plBufferDesc tStagingBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_STAGING,
+        .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
         .szByteSize  = 1280000,
         .pcDebugName = "staging buffer"
     };

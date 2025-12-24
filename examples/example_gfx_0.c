@@ -216,7 +216,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create vertex buffer
     const plBufferDesc tBufferDesc = {
-        .tUsage       = PL_BUFFER_USAGE_VERTEX,
+        .tUsage       = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
         .szByteSize   = sizeof(float) * PL_ARRAYSIZE(atVertexData),
         .pcDebugName  = "vertex buffer"
     };

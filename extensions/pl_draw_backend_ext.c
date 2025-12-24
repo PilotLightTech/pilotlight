@@ -137,13 +137,13 @@ pl_initialize_draw_backend(plDevice* ptDevice)
 
     // create initial buffers
     const plBufferDesc tIndexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
+        .tUsage      = PL_BUFFER_USAGE_INDEX,
         .szByteSize  = 4096,
         .pcDebugName = "Draw Ext Idx Buffer"
     };
 
     const plBufferDesc tVertexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
+        .tUsage      = PL_BUFFER_USAGE_VERTEX,
         .szByteSize  = 4096,
         .pcDebugName = "Draw Ext Vtx Buffer"
     }; 
@@ -329,7 +329,7 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     gptGfx->bind_texture_to_memory(ptDevice, tTexture, &tAllocation);
 
     const plBufferDesc tBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_STAGING,
+        .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
         .szByteSize  = (size_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y * 4),
         .pcDebugName = "font staging buffer"
     };
@@ -747,7 +747,7 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         gptGfx->queue_buffer_for_deletion(ptDevice, ptBufferInfo->tVertexBuffer);
 
         const plBufferDesc tBufferDesc = {
-            .tUsage     = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
+            .tUsage     = PL_BUFFER_USAGE_VERTEX,
             .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
             .pcDebugName = "2D Draw Vertex Buffer"
         };
@@ -777,7 +777,7 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         gptGfx->queue_buffer_for_deletion(ptDevice, gptDrawBackendCtx->atIndexBuffer[uFrameIdx]);
 
         const plBufferDesc tBufferDesc = {
-            .tUsage     = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
+            .tUsage     = PL_BUFFER_USAGE_INDEX,
             .szByteSize = pl_max(gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
             .pcDebugName = "Draw Index Buffer"
         };
@@ -976,7 +976,7 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
             gptGfx->queue_buffer_for_deletion(ptDevice, ptBufferInfo->tVertexBuffer);
 
             const plBufferDesc tBufferDesc = {
-                .tUsage     = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
+                .tUsage     = PL_BUFFER_USAGE_VERTEX,
                 .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
                 .pcDebugName = "3D Draw Vertex Buffer"
             };
@@ -1004,7 +1004,7 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
             gptGfx->queue_buffer_for_deletion(gptDrawBackendCtx->ptDevice, gptDrawBackendCtx->atIndexBuffer[uFrameIdx]);
 
             const plBufferDesc tBufferDesc = {
-                .tUsage     = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
+                .tUsage     = PL_BUFFER_USAGE_INDEX,
                 .szByteSize = pl_max(gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
                 .pcDebugName = "Draw Index Buffer"
             };
@@ -1066,7 +1066,7 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
             gptGfx->queue_buffer_for_deletion(ptDevice, ptBufferInfo->tVertexBuffer);
 
             const plBufferDesc tBufferDesc = {
-                .tUsage     = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_STAGING,
+                .tUsage     = PL_BUFFER_USAGE_VERTEX,
                 .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
                 .pcDebugName = "3D Lines Vertex Buffer"
             };
@@ -1095,7 +1095,7 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
             gptGfx->queue_buffer_for_deletion(ptDevice, gptDrawBackendCtx->atIndexBuffer[uFrameIdx]);
 
             const plBufferDesc tBufferDesc = {
-                .tUsage     = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_STAGING,
+                .tUsage     = PL_BUFFER_USAGE_INDEX,
                 .szByteSize = pl_max(gptDrawBackendCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
                 .pcDebugName = "Draw Index Buffer"
             };

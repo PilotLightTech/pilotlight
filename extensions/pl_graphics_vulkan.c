@@ -546,15 +546,17 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer **ptBu
 
     VkBufferUsageFlagBits tBufferUsageFlags = 0;
     if (ptDesc->tUsage & PL_BUFFER_USAGE_VERTEX)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        tBufferInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     if (ptDesc->tUsage & PL_BUFFER_USAGE_INDEX)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        tBufferInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
     if (ptDesc->tUsage & PL_BUFFER_USAGE_STORAGE)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        tBufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     if (ptDesc->tUsage & PL_BUFFER_USAGE_UNIFORM)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    if (ptDesc->tUsage & PL_BUFFER_USAGE_STAGING)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        tBufferInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    if (ptDesc->tUsage & PL_BUFFER_USAGE_TRANSFER_SOURCE)
+        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    if (ptDesc->tUsage & PL_BUFFER_USAGE_TRANSFER_DESTINATION)
+        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
     VkMemoryRequirements tMemRequirements = {0};
 
@@ -3521,7 +3523,7 @@ pl_create_device(const plDeviceInit* ptInit)
         // dynamic buffer stuff
         pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         plBufferDesc tStagingBufferDescription0 = {
-            .tUsage      = PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_STAGING,
+            .tUsage      = PL_BUFFER_USAGE_UNIFORM,
             .szByteSize  = ptDevice->tInit.szDynamicBufferBlockSize,
             .pcDebugName = "dynamic buffer"
         };

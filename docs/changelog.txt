@@ -5,12 +5,13 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-- v0.6.3 (2025-xx-xx) (draw)     add image quad (v1.4.0)
+- v0.7.0 (2025-xx-xx) (draw)     add image quad (v1.4.0)
                       (draw)     add draw callbacks
                       (datatime) fix string name for "March"
                       (starter)  added reverse z depth buffer support (v1.3.0)
-                      (graphics) fix draw_indexed multiple index buffers (v1.5.1)
-                      (graphics) fix new validation layer errors (v1.5.2)
+                      (graphics) fix draw_indexed multiple index buffers (v1.6.0)
+                      (graphics) fix new validation layer errors
+                      (graphics) correct buffer usage flags as bit flags 
 - v0.6.2 (2025-10-08) (draw) performance improvements
                       (draw) fix draw 3d plane issues
                       (draw) add text transforms

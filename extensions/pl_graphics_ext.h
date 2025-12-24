@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 5, 2}
+#define plGraphicsI_version {1, 6, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -1361,12 +1361,18 @@ enum _plTextureUsage
 
 enum _plBufferUsage
 {
-    PL_BUFFER_USAGE_UNSPECIFIED,
-    PL_BUFFER_USAGE_INDEX,
-    PL_BUFFER_USAGE_VERTEX,
-    PL_BUFFER_USAGE_UNIFORM,
-    PL_BUFFER_USAGE_STORAGE,
-    PL_BUFFER_USAGE_STAGING,
+    PL_BUFFER_USAGE_UNSPECIFIED          = 0,
+    PL_BUFFER_USAGE_INDEX                = 1 << 0,
+    PL_BUFFER_USAGE_VERTEX               = 1 << 1,
+    PL_BUFFER_USAGE_UNIFORM              = 1 << 2,
+    PL_BUFFER_USAGE_STORAGE              = 1 << 3,
+    PL_BUFFER_USAGE_TRANSFER_SOURCE      = 1 << 4,
+    PL_BUFFER_USAGE_TRANSFER_DESTINATION = 1 << 5,
+
+    // [OBSOLETE]
+    #ifndef PL_DISABLE_OBSOLETE
+        PL_BUFFER_USAGE_STAGING = PL_BUFFER_USAGE_TRANSFER_SOURCE | PL_BUFFER_USAGE_TRANSFER_DESTINATION
+    #endif
 };
 
 enum _plVendorId
