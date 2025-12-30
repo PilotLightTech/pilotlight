@@ -918,7 +918,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
             else
             {
                 DWORD iLastError = GetLastError();
-                printf("LoadLibaryA() failed with error code : %d\n", iLastError);
+                printf("LoadLibaryA() failed with error code : %d for %s\n", iLastError, acTemporaryName);
             }
             SetDllDirectoryA(NULL);
     }
@@ -958,7 +958,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
             else
             {
                 DWORD iLastError = GetLastError();
-                printf("LoadLibaryA() failed with error code : %d\n", iLastError);
+                printf("LoadLibaryA() failed with error code : %d for %s\n", iLastError, acTemporaryName);
             }
             SetDllDirectoryA(NULL);
         }

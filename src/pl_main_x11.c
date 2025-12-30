@@ -783,7 +783,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
                 ptLibrary->bValid = true;
             else
             {
-                printf("\n\n%s\n\n", dlerror());
+                printf("\n\n%s, %s\n\n", ptLibrary->acPath, dlerror());
             }
         }
     }
@@ -815,7 +815,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
                     ptLibrary->bValid = true;
                 else
                 {
-                    printf("\n\n%s\n\n", dlerror());
+                    printf("\n\n%s, %s\n\n", acTemporaryPath, dlerror());
                 }
 
             }
