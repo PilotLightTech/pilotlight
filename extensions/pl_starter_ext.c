@@ -560,7 +560,8 @@ pl_starter_begin_frame(void)
     }
 
     // begin new frame
-    gptGfx->begin_frame(gptStarterCtx->ptDevice);
+    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
+        gptGfx->begin_frame(gptStarterCtx->ptDevice);
     const uint32_t uCurrentFrameIndex = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarterCtx->atCmdPools[uCurrentFrameIndex];
     gptGfx->reset_command_pool(ptCmdPool, 0);
@@ -607,12 +608,15 @@ pl_starter_begin_frame(void)
         return false;
     }
 
-    if(!gptGfx->acquire_swapchain_image(gptStarterCtx->ptSwapchain))
+    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
     {
-        pl_starter_resize();
-        if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
-            gptProfile->end_frame();
-        return false;
+        if(!gptGfx->acquire_swapchain_image(gptStarterCtx->ptSwapchain))
+        {
+            pl_starter_resize();
+            if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
+                gptProfile->end_frame();
+            return false;
+        }
     }
 
     return true;
@@ -625,16 +629,25 @@ pl_starter_begin_main_pass(void)
     plCommandPool* ptCmdPool = gptStarterCtx->atCmdPools[uCurrentFrameIndex];
     plCommandBuffer* ptCurrentCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "starter main pass");
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~begin recording command buffer~~~~~~~~~~~~~~~~~~~~~~~
+    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
+    {
+        //~~~~~~~~~~~~~~~~~~~~~~~~begin recording command buffer~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plBeginCommandInfo tBeginInfo = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]++},
-    };
-    gptGfx->begin_command_recording(ptCurrentCommandBuffer, &tBeginInfo);
+        const plBeginCommandInfo tBeginInfo = {
+            .uWaitSemaphoreCount   = 1,
+            .atWaitSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
+            .auWaitSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]++},
+        };
+        gptGfx->begin_command_recording(ptCurrentCommandBuffer, &tBeginInfo);
 
-    gptStarterCtx->ptCurrentEncoder = gptGfx->begin_render_pass(ptCurrentCommandBuffer, gptStarterCtx->tRenderPass, NULL);
+        gptStarterCtx->ptCurrentEncoder = gptGfx->begin_render_pass(ptCurrentCommandBuffer, gptStarterCtx->tRenderPass, NULL);
+
+        gptStarterCtx->bMainPassExplicit = true;
+    }
+    else
+    {
+        gptStarterCtx->ptCurrentEncoder = NULL;
+    }
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_CONSOLE_EXT)
     {
@@ -642,8 +655,6 @@ pl_starter_begin_main_pass(void)
             gptConsole->open();
         gptConsole->update();
     }
-
-    gptStarterCtx->bMainPassExplicit = true;
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_TOOLS_EXT)
         gptTools->update();
@@ -656,7 +667,7 @@ pl_starter_end_main_pass(void)
 {
     const uint32_t uCurrentFrameIndex = gptGfx->get_current_frame_index();
 
-    plCommandBuffer* ptCurrentCommandBuffer = gptGfx->get_encoder_command_buffer(gptStarterCtx->ptCurrentEncoder);
+    
 
     // submits UI drawlist/layers
     plIO* ptIO = gptIOI->get_io();
@@ -684,26 +695,32 @@ pl_starter_end_main_pass(void)
         gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, gptStarterCtx->ptCurrentEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
     }
 
-    gptGfx->end_render_pass(gptStarterCtx->ptCurrentEncoder);
-    gptStarterCtx->ptCurrentEncoder = NULL;
-
-    // end recording
-    gptGfx->end_command_recording(ptCurrentCommandBuffer);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
-
-    const plSubmitInfo tSubmitInfo = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
-        .auSignalSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]},
-    };
-
-    if(!gptGfx->present(ptCurrentCommandBuffer, &tSubmitInfo, &gptStarterCtx->ptSwapchain, 1))
+    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
     {
-        pl_starter_resize();
-    }
 
-    gptGfx->return_command_buffer(ptCurrentCommandBuffer);
+        plCommandBuffer* ptCurrentCommandBuffer = gptGfx->get_encoder_command_buffer(gptStarterCtx->ptCurrentEncoder);
+
+        gptGfx->end_render_pass(gptStarterCtx->ptCurrentEncoder);
+        gptStarterCtx->ptCurrentEncoder = NULL;
+
+        // end recording
+        gptGfx->end_command_recording(ptCurrentCommandBuffer);
+
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
+
+        const plSubmitInfo tSubmitInfo = {
+            .uSignalSemaphoreCount   = 1,
+            .atSignalSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
+            .auSignalSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]},
+        };
+
+        if(!gptGfx->present(ptCurrentCommandBuffer, &tSubmitInfo, &gptStarterCtx->ptSwapchain, 1))
+        {
+            pl_starter_resize();
+        }
+
+        gptGfx->return_command_buffer(ptCurrentCommandBuffer);
+    }
 }
 
 void
@@ -789,6 +806,12 @@ plSwapchain*
 pl_starter_get_swapchain(void)
 {
     return gptStarterCtx->ptSwapchain;
+}
+
+void
+pl_starter_set_swapchain(plSwapchain* ptSwapchain)
+{
+    gptStarterCtx->ptSwapchain = ptSwapchain;
 }
 
 plSurface*
@@ -1565,6 +1588,7 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_device                        = pl_starter_create_device,
         .get_device                           = pl_starter_get_device,
         .get_swapchain                        = pl_starter_get_swapchain,
+        .set_swapchain                        = pl_starter_set_swapchain,
         .get_surface                          = pl_starter_get_surface,
         .get_render_pass                      = pl_starter_get_render_pass,
         .get_render_pass_layout               = pl_starter_get_render_pass_layout,

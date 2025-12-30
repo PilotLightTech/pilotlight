@@ -60,7 +60,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plStarterI_version {1, 3, 0}
+#define plStarterI_version {1, 3, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -194,6 +194,9 @@ typedef struct _plStarterI
     uint64_t                 (*increment_current_timeline_value)(void);
     plTimelineSemaphore*     (*get_last_timeline_semaphore)     (void);
     uint64_t                 (*get_last_timeline_value)         (void);
+
+    // resource setting
+    void (*set_swapchain)(plSwapchain*);
 
     // drawing resources
     //    - this extension maintains some draw layers you use
