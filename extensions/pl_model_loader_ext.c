@@ -424,7 +424,8 @@ pl__load_gltf_texture(const char* pcPath, plTextureSlot tSlot, const cgltf_textu
         
         pl_str_get_file_name_only(ptTexture->texture->image->mime_type, pcNext, 4);
         strcpy(ptMaterial->atTextureMaps[tSlot].acName, acResourceName);
-        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_ex(acResourceName, 0, (uint8_t*)pucActualBuffer, ptTexture->texture->image->buffer_view->size, pcPath, 0);
+        // ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_ex(acResourceName, PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED, (uint8_t*)pucActualBuffer, ptTexture->texture->image->buffer_view->size, pcPath, 0);
+        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load_ex(acResourceName, PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED, (uint8_t*)pucActualBuffer, ptTexture->texture->image->buffer_view->size, pcPath, 0);
     }
     else if(strncmp(ptTexture->texture->image->uri, "data:", 5) == 0)
     {
@@ -457,7 +458,7 @@ pl__load_gltf_texture(const char* pcPath, plTextureSlot tSlot, const cgltf_textu
         char acFilepath[2048] = {0};
         strcpy(acFilepath, pcDirectory);
         pl_str_concatenate(acFilepath, ptMaterial->atTextureMaps[tSlot].acName, acFilepath, 2048);
-        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load(acFilepath, 0);
+        ptMaterial->atTextureMaps[tSlot].tResource = gptResource->load(acFilepath, PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED);
     }
 }
 

@@ -980,6 +980,7 @@ bool ImGui_ImplVulkan_CreateDeviceObjects()
         info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         info.bindingCount = 1;
         info.pBindings = &binding;
+        info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
         err = vkCreateDescriptorSetLayout(v->Device, &info, bd->Allocator, &bd->TextureDescriptorSetLayout);
         check_vk_result(err);
     }
@@ -994,6 +995,7 @@ bool ImGui_ImplVulkan_CreateDeviceObjects()
         info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         info.bindingCount = 1;
         info.pBindings = &binding;
+        info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
         err = vkCreateDescriptorSetLayout(v->Device, &info, bd->Allocator, &bd->SamplerDescriptorSetLayout);
         check_vk_result(err);
     }
@@ -1004,7 +1006,7 @@ bool ImGui_ImplVulkan_CreateDeviceObjects()
     pool_sizes[1] = { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1 };
     VkDescriptorPoolCreateInfo pool_info = {};
     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
     pool_info.maxSets = 2;
     pool_info.poolSizeCount = 2;
     pool_info.pPoolSizes = pool_sizes;
