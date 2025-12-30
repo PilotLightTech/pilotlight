@@ -19,22 +19,16 @@
 :: modify PATH to find vcvarsall.bat
 @if exist "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build;%PATH%
-@if exist "C:/Program Files/Microsoft Visual Studio/2019/Community/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files/Microsoft Visual Studio/18/Professional/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\18\Professional\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files/Microsoft Visual Studio/2022/Professional/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build;%PATH%
-@if exist "C:/Program Files/Microsoft Visual Studio/2019/Professional/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files/Microsoft Visual Studio/18/Enterprise/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build;%PATH%
-@if exist "C:/Program Files/Microsoft Visual Studio/2019/Enterprise/VC/Auxiliary/Build" @set PATH=C:\Program Files\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files (x86)/Microsoft Visual Studio/18/Community/VC/Auxiliary/Build" @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build" @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build;%PATH%
-@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Auxiliary/Build" @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files (x86)/Microsoft Visual Studio/18/Professional/VC/Auxiliary/Build" @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\18\Professional\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files (x86)/Microsoft Visual Studio/2022/Professional/VC/Auxiliary/Build" @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build;%PATH%
-@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/VC/Auxiliary/Build" @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files (x86)/Microsoft Visual Studio/18/Enterprise/VC/Auxiliary/Build" @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build;%PATH%
 @if exist "C:/Program Files (x86)/Microsoft Visual Studio/2022/Enterprise/VC/Auxiliary/Build" @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build;%PATH%
-@if exist "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Auxiliary/Build" @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build;%PATH%
 
 :: setup environment for MSVC dev tools
 @call vcvarsall.bat amd64 > nul
