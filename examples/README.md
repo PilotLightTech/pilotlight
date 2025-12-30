@@ -1,5 +1,5 @@
 ## Examples
-The following examples have been provided to help newcomers become acclimated to using **Pilot Light**. The examples can be found in the **examples** directory.
+The following examples have been provided to help newcomers become acclimated to using **Pilot Light** extensions. The examples can be found in the **examples** directory.
 
 To run the examples, first follow the build instructions [here](https://github.com/PilotLightTech/pilotlight/wiki/Building).
 
