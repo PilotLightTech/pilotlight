@@ -3874,7 +3874,6 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_clip_rect              = pl_get_clip_rect,
         .add_line                   = pl_add_line,
         .add_lines                  = pl_add_lines,
-        .add_callback               = pl_add_2d_callback,
         .add_text                   = pl_add_text_ex,
         .add_text_clipped           = pl_add_text_clipped_ex,
         .add_triangle               = pl_add_triangle,

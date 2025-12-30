@@ -72,7 +72,7 @@ the API is complete. It just means we won't break what currently exists.
 * Rectangle Packing   v1.0.0 (pl_rect_pack_ext.h)
 * Screen Log          v2.0.0 (pl_screen_log_ext.h)
 * Shader              v1.2.1 (pl_shader_ext.h)
-* Starter             v1.3.0 (pl_starter_ext.h)
+* Starter             v1.3.1 (pl_starter_ext.h)
 * Stats               v1.0.0 (pl_stats_ext.h)
 * String Interning    v1.0.1 (pl_string_intern_ext.h)
 * UI Tools            v1.0.0 (pl_tools_ext.h)
@@ -82,17 +82,17 @@ the API is complete. It just means we won't break what currently exists.
 * Compression         v1.0.0 (pl_compress_ext.h)
 * Virtual File System v1.0.0 (pl_vfs_ext.h)
 * ECS                 v1.0.0 (pl_ecs_ext.h)
+* DDS                 v1.0.0 (pl_dds_ext.h)
+* Resource            v1.0.0 (pl_resource_ext.h)
 
 ## Nearly Stable Extensions
 
-* Resource            v0.2.2 (pl_resource_ext.h)
 * Bvh                 v0.2.0 (pl_bvh_ext.h)
 * Physics             v0.2.0 (pl_physics_ext.h)
 * Collision           v0.2.0 (pl_collision_ext.h)
 * Mesh                v0.1.0 (pl_mesh_ext.h)
 * Mesh Builder        v0.1.0 (pl_mesh_ext.h)
 * Shader Variant      v0.2.0 (pl_shader_variant_ext.h)
-* DDS                 v0.2.0 (pl_dds_ext.h)
 
 ## Unstable Extensions
 

@@ -26,7 +26,7 @@ Index of this file:
       * 1 channel -> PL_FORMAT_BC4_*
       * 2 channel -> PL_FORMAT_BC5_*
       * 3 channel -> PL_FORMAT_BC1_*
-      * 4 channel -> PL_FORMAT_BC2_*
+      * 4 channel -> PL_FORMAT_BC3_*
 */
 
 //-----------------------------------------------------------------------------
