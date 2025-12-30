@@ -877,7 +877,19 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTexture** p
         tDesc.pcDebugName = "unnamed texture";
 
     if(tDesc.uMips == 0)
-        tDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tDesc.tDimensions.x, (int)tDesc.tDimensions.y))) + 1u;
+        tDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tDesc.tDimensions.x, (int)tDesc.tDimensions.y))) + 1;
+
+    for(uint32_t uMipLevel = 1; uMipLevel < tDesc.uMips; uMipLevel++)
+    {
+        int iCurrentWidth = (int)tDesc.tDimensions.x / ((1 << (int)uMipLevel));
+        int iCurrentHeight = (int)tDesc.tDimensions.y / ((1 << (int)uMipLevel));
+
+        if(iCurrentHeight < 4 || iCurrentWidth < 4)
+        {
+            tDesc.uMips = uMipLevel;
+            break;
+        }
+    }
 
     ptTexture->tDesc = tDesc,
     ptTexture->tView = (plTextureViewDesc){

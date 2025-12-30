@@ -533,6 +533,7 @@ typedef struct _plGraphicsI
 
     size_t       (*get_data_type_size)(plDataType);
     plBlendState (*get_blend_state)   (plBlendMode);
+    uint32_t     (*calculate_mip_count)(uint32_t width, uint32_t height);
 
     //------------------------------NOT STABLE-------------------------------------
 

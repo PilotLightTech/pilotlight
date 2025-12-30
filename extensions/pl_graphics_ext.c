@@ -433,9 +433,9 @@ pl__format_stride(plFormat tFormat)
         case PL_FORMAT_EAC_R11G11_UNORM:
         case PL_FORMAT_EAC_R11G11_SNORM:
             return 64 / (4 * 8);
-
-        case PL_FORMAT_BC2_SRGB:
+            
         case PL_FORMAT_BC2_UNORM:
+        case PL_FORMAT_BC2_SRGB:
         case PL_FORMAT_BC3_UNORM:
         case PL_FORMAT_BC3_SRGB:
         case PL_FORMAT_BC5_UNORM:
@@ -1072,6 +1072,25 @@ pl_get_blit_encoder_command_buffer(plBlitEncoder* ptEncoder)
     return ptEncoder->ptCommandBuffer;
 }
 
+uint32_t
+pl_calculate_mip_count(uint32_t uWidth, uint32_t uHeight)
+{
+    uint32_t uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)uWidth, (int)uHeight))) + 1;
+
+    for(uint32_t uMipLevel = 1; uMipLevel < uMips; uMipLevel++)
+    {
+        int iCurrentWidth = (int)uWidth / ((1 << (int)uMipLevel));
+        int iCurrentHeight = (int)uHeight / ((1 << (int)uMipLevel));
+
+        if(iCurrentHeight < 4 || iCurrentWidth < 4)
+        {
+            uMips = uMipLevel;
+            break;
+        }
+    }
+    return uMips;
+}
+
 static plBlendState
 pl_graphics_get_blend_state(plBlendMode tBlendMode)
 {
@@ -1298,6 +1317,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .reset_event                            = pl_reset_event,
         .set_event                              = pl_set_event,
         .wait_for_events                        = pl_wait_for_events,
+        .calculate_mip_count                    = pl_calculate_mip_count,
 
         #if defined(PL_GRAPHICS_EXPOSE_VULKAN) && defined(PL_VULKAN_BACKEND)
         .get_vulkan_instance        = pl_get_vulkan_instance,
