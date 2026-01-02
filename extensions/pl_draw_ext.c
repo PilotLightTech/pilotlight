@@ -636,7 +636,7 @@ void
 pl_add_2d_callback(plDrawLayer2D* ptLayer, plDrawCallback tCallback, void* pUserData, uint32_t uUserDataSize)
 {
 
-    plDrawCommand tNewDrawCommand = 
+    plDrawCommand tNewDrawCommand =
     {
         .tUserCallback         = tCallback,
         .uUserCallbackDataSize = uUserDataSize,
@@ -644,6 +644,23 @@ pl_add_2d_callback(plDrawLayer2D* ptLayer, plDrawCallback tCallback, void* pUser
     };
     pl_sb_push(ptLayer->sbtCommandBuffer, tNewDrawCommand);
 
+    ptLayer->ptLastCommand = NULL;
+}
+
+void
+pl_set_2d_shader(plDrawLayer2D* ptLayer, plShaderHandle* ptShader)
+{
+    // create a shader-only command (no draw data, just shader switch)
+    // backend will bind this shader when processing the command stream
+    plDrawCommand tNewDrawCommand =
+    {
+        .ptUserShader = ptShader  // NULL clears user shader, non-NULL activates it
+    };
+    pl_sb_push(ptLayer->sbtCommandBuffer, tNewDrawCommand);
+
+    // force next draw primitive to create a new command rather than
+    // merging with the previous one - ensures draws after shader switch
+    // get their own commands that will use the new shader
     ptLayer->ptLastCommand = NULL;
 }
 
@@ -3874,7 +3891,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_clip_rect              = pl_get_clip_rect,
         .add_line                   = pl_add_line,
         .add_lines                  = pl_add_lines,
-        .add_callback               = pl_add_2d_callback,
+        .add_2d_callback            = pl_add_2d_callback,
         .add_text                   = pl_add_text_ex,
         .add_text_clipped           = pl_add_text_clipped_ex,
         .add_triangle               = pl_add_triangle,
@@ -3896,7 +3913,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_image_quad_ex          = pl_add_image_quad_ex,
         .add_bezier_quad            = pl_add_bezier_quad,
         .add_bezier_cubic           = pl_add_bezier_cubic,
-        .add_callback               = pl_add_2d_callback
+        .set_2d_shader              = pl_set_2d_shader
     };
     pl_set_api(ptApiRegistry, plDrawI, &tApi);
 

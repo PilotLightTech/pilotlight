@@ -88,12 +88,11 @@ typedef struct _plFontConfig     plFontConfig;     // configuration for loading 
 typedef struct _plFontChar       plFontChar;       // internal type
 typedef struct _plFontGlyph      plFontGlyph;      // internal type
 typedef struct _plFontCustomRect plFontCustomRect; // internal type
-
-// graphics types
-typedef struct _plRenderEncoder plRenderEncoder; // required for binding shader in callback
+typedef struct _plRenderEncoder  plRenderEncoder;  // pl_graphics_ext.h
+typedef union  plShaderHandle    plShaderHandle;   // pl_graphics_ext.h
 
 // advanced callbacks (you probably shouldn't be using this, mostly for backends)
-typedef void (*plDrawCallback)(const plDrawList2D*, const plDrawCommand*, const plRenderEncoder*);
+typedef void (*plDrawCallback)(const plDrawList2D*, const plDrawCommand*);
 #define plDrawCallbackResetRenderState (plDrawCallback)(-8)
 
 // character types
@@ -185,7 +184,8 @@ typedef struct _plDrawI
     const plRect* (*get_clip_rect)    (plDrawList2D*);
 
     // advanced (you probably shouldn't be using this, mostly for backends)
-    void (*add_callback)(plDrawLayer2D*, plDrawCallback, void* userData, uint32_t userDataSize); // userDataSize not setup yet
+    void (*add_2d_callback)(plDrawLayer2D*, plDrawCallback, void* userData, uint32_t userDataSize);
+    void (*set_2d_shader)(plDrawLayer2D*, plShaderHandle*);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3D~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -420,7 +420,8 @@ typedef struct _plDrawCommand
     plTextureID    tTextureId;
     plRect         tClip;
     bool           bSdf;
-    plDrawCallback tUserCallback;
+    plDrawCallback  tUserCallback;
+    plShaderHandle* ptUserShader;
     void*          pUserCallbackData;
     uint32_t       uUserCallbackDataSize;
 } plDrawCommand;

@@ -698,7 +698,7 @@ pl_create_bind_group_for_texture(plTextureHandle tTexture)
 }
 
 static void
-pl__use_nearest_sampler(const plDrawList2D* ptDrawlist, const plDrawCommand* tCmd, const plRenderEncoder* ptEncoder)
+pl__use_nearest_sampler(const plDrawList2D* ptDrawlist, const plDrawCommand* tCmd)
 {
     gptDrawBackendCtx->tCurrentSamplerBindGroup = gptDrawBackendCtx->tNearSamplerBindGroup;
 }
@@ -706,13 +706,13 @@ pl__use_nearest_sampler(const plDrawList2D* ptDrawlist, const plDrawCommand* tCm
 void
 pl_use_nearest_sampler(plDrawLayer2D* ptLayer)
 {
-    gptDraw->add_callback(ptLayer, pl__use_nearest_sampler, NULL, 0);
+    gptDraw->add_2d_callback(ptLayer, pl__use_nearest_sampler, NULL, 0);
 }
 
 void
 pl_use_linear_sampler(plDrawLayer2D* ptLayer)
 {
-    gptDraw->add_callback(ptLayer, plDrawCallbackResetRenderState, NULL, 0);
+    gptDraw->add_2d_callback(ptLayer, plDrawCallbackResetRenderState, NULL, 0);
 }
 
 void
@@ -837,7 +837,7 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
     gptGfx->bind_vertex_buffer(ptEncoder, ptBufferInfo->tVertexBuffer);
     gptGfx->bind_shader(ptEncoder, tCurrentShader);
 
-    // track if user callback has bound a custom shader (to prevent automatic shader switching)
+    // track if user shader callback has bound a custom shader (to prevent automatic shader switching)
     bool bUserShaderActive = false;
 
     const uint32_t uCmdCount = pl_sb_size(ptDrawlist->sbtDrawCommands);
@@ -845,6 +845,7 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
     {
         plDrawCommand cmd = ptDrawlist->sbtDrawCommands[i];
 
+        // regular callback (state changes like sampler switching)
         if(cmd.tUserCallback != NULL)
         {
             if(cmd.tUserCallback == plDrawCallbackResetRenderState)
@@ -857,9 +858,15 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
             }
             else
             {
-                cmd.tUserCallback(ptDrawlist, &cmd, ptEncoder);
-                bUserShaderActive = true;
+                cmd.tUserCallback(ptDrawlist, &cmd);
             }
+        }
+        // user shader (binds custom shader, suppresses bSdf switching)
+        else if(cmd.ptUserShader != NULL)
+        {
+            gptGfx->bind_shader(ptEncoder, *cmd.ptUserShader);
+            tCurrentShader = *cmd.ptUserShader;
+            bUserShaderActive = true;
         }
         else
         {
@@ -913,7 +920,10 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
                 gptGfx->set_scissor_region(ptEncoder, &tScissor);
             }
 
+            // use font atlas texture as fallback when no texture specified
             plBindGroupHandle tTexture = {.uData = cmd.tTextureId};
+            if(tTexture.uData == 0)
+                tTexture.uData = gptDraw->get_current_font_atlas()->tTexture;
             plBindGroupHandle atBindGroups[] = {
                 gptDrawBackendCtx->tCurrentSamplerBindGroup,
                 tTexture
