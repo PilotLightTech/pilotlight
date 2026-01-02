@@ -89,8 +89,11 @@ typedef struct _plFontChar       plFontChar;       // internal type
 typedef struct _plFontGlyph      plFontGlyph;      // internal type
 typedef struct _plFontCustomRect plFontCustomRect; // internal type
 
+// graphics types
+typedef struct _plRenderEncoder plRenderEncoder; // required for binding shader in callback
+
 // advanced callbacks (you probably shouldn't be using this, mostly for backends)
-typedef void (*plDrawCallback)(const plDrawList2D*, const plDrawCommand*);
+typedef void (*plDrawCallback)(const plDrawList2D*, const plDrawCommand*, const plRenderEncoder*);
 #define plDrawCallbackResetRenderState (plDrawCallback)(-8)
 
 // character types
