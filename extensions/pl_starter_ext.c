@@ -363,8 +363,8 @@ pl_starter_resize(void)
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
         plVec3 tNewDimensions = {
-                gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x,
-                gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y,
+                (float)tInfo.uWidth * ptIO->tMainFramebufferScale.x,
+                (float)tInfo.uHeight * ptIO->tMainFramebufferScale.y,
                 1};
 
         plTexture* ptTexture = gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
@@ -485,7 +485,7 @@ pl_starter_resize(void)
         gptGfx->return_command_buffer(ptCommandBuffer);
     }
 
-    gptGfx->update_render_pass_attachments(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPass, gptIOI->get_io()->tMainViewportSize, atMainAttachmentSets);
+    gptGfx->update_render_pass_attachments(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPass, (plVec2){(float)tInfo.uWidth, (float)tInfo.uHeight}, atMainAttachmentSets);
 }
 
 void
