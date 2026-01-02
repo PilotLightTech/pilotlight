@@ -3672,7 +3672,10 @@ pl_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainI
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
     };
     for (uint32_t i = 0; i < gptGraphics->uFramesInFlight; i++)
+    {
         PL_VULKAN(vkCreateSemaphore(ptDevice->tLogicalDevice, &tSemaphoreInfo, gptGraphics->ptAllocationCallbacks, &ptSwap->atImageAvailable[i]));
+        pl__set_vulkan_object_name(ptDevice, (uint64_t)ptSwap->atImageAvailable[i], VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, "image available");
+    }
     return ptSwap;
 }
 
@@ -3698,17 +3701,10 @@ pl_acquire_swapchain_image(plSwapchain* ptSwap)
     plDevice* ptDevice = ptSwap->ptDevice;
 
     VkResult err = vkAcquireNextImageKHR(ptDevice->tLogicalDevice, ptSwap->tSwapChain, UINT64_MAX, ptSwap->atImageAvailable[gptGraphics->uCurrentFrameIndex], VK_NULL_HANDLE, &ptSwap->uCurrentImageIndex);
-    if (err == VK_SUBOPTIMAL_KHR || err == VK_ERROR_OUT_OF_DATE_KHR)
+    if (err == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        if (err == VK_ERROR_OUT_OF_DATE_KHR)
-        {
-            pl_end_cpu_sample(gptProfile, 0);
-            return false;
-        }
-    }
-    else
-    {
-        PL_VULKAN(err);
+        pl_end_cpu_sample(gptProfile, 0);
+        return false;
     }
     pl_end_cpu_sample(gptProfile, 0);
     return true;
@@ -3810,15 +3806,11 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
         .pImageIndices      = auImageIndices
     };
     tResult = vkQueuePresentKHR(ptDevice->tPresentQueue, &tPresentInfo);
-    if (tResult == VK_SUBOPTIMAL_KHR || tResult == VK_ERROR_OUT_OF_DATE_KHR)
+    if (tResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
         pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
         pl_end_cpu_sample(gptProfile, 0);
         return false;
-    }
-    else
-    {
-        PL_VULKAN(tResult);
     }
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
     pl_sb_push(ptCmdBuffer->ptPool->sbtPendingCommandBuffers, ptCmdBuffer->tCmdBuffer);
@@ -3830,9 +3822,14 @@ void
 pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+
+    plDevice* ptDevice = ptSwap->ptDevice;
+    VkSurfaceCapabilitiesKHR tCapabilities = {0};
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &tCapabilities));
+
     ptSwap->tInfo.bVSync = ptInit->bVSync;
-    ptSwap->tInfo.uWidth = ptInit->uWidth;
-    ptSwap->tInfo.uHeight = ptInit->uHeight;
+    ptSwap->tInfo.uWidth = tCapabilities.currentExtent.width;
+    ptSwap->tInfo.uHeight = tCapabilities.currentExtent.height;
     ptSwap->tInfo.tSampleCount = pl_min(ptInit->tSampleCount, ptSwap->ptDevice->tInfo.tMaxSampleCount);
     if(ptSwap->tInfo.tSampleCount == 0)
         ptSwap->tInfo.tSampleCount = 1;
@@ -5185,11 +5182,17 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
     };
 
-    const uint32_t uNewSemaphoreCount = ptSwap->uImageCount - pl_sb_size(ptSwap->sbtRenderFinish);
-    for (uint32_t i = 0; i < uNewSemaphoreCount; i++)
+    for (uint32_t i = 0; i < pl_sb_size(ptSwap->sbtRenderFinish); i++)
+    {
+        vkDestroySemaphore(ptDevice->tLogicalDevice, ptSwap->sbtRenderFinish[i], gptGraphics->ptAllocationCallbacks);
+    }
+    pl_sb_reset(ptSwap->sbtRenderFinish);
+
+    for (uint32_t i = 0; i < ptSwap->uImageCount; i++)
     {
         pl_sb_add(ptSwap->sbtRenderFinish);
         PL_VULKAN(vkCreateSemaphore(ptDevice->tLogicalDevice, &tSemaphoreInfo, gptGraphics->ptAllocationCallbacks, &pl_sb_top(ptSwap->sbtRenderFinish)));
+        pl__set_vulkan_object_name(ptDevice, (uint64_t)pl_sb_top(ptSwap->sbtRenderFinish), VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT, "render finish");
     }
 
     for (uint32_t i = 0; i < ptSwap->uImageCount; i++)
