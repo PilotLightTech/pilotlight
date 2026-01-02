@@ -698,7 +698,7 @@ pl_create_bind_group_for_texture(plTextureHandle tTexture)
 }
 
 static void
-pl__use_nearest_sampler(const plDrawList2D* ptDrawlist, const plDrawCommand* tCmd)
+pl__use_nearest_sampler(const plDrawList2D* ptDrawlist, const plDrawCommand* tCmd, const plRenderEncoder* ptEncoder)
 {
     gptDrawBackendCtx->tCurrentSamplerBindGroup = gptDrawBackendCtx->tNearSamplerBindGroup;
 }
@@ -837,23 +837,13 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
     gptGfx->bind_vertex_buffer(ptEncoder, ptBufferInfo->tVertexBuffer);
     gptGfx->bind_shader(ptEncoder, tCurrentShader);
 
+    // track if user callback has bound a custom shader (to prevent automatic shader switching)
+    bool bUserShaderActive = false;
+
     const uint32_t uCmdCount = pl_sb_size(ptDrawlist->sbtDrawCommands);
     for(uint32_t i = 0u; i < uCmdCount; i++)
     {
         plDrawCommand cmd = ptDrawlist->sbtDrawCommands[i];
-
-        if(cmd.bSdf && !bSdf)
-        {
-            gptGfx->bind_shader(ptEncoder, ptEntry->tSecondaryPipeline);
-            tCurrentShader = ptEntry->tSecondaryPipeline;
-            bSdf = true;
-        }
-        else if(!cmd.bSdf && bSdf)
-        {
-            gptGfx->bind_shader(ptEncoder, ptEntry->tRegularPipeline);
-            tCurrentShader = ptEntry->tRegularPipeline;
-            bSdf = false;
-        }
 
         if(cmd.tUserCallback != NULL)
         {
@@ -863,13 +853,32 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
                 gptGfx->bind_vertex_buffer(ptEncoder, ptBufferInfo->tVertexBuffer);
                 gptGfx->bind_shader(ptEncoder, tCurrentShader);
                 gptDrawBackendCtx->tCurrentSamplerBindGroup = gptDrawBackendCtx->tFontSamplerBindGroup;
-                
+                bUserShaderActive = false;
             }
             else
-                cmd.tUserCallback(ptDrawlist, &cmd);
+            {
+                cmd.tUserCallback(ptDrawlist, &cmd, ptEncoder);
+                bUserShaderActive = true;
+            }
         }
         else
         {
+            // only switch shaders for actual draw commands when no user shader is active
+            if(!bUserShaderActive)
+            {
+                if(cmd.bSdf && !bSdf)
+                {
+                    gptGfx->bind_shader(ptEncoder, ptEntry->tSecondaryPipeline);
+                    tCurrentShader = ptEntry->tSecondaryPipeline;
+                    bSdf = true;
+                }
+                else if(!cmd.bSdf && bSdf)
+                {
+                    gptGfx->bind_shader(ptEncoder, ptEntry->tRegularPipeline);
+                    tCurrentShader = ptEntry->tRegularPipeline;
+                    bSdf = false;
+                }
+            }
 
             if(pl_rect_width(&cmd.tClip) == 0)
             {
