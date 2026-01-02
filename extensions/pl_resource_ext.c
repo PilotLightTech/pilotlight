@@ -26,6 +26,7 @@ Index of this file:
 #include "pl_gpu_allocators_ext.h"
 #include "pl_image_ext.h"
 #include "pl_vfs_ext.h"
+#include "pl_platform_ext.h"
 
 // unstable extensions
 #include "pl_dxt_ext.h"
@@ -60,6 +61,7 @@ Index of this file:
     static const plVfsI*           gptVfs           = NULL;
     static const plDdsI*           gptDds           = NULL;
     static const plDxtI*           gptDxt           = NULL;
+    static const plFileI*          gptFile          = NULL;
 #endif
 
 // libs
@@ -159,7 +161,12 @@ pl_resource_initialize(plResourceManagerInit tDesc)
     if(tDesc.uMaxTextureResolution == 0)
         tDesc.uMaxTextureResolution = 1024;
 
+    if(tDesc.pcCacheDirectory == NULL)
+        tDesc.pcCacheDirectory = "../cache";
+
     gptResourceManager->tDesc = tDesc;
+    gptFile->create_directory(tDesc.pcCacheDirectory);
+    gptVfs->mount_directory("/cache", tDesc.pcCacheDirectory, PL_VFS_MOUNT_FLAGS_NONE);
 
     plDevice* ptDevice = tDesc.ptDevice;
 
@@ -984,6 +991,7 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptDds           = pl_get_api_latest(ptApiRegistry, plDdsI);
         gptDxt           = pl_get_api_latest(ptApiRegistry, plDxtI);
+        gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

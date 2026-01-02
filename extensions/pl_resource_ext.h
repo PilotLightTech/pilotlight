@@ -43,7 +43,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plResourceI_version {1, 0, 0}
+#define plResourceI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -124,8 +124,9 @@ enum _plResourceLoadFlags
 
 typedef struct _plResourceManagerInit
 {
-    plDevice* ptDevice;
-    uint32_t  uMaxTextureResolution; // default: 1024
+    plDevice*   ptDevice;
+    uint32_t    uMaxTextureResolution; // default: 1024
+    const char* pcCacheDirectory;      // default: ../cache
 } plResourceManagerInit;
 
 #endif // PL_RESOURCE_EXT_H

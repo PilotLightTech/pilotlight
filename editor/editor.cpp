@@ -162,7 +162,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptVfs->mount_directory("/shaders", "../shaders", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/shader-temp", "../shader-temp", PL_VFS_MOUNT_FLAGS_NONE);
     gptFile->create_directory("../shader-temp");
-    gptFile->create_directory("../cache");
 
     // defaults
     ptAppData->tSelectedEntity.uData = UINT64_MAX;
