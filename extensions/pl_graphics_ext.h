@@ -884,6 +884,7 @@ typedef struct _plComputeShader
 typedef struct _plBlendState
 {
     bool          bBlendEnabled;
+    uint8_t       uColorWriteMask; // PL_COLOR_WRITE_MASK_* bits
     plBlendOp     tColorOp;
     plBlendOp     tAlphaOp;
     plBlendFactor tSrcColorFactor;
@@ -1777,6 +1778,16 @@ enum _plFormat
     PL_FORMAT_S8_UINT,
     
     PL_FORMAT_COUNT
+};
+
+enum _plColorWriteMask
+{
+    PL_COLOR_WRITE_MASK_R    = 1 << 0,
+    PL_COLOR_WRITE_MASK_G    = 1 << 1,
+    PL_COLOR_WRITE_MASK_B    = 1 << 2,
+    PL_COLOR_WRITE_MASK_A    = 1 << 3,
+    PL_COLOR_WRITE_MASK_ALL  = 0xF,
+    PL_COLOR_WRITE_MASK_NONE = 0
 };
 
 enum _plBlendMode

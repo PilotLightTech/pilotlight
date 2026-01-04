@@ -1615,7 +1615,12 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         {
             pipelineDescriptor.colorAttachments[uCurrentColorAttachment].pixelFormat = pl__metal_format(ptLayout->tDesc.atRenderTargets[uTargetIndex].tFormat);
             pipelineDescriptor.colorAttachments[uCurrentColorAttachment].blendingEnabled = ptDescription->atBlendStates[uCurrentColorAttachment].bBlendEnabled ? YES : NO;
-  
+            pipelineDescriptor.colorAttachments[uCurrentColorAttachment].writeMask =
+                (ptDescription->atBlendStates[uCurrentColorAttachment].uColorWriteMask & PL_COLOR_WRITE_MASK_R ? MTLColorWriteMaskRed : 0) |
+                (ptDescription->atBlendStates[uCurrentColorAttachment].uColorWriteMask & PL_COLOR_WRITE_MASK_G ? MTLColorWriteMaskGreen : 0) |
+                (ptDescription->atBlendStates[uCurrentColorAttachment].uColorWriteMask & PL_COLOR_WRITE_MASK_B ? MTLColorWriteMaskBlue : 0) |
+                (ptDescription->atBlendStates[uCurrentColorAttachment].uColorWriteMask & PL_COLOR_WRITE_MASK_A ? MTLColorWriteMaskAlpha : 0);
+
             if(ptDescription->atBlendStates[uCurrentColorAttachment].bBlendEnabled)
             {
                 pipelineDescriptor.colorAttachments[uCurrentColorAttachment].sourceRGBBlendFactor        = pl__metal_blend_factor(ptDescription->atBlendStates[uCurrentColorAttachment].tSrcColorFactor);

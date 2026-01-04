@@ -1824,7 +1824,11 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     VkPipelineColorBlendAttachmentState atColorBlendAttachment[PL_MAX_RENDER_TARGETS] = {0};
     for (uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
     {
-        atColorBlendAttachment[i].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        atColorBlendAttachment[i].colorWriteMask =
+            (ptDescription->atBlendStates[i].uColorWriteMask & PL_COLOR_WRITE_MASK_R ? VK_COLOR_COMPONENT_R_BIT : 0) |
+            (ptDescription->atBlendStates[i].uColorWriteMask & PL_COLOR_WRITE_MASK_G ? VK_COLOR_COMPONENT_G_BIT : 0) |
+            (ptDescription->atBlendStates[i].uColorWriteMask & PL_COLOR_WRITE_MASK_B ? VK_COLOR_COMPONENT_B_BIT : 0) |
+            (ptDescription->atBlendStates[i].uColorWriteMask & PL_COLOR_WRITE_MASK_A ? VK_COLOR_COMPONENT_A_BIT : 0);
         atColorBlendAttachment[i].blendEnable = ptDescription->atBlendStates[i].bBlendEnabled ? VK_TRUE : VK_FALSE;
         if (ptDescription->atBlendStates[i].bBlendEnabled)
         {

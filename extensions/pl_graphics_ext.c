@@ -1098,13 +1098,15 @@ pl_graphics_get_blend_state(plBlendMode tBlendMode)
     static const plBlendState atStateMap[PL_BLEND_MODE_COUNT] =
     {
         // PL_BLEND_MODE_OPAQUE
-        { 
-            .bBlendEnabled = false,
+        {
+            .bBlendEnabled   = false,
+            .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
         },
 
         // PL_BLEND_MODE_ALPHA
         {
             .bBlendEnabled   = true,
+            .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
             .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
             .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
             .tColorOp        = PL_BLEND_OP_ADD,
@@ -1116,6 +1118,7 @@ pl_graphics_get_blend_state(plBlendMode tBlendMode)
         // PL_BLEND_MODE_PREMULTIPLY
         {
             .bBlendEnabled   = true,
+            .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
             .tSrcColorFactor = PL_BLEND_FACTOR_ONE,
             .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
             .tColorOp        = PL_BLEND_OP_ADD,
@@ -1127,6 +1130,7 @@ pl_graphics_get_blend_state(plBlendMode tBlendMode)
         // PL_BLEND_MODE_ADDITIVE
         {
             .bBlendEnabled   = true,
+            .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
             .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
             .tDstColorFactor = PL_BLEND_FACTOR_ONE,
             .tColorOp        = PL_BLEND_OP_ADD,
@@ -1138,6 +1142,7 @@ pl_graphics_get_blend_state(plBlendMode tBlendMode)
         // PL_BLEND_MODE_MULTIPLY
         {
             .bBlendEnabled   = true,
+            .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
             .tSrcColorFactor = PL_BLEND_FACTOR_DST_COLOR,
             .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
             .tColorOp        = PL_BLEND_OP_ADD,
@@ -1149,6 +1154,7 @@ pl_graphics_get_blend_state(plBlendMode tBlendMode)
         // PL_BLEND_MODE_CLIP_MASK
         {
             .bBlendEnabled   = true,
+            .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
             .tSrcColorFactor = PL_BLEND_FACTOR_ZERO,
             .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
             .tColorOp        = PL_BLEND_OP_ADD,
