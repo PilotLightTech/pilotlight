@@ -467,6 +467,7 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
             .atBlendStates = {
                 {
                     .bBlendEnabled   = true,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
                     .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                     .tColorOp        = PL_BLEND_OP_ADD,
@@ -513,6 +514,7 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
             .atBlendStates = {
                 {
                     .bBlendEnabled   = true,
+                    .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
                     .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                     .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                     .tColorOp        = PL_BLEND_OP_ADD,
@@ -581,6 +583,7 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
         .atBlendStates = {
             {
                 .bBlendEnabled   = true,
+                .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
                 .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                 .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                 .tColorOp        = PL_BLEND_OP_ADD,
@@ -598,7 +601,7 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
                 }
             },
             {
-                .atTextureBindings = { 
+                .atTextureBindings = {
                     {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
@@ -636,6 +639,7 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
         .atBlendStates = {
             {
                 .bBlendEnabled   = true,
+                .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
                 .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
                 .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
                 .tColorOp        = PL_BLEND_OP_ADD,
@@ -653,13 +657,13 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
                 }
             },
             {
-                .atTextureBindings = { 
+                .atTextureBindings = {
                     {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
         },
         .tMSAASampleCount = uMSAASampleCount
-    }; 
+    };
     ptEntry->tSecondaryPipeline = gptGfx->create_shader(ptDevice, &tSecondaryShaderDesc);
     pl_temp_allocator_reset(&gptDrawBackendCtx->tTempAllocator);
     return ptEntry;

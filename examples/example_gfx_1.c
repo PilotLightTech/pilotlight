@@ -296,7 +296,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         },
         .atBlendStates = {
             {
-                .bBlendEnabled = false
+                .bBlendEnabled   = false,
+                .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
             }
         },
         .tRenderPassLayout = gptStarter->get_render_pass_layout(),

@@ -712,10 +712,11 @@ pl_shader_tool_load_manifest(const char* pcPath)
         {
             plJsonObject* ptBlendState = pl_json_member_by_index(ptBlendStates, i);
             tShaderDesc.atBlendStates[i].bBlendEnabled = pl_json_bool_member(ptBlendState, "bBlendEnabled", false);
+            tShaderDesc.atBlendStates[i].uColorWriteMask = (uint8_t)pl_json_uint_member(ptBlendState, "uColorWriteMask", PL_COLOR_WRITE_MASK_ALL);
 
             char acBlendOp[64] = {0};
             char* pcBlendEnum = NULL;
-            
+
             pcBlendEnum = pl_json_string_member(ptBlendState, "tSrcColorFactor", acBlendOp, 64);
             tShaderDesc.atBlendStates[i].tSrcColorFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
 
