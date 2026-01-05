@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 6, 0}
+#define plGraphicsI_version {1, 7, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -1782,12 +1782,12 @@ enum _plFormat
 
 enum _plColorWriteMask
 {
+    PL_COLOR_WRITE_MASK_NONE = 0,
     PL_COLOR_WRITE_MASK_R    = 1 << 0,
     PL_COLOR_WRITE_MASK_G    = 1 << 1,
     PL_COLOR_WRITE_MASK_B    = 1 << 2,
     PL_COLOR_WRITE_MASK_A    = 1 << 3,
-    PL_COLOR_WRITE_MASK_ALL  = 0xF,
-    PL_COLOR_WRITE_MASK_NONE = 0
+    PL_COLOR_WRITE_MASK_ALL  = PL_COLOR_WRITE_MASK_R | PL_COLOR_WRITE_MASK_G | PL_COLOR_WRITE_MASK_B | PL_COLOR_WRITE_MASK_A
 };
 
 enum _plBlendMode

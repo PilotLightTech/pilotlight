@@ -5,6 +5,7 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
+- v0.7.1 (2026-xx-xx) (graphics) expose color write mask for stencil buffer
 - v0.7.0 (2026-01-02) (dds)      version 1.0
                       (dxt)      version 1.0
                       (resource) version 1.0
