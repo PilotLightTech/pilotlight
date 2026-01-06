@@ -65,7 +65,7 @@ pl_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, plRenderPassHandle 
     tImguiVulkanInfo.Device = gptGfx->get_vulkan_device(ptDevice);
     tImguiVulkanInfo.QueueFamily = gptGfx->get_vulkan_queue_family(ptDevice);
     tImguiVulkanInfo.Queue = gptGfx->get_vulkan_queue(ptDevice);
-    // tImguiVulkanInfo.DescriptorPool = gptGfx->get_vulkan_descriptor_pool(gptDrawBackend->get_bind_group_pool());
+    // tImguiVulkanInfo.DescriptorPool = gptGfx->get_vulkan_descriptor_pool(gptDraw->get_bind_group_pool());
     tImguiVulkanInfo.DescriptorPoolSize = 100000;
     tImguiVulkanInfo.MinImageCount = 2;
     tImguiVulkanInfo.Allocator = gptGfx->get_vulkan_allocation_callbacks();

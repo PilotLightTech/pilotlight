@@ -23,7 +23,6 @@ Index of this file:
 #include "pl_job_ext.c"
 #include "pl_string_intern_ext.c"
 #include "pl_draw_ext.c"
-#include "pl_draw_backend_ext.c"
 #include "pl_gpu_allocators_ext.c"
 #include "pl_ui_ext.c"
 #include "pl_graphics_ext.c"
@@ -80,7 +79,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptGfx               = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptGpuAllocators     = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
     gptDraw              = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptDrawBackend       = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptUI                = pl_get_api_latest(ptApiRegistry, plUiI);
     gptECS               = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptCamera            = pl_get_api_latest(ptApiRegistry, plCameraI);
@@ -120,7 +118,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_graphics_ext(ptApiRegistry, bReload);
     pl_load_gpu_allocators_ext(ptApiRegistry, bReload);
     pl_load_draw_ext(ptApiRegistry, bReload);
-    pl_load_draw_backend_ext(ptApiRegistry, bReload);
     pl_load_ui_ext(ptApiRegistry, bReload);
     pl_load_vfs_ext(ptApiRegistry, bReload);
     pl_load_shader_ext(ptApiRegistry, bReload);
@@ -166,7 +163,6 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_graphics_ext(ptApiRegistry, bReload);
     pl_unload_gpu_allocators_ext(ptApiRegistry, bReload);
     pl_unload_draw_ext(ptApiRegistry, bReload);
-    pl_unload_draw_backend_ext(ptApiRegistry, bReload);
     pl_unload_animation_ext(ptApiRegistry, bReload);
     pl_unload_ecs_tools_ext(ptApiRegistry, bReload);
     pl_unload_tools_ext(ptApiRegistry, bReload);

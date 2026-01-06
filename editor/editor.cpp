@@ -62,7 +62,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptJobs          = pl_get_api_latest(ptApiRegistry, plJobI);
         gptModelLoader   = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
         gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
-        gptDrawBackend   = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
         gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
         gptIO            = pl_get_api_latest(ptApiRegistry, plIOI);
         gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
@@ -120,7 +119,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptJobs          = pl_get_api_latest(ptApiRegistry, plJobI);
     gptModelLoader   = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
     gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptDrawBackend   = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
     gptIO            = pl_get_api_latest(ptApiRegistry, plIOI);
     gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
@@ -709,7 +707,7 @@ pl_app_update(plAppData* ptAppData)
     float fWidth = ptIO->tMainViewportSize.x;
     float fHeight = ptIO->tMainViewportSize.y;
     plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(tLogOffset.x, tLogOffset.y, fWidth * 0.2f, fHeight);
-    gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
+    gptDraw->submit_2d_drawlist(ptMessageDrawlist, ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
     gptStarter->end_main_pass();
     pl_end_cpu_sample(gptProfile, 0);
     gptStarter->end_frame();

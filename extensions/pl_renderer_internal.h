@@ -49,7 +49,6 @@ Index of this file:
 #include "pl_gpu_allocators_ext.h"
 #include "pl_job_ext.h"
 #include "pl_draw_ext.h"
-#include "pl_draw_backend_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_rect_pack_ext.h"
@@ -95,7 +94,6 @@ Index of this file:
     static const plGPUAllocatorsI* gptGpuAllocators = NULL;
     static const plJobI*           gptJob           = NULL;
     static const plDrawI*          gptDraw          = NULL;
-    static const plDrawBackendI*   gptDrawBackend   = NULL;
     static const plIOI*            gptIOI           = NULL;
     static const plShaderI*        gptShader        = NULL;
     static const plProfileI*       gptProfile       = NULL;

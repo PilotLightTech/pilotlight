@@ -56,7 +56,6 @@ Demonstrates:
 * loading APIs
 * loading extensions
 * drawing extension (2D)
-* drawing backend extension
 
 ### Example 4 - UI Extension (example_basic_4.c)
 Demonstrates:

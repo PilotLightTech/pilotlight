@@ -61,7 +61,6 @@ Index of this file:
 
 // extensions
 #include "pl_ui_ext.h"
-#include "pl_draw_backend_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_graphics_ext.h"
 
@@ -86,7 +85,6 @@ typedef struct _plAppData
 const plIOI*          gptIO          = NULL;
 const plWindowI*      gptWindows     = NULL;
 const plUiI*          gptUi          = NULL;
-const plDrawBackendI* gptDrawBackend = NULL;
 const plStarterI*     gptStarter     = NULL;
 const plDearImGuiI*   gptDearImGui   = NULL;
 const plGraphicsI*    gptGfx         = NULL;
@@ -130,7 +128,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         // a different dll/so
         gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
         gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
-        gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
         gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
@@ -162,7 +159,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // load required apis
     gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
-    gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
@@ -190,7 +186,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // wraps up (i.e. builds font atlas)
     gptStarter->finalize();
 
-    // initializes out Dear ImGui backend (similar to the draw backend extension)
+    // initializes out Dear ImGui backend
     gptDearImGui->initialize(gptStarter->get_device(), gptStarter->get_swapchain(), gptStarter->get_render_pass());
 
     // same process for implot as imgui

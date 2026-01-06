@@ -27,7 +27,7 @@ Index of this file:
         * plGraphicsI    (v1.x)
         * plScreenLogI   (v2.x)
         * plUiI          (v1.x)
-        * plDrawBackendI (v1.x)
+        * plDrawI        (v2.x)
         * plShaderI      (v1.x)
         * plProfileI     (v1.x)
         * plConsoleI     (v1.x)

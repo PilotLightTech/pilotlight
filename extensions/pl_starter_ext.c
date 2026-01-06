@@ -26,7 +26,6 @@ Index of this file:
 #include "pl_profile_ext.h"
 #include "pl_stats_ext.h"
 #include "pl_draw_ext.h"
-#include "pl_draw_backend_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_console_ext.h"
@@ -48,7 +47,6 @@ Index of this file:
     static const plUiI*            gptUI            = NULL;
     static const plStatsI*         gptStats         = NULL;
     static const plDrawI*          gptDraw          = NULL;
-    static const plDrawBackendI*   gptDrawBackend   = NULL;
     static const plIOI*            gptIOI           = NULL;
     static const plShaderI*        gptShader        = NULL;
     static const plProfileI*       gptProfile       = NULL;
@@ -280,8 +278,10 @@ pl_starter_initialize(plStarterInit tInit)
     // initialize
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DRAW_EXT)
     {
-        gptDraw->initialize(NULL);
-        gptDrawBackend->initialize(ptDevice);
+        plDrawInit tDrawInit = {
+            .ptDevice = ptDevice
+        };
+        gptDraw->initialize(&tDrawInit);
 
         // create font atlas
         plFontAtlas* ptAtlas = gptDraw->create_font_atlas();
@@ -317,7 +317,7 @@ pl_starter_finalize(void)
     {
         // build font atlas
         plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[0], "starter font atlas");
-        gptDrawBackend->build_font_atlas(ptCmdBuffer, gptDraw->get_current_font_atlas());
+        gptDraw->build_font_atlas(ptCmdBuffer, gptDraw->get_current_font_atlas());
         gptGfx->wait_on_command_buffer(ptCmdBuffer);
         gptGfx->return_command_buffer(ptCmdBuffer);
     }
@@ -509,8 +509,8 @@ pl_starter_cleanup(void)
         gptShader->cleanup();
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DRAW_EXT)
     {
-        gptDrawBackend->cleanup_font_atlas(gptDraw->get_current_font_atlas());
-        gptDrawBackend->cleanup();
+        gptDraw->cleanup_font_atlas(gptDraw->get_current_font_atlas());
+        gptDraw->cleanup();
     }
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_UI_EXT)
         gptUI->cleanup();
@@ -540,7 +540,7 @@ pl_starter_begin_frame(void)
     gptIOI->new_frame();
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DRAW_EXT)
-        gptDrawBackend->new_frame();
+        gptDraw->new_frame();
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_UI_EXT)
         gptUI->new_frame();
@@ -677,22 +677,22 @@ pl_starter_end_main_pass(void)
     gptDraw->submit_2d_layer(gptStarterCtx->ptBGLayer);
     gptDraw->submit_2d_layer(gptStarterCtx->ptFGLayer);
 
-    gptDrawBackend->submit_2d_drawlist(gptStarterCtx->ptBGDrawlist, gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
+    gptDraw->submit_2d_drawlist(gptStarterCtx->ptBGDrawlist, gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_UI_EXT)
     {
         gptUI->end_frame();
         
-        gptDrawBackend->submit_2d_drawlist(gptUI->get_draw_list(), gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
-        gptDrawBackend->submit_2d_drawlist(gptUI->get_debug_draw_list(), gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
+        gptDraw->submit_2d_drawlist(gptUI->get_draw_list(), gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
+        gptDraw->submit_2d_drawlist(gptUI->get_debug_draw_list(), gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
     }
 
-    gptDrawBackend->submit_2d_drawlist(gptStarterCtx->ptFGDrawlist, gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
+    gptDraw->submit_2d_drawlist(gptStarterCtx->ptFGDrawlist, gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_SCREEN_LOG_EXT)
     {
         plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth - fWidth * 0.2f, 0.0f, fWidth * 0.2f, fHeight);
-        gptDrawBackend->submit_2d_drawlist(ptMessageDrawlist, gptStarterCtx->ptCurrentEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
+        gptDraw->submit_2d_drawlist(ptMessageDrawlist, gptStarterCtx->ptCurrentEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
     }
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
@@ -1625,7 +1625,6 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptScreenLog    = pl_get_api_latest(ptApiRegistry, plScreenLogI);
     gptUI           = pl_get_api_latest(ptApiRegistry, plUiI);
     gptDraw         = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptDrawBackend  = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptIOI          = pl_get_api_latest(ptApiRegistry, plIOI);
     gptShader       = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptStats        = pl_get_api_latest(ptApiRegistry, plStatsI);

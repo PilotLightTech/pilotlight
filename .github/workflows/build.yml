@@ -153,7 +153,6 @@ jobs:
         if not exist ../out/pl_screen_log_ext.dll exit 1
         if not exist ../out/pl_console_ext.dll exit 1
         if not exist ../out/pl_tools_ext.dll exit 1
-        if not exist ../out/pl_draw_backend_ext.dll exit 1
         if not exist ../out/pl_draw_ext.dll exit 1
         if not exist ../out/pl_ecs_ext.dll exit 1
         if not exist ../out/pl_ecs_tools_ext.dll exit 1
@@ -363,7 +362,6 @@ jobs:
         test -f ./out/pl_console_ext.dylib || exit 1
         test -f ./out/pl_screen_log_ext.dylib || exit 1
         test -f ./out/pl_tools_ext.dylib || exit 1
-        test -f ./out/pl_draw_backend_ext.dylib || exit 1
         test -f ./out/pl_draw_ext.dylib || exit 1
         test -f ./out/pl_ecs_ext.dylib || exit 1
         test -f ./out/pl_ecs_tools_ext.dylib || exit 1
@@ -583,7 +581,6 @@ jobs:
         test -f ./out/pl_console_ext.so || exit 1
         test -f ./out/pl_screen_log_ext.so || exit 1
         test -f ./out/pl_tools_ext.so || exit 1
-        test -f ./out/pl_draw_backend_ext.so || exit 1
         test -f ./out/pl_draw_ext.so || exit 1
         test -f ./out/pl_ecs_ext.so || exit 1
         test -f ./out/pl_ecs_tools_ext.so || exit 1

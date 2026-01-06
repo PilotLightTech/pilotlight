@@ -38,7 +38,6 @@ Index of this file:
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
-#include "pl_draw_backend_ext.h"
 #include "pl_starter_ext.h"
 
 //-----------------------------------------------------------------------------
@@ -99,7 +98,6 @@ const plIOI*          gptIO          = NULL;
 const plWindowI*      gptWindows     = NULL;
 const plGraphicsI*    gptGfx         = NULL;
 const plDrawI*        gptDraw        = NULL;
-const plDrawBackendI* gptDrawBackend = NULL;
 const plStarterI*     gptStarter     = NULL;
 
 //-----------------------------------------------------------------------------
@@ -138,7 +136,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
         gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-        gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
 
         return ptAppData;
@@ -163,7 +160,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // load required apis (these are provided though extensions)
     gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
 
     // use window API to create a window
@@ -280,7 +276,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // using a helper from the draw backend extension to allocate
     // a bind group for use to use for drawing
-    ptAppData->tColorTextureBg = gptDrawBackend->create_bind_group_for_texture(ptAppData->tColorTexture);
+    ptAppData->tColorTextureBg = gptDraw->create_bind_group_for_texture(ptAppData->tColorTexture);
 
     // begin blit pass, copy buffer, end pass
     plBlitEncoder* ptEncoder = gptStarter->get_blit_encoder();
@@ -502,7 +498,7 @@ pl_app_update(plAppData* ptAppData)
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
     // submit our 3D drawlist
-    gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,
+    gptDraw->submit_3d_drawlist(ptAppData->pt3dDrawlist,
         ptEncoder,
         ptAppData->tOffscreenSize.x,
         ptAppData->tOffscreenSize.y,
@@ -524,7 +520,7 @@ pl_app_update(plAppData* ptAppData)
     plRenderEncoder* ptMainEncoder = gptStarter->begin_main_pass();
 
     // submit drawlists
-    gptDrawBackend->submit_2d_drawlist(ptAppData->ptAppDrawlist, ptMainEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDraw->submit_2d_drawlist(ptAppData->ptAppDrawlist, ptMainEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();

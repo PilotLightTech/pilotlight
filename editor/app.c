@@ -48,7 +48,6 @@ Index of this file:
 #include "pl_tools_ext.h"
 #include "pl_job_ext.h"
 #include "pl_draw_ext.h"
-#include "pl_draw_backend_ext.h"
 #include "pl_ui_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_string_intern_ext.h"
@@ -96,7 +95,6 @@ const plRendererI*          gptRenderer      = NULL;
 const plModelLoaderI*       gptModelLoader   = NULL;
 const plJobI*               gptJobs          = NULL;
 const plDrawI*              gptDraw          = NULL;
-const plDrawBackendI*       gptDrawBackend   = NULL;
 const plUiI*                gptUI            = NULL;
 const plIOI*                gptIO            = NULL;
 const plShaderI*            gptShader        = NULL;
@@ -1147,7 +1145,6 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptJobs          = pl_get_api_latest(ptApiRegistry, plJobI);
     gptModelLoader   = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
     gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptDrawBackend   = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
     gptIO            = pl_get_api_latest(ptApiRegistry, plIOI);
     gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);

@@ -1296,7 +1296,7 @@ pl_renderer_create_view(plScene* ptScene, plVec2 tDimensions)
     ptView->atUVMaskTexture0         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 0", 0, PL_TEXTURE_USAGE_STORAGE);
     ptView->atUVMaskTexture1         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 1", 0, PL_TEXTURE_USAGE_STORAGE);
     ptView->tFinalTexture            = pl__renderer_create_texture(&tRawOutputTextureDesc,  "offscreen final", 0, PL_TEXTURE_USAGE_SAMPLED);
-    ptView->tFinalTextureHandle      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture);
+    ptView->tFinalTextureHandle      = gptDraw->create_bind_group_for_texture(ptView->tFinalTexture);
 
     const plBindGroupDesc tJFABindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
@@ -1781,7 +1781,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
     ptView->atUVMaskTexture0         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 0", 0, PL_TEXTURE_USAGE_STORAGE);
     ptView->atUVMaskTexture1         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 1", 0, PL_TEXTURE_USAGE_STORAGE);
     ptView->tFinalTexture            = pl__renderer_create_texture(&tRawOutputTextureDesc,  "offscreen final", 0, PL_TEXTURE_USAGE_SAMPLED);
-    ptView->tFinalTextureHandle      = gptDrawBackend->create_bind_group_for_texture(ptView->tFinalTexture);
+    ptView->tFinalTextureHandle      = gptDraw->create_bind_group_for_texture(ptView->tFinalTexture);
 
     if(ptView->ptParentScene->bTransmissionRequired)
     {
@@ -4318,8 +4318,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
         ptSceneEncoder = gptGfx->begin_render_pass(ptPostCmdBuffer, ptView->tFinalRenderPass, NULL);
         gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
-        gptDrawBackend->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
-        gptDrawBackend->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
+        gptDraw->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
+        gptDraw->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
         gptGfx->end_render_pass(ptSceneEncoder);
 
         gptGfx->end_command_recording(ptPostCmdBuffer);
@@ -5159,7 +5159,6 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptECS           = pl_get_api_latest(ptApiRegistry, plEcsI);
         gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
         gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
-        gptDrawBackend   = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
         gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
         gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);

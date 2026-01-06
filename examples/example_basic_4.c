@@ -43,7 +43,7 @@ Index of this file:
 
 // extensions
 #include "pl_ui_ext.h"
-#include "pl_draw_backend_ext.h"
+#include "pl_draw_ext.h"
 #include "pl_starter_ext.h"
 
 //-----------------------------------------------------------------------------
@@ -62,8 +62,8 @@ typedef struct _plAppData
 const plIOI*          gptIO          = NULL;
 const plWindowI*      gptWindows     = NULL;
 const plUiI*          gptUi          = NULL;
-const plDrawBackendI* gptDrawBackend = NULL;
 const plStarterI*     gptStarter     = NULL;
+const plDrawI*        gptDraw        = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -84,9 +84,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         // a different dll/so
         gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
         gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
-        gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
         gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
 
         return ptAppData;
     }
@@ -111,9 +111,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // load required apis
     gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
-    gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -214,10 +214,10 @@ pl_app_update(plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit drawlists~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // the starter extension will call begin/end main_pass if you don't but in this
-    // case we are managing the draw backend so we must submit the drawlists
+    // case we are managing the draw extension so we must submit the drawlists
     // ourself. The starter extension still handles alot of the process of dealing
     // with command buffers, syncronization, submission, etc. but that is outside
-    // the scope of the draw & draw backend extensions.
+    // the scope of the draw extension.
 
     // start main pass & return the encoder being used
     plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
@@ -230,8 +230,8 @@ pl_app_update(plAppData* ptAppData)
     // now we must submit both the drawlist & debug drawlist provided by
     // the UI extension.
     plVec2 tViewportSize = gptIO->get_io()->tMainViewportSize;
-    gptDrawBackend->submit_2d_drawlist(gptUi->get_draw_list(), ptEncoder, tViewportSize.x, tViewportSize.y, 1);
-    gptDrawBackend->submit_2d_drawlist(gptUi->get_debug_draw_list(), ptEncoder, tViewportSize.x, tViewportSize.y, 1);
+    gptDraw->submit_2d_drawlist(gptUi->get_draw_list(), ptEncoder, tViewportSize.x, tViewportSize.y, 1);
+    gptDraw->submit_2d_drawlist(gptUi->get_debug_draw_list(), ptEncoder, tViewportSize.x, tViewportSize.y, 1);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();

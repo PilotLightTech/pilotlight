@@ -5,7 +5,6 @@
      - demonstrates hot reloading
      - demonstrates starter extension
      - demonstrates drawing extension (2D)
-     - demonstrates drawing backend extension
 */
 
 /*
@@ -28,12 +27,6 @@ Index of this file:
     The purpose of this example is to demonstrate the drawing extension. We
     will still use the starter extension to handle other boilerplate code but
     we will configure it such that it doesn't manage the drawing extension.
-
-    The draw extension is agnostic to a particular graphics backend. It
-    outputs vertex/index buffers (among other things) that allows a user to
-    integrate into any existing renderer. We provide a separate extension that
-    utilizes our graphics extension to actually do the rendering. This is the
-    draw backend extension introduced in this example.
 */
 
 //-----------------------------------------------------------------------------
@@ -49,7 +42,6 @@ Index of this file:
 
 // extensions
 #include "pl_draw_ext.h"
-#include "pl_draw_backend_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_graphics_ext.h"
 
@@ -74,12 +66,11 @@ typedef struct _plAppData
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-const plIOI*          gptIO          = NULL;
-const plWindowI*      gptWindows     = NULL;
-const plDrawI*        gptDraw        = NULL;
-const plDrawBackendI* gptDrawBackend = NULL;
-const plStarterI*     gptStarter     = NULL;
-const plGraphicsI*    gptGfx         = NULL;
+const plIOI*       gptIO      = NULL;
+const plWindowI*   gptWindows = NULL;
+const plDrawI*     gptDraw    = NULL;
+const plStarterI*  gptStarter = NULL;
+const plGraphicsI* gptGfx     = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -98,12 +89,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
-        gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
-        gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-        gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
-        gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
-        gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
+        gptDraw    = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
 
         return ptAppData;
     }
@@ -129,10 +119,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
 
     // load required apis (these are provided though extensions)
-    gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
-    gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
-    gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptDraw    = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -158,11 +147,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptStarter->initialize(tStarterInit);
 
     // initialize the draw extension
-    gptDraw->initialize(NULL);
-
-    // initialize the draw backend
     plDevice* ptDevice = gptStarter->get_device();
-    gptDrawBackend->initialize(ptDevice);
+    plDrawInit tDrawInit = {
+        .ptDevice = ptDevice
+    };
+    gptDraw->initialize(&tDrawInit);
 
     // create font atlas
     plFontAtlas* ptAtlas = gptDraw->create_font_atlas();
@@ -210,14 +199,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~font atlas texture~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    // draw backend handles creating the font atlas texture and
+    // draw extension handles creating the font atlas texture and
     // uploading to the GPU but it requires a command buffer (in an non recording state).
     // Later examples will go into command buffers without using the starter ext
 
     plCommandBuffer* ptCmdBuffer = gptStarter->get_raw_command_buffer(); // not recording
 
     // actually record, submit, & wait
-    gptDrawBackend->build_font_atlas(ptCmdBuffer, gptDraw->get_current_font_atlas());
+    gptDraw->build_font_atlas(ptCmdBuffer, gptDraw->get_current_font_atlas());
 
     // return back to the pool
     gptStarter->return_raw_command_buffer(ptCmdBuffer);
@@ -238,7 +227,8 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->flush_device(ptDevice); // waits for the GPU to be done with all work
 
     // cleans up texture and other resources
-    gptDrawBackend->cleanup_font_atlas(gptDraw->get_current_font_atlas());
+    gptDraw->cleanup_font_atlas(gptDraw->get_current_font_atlas());
+    gptDraw->cleanup();
 
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
@@ -269,7 +259,7 @@ pl_app_update(plAppData* ptAppData)
 
     // this must be called now that the starter
     // extension isn't doing it for us
-    gptDrawBackend->new_frame();
+    gptDraw->new_frame();
 
     plDrawLineOptions tCommonLineOptions = {
         .fThickness = 1.0f,
@@ -388,17 +378,17 @@ pl_app_update(plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submit drawlists~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // the starter extension will call begin/end main_pass if you don't but in this
-    // case we are managing the draw backend so we must submit the drawlists
+    // case we are managing the draw extension so we must submit the drawlists
     // ourself. The starter extension still handles alot of the process of dealing
     // with command buffers, syncronization, submission, etc. but that is outside
-    // the scope of the draw & draw backend extensions.
+    // the scope of the draw extension.
 
     // start main pass & return the encoder being used
     plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
 
     // submit our drawlist
     plIO* ptIO = gptIO->get_io();
-    gptDrawBackend->submit_2d_drawlist(ptAppData->ptDrawlist, ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    gptDraw->submit_2d_drawlist(ptAppData->ptDrawlist, ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();

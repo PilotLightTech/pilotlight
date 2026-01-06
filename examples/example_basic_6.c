@@ -45,7 +45,6 @@ Index of this file:
 // extensions
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
-#include "pl_draw_backend_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_collision_ext.h"
 #include "pl_screen_log_ext.h"
@@ -94,7 +93,6 @@ const plIOI*          gptIO          = NULL;
 const plWindowI*      gptWindows     = NULL;
 const plGraphicsI*    gptGfx         = NULL;
 const plDrawI*        gptDraw        = NULL;
-const plDrawBackendI* gptDrawBackend = NULL;
 const plStarterI*     gptStarter     = NULL;
 const plCollisionI*   gptCollision   = NULL;
 const plScreenLogI*   gptScreenLog   = NULL;
@@ -133,7 +131,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
         gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-        gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
         gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
@@ -160,7 +157,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // load required apis (these are provided though extensions)
     gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptDrawBackend = pl_get_api_latest(ptApiRegistry, plDrawBackendI);
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
     gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
@@ -364,7 +360,7 @@ pl_app_update(plAppData* ptAppData)
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
     // submit 3d drawlist
-    gptDrawBackend->submit_3d_drawlist(ptAppData->pt3dDrawlist,
+    gptDraw->submit_3d_drawlist(ptAppData->pt3dDrawlist,
         ptEncoder,
         ptIO->tMainViewportSize.x,
         ptIO->tMainViewportSize.y,

@@ -111,7 +111,6 @@ with pl.project("pilotlight deploy"):
         "pl_ecs_ext",
         "pl_tools_ext",
         "pl_renderer_ext",
-        "pl_draw_backend_ext",
         "pl_resource_ext",
         "pl_model_loader_ext",
         "pl_ui_ext",
