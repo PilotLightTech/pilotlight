@@ -209,7 +209,7 @@ pl__resource_create_staging_buffer(size_t szSize)
 
     // create staging buffers
     const plBufferDesc tStagingBufferDesc = {
-        .tUsage     = PL_BUFFER_USAGE_TRANSFER_SOURCE,
+        .tUsage     = PL_BUFFER_USAGE_TRANSFER_SOURCE | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
         .szByteSize = pl_max(268435456, szSize),
         .pcDebugName = "Resource Staging Buffer"
     };
