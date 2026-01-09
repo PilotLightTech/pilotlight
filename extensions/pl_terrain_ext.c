@@ -41,9 +41,9 @@ Index of this file:
 #include "pl_shader_ext.h"
 #include "pl_image_ext.h"
 #include "pl_gpu_allocators_ext.h"
-#include "pl_job_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_ui_ext.h"
+#include "pl_job_ext.h"
 
 // unstable extensions
 #include "pl_mesh_ext.h"
@@ -101,8 +101,52 @@ typedef struct _plTerrainBufferChunk
     uint32_t uOwnerTileIndex;
 } plTerrainBufferChunk;
 
-typedef struct _plTerrain
+typedef struct _plTerrainContext
 {
+
+    // new
+    plRenderPassLayoutHandle tRenderPassLayoutHandle;
+    uint32_t uSubpassIndex;
+
+    bool bLoadedTextures;
+
+    // graphics
+    plDevice*        ptDevice;
+    plBindGroupPool* ptBindGroupPool;
+    plSamplerHandle  tSampler;
+    plSamplerHandle  tMipSampler;
+    plSamplerHandle  tMirrorSampler;
+    plSamplerHandle  tClampSampler;
+    uint32_t         uMeshLevels;
+
+    // bind group layouts
+    plBindGroupLayoutHandle tBindGroupLayout0;
+    plBindGroupLayoutHandle tPreprocessBGLayout0;
+    plBindGroupLayoutHandle tMipmapBGLayout0;
+
+    // gpu allocators
+    plDeviceMemoryAllocatorI* tLocalDedicatedAllocator;
+    plDeviceMemoryAllocatorI* tLocalBuddyAllocator;
+    plDeviceMemoryAllocatorI* tStagingDedicatedAllocator;
+    plDeviceMemoryAllocatorI* tStagingBuddyAllocator;
+
+    // CPU side data
+    uint32_t  uIndexCount;
+    uint32_t  uVertexCount;
+    plVec3*   ptVertexBuffer;
+    uint32_t* puIndexBuffer;
+
+    // GPU side data
+    plBufferHandle tIndexBuffer;
+    plBufferHandle tVertexBuffer;
+    plTextureHandle tDiffuseTexture;
+    plTextureHandle tNoiseTexture;
+
+    plDynamicDataBlock tCurrentDynamicDataBlock;
+
+    // UI
+    plUiTextFilter tFilter;
+
     plDrawList3D* pt3dDrawlist;
     size_t szHeightTexelStride;
 
@@ -194,61 +238,6 @@ typedef struct _plTerrain
 
     // low res stuff
     float fLowResMetersPerTexel;
-    float fLowResMaxElevation;
-    float fLowResMinElevation;
-    plVec2 tLowResMinWorldPosition;
-    plVec2 tLowResMaxWorldPosition;
-} plTerrain;
- 
-typedef struct _plTerrainContext
-{
-
-    // new
-    plRenderPassHandle tRenderPassHandle;
-    plRenderPassLayoutHandle tRenderPassLayoutHandle;
-    uint32_t uSubpassIndex;
-
-    bool bLoadedTextures;
-
-    // graphics
-    plDevice*                ptDevice;
-    plBindGroupPool*         ptBindGroupPool;
-    plSamplerHandle          tSampler;
-    plSamplerHandle          tMipSampler;
-    plSamplerHandle          tMirrorSampler;
-    plSamplerHandle          tClampSampler;
-    uint32_t                 uMeshLevels;
-
-    // bind group layouts
-    plBindGroupLayoutHandle tBindGroupLayout0;
-    plBindGroupLayoutHandle tPreprocessBGLayout0;
-    plBindGroupLayoutHandle tMipmapBGLayout0;
-
-    // gpu allocators
-    plDeviceMemoryAllocatorI* tLocalDedicatedAllocator;
-    plDeviceMemoryAllocatorI* tLocalBuddyAllocator;
-    plDeviceMemoryAllocatorI* tStagingDedicatedAllocator;
-    plDeviceMemoryAllocatorI* tStagingBuddyAllocator;
-
-    // CPU side data
-    uint32_t  uIndexCount;
-    uint32_t  uVertexCount;
-    plVec3*   ptVertexBuffer;
-    uint32_t* puIndexBuffer;
-
-    // GPU side data
-    plBufferHandle tIndexBuffer;
-    plBufferHandle tVertexBuffer;
-    plTextureHandle tDiffuseTexture;
-    plTextureHandle tNoiseTexture;
-
-    plDynamicDataBlock tCurrentDynamicDataBlock;
-
-    // terrains
-    plTerrain** sbtTerrains;
-
-    // UI
-    plUiTextFilter tFilter;
 } plTerrainContext;
 
 //-----------------------------------------------------------------------------
@@ -302,13 +291,13 @@ enum _plTerrainDirection
     static const plImageI*         gptImage         = NULL;
     static const plGPUAllocatorsI* gptGpuAllocators = NULL;
     static const plFileI*          gptFile          = NULL;
-    static const plJobI*           gptJob           = NULL;
     static const plAtomicsI*       gptAtomics       = NULL;
     static const plCameraI*        gptCamera        = NULL;
     static const plDrawI*          gptDraw          = NULL;
     static const plUiI*            gptUI            = NULL;
     static const plIOI*            gptIOI           = NULL;
     static const plThreadsI*       gptThreads       = NULL;
+    static const plJobI*           gptJob           = NULL;
 
 #endif
 
@@ -325,67 +314,46 @@ static plTerrainContext* gptTerrainCtx = NULL;
 // [SECTION] internal helpers
 //-----------------------------------------------------------------------------
 
-static void            pl__terrain_create_shaders          (plTerrain*);
+static void            pl__terrain_create_shaders          (void);
 static plTextureHandle pl__terrain_load_texture            (plCommandBuffer*, const char* pcFile);
-static uint32_t        pl__terrain_tile_activation_distance(plTerrain*, uint32_t uIndex);
-static void            pl__terrain_return_free_chunk       (plTerrain*, uint32_t uOwnerTileIndex);
-static void            pl__terrain_clear_cache             (plTerrain*, uint32_t uCount, uint32_t uRadius);
-static void            pl__terrain_clear_cache_direction   (plTerrain*, plTerrainDirection);
-static void            pl__terrain_get_free_chunk          (plTerrain*, uint32_t uOwnerTileIndex);
-static bool            pl__terrain_process_height_map_tiles(plTerrain*, plCamera*);
+static uint32_t        pl__terrain_tile_activation_distance(uint32_t uIndex);
+static void            pl__terrain_return_free_chunk       (uint32_t uOwnerTileIndex);
+static void            pl__terrain_clear_cache             (uint32_t uCount, uint32_t uRadius);
+static void            pl__terrain_clear_cache_direction   (plTerrainDirection);
+static void            pl__terrain_get_free_chunk          (uint32_t uOwnerTileIndex);
+static bool            pl__terrain_process_height_map_tiles(plCamera*);
 static plTextureHandle pl__terrain_create_texture          (plCommandBuffer* ptCmdBuffer, const plTextureDesc* ptDesc, const char* pcName, plTextureUsage);
-static void            pl__terrain_prepare                 (plTerrain*, plCommandBuffer*, plCamera*);
-static void            pl__process_full_heightmap          (plTerrain*, plCommandBuffer*, const char* path);
+static void            pl__terrain_prepare                 (plCommandBuffer*, plCamera*);
+static void            pl__process_full_heightmap          (plCommandBuffer*);
 
 static inline int
-pl__terrain_get_tile_index_by_pos(plTerrain* ptTerrain, int iX, int iY)
+pl__terrain_get_tile_index_by_pos(int iX, int iY)
 {
-    if(iX < 0 || iY < 0 || iX >= (int)ptTerrain->uHorizontalTiles || iY >= (int)ptTerrain->uVerticalTiles)
+    if(iX < 0 || iY < 0 || iX >= (int)gptTerrainCtx->uHorizontalTiles || iY >= (int)gptTerrainCtx->uVerticalTiles)
         return -1;
-    return iX + iY * (int)ptTerrain->uHorizontalTiles;
+    return iX + iY * (int)gptTerrainCtx->uHorizontalTiles;
 }
 
 static inline plHeightMapTile*
-pl__terrain_get_tile_by_pos(plTerrain* ptTerrain, int iX, int iY)
+pl__terrain_get_tile_by_pos(int iX, int iY)
 {
-    int iIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, iX, iY);
+    int iIndex = pl__terrain_get_tile_index_by_pos(iX, iY);
     if(iIndex > -1)
-        return &ptTerrain->atTiles[iIndex];
+        return &gptTerrainCtx->atTiles[iIndex];
     return NULL;
 }
 
-void pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo);
+void pl__terrain_tile_height_map(plTerrainTilingInfo tInfo);
 
 //-----------------------------------------------------------------------------
 // [SECTION] job system threads
 //-----------------------------------------------------------------------------
 
-static void
-pl__tile_upload_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
-{
-    plTerrain* ptTerrain = (plTerrain*)pData;
-    plHeightMapTile* ptTile = &ptTerrain->atTiles[ptTerrain->auFetchTileIndices[tInvoData.uGlobalIndex]];
-
-    plBuffer* ptStagingBuffer = gptGfx->get_buffer(gptTerrainCtx->ptDevice, ptTerrain->tStagingBuffer);
-
-    size_t szTileFileSize = ptTerrain->uTileSize * ptTerrain->uTileSize * ptTerrain->szHeightTexelStride;
-
-    const plTerrainBufferChunk* ptChunk = &ptTerrain->atChunks[ptTile->_uChunkIndex];
-
-    if(ptTile->_bEmpty)
-        memset((uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[ptChunk->szOffset], 0, szTileFileSize);
-    else
-        gptFile->binary_read(ptTile->acFile, &szTileFileSize, (uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[ptChunk->szOffset]);
-
-    ptTile->tFlags |= PL_TERRAIN_TILE_FLAGS_UPLOADED;
-    ptTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_QUEUED;
-}
-
 static bool
-pl__push_prefetch_tile(plTerrain* ptTerrain, uint32_t uTileIndex)
+pl__push_prefetch_tile(uint32_t uTileIndex)
 {
 
-    plHeightMapTile* ptTile = &ptTerrain->atTiles[uTileIndex];
+    plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[uTileIndex];
 
     if(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_UPLOADED)
         return true;
@@ -394,57 +362,55 @@ pl__push_prefetch_tile(plTerrain* ptTerrain, uint32_t uTileIndex)
         return true;
 
     // ptTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
-    gptThreads->wake_condition_variable(ptTerrain->ptConditionVariable);
+    gptThreads->wake_condition_variable(gptTerrainCtx->ptConditionVariable);
 
-    if(gptAtomics->atomic_load(ptTerrain->ptPrefetchCounter) > ptTerrain->uMaxPrefetchedTiles - 1)
+    if(gptAtomics->atomic_load(gptTerrainCtx->ptPrefetchCounter) > gptTerrainCtx->uMaxPrefetchedTiles - 1)
     {
-        pl_sb_push(ptTerrain->sbuPrefetchOverflow, uTileIndex);
+        pl_sb_push(gptTerrainCtx->sbuPrefetchOverflow, uTileIndex);
         return false;
     }
     
     // wait if max is set
-    // while(gptAtomics->atomic_load(ptTerrain->ptPrefetchCounter) > ptTerrain->uMaxPrefetchedTiles - 1)
+    // while(gptAtomics->atomic_load(gptTerrainCtx->ptPrefetchCounter) > gptTerrainCtx->uMaxPrefetchedTiles - 1)
     // {
-    //     gptThreads->wake_condition_variable(ptTerrain->ptConditionVariable);
+    //     gptThreads->wake_condition_variable(gptTerrainCtx->ptConditionVariable);
     // }
-    gptThreads->lock_mutex(ptTerrain->ptPrefetchMutex);
+    gptThreads->lock_mutex(gptTerrainCtx->ptPrefetchMutex);
 
-    pl__terrain_get_free_chunk(ptTerrain, uTileIndex);
+    pl__terrain_get_free_chunk(uTileIndex);
     ptTile->tFlags |= PL_TERRAIN_TILE_FLAGS_QUEUED;
-    ptTerrain->auPrefetchTileIndices[gptAtomics->atomic_increment(ptTerrain->ptPrefetchCounter) - 1] = uTileIndex;   
-    gptThreads->unlock_mutex(ptTerrain->ptPrefetchMutex);
+    gptTerrainCtx->auPrefetchTileIndices[gptAtomics->atomic_increment(gptTerrainCtx->ptPrefetchCounter) - 1] = uTileIndex;   
+    gptThreads->unlock_mutex(gptTerrainCtx->ptPrefetchMutex);
     return true;
 }
 
 static void*
 pl__prefetch_thread(void* pData)
 {
-    plTerrain* ptTerrain = (plTerrain*)pData;
+    size_t szTileFileSize = gptTerrainCtx->uTileSize * gptTerrainCtx->uTileSize * gptTerrainCtx->szHeightTexelStride;
 
-    size_t szTileFileSize = ptTerrain->uTileSize * ptTerrain->uTileSize * ptTerrain->szHeightTexelStride;
-
-    while(ptTerrain->bPrefetchThreadRunning)
+    while(gptTerrainCtx->bPrefetchThreadRunning)
     {
 
-        int64_t uPrefetchCount = gptAtomics->atomic_load(ptTerrain->ptPrefetchCounter);
+        int64_t uPrefetchCount = gptAtomics->atomic_load(gptTerrainCtx->ptPrefetchCounter);
         if(uPrefetchCount > 0)
         {
             // gptThreads->sleep_thread(300);
-            gptThreads->lock_mutex(ptTerrain->ptPrefetchMutex);
-            uint32_t uTileIndex = ptTerrain->auPrefetchTileIndices[gptAtomics->atomic_load(ptTerrain->ptPrefetchCounter) - 1];
-            gptAtomics->atomic_decrement(ptTerrain->ptPrefetchCounter); 
-            gptThreads->unlock_mutex(ptTerrain->ptPrefetchMutex);
+            gptThreads->lock_mutex(gptTerrainCtx->ptPrefetchMutex);
+            uint32_t uTileIndex = gptTerrainCtx->auPrefetchTileIndices[gptAtomics->atomic_load(gptTerrainCtx->ptPrefetchCounter) - 1];
+            gptAtomics->atomic_decrement(gptTerrainCtx->ptPrefetchCounter); 
+            gptThreads->unlock_mutex(gptTerrainCtx->ptPrefetchMutex);
 
-            if(!ptTerrain->bPrefetchThreadRunning)
+            if(!gptTerrainCtx->bPrefetchThreadRunning)
                 return NULL;
 
-            plHeightMapTile* ptTile = &ptTerrain->atTiles[uTileIndex];
+            plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[uTileIndex];
 
             if(ptTile->_uChunkIndex != UINT32_MAX)
             {
-                plBuffer* ptStagingBuffer = gptGfx->get_buffer(gptTerrainCtx->ptDevice, ptTerrain->tStagingBuffer);
+                plBuffer* ptStagingBuffer = gptGfx->get_buffer(gptTerrainCtx->ptDevice, gptTerrainCtx->tStagingBuffer);
 
-                const plTerrainBufferChunk* ptChunk = &ptTerrain->atChunks[ptTile->_uChunkIndex];
+                const plTerrainBufferChunk* ptChunk = &gptTerrainCtx->atChunks[ptTile->_uChunkIndex];
 
                 if(ptTile->_bEmpty)
                     memset((uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[ptChunk->szOffset], 0, szTileFileSize);
@@ -452,31 +418,31 @@ pl__prefetch_thread(void* pData)
                     gptFile->binary_read(ptTile->acFile, &szTileFileSize, (uint8_t*)&ptStagingBuffer->tMemoryAllocation.pHostMapped[ptChunk->szOffset]);
 
                 ptTile->tFlags |= PL_TERRAIN_TILE_FLAGS_UPLOADED;
-                gptAtomics->atomic_store(ptTerrain->ptPrefetchDirty, 1);
+                gptAtomics->atomic_store(gptTerrainCtx->ptPrefetchDirty, 1);
                 if(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_ACTIVE)
                 {
                     ptTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED_INTERMEDIATE;
                     ptTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
                     plHeightMapTile* ptNeighborTile = NULL;
-                    ptNeighborTile = pl__terrain_get_tile_by_pos(ptTerrain, ptTile->_iXCoord + 1, ptTile->_iYCoord);
+                    ptNeighborTile = pl__terrain_get_tile_by_pos(ptTile->_iXCoord + 1, ptTile->_iYCoord);
                     if(ptNeighborTile)
                     {
                         ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
                         ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED_INTERMEDIATE;
                     }
-                    ptNeighborTile = pl__terrain_get_tile_by_pos(ptTerrain, ptTile->_iXCoord - 1, ptTile->_iYCoord);
+                    ptNeighborTile = pl__terrain_get_tile_by_pos(ptTile->_iXCoord - 1, ptTile->_iYCoord);
                     if(ptNeighborTile)
                     {
                         ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
                         ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED_INTERMEDIATE;
                     }
-                    ptNeighborTile = pl__terrain_get_tile_by_pos(ptTerrain, ptTile->_iXCoord, ptTile->_iYCoord + 1);
+                    ptNeighborTile = pl__terrain_get_tile_by_pos(ptTile->_iXCoord, ptTile->_iYCoord + 1);
                      if(ptNeighborTile)
                     {
                         ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
                         ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED_INTERMEDIATE;
                     }
-                    ptNeighborTile = pl__terrain_get_tile_by_pos(ptTerrain, ptTile->_iXCoord, ptTile->_iYCoord - 1);
+                    ptNeighborTile = pl__terrain_get_tile_by_pos(ptTile->_iXCoord, ptTile->_iYCoord - 1);
                     if(ptNeighborTile)
                     {
                         ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
@@ -489,10 +455,10 @@ pl__prefetch_thread(void* pData)
         }
         else
         {
-            ptTerrain->bProcessAll = true;
-            gptThreads->enter_critical_section(ptTerrain->ptCriticalSection);
-            gptThreads->sleep_condition_variable(ptTerrain->ptConditionVariable, ptTerrain->ptCriticalSection);
-            gptThreads->leave_critical_section(ptTerrain->ptCriticalSection);
+            gptTerrainCtx->bProcessAll = true;
+            gptThreads->enter_critical_section(gptTerrainCtx->ptCriticalSection);
+            gptThreads->sleep_condition_variable(gptTerrainCtx->ptConditionVariable, gptTerrainCtx->ptCriticalSection);
+            gptThreads->leave_critical_section(gptTerrainCtx->ptCriticalSection);
         }
     }
 
@@ -504,10 +470,11 @@ pl__prefetch_thread(void* pData)
 //-----------------------------------------------------------------------------
 
 void
-pl_terrain_initialize(plTerrainInitMain tInit)
+pl_initialize_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
 {
-    plDevice* ptDevice = tInit.ptDevice;
+
     gptJob->initialize((plJobSystemInit){0});
+    plDevice* ptDevice = tInit.ptDevice;
     gptTerrainCtx->ptDevice = tInit.ptDevice;
     gptTerrainCtx->uSubpassIndex = tInit.uSubpassIndex;
     gptTerrainCtx->tRenderPassLayoutHandle = *tInit.ptRenderPassLayoutHandle;
@@ -610,13 +577,6 @@ pl_terrain_initialize(plTerrainInitMain tInit)
         }
     };
     gptTerrainCtx->tMipmapBGLayout0 = gptGfx->create_bind_group_layout(ptDevice, &tMipmapBGLayout0Desc);
-}
-
-plTerrain*
-pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
-{
-
-    plDevice* ptDevice = gptTerrainCtx->ptDevice;
 
     if(!gptTerrainCtx->bLoadedTextures)
     {
@@ -625,31 +585,25 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
         gptTerrainCtx->bLoadedTextures = true;
     }
 
-    plTerrain* ptTerrain = PL_ALLOC(sizeof(plTerrain));
-    memset(ptTerrain, 0, sizeof(plTerrain));
-    pl_sb_push(gptTerrainCtx->sbtTerrains, ptTerrain);
+    gptTerrainCtx->pt3dDrawlist = gptDraw->request_3d_drawlist();
 
+    gptTerrainCtx->tFlags                  = PL_TERRAIN_FLAGS_SHOW_BOUNDARY | PL_TERRAIN_FLAGS_CACHE_TILES | PL_TERRAIN_FLAGS_TILE_STREAMING | PL_TERRAIN_FLAGS_HIGH_RES | PL_TERRAIN_FLAGS_LOW_RES;
+    gptTerrainCtx->uHeightMapResolution    = 4096 / 2;
+    gptTerrainCtx->uTileSize               = 512 / 2;
+    gptTerrainCtx->fMetersPerTexel         = tInit.fMetersPerTexel;
+    gptTerrainCtx->fMaxElevation           = tInit.fMaxElevation;
+    gptTerrainCtx->fMinElevation           = tInit.fMinElevation;
+    gptTerrainCtx->tMaxWorldPosition       = tInit.tMaxPosition;
+    gptTerrainCtx->tMinWorldPosition       = tInit.tMinPosition;
 
-    ptTerrain->pt3dDrawlist = gptDraw->request_3d_drawlist();
-
-    ptTerrain->tFlags                  = PL_TERRAIN_FLAGS_SHOW_BOUNDARY | PL_TERRAIN_FLAGS_CACHE_TILES | PL_TERRAIN_FLAGS_TILE_STREAMING | PL_TERRAIN_FLAGS_HIGH_RES | PL_TERRAIN_FLAGS_LOW_RES;
-    ptTerrain->uHeightMapResolution    = 1024 * 4;
-    ptTerrain->uTileSize               = 512;
-    ptTerrain->fMetersPerTexel         = tInit.fMetersPerTexel;
-    ptTerrain->fMaxElevation           = tInit.fMaxElevation;
-    ptTerrain->fMinElevation           = tInit.fMinElevation;
-    ptTerrain->tMaxWorldPosition       = tInit.tMaxPosition;
-    ptTerrain->tMinWorldPosition       = tInit.tMinPosition;
-    ptTerrain->tLowResMaxWorldPosition = tInit.tLowResMaxWorldPosition;
-    ptTerrain->tLowResMinWorldPosition = tInit.tLowResMinWorldPosition;
-    ptTerrain->tCurrentDirectionUpdate = PL_TERRAIN_DIRECTION_ALL;
-    ptTerrain->bNeedsUpdate = true;
-    ptTerrain->tSunDirection           = (plVec3){-1.0f, -1.0f, -1.0f};
-    ptTerrain->szHeightTexelStride     = sizeof(uint16_t);
-    pl__terrain_create_shaders(ptTerrain);
+    gptTerrainCtx->tCurrentDirectionUpdate = PL_TERRAIN_DIRECTION_ALL;
+    gptTerrainCtx->bNeedsUpdate = true;
+    gptTerrainCtx->tSunDirection           = (plVec3){-1.0f, -1.0f, -1.0f};
+    gptTerrainCtx->szHeightTexelStride     = sizeof(uint16_t);
+    pl__terrain_create_shaders();
 
     const plTextureDesc tTextureDesc = {
-        .tDimensions = { (float)ptTerrain->uHeightMapResolution, (float)ptTerrain->uHeightMapResolution, 1},
+        .tDimensions = { (float)gptTerrainCtx->uHeightMapResolution, (float)gptTerrainCtx->uHeightMapResolution, 1},
         .tFormat     = PL_FORMAT_R16_UINT,
         .uLayers     = 1,
         .uMips       = 1,
@@ -657,10 +611,10 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
         .tUsage      = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_STORAGE,
         .pcDebugName = "raw height map texture",
     };
-    ptTerrain->tRawTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, NULL);
+    gptTerrainCtx->tRawTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, NULL);
 
     plTextureDesc tProcessedTextureDesc = {
-        .tDimensions = { (float)ptTerrain->uHeightMapResolution, (float)ptTerrain->uHeightMapResolution, 1},
+        .tDimensions = { (float)gptTerrainCtx->uHeightMapResolution, (float)gptTerrainCtx->uHeightMapResolution, 1},
         .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
         .uLayers     = 1,
         // .uMips       = 0,
@@ -671,24 +625,24 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
 
     tProcessedTextureDesc.uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)tProcessedTextureDesc.tDimensions.x, (int)tProcessedTextureDesc.tDimensions.y))) + 1u;
     tProcessedTextureDesc.uMips = pl_minu(tProcessedTextureDesc.uMips, gptTerrainCtx->uMeshLevels + 1);
-    ptTerrain->tProcessedTexture = gptGfx->create_texture(ptDevice, &tProcessedTextureDesc, NULL);
+    gptTerrainCtx->tProcessedTexture = gptGfx->create_texture(ptDevice, &tProcessedTextureDesc, NULL);
 
     tProcessedTextureDesc.pcDebugName = "active height map texture";
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        ptTerrain->atActiveTexture[i] = gptGfx->create_texture(ptDevice, &tProcessedTextureDesc, NULL);
+        gptTerrainCtx->atActiveTexture[i] = gptGfx->create_texture(ptDevice, &tProcessedTextureDesc, NULL);
 
     tProcessedTextureDesc.pcDebugName = "dummy texture";
     tProcessedTextureDesc.uMips = 1;
-    ptTerrain->tDummyTexture = gptGfx->create_texture(ptDevice, &tProcessedTextureDesc, NULL);
+    gptTerrainCtx->tDummyTexture = gptGfx->create_texture(ptDevice, &tProcessedTextureDesc, NULL);
 
     tProcessedTextureDesc.pcDebugName = "full texture";
-    ptTerrain->tFullTexture = gptGfx->create_texture(ptDevice, &tProcessedTextureDesc, NULL);
+    gptTerrainCtx->tFullTexture = gptGfx->create_texture(ptDevice, &tProcessedTextureDesc, NULL);
 
     // retrieve new texture (also could have used out param from create_texture above)
-    plTexture* ptRawTexture   = gptGfx->get_texture(ptDevice, ptTerrain->tRawTexture);
-    plTexture* ptDummyTexture = gptGfx->get_texture(ptDevice, ptTerrain->tDummyTexture);
-    plTexture* ptTexture      = gptGfx->get_texture(ptDevice, ptTerrain->tProcessedTexture);
-    plTexture* ptFullTexture  = gptGfx->get_texture(ptDevice, ptTerrain->tFullTexture);
+    plTexture* ptRawTexture   = gptGfx->get_texture(ptDevice, gptTerrainCtx->tRawTexture);
+    plTexture* ptDummyTexture = gptGfx->get_texture(ptDevice, gptTerrainCtx->tDummyTexture);
+    plTexture* ptTexture      = gptGfx->get_texture(ptDevice, gptTerrainCtx->tProcessedTexture);
+    plTexture* ptFullTexture  = gptGfx->get_texture(ptDevice, gptTerrainCtx->tFullTexture);
 
     size_t szBuddyBlockSize = gptGpuAllocators->get_buddy_block_size();
 
@@ -723,10 +677,10 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
         "full heightmap memory");
 
     // bind memory blocks
-    gptGfx->bind_texture_to_memory(ptDevice, ptTerrain->tRawTexture, &tRawTextureAllocation);
-    gptGfx->bind_texture_to_memory(ptDevice, ptTerrain->tProcessedTexture, &tProcessedTextureAllocation);
-    gptGfx->bind_texture_to_memory(ptDevice, ptTerrain->tDummyTexture, &tDummyTextureAllocation);
-    gptGfx->bind_texture_to_memory(ptDevice, ptTerrain->tFullTexture, &tFullTextureAllocation);
+    gptGfx->bind_texture_to_memory(ptDevice, gptTerrainCtx->tRawTexture, &tRawTextureAllocation);
+    gptGfx->bind_texture_to_memory(ptDevice, gptTerrainCtx->tProcessedTexture, &tProcessedTextureAllocation);
+    gptGfx->bind_texture_to_memory(ptDevice, gptTerrainCtx->tDummyTexture, &tDummyTextureAllocation);
+    gptGfx->bind_texture_to_memory(ptDevice, gptTerrainCtx->tFullTexture, &tFullTextureAllocation);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -735,25 +689,25 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
             ptTexture->tMemoryRequirements.ulSize,
             ptTexture->tMemoryRequirements.ulAlignment,
             "active heightmap memory");
-        gptGfx->bind_texture_to_memory(ptDevice, ptTerrain->atActiveTexture[i], &tActiveTextureAllocation);
+        gptGfx->bind_texture_to_memory(ptDevice, gptTerrainCtx->atActiveTexture[i], &tActiveTextureAllocation);
     }
 
-    ptTerrain->uPrefetchRadius = 2; // lets try to keep this small until we have priority prefetching
+    gptTerrainCtx->uPrefetchRadius = 2; // lets try to keep this small until we have priority prefetching
 
-    const uint32_t uTilesAcross = ptTerrain->uHeightMapResolution / ptTerrain->uTileSize;
-    ptTerrain->uMaxPrefetchedTiles = uTilesAcross * ptTerrain->uPrefetchRadius * 4 + ptTerrain->uPrefetchRadius * ptTerrain->uPrefetchRadius * 4;
-    ptTerrain->uMaxPrefetchedTiles *= 2;
-    ptTerrain->uMaxActiveTiles = uTilesAcross * uTilesAcross;
+    const uint32_t uTilesAcross = gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uTileSize;
+    gptTerrainCtx->uMaxPrefetchedTiles = uTilesAcross * gptTerrainCtx->uPrefetchRadius * 4 + gptTerrainCtx->uPrefetchRadius * gptTerrainCtx->uPrefetchRadius * 4;
+    gptTerrainCtx->uMaxPrefetchedTiles *= 2;
+    gptTerrainCtx->uMaxActiveTiles = uTilesAcross * uTilesAcross;
 
     // create staging buffer
     plBufferDesc tStagingBufferDesc = {
         .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
-        .szByteSize  = (ptTerrain->uMaxPrefetchedTiles + ptTerrain->uMaxActiveTiles) * (ptTerrain->uTileSize * ptTerrain->uTileSize * ptTerrain->szHeightTexelStride),
+        .szByteSize  = (gptTerrainCtx->uMaxPrefetchedTiles + gptTerrainCtx->uMaxActiveTiles) * (gptTerrainCtx->uTileSize * gptTerrainCtx->uTileSize * gptTerrainCtx->szHeightTexelStride),
         .pcDebugName = "staging buffer"
     };
 
     plBuffer* ptStagingBuffer = NULL;
-    ptTerrain->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, &ptStagingBuffer);
+    gptTerrainCtx->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, &ptStagingBuffer);
     
 
     // allocate memory for the vertex buffer
@@ -764,16 +718,16 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
         0,
         "staging buffer memory");
 
-    gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tStagingBuffer, &tStagingBufferAllocation);
+    gptGfx->bind_buffer_to_memory(ptDevice, gptTerrainCtx->tStagingBuffer, &tStagingBufferAllocation);
     memset(ptStagingBuffer->tMemoryAllocation.pHostMapped, 0, ptStagingBuffer->tMemoryRequirements.ulSize);
 
     plBufferDesc tStagingBufferDesc2 = {
         .tUsage      = PL_BUFFER_USAGE_TRANSFER_DESTINATION | PL_BUFFER_USAGE_TRANSFER_SOURCE,
-        .szByteSize  = ptTerrain->uHeightMapResolution * ptTerrain->uHeightMapResolution * ptTerrain->szHeightTexelStride * 2 * 2,
+        .szByteSize  = gptTerrainCtx->uHeightMapResolution * gptTerrainCtx->uHeightMapResolution * gptTerrainCtx->szHeightTexelStride * 2,
         .pcDebugName = "staging buffer2"
     };
     plBuffer* ptStagingBuffer2 = NULL;
-    ptTerrain->tStagingBuffer2 = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc2, &ptStagingBuffer2);
+    gptTerrainCtx->tStagingBuffer2 = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc2, &ptStagingBuffer2);
 
     const plDeviceMemoryAllocation tStagingBufferAllocation2 = ptAllocator->allocate(ptAllocator->ptInst,
         ptStagingBuffer2->tMemoryRequirements.uMemoryTypeBits,
@@ -781,22 +735,22 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
         0,
         "staging buffer memory2");
 
-    gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tStagingBuffer2, &tStagingBufferAllocation2);
+    gptGfx->bind_buffer_to_memory(ptDevice, gptTerrainCtx->tStagingBuffer2, &tStagingBufferAllocation2);
     memset(ptStagingBuffer2->tMemoryAllocation.pHostMapped, 0, ptStagingBuffer2->tMemoryRequirements.ulSize);
     
-    ptTerrain->auPrefetchTileIndices = PL_ALLOC(sizeof(uint32_t) * ptTerrain->uMaxPrefetchedTiles);
-    memset(ptTerrain->auPrefetchTileIndices, 255, sizeof(uint32_t) * ptTerrain->uMaxPrefetchedTiles);
-    ptTerrain->auFetchTileIndices = PL_ALLOC(sizeof(uint32_t) * ptTerrain->uMaxActiveTiles);
-    memset(ptTerrain->auFetchTileIndices, 255, sizeof(uint32_t) * ptTerrain->uMaxActiveTiles);
+    gptTerrainCtx->auPrefetchTileIndices = PL_ALLOC(sizeof(uint32_t) * gptTerrainCtx->uMaxPrefetchedTiles);
+    memset(gptTerrainCtx->auPrefetchTileIndices, 255, sizeof(uint32_t) * gptTerrainCtx->uMaxPrefetchedTiles);
+    gptTerrainCtx->auFetchTileIndices = PL_ALLOC(sizeof(uint32_t) * gptTerrainCtx->uMaxActiveTiles);
+    memset(gptTerrainCtx->auFetchTileIndices, 255, sizeof(uint32_t) * gptTerrainCtx->uMaxActiveTiles);
 
-    ptTerrain->uChunkCapacity = ptTerrain->uMaxPrefetchedTiles + ptTerrain->uMaxActiveTiles;
-    ptTerrain->atChunks = PL_ALLOC(ptTerrain->uChunkCapacity * sizeof(plTerrainBufferChunk));
-    pl_sb_resize(ptTerrain->sbuFreeChunks, ptTerrain->uChunkCapacity);
-    for(uint32_t i = 0; i < ptTerrain->uChunkCapacity; i++)
+    gptTerrainCtx->uChunkCapacity = gptTerrainCtx->uMaxPrefetchedTiles + gptTerrainCtx->uMaxActiveTiles;
+    gptTerrainCtx->atChunks = PL_ALLOC(gptTerrainCtx->uChunkCapacity * sizeof(plTerrainBufferChunk));
+    pl_sb_resize(gptTerrainCtx->sbuFreeChunks, gptTerrainCtx->uChunkCapacity);
+    for(uint32_t i = 0; i < gptTerrainCtx->uChunkCapacity; i++)
     {
-        ptTerrain->atChunks[i].szOffset = ptTerrain->uTileSize * ptTerrain->uTileSize * ptTerrain->szHeightTexelStride * i;
-        ptTerrain->atChunks[i].uOwnerTileIndex = UINT32_MAX;
-        ptTerrain->sbuFreeChunks[i] = i;
+        gptTerrainCtx->atChunks[i].szOffset = gptTerrainCtx->uTileSize * gptTerrainCtx->uTileSize * gptTerrainCtx->szHeightTexelStride * i;
+        gptTerrainCtx->atChunks[i].uOwnerTileIndex = UINT32_MAX;
+        gptTerrainCtx->sbuFreeChunks[i] = i;
     }
 
     // create bindgroup
@@ -821,28 +775,28 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
     // set initial texture usages
     plBlitEncoder* ptBlit = gptGfx->begin_blit_pass(ptCmdBuffer);
     gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-    gptGfx->set_texture_usage(ptBlit, ptTerrain->tDummyTexture, PL_TEXTURE_USAGE_STORAGE, 0);
-    gptGfx->set_texture_usage(ptBlit, ptTerrain->tRawTexture, PL_TEXTURE_USAGE_STORAGE, 0);
-    gptGfx->set_texture_usage(ptBlit, ptTerrain->tProcessedTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-    gptGfx->set_texture_usage(ptBlit, ptTerrain->tFullTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
+    gptGfx->set_texture_usage(ptBlit, gptTerrainCtx->tDummyTexture, PL_TEXTURE_USAGE_STORAGE, 0);
+    gptGfx->set_texture_usage(ptBlit, gptTerrainCtx->tRawTexture, PL_TEXTURE_USAGE_STORAGE, 0);
+    gptGfx->set_texture_usage(ptBlit, gptTerrainCtx->tProcessedTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
+    gptGfx->set_texture_usage(ptBlit, gptTerrainCtx->tFullTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        gptGfx->set_texture_usage(ptBlit, ptTerrain->atActiveTexture[i], PL_TEXTURE_USAGE_SAMPLED, 0);
+        gptGfx->set_texture_usage(ptBlit, gptTerrainCtx->atActiveTexture[i], PL_TEXTURE_USAGE_SAMPLED, 0);
     }
     gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptBlit);
 
-    ptTerrain->tFullBG0 = gptGfx->create_bind_group(ptDevice, &tBindGroupDesc);
+    gptTerrainCtx->tFullBG0 = gptGfx->create_bind_group(ptDevice, &tBindGroupDesc);
 
     // create & update static bind groups
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        ptTerrain->atBindGroup0[i] = gptGfx->create_bind_group(ptDevice, &tBindGroupDesc);
+        gptTerrainCtx->atBindGroup0[i] = gptGfx->create_bind_group(ptDevice, &tBindGroupDesc);
         
         plBindGroupUpdateTextureData atTextureData[] = 
         {
             {
-                .tTexture = ptTerrain->atActiveTexture[i],
+                .tTexture = gptTerrainCtx->atActiveTexture[i],
                 .uSlot    = 1,
                 .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
             },
@@ -857,7 +811,7 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
                 .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
             },
             {
-                .tTexture = ptTerrain->tFullTexture,
+                .tTexture = gptTerrainCtx->tFullTexture,
                 .uSlot    = 5,
                 .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
             },
@@ -869,14 +823,14 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
             .uTextureCount     = 4,
             .atTextureBindings = atTextureData
         };
-        gptGfx->update_bind_group(ptDevice, ptTerrain->atBindGroup0[i], &tBGData);
+        gptGfx->update_bind_group(ptDevice, gptTerrainCtx->atBindGroup0[i], &tBGData);
     }
 
     {
         plBindGroupUpdateTextureData atTextureData[] = 
         {
             {
-                .tTexture = ptTerrain->tFullTexture,
+                .tTexture = gptTerrainCtx->tFullTexture,
                 .uSlot    = 1,
                 .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
             },
@@ -891,7 +845,7 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
                 .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
             },
             {
-                .tTexture = ptTerrain->tFullTexture,
+                .tTexture = gptTerrainCtx->tFullTexture,
                 .uSlot    = 5,
                 .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
             },
@@ -904,7 +858,7 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
             .uTextureCount     = 4,
             .atTextureBindings = atTextureData
         };
-        gptGfx->update_bind_group(ptDevice, ptTerrain->tFullBG0, &tBGData);
+        gptGfx->update_bind_group(ptDevice, gptTerrainCtx->tFullBG0, &tBGData);
     }
 
     plBindGroupDesc tPreprocessBG0Desc = {
@@ -912,25 +866,25 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
         .ptPool = gptTerrainCtx->ptBindGroupPool,
         .pcDebugName = "compute bind group 0"
     };
-    ptTerrain->tPreprocessBG0 = gptGfx->create_bind_group(ptDevice, &tPreprocessBG0Desc);
+    gptTerrainCtx->tPreprocessBG0 = gptGfx->create_bind_group(ptDevice, &tPreprocessBG0Desc);
 
     plBindGroupDesc tMipmapBG0Desc = {
         .tLayout = gptTerrainCtx->tMipmapBGLayout0,
         .ptPool = gptTerrainCtx->ptBindGroupPool,
         .pcDebugName = "compute bind group 0"
     };
-    ptTerrain->tMipmapBG0 = gptGfx->create_bind_group(ptDevice, &tMipmapBG0Desc);
+    gptTerrainCtx->tMipmapBG0 = gptGfx->create_bind_group(ptDevice, &tMipmapBG0Desc);
 
     plBindGroupUpdateTextureData atComputeTextureData0[2] = {
-        {.uSlot = 0, .tTexture = ptTerrain->tRawTexture, .tType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE},
-        {.uSlot = 1, .tTexture = ptTerrain->tProcessedTexture, .tType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE},
+        {.uSlot = 0, .tTexture = gptTerrainCtx->tRawTexture, .tType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE},
+        {.uSlot = 1, .tTexture = gptTerrainCtx->tProcessedTexture, .tType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE},
     };
 
     plBindGroupUpdateData tPreprocessBG0Data = {
         .uTextureCount = 2,
         .atTextureBindings = atComputeTextureData0
     };
-    gptGfx->update_bind_group(ptDevice, ptTerrain->tPreprocessBG0, &tPreprocessBG0Data);
+    gptGfx->update_bind_group(ptDevice, gptTerrainCtx->tPreprocessBG0, &tPreprocessBG0Data);
     
     plBindGroupUpdateSamplerData tSamplerData = {
         .tSampler = gptTerrainCtx->tMipSampler,
@@ -938,8 +892,8 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
     };
 
     plBindGroupUpdateTextureData atComputeTextureData1[2] = {
-        {.uSlot = 1, .tTexture = ptTerrain->tProcessedTexture, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED},
-        {.uSlot = 2, .tTexture = ptTerrain->tDummyTexture, .tType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE},
+        {.uSlot = 1, .tTexture = gptTerrainCtx->tProcessedTexture, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED},
+        {.uSlot = 2, .tTexture = gptTerrainCtx->tDummyTexture, .tType = PL_TEXTURE_BINDING_TYPE_STORAGE, .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE},
     };
 
     plBindGroupUpdateData tMipmapBG0Data = {
@@ -948,61 +902,61 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
         .uTextureCount     = 2,
         .atTextureBindings = atComputeTextureData1
     };
-    gptGfx->update_bind_group(ptDevice, ptTerrain->tMipmapBG0, &tMipmapBG0Data);
+    gptGfx->update_bind_group(ptDevice, gptTerrainCtx->tMipmapBG0, &tMipmapBG0Data);
 
     // calculate tile field dimensions
-    ptTerrain->uHorizontalTiles = (uint32_t)ceilf(((ptTerrain->tMaxWorldPosition.x - ptTerrain->tMinWorldPosition.x) / ((float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel)));
-    ptTerrain->uVerticalTiles   = (uint32_t)ceilf(((ptTerrain->tMaxWorldPosition.y - ptTerrain->tMinWorldPosition.y) / ((float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel)));
+    gptTerrainCtx->uHorizontalTiles = (uint32_t)ceilf(((gptTerrainCtx->tMaxWorldPosition.x - gptTerrainCtx->tMinWorldPosition.x) / ((float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel)));
+    gptTerrainCtx->uVerticalTiles   = (uint32_t)ceilf(((gptTerrainCtx->tMaxWorldPosition.y - gptTerrainCtx->tMinWorldPosition.y) / ((float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel)));
 
     // handle case where there isn't enough tiles to fill terrain texture
-    if(ptTerrain->uHeightMapResolution / ptTerrain->uTileSize > ptTerrain->uHorizontalTiles)
+    if(gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uTileSize > gptTerrainCtx->uHorizontalTiles)
     {
-        ptTerrain->uHorizontalTiles = ptTerrain->uHeightMapResolution / ptTerrain->uTileSize;
-        ptTerrain->tMaxWorldPosition.x = ptTerrain->uHorizontalTiles * (float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel + ptTerrain->tMinWorldPosition.x;
+        gptTerrainCtx->uHorizontalTiles = gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uTileSize;
+        gptTerrainCtx->tMaxWorldPosition.x = gptTerrainCtx->uHorizontalTiles * (float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel + gptTerrainCtx->tMinWorldPosition.x;
     }
 
     // handle case where there isn't enough tiles to fill terrain texture
-    if(ptTerrain->uHeightMapResolution / ptTerrain->uTileSize > ptTerrain->uVerticalTiles)
+    if(gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uTileSize > gptTerrainCtx->uVerticalTiles)
     {
-        ptTerrain->uVerticalTiles = ptTerrain->uHeightMapResolution / ptTerrain->uTileSize;
-        ptTerrain->tMaxWorldPosition.y = ptTerrain->uVerticalTiles * (float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel + ptTerrain->tMinWorldPosition.y;
+        gptTerrainCtx->uVerticalTiles = gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uTileSize;
+        gptTerrainCtx->tMaxWorldPosition.y = gptTerrainCtx->uVerticalTiles * (float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel + gptTerrainCtx->tMinWorldPosition.y;
     }
 
     // allocate tiles
-    ptTerrain->uTileCount = ptTerrain->uHorizontalTiles * ptTerrain->uVerticalTiles;
-    ptTerrain->atTiles = PL_ALLOC(ptTerrain->uTileCount * sizeof(plHeightMapTile));
-    memset(ptTerrain->atTiles, 0, ptTerrain->uTileCount * sizeof(plHeightMapTile));
+    gptTerrainCtx->uTileCount = gptTerrainCtx->uHorizontalTiles * gptTerrainCtx->uVerticalTiles;
+    gptTerrainCtx->atTiles = PL_ALLOC(gptTerrainCtx->uTileCount * sizeof(plHeightMapTile));
+    memset(gptTerrainCtx->atTiles, 0, gptTerrainCtx->uTileCount * sizeof(plHeightMapTile));
 
     // load empty tiles
     uint32_t uYCoord = UINT32_MAX;
-    for(uint32_t i = 0; i < ptTerrain->uTileCount; i++)
+    for(uint32_t i = 0; i < gptTerrainCtx->uTileCount; i++)
     {
-        plHeightMapTile* ptTile = &ptTerrain->atTiles[i];
+        plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[i];
 
-        uint32_t uXCoord = (int)(i % ptTerrain->uHorizontalTiles);
+        uint32_t uXCoord = (int)(i % gptTerrainCtx->uHorizontalTiles);
         if(uXCoord == 0)
             uYCoord++;
 
         ptTile->_uChunkIndex = UINT32_MAX;
         ptTile->fMaxHeight   = 0.0f;
         ptTile->fMinHeight   = 0.0f;
-        ptTile->uXOffset     = uXCoord * ptTerrain->uTileSize;
-        ptTile->uYOffset     = uYCoord * ptTerrain->uTileSize;
-        ptTile->_iXCoord     = (int)uXCoord * (int)ptTerrain->uTileSize;
-        ptTile->_iYCoord     = (int)uYCoord * (int)ptTerrain->uTileSize;
-        ptTile->tWorldPos.x  = (float)(ptTile->_iXCoord) * ptTerrain->fMetersPerTexel + ptTerrain->tMinWorldPosition.x;
-        ptTile->tWorldPos.y  = (float)(ptTile->_iYCoord) * ptTerrain->fMetersPerTexel + ptTerrain->tMinWorldPosition.y;
-        ptTile->_iXCoord     = (int32_t)((ptTile->tWorldPos.x - ptTerrain->tMinWorldPosition.x) / ((float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel));
-        ptTile->_iYCoord     = (int32_t)((ptTile->tWorldPos.y - ptTerrain->tMinWorldPosition.y) / ((float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel));
+        ptTile->uXOffset     = uXCoord * gptTerrainCtx->uTileSize;
+        ptTile->uYOffset     = uYCoord * gptTerrainCtx->uTileSize;
+        ptTile->_iXCoord     = (int)uXCoord * (int)gptTerrainCtx->uTileSize;
+        ptTile->_iYCoord     = (int)uYCoord * (int)gptTerrainCtx->uTileSize;
+        ptTile->tWorldPos.x  = (float)(ptTile->_iXCoord) * gptTerrainCtx->fMetersPerTexel + gptTerrainCtx->tMinWorldPosition.x;
+        ptTile->tWorldPos.y  = (float)(ptTile->_iYCoord) * gptTerrainCtx->fMetersPerTexel + gptTerrainCtx->tMinWorldPosition.y;
+        ptTile->_iXCoord     = (int32_t)((ptTile->tWorldPos.x - gptTerrainCtx->tMinWorldPosition.x) / ((float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel));
+        ptTile->_iYCoord     = (int32_t)((ptTile->tWorldPos.y - gptTerrainCtx->tMinWorldPosition.y) / ((float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel));
     }
 
-    ptTerrain->bPrefetchThreadRunning = true;
-    gptAtomics->create_atomic_counter(0, &ptTerrain->ptPrefetchCounter);
-    gptAtomics->create_atomic_counter(0, &ptTerrain->ptPrefetchDirty);
-    gptThreads->create_condition_variable(&ptTerrain->ptConditionVariable);
-    gptThreads->create_critical_section(&ptTerrain->ptCriticalSection);
-    gptThreads->create_mutex(&ptTerrain->ptPrefetchMutex);
-    gptThreads->create_thread(pl__prefetch_thread, ptTerrain, &ptTerrain->ptPrefetchThread);
+    gptTerrainCtx->bPrefetchThreadRunning = true;
+    gptAtomics->create_atomic_counter(0, &gptTerrainCtx->ptPrefetchCounter);
+    gptAtomics->create_atomic_counter(0, &gptTerrainCtx->ptPrefetchDirty);
+    gptThreads->create_condition_variable(&gptTerrainCtx->ptConditionVariable);
+    gptThreads->create_critical_section(&gptTerrainCtx->ptCriticalSection);
+    gptThreads->create_mutex(&gptTerrainCtx->ptPrefetchMutex);
+    
 
     float* sbtVertexBuffer = NULL;
     uint32_t* sbuIndices = NULL;
@@ -1011,8 +965,8 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
     // TODO: ellipsoid
 
     uint32_t uResolution = 64;
-    plVec2 tLowResMinPosition = ptTerrain->tLowResMinWorldPosition;
-    plVec2 tLowResMaxPosition = ptTerrain->tLowResMaxWorldPosition;
+    plVec2 tLowResMinPosition = gptTerrainCtx->tMinWorldPosition;
+    plVec2 tLowResMaxPosition = gptTerrainCtx->tMaxWorldPosition;
     plVec2 tLowResExtent = pl_sub_vec2(tLowResMaxPosition, tLowResMinPosition);
     float fXRange = tLowResExtent.x;
     float fYRange = tLowResExtent.y;
@@ -1068,7 +1022,7 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
         };
 
         plBuffer* ptVertexBuffer = NULL;
-        ptTerrain->tFullVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, &ptVertexBuffer);
+        gptTerrainCtx->tFullVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, &ptVertexBuffer);
 
         plDeviceMemoryAllocatorI* ptAllocator3 = gptTerrainCtx->tStagingBuddyAllocator;
 
@@ -1078,7 +1032,7 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
             ptVertexBuffer->tMemoryRequirements.ulAlignment,
             "full vertex memory");
 
-        gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tFullVertexBuffer, &tFullVertexBufferMemory);
+        gptGfx->bind_buffer_to_memory(ptDevice, gptTerrainCtx->tFullVertexBuffer, &tFullVertexBufferMemory);
 
         memcpy(ptVertexBuffer->tMemoryAllocation.pHostMapped, sbtVertexBuffer, tVertexBufferDesc.szByteSize);
     }
@@ -1091,7 +1045,7 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
         };
 
         plBuffer* ptVertexBuffer = NULL;
-        ptTerrain->tFullIndexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, &ptVertexBuffer);
+        gptTerrainCtx->tFullIndexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, &ptVertexBuffer);
 
         plDeviceMemoryAllocatorI* ptAllocator3 = gptTerrainCtx->tStagingBuddyAllocator;
 
@@ -1101,21 +1055,16 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit)
             ptVertexBuffer->tMemoryRequirements.ulAlignment,
             "full vertex memory");
 
-        gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tFullIndexBuffer, &tFullVertexBufferMemory);
+        gptGfx->bind_buffer_to_memory(ptDevice, gptTerrainCtx->tFullIndexBuffer, &tFullVertexBufferMemory);
 
         memcpy(ptVertexBuffer->tMemoryAllocation.pHostMapped, sbuIndices, tVertexBufferDesc.szByteSize);
-        ptTerrain->uFullIndexCount = pl_sb_size(sbuIndices);
+        gptTerrainCtx->uFullIndexCount = pl_sb_size(sbuIndices);
     }
 
     pl_sb_free(sbtVertexBuffer);
     pl_sb_free(sbuIndices);
 
-    ptTerrain->fLowResMetersPerTexel = tInit.fLowResMetersPerTexel;
-    ptTerrain->fLowResMaxElevation = tInit.fLowResMaxElevation;
-    ptTerrain->fLowResMinElevation = tInit.fLowResMinElevation;
-    pl__process_full_heightmap(ptTerrain, ptCmdBuffer, tInit.pcLowResolutionMap);
-
-    return ptTerrain;
+    gptTerrainCtx->fLowResMetersPerTexel = (tInit.tMaxPosition.x - tInit.tMinPosition.x) / (float)gptTerrainCtx->uHeightMapResolution;
 }
 
 void
@@ -1123,55 +1072,50 @@ pl_terrain_cleanup(void)
 {
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
     gptGfx->flush_device(ptDevice);
-    for(uint32_t i = 0; i < pl_sb_size(gptTerrainCtx->sbtTerrains); i++)
+
+    gptTerrainCtx->bPrefetchThreadRunning = false;
+    gptAtomics->atomic_store(gptTerrainCtx->ptPrefetchCounter, 0);
+    gptThreads->wake_condition_variable(gptTerrainCtx->ptConditionVariable);
+    if(!(gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_CACHE_TILES))
     {
-        plTerrain* ptTerrain = gptTerrainCtx->sbtTerrains[i];
-        ptTerrain->bPrefetchThreadRunning = false;
-        gptAtomics->atomic_store(ptTerrain->ptPrefetchCounter, 0);
-        gptThreads->wake_condition_variable(ptTerrain->ptConditionVariable);
-        if(!(ptTerrain->tFlags & PL_TERRAIN_FLAGS_CACHE_TILES))
+        for(uint32_t j = 0; j < gptTerrainCtx->uTileCount; j++)
         {
-            for(uint32_t j = 0; j < ptTerrain->uTileCount; j++)
+            plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[j];
+            if(!ptTile->_bEmpty)
             {
-                plHeightMapTile* ptTile = &ptTerrain->atTiles[j];
-                if(!ptTile->_bEmpty)
-                {
-                    gptFile->remove(ptTile->acFile);
-                }
+                gptFile->remove(ptTile->acFile);
             }
         }
-
-        gptThreads->destroy_thread(&ptTerrain->ptPrefetchThread);
-        gptThreads->destroy_mutex(&ptTerrain->ptPrefetchMutex);
-        gptAtomics->destroy_atomic_counter(&ptTerrain->ptPrefetchCounter);
-        gptAtomics->destroy_atomic_counter(&ptTerrain->ptPrefetchDirty);
-        gptThreads->destroy_condition_variable(&ptTerrain->ptConditionVariable);
-        gptThreads->destroy_critical_section(&ptTerrain->ptCriticalSection);
-        
-        gptGfx->destroy_shader(ptDevice, ptTerrain->tRegularShader);
-        gptGfx->destroy_shader(ptDevice, ptTerrain->tWireframeShader);
-        gptGfx->destroy_compute_shader(ptDevice, ptTerrain->tPreProcessHeightShader);
-        gptGfx->destroy_compute_shader(ptDevice, ptTerrain->tMipMapShader);
-        gptGfx->destroy_texture(ptDevice, ptTerrain->tProcessedTexture);
-        for(uint32_t j = 0; j < gptGfx->get_frames_in_flight(); j++)
-        {
-            gptGfx->destroy_bind_group(ptDevice, ptTerrain->atBindGroup0[j]);
-            gptGfx->destroy_texture(ptDevice, ptTerrain->atActiveTexture[j]);
-        }
-        gptDraw->return_3d_drawlist(ptTerrain->pt3dDrawlist);
-        gptGfx->destroy_texture(ptDevice, ptTerrain->tDummyTexture);
-        gptGfx->destroy_texture(ptDevice, ptTerrain->tRawTexture);
-        gptGfx->destroy_bind_group(ptDevice, ptTerrain->tMipmapBG0);
-        pl_sb_free(ptTerrain->sbuActiveTileIndices);
-        pl_sb_free(ptTerrain->sbuFreeChunks);
-        pl_sb_free(ptTerrain->sbuPrefetchOverflow);
-        PL_FREE(ptTerrain->auPrefetchTileIndices);
-        PL_FREE(ptTerrain->auFetchTileIndices);
-        PL_FREE(ptTerrain->atChunks);
-        PL_FREE(ptTerrain->atTiles);
-        PL_FREE(ptTerrain);
     }
-    pl_sb_free(gptTerrainCtx->sbtTerrains);
+
+    gptThreads->destroy_thread(&gptTerrainCtx->ptPrefetchThread);
+    gptThreads->destroy_mutex(&gptTerrainCtx->ptPrefetchMutex);
+    gptAtomics->destroy_atomic_counter(&gptTerrainCtx->ptPrefetchCounter);
+    gptAtomics->destroy_atomic_counter(&gptTerrainCtx->ptPrefetchDirty);
+    gptThreads->destroy_condition_variable(&gptTerrainCtx->ptConditionVariable);
+    gptThreads->destroy_critical_section(&gptTerrainCtx->ptCriticalSection);
+    
+    gptGfx->destroy_shader(ptDevice, gptTerrainCtx->tRegularShader);
+    gptGfx->destroy_shader(ptDevice, gptTerrainCtx->tWireframeShader);
+    gptGfx->destroy_compute_shader(ptDevice, gptTerrainCtx->tPreProcessHeightShader);
+    gptGfx->destroy_compute_shader(ptDevice, gptTerrainCtx->tMipMapShader);
+    gptGfx->destroy_texture(ptDevice, gptTerrainCtx->tProcessedTexture);
+    for(uint32_t j = 0; j < gptGfx->get_frames_in_flight(); j++)
+    {
+        gptGfx->destroy_bind_group(ptDevice, gptTerrainCtx->atBindGroup0[j]);
+        gptGfx->destroy_texture(ptDevice, gptTerrainCtx->atActiveTexture[j]);
+    }
+    gptDraw->return_3d_drawlist(gptTerrainCtx->pt3dDrawlist);
+    gptGfx->destroy_texture(ptDevice, gptTerrainCtx->tDummyTexture);
+    gptGfx->destroy_texture(ptDevice, gptTerrainCtx->tRawTexture);
+    gptGfx->destroy_bind_group(ptDevice, gptTerrainCtx->tMipmapBG0);
+    pl_sb_free(gptTerrainCtx->sbuActiveTileIndices);
+    pl_sb_free(gptTerrainCtx->sbuFreeChunks);
+    pl_sb_free(gptTerrainCtx->sbuPrefetchOverflow);
+    PL_FREE(gptTerrainCtx->auPrefetchTileIndices);
+    PL_FREE(gptTerrainCtx->auFetchTileIndices);
+    PL_FREE(gptTerrainCtx->atChunks);
+    PL_FREE(gptTerrainCtx->atTiles);
 
     gptGfx->destroy_buffer(ptDevice, gptTerrainCtx->tIndexBuffer);
     gptGfx->destroy_buffer(ptDevice, gptTerrainCtx->tVertexBuffer);
@@ -1189,8 +1133,41 @@ pl_terrain_cleanup(void)
     gptGpuAllocators->cleanup(ptDevice);
 }
 
+static void
+pl__tile_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
+{
+    plTerrainTilingInfo* atInfos = (plTerrainTilingInfo*)pData;
+    pl__terrain_tile_height_map(atInfos[tInvoData.uGlobalIndex]);
+}
+
 void
-pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
+pl_terrain_tile_height_map(uint32_t uCount, plTerrainTilingInfo* atInfos)
+{
+    for(uint32_t i = 0; i < uCount; i++)
+    {
+        // preregister with vfs since vfs isn't thread safe
+        plVfsFileHandle tFileHandle = gptVfs->open_file(atInfos[i].pcFile, PL_VFS_FILE_MODE_READ);
+        gptVfs->close_file(tFileHandle);
+    }
+
+    #if 0 // single threaded
+        for(uint32_t i = 0; i < uCount; i++)
+        {
+            pl__terrain_tile_height_map(atInfos[i]);
+        }
+    #else
+        plJobDesc tJobDesc = {
+            .task  = pl__tile_job,
+            .pData = atInfos
+        };
+        plAtomicCounter* ptCounter = NULL;
+        gptJob->dispatch_batch(uCount, 0, tJobDesc, &ptCounter);
+        gptJob->wait_for_counter(ptCounter);
+    #endif
+}
+
+void
+pl__terrain_tile_height_map(plTerrainTilingInfo tInfo)
 {
 
     // load raw heightmap image
@@ -1207,11 +1184,11 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
     int iImageWidth = tImageInfo.iWidth;
     int iImageHeight = tImageInfo.iHeight;
 
-    const uint32_t uXAlignmentOffset = (uint32_t)(tInfo.tOrigin.x - ptTerrain->tMinWorldPosition.x) % ptTerrain->uTileSize;
-    const uint32_t uYAlignmentOffset = (uint32_t)(tInfo.tOrigin.y - ptTerrain->tMinWorldPosition.y) % ptTerrain->uTileSize;
+    const uint32_t uXAlignmentOffset = (uint32_t)(tInfo.tOrigin.x - gptTerrainCtx->tMinWorldPosition.x) % gptTerrainCtx->uTileSize;
+    const uint32_t uYAlignmentOffset = (uint32_t)(tInfo.tOrigin.y - gptTerrainCtx->tMinWorldPosition.y) % gptTerrainCtx->uTileSize;
 
-    uint32_t uHorizontalTileCount = (int)ceilf((float)((uint32_t)tImageInfo.iWidth + uXAlignmentOffset) / (float)ptTerrain->uTileSize);
-    uint32_t uVerticalTileCount   = (int)ceilf((float)((uint32_t)tImageInfo.iHeight + uYAlignmentOffset) / (float)ptTerrain->uTileSize);
+    uint32_t uHorizontalTileCount = (int)ceilf((float)((uint32_t)tImageInfo.iWidth + uXAlignmentOffset) / (float)gptTerrainCtx->uTileSize);
+    uint32_t uVerticalTileCount   = (int)ceilf((float)((uint32_t)tImageInfo.iHeight + uYAlignmentOffset) / (float)gptTerrainCtx->uTileSize);
 
     // check for cache file
     plTileCacheFileInfo tCacheFileInfo = {0};
@@ -1219,7 +1196,7 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
     pl_str_get_file_name_only(tInfo.pcFile, pcFileNameOnlyBuffer, 256);
 
     plTempAllocator tAllocator = {0};
-    char* pcFileName = pl_temp_allocator_sprintf(&tAllocator, "../cache/cache_%s_%u.txt", pcFileNameOnlyBuffer, ptTerrain->uTileSize);
+    char* pcFileName = pl_temp_allocator_sprintf(&tAllocator, "../cache/cache_%s_%u.txt", pcFileNameOnlyBuffer, gptTerrainCtx->uTileSize);
 
     bool bValidCache = true;
 
@@ -1244,7 +1221,7 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
     else
         bValidCache = false;
 
-    if(!(ptTerrain->tFlags & PL_TERRAIN_FLAGS_CACHE_TILES))
+    if(!(gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_CACHE_TILES))
         bValidCache = false;
     
     // update cache file
@@ -1256,6 +1233,7 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
         tCacheFileInfo.uYAlignmentOffset = uYAlignmentOffset;
 
         int _unused = 0;
+        uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
         if(tImageInfo.b16Bit)
         {
             uint16_t* puImageData = gptImage->load_16bit(pucBuffer, (int)szImageFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
@@ -1265,7 +1243,6 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
         else if(tImageInfo.bHDR)
         {
             float* pufImageData = gptImage->load_hdr(pucBuffer, (int)szImageFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
-            uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
             uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
 
             // scale for 16 bit
@@ -1280,7 +1257,6 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
         else
         {
             uint8_t* puImageData = gptImage->load(pucBuffer, (int)szImageFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
-            uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
             uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
 
             // scale for 16 bit
@@ -1292,21 +1268,22 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
             pConvertedData = puConvertedData;
         }
 
+
         // write out cache file
-        if(ptTerrain->tFlags & PL_TERRAIN_FLAGS_CACHE_TILES)
+        if(gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_CACHE_TILES)
             gptFile->binary_write(pcFileName, sizeof(plTileCacheFileInfo), (uint8_t*)&tCacheFileInfo);
 
-        puTileBuffer = PL_ALLOC(ptTerrain->uTileSize * ptTerrain->uTileSize * ptTerrain->szHeightTexelStride);
-        memset(puTileBuffer, 0, ptTerrain->uTileSize * ptTerrain->uTileSize * ptTerrain->szHeightTexelStride);
+        puTileBuffer = PL_ALLOC(gptTerrainCtx->uTileSize * gptTerrainCtx->uTileSize * gptTerrainCtx->szHeightTexelStride);
+        memset(puTileBuffer, 0, gptTerrainCtx->uTileSize * gptTerrainCtx->uTileSize * gptTerrainCtx->szHeightTexelStride);
     }
     pl_temp_allocator_reset(&tAllocator);
     PL_FREE(pucBuffer);
 
-    const uint32_t uFileSize = ptTerrain->uTileSize * ptTerrain->uTileSize * (uint32_t)ptTerrain->szHeightTexelStride;
+    const uint32_t uFileSize = gptTerrainCtx->uTileSize * gptTerrainCtx->uTileSize * (uint32_t)gptTerrainCtx->szHeightTexelStride;
 
     for(uint32_t j = 0; j < uVerticalTileCount; j++)
     {
-        uint32_t uActiveTileHeight = ptTerrain->uTileSize;
+        uint32_t uActiveTileHeight = gptTerrainCtx->uTileSize;
         uint32_t uYStart = 0;
         uint32_t uYSrcStart = 0;
 
@@ -1315,7 +1292,7 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
             uYStart = uYAlignmentOffset;
         else if(j == uVerticalTileCount - 1)
         {
-            uActiveTileHeight = (uint32_t)iImageHeight - ptTerrain->uTileSize * j + uYAlignmentOffset;
+            uActiveTileHeight = (uint32_t)iImageHeight - gptTerrainCtx->uTileSize * j + uYAlignmentOffset;
             uYSrcStart = uYAlignmentOffset;
         }
         else
@@ -1325,43 +1302,43 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
         {
             uint32_t uTileIndex = i + j * uHorizontalTileCount;
             uint32_t uStartX = 0;
-            char* pcCacheFileName = pl_temp_allocator_sprintf(&tAllocator, "../cache/tile_%s_%u_%u_%u.hdr", pcFileNameOnlyBuffer, ptTerrain->uTileSize, i, j);
+            char* pcCacheFileName = pl_temp_allocator_sprintf(&tAllocator, "../cache/tile_%s_%u_%u_%u.tile", pcFileNameOnlyBuffer, gptTerrainCtx->uTileSize, i, j);
 
             if(!bValidCache)
             {
 
                 memset(puTileBuffer, 0, uFileSize);
 
-                uint32_t uActiveTileWidth = ptTerrain->uTileSize;
+                uint32_t uActiveTileWidth = gptTerrainCtx->uTileSize;
                 uint32_t uXSrcStart = 0;
 
                 // handling all the odd horizontal alignment cases
                 if(i == 0)
                 {
-                    uActiveTileWidth = ptTerrain->uTileSize - uXAlignmentOffset;
+                    uActiveTileWidth = gptTerrainCtx->uTileSize - uXAlignmentOffset;
                     uStartX = uXAlignmentOffset;
                 }
                 else if(i == uHorizontalTileCount - 1)
                 {
-                    uActiveTileWidth = (uint32_t)iImageWidth - ptTerrain->uTileSize * i + uXAlignmentOffset;
+                    uActiveTileWidth = (uint32_t)iImageWidth - gptTerrainCtx->uTileSize * i + uXAlignmentOffset;
                     uXSrcStart = uXAlignmentOffset;
                 }
                 else
                     uXSrcStart = uXAlignmentOffset;
 
-                uint32_t uFileOffset = (ptTerrain->uTileSize * j - uYSrcStart) * iImageWidth * (uint32_t)ptTerrain->szHeightTexelStride;
-                uFileOffset += (ptTerrain->uTileSize * i - uXSrcStart) * (uint32_t)ptTerrain->szHeightTexelStride;
+                uint32_t uFileOffset = (gptTerrainCtx->uTileSize * j - uYSrcStart) * iImageWidth * (uint32_t)gptTerrainCtx->szHeightTexelStride;
+                uFileOffset += (gptTerrainCtx->uTileSize * i - uXSrcStart) * (uint32_t)gptTerrainCtx->szHeightTexelStride;
 
                 unsigned char* pcStart = &pucImageData[uFileOffset];
 
                 for(uint32_t k = uYStart; k < uActiveTileHeight; k++)
                 {
-                    uint32_t uDest = k * ptTerrain->uTileSize * (uint32_t)ptTerrain->szHeightTexelStride + uStartX * (uint32_t)ptTerrain->szHeightTexelStride;
-                    memcpy(&puTileBuffer[uDest], &pcStart[(k - uYStart) * iImageWidth * ptTerrain->szHeightTexelStride], uActiveTileWidth * ptTerrain->szHeightTexelStride);
+                    uint32_t uDest = k * gptTerrainCtx->uTileSize * (uint32_t)gptTerrainCtx->szHeightTexelStride + uStartX * (uint32_t)gptTerrainCtx->szHeightTexelStride;
+                    memcpy(&puTileBuffer[uDest], &pcStart[(k - uYStart) * iImageWidth * gptTerrainCtx->szHeightTexelStride], uActiveTileWidth * gptTerrainCtx->szHeightTexelStride);
                 }
 
                 // write out cached tile
-                gptFile->binary_write(pcCacheFileName, ptTerrain->uTileSize * ptTerrain->uTileSize * ptTerrain->szHeightTexelStride, puTileBuffer);
+                gptFile->binary_write(pcCacheFileName, gptTerrainCtx->uTileSize * gptTerrainCtx->uTileSize * gptTerrainCtx->szHeightTexelStride, puTileBuffer);
             }
 
             plHeightMapTile tTile = {
@@ -1369,22 +1346,22 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
                 .fMinHeight   = tInfo.fMinHeight,
                 .fMaxHeight   = tInfo.fMaxHeight,
                 ._bEmpty      = false,
-                .uXOffset     = i * ptTerrain->uTileSize,
-                .uYOffset     = j * ptTerrain->uTileSize,
+                .uXOffset     = i * gptTerrainCtx->uTileSize,
+                .uYOffset     = j * gptTerrainCtx->uTileSize,
                 .tWorldPos    = tInfo.tOrigin
             };
             tTile.tWorldPos.x -= uXAlignmentOffset;
             tTile.tWorldPos.y -= uYAlignmentOffset;
-            tTile.tWorldPos.x += tTile.uXOffset * ptTerrain->fMetersPerTexel;
-            tTile.tWorldPos.y += tTile.uYOffset * ptTerrain->fMetersPerTexel;
+            tTile.tWorldPos.x += tTile.uXOffset * gptTerrainCtx->fMetersPerTexel;
+            tTile.tWorldPos.y += tTile.uYOffset * gptTerrainCtx->fMetersPerTexel;
             strncpy(tTile.acFile, pcFileName, 256);
 
-            tTile._iXCoord = (int32_t)floorf(((tTile.tWorldPos.x - ptTerrain->tMinWorldPosition.x) / ((float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel)));
-            tTile._iYCoord = (int32_t)floorf(((tTile.tWorldPos.y - ptTerrain->tMinWorldPosition.y) / ((float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel)));
+            tTile._iXCoord = (int32_t)floorf(((tTile.tWorldPos.x - gptTerrainCtx->tMinWorldPosition.x) / ((float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel)));
+            tTile._iYCoord = (int32_t)floorf(((tTile.tWorldPos.y - gptTerrainCtx->tMinWorldPosition.y) / ((float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel)));
 
-            int iIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, tTile._iXCoord, tTile._iYCoord);
+            int iIndex = pl__terrain_get_tile_index_by_pos(tTile._iXCoord, tTile._iYCoord);
             PL_ASSERT(iIndex > -1);
-            ptTerrain->atTiles[iIndex] = tTile;
+            gptTerrainCtx->atTiles[iIndex] = tTile;
             pl_temp_allocator_reset(&tAllocator);
         }
     }
@@ -1403,80 +1380,82 @@ pl_terrain_tile_height_map(plTerrain* ptTerrain, plTerrainTilingInfo tInfo)
     }
 }
 
-static void
-pl__process_full_heightmap(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, const char* pcPath)
+void
+pl_finalize_terrain(plCommandBuffer* ptCmdBuffer)
 {
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
     gptTerrainCtx->tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(ptDevice);
 
-    // load raw heightmap image
-    size_t szImageFileSize = gptVfs->get_file_size_str(pcPath);
-    plVfsFileHandle tRawHeightMapFile = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
-    gptVfs->read_file(tRawHeightMapFile, NULL, &szImageFileSize);
-    unsigned char* pucBuffer = (unsigned char*)PL_ALLOC(szImageFileSize);
-    gptVfs->read_file(tRawHeightMapFile, pucBuffer, &szImageFileSize);
-    gptVfs->close_file(tRawHeightMapFile);
+    plBuffer* ptStagingBuffer = gptGfx->get_buffer(gptTerrainCtx->ptDevice, gptTerrainCtx->tStagingBuffer2);
+    size_t szTileFileSize = gptTerrainCtx->uTileSize * gptTerrainCtx->uTileSize * gptTerrainCtx->szHeightTexelStride;
+    
 
-    // load image info
-    plImageInfo tImageInfo = {0};
-    gptImage->get_info(pucBuffer, (int)szImageFileSize, &tImageInfo);
-    int iImageWidth = tImageInfo.iWidth;
-    int iImageHeight = tImageInfo.iHeight;
+    uint16_t* puOriginalData = PL_ALLOC(szTileFileSize);
+    uint16_t* puDestData = (uint16_t*)ptStagingBuffer->tMemoryAllocation.pHostMapped;
 
-    void*          pImageData     = NULL;
-    unsigned char* pucImageData   = NULL; // could be converted or not (aliased)
-    void*          pConvertedData = NULL; // if not loaded as 16 bit
-
-    int _unused = 0;
-    if(tImageInfo.b16Bit)
+    for(uint32_t i = 0; i < gptTerrainCtx->uTileCount; i++)
     {
-        uint16_t* puImageData = gptImage->load_16bit(pucBuffer, (int)szImageFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
-        pucImageData = (unsigned char*)puImageData;
-        pImageData = puImageData;
+        const plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[i];
+        if(!ptTile->_bEmpty)
+        {
+            memset(puOriginalData, 0, szTileFileSize);
+            gptFile->binary_read(ptTile->acFile, &szTileFileSize, (uint8_t*)puOriginalData);
+
+            uint32_t uDstRowStart = (uint32_t)((ptTile->tWorldPos.y - gptTerrainCtx->tMinWorldPosition.y) / gptTerrainCtx->fLowResMetersPerTexel);
+            uint32_t uDstColStart = (uint32_t)((ptTile->tWorldPos.x - gptTerrainCtx->tMinWorldPosition.x) / gptTerrainCtx->fLowResMetersPerTexel);
+
+            uint32_t uDstRowCount = (uint32_t)gptTerrainCtx->uTileSize + uDstRowStart;
+            uint32_t uDstColCount = (uint32_t)gptTerrainCtx->uTileSize + uDstColStart;
+
+            int iHorizontalPixels = (int)(gptTerrainCtx->fLowResMetersPerTexel / gptTerrainCtx->fMetersPerTexel);
+            int iVerticalPixels = (int)(gptTerrainCtx->fLowResMetersPerTexel / gptTerrainCtx->fMetersPerTexel);
+            float fUvxInc = (float)iHorizontalPixels / (float)gptTerrainCtx->uTileSize;
+            float fUvyInc = (float)iVerticalPixels / (float)gptTerrainCtx->uTileSize;
+            for(uint32_t uDstRow = uDstRowStart; uDstRow < uDstRowCount; uDstRow++)
+            {
+                float fUvy = (float)(uDstRow - uDstRowStart) / (float)gptTerrainCtx->uTileSize;
+                for(uint32_t uDstCol = uDstColStart; uDstCol < uDstColCount; uDstCol++)
+                {
+
+                    float fUvx = (float)(uDstCol - uDstColStart) / (float)gptTerrainCtx->uTileSize;
+
+                    uint32_t uResult = 0;
+                    uint32_t uSumCount = 0;
+                    for(int x = 0; x < iHorizontalPixels; x++)
+                    {
+                        for(int y = 0; y < iVerticalPixels; y++)
+                        {
+                            float fUvxTap = fUvx + x * fUvxInc - fUvxInc * (iHorizontalPixels - 1);
+                            float fUvyTap = fUvy + y * fUvyInc - fUvyInc * (iVerticalPixels - 1);
+
+
+                            if(fUvxTap < 0.0f || fUvxTap > 1.0f || fUvyTap < 0.0f || fUvyTap > 1.0f)
+                            {
+                            }
+                            else
+                            {
+                                uint32_t uSrcRow = (uint32_t)(fUvyTap * (float)gptTerrainCtx->uTileSize);
+                                uint32_t uSrcCol = (uint32_t)(fUvxTap * (float)gptTerrainCtx->uTileSize);
+                                // uResult += (uint32_t)puOriginalData[uSrcRow * gptTerrainCtx->uTileSize + uSrcCol];
+                                uResult = pl_max((uint32_t)puOriginalData[uSrcRow * gptTerrainCtx->uTileSize + uSrcCol], uResult);
+                                uSumCount++;
+                            }
+                        }
+                    }
+                    // TODO: make sample technique option
+                    // if(uSumCount > 0)
+                    //     uResult /= uSumCount;
+
+                    puDestData[uDstRow * gptTerrainCtx->uHeightMapResolution + uDstCol] = (uint16_t)uResult;
+                }
+            }
+        }
     }
-    else if(tImageInfo.bHDR)
-    {
-        float* pufImageData = gptImage->load_hdr(pucBuffer, (int)szImageFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
-        uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
-        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
 
-        // scale for 16 bit
-        for(uint32_t i = 0; i < uPixelCount; i++)
-            puConvertedData[i] = (uint16_t)(pufImageData[i] * 65535.0f);
-
-        gptImage->free(pufImageData);
-        pucImageData = (unsigned char*)puConvertedData;
-        pConvertedData = puConvertedData;
-
-    }
-    else
-    {
-        uint8_t* puImageData = gptImage->load(pucBuffer, (int)szImageFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
-        uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
-        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
-
-        // scale for 16 bit
-        for(uint32_t i = 0; i < uPixelCount; i++)
-            puConvertedData[i] = (uint16_t)(((float)puImageData[i] / 255.0f) * 65535.0f);
-
-        gptImage->free(puImageData);
-        pucImageData = (unsigned char*)puConvertedData;
-        pConvertedData = puConvertedData;
-    }
-
-    PL_FREE(pucBuffer);
-    pucBuffer = NULL;
-
-    plBuffer* ptStagingBuffer = gptGfx->get_buffer(gptTerrainCtx->ptDevice, ptTerrain->tStagingBuffer2);
-
-    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pucImageData, iImageWidth * iImageHeight * ptTerrain->szHeightTexelStride);
-    // gptImage->free(pucImageData);
-    // pucImageData = NULL;
-    // pImageData = NULL;
 
     plBufferImageCopy tBufferImageCopy = {
-        .uImageWidth        = iImageWidth,
-        .uImageHeight       = iImageHeight,
+        .uImageWidth        = gptTerrainCtx->uHeightMapResolution,
+        .uImageHeight       = gptTerrainCtx->uHeightMapResolution,
         .uImageDepth        = 1,
         .uLayerCount        = 1,
         .tCurrentImageUsage = PL_TEXTURE_USAGE_STORAGE,
@@ -1489,8 +1468,8 @@ pl__process_full_heightmap(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, c
         PL_PIPELINE_STAGE_TRANSFER,
         PL_ACCESS_TRANSFER_WRITE);
 
-    gptGfx->copy_buffer_to_texture(ptBlit, ptTerrain->tStagingBuffer2, ptTerrain->tRawTexture, 1, &tBufferImageCopy);
-    gptGfx->set_texture_usage(ptBlit, ptTerrain->tProcessedTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
+    gptGfx->copy_buffer_to_texture(ptBlit, gptTerrainCtx->tStagingBuffer2, gptTerrainCtx->tRawTexture, 1, &tBufferImageCopy);
+    gptGfx->set_texture_usage(ptBlit, gptTerrainCtx->tProcessedTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
 
     gptGfx->pipeline_barrier_blit(ptBlit,
         PL_PIPELINE_STAGE_TRANSFER,
@@ -1500,25 +1479,25 @@ pl__process_full_heightmap(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, c
     gptGfx->end_blit_pass(ptBlit);
 
     plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCmdBuffer, NULL);
-    gptGfx->bind_compute_shader(ptComputeEncoder, ptTerrain->tPreProcessHeightShader);
+    gptGfx->bind_compute_shader(ptComputeEncoder, gptTerrainCtx->tPreProcessHeightShader);
 
     plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, gptTerrainCtx->ptDevice, &gptTerrainCtx->tCurrentDynamicDataBlock);
     plTerrainPrepDynamicData* ptDynamicData = (plTerrainPrepDynamicData*)tDynamicBinding.pcData;
     memset(ptDynamicData, 0, sizeof(plTerrainPrepDynamicData));
-    ptDynamicData->fMetersPerHeightFieldTexel = ptTerrain->fLowResMetersPerTexel;
-    ptDynamicData->fMaxHeight = ptTerrain->fLowResMaxElevation;
-    ptDynamicData->fMinHeight = ptTerrain->fLowResMinElevation;
-    ptDynamicData->fGlobalMaxHeight = ptTerrain->fLowResMaxElevation;
-    ptDynamicData->fGlobalMinHeight = ptTerrain->fLowResMinElevation;
+    ptDynamicData->fMetersPerHeightFieldTexel = gptTerrainCtx->fLowResMetersPerTexel;
+    ptDynamicData->fMaxHeight = gptTerrainCtx->fMaxElevation;
+    ptDynamicData->fMinHeight = gptTerrainCtx->fMinElevation;
+    ptDynamicData->fGlobalMaxHeight = gptTerrainCtx->fMaxElevation;
+    ptDynamicData->fGlobalMinHeight = gptTerrainCtx->fMinElevation;
     ptDynamicData->iXOffset = 0;
     ptDynamicData->iYOffset = 0;
     ptDynamicData->iNormalCalcReach = 10;
 
-    gptGfx->bind_compute_bind_groups(ptComputeEncoder, ptTerrain->tPreProcessHeightShader, 0, 1, &ptTerrain->tPreprocessBG0, 1, &tDynamicBinding);
+    gptGfx->bind_compute_bind_groups(ptComputeEncoder, gptTerrainCtx->tPreProcessHeightShader, 0, 1, &gptTerrainCtx->tPreprocessBG0, 1, &tDynamicBinding);
 
     plDispatch tDispatch = {
-        .uGroupCountX     = iImageWidth / 8,
-        .uGroupCountY     = iImageHeight / 8,
+        .uGroupCountX     = gptTerrainCtx->uHeightMapResolution / 8,
+        .uGroupCountY     = gptTerrainCtx->uHeightMapResolution / 8,
         .uGroupCountZ     = 1,
         .uThreadPerGroupX = 8,
         .uThreadPerGroupY = 8,
@@ -1532,8 +1511,8 @@ pl__process_full_heightmap(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, c
     // set proper texture usages
 
     plImageCopy tImageCopy = {
-        .uSourceExtentX             = iImageWidth,
-        .uSourceExtentY             = iImageHeight,
+        .uSourceExtentX             = gptTerrainCtx->uHeightMapResolution,
+        .uSourceExtentY             = gptTerrainCtx->uHeightMapResolution,
         .uSourceExtentZ             = 1,
         .uSourceMipLevel            = 0,
         .uSourceBaseArrayLayer      = 0,
@@ -1553,8 +1532,8 @@ pl__process_full_heightmap(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, c
         PL_ACCESS_TRANSFER_WRITE);
 
     
-    gptGfx->set_texture_usage(ptBlit, ptTerrain->tProcessedTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-    gptGfx->copy_texture(ptBlit, ptTerrain->tProcessedTexture, ptTerrain->tFullTexture, 1, &tImageCopy);
+    gptGfx->set_texture_usage(ptBlit, gptTerrainCtx->tProcessedTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
+    gptGfx->copy_texture(ptBlit, gptTerrainCtx->tProcessedTexture, gptTerrainCtx->tFullTexture, 1, &tImageCopy);
     
 
     gptGfx->pipeline_barrier_blit(ptBlit,
@@ -1564,155 +1543,149 @@ pl__process_full_heightmap(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, c
         PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ | PL_ACCESS_SHADER_WRITE | PL_ACCESS_TRANSFER_WRITE);
 
     gptGfx->end_blit_pass(ptBlit);
-    
-    if(pImageData)
-        gptImage->free(pImageData);
 
-    if(pConvertedData)
-    {
-        PL_FREE(pConvertedData);
-    }
+    gptThreads->create_thread(pl__prefetch_thread, NULL, &gptTerrainCtx->ptPrefetchThread);
 }
 
 void
-pl_terrain_prepare(plTerrain* ptTerrain, plCamera* ptCamera, plCommandBuffer* ptCmdBuffer)
+pl_terrain_prepare(plCamera* ptCamera, plCommandBuffer* ptCmdBuffer)
 {
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
     gptTerrainCtx->tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(ptDevice);
 
-    const uint32_t uOverflowCount = pl_sb_size(ptTerrain->sbuPrefetchOverflow);
+    const uint32_t uOverflowCount = pl_sb_size(gptTerrainCtx->sbuPrefetchOverflow);
     
     if(uOverflowCount > 0)
     {
         for(uint32_t i = 0; i < uOverflowCount; i++)
         {
-            bool bResult = pl__push_prefetch_tile(ptTerrain, pl_sb_pop(ptTerrain->sbuPrefetchOverflow));
+            bool bResult = pl__push_prefetch_tile(pl_sb_pop(gptTerrainCtx->sbuPrefetchOverflow));
             if(!bResult)
                 break;
         }
-        gptThreads->wake_condition_variable(ptTerrain->ptConditionVariable);
+        gptThreads->wake_condition_variable(gptTerrainCtx->ptConditionVariable);
     }
 
     // try to recycle 10 cached tiles per frame
     static uint32_t uChunkCheck = 0;
     for(uint32_t i = 0; i < 10; i++)
     {
-        uint32_t uTileIndex = ptTerrain->atChunks[uChunkCheck].uOwnerTileIndex;
+        uint32_t uTileIndex = gptTerrainCtx->atChunks[uChunkCheck].uOwnerTileIndex;
         if(uTileIndex != UINT32_MAX)
         {
-            if(!(ptTerrain->atTiles[uTileIndex].tFlags & PL_TERRAIN_TILE_FLAGS_ACTIVE))
+            if(!(gptTerrainCtx->atTiles[uTileIndex].tFlags & PL_TERRAIN_TILE_FLAGS_ACTIVE))
             {
-                if(!(ptTerrain->atTiles[uTileIndex].tFlags & PL_TERRAIN_TILE_FLAGS_QUEUED))
+                if(!(gptTerrainCtx->atTiles[uTileIndex].tFlags & PL_TERRAIN_TILE_FLAGS_QUEUED))
                 {
-                    uint32_t uActivationDistance = pl__terrain_tile_activation_distance(ptTerrain, uTileIndex);
-                    if(uActivationDistance > ptTerrain->uPrefetchRadius)
+                    uint32_t uActivationDistance = pl__terrain_tile_activation_distance(uTileIndex);
+                    if(uActivationDistance > gptTerrainCtx->uPrefetchRadius)
                     {
-                        pl__terrain_return_free_chunk(ptTerrain, uTileIndex);
+                        pl__terrain_return_free_chunk(uTileIndex);
                     }
                 }
             }
         }
-        uChunkCheck = (uChunkCheck + 1) % ptTerrain->uChunkCapacity;
+        uChunkCheck = (uChunkCheck + 1) % gptTerrainCtx->uChunkCapacity;
     }
     
     
     plVec3 tPos = ptCamera->tPos;
 
     // check how many tile boundaries we've cross (needed for streaming new tiles)
-    float fAddressOriginX = (float)ptTerrain->uTileSize * floorf(tPos.x / ((float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel)) / (float)ptTerrain->uHeightMapResolution;
-    float fAddressOriginY = (float)ptTerrain->uTileSize * floorf(tPos.z / ((float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel)) / (float)ptTerrain->uHeightMapResolution;
+    float fAddressOriginX = (float)gptTerrainCtx->uTileSize * floorf(tPos.x / ((float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel)) / (float)gptTerrainCtx->uHeightMapResolution;
+    float fAddressOriginY = (float)gptTerrainCtx->uTileSize * floorf(tPos.z / ((float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel)) / (float)gptTerrainCtx->uHeightMapResolution;
 
     int iDeltaXDirectionUpdateTileCount = 0;
     int iDeltaYDirectionUpdateTileCount = 0;
 
-    ptTerrain->tCurrentDirectionUpdate = PL_TERRAIN_DIRECTION_NONE;
-    if(ptTerrain->tCurrentExtent.x > fAddressOriginX)
+    gptTerrainCtx->tCurrentDirectionUpdate = PL_TERRAIN_DIRECTION_NONE;
+    if(gptTerrainCtx->tCurrentExtent.x > fAddressOriginX)
     {
-        ptTerrain->tCurrentDirectionUpdate |= PL_TERRAIN_DIRECTION_EAST;
-        iDeltaXDirectionUpdateTileCount = (int32_t)((float)ptTerrain->uHeightMapResolution * (fAddressOriginX - ptTerrain->tCurrentExtent.x) / (float)ptTerrain->uTileSize);  
+        gptTerrainCtx->tCurrentDirectionUpdate |= PL_TERRAIN_DIRECTION_EAST;
+        iDeltaXDirectionUpdateTileCount = (int32_t)((float)gptTerrainCtx->uHeightMapResolution * (fAddressOriginX - gptTerrainCtx->tCurrentExtent.x) / (float)gptTerrainCtx->uTileSize);  
     }
-    else if(ptTerrain->tCurrentExtent.x < fAddressOriginX)
+    else if(gptTerrainCtx->tCurrentExtent.x < fAddressOriginX)
     {
-        ptTerrain->tCurrentDirectionUpdate |= PL_TERRAIN_DIRECTION_WEST;
-        iDeltaXDirectionUpdateTileCount = (int32_t)((float)ptTerrain->uHeightMapResolution * (fAddressOriginX - ptTerrain->tCurrentExtent.x) / (float)ptTerrain->uTileSize);  
+        gptTerrainCtx->tCurrentDirectionUpdate |= PL_TERRAIN_DIRECTION_WEST;
+        iDeltaXDirectionUpdateTileCount = (int32_t)((float)gptTerrainCtx->uHeightMapResolution * (fAddressOriginX - gptTerrainCtx->tCurrentExtent.x) / (float)gptTerrainCtx->uTileSize);  
     }
     else
         iDeltaXDirectionUpdateTileCount = 0;
 
-    if(ptTerrain->tCurrentExtent.y > fAddressOriginY)
+    if(gptTerrainCtx->tCurrentExtent.y > fAddressOriginY)
     {
-        ptTerrain->tCurrentDirectionUpdate |= PL_TERRAIN_DIRECTION_SOUTH;
-        iDeltaYDirectionUpdateTileCount = (int32_t)((float)ptTerrain->uHeightMapResolution * (fAddressOriginY - ptTerrain->tCurrentExtent.y) / (float)ptTerrain->uTileSize);   
+        gptTerrainCtx->tCurrentDirectionUpdate |= PL_TERRAIN_DIRECTION_SOUTH;
+        iDeltaYDirectionUpdateTileCount = (int32_t)((float)gptTerrainCtx->uHeightMapResolution * (fAddressOriginY - gptTerrainCtx->tCurrentExtent.y) / (float)gptTerrainCtx->uTileSize);   
     }
-    else if(ptTerrain->tCurrentExtent.y < fAddressOriginY)
+    else if(gptTerrainCtx->tCurrentExtent.y < fAddressOriginY)
     {
-        ptTerrain->tCurrentDirectionUpdate |= PL_TERRAIN_DIRECTION_NORTH;
-        iDeltaYDirectionUpdateTileCount = (int32_t)((float)ptTerrain->uHeightMapResolution * (fAddressOriginY - ptTerrain->tCurrentExtent.y) / (float)ptTerrain->uTileSize);   
+        gptTerrainCtx->tCurrentDirectionUpdate |= PL_TERRAIN_DIRECTION_NORTH;
+        iDeltaYDirectionUpdateTileCount = (int32_t)((float)gptTerrainCtx->uHeightMapResolution * (fAddressOriginY - gptTerrainCtx->tCurrentExtent.y) / (float)gptTerrainCtx->uTileSize);   
     }
     else
         iDeltaYDirectionUpdateTileCount = 0;
 
-    if(ptTerrain->tCurrentDirectionUpdate != PL_TERRAIN_DIRECTION_NONE)
+    if(gptTerrainCtx->tCurrentDirectionUpdate != PL_TERRAIN_DIRECTION_NONE)
     {
-        // ptTerrain->bProcessAll = true;
-        ptTerrain->bNeedsUpdate = true;
-        const uint32_t uTilesAcross = ptTerrain->uHeightMapResolution / ptTerrain->uTileSize;
-        ptTerrain->uCurrentXOffset = (ptTerrain->uCurrentXOffset + iDeltaXDirectionUpdateTileCount) % uTilesAcross;
-        ptTerrain->uCurrentYOffset = (ptTerrain->uCurrentYOffset + iDeltaYDirectionUpdateTileCount) % uTilesAcross;
+        // gptTerrainCtx->bProcessAll = true;
+        gptTerrainCtx->bNeedsUpdate = true;
+        const uint32_t uTilesAcross = gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uTileSize;
+        gptTerrainCtx->uCurrentXOffset = (gptTerrainCtx->uCurrentXOffset + iDeltaXDirectionUpdateTileCount) % uTilesAcross;
+        gptTerrainCtx->uCurrentYOffset = (gptTerrainCtx->uCurrentYOffset + iDeltaYDirectionUpdateTileCount) % uTilesAcross;
     }
     
-    ptTerrain->tCurrentExtent.x = fAddressOriginX;
-    ptTerrain->tCurrentExtent.y = fAddressOriginY;
+    gptTerrainCtx->tCurrentExtent.x = fAddressOriginX;
+    gptTerrainCtx->tCurrentExtent.y = fAddressOriginY;
 
-    pl__terrain_prepare(ptTerrain, ptCmdBuffer, ptCamera);
+    pl__terrain_prepare(ptCmdBuffer, ptCamera);
 }
 
 void
-pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptEncoder)
+pl_terrain_render(plCamera* ptCamera, plRenderEncoder* ptEncoder)
 {
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
     plVec3 tPos = ptCamera->tPos;
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
-    if(ptTerrain->tFlags & PL_TERRAIN_FLAGS_LOW_RES)
+    if(gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_LOW_RES)
     {
         // full but low resolution terrain draw call
         plDrawIndex tFullDraw = {
             .uInstanceCount = 1,
-            .tIndexBuffer = ptTerrain->tFullIndexBuffer,
-            .uIndexCount = ptTerrain->uFullIndexCount,
+            .tIndexBuffer = gptTerrainCtx->tFullIndexBuffer,
+            .uIndexCount = gptTerrainCtx->uFullIndexCount,
         };
 
-        gptGfx->bind_shader(ptEncoder, ptTerrain->tFlags & PL_TERRAIN_FLAGS_WIREFRAME ? ptTerrain->tFullWireFrameShader : ptTerrain->tFullShader);
-        gptGfx->bind_vertex_buffer(ptEncoder, ptTerrain->tFullVertexBuffer);
+        gptGfx->bind_shader(ptEncoder, gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_WIREFRAME ? gptTerrainCtx->tFullWireFrameShader : gptTerrainCtx->tFullShader);
+        gptGfx->bind_vertex_buffer(ptEncoder, gptTerrainCtx->tFullVertexBuffer);
         {
             plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &gptTerrainCtx->tCurrentDynamicDataBlock);
             plTerrainDynamicData* ptDynamicData = (plTerrainDynamicData*)tDynamicBinding.pcData;
             memset(ptDynamicData, 0, sizeof(plTerrainDynamicData));
             ptDynamicData->tPos.xyz                   = tPos;
             ptDynamicData->tCameraViewProjection      = tMVP;
-            ptDynamicData->fMetersPerHeightFieldTexel = ptTerrain->fLowResMetersPerTexel;
-            ptDynamicData->fGlobalMaxHeight           = ptTerrain->fMaxElevation;
-            ptDynamicData->fGlobalMinHeight           = ptTerrain->fMinElevation;
-            ptDynamicData->tSunDirection.xyz          = ptTerrain->tSunDirection;
-            ptDynamicData->fXUVOffset                 = ptTerrain->tCurrentExtent.x;
-            ptDynamicData->fYUVOffset                 = ptTerrain->tCurrentExtent.y;
-            ptDynamicData->fStencilRadius             = ptTerrain->fMetersPerTexel * 0.5f * (float)ptTerrain->uHeightMapResolution;
-            ptDynamicData->fBlurRadius                = ptTerrain->fMetersPerTexel * (float)ptTerrain->uHeightMapResolution;
-            ptDynamicData->tMinMax.xy                 = ptTerrain->tMinWorldPosition;
-            ptDynamicData->tMinMax.zw                 = ptTerrain->tMaxWorldPosition;
+            ptDynamicData->fMetersPerHeightFieldTexel = gptTerrainCtx->fLowResMetersPerTexel;
+            ptDynamicData->fGlobalMaxHeight           = gptTerrainCtx->fMaxElevation;
+            ptDynamicData->fGlobalMinHeight           = gptTerrainCtx->fMinElevation;
+            ptDynamicData->tSunDirection.xyz          = gptTerrainCtx->tSunDirection;
+            ptDynamicData->fXUVOffset                 = gptTerrainCtx->tCurrentExtent.x;
+            ptDynamicData->fYUVOffset                 = gptTerrainCtx->tCurrentExtent.y;
+            ptDynamicData->fStencilRadius             = gptTerrainCtx->fMetersPerTexel * 0.5f * (float)gptTerrainCtx->uHeightMapResolution;
+            ptDynamicData->fBlurRadius                = gptTerrainCtx->fMetersPerTexel * (float)gptTerrainCtx->uHeightMapResolution;
+            ptDynamicData->tMinMax.xy                 = gptTerrainCtx->tMinWorldPosition;
+            ptDynamicData->tMinMax.zw                 = gptTerrainCtx->tMaxWorldPosition;
 
-            gptGfx->bind_graphics_bind_groups(ptEncoder, ptTerrain->tFullShader, 0, 1, &ptTerrain->tFullBG0, 1, &tDynamicBinding);
+            gptGfx->bind_graphics_bind_groups(ptEncoder, gptTerrainCtx->tFullShader, 0, 1, &gptTerrainCtx->tFullBG0, 1, &tDynamicBinding);
         }
         gptGfx->draw_indexed(ptEncoder, 1, &tFullDraw);
     }
 
-    if(ptTerrain->tFlags & PL_TERRAIN_FLAGS_HIGH_RES)
+    if(gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_HIGH_RES)
     {
 
         // clip map drawing
-        gptGfx->bind_shader(ptEncoder, ptTerrain->tFlags & PL_TERRAIN_FLAGS_WIREFRAME ? ptTerrain->tWireframeShader : ptTerrain->tRegularShader);
+        gptGfx->bind_shader(ptEncoder, gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_WIREFRAME ? gptTerrainCtx->tWireframeShader : gptTerrainCtx->tRegularShader);
         gptGfx->bind_vertex_buffer(ptEncoder, gptTerrainCtx->tVertexBuffer);
 
         plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &gptTerrainCtx->tCurrentDynamicDataBlock);
@@ -1720,19 +1693,19 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
         memset(ptDynamicData, 0, sizeof(plTerrainDynamicData));
         ptDynamicData->tPos.xyz                   = tPos;
         ptDynamicData->tCameraViewProjection      = tMVP;
-        ptDynamicData->fMetersPerHeightFieldTexel = ptTerrain->fMetersPerTexel;
-        ptDynamicData->fGlobalMaxHeight           = ptTerrain->fMaxElevation;
-        ptDynamicData->fGlobalMinHeight           = ptTerrain->fMinElevation;
-        ptDynamicData->tSunDirection.xyz          = ptTerrain->tSunDirection;
-        ptDynamicData->fXUVOffset                 = ptTerrain->tCurrentExtent.x;
-        ptDynamicData->fYUVOffset                 = ptTerrain->tCurrentExtent.y;
-        ptDynamicData->fStencilRadius             = ptTerrain->fMetersPerTexel * 0.5f * (float)ptTerrain->uHeightMapResolution;
-        ptDynamicData->fBlurRadius                = ptTerrain->fMetersPerTexel * (float)ptTerrain->uHeightMapResolution;
-        ptDynamicData->tMinMax.xy                 = ptTerrain->tMinWorldPosition;
-        ptDynamicData->tMinMax.zw                 = ptTerrain->tMaxWorldPosition;
+        ptDynamicData->fMetersPerHeightFieldTexel = gptTerrainCtx->fMetersPerTexel;
+        ptDynamicData->fGlobalMaxHeight           = gptTerrainCtx->fMaxElevation;
+        ptDynamicData->fGlobalMinHeight           = gptTerrainCtx->fMinElevation;
+        ptDynamicData->tSunDirection.xyz          = gptTerrainCtx->tSunDirection;
+        ptDynamicData->fXUVOffset                 = gptTerrainCtx->tCurrentExtent.x;
+        ptDynamicData->fYUVOffset                 = gptTerrainCtx->tCurrentExtent.y;
+        ptDynamicData->fStencilRadius             = gptTerrainCtx->fMetersPerTexel * 0.5f * (float)gptTerrainCtx->uHeightMapResolution;
+        ptDynamicData->fBlurRadius                = gptTerrainCtx->fMetersPerTexel * (float)gptTerrainCtx->uHeightMapResolution;
+        ptDynamicData->tMinMax.xy                 = gptTerrainCtx->tMinWorldPosition;
+        ptDynamicData->tMinMax.zw                 = gptTerrainCtx->tMaxWorldPosition;
 
 
-        gptGfx->bind_graphics_bind_groups(ptEncoder, ptTerrain->tRegularShader, 0, 1, &ptTerrain->atBindGroup0[gptGfx->get_current_frame_index()], 1, &tDynamicBinding);
+        gptGfx->bind_graphics_bind_groups(ptEncoder, gptTerrainCtx->tRegularShader, 0, 1, &gptTerrainCtx->atBindGroup0[gptGfx->get_current_frame_index()], 1, &tDynamicBinding);
 
         plDrawIndex tDraw = {
             .uInstanceCount = 1,
@@ -1746,97 +1719,97 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~debug drawing~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    if(ptTerrain->tFlags & PL_TERRAIN_FLAGS_SHOW_ORIGIN)
+    if(gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_SHOW_ORIGIN)
     {
         plMat4 tOrigin = pl_identity_mat4();
-        gptDraw->add_3d_transform(ptTerrain->pt3dDrawlist, &tOrigin, 100000.0f, (plDrawLineOptions){.fThickness = 5.0f});
+        gptDraw->add_3d_transform(gptTerrainCtx->pt3dDrawlist, &tOrigin, 100000.0f, (plDrawLineOptions){.fThickness = 5.0f});
     }
 
-    if(ptTerrain->tFlags & PL_TERRAIN_FLAGS_SHOW_BOUNDARY)
+    if(gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_SHOW_BOUNDARY)
     {
         plVec3 tOriginOrigin = {
-            0.5f * (ptTerrain->tMaxWorldPosition.x + ptTerrain->tMinWorldPosition.x),
-            0.5f * (ptTerrain->fMaxElevation + ptTerrain->fMinElevation),
-            0.5f * (ptTerrain->tMaxWorldPosition.y + ptTerrain->tMinWorldPosition.y)
+            0.5f * (gptTerrainCtx->tMaxWorldPosition.x + gptTerrainCtx->tMinWorldPosition.x),
+            0.5f * (gptTerrainCtx->fMaxElevation + gptTerrainCtx->fMinElevation),
+            0.5f * (gptTerrainCtx->tMaxWorldPosition.y + gptTerrainCtx->tMinWorldPosition.y)
         };
 
         plVec3 tOrigin = tOriginOrigin;
-        tOrigin.z = ptTerrain->tMaxWorldPosition.y;
-        gptDraw->add_3d_plane_xy_filled(ptTerrain->pt3dDrawlist, tOrigin, 
-            ptTerrain->tMaxWorldPosition.x - ptTerrain->tMinWorldPosition.x,
-            ptTerrain->fMaxElevation - ptTerrain->fMinElevation,
+        tOrigin.z = gptTerrainCtx->tMaxWorldPosition.y;
+        gptDraw->add_3d_plane_xy_filled(gptTerrainCtx->pt3dDrawlist, tOrigin, 
+            gptTerrainCtx->tMaxWorldPosition.x - gptTerrainCtx->tMinWorldPosition.x,
+            gptTerrainCtx->fMaxElevation - gptTerrainCtx->fMinElevation,
             (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.0f, 0.0f, 0.95f)}
         );
 
-        tOrigin.z = ptTerrain->tMinWorldPosition.y;
-        gptDraw->add_3d_plane_xy_filled(ptTerrain->pt3dDrawlist, tOrigin, 
-            ptTerrain->tMaxWorldPosition.x - ptTerrain->tMinWorldPosition.x,
-            ptTerrain->fMaxElevation - ptTerrain->fMinElevation,
+        tOrigin.z = gptTerrainCtx->tMinWorldPosition.y;
+        gptDraw->add_3d_plane_xy_filled(gptTerrainCtx->pt3dDrawlist, tOrigin, 
+            gptTerrainCtx->tMaxWorldPosition.x - gptTerrainCtx->tMinWorldPosition.x,
+            gptTerrainCtx->fMaxElevation - gptTerrainCtx->fMinElevation,
             (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.0f, 0.0f, 0.95f)}
         );
 
         tOrigin = tOriginOrigin;
-        tOrigin.x = ptTerrain->tMaxWorldPosition.x;
-        gptDraw->add_3d_plane_yz_filled(ptTerrain->pt3dDrawlist, tOrigin, 
-            ptTerrain->tMaxWorldPosition.y - ptTerrain->tMinWorldPosition.y,
-            ptTerrain->fMaxElevation - ptTerrain->fMinElevation,            
+        tOrigin.x = gptTerrainCtx->tMaxWorldPosition.x;
+        gptDraw->add_3d_plane_yz_filled(gptTerrainCtx->pt3dDrawlist, tOrigin, 
+            gptTerrainCtx->tMaxWorldPosition.y - gptTerrainCtx->tMinWorldPosition.y,
+            gptTerrainCtx->fMaxElevation - gptTerrainCtx->fMinElevation,            
             (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.0f, 0.0f, 0.95f)}
         );
 
-        tOrigin.x = ptTerrain->tMinWorldPosition.x;
-        gptDraw->add_3d_plane_yz_filled(ptTerrain->pt3dDrawlist, tOrigin, 
-            ptTerrain->tMaxWorldPosition.y - ptTerrain->tMinWorldPosition.y,
-            ptTerrain->fMaxElevation - ptTerrain->fMinElevation,
+        tOrigin.x = gptTerrainCtx->tMinWorldPosition.x;
+        gptDraw->add_3d_plane_yz_filled(gptTerrainCtx->pt3dDrawlist, tOrigin, 
+            gptTerrainCtx->tMaxWorldPosition.y - gptTerrainCtx->tMinWorldPosition.y,
+            gptTerrainCtx->fMaxElevation - gptTerrainCtx->fMinElevation,
             (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.5f, 0.0f, 0.0f, 0.95f)}
         );
     }
 
-    if(ptTerrain->tFlags & PL_TERRAIN_FLAGS_SHOW_GRID)
+    if(gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_SHOW_GRID)
     {
-        plVec3 tP0 = {ptTerrain->tMinWorldPosition.x, ptTerrain->fMaxElevation, ptTerrain->tMinWorldPosition.y};
-        plVec3 tP1 = {ptTerrain->tMaxWorldPosition.x, ptTerrain->fMaxElevation, ptTerrain->tMinWorldPosition.y};
-        const float fInc = (float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel;
-        for(uint32_t i = 0; i < ptTerrain->uHorizontalTiles; i++)
+        plVec3 tP0 = {gptTerrainCtx->tMinWorldPosition.x, gptTerrainCtx->fMaxElevation, gptTerrainCtx->tMinWorldPosition.y};
+        plVec3 tP1 = {gptTerrainCtx->tMaxWorldPosition.x, gptTerrainCtx->fMaxElevation, gptTerrainCtx->tMinWorldPosition.y};
+        const float fInc = (float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel;
+        for(uint32_t i = 0; i < gptTerrainCtx->uHorizontalTiles; i++)
         {
             tP0.z += fInc;
             tP1.z += fInc;
-            gptDraw->add_3d_line(ptTerrain->pt3dDrawlist, tP0, tP1,   
+            gptDraw->add_3d_line(gptTerrainCtx->pt3dDrawlist, tP0, tP1,   
                 (plDrawLineOptions){.uColor = PL_COLOR_32_GREEN, .fThickness = 20.0f});
         }
 
-        tP0 = (plVec3){ptTerrain->tMinWorldPosition.x, ptTerrain->fMaxElevation, ptTerrain->tMinWorldPosition.y};
-        tP1 = (plVec3){ptTerrain->tMinWorldPosition.x, ptTerrain->fMaxElevation, ptTerrain->tMaxWorldPosition.y};
-        for(uint32_t i = 0; i < ptTerrain->uHorizontalTiles; i++)
+        tP0 = (plVec3){gptTerrainCtx->tMinWorldPosition.x, gptTerrainCtx->fMaxElevation, gptTerrainCtx->tMinWorldPosition.y};
+        tP1 = (plVec3){gptTerrainCtx->tMinWorldPosition.x, gptTerrainCtx->fMaxElevation, gptTerrainCtx->tMaxWorldPosition.y};
+        for(uint32_t i = 0; i < gptTerrainCtx->uHorizontalTiles; i++)
         {
             tP0.x += fInc;
             tP1.x += fInc;
-            gptDraw->add_3d_line(ptTerrain->pt3dDrawlist, tP0, tP1,   
+            gptDraw->add_3d_line(gptTerrainCtx->pt3dDrawlist, tP0, tP1,   
                 (plDrawLineOptions){.uColor = PL_COLOR_32_GREEN, .fThickness = 20.0f});
         }
     }
 
 
-    if(ptTerrain->tFlags & PL_TERRAIN_FLAGS_DEBUG_TOOLS)
+    if(gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_DEBUG_TOOLS)
     {
         static uint32_t uSelectedTile = UINT32_MAX;
         if(gptUI->begin_window("Terrain", NULL, 0))
         {
             gptUI->layout_dynamic(0.0f, 1);
-            gptUI->text("Free Prefetch Chunks: %u", pl_sb_size(ptTerrain->sbuFreeChunks));
-            gptUI->text("Free Prefetch Overflow: %u", pl_sb_size(ptTerrain->sbuPrefetchOverflow));
-            gptUI->text("Prefetch Count: %d", gptAtomics->atomic_load(ptTerrain->ptPrefetchCounter));
-            gptUI->text("Tiles: %u", ptTerrain->uTileCount);
-            gptUI->text("Active Tiles: %u", pl_sb_size(ptTerrain->sbuActiveTileIndices));
-            gptUI->checkbox("Local Terrain", &ptTerrain->bShowLocal);
-            gptUI->checkbox("World Terrain", &ptTerrain->bShowWorld);
-            gptUI->checkbox("Atlas", &ptTerrain->bShowAtlas);
+            gptUI->text("Free Prefetch Chunks: %u", pl_sb_size(gptTerrainCtx->sbuFreeChunks));
+            gptUI->text("Free Prefetch Overflow: %u", pl_sb_size(gptTerrainCtx->sbuPrefetchOverflow));
+            gptUI->text("Prefetch Count: %d", gptAtomics->atomic_load(gptTerrainCtx->ptPrefetchCounter));
+            gptUI->text("Tiles: %u", gptTerrainCtx->uTileCount);
+            gptUI->text("Active Tiles: %u", pl_sb_size(gptTerrainCtx->sbuActiveTileIndices));
+            gptUI->checkbox("Local Terrain", &gptTerrainCtx->bShowLocal);
+            gptUI->checkbox("World Terrain", &gptTerrainCtx->bShowWorld);
+            gptUI->checkbox("Atlas", &gptTerrainCtx->bShowAtlas);
             bool bSunChange = false;
-            if(gptUI->slider_float("Sun X", &ptTerrain->tSunDirection.x, -1.0f, 1.0f, 0)) bSunChange = true;
-            if(gptUI->slider_float("Sun Y", &ptTerrain->tSunDirection.y, -1.0f, 1.0f, 0)) bSunChange = true;
-            if(gptUI->slider_float("Sun Z", &ptTerrain->tSunDirection.z, -1.0f, 1.0f, 0)) bSunChange = true;
+            if(gptUI->slider_float("Sun X", &gptTerrainCtx->tSunDirection.x, -1.0f, 1.0f, 0)) bSunChange = true;
+            if(gptUI->slider_float("Sun Y", &gptTerrainCtx->tSunDirection.y, -1.0f, 1.0f, 0)) bSunChange = true;
+            if(gptUI->slider_float("Sun Z", &gptTerrainCtx->tSunDirection.z, -1.0f, 1.0f, 0)) bSunChange = true;
 
-            if(bSunChange) ptTerrain->tSunDirection = pl_norm_vec3(ptTerrain->tSunDirection);
-            if(gptUI->button("Process All")) ptTerrain->bProcessAll = true;
+            if(bSunChange) gptTerrainCtx->tSunDirection = pl_norm_vec3(gptTerrainCtx->tSunDirection);
+            if(gptUI->button("Process All")) gptTerrainCtx->bProcessAll = true;
             if(gptUI->begin_collapsing_header("Tiles", 0))
             {
                 if(gptUI->input_text_hint("Tiles", "Filter (inc,-exc)", gptTerrainCtx->tFilter.acInputBuffer, 256, 0))
@@ -1853,10 +1826,10 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
 
                     if(gptUI->text_filter_active(&gptTerrainCtx->tFilter))
                     {
-                        for(uint32_t i = 0; i < ptTerrain->uTileCount; i++)
+                        for(uint32_t i = 0; i < gptTerrainCtx->uTileCount; i++)
                         {
                             bool bSelected = uSelectedTile == i;
-                            if(gptUI->selectable(ptTerrain->atTiles[i].acFile, &bSelected, 0))
+                            if(gptUI->selectable(gptTerrainCtx->atTiles[i].acFile, &bSelected, 0))
                             {
                                 if(bSelected)
                                     uSelectedTile = i;
@@ -1867,13 +1840,13 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
                     }
                     else
                     {
-                        plUiClipper tClipper = {ptTerrain->uTileCount};
+                        plUiClipper tClipper = {gptTerrainCtx->uTileCount};
                         while(gptUI->step_clipper(&tClipper))
                         {
                             for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
                             {
                                 bool bSelected = uSelectedTile == i;
-                                if(gptUI->selectable(ptTerrain->atTiles[i].acFile, &bSelected, 0))
+                                if(gptUI->selectable(gptTerrainCtx->atTiles[i].acFile, &bSelected, 0))
                                 {
                                     if(bSelected)
                                         uSelectedTile = i;
@@ -1902,15 +1875,15 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
                 if(gptUI->begin_child("Active Tile List", 0, 0))
                 {
 
-                    const uint32_t uActiveTileCount = pl_sb_size(ptTerrain->sbuActiveTileIndices);
+                    const uint32_t uActiveTileCount = pl_sb_size(gptTerrainCtx->sbuActiveTileIndices);
 
                     if(gptUI->text_filter_active(&gptTerrainCtx->tFilter))
                     {
                         for(uint32_t i = 0; i < uActiveTileCount; i++)
                         {
-                            const uint32_t uIndex = ptTerrain->sbuActiveTileIndices[i];
+                            const uint32_t uIndex = gptTerrainCtx->sbuActiveTileIndices[i];
                             bool bSelected = uSelectedTile == uIndex;
-                            if(gptUI->selectable(ptTerrain->atTiles[uIndex].acFile, &bSelected, 0))
+                            if(gptUI->selectable(gptTerrainCtx->atTiles[uIndex].acFile, &bSelected, 0))
                             {
                                 if(bSelected)
                                     uSelectedTile = uIndex;
@@ -1926,9 +1899,9 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
                         {
                             for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
                             {
-                                const uint32_t uIndex = ptTerrain->sbuActiveTileIndices[i];
+                                const uint32_t uIndex = gptTerrainCtx->sbuActiveTileIndices[i];
                                 bool bSelected = uSelectedTile == uIndex;
-                                if(gptUI->selectable(ptTerrain->atTiles[uIndex].acFile, &bSelected, 0))
+                                if(gptUI->selectable(gptTerrainCtx->atTiles[uIndex].acFile, &bSelected, 0))
                                 {
                                     if(bSelected)
                                         uSelectedTile = uIndex;
@@ -1950,7 +1923,7 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
 
         if(uSelectedTile != UINT32_MAX)
         {
-            plHeightMapTile* ptTile = &ptTerrain->atTiles[uSelectedTile];
+            plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[uSelectedTile];
             if(gptUI->begin_window("Selected Tile", NULL, 0))
             {
                 
@@ -1964,26 +1937,26 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
             }
 
             plVec3 tOrigin = {
-                (ptTile->tWorldPos.x + (float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel * 0.5f), 
-                ptTerrain->fMaxElevation,
-                (ptTile->tWorldPos.y + (float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel * 0.5f),
+                (ptTile->tWorldPos.x + (float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel * 0.5f), 
+                gptTerrainCtx->fMaxElevation,
+                (ptTile->tWorldPos.y + (float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel * 0.5f),
             };
 
-            gptDraw->add_3d_plane_xz_filled(ptTerrain->pt3dDrawlist, tOrigin, 
-                (float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel,
-                (float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel,   
+            gptDraw->add_3d_plane_xz_filled(gptTerrainCtx->pt3dDrawlist, tOrigin, 
+                (float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel,
+                (float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel,   
                 (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 0.5f, 0.0f, 1.0f)});
 
-            gptDraw->add_3d_line(ptTerrain->pt3dDrawlist,
+            gptDraw->add_3d_line(gptTerrainCtx->pt3dDrawlist,
                 tOrigin,  
-                (plVec3){tOrigin.x, ptTerrain->fMinElevation, tOrigin.z},  
+                (plVec3){tOrigin.x, gptTerrainCtx->fMinElevation, tOrigin.z},  
                 (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 0.5f, 0.0f, 1.0f), .fThickness = 10.0f});
         }
 
-        if(ptTerrain->bShowAtlas && gptUI->begin_window("Terrain Atlas", &ptTerrain->bShowAtlas, 0))
+        if(gptTerrainCtx->bShowAtlas && gptUI->begin_window("Terrain Atlas", &gptTerrainCtx->bShowAtlas, 0))
         {
-            const uint32_t uTilesAcross = ptTerrain->uHeightMapResolution / ptTerrain->uTileSize;
-            const uint32_t uActiveTileCount = pl_sb_size(ptTerrain->sbuActiveTileIndices);
+            const uint32_t uTilesAcross = gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uTileSize;
+            const uint32_t uActiveTileCount = pl_sb_size(gptTerrainCtx->sbuActiveTileIndices);
             plVec2 tWindowSize = gptUI->get_window_size();
 
 
@@ -1996,16 +1969,16 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
             plVec2 tCursorPos = gptUI->get_cursor_pos();
             plDrawLayer2D* ptLayer = gptUI->get_window_fg_drawlayer();
 
-            const float fTileSize = ((float)ptTerrain->uTileSize / (float)ptTerrain->uHeightMapResolution) * (tWindowSize.x - 15.0f);
+            const float fTileSize = ((float)gptTerrainCtx->uTileSize / (float)gptTerrainCtx->uHeightMapResolution) * (tWindowSize.x - 15.0f);
 
             char acTileNumber[16] = {0};
             for(uint32_t i = 0; i < uActiveTileCount; i++)
             {
-                const uint32_t uIndex = ptTerrain->sbuActiveTileIndices[i];
-                const plHeightMapTile* ptTile = &ptTerrain->atTiles[uIndex];
+                const uint32_t uIndex = gptTerrainCtx->sbuActiveTileIndices[i];
+                const plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[uIndex];
                 plVec2 tTilePos = {
-                    tCursorPos.x + fTileSize * (float)uTilesAcross * (float)ptTile->_uXOffsetActual / (float)ptTerrain->uHeightMapResolution,
-                    tCursorPos.y + fTileSize * (float)uTilesAcross * (float)ptTile->_uYOffsetActual / (float)ptTerrain->uHeightMapResolution,
+                    tCursorPos.x + fTileSize * (float)uTilesAcross * (float)ptTile->_uXOffsetActual / (float)gptTerrainCtx->uHeightMapResolution,
+                    tCursorPos.y + fTileSize * (float)uTilesAcross * (float)ptTile->_uYOffsetActual / (float)gptTerrainCtx->uHeightMapResolution,
                 };
 
                 plVec4 tColor = {0.0f, 0.5f, 0.2f, 1.0f};
@@ -2031,23 +2004,23 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
             }
 
             plVec2 tXOffsetTop = {
-                tCursorPos.x + (float)ptTerrain->uCurrentXOffset * fTileSize,
+                tCursorPos.x + (float)gptTerrainCtx->uCurrentXOffset * fTileSize,
                 tCursorPos.y,
             };
 
             plVec2 tXOffsetBottom = {
-                tCursorPos.x + (float)ptTerrain->uCurrentXOffset * fTileSize,
+                tCursorPos.x + (float)gptTerrainCtx->uCurrentXOffset * fTileSize,
                 tCursorPos.y + tWindowSize.y,
             };
 
             plVec2 tYOffsetLeft = {
                 tCursorPos.x,
-                tCursorPos.y + (float)ptTerrain->uCurrentYOffset * fTileSize,
+                tCursorPos.y + (float)gptTerrainCtx->uCurrentYOffset * fTileSize,
             };
 
             plVec2 tYOffsetRight = {
                 tCursorPos.x + tWindowSize.x,
-                tCursorPos.y + (float)ptTerrain->uCurrentYOffset * fTileSize,
+                tCursorPos.y + (float)gptTerrainCtx->uCurrentYOffset * fTileSize,
             };
 
             gptDraw->add_line(ptLayer,
@@ -2064,20 +2037,20 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
             gptUI->end_window();
         }
 
-        if(ptTerrain->bShowWorld && gptUI->begin_window("Terrain World", &ptTerrain->bShowWorld, 0))
+        if(gptTerrainCtx->bShowWorld && gptUI->begin_window("Terrain World", &gptTerrainCtx->bShowWorld, 0))
         {
-            const uint32_t uTilesAcross = ptTerrain->uHeightMapResolution / ptTerrain->uTileSize;
-            const uint32_t uActiveTileCount = pl_sb_size(ptTerrain->sbuActiveTileIndices);
+            const uint32_t uTilesAcross = gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uTileSize;
+            const uint32_t uActiveTileCount = pl_sb_size(gptTerrainCtx->sbuActiveTileIndices);
             plVec2 tWindowSize = gptUI->get_window_size();
             plVec2 tCursorPos = gptUI->get_cursor_pos();
             plDrawLayer2D* ptLayer = gptUI->get_window_fg_drawlayer();
 
-            const float fTileSize = (tWindowSize.x - 15.0f) / (float)ptTerrain->uHorizontalTiles;
+            const float fTileSize = (tWindowSize.x - 15.0f) / (float)gptTerrainCtx->uHorizontalTiles;
 
             char acTileNumber[16] = {0};
-            for(uint32_t i = 0; i < ptTerrain->uTileCount; i++)
+            for(uint32_t i = 0; i < gptTerrainCtx->uTileCount; i++)
             {
-                const plHeightMapTile* ptTile = &ptTerrain->atTiles[i];
+                const plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[i];
 
 
                 uint32_t uColor = PL_COLOR_32_RGBA(0.0f, 0.0f, 0.0f, 0.0f);
@@ -2096,14 +2069,14 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
                 );
             }
 
-            gptUI->dummy((plVec2){fTileSize * (float)ptTerrain->uHorizontalTiles, fTileSize * (float)ptTerrain->uVerticalTiles});
+            gptUI->dummy((plVec2){fTileSize * (float)gptTerrainCtx->uHorizontalTiles, fTileSize * (float)gptTerrainCtx->uVerticalTiles});
             gptUI->end_window();
         }
 
-        if(ptTerrain->bShowLocal && gptUI->begin_window("Local Terrain", &ptTerrain->bShowLocal, 0))
+        if(gptTerrainCtx->bShowLocal && gptUI->begin_window("Local Terrain", &gptTerrainCtx->bShowLocal, 0))
         {
-            const uint32_t uTilesAcross = ptTerrain->uHeightMapResolution / ptTerrain->uTileSize;
-            const uint32_t uActiveTileCount = pl_sb_size(ptTerrain->sbuActiveTileIndices);
+            const uint32_t uTilesAcross = gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uTileSize;
+            const uint32_t uActiveTileCount = pl_sb_size(gptTerrainCtx->sbuActiveTileIndices);
             plVec2 tWindowSize = gptUI->get_window_size();
 
 
@@ -2126,19 +2099,19 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
 
             char acTileNumber[16] = {0};
 
-            int uStartOffset = ptTerrain->uPrefetchRadius + iBuffer;
-            int uVerticalCount = (int)(ptTerrain->iCurrentYCoordMax - ptTerrain->iCurrentYCoordMin) + ptTerrain->uPrefetchRadius*2 + iBuffer * 2;
-            int uHorizontalCount = (int)(ptTerrain->iCurrentXCoordMax - ptTerrain->iCurrentXCoordMin) + ptTerrain->uPrefetchRadius*2 + iBuffer * 2;
+            int uStartOffset = gptTerrainCtx->uPrefetchRadius + iBuffer;
+            int uVerticalCount = (int)(gptTerrainCtx->iCurrentYCoordMax - gptTerrainCtx->iCurrentYCoordMin) + gptTerrainCtx->uPrefetchRadius*2 + iBuffer * 2;
+            int uHorizontalCount = (int)(gptTerrainCtx->iCurrentXCoordMax - gptTerrainCtx->iCurrentXCoordMin) + gptTerrainCtx->uPrefetchRadius*2 + iBuffer * 2;
 
             const float fTileSize = (tWindowSize.x - 15.0f) / (float)uHorizontalCount;
             for(int j = 0; j < uVerticalCount; j++)
             {
                 for(int i = 0; i < uHorizontalCount; i++)
                 {
-                    int uXIndex = ptTerrain->iCurrentXCoordMin + i - uStartOffset;
-                    int uYIndex = ptTerrain->iCurrentYCoordMin + j - uStartOffset;
-                    plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(ptTerrain, uXIndex, uYIndex);
-                    int iTileIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, uXIndex, uYIndex);
+                    int uXIndex = gptTerrainCtx->iCurrentXCoordMin + i - uStartOffset;
+                    int uYIndex = gptTerrainCtx->iCurrentYCoordMin + j - uStartOffset;
+                    plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(uXIndex, uYIndex);
+                    int iTileIndex = pl__terrain_get_tile_index_by_pos(uXIndex, uYIndex);
                     if(ptTile)
                     {
                         plVec4 tColor = {0.2f, 0.2f, 0.2f, 1.0f};
@@ -2193,8 +2166,8 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
             };
 
             plVec2 tTilePos1 = {
-                tCursorPos.x + fTileSize * (float)(ptTerrain->iCurrentXCoordMax - ptTerrain->iCurrentXCoordMin + uStartOffset + 1),
-                tCursorPos.y + fTileSize * (float)(ptTerrain->iCurrentYCoordMax - ptTerrain->iCurrentYCoordMin + uStartOffset + 1),
+                tCursorPos.x + fTileSize * (float)(gptTerrainCtx->iCurrentXCoordMax - gptTerrainCtx->iCurrentXCoordMin + uStartOffset + 1),
+                tCursorPos.y + fTileSize * (float)(gptTerrainCtx->iCurrentYCoordMax - gptTerrainCtx->iCurrentYCoordMin + uStartOffset + 1),
             };
 
             gptDraw->add_rect(ptLayer,
@@ -2217,7 +2190,7 @@ pl_terrain_render(plTerrain* ptTerrain, plCamera* ptCamera, plRenderEncoder* ptE
     plRenderPassHandle tRenderEncoderHandle = gptGfx->get_encoder_render_pass(ptEncoder);
     float fOutputWidth = gptGfx->get_render_pass(ptDevice, tRenderEncoderHandle)->tDesc.tDimensions.x;
     float fOutputHeight = gptGfx->get_render_pass(ptDevice, tRenderEncoderHandle)->tDesc.tDimensions.y;
-    gptDraw->submit_3d_drawlist(ptTerrain->pt3dDrawlist,
+    gptDraw->submit_3d_drawlist(gptTerrainCtx->pt3dDrawlist,
         ptEncoder,
         fOutputWidth,
         fOutputHeight,
@@ -2467,29 +2440,29 @@ pl_terrain_load_mesh(plCommandBuffer* ptCmdBuffer, const char* pcFile, uint32_t 
 //-----------------------------------------------------------------------------
 
 static void
-pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera* ptCamera)
+pl__terrain_prepare(plCommandBuffer* ptCmdBuffer, plCamera* ptCamera)
 {
 
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
 
     // determine required tiles
-    if(ptTerrain->bNeedsUpdate)
+    if(gptTerrainCtx->bNeedsUpdate)
     {
-        pl__terrain_process_height_map_tiles(ptTerrain, ptCamera);
+        pl__terrain_process_height_map_tiles(ptCamera);
     }
 
-    if(gptAtomics->atomic_load(ptTerrain->ptPrefetchDirty) > 0 || ptTerrain->bProcessAll)
+    if(gptAtomics->atomic_load(gptTerrainCtx->ptPrefetchDirty) > 0 || gptTerrainCtx->bProcessAll)
     {
 
         // sets active tiles & decides final tile location
-        // PL_ASSERT(ptTerrain->uNewActiveTileCount == 0);
+        // PL_ASSERT(gptTerrainCtx->uNewActiveTileCount == 0);
         // pl__terrain_process_height_map_tiles(ptTerrain, ptCmdBuffer);
 
         // load new tiles & process them
-        const uint32_t uActiveTileCount = pl_sb_size(ptTerrain->sbuActiveTileIndices);
+        const uint32_t uActiveTileCount = pl_sb_size(gptTerrainCtx->sbuActiveTileIndices);
 
         // add new tile data to raw texture
-        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptTerrain->tStagingBuffer);
+        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptTerrainCtx->tStagingBuffer);
 
         // find active tiles that require updates (newly visible tiles)
     
@@ -2499,7 +2472,7 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
         // copy unprocessed tiles into raw texture
         for(uint32_t i = 0; i < uActiveTileCount; i++)
         {
-            plHeightMapTile* ptTile = &ptTerrain->atTiles[ptTerrain->sbuActiveTileIndices[i]];
+            plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[gptTerrainCtx->sbuActiveTileIndices[i]];
 
             if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_UPLOADED))
             {
@@ -2511,17 +2484,17 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
             //     continue;
             // }
 
-            if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_PROCESSED) || ptTerrain->bProcessAll) // otherwise, its already in the texture
+            if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_PROCESSED) || gptTerrainCtx->bProcessAll) // otherwise, its already in the texture
             {
 
                 ptTile->tFlags |= PL_TERRAIN_TILE_FLAGS_PROCESSED_INTERMEDIATE;
 
-                const plTerrainBufferChunk* ptChunk = &ptTerrain->atChunks[ptTile->_uChunkIndex];
+                const plTerrainBufferChunk* ptChunk = &gptTerrainCtx->atChunks[ptTile->_uChunkIndex];
 
                 // copy staging buffer contents to raw texture
                 plBufferImageCopy tBufferImageCopy = {
-                    .uImageWidth        = ptTerrain->uTileSize,
-                    .uImageHeight       = ptTerrain->uTileSize,
+                    .uImageWidth        = gptTerrainCtx->uTileSize,
+                    .uImageHeight       = gptTerrainCtx->uTileSize,
                     .uImageDepth        = 1,
                     .iImageOffsetX      = ptTile->_uXOffsetActual,
                     .iImageOffsetY      = ptTile->_uYOffsetActual,
@@ -2529,7 +2502,7 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
                     .szBufferOffset     = ptChunk->szOffset,
                     .tCurrentImageUsage = PL_TEXTURE_USAGE_STORAGE,
                 };
-                gptGfx->copy_buffer_to_texture(ptBlit, ptTerrain->tStagingBuffer, ptTerrain->tRawTexture, 1, &tBufferImageCopy);
+                gptGfx->copy_buffer_to_texture(ptBlit, gptTerrainCtx->tStagingBuffer, gptTerrainCtx->tRawTexture, 1, &tBufferImageCopy);
             }
         }
         
@@ -2547,20 +2520,20 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
             // set proper texture usages
             ptBlit = gptGfx->begin_blit_pass(ptCmdBuffer);
             gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ | PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_READ | PL_ACCESS_TRANSFER_WRITE);
-            gptGfx->set_texture_usage(ptBlit, ptTerrain->tProcessedTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
+            gptGfx->set_texture_usage(ptBlit, gptTerrainCtx->tProcessedTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
             gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_READ | PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ | PL_ACCESS_SHADER_WRITE);
             gptGfx->end_blit_pass(ptBlit);
 
             // preprocess heightmap (i.e. calculate normals)
 
             plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCmdBuffer, NULL);
-            gptGfx->bind_compute_shader(ptComputeEncoder, ptTerrain->tPreProcessHeightShader);
+            gptGfx->bind_compute_shader(ptComputeEncoder, gptTerrainCtx->tPreProcessHeightShader);
             
             // process new tiles
             
             for(uint32_t i = 0; i < uActiveTileCount; i++)
             {
-                plHeightMapTile* ptTile = &ptTerrain->atTiles[ptTerrain->sbuActiveTileIndices[i]];
+                plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[gptTerrainCtx->sbuActiveTileIndices[i]];
 
                 if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_UPLOADED))
                 {
@@ -2576,22 +2549,22 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
                     plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &gptTerrainCtx->tCurrentDynamicDataBlock);
                     plTerrainPrepDynamicData* ptDynamicData = (plTerrainPrepDynamicData*)tDynamicBinding.pcData;
                     memset(ptDynamicData, 0, sizeof(plTerrainPrepDynamicData));
-                    ptDynamicData->fMetersPerHeightFieldTexel = ptTerrain->fMetersPerTexel;
+                    ptDynamicData->fMetersPerHeightFieldTexel = gptTerrainCtx->fMetersPerTexel;
                     ptDynamicData->fMaxHeight = ptTile->fMaxHeight;
                     ptDynamicData->fMinHeight = ptTile->fMinHeight;
-                    ptDynamicData->fGlobalMaxHeight = ptTerrain->fMaxElevation;
-                    ptDynamicData->fGlobalMinHeight = ptTerrain->fMinElevation;
+                    ptDynamicData->fGlobalMaxHeight = gptTerrainCtx->fMaxElevation;
+                    ptDynamicData->fGlobalMinHeight = gptTerrainCtx->fMinElevation;
                     ptDynamicData->iXOffset = (int)ptTile->_uXOffsetActual;
                     ptDynamicData->iYOffset = (int)ptTile->_uYOffsetActual;
 
                     // TODO: handle this
                     ptDynamicData->iNormalCalcReach = 10;
 
-                    gptGfx->bind_compute_bind_groups(ptComputeEncoder, ptTerrain->tPreProcessHeightShader, 0, 1, &ptTerrain->tPreprocessBG0, 1, &tDynamicBinding);
+                    gptGfx->bind_compute_bind_groups(ptComputeEncoder, gptTerrainCtx->tPreProcessHeightShader, 0, 1, &gptTerrainCtx->tPreprocessBG0, 1, &tDynamicBinding);
 
                     plDispatch tDispatch = {
-                        .uGroupCountX     = ptTerrain->uTileSize / 8,
-                        .uGroupCountY     = ptTerrain->uTileSize / 8,
+                        .uGroupCountX     = gptTerrainCtx->uTileSize / 8,
+                        .uGroupCountY     = gptTerrainCtx->uTileSize / 8,
                         .uGroupCountZ     = 1,
                         .uThreadPerGroupX = 8,
                         .uThreadPerGroupY = 8,
@@ -2618,7 +2591,7 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
                 PL_ACCESS_SHADER_WRITE | PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ,
                 PL_PIPELINE_STAGE_TRANSFER,
                 PL_ACCESS_TRANSFER_WRITE);
-            gptGfx->set_texture_usage(ptBlit, ptTerrain->tProcessedTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
+            gptGfx->set_texture_usage(ptBlit, gptTerrainCtx->tProcessedTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
             gptGfx->pipeline_barrier_blit(ptBlit,
                 PL_PIPELINE_STAGE_TRANSFER,
                 PL_ACCESS_TRANSFER_WRITE,
@@ -2627,13 +2600,13 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
             gptGfx->end_blit_pass(ptBlit);
         }
 
-        gptAtomics->atomic_store(ptTerrain->ptPrefetchDirty, 0);
+        gptAtomics->atomic_store(gptTerrainCtx->ptPrefetchDirty, 0);
     // }
 
     // generate mip maps
 
 
-        plTexture* ptProcessedTexture = gptGfx->get_texture(ptDevice, ptTerrain->tProcessedTexture);
+        plTexture* ptProcessedTexture = gptGfx->get_texture(ptDevice, gptTerrainCtx->tProcessedTexture);
         for(uint32_t i = 1; i < ptProcessedTexture->tDesc.uMips; i++)
         {
             plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &gptTerrainCtx->tCurrentDynamicDataBlock);
@@ -2642,11 +2615,11 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
 
             // process single mip level
             plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCmdBuffer, NULL);
-            gptGfx->bind_compute_shader(ptComputeEncoder, ptTerrain->tMipMapShader);
-            gptGfx->bind_compute_bind_groups(ptComputeEncoder, ptTerrain->tMipMapShader, 0, 1, &ptTerrain->tMipmapBG0, 1, &tDynamicBinding);
+            gptGfx->bind_compute_shader(ptComputeEncoder, gptTerrainCtx->tMipMapShader);
+            gptGfx->bind_compute_bind_groups(ptComputeEncoder, gptTerrainCtx->tMipMapShader, 0, 1, &gptTerrainCtx->tMipmapBG0, 1, &tDynamicBinding);
             plDispatch tDispatch = {
-                .uGroupCountX     = (int)ptTerrain->uHeightMapResolution / (8 * (1 << (int)i)),
-                .uGroupCountY     = (int)ptTerrain->uHeightMapResolution / (8 * (1 << (int)i)),
+                .uGroupCountX     = (int)gptTerrainCtx->uHeightMapResolution / (8 * (1 << (int)i)),
+                .uGroupCountY     = (int)gptTerrainCtx->uHeightMapResolution / (8 * (1 << (int)i)),
                 .uGroupCountZ     = 1,
                 .uThreadPerGroupX = 8,
                 .uThreadPerGroupY = 8,
@@ -2659,8 +2632,8 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
 
             // copy processed mip level 
             plImageCopy tImageCopy = {
-                .uSourceExtentX             = (int)ptTerrain->uHeightMapResolution / (1 << (int)i),
-                .uSourceExtentY             = (int)ptTerrain->uHeightMapResolution / (1 << (int)i),
+                .uSourceExtentX             = (int)gptTerrainCtx->uHeightMapResolution / (1 << (int)i),
+                .uSourceExtentY             = (int)gptTerrainCtx->uHeightMapResolution / (1 << (int)i),
                 .uSourceExtentZ             = 1,
                 .uSourceMipLevel            = 0,
                 .uSourceBaseArrayLayer      = 0,
@@ -2674,14 +2647,14 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
 
             ptBlit = gptGfx->begin_blit_pass(ptCmdBuffer);
             gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ | PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_READ | PL_ACCESS_TRANSFER_WRITE);
-            gptGfx->copy_texture(ptBlit, ptTerrain->tDummyTexture, ptTerrain->tProcessedTexture, 1, &tImageCopy);
+            gptGfx->copy_texture(ptBlit, gptTerrainCtx->tDummyTexture, gptTerrainCtx->tProcessedTexture, 1, &tImageCopy);
             gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_READ | PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ | PL_ACCESS_SHADER_WRITE);
             gptGfx->end_blit_pass(ptBlit);
         }
     }
 
     // update active texture with new tile data
-    // if(ptTerrain->abPendingTextureUpdate[gptGfx->get_current_frame_index()])
+    // if(gptTerrainCtx->abPendingTextureUpdate[gptGfx->get_current_frame_index()])
     {
         gptGfx->pipeline_barrier(ptCmdBuffer,
             PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE | PL_ACCESS_TRANSFER_READ,
@@ -2689,12 +2662,12 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
 
         plBlitEncoder* ptBlit = gptGfx->begin_blit_pass(ptCmdBuffer);
 
-        plTexture* ptActiveTexture = gptGfx->get_texture(ptDevice, ptTerrain->atActiveTexture[gptGfx->get_current_frame_index()]);
+        plTexture* ptActiveTexture = gptGfx->get_texture(ptDevice, gptTerrainCtx->atActiveTexture[gptGfx->get_current_frame_index()]);
         for(uint32_t i = 0; i < ptActiveTexture->tDesc.uMips; i++)
         {
             plImageCopy tImageCopy = {
-                .uSourceExtentX             = (int)ptTerrain->uHeightMapResolution / (1 << (int)i),
-                .uSourceExtentY             = (int)ptTerrain->uHeightMapResolution / (1 << (int)i),
+                .uSourceExtentX             = (int)gptTerrainCtx->uHeightMapResolution / (1 << (int)i),
+                .uSourceExtentY             = (int)gptTerrainCtx->uHeightMapResolution / (1 << (int)i),
                 .uSourceExtentZ             = 1,
                 .uSourceMipLevel            = i,
                 .uSourceBaseArrayLayer      = 0,
@@ -2707,7 +2680,7 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
             };
 
             gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ | PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_READ | PL_ACCESS_TRANSFER_WRITE);
-            gptGfx->copy_texture(ptBlit, ptTerrain->tProcessedTexture, ptTerrain->atActiveTexture[gptGfx->get_current_frame_index()], 1, &tImageCopy);
+            gptGfx->copy_texture(ptBlit, gptTerrainCtx->tProcessedTexture, gptTerrainCtx->atActiveTexture[gptGfx->get_current_frame_index()], 1, &tImageCopy);
             gptGfx->pipeline_barrier_blit(ptBlit, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_READ | PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ | PL_ACCESS_SHADER_WRITE);
             
         }
@@ -2721,11 +2694,11 @@ pl__terrain_prepare(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer, plCamera
         );
     }
 
-    ptTerrain->bProcessAll = false;
+    gptTerrainCtx->bProcessAll = false;
 }
 
 static void
-pl__terrain_create_shaders(plTerrain* ptTerrain)
+pl__terrain_create_shaders(void)
 {
     plShaderDesc tTerrainShaderDesc = {
         .tVertexShader     = gptShader->load_glsl("terrain.vert", "main", NULL, NULL),
@@ -2781,9 +2754,9 @@ pl__terrain_create_shaders(plTerrain* ptTerrain)
         }
     };
 
-    ptTerrain->tRegularShader = gptGfx->create_shader(gptTerrainCtx->ptDevice, &tTerrainShaderDesc);
+    gptTerrainCtx->tRegularShader = gptGfx->create_shader(gptTerrainCtx->ptDevice, &tTerrainShaderDesc);
     tTerrainShaderDesc.tGraphicsState.ulWireframe = 1;
-    ptTerrain->tWireframeShader = gptGfx->create_shader(gptTerrainCtx->ptDevice, &tTerrainShaderDesc);
+    gptTerrainCtx->tWireframeShader = gptGfx->create_shader(gptTerrainCtx->ptDevice, &tTerrainShaderDesc);
 
     plShaderDesc tFullTerrainShaderDesc = {
         .tVertexShader     = gptShader->load_glsl("terrain_full.vert", "main", NULL, NULL),
@@ -2842,9 +2815,9 @@ pl__terrain_create_shaders(plTerrain* ptTerrain)
         }
     };
 
-    ptTerrain->tFullShader = gptGfx->create_shader(gptTerrainCtx->ptDevice, &tFullTerrainShaderDesc);
+    gptTerrainCtx->tFullShader = gptGfx->create_shader(gptTerrainCtx->ptDevice, &tFullTerrainShaderDesc);
     tFullTerrainShaderDesc.tGraphicsState.ulWireframe = 1;
-    ptTerrain->tFullWireFrameShader = gptGfx->create_shader(gptTerrainCtx->ptDevice, &tFullTerrainShaderDesc);
+    gptTerrainCtx->tFullWireFrameShader = gptGfx->create_shader(gptTerrainCtx->ptDevice, &tFullTerrainShaderDesc);
 
     const plComputeShaderDesc tPreProcessHeightShaderDesc = {
         .tShader = gptShader->load_glsl("heightfield.comp", "main", NULL, NULL),
@@ -2873,8 +2846,8 @@ pl__terrain_create_shaders(plTerrain* ptTerrain)
         }
     };
 
-    ptTerrain->tPreProcessHeightShader = gptGfx->create_compute_shader(gptTerrainCtx->ptDevice, &tPreProcessHeightShaderDesc);
-    ptTerrain->tMipMapShader = gptGfx->create_compute_shader(gptTerrainCtx->ptDevice, &tMipMapShaderDesc);
+    gptTerrainCtx->tPreProcessHeightShader = gptGfx->create_compute_shader(gptTerrainCtx->ptDevice, &tPreProcessHeightShaderDesc);
+    gptTerrainCtx->tMipMapShader = gptGfx->create_compute_shader(gptTerrainCtx->ptDevice, &tMipMapShaderDesc);
 }
 
 static plTextureHandle
@@ -3013,71 +2986,71 @@ pl__terrain_create_texture(plCommandBuffer* ptCmdBuffer, const plTextureDesc* pt
 }
 
 static uint32_t
-pl__terrain_tile_activation_distance(plTerrain* ptTerrain, uint32_t uIndex)
+pl__terrain_tile_activation_distance(uint32_t uIndex)
 {
-    plHeightMapTile* ptTile = &ptTerrain->atTiles[uIndex];
+    plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[uIndex];
 
-    bool bWithinX = ptTile->_iXCoord >= ptTerrain->iCurrentXCoordMin && ptTile->_iXCoord <= ptTerrain->iCurrentXCoordMax;
-    bool bWithinY = ptTile->_iYCoord >= ptTerrain->iCurrentYCoordMin && ptTile->_iYCoord <= ptTerrain->iCurrentYCoordMax;
+    bool bWithinX = ptTile->_iXCoord >= gptTerrainCtx->iCurrentXCoordMin && ptTile->_iXCoord <= gptTerrainCtx->iCurrentXCoordMax;
+    bool bWithinY = ptTile->_iYCoord >= gptTerrainCtx->iCurrentYCoordMin && ptTile->_iYCoord <= gptTerrainCtx->iCurrentYCoordMax;
 
     if(bWithinX && bWithinY)
         return 0;
 
     uint32_t uMinDistanceX = 0;
-    if(ptTile->_iXCoord > ptTerrain->iCurrentXCoordMax)
-        uMinDistanceX = ptTile->_iXCoord - ptTerrain->iCurrentXCoordMax;
-    else if(ptTile->_iXCoord < ptTerrain->iCurrentXCoordMin)
-        uMinDistanceX = ptTerrain->iCurrentXCoordMin - ptTile->_iXCoord;
+    if(ptTile->_iXCoord > gptTerrainCtx->iCurrentXCoordMax)
+        uMinDistanceX = ptTile->_iXCoord - gptTerrainCtx->iCurrentXCoordMax;
+    else if(ptTile->_iXCoord < gptTerrainCtx->iCurrentXCoordMin)
+        uMinDistanceX = gptTerrainCtx->iCurrentXCoordMin - ptTile->_iXCoord;
 
     uint32_t uMinDistanceY = 0;
-    if(ptTile->_iYCoord > ptTerrain->iCurrentYCoordMax)
-        uMinDistanceY = ptTile->_iYCoord - ptTerrain->iCurrentYCoordMax;
-    else if(ptTile->_iYCoord < ptTerrain->iCurrentYCoordMin)
-        uMinDistanceY = ptTerrain->iCurrentYCoordMin - ptTile->_iYCoord;
+    if(ptTile->_iYCoord > gptTerrainCtx->iCurrentYCoordMax)
+        uMinDistanceY = ptTile->_iYCoord - gptTerrainCtx->iCurrentYCoordMax;
+    else if(ptTile->_iYCoord < gptTerrainCtx->iCurrentYCoordMin)
+        uMinDistanceY = gptTerrainCtx->iCurrentYCoordMin - ptTile->_iYCoord;
 
     return pl_maxu(uMinDistanceX, uMinDistanceY);
 }
 
 static void
-pl__terrain_return_free_chunk(plTerrain* ptTerrain, uint32_t uOwnerTileIndex)
+pl__terrain_return_free_chunk(uint32_t uOwnerTileIndex)
 {
-    plHeightMapTile* ptTile = &ptTerrain->atTiles[uOwnerTileIndex];
+    plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[uOwnerTileIndex];
     uint32_t uChunkIndex = ptTile->_uChunkIndex;
     ptTile->tFlags = PL_TERRAIN_TILE_FLAGS_NONE;
 
     if(uChunkIndex != UINT32_MAX)
     {
         ptTile->_uChunkIndex = UINT32_MAX;
-        ptTerrain->atChunks[uChunkIndex].uOwnerTileIndex = UINT32_MAX;
-        pl_sb_push(ptTerrain->sbuFreeChunks, uChunkIndex);
+        gptTerrainCtx->atChunks[uChunkIndex].uOwnerTileIndex = UINT32_MAX;
+        pl_sb_push(gptTerrainCtx->sbuFreeChunks, uChunkIndex);
     }
 }
 
 static void
-pl__terrain_clear_cache_direction(plTerrain* ptTerrain, plTerrainDirection tDirection)
+pl__terrain_clear_cache_direction(plTerrainDirection tDirection)
 {
 
-    uint32_t uXRange = (uint32_t)(ptTerrain->iCurrentXCoordMax - ptTerrain->iCurrentXCoordMin);
-    uint32_t uYRange = (uint32_t)(ptTerrain->iCurrentYCoordMax - ptTerrain->iCurrentYCoordMin);
+    uint32_t uXRange = (uint32_t)(gptTerrainCtx->iCurrentXCoordMax - gptTerrainCtx->iCurrentXCoordMin);
+    uint32_t uYRange = (uint32_t)(gptTerrainCtx->iCurrentYCoordMax - gptTerrainCtx->iCurrentYCoordMin);
 
     if(!(tDirection & PL_TERRAIN_DIRECTION_EAST))
     {
         
         for(uint32_t j = 0; j <= uYRange; j++)
         {
-            for(uint32_t i = 0; i <= ptTerrain->uPrefetchRadius; i++)
+            for(uint32_t i = 0; i <= gptTerrainCtx->uPrefetchRadius; i++)
             {
-                uint32_t uXIndex = ptTerrain->iCurrentXCoordMax + i;
-                uint32_t uYIndex = ptTerrain->iCurrentYCoordMin + j;
-                plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(ptTerrain, uXIndex, uYIndex);
-                int iTileIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, uXIndex, uYIndex);
+                uint32_t uXIndex = gptTerrainCtx->iCurrentXCoordMax + i;
+                uint32_t uYIndex = gptTerrainCtx->iCurrentYCoordMin + j;
+                plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(uXIndex, uYIndex);
+                int iTileIndex = pl__terrain_get_tile_index_by_pos(uXIndex, uYIndex);
                 if(ptTile)
                 {
                     if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_ACTIVE))
                     {
                         if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_QUEUED))
                         {
-                            pl__terrain_return_free_chunk(ptTerrain, iTileIndex);
+                            pl__terrain_return_free_chunk(iTileIndex);
                         }
                     }
                 }
@@ -3090,19 +3063,19 @@ pl__terrain_clear_cache_direction(plTerrain* ptTerrain, plTerrainDirection tDire
         
         for(uint32_t j = 0; j <= uYRange; j++)
         {
-            for(uint32_t i = 0; i <= ptTerrain->uPrefetchRadius; i++)
+            for(uint32_t i = 0; i <= gptTerrainCtx->uPrefetchRadius; i++)
             {
-                int uXIndex = ptTerrain->iCurrentXCoordMin - i;
-                int uYIndex = ptTerrain->iCurrentYCoordMin + j;
-                plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(ptTerrain, uXIndex, uYIndex);
-                int iTileIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, uXIndex, uYIndex);
+                int uXIndex = gptTerrainCtx->iCurrentXCoordMin - i;
+                int uYIndex = gptTerrainCtx->iCurrentYCoordMin + j;
+                plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(uXIndex, uYIndex);
+                int iTileIndex = pl__terrain_get_tile_index_by_pos(uXIndex, uYIndex);
                 if(ptTile)
                 {
                     if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_ACTIVE))
                     {
                         if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_QUEUED))
                         {
-                            pl__terrain_return_free_chunk(ptTerrain, iTileIndex);
+                            pl__terrain_return_free_chunk(iTileIndex);
                         }
                     }
                 }
@@ -3113,21 +3086,21 @@ pl__terrain_clear_cache_direction(plTerrain* ptTerrain, plTerrainDirection tDire
     if(!(tDirection & PL_TERRAIN_DIRECTION_NORTH))
     {
         
-        for(uint32_t j = 0; j <= ptTerrain->uPrefetchRadius; j++)
+        for(uint32_t j = 0; j <= gptTerrainCtx->uPrefetchRadius; j++)
         {
             for(uint32_t i = 0; i <= uXRange; i++)
             {
-                int uXIndex = ptTerrain->iCurrentXCoordMin + i;
-                int uYIndex = ptTerrain->iCurrentYCoordMax + j;
-                plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(ptTerrain, uXIndex, uYIndex);
-                int iTileIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, uXIndex, uYIndex);
+                int uXIndex = gptTerrainCtx->iCurrentXCoordMin + i;
+                int uYIndex = gptTerrainCtx->iCurrentYCoordMax + j;
+                plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(uXIndex, uYIndex);
+                int iTileIndex = pl__terrain_get_tile_index_by_pos(uXIndex, uYIndex);
                 if(ptTile)
                 {
                     if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_ACTIVE))
                     {
                         if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_QUEUED))
                         {
-                            pl__terrain_return_free_chunk(ptTerrain, iTileIndex);
+                            pl__terrain_return_free_chunk(iTileIndex);
                         }
                     }
                 }
@@ -3138,21 +3111,21 @@ pl__terrain_clear_cache_direction(plTerrain* ptTerrain, plTerrainDirection tDire
     if(!(tDirection & PL_TERRAIN_DIRECTION_SOUTH))
     {
         
-        for(uint32_t j = 0; j <= ptTerrain->uPrefetchRadius; j++)
+        for(uint32_t j = 0; j <= gptTerrainCtx->uPrefetchRadius; j++)
         {
             for(uint32_t i = 0; i <= uXRange; i++)
             {
-                int uXIndex = ptTerrain->iCurrentXCoordMin + i;
-                int uYIndex = ptTerrain->iCurrentYCoordMin - j;
-                plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(ptTerrain, uXIndex, uYIndex);
-                int iTileIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, uXIndex, uYIndex);
+                int uXIndex = gptTerrainCtx->iCurrentXCoordMin + i;
+                int uYIndex = gptTerrainCtx->iCurrentYCoordMin - j;
+                plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(uXIndex, uYIndex);
+                int iTileIndex = pl__terrain_get_tile_index_by_pos(uXIndex, uYIndex);
                 if(ptTile)
                 {
                     if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_ACTIVE))
                     {
                         if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_QUEUED))
                         {
-                            pl__terrain_return_free_chunk(ptTerrain, iTileIndex);
+                            pl__terrain_return_free_chunk(iTileIndex);
                         }
                     }
                 }
@@ -3163,21 +3136,21 @@ pl__terrain_clear_cache_direction(plTerrain* ptTerrain, plTerrainDirection tDire
 }
 
 static void
-pl__terrain_clear_cache(plTerrain* ptTerrain, uint32_t uCount, uint32_t uRadius)
+pl__terrain_clear_cache(uint32_t uCount, uint32_t uRadius)
 {
-    for(uint32_t i = 0; i < ptTerrain->uChunkCapacity; i++)
+    for(uint32_t i = 0; i < gptTerrainCtx->uChunkCapacity; i++)
     {
-        uint32_t uTileIndex = ptTerrain->atChunks[i].uOwnerTileIndex;
+        uint32_t uTileIndex = gptTerrainCtx->atChunks[i].uOwnerTileIndex;
         if(uTileIndex != UINT32_MAX)
         {
-            if(!(ptTerrain->atTiles[uTileIndex].tFlags & PL_TERRAIN_TILE_FLAGS_ACTIVE))
+            if(!(gptTerrainCtx->atTiles[uTileIndex].tFlags & PL_TERRAIN_TILE_FLAGS_ACTIVE))
             {
-                if(!(ptTerrain->atTiles[uTileIndex].tFlags & PL_TERRAIN_TILE_FLAGS_QUEUED))
+                if(!(gptTerrainCtx->atTiles[uTileIndex].tFlags & PL_TERRAIN_TILE_FLAGS_QUEUED))
                 {
-                    uint32_t uActivationDistance = pl__terrain_tile_activation_distance(ptTerrain, uTileIndex) + 1;
+                    uint32_t uActivationDistance = pl__terrain_tile_activation_distance(uTileIndex) + 1;
                     if(uActivationDistance >= uRadius)
                     {
-                        pl__terrain_return_free_chunk(ptTerrain, uTileIndex);
+                        pl__terrain_return_free_chunk(uTileIndex);
                         uCount--;
                         if(uCount == 0)
                             return;
@@ -3189,129 +3162,119 @@ pl__terrain_clear_cache(plTerrain* ptTerrain, uint32_t uCount, uint32_t uRadius)
 }
 
 static void
-pl__terrain_get_free_chunk(plTerrain* ptTerrain, uint32_t uOwnerTileIndex)
+pl__terrain_get_free_chunk(uint32_t uOwnerTileIndex)
 {
     // check if already assigned chunk
-    if(ptTerrain->atTiles[uOwnerTileIndex]._uChunkIndex != UINT32_MAX)
+    if(gptTerrainCtx->atTiles[uOwnerTileIndex]._uChunkIndex != UINT32_MAX)
         return;
 
-    if(pl_sb_size(ptTerrain->sbuFreeChunks) > 0)
+    if(pl_sb_size(gptTerrainCtx->sbuFreeChunks) > 0)
     {
-        uint32_t uChunkIndex = pl_sb_pop(ptTerrain->sbuFreeChunks);
-        ptTerrain->atChunks[uChunkIndex].uOwnerTileIndex = uOwnerTileIndex;
-        ptTerrain->atTiles[uOwnerTileIndex]._uChunkIndex = uChunkIndex;
+        uint32_t uChunkIndex = pl_sb_pop(gptTerrainCtx->sbuFreeChunks);
+        gptTerrainCtx->atChunks[uChunkIndex].uOwnerTileIndex = uOwnerTileIndex;
+        gptTerrainCtx->atTiles[uOwnerTileIndex]._uChunkIndex = uChunkIndex;
         return;
     }
 
-    pl__terrain_clear_cache(ptTerrain, UINT32_MAX, ptTerrain->uPrefetchRadius);
+    pl__terrain_clear_cache(UINT32_MAX, gptTerrainCtx->uPrefetchRadius);
 
-    if(pl_sb_size(ptTerrain->sbuFreeChunks) > 0)
+    if(pl_sb_size(gptTerrainCtx->sbuFreeChunks) > 0)
     {
-        uint32_t uChunkIndex = pl_sb_pop(ptTerrain->sbuFreeChunks);
-        ptTerrain->atChunks[uChunkIndex].uOwnerTileIndex = uOwnerTileIndex;
-        ptTerrain->atTiles[uOwnerTileIndex]._uChunkIndex = uChunkIndex;
+        uint32_t uChunkIndex = pl_sb_pop(gptTerrainCtx->sbuFreeChunks);
+        gptTerrainCtx->atChunks[uChunkIndex].uOwnerTileIndex = uOwnerTileIndex;
+        gptTerrainCtx->atTiles[uOwnerTileIndex]._uChunkIndex = uChunkIndex;
         return;
     }
     
-    ptTerrain->atTiles[uOwnerTileIndex]._uChunkIndex = UINT32_MAX;
+    gptTerrainCtx->atTiles[uOwnerTileIndex]._uChunkIndex = UINT32_MAX;
 }
 
 static bool
-pl__terrain_process_height_map_tiles(plTerrain* ptTerrain, plCamera* ptCamera)
+pl__terrain_process_height_map_tiles(plCamera* ptCamera)
 {
     
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
     
-    const uint32_t uTilesAcross = ptTerrain->uHeightMapResolution / ptTerrain->uTileSize;
+    const uint32_t uTilesAcross = gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uTileSize;
     bool bTextureNeedUpdate = false;
 
-    float fRadius = (float)(ptTerrain->uHeightMapResolution / 2) * ptTerrain->fMetersPerTexel;
-    const int iRadiusInTiles = (int)((ptTerrain->uHeightMapResolution / 2) / ptTerrain->uTileSize);
+    float fRadius = (float)(gptTerrainCtx->uHeightMapResolution / 2) * gptTerrainCtx->fMetersPerTexel;
+    const int iRadiusInTiles = (int)((gptTerrainCtx->uHeightMapResolution / 2) / gptTerrainCtx->uTileSize);
     plVec2 tCameraPos = {ptCamera->tPos.x, ptCamera->tPos.z};
-    float fIncrement = (float)ptTerrain->uTileSize * ptTerrain->fMetersPerTexel;
+    float fIncrement = (float)gptTerrainCtx->uTileSize * gptTerrainCtx->fMetersPerTexel;
     tCameraPos.x = floorf(tCameraPos.x * (1.0f / fIncrement)) * fIncrement;
     tCameraPos.y = floorf(tCameraPos.y * (1.0f / fIncrement)) * fIncrement;
 
-    int iCameraXTile = (int)(((float)tCameraPos.x - ptTerrain->tMinWorldPosition.x) / fIncrement);
-    int iCameraYTile = (int)(((float)tCameraPos.y - ptTerrain->tMinWorldPosition.y) / fIncrement);
+    int iCameraXTile = (int)(((float)tCameraPos.x - gptTerrainCtx->tMinWorldPosition.x) / fIncrement);
+    int iCameraYTile = (int)(((float)tCameraPos.y - gptTerrainCtx->tMinWorldPosition.y) / fIncrement);
     
-    ptTerrain->iCurrentXCoordMin = iCameraXTile - iRadiusInTiles;
-    ptTerrain->iCurrentXCoordMax = iCameraXTile + iRadiusInTiles - 1;
-    ptTerrain->iCurrentYCoordMin = iCameraYTile - iRadiusInTiles;
-    ptTerrain->iCurrentYCoordMax = iCameraYTile + iRadiusInTiles - 1;
+    gptTerrainCtx->iCurrentXCoordMin = iCameraXTile - iRadiusInTiles;
+    gptTerrainCtx->iCurrentXCoordMax = iCameraXTile + iRadiusInTiles - 1;
+    gptTerrainCtx->iCurrentYCoordMin = iCameraYTile - iRadiusInTiles;
+    gptTerrainCtx->iCurrentYCoordMax = iCameraYTile + iRadiusInTiles - 1;
 
-    if(pl_sb_size(ptTerrain->sbuPrefetchOverflow) > 0)
+    if(pl_sb_size(gptTerrainCtx->sbuPrefetchOverflow) > 0)
         return false;
 
-    ptTerrain->bNeedsUpdate = false;
+    gptTerrainCtx->bNeedsUpdate = false;
 
     // unmark old active tiles
-    const uint32_t uActiveTileCount = pl_sb_size(ptTerrain->sbuActiveTileIndices);
+    const uint32_t uActiveTileCount = pl_sb_size(gptTerrainCtx->sbuActiveTileIndices);
     for(uint32_t i = 0; i < uActiveTileCount; i++)
     {
-        plHeightMapTile* ptTile = &ptTerrain->atTiles[ptTerrain->sbuActiveTileIndices[i]];
-        if(ptTile->_iXCoord < ptTerrain->iCurrentXCoordMin || ptTile->_iXCoord > ptTerrain->iCurrentXCoordMax || ptTile->_iYCoord < ptTerrain->iCurrentYCoordMin || ptTile->_iYCoord > ptTerrain->iCurrentYCoordMax)
+        plHeightMapTile* ptTile = &gptTerrainCtx->atTiles[gptTerrainCtx->sbuActiveTileIndices[i]];
+        if(ptTile->_iXCoord < gptTerrainCtx->iCurrentXCoordMin || ptTile->_iXCoord > gptTerrainCtx->iCurrentXCoordMax || ptTile->_iYCoord < gptTerrainCtx->iCurrentYCoordMin || ptTile->_iYCoord > gptTerrainCtx->iCurrentYCoordMax)
         {
             ptTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_ACTIVE;
             ptTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
             ptTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED_INTERMEDIATE;
         }  
     }
-    pl_sb_reset(ptTerrain->sbuActiveTileIndices);
+    pl_sb_reset(gptTerrainCtx->sbuActiveTileIndices);
 
     // mark new tiles & pack into atlas
-    for(uint32_t j = 0; j <= (uint32_t)(ptTerrain->iCurrentYCoordMax - ptTerrain->iCurrentYCoordMin); j++)
+    for(uint32_t j = 0; j <= (uint32_t)(gptTerrainCtx->iCurrentYCoordMax - gptTerrainCtx->iCurrentYCoordMin); j++)
     {
-        uint32_t uCurrentYOffset = (ptTerrain->uCurrentYOffset + j) % uTilesAcross;
+        uint32_t uCurrentYOffset = (gptTerrainCtx->uCurrentYOffset + j) % uTilesAcross;
 
-        for(uint32_t i = 0; i <= (uint32_t)(ptTerrain->iCurrentXCoordMax - ptTerrain->iCurrentXCoordMin); i++)
+        for(uint32_t i = 0; i <= (uint32_t)(gptTerrainCtx->iCurrentXCoordMax - gptTerrainCtx->iCurrentXCoordMin); i++)
         {
-            uint32_t uXIndex = ptTerrain->iCurrentXCoordMin + i;
-            uint32_t uYIndex = ptTerrain->iCurrentYCoordMin + j;
-            plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(ptTerrain, uXIndex, uYIndex);
+            uint32_t uXIndex = gptTerrainCtx->iCurrentXCoordMin + i;
+            uint32_t uYIndex = gptTerrainCtx->iCurrentYCoordMin + j;
+            plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(uXIndex, uYIndex);
             
             if(ptTile)
             {
-                int iTileIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, uXIndex, uYIndex);
-                uint32_t uCurrentXOffset = (ptTerrain->uCurrentXOffset + i) % uTilesAcross;
+                int iTileIndex = pl__terrain_get_tile_index_by_pos(uXIndex, uYIndex);
+                uint32_t uCurrentXOffset = (gptTerrainCtx->uCurrentXOffset + i) % uTilesAcross;
 
-                pl__push_prefetch_tile(ptTerrain, iTileIndex);
+                pl__push_prefetch_tile(iTileIndex);
 
                 // if not processed, pack into atlas
                 if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_PROCESSED))
                 {
                     ptTile->_uYOffsetActual = uCurrentYOffset;
-                    ptTile->_uYOffsetActual *= ptTerrain->uTileSize;
+                    ptTile->_uYOffsetActual *= gptTerrainCtx->uTileSize;
                     ptTile->_uXOffsetActual = uCurrentXOffset;
-                    ptTile->_uXOffsetActual *= ptTerrain->uTileSize;
+                    ptTile->_uXOffsetActual *= gptTerrainCtx->uTileSize;
                 }
 
                 bTextureNeedUpdate = true;
                 if(!(ptTile->tFlags & PL_TERRAIN_TILE_FLAGS_ACTIVE))
                 {
                     plHeightMapTile* ptNeighborTile = NULL;
-                    if(ptTerrain->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_EAST)
+                    if(gptTerrainCtx->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_EAST)
                     {
-                        ptNeighborTile = pl__terrain_get_tile_by_pos(ptTerrain, ptTile->_iXCoord + 1, ptTile->_iYCoord);
+                        ptNeighborTile = pl__terrain_get_tile_by_pos(ptTile->_iXCoord + 1, ptTile->_iYCoord);
                         if(ptNeighborTile)
                         {
                             ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
                             ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED_INTERMEDIATE;
                         }
                     }
-                    if(ptTerrain->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_WEST)
+                    if(gptTerrainCtx->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_WEST)
                     {
-                        ptNeighborTile = pl__terrain_get_tile_by_pos(ptTerrain, ptTile->_iXCoord - 1, ptTile->_iYCoord);
-                        if(ptNeighborTile)
-                        {
-                            ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
-                            ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED_INTERMEDIATE;
-                        }
-                    }
-
-                    if(ptTerrain->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_SOUTH)
-                    {
-                        ptNeighborTile = pl__terrain_get_tile_by_pos(ptTerrain, ptTile->_iXCoord, ptTile->_iYCoord + 1);
+                        ptNeighborTile = pl__terrain_get_tile_by_pos(ptTile->_iXCoord - 1, ptTile->_iYCoord);
                         if(ptNeighborTile)
                         {
                             ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
@@ -3319,9 +3282,19 @@ pl__terrain_process_height_map_tiles(plTerrain* ptTerrain, plCamera* ptCamera)
                         }
                     }
 
-                    if(ptTerrain->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_NORTH)
+                    if(gptTerrainCtx->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_SOUTH)
                     {
-                        ptNeighborTile = pl__terrain_get_tile_by_pos(ptTerrain, ptTile->_iXCoord, ptTile->_iYCoord - 1);
+                        ptNeighborTile = pl__terrain_get_tile_by_pos(ptTile->_iXCoord, ptTile->_iYCoord + 1);
+                        if(ptNeighborTile)
+                        {
+                            ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
+                            ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED_INTERMEDIATE;
+                        }
+                    }
+
+                    if(gptTerrainCtx->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_NORTH)
+                    {
+                        ptNeighborTile = pl__terrain_get_tile_by_pos(ptTile->_iXCoord, ptTile->_iYCoord - 1);
                         if(ptNeighborTile)
                         {
                             ptNeighborTile->tFlags &= ~PL_TERRAIN_TILE_FLAGS_PROCESSED;
@@ -3330,38 +3303,38 @@ pl__terrain_process_height_map_tiles(plTerrain* ptTerrain, plCamera* ptCamera)
                     }
                     ptTile->tFlags |= PL_TERRAIN_TILE_FLAGS_ACTIVE;
                 }
-                pl_sb_push(ptTerrain->sbuActiveTileIndices, iTileIndex);
+                pl_sb_push(gptTerrainCtx->sbuActiveTileIndices, iTileIndex);
             }
         }
     }
 
     // if streaming is active & pretching is complete, begin prefetch
-    if(ptTerrain->tFlags & PL_TERRAIN_FLAGS_TILE_STREAMING)
+    if(gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_TILE_STREAMING)
     {
 
-        pl__terrain_clear_cache_direction(ptTerrain, ptTerrain->tCurrentDirectionUpdate);
+        pl__terrain_clear_cache_direction(gptTerrainCtx->tCurrentDirectionUpdate);
 
-        // ptTerrain->uNewPrefetchTileCount = 0;
-        int iLeftX = ptTerrain->iCurrentXCoordMin - (int)ptTerrain->uPrefetchRadius;
-        int iTopY = ptTerrain->iCurrentYCoordMin - (int)ptTerrain->uPrefetchRadius;
-        int iFullXLength = ptTerrain->iCurrentXCoordMax - ptTerrain->iCurrentXCoordMin + 2 * (int)ptTerrain->uPrefetchRadius;
-        int iFullYLength = ptTerrain->iCurrentYCoordMax - ptTerrain->iCurrentYCoordMin + 2 * (int)ptTerrain->uPrefetchRadius;
+        // gptTerrainCtx->uNewPrefetchTileCount = 0;
+        int iLeftX = gptTerrainCtx->iCurrentXCoordMin - (int)gptTerrainCtx->uPrefetchRadius;
+        int iTopY = gptTerrainCtx->iCurrentYCoordMin - (int)gptTerrainCtx->uPrefetchRadius;
+        int iFullXLength = gptTerrainCtx->iCurrentXCoordMax - gptTerrainCtx->iCurrentXCoordMin + 2 * (int)gptTerrainCtx->uPrefetchRadius;
+        int iFullYLength = gptTerrainCtx->iCurrentYCoordMax - gptTerrainCtx->iCurrentYCoordMin + 2 * (int)gptTerrainCtx->uPrefetchRadius;
         int iBottomY = iTopY + iFullYLength;
         int iRightX = iLeftX + iFullXLength;
 
-        if(ptTerrain->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_EAST)
+        if(gptTerrainCtx->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_EAST)
         {
             for(int y = iTopY; y <= iBottomY; y++)
             {
                 // left
-                for(int x = iLeftX; x < iLeftX + (int)ptTerrain->uPrefetchRadius; x++)
+                for(int x = iLeftX; x < iLeftX + (int)gptTerrainCtx->uPrefetchRadius; x++)
                 {
-                    plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(ptTerrain, x, y);
+                    plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(x, y);
                     if(ptTile)
                     {
 
-                        int iIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, x, y); 
-                        pl__push_prefetch_tile(ptTerrain, iIndex);
+                        int iIndex = pl__terrain_get_tile_index_by_pos(x, y); 
+                        pl__push_prefetch_tile(iIndex);
 
                     }
                 }
@@ -3369,57 +3342,57 @@ pl__terrain_process_height_map_tiles(plTerrain* ptTerrain, plCamera* ptCamera)
         }
 
 
-        if(ptTerrain->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_WEST)
+        if(gptTerrainCtx->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_WEST)
         {
             for(int y = iTopY; y <= iBottomY; y++)
             {
                 // right
-                for(int x = iRightX - (int)ptTerrain->uPrefetchRadius + 1; x <= iRightX; x++)
+                for(int x = iRightX - (int)gptTerrainCtx->uPrefetchRadius + 1; x <= iRightX; x++)
                 {
-                    plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(ptTerrain, x, y);
+                    plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(x, y);
                     if(ptTile)
                     {
 
-                        int iIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, x, y); 
-                        pl__push_prefetch_tile(ptTerrain, iIndex);
+                        int iIndex = pl__terrain_get_tile_index_by_pos(x, y); 
+                        pl__push_prefetch_tile(iIndex);
 
                     }
                 }
             }
         }
 
-        if(ptTerrain->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_SOUTH)
+        if(gptTerrainCtx->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_SOUTH)
         {
             for(int x = iLeftX; x <= iLeftX + iFullXLength; x++)
             {
                 // top
-                for(int y = iTopY; y <= iTopY + (int)ptTerrain->uPrefetchRadius; y++)
+                for(int y = iTopY; y <= iTopY + (int)gptTerrainCtx->uPrefetchRadius; y++)
                 {
-                    plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(ptTerrain, x, y);
+                    plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(x, y);
                     if(ptTile)
                     {
 
-                        int iIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, x, y); 
-                        pl__push_prefetch_tile(ptTerrain, iIndex);
+                        int iIndex = pl__terrain_get_tile_index_by_pos(x, y); 
+                        pl__push_prefetch_tile(iIndex);
 
                     }
                 }
             }
         }
 
-        if(ptTerrain->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_NORTH)
+        if(gptTerrainCtx->tCurrentDirectionUpdate & PL_TERRAIN_DIRECTION_NORTH)
         {
             for(int x = iLeftX; x <= iLeftX + iFullXLength; x++)
             {
                 // bottom
-                for(int y = iBottomY - (int)ptTerrain->uPrefetchRadius + 1; y <= iBottomY; y++)
+                for(int y = iBottomY - (int)gptTerrainCtx->uPrefetchRadius + 1; y <= iBottomY; y++)
                 {
-                    plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(ptTerrain, x, y);
+                    plHeightMapTile* ptTile = pl__terrain_get_tile_by_pos(x, y);
                     if(ptTile)
                     {
 
-                        int iIndex = pl__terrain_get_tile_index_by_pos(ptTerrain, x, y); 
-                        pl__push_prefetch_tile(ptTerrain, iIndex);
+                        int iIndex = pl__terrain_get_tile_index_by_pos(x, y); 
+                        pl__push_prefetch_tile(iIndex);
 
                     }
                 }
@@ -3427,32 +3400,32 @@ pl__terrain_process_height_map_tiles(plTerrain* ptTerrain, plCamera* ptCamera)
         }
     }
 
-    ptTerrain->tCurrentDirectionUpdate = PL_TERRAIN_DIRECTION_NONE;
+    gptTerrainCtx->tCurrentDirectionUpdate = PL_TERRAIN_DIRECTION_NONE;
 
     return bTextureNeedUpdate;
 }
 
 void
-pl_terrain_reload_shaders(plTerrain* ptTerrain)
+pl_terrain_reload_shaders(void)
 {
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
-    gptGfx->queue_shader_for_deletion(ptDevice, ptTerrain->tRegularShader);
-    gptGfx->queue_shader_for_deletion(ptDevice, ptTerrain->tWireframeShader);  
-    gptGfx->queue_compute_shader_for_deletion(ptDevice, ptTerrain->tPreProcessHeightShader);  
-    gptGfx->queue_compute_shader_for_deletion(ptDevice, ptTerrain->tMipMapShader);
-    pl__terrain_create_shaders(ptTerrain);
+    gptGfx->queue_shader_for_deletion(ptDevice, gptTerrainCtx->tRegularShader);
+    gptGfx->queue_shader_for_deletion(ptDevice, gptTerrainCtx->tWireframeShader);  
+    gptGfx->queue_compute_shader_for_deletion(ptDevice, gptTerrainCtx->tPreProcessHeightShader);  
+    gptGfx->queue_compute_shader_for_deletion(ptDevice, gptTerrainCtx->tMipMapShader);
+    pl__terrain_create_shaders();
 }
 
 void
-pl_terrain_set_flags(plTerrain* ptTerrain, plTerrainFlags tFlags)
+pl_terrain_set_flags(plTerrainFlags tFlags)
 {
-    ptTerrain->tFlags = tFlags;
+    gptTerrainCtx->tFlags = tFlags;
 }
 
 plTerrainFlags
-pl_terrain_get_flags(plTerrain* ptTerrain)
+pl_terrain_get_flags(void)
 {
-    return ptTerrain->tFlags;
+    return gptTerrainCtx->tFlags;
 }
 
 //-----------------------------------------------------------------------------
@@ -3463,13 +3436,13 @@ PL_EXPORT void
 pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plTerrainI tApi = {
-        .initialize               = pl_terrain_initialize,
         .cleanup                  = pl_terrain_cleanup,
         .load_mesh                = pl_terrain_load_mesh,
         .prepare                  = pl_terrain_prepare,
         .render                   = pl_terrain_render,
         .tile_height_map          = pl_terrain_tile_height_map,
-        .create_terrain           = pl_create_terrain,
+        .initialize               = pl_initialize_terrain,
+        .finalize                 = pl_finalize_terrain,
         .reload_shaders           = pl_terrain_reload_shaders,
         .set_flags                = pl_terrain_set_flags,
         .get_flags                = pl_terrain_get_flags,
@@ -3485,13 +3458,13 @@ pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
         gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
         gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
-        gptJob           = pl_get_api_latest(ptApiRegistry, plJobI);
         gptAtomics       = pl_get_api_latest(ptApiRegistry, plAtomicsI);
         gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
         gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
         gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
         gptIOI           = pl_get_api_latest(ptApiRegistry, plIOI);
         gptThreads       = pl_get_api_latest(ptApiRegistry, plThreadsI);
+        gptJob           = pl_get_api_latest(ptApiRegistry, plJobI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

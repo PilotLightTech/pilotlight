@@ -43,7 +43,7 @@ void main()
     float fMinHeight = tObjectInfo.tInfo.fGlobalMinHeight;
     float heightfieldTexelsPerMeter = 1.0 / metersPerHeightFieldTexel;
 
-    float materialTilesPerMeter = 1.0;
+    float materialTilesPerMeter = 10.0;
 
     vec2 lowFreqTexCoord = tShaderIn.tPosition.xz * materialTilesPerMeter;
     float lowFreqNoiseValue1 = texture(sampler2D(tNoiseTexture, tMirrorSampler), lowFreqTexCoord * (1.0 / 32.0)).r;
@@ -72,6 +72,12 @@ void main()
     // vec3 diffuse = vec3(shadingPosition.y / (fMaxHeight - fMinHeight), 0.5, 0.5);
     vec3 diffuse = texture(sampler2D(tDiffuseTexture, tMirrorSampler), UV * 1000.0).rgb * 1.5;
 
+    diffuse *= min(1.2,
+                (noise(lowFreqTexCoord * 0.2, 2) * 0.5 + 0.8) *
+                (texture(sampler2D(tNoiseTexture, tMirrorSampler), lowFreqTexCoord * (1.0 / 4.5)).r   * 0.9 + 0.6) *
+                (lowFreqNoiseValue1 * 0.8 + 0.6) *
+                (lowFreqNoiseValue2 * 0.8 + 0.6));
+
     // vec3 ambient = vec3(0.1, 0.1, 0.1);
     vec3 ambient = vec3(0);
 
@@ -91,4 +97,5 @@ void main()
     // if(length(shadingPosition.xz - tObjectInfo.tInfo.tPos.xz) < tObjectInfo.tInfo.fStencilRadius * 0.5)
     //     discard;
     // outColor = vec4(UV, 0, 1.0); 
+    // outColor = vec4(shadingNormal, 1.0); 
 }

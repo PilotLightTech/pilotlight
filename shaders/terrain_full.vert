@@ -42,6 +42,7 @@ void main()
     // float fRatio0 = clamp((tObjectInfo.tInfo.tPos.y - tObjectInfo.tInfo.fGlobalMinHeight) / 100000.0, 0.0, 1.0);
     // // tPosition.y += -100.0 * (fRatio0);
     // tPosition.y += -100.0 + 100.0 * (fRatio0);
+    tPosition.y += -10.0;
 
     tShaderIn.tPosition = tPosition.xyz;
     gl_Position = tObjectInfo.tInfo.tCameraViewProjection * tPosition;

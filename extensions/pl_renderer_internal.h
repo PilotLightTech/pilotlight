@@ -340,9 +340,6 @@ typedef struct _plView
 
     // shadows
     plDirectionLightShadowData tDirectionLightShadowData;
-
-    // terrain
-    plTerrain* ptTerrain;
 } plView;
 
 typedef struct _plScene

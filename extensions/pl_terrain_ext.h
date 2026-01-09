@@ -33,9 +33,7 @@ Index of this file:
         * plImageI         (v1.x)
         * plUiI            (v1.x)
         * plGPUAllocatorsI (v1.x)
-        * plDrawBackendI   (v1.x)
         * plDrawI          (v2.0)
-        * plJobI           (v2.2)
         * plMeshI          (v0.1)
         * plMeshBuilderI   (v0.1)
         * plCameraI        (v0.2)
@@ -66,10 +64,8 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plTerrainInitMain       plTerrainInitMain;
 typedef struct _plTerrainInit       plTerrainInit;
 typedef struct _plTerrainTilingInfo plTerrainTilingInfo;
-typedef struct _plTerrain           plTerrain;
 
 // enums/flags
 typedef int plTerrainFlags;
@@ -90,56 +86,42 @@ typedef struct _plTerrainI
 {
 
     // setup/shutdown
-    void (*initialize)(plTerrainInitMain);
-    void (*cleanup)   (void);
-    void (*load_mesh) (plCommandBuffer*, const char* file, uint32_t levels, uint32_t meshBaseLodExtentTexels);
-
-    // terrains
-    plTerrain* (*create_terrain)          (plCommandBuffer*, plTerrainInit);
-    void       (*tile_height_map)         (plTerrain*, plTerrainTilingInfo);
+    void (*initialize)     (plCommandBuffer*, plTerrainInit);
+    void (*finalize)       (plCommandBuffer*);
+    void (*cleanup)        (void);
+    void (*load_mesh)      (plCommandBuffer*, const char* file, uint32_t levels, uint32_t meshBaseLodExtentTexels);
+    void (*tile_height_map)(uint32_t count, plTerrainTilingInfo*);
     
     // per frame
-    void (*prepare) (plTerrain*, plCamera*, plCommandBuffer*);
-    void (*render) (plTerrain*, plCamera*, plRenderEncoder*);
+    void (*prepare)(plCamera*, plCommandBuffer*);
+    void (*render) (plCamera*, plRenderEncoder*);
 
     // debugging helpers mostly
-    void           (*set_flags)(plTerrain*, plTerrainFlags);
-    plTerrainFlags (*get_flags)(plTerrain*);
-    void           (*reload_shaders) (plTerrain*);
+    void           (*set_flags)     (plTerrainFlags);
+    plTerrainFlags (*get_flags)     (void);
+    void           (*reload_shaders)(void);
 } plTerrainI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plTerrainInitMain
-{
-    plDevice* ptDevice;
-    plRenderPassLayoutHandle* ptRenderPassLayoutHandle;
-    uint32_t uSubpassIndex;
-} plTerrainInitMain;
-
 typedef struct _plTerrainInit
 {
-    float    fMetersPerTexel;
-    float    fMaxElevation;
-    float    fMinElevation;
-    plVec2   tMinPosition;
-    plVec2   tMaxPosition;
-
-    // low res map
-    char   pcLowResolutionMap[128];
-    float  fLowResMetersPerTexel;
-    float  fLowResMaxElevation;
-    float  fLowResMinElevation;
-    plVec2 tLowResMinWorldPosition;
-    plVec2 tLowResMaxWorldPosition;
+    plDevice*                 ptDevice;
+    plRenderPassLayoutHandle* ptRenderPassLayoutHandle;
+    uint32_t                  uSubpassIndex;
+    float                     fMetersPerTexel;
+    float                     fMaxElevation;
+    float                     fMinElevation;
+    plVec2                    tMinPosition;
+    plVec2                    tMaxPosition;
 } plTerrainInit;
 
 typedef struct _plTerrainTilingInfo
 {
     char   pcFile[64];
-    plVec2 tOrigin;    // world coordinates
+    plVec2 tOrigin; // world coordinates
     float  fMinHeight;
     float  fMaxHeight;
 } plTerrainTilingInfo;
