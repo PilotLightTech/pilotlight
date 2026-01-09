@@ -66,6 +66,7 @@ extension_headers = [
     "pl_dxt_ext.h",
     "pl_datetime_ext.h",
     "pl_material_ext.h",
+    "pl_terrain_ext.h",
 ]
 
 # extension binaries
@@ -108,6 +109,7 @@ extensions = [
     "pl_dxt_ext",
     "pl_material_ext",
     "pl_script_ext",
+    "pl_terrain_ext",
     "pl_ui_ext"
 ]
 

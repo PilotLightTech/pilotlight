@@ -51,6 +51,7 @@ static const struct _plGizmoI*             gptGizmo         = 0;
 static const struct _plPhysicsI*           gptPhysics       = 0;
 static const struct _plAnimationI*         gptAnimation     = 0;
 static const struct _plMeshI*              gptMesh          = 0;
+static const struct _plMeshBuilderI*       gptMeshBuilder   = 0;
 static const struct _plShaderVariantI*     gptShaderVariant = 0;
 static const struct _plVfsI*               gptVfs           = 0;
 static const struct _plCompressI*          gptCompress      = 0;
@@ -58,6 +59,7 @@ static const struct _plDdsI*               gptDds           = 0;
 static const struct _plDxtI*               gptDxt           = 0;
 static const struct _plMaterialI*          gptMaterial      = 0;
 static const struct _plScriptI*            gptScript        = 0;
+static const struct _plTerrainI*           gptTerrain       = 0;
 
 // context
 static struct _plIO* gptIO = 0;

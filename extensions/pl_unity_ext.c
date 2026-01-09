@@ -55,6 +55,7 @@ Index of this file:
 #include "pl_dxt_ext.c"
 #include "pl_material_ext.c"
 #include "pl_script_ext.c"
+#include "pl_terrain_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -98,6 +99,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptTools             = pl_get_api_latest(ptApiRegistry, plToolsI);
     gptAnimation         = pl_get_api_latest(ptApiRegistry, plAnimationI);
     gptMesh              = pl_get_api_latest(ptApiRegistry, plMeshI);
+    gptMeshBuilder       = pl_get_api_latest(ptApiRegistry, plMeshBuilderI);
     gptShaderVariant     = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
     gptVfs               = pl_get_api_latest(ptApiRegistry, plVfsI);
     gptPak               = pl_get_api_latest(ptApiRegistry, plPakI);
@@ -107,6 +109,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptDxt               = pl_get_api_latest(ptApiRegistry, plDxtI);
     gptMaterial          = pl_get_api_latest(ptApiRegistry, plMaterialI);
     gptScript            = pl_get_api_latest(ptApiRegistry, plScriptI);
+    gptTerrain           = pl_get_api_latest(ptApiRegistry, plTerrainI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -149,6 +152,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_dxt_ext(ptApiRegistry, bReload);
     pl_load_material_ext(ptApiRegistry, bReload);
     pl_load_script_ext(ptApiRegistry, bReload);
+    pl_load_terrain_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -192,6 +196,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_dxt_ext(ptApiRegistry, bReload);
     pl_unload_material_ext(ptApiRegistry, bReload);
     pl_unload_script_ext(ptApiRegistry, bReload);
+    pl_unload_terrain_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------

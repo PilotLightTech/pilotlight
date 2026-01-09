@@ -1,0 +1,96 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+#include "pl_shader_interop_terrain.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] bind group 0
+//-----------------------------------------------------------------------------
+
+layout (set = 0, binding = 0, r16ui) uniform readonly uimage2D inputImage;
+layout (set = 0, binding = 1, rgba32f) uniform writeonly image2D outputImage;
+
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
+{
+    plTerrainPrepDynamicData tInfo;
+} tObjectInfo;
+
+//-----------------------------------------------------------------------------
+// [SECTION] entry
+//-----------------------------------------------------------------------------
+
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void main() 
+{
+
+    ivec2 image_size = imageSize(inputImage);
+    const float fNormFactor = 65355.0;
+
+    float sourceMultiplyFirst = tObjectInfo.tInfo.fMaxHeight - tObjectInfo.tInfo.fMinHeight;
+    float sourceAddSecond = tObjectInfo.tInfo.fMinHeight;
+
+    vec4 writeMultiplyFirst = vec4(1.0) / vec4(2.0, 2.0, 2.0, tObjectInfo.tInfo.fGlobalMaxHeight - tObjectInfo.tInfo.fGlobalMinHeight);
+    vec4 writeAddSecond = -vec4(-1.0, -1.0, -1.0, tObjectInfo.tInfo.fGlobalMinHeight) / vec4(2.0, 2.0, 2.0, tObjectInfo.tInfo.fGlobalMaxHeight - tObjectInfo.tInfo.fGlobalMinHeight);
+
+    const int iXCoord = int(gl_GlobalInvocationID.x);
+    const int iYCoord = int(gl_GlobalInvocationID.y);
+
+
+    const ivec2 tCenter = ivec2(iXCoord + tObjectInfo.tInfo.iXOffset, iYCoord + tObjectInfo.tInfo.iYOffset);
+    vec4 tResult = vec4(0.0, 0.0, 0.0, 0.0);
+    // tResult.w = imageLoad(inputImage, tCenter).r;
+    tResult.w = (imageLoad(inputImage, tCenter).r / fNormFactor) * sourceMultiplyFirst + sourceAddSecond;
+
+    // Radius in fine texels over which we average normals along axes
+    const int r = 4;
+
+    // Radius in fine texels over which we average normals orthogonal to the axes 
+    const int s = 2;
+
+    ivec2 maxCoord = image_size - 1;
+    ivec2 minCoord = ivec2(0);
+
+    // Average height difference
+    vec3 delta = vec3(0.0);
+
+    float weightSum = 0.0;
+    for (int shift = -s; shift < +s; ++shift)
+    {
+        float weight = 1.0 / (abs(shift) + 1.0);
+        weightSum += weight;
+        for (int d = 1; d <= r; ++d)
+        {
+            ivec2 coord0 = tCenter + ivec2(d, shift) * tObjectInfo.tInfo.iNormalCalcReach;
+            ivec2 coord1 = tCenter + ivec2(shift, d) * tObjectInfo.tInfo.iNormalCalcReach;
+            ivec2 coord2 = tCenter - ivec2(d, shift) * tObjectInfo.tInfo.iNormalCalcReach;
+            ivec2 coord3 = tCenter - ivec2(shift, d) * tObjectInfo.tInfo.iNormalCalcReach;
+
+            coord0.x = coord0.x % image_size.x;
+            coord0.y = coord0.y % image_size.y;
+            coord1.x = coord1.x % image_size.x;
+            coord1.y = coord1.y % image_size.y;
+            coord2.x = coord2.x % image_size.x;
+            coord2.y = coord2.y % image_size.y;
+            coord3.x = coord3.x % image_size.x;
+            coord3.y = coord3.y % image_size.y;
+
+            coord0 = clamp(coord0, minCoord, maxCoord);
+            coord1 = clamp(coord1, minCoord, maxCoord);
+            coord2 = clamp(coord2, minCoord, maxCoord);
+            coord3 = clamp(coord3, minCoord, maxCoord);
+
+            delta.x += ((imageLoad(inputImage, coord0).r / fNormFactor) - (imageLoad(inputImage, coord2).r / fNormFactor)) * weight;
+            delta.z += ((imageLoad(inputImage, coord1).r / fNormFactor) - (imageLoad(inputImage, coord3).r / fNormFactor)) * weight;
+        }
+    }
+    delta.xz *= sourceMultiplyFirst / (float(r) * weightSum);
+
+    tResult.xyz = normalize(cross(
+        vec3(0.0, delta.z, 2.0 * tObjectInfo.tInfo.fMetersPerHeightFieldTexel * r),
+        vec3(2.0 * tObjectInfo.tInfo.fMetersPerHeightFieldTexel * r, delta.x, 0)));
+    
+    tResult = tResult * writeMultiplyFirst + writeAddSecond;
+
+    imageStore(outputImage, tCenter, tResult);
+}
