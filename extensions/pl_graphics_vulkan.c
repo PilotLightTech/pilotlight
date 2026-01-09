@@ -3020,7 +3020,7 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
 
     if (!bLayerFound)
     {
-        PL_ASSERT("Can't find requested layers");
+        PL_ASSERT(false && "Can't find requested layers");
         if (ptAvailableLayers)
             PL_FREE(ptAvailableLayers);
         return false;
