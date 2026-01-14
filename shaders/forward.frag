@@ -791,8 +791,8 @@ void main()
 
         if(tShaderDebugMode == PL_SHADER_DEBUG_SHADING_NORMAL)
         {
-            // outColor = vec4((n + 1.0) / 2.0, tBaseColor.a);
-            outColor = vec4(vec3(albedoSheenScaling), tBaseColor.a);
+            outColor = vec4((n + 1.0) / 2.0, tBaseColor.a);
+            // outColor = vec4(vec3(albedoSheenScaling), tBaseColor.a);
         }
 
         if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_NORMAL)

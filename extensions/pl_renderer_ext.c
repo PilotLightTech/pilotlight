@@ -2346,6 +2346,10 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
 
     plMeshComponent* ptMesh = gptECS->get_component(ptScene->ptComponentLibrary, gptMesh->get_ecs_type_key_mesh(), ptScene->tUnitSphereMesh);
 
+    pl_sb_reset(ptScene->sbtVertexPosBuffer);
+    pl_sb_reset(ptScene->sbuIndexBuffer);
+    ptScene->uNextTransformIndex = 0;
+
     const uint32_t uStartIndex = pl_sb_size(ptScene->sbtVertexPosBuffer);
     const uint32_t uIndexStart = pl_sb_size(ptScene->sbuIndexBuffer);
 
