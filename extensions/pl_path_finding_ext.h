@@ -64,6 +64,7 @@ Index of this file:
 typedef struct _plPathFindingVoxelGrid plPathFindingVoxelGrid;
 typedef struct _plPathFindingQuery     plPathFindingQuery;
 typedef struct _plPathFindingResult    plPathFindingResult;
+typedef struct _plPathNode             plPathNode;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api structs
@@ -109,19 +110,19 @@ typedef struct _plPathFindingVoxelGrid
 
 typedef struct _plPathFindingQuery
 {
-    plVec3   tStart;                // start position in world space
-    plVec3   tGoal;                 // goal position in world space
-    uint32_t uAgentWidth;           // agent width in voxels (for clearance)
-    uint32_t uAgentHeight;          // agent height in voxels (for clearance)
-    bool     bFlying;               // true = flying agent, false = ground agent
+    plVec3   tStart;       // start position in world space
+    plVec3   tGoal;        // goal position in world space
+    uint32_t uAgentWidth;  // agent width in voxels (for clearance)
+    uint32_t uAgentHeight; // agent height in voxels (for clearance)
+    bool     bFlying;      // true = flying agent, false = ground agent
 } plPathFindingQuery;
 
 typedef struct _plPathFindingResult
 {
-    plVec3*  atWaypoints;           // array of waypoint positions in world space
-    uint32_t uWaypointCount;        // number of waypoints in path
-    bool     bSuccess;              // true if path was found
-    float    fPathLength;           // total path length in world units
+    plVec3*  atWaypoints;    // array of waypoint positions in world space
+    uint32_t uWaypointCount; // number of waypoints in path
+    bool     bSuccess;       // true if path was found
+    float    fPathLength;    // total path length in world units
 } plPathFindingResult;
 
 //-----------------------------------------------------------------------------
