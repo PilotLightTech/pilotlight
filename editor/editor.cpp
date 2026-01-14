@@ -1008,8 +1008,15 @@ pl__show_editor_window(plAppData* ptAppData)
                     "nebulae",
                     "planet",
                     "ringed_planet",
+                    "hay_bales",
+                    "sunset",
+                    "sunset2",
+                    "sunset3",
+                    "sunrise",
+                    "sky",
+                    "country_road",
                 };
-                bool abCombo[17] = {0};
+                bool abCombo[24] = {0};
                 abCombo[uComboSelect] = true;
                 if(ImGui::BeginCombo("Environment", apcEnvMaps[uComboSelect]))
                 {
@@ -1060,7 +1067,7 @@ pl__show_editor_window(plAppData* ptAppData)
                     {
                         char* sbcData = nullptr;
                         pl_sb_sprintf(sbcData, "/environments/%s.hdr", apcEnvMaps[uComboSelect]);
-                        gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, sbcData, 1024);
+                        gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, sbcData, 1024 * 4);
                         pl_sb_free(sbcData);
                     }
                     plIO* ptIO = gptIO->get_io();

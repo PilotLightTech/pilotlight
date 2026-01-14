@@ -471,7 +471,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
     }
 
-    gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/helipad.hdr", 1024);
+    gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/sky.hdr", 1024);
 
     plModelLoaderData tLoaderData0 = {0};
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
