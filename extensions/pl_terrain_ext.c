@@ -1404,47 +1404,48 @@ pl_finalize_terrain(plCommandBuffer* ptCmdBuffer)
             uint32_t uDstRowStart = (uint32_t)((ptTile->tWorldPos.y - gptTerrainCtx->tMinWorldPosition.y) / gptTerrainCtx->fLowResMetersPerTexel);
             uint32_t uDstColStart = (uint32_t)((ptTile->tWorldPos.x - gptTerrainCtx->tMinWorldPosition.x) / gptTerrainCtx->fLowResMetersPerTexel);
 
-            uint32_t uDstRowCount = (uint32_t)gptTerrainCtx->uTileSize + uDstRowStart;
-            uint32_t uDstColCount = (uint32_t)gptTerrainCtx->uTileSize + uDstColStart;
+            int iDstHorizontalPixels = (int)(gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uHorizontalTiles);
+            int iDstVerticalPixels = (int)(gptTerrainCtx->uHeightMapResolution / gptTerrainCtx->uVerticalTiles);
 
-            int iHorizontalPixels = (int)(gptTerrainCtx->fLowResMetersPerTexel / gptTerrainCtx->fMetersPerTexel);
-            int iVerticalPixels = (int)(gptTerrainCtx->fLowResMetersPerTexel / gptTerrainCtx->fMetersPerTexel);
-            float fUvxInc = (float)iHorizontalPixels / (float)gptTerrainCtx->uTileSize;
-            float fUvyInc = (float)iVerticalPixels / (float)gptTerrainCtx->uTileSize;
+            uint32_t uDstRowCount = (uint32_t)iDstVerticalPixels + uDstRowStart;
+            uint32_t uDstColCount = (uint32_t)iDstHorizontalPixels + uDstColStart;
+
+            float fUvxInc = 1.0f / (float)gptTerrainCtx->uTileSize;
+            float fUvyInc = 1.0f / (float)gptTerrainCtx->uTileSize;
             for(uint32_t uDstRow = uDstRowStart; uDstRow < uDstRowCount; uDstRow++)
             {
-                float fUvy = (float)(uDstRow - uDstRowStart) / (float)gptTerrainCtx->uTileSize;
+                float fUvy = (0.5f / (float)(iDstVerticalPixels)) + (float)(uDstRow - uDstRowStart) / (float)iDstVerticalPixels;
                 for(uint32_t uDstCol = uDstColStart; uDstCol < uDstColCount; uDstCol++)
                 {
 
-                    float fUvx = (float)(uDstCol - uDstColStart) / (float)gptTerrainCtx->uTileSize;
+                    float fUvx = (0.5f / (float)(iDstHorizontalPixels)) + (float)(uDstCol - uDstColStart) / (float)iDstHorizontalPixels;
 
                     uint32_t uResult = 0;
                     uint32_t uSumCount = 0;
-                    for(int x = 0; x < iHorizontalPixels; x++)
+                    for(int x = 0; x < 4; x++)
                     {
-                        for(int y = 0; y < iVerticalPixels; y++)
+                        for(int y = 0; y < 4; y++)
                         {
-                            float fUvxTap = fUvx + x * fUvxInc - fUvxInc * (iHorizontalPixels - 1);
-                            float fUvyTap = fUvy + y * fUvyInc - fUvyInc * (iVerticalPixels - 1);
+                            float fUvxTap = fUvx + x * fUvxInc - fUvxInc * (4 - 1);
+                            float fUvyTap = fUvy + y * fUvyInc - fUvyInc * (4 - 1);
 
 
-                            if(fUvxTap < 0.0f || fUvxTap > 1.0f || fUvyTap < 0.0f || fUvyTap > 1.0f)
+                            if(fUvxTap < 0.0f || fUvxTap >= 1.0f || fUvyTap < 0.0f || fUvyTap >= 1.0f)
                             {
                             }
                             else
                             {
                                 uint32_t uSrcRow = (uint32_t)(fUvyTap * (float)gptTerrainCtx->uTileSize);
                                 uint32_t uSrcCol = (uint32_t)(fUvxTap * (float)gptTerrainCtx->uTileSize);
-                                // uResult += (uint32_t)puOriginalData[uSrcRow * gptTerrainCtx->uTileSize + uSrcCol];
-                                uResult = pl_max((uint32_t)puOriginalData[uSrcRow * gptTerrainCtx->uTileSize + uSrcCol], uResult);
+                                uResult += (uint32_t)puOriginalData[uSrcRow * gptTerrainCtx->uTileSize + uSrcCol];
+                                // uResult = pl_max((uint32_t)puOriginalData[uSrcRow * gptTerrainCtx->uTileSize + uSrcCol], uResult);
                                 uSumCount++;
                             }
                         }
                     }
                     // TODO: make sample technique option
-                    // if(uSumCount > 0)
-                    //     uResult /= uSumCount;
+                    if(uSumCount > 0)
+                        uResult /= uSumCount;
 
                     puDestData[uDstRow * gptTerrainCtx->uHeightMapResolution + uDstCol] = (uint16_t)uResult;
                 }
