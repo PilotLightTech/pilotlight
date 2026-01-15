@@ -1,5 +1,5 @@
 /*
-   example_pf_ext.c
+   example_pf_ext.c 
      - demonstrates pathfinding extension
      - minimal visualization only
 */
@@ -41,7 +41,7 @@ Index of this file:
 #define GRID_SIZE_Z 10
 #define VOXEL_SIZE  1.0f
 
-#define VIEW_OFFSET_X 100.0f
+#define VIEW_OFFSET_X 200.0f
 #define VIEW_OFFSET_Y 100.0f
 #define CELL_DRAW_SIZE 40.0f
 
@@ -51,12 +51,16 @@ Index of this file:
 
 typedef struct _plAppData
 {
+    // pl Core
     plWindow* ptWindow;
 
+    // draw ext
     plDrawList2D*  ptDrawlist;
     plDrawLayer2D* ptLayer;
 
+    // path finding ext
     plPathFindingVoxelGrid* ptVoxelGrid;
+    plPathFindingResult     tPathResult; 
 
 } plAppData;
 
@@ -142,6 +146,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 5, 0, 5, true);
     gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 5, 0, 6, true);
 
+    // create pathfinding query
+    plPathFindingQuery tQuery = {0};
+    tQuery.tStart = (plVec3){1.5f, 0.5f, 2.5f};  // world position of start (voxel 1,0,2)
+    tQuery.tGoal = (plVec3){8.5f, 0.5f, 7.5f};   // world position of goal (voxel 8,0,7)
+
+    // find path
+    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &tQuery);
+
     return ptAppData;
 }
 
@@ -155,8 +167,8 @@ pl_app_shutdown(plAppData* ptAppData)
     plDevice* ptDevice = gptStarter->get_device();
     gptGfx->flush_device(ptDevice);
 
-    if(ptAppData->ptVoxelGrid)
-        gptPathFinding->destroy_voxel_grid(ptAppData->ptVoxelGrid);
+    gptPathFinding->destroy_voxel_grid(ptAppData->ptVoxelGrid);
+    gptPathFinding->free_result(&ptAppData->tPathResult);
 
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
@@ -185,7 +197,7 @@ pl_app_update(plAppData* ptAppData)
 
     gptDraw->new_frame();
 
-    // draw grid cells (xz plane, top-down view)
+    // draw grid cells (xz plane, top-down view, height not used for example)
     for(uint32_t x = 0; x < GRID_SIZE_X; x++)
     {
         for(uint32_t z = 0; z < GRID_SIZE_Z; z++)
@@ -198,7 +210,7 @@ pl_app_update(plAppData* ptAppData)
             plVec2 tMin = {fScreenX, fScreenY};
             plVec2 tMax = {fScreenX + CELL_DRAW_SIZE, fScreenY + CELL_DRAW_SIZE};
 
-            // draw filled rect if occupied
+            // draw filled rect if occupied by obstacle
             if(bOccupied)
             {
                 gptDraw->add_rect_filled(ptAppData->ptLayer, tMin, tMax, 
@@ -208,6 +220,24 @@ pl_app_update(plAppData* ptAppData)
             // draw grid outline
             gptDraw->add_rect(ptAppData->ptLayer, tMin, tMax, 
                 (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_GREY});
+        }
+    }
+
+    // draw path if found
+    if(ptAppData->tPathResult.bSuccess)
+    {
+        for(uint32_t i = 0; i < ptAppData->tPathResult.uWaypointCount - 1; i++)
+        {
+            // convert world position to screen position
+            float fX0 = VIEW_OFFSET_X + ptAppData->tPathResult.atWaypoints[i].x * CELL_DRAW_SIZE;
+            float fY0 = VIEW_OFFSET_Y + ptAppData->tPathResult.atWaypoints[i].z * CELL_DRAW_SIZE;
+
+            float fX1 = VIEW_OFFSET_X + ptAppData->tPathResult.atWaypoints[i+1].x * CELL_DRAW_SIZE;
+            float fY1 = VIEW_OFFSET_Y + ptAppData->tPathResult.atWaypoints[i+1].z * CELL_DRAW_SIZE;
+
+            // draw line between waypoints
+            gptDraw->add_line(ptAppData->ptLayer, (plVec2){fX0, fY0}, (plVec2){fX1, fY1}, 
+                    (plDrawLineOptions){.fThickness = 3.0f, .uColor = PL_COLOR_32_GREEN});
         }
     }
 

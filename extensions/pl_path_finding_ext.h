@@ -20,7 +20,8 @@ Index of this file:
 
 /*
    A standalone, voxel-based 3D pathfinding extension for Pilot Light.
-   Inspired by Wicked Engine's voxel pathfinding implementation.
+   Inspired by Wicked Engine's voxel pathfinding implementation, also
+   inspired by Sebastian Lague "A* Pathfinding" series on Youtube
    
    Design Goals:
    - Zero external dependencies (except pilot light math)
@@ -53,8 +54,8 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <stdint.h>
-#include <stdbool.h>
+#include <stdint.h>  // uint
+#include <stdbool.h> // bool
 #include "pl_math.h"
 
 //-----------------------------------------------------------------------------
@@ -99,13 +100,13 @@ typedef struct _plPathFindingI
 
 typedef struct _plPathFindingVoxelGrid
 {
-    uint32_t* apOccupancyBits;      // bit array: 1 = occupied, 0 = empty
-    uint32_t  uDimX;                // grid dimensions in voxels
+    uint32_t* apOccupancyBits; // bit array: 1 = occupied, 0 = empty
+    uint32_t  uDimX;           // grid dimensions in voxels
     uint32_t  uDimY;
     uint32_t  uDimZ;
-    float     fVoxelSize;           // size of each voxel in world units
-    plVec3    tOrigin;              // world space origin (bottom left back corner)
-    uint32_t  uBitArraySize;        // size of bit array in uint32_t elements
+    float     fVoxelSize;      // size of each voxel in world units
+    plVec3    tOrigin;         // world space origin (bottom left back corner)
+    uint32_t  uBitArraySize;   // size of bit array in uint32_t elements
 } plPathFindingVoxelGrid;
 
 typedef struct _plPathFindingQuery
