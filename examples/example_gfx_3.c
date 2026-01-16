@@ -17,7 +17,7 @@ PHASE 1: BASIC IMPLEMENTATION ✓
     [x] 2D top-down visualization example
 
 PHASE 2: CORE OPTIMIZATIONS
-    [ ] Min-heap priority queue
+    [x] Min-heap priority queue
         - Replace O(n) pop with O(log n) heap pop
         - Biggest performance gain for smallest effort
     
