@@ -5,6 +5,113 @@
 */
 
 /*
+=================================================================================
+PATHFINDING EXTENSION - DEVELOPMENT ROADMAP
+=================================================================================
+
+PHASE 1: BASIC IMPLEMENTATION ✓
+    [x] Voxel grid management (create, destroy, set, query)
+    [x] A* pathfinding algorithm with diagonal movement
+    [x] Path reconstruction
+    [x] Coordinate conversion utilities
+    [x] 2D top-down visualization example
+
+PHASE 2: CORE OPTIMIZATIONS
+    [ ] Min-heap priority queue
+        - Replace O(n) pop with O(log n) heap pop
+        - Biggest performance gain for smallest effort
+    
+    [ ] Parent array for path reconstruction
+        - Replace O(n) parent search with O(1) index lookup
+        - Store parents in array indexed by voxel index
+    
+    [ ] Hash map for open set lookup - OPTIONAL
+        - Replace O(n) pl_pq_find with O(1) hash lookup
+
+PHASE 3: 3D VISUALIZATION - SIMPLE GRID
+    [ ] Create new example: example_pf_ext_3d.c
+    
+    [ ] Draw voxel grid as 3D cubes
+        - Occupied voxels: red cubes
+        - Empty voxels: wireframe or not drawn
+    
+    [ ] Setup camera system
+        - Perspective camera looking at grid from angle
+        - Fixed position initially
+    
+    [ ] Draw path as 3D lines
+        - Connect waypoints with colored lines
+    
+    [ ] Add basic camera controls
+        - Rotate around grid (mouse drag)
+        - Zoom in/out (mouse wheel)
+        - Pan (WASD or arrow keys)
+    
+    [ ] Test with larger grids
+        - Verify performance is acceptable
+
+PHASE 4: MOUSE INTERACTION
+    [ ] Implement ray casting from camera
+        - Screen click -> ray in 3D world
+        - Ray-voxel intersection test
+    
+    [ ] Click to set goal
+        - Left click: set new goal
+        - Recalculate path in real-time
+    
+    [ ] Click to toggle obstacles
+        - Right click: add/remove obstacles
+        - Re-path automatically
+
+PHASE 5: MESH VOXELIZATION
+    [ ] Study voxelization algorithms
+        - Conservative rasterization
+        - Triangle-AABB intersection
+    
+    [ ] Implement pl_voxelize_mesh_impl()
+        - Convert mesh triangles to occupied voxels
+    
+    [ ] Test with simple meshes first
+        - Cube, sphere, cylinder
+        - Visualize voxelized result
+    
+    [ ] Load and voxelize Sponza
+        - Voxelize at appropriate resolution
+        - Balance detail vs performance
+    
+    [ ] Visualize voxelized Sponza
+        - Show both mesh and voxel grid
+        - Toggle between views
+
+PHASE 6: INTEGRATION & POLISH
+    [ ] Pathfinding on Sponza
+        - Click to set start/goal on mesh
+        - Draw path overlaid on geometry
+    
+    [ ] Path smoothing - OPTIONAL
+        - String pulling algorithm
+        - Reduce waypoint count
+    
+    [ ] Dynamic obstacles - OPTIONAL
+        - Update voxel grid at runtime
+        - Re-path when obstacles move
+    
+    [ ] Animated agent - OPTIONAL
+        - Simple model following waypoints
+    
+    [ ] Performance profiling
+        - Measure pathfinding time
+        - Optimize bottlenecks
+
+PHASE 7: ADVANCED FEATURES - OPTIONAL
+    [ ] Jump Point Search optimization
+    [ ] Hierarchical pathfinding
+    [ ] Multi-threading
+    [ ] Navigation mesh (navmesh)
+
+*/
+
+/*
 Index of this file:
 // [SECTION] includes
 // [SECTION] config
@@ -37,13 +144,13 @@ Index of this file:
 // [SECTION] config
 //-----------------------------------------------------------------------------
 
-#define GRID_SIZE_X 10
-#define GRID_SIZE_Z 10
+#define GRID_SIZE_X 20
+#define GRID_SIZE_Z 20
 #define VOXEL_SIZE  1.0f
 
 #define VIEW_OFFSET_X 200.0f
 #define VIEW_OFFSET_Y 100.0f
-#define CELL_DRAW_SIZE 40.0f
+#define CELL_DRAW_SIZE 20.0f
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -139,17 +246,60 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plVec3 tOrigin = {0.0f, 0.0f, 0.0f};
     // height = 1 for now (just ground plane)
     ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(GRID_SIZE_X, 1, GRID_SIZE_Z, VOXEL_SIZE, tOrigin);
+    
+    // hardcoded obstacles - solvable maze structure
+    for(uint32_t i = 0; i < GRID_SIZE_Z; i++)
+    {
+        gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 0, 0, i, true);
+        gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 19, 0, i, true);
+    }
+    for(uint32_t j = 0; j < GRID_SIZE_X; j++)
+    {
+        gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, j, 0, 0, true);
+        gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, j, 0, 19, true);
+    }
+    // simple maze - creates winding corridors
+    // vertical wall 1 - gap at z=5
+    for(uint32_t z = 2; z < 15; z++)
+    {
+        if(z != 5)
+            gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 5, 0, z, true);
+    }
 
-    // hardcoded obstacles - simple wall
-    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 5, 0, 3, true);
-    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 5, 0, 4, true);
-    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 5, 0, 5, true);
-    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 5, 0, 6, true);
+    // horizontal wall 1 - gap at x=8
+    for(uint32_t x = 5; x < 18; x++)
+    {
+        if(x != 8)
+            gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, x, 0, 8, true);
+    }
 
-    // create pathfinding query
+    // vertical wall 2 - gap at z=12
+    for(uint32_t z = 8; z < 18; z++)
+    {
+        // if(z != 12)
+            gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 12, 0, z, true);
+    }
+
+    // horizontal wall 2 - gap at x=15
+    for(uint32_t x = 2; x < 12; x++)
+    {
+        if(x != 6)
+            gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, x, 0, 15, true);
+    }
+
+    // scattered blocks to add complexity
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 3, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 4, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 10, 0, 5, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 10, 0, 6, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 15, 0, 15, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 16, 0, 15, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 18, 0, 8, true);
+    
+    // create pathfinding query - guaranteed connected path exists
     plPathFindingQuery tQuery = {0};
-    tQuery.tStart = (plVec3){1.5f, 0.5f, 2.5f};  // world position of start (voxel 1,0,2)
-    tQuery.tGoal = (plVec3){8.5f, 0.5f, 7.5f};   // world position of goal (voxel 8,0,7)
+    tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};   // top-left corner (inside outer walls)
+    tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};  // bottom-right corner (inside outer walls)
 
     // find path
     ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &tQuery);
@@ -243,12 +393,12 @@ pl_app_update(plAppData* ptAppData)
 
     // hardcoded start position (1, 0, 2)
     float fStartX = VIEW_OFFSET_X + 1.0f * CELL_DRAW_SIZE + CELL_DRAW_SIZE * 0.5f;
-    float fStartY = VIEW_OFFSET_Y + 2.0f * CELL_DRAW_SIZE + CELL_DRAW_SIZE * 0.5f;
+    float fStartY = VIEW_OFFSET_Y + 1.0f * CELL_DRAW_SIZE + CELL_DRAW_SIZE * 0.5f;
     gptDraw->add_circle_filled(ptAppData->ptLayer, (plVec2){fStartX, fStartY}, CELL_DRAW_SIZE * 0.3f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_BLUE});
 
     // hardcoded goal position (8, 0, 7)
-    float fGoalX = VIEW_OFFSET_X + 8.0f * CELL_DRAW_SIZE + CELL_DRAW_SIZE * 0.5f;
-    float fGoalY = VIEW_OFFSET_Y + 7.0f * CELL_DRAW_SIZE + CELL_DRAW_SIZE * 0.5f;
+    float fGoalX = VIEW_OFFSET_X + 18.0f * CELL_DRAW_SIZE + CELL_DRAW_SIZE * 0.5f;
+    float fGoalY = VIEW_OFFSET_Y + 18.0f * CELL_DRAW_SIZE + CELL_DRAW_SIZE * 0.5f;
     gptDraw->add_circle_filled(ptAppData->ptLayer, (plVec2){fGoalX, fGoalY}, CELL_DRAW_SIZE * 0.3f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_YELLOW});
 
     // submit drawing

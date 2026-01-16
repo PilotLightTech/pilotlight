@@ -200,7 +200,6 @@ pl_pq_is_empty(plPriorityQueue* ptQueue)
     return ptQueue->uCount == 0;
 }
 
-// TODO: needs to be optimized later 
 static void
 pl_pq_push(plPriorityQueue* ptQueue, plPathNode tNode)
 {
@@ -219,29 +218,70 @@ pl_pq_push(plPriorityQueue* ptQueue, plPathNode tNode)
     
     // add node to end of array
     ptQueue->atNodes[ptQueue->uCount] = tNode;
+
+    // bubble up 
+    uint32_t uCurrentIndex = ptQueue->uCount;
+    while(uCurrentIndex > 0)
+    {
+        uint32_t uParentIndex = (uCurrentIndex - 1) / 2;
+        
+        if(ptQueue->atNodes[uCurrentIndex].fFCost < ptQueue->atNodes[uParentIndex].fFCost)
+        {
+            // swap with parent
+            plPathNode temp = ptQueue->atNodes[uCurrentIndex];
+            ptQueue->atNodes[uCurrentIndex] = ptQueue->atNodes[uParentIndex];
+            ptQueue->atNodes[uParentIndex] = temp;
+            
+            uCurrentIndex = uParentIndex;  // move up
+        }
+        else
+        {
+            break;  // heap property satisfied
+        }
+    }
+
     ptQueue->uCount++;
 }
 
 static plPathNode
 pl_pq_pop(plPriorityQueue* ptQueue)
 {
-    // find node with lowest f-cost
-    uint32_t uLowestIndex = 0;
-    float fLowestCost = ptQueue->atNodes[0].fFCost;
+    // root is minimum
+    plPathNode tResult = ptQueue->atNodes[0];
     
-    for(uint32_t i = 1; i < ptQueue->uCount; i++)
-    {
-        if(ptQueue->atNodes[i].fFCost < fLowestCost)
-        {
-            fLowestCost = ptQueue->atNodes[i].fFCost;
-            uLowestIndex = i;
-        }
-    }
-    plPathNode tResult = ptQueue->atNodes[uLowestIndex];
-    
-    // simple swap delete
-    ptQueue->atNodes[uLowestIndex] = ptQueue->atNodes[ptQueue->uCount - 1];
+    // move last element to root
     ptQueue->uCount--;
+    ptQueue->atNodes[0] = ptQueue->atNodes[ptQueue->uCount];
+    
+    // bubble down to maintain heap property
+    uint32_t uCurrentIndex = 0;
+    while(true)
+    {
+        uint32_t uLeftChild = 2 * uCurrentIndex + 1;
+        uint32_t uRightChild = 2 * uCurrentIndex + 2;
+        uint32_t uSmallest = uCurrentIndex;
+        
+        // find smallest of current, left, right
+        if(uLeftChild < ptQueue->uCount && ptQueue->atNodes[uLeftChild].fFCost < ptQueue->atNodes[uSmallest].fFCost)
+        {
+            uSmallest = uLeftChild;
+        }
+        if(uRightChild < ptQueue->uCount && ptQueue->atNodes[uRightChild].fFCost < ptQueue->atNodes[uSmallest].fFCost)
+        {
+            uSmallest = uRightChild;
+        }
+        
+        // if current is smallest, done
+        if(uSmallest == uCurrentIndex)
+            break;
+        
+        // swap with smallest child
+        plPathNode temp = ptQueue->atNodes[uCurrentIndex];
+        ptQueue->atNodes[uCurrentIndex] = ptQueue->atNodes[uSmallest];
+        ptQueue->atNodes[uSmallest] = temp;
+        
+        uCurrentIndex = uSmallest;  // move down
+    }
     
     return tResult;
 }
@@ -521,6 +561,7 @@ pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery
 
     // for path reconstruction
     plPathNode* atExploredNodes = malloc(sizeof(plPathNode) * uTotalVoxels);
+    uint32_t uExploredCount = 0;
     if(!atExploredNodes)
     {
         pl_destroy_priority_queue(ptOpenSet);
@@ -528,7 +569,6 @@ pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery
         tResult.bSuccess = false;
         return tResult;
     }
-    uint32_t uExploredCount = 0;
     
     // create start node and add to open set
     plPathNode tStartNode = {0};
