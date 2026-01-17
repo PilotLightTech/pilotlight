@@ -64,6 +64,15 @@ typedef struct _plAppData
     // pathfinding
     plPathFindingVoxelGrid* ptVoxelGrid;
     plPathFindingResult     tPathResult;
+    plPathFindingQuery      tQuery; 
+
+    // options
+    bool bShowWireFrame;
+    bool bShowOriginAxes;
+
+    // storing variables for drawing 
+    plVec3 tOrigin;
+    plVec3 tGridEnd;
 
 } plAppData;
 
@@ -86,6 +95,7 @@ void camera_translate(plCamera*, float fDx, float fDy, float fDz);
 void camera_rotate   (plCamera*, float fDPitch, float fDYaw);
 void camera_update   (plCamera*);
 void draw_wireframe_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, plDrawLineOptions tOptions);
+void draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGrid, plDrawLineOptions tOptions);
 void draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor);
 
 //-----------------------------------------------------------------------------
@@ -154,10 +164,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     camera_update(&ptAppData->tCamera);
 
     // create voxel grid (20x1x20 for now)
-    plVec3 tOrigin = {0.0f, 0.0f, 0.0f};
-    ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(20, 1, 20, 1.0f, tOrigin);
+    ptAppData->tOrigin.x = 0.0f;
+    ptAppData->tOrigin.y = 0.0f;
+    ptAppData->tOrigin.z = 0.0f;
+    ptAppData->tGridEnd.x = 20.0f;
+    ptAppData->tGridEnd.y = 0.0f;
+    ptAppData->tGridEnd.z = 20.0f;
+    ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(20, 1, 20, 1.0f, ptAppData->tOrigin);
 
-    // TODO: add obstacles here
+    // TODO: store obstacles in an array to draw directly from instead of hard coded values for drawing 
     gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 1, true);
     gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 2, true);
     gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 3, true);
@@ -165,14 +180,17 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 5, true);
     gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 6, true);
 
-    // TODO: create pathfinding query and find path
-    // create pathfinding query - guaranteed connected path exists
-    plPathFindingQuery tQuery = {0};
-    tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};   // top-left corner (inside outer walls)
-    tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};  // bottom-right corner (inside outer walls)
+    // set path start and end 
+    ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};   // top-left corner (inside outer walls)
+    ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};  // bottom-right corner (inside outer walls)
 
     // find path
-    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &tQuery);
+    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery);
+
+    // set option defaults
+    ptAppData->bShowWireFrame = true;
+    ptAppData->bShowOriginAxes = true;
+
 
     return ptAppData;
 }
@@ -241,40 +259,47 @@ pl_app_update(plAppData* ptAppData)
     camera_update(ptCamera);
 
     // draw origin axes
-    const plMat4 tOrigin = pl_identity_mat4();
-    gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 5.0f, (plDrawLineOptions){.fThickness = 0.1f});
-
-    // draw wire frame grid
-    for(uint32_t i = 0; i < 21; i++)
+    if(gptIO->is_key_pressed(PL_KEY_1, false))
     {
-        for(uint32_t j = 0; j < 21; j++)
-        {
-            float fx = (float)i + 0.5f;
-            float fz = (float)j + 0.5f;
-
-            if((i + j) % 2)
-            {
-                draw_wireframe_cube(ptAppData->pt3dDrawlist, (plVec3){fx, 0.5f, fz}, 1, (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 0.5f), .fThickness = 0.05f});
-            }
-            else 
-                draw_wireframe_cube(ptAppData->pt3dDrawlist, (plVec3){fx, 0.5f, fz}, 1, (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 1.0f, 0.0f, 0.5f), .fThickness = 0.05f});
-        }
+        ptAppData->bShowOriginAxes = !ptAppData->bShowOriginAxes;
+    }
+    if(ptAppData->bShowOriginAxes)
+    {
+        const plMat4 tOrigin = pl_identity_mat4();
+        gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 5.0f, (plDrawLineOptions){.fThickness = 0.1f});
+    }
+        
+    // draw wire frame grid
+    if(gptIO->is_key_pressed(PL_KEY_2, false))
+    {
+        ptAppData->bShowWireFrame = !ptAppData->bShowWireFrame;
     }
 
-
-    // TODO: draw path as 3D lines
-    // Loop through waypoints
-    // Connect consecutive waypoints with lines
+    if(ptAppData->bShowWireFrame)
+    {
+        draw_voxel_grid_wireframe(ptAppData->pt3dDrawlist, ptAppData->ptVoxelGrid, (plDrawLineOptions){.uColor = PL_COLOR_32_RED, .fThickness = 0.05f});
+    }
 
     // start sphere 
-    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, (plSphere){.fRadius = 0.35f, .tCenter = {0.5f, 0.5f, 0.5f}}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_MAGENTA});
+    float fStartX = ptAppData->tQuery.tStart.x;
+    float fStartZ = ptAppData->tQuery.tStart.z;
+    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, 
+        (plSphere){.fRadius = 0.35f, .tCenter = {fStartX, 0.5f, fStartZ}}, 0, 0, 
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_MAGENTA});
     // goal sphere
-    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, (plSphere){.fRadius = 0.35f, .tCenter = {18.5f, 0.5f, 18.5f}}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_CYAN});    
+    float fGoalX = ptAppData->tQuery.tGoal.x;
+    float fGoalZ = ptAppData->tQuery.tGoal.z;
+    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, 
+        (plSphere){.fRadius = 0.35f, .tCenter = {fGoalX, 0.5f, fGoalZ}}, 0, 0, 
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_CYAN});    
 
     // draw obstacles
+    // TODO: make obstacles actually tie into real obstacles used for path instead of manual 
     for(uint32_t k = 0; k < 7; k++)
     {
-        gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, (plSphere){.fRadius = 0.35f, .tCenter = {3.5f, 0.5f, (k + 0.5f)}}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_ORANGE});   
+        gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, 
+            (plSphere){.fRadius = 0.35f, .tCenter = {3.5f, 0.5f, (k + 0.5f)}}, 0, 0, 
+            (plDrawSolidOptions){.uColor = PL_COLOR_32_ORANGE});   
     }
 
     // draw path
@@ -282,22 +307,18 @@ pl_app_update(plAppData* ptAppData)
     {
         for(uint32_t i = 0; i < ptAppData->tPathResult.uWaypointCount - 1; i++)
         {
-            float fX0 = ptAppData->tPathResult.atWaypoints[i].x;
-            float fZ0 = ptAppData->tPathResult.atWaypoints[i].z;
-
-            float fX1 = ptAppData->tPathResult.atWaypoints[i+1].x;
-            float fZ1 = ptAppData->tPathResult.atWaypoints[i+1].z;
-            // draw line between waypoints
-            gptDraw->add_3d_line(ptAppData->pt3dDrawlist, (plVec3){fX0 + 0.5f, 0.5f, fZ0 + 0.5f}, (plVec3){fX1 + 0.5f, 0.5f, fZ1 + 0.5f}, (plDrawLineOptions){.uColor = PL_COLOR_32_BLUE, .fThickness = 0.05f});
+            gptDraw->add_3d_line(ptAppData->pt3dDrawlist, 
+                ptAppData->tPathResult.atWaypoints[i], 
+                ptAppData->tPathResult.atWaypoints[i + 1], 
+                (plDrawLineOptions){.uColor = PL_COLOR_32_BLUE, .fThickness = 0.05f});
         }
     }
 
     // draw "ground layer"
-    // quad vertex data 
-    plVec3 tCorner1 = {0,  0, 0};  // bottom-left
-    plVec3 tCorner2 = {20, 0, 0};  // bottom-right
-    plVec3 tCorner3 = {0,  0, 20};  // top-left
-    plVec3 tCorner4 = {20, 0, 20};  // top-right
+    plVec3 tCorner1 = {ptAppData->tOrigin.x,  0, ptAppData->tOrigin.z};   // bottom-left
+    plVec3 tCorner2 = {ptAppData->tGridEnd.x, 0, ptAppData->tOrigin.z};   // bottom-right
+    plVec3 tCorner3 = {ptAppData->tOrigin.x,  0, ptAppData->tGridEnd.z};  // top-left
+    plVec3 tCorner4 = {ptAppData->tGridEnd.x, 0, ptAppData->tGridEnd.z};  // top-right
 
     // draw triangle 1
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
@@ -425,6 +446,45 @@ draw_wireframe_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, plDra
     gptDraw->add_3d_line(ptDrawlist, v1, v2, tOptions);
     gptDraw->add_3d_line(ptDrawlist, v5, v6, tOptions);
     gptDraw->add_3d_line(ptDrawlist, v4, v7, tOptions);
+}
+
+void 
+draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGrid, plDrawLineOptions tOptions)
+{
+    float fSize = ptGrid->fVoxelSize;
+    
+    // draw lines parallel to x-axis
+    for(uint32_t y = 0; y <= ptGrid->uDimY; y++)
+    {
+        for(uint32_t z = 0; z <= ptGrid->uDimZ; z++)
+        {
+            plVec3 p0 = {ptGrid->tOrigin.x, ptGrid->tOrigin.y + y * fSize, ptGrid->tOrigin.z + z * fSize};
+            plVec3 p1 = {ptGrid->tOrigin.x + ptGrid->uDimX * fSize, ptGrid->tOrigin.y + y * fSize, ptGrid->tOrigin.z + z * fSize};
+            gptDraw->add_3d_line(ptDrawlist, p0, p1, tOptions);
+        }
+    }
+    
+    // draw lines parallel to y-axis
+    for(uint32_t x = 0; x <= ptGrid->uDimX; x++)
+    {
+        for(uint32_t z = 0; z <= ptGrid->uDimZ; z++)
+        {
+            plVec3 p0 = {ptGrid->tOrigin.x + x * fSize, ptGrid->tOrigin.y, ptGrid->tOrigin.z + z * fSize};
+            plVec3 p1 = {ptGrid->tOrigin.x + x * fSize, ptGrid->tOrigin.y + ptGrid->uDimY * fSize, ptGrid->tOrigin.z + z * fSize};
+            gptDraw->add_3d_line(ptDrawlist, p0, p1, tOptions);
+        }
+    }
+    
+    // draw lines parallel to z-axis
+    for(uint32_t x = 0; x <= ptGrid->uDimX; x++)
+    {
+        for(uint32_t y = 0; y <= ptGrid->uDimY; y++)
+        {
+            plVec3 p0 = {ptGrid->tOrigin.x + x * fSize, ptGrid->tOrigin.y + y * fSize, ptGrid->tOrigin.z};
+            plVec3 p1 = {ptGrid->tOrigin.x + x * fSize, ptGrid->tOrigin.y + y * fSize, ptGrid->tOrigin.z + ptGrid->uDimZ * fSize};
+            gptDraw->add_3d_line(ptDrawlist, p0, p1, tOptions);
+        }
+    }
 }
 
 void 
