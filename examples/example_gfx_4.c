@@ -1,14 +1,6 @@
 /*
-   example_gfx_4.c
-     - demonstrates loading APIs
-     - demonstrates loading extensions
-     - demonstrates hot reloading
-     - demonstrates starter extension
-     - demonstrates drawing extension (2D & 3D)
-     - demonstrates render passes
-
-    Notes:
-     - We are performing offscreen rendering for this example
+   example_pf_ext_3d.c
+     - demonstrates 3D pathfinding visualization
 */
 
 /*
@@ -39,6 +31,7 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_starter_ext.h"
+#include "pl_path_finding_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -50,17 +43,13 @@ typedef struct _plCamera
     float  fNearZ;
     float  fFarZ;
     float  fFieldOfView;
-    float  fAspectRatio;  // width/height
-    plMat4 tViewMat;      // cached
-    plMat4 tProjMat;      // cached
-    plMat4 tTransformMat; // cached
-
-    // rotations
-    float fPitch; // rotation about right vector
-    float fYaw;   // rotation about up vector
-    float fRoll;  // rotation about forward vector
-
-    // direction vectors
+    float  fAspectRatio;
+    plMat4 tViewMat;
+    plMat4 tProjMat;
+    plMat4 tTransformMat;
+    float  fPitch;
+    float  fYaw;
+    float  fRoll;
     plVec3 _tUpVec;
     plVec3 _tForwardVec;
     plVec3 _tRightVec;
@@ -68,25 +57,13 @@ typedef struct _plCamera
 
 typedef struct _plAppData
 {
-    // window
-    plWindow* ptWindow;
+    plWindow*      ptWindow;
+    plDrawList3D*  pt3dDrawlist;
+    plCamera       tCamera;
 
-    // drawing
-    plDrawList2D*  ptAppDrawlist;
-    plDrawLayer2D* ptFGLayer;
-
-    // 3d drawing
-    plCamera      tCamera;
-    plDrawList3D* pt3dDrawlist;
-
-    // offscreen rendering
-    bool               bResize;
-    plSamplerHandle    tDefaultSampler;
-    plRenderPassHandle tOffscreenRenderPass;
-    plVec2             tOffscreenSize;
-    plTextureHandle    tColorTexture;
-    plBindGroupHandle  tColorTextureBg;
-    plTextureHandle    tDepthTexture;
+    // pathfinding
+    plPathFindingVoxelGrid* ptVoxelGrid;
+    plPathFindingResult     tPathResult;
 
 } plAppData;
 
@@ -99,18 +76,17 @@ const plWindowI*      gptWindows     = NULL;
 const plGraphicsI*    gptGfx         = NULL;
 const plDrawI*        gptDraw        = NULL;
 const plStarterI*     gptStarter     = NULL;
+const plPathFindingI* gptPathFinding = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper function declarations
 //-----------------------------------------------------------------------------
 
-void resize_offscreen_resources(plAppData* ptAppData);
-
-// camera helpers
 void camera_translate(plCamera*, float fDx, float fDy, float fDz);
 void camera_rotate   (plCamera*, float fDPitch, float fDYaw);
-void camera_rotate   (plCamera*, float fDPitch, float fDYaw);
 void camera_update   (plCamera*);
+void draw_wireframe_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, plDrawLineOptions tOptions);
+void draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -119,250 +95,85 @@ void camera_update   (plCamera*);
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    // NOTE: on first load, "pAppData" will be NULL but on reloads
-    //       it will be the value returned from this function
-
-    // retrieve the data registry API, this is the API used for sharing data
-    // between extensions & the runtime
-    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-
-    // if "ptAppData" is a valid pointer, then this function is being called
-    // during a hot reload.
     if(ptAppData)
     {
-        // re-retrieve the apis since we are now in
-        // a different dll/so
         gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
         gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
         gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
-
+        gptPathFinding = pl_get_api_latest(ptApiRegistry, plPathFindingI);
         return ptAppData;
     }
 
-    // this path is taken only during first load, so we
-    // allocate app memory here
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
 
-    // retrieve extension registry
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
 
-    // load extensions (makes their APIs available)
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
     ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false);
     
-    // load required apis
-    gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
-
-    // load required apis (these are provided though extensions)
+    gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
     gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptPathFinding = pl_get_api_latest(ptApiRegistry, plPathFindingI);
 
-    // use window API to create a window
     plWindowDesc tWindowDesc = {
-        .pcTitle = "Example GFX 4",
+        .pcTitle = "3D Pathfinding Example",
         .iXPos   = 200,
         .iYPos   = 200,
-        .uWidth  = 600,
-        .uHeight = 600,
+        .uWidth  = 800,
+        .uHeight = 800,
     };
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
     gptWindows->show(ptAppData->ptWindow);
-    ptAppData->tOffscreenSize = (plVec2){600.0f, 600.0f};
 
-    // setup starter extension
     plStarterInit tStarterInit = {
         .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
 
-    // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
-    // etc. which we will get to in later examples
     gptStarter->initialize(tStarterInit);
-
-    // give starter extension chance to do its work now that we
-    // setup the shader extension
     gptStarter->finalize();
 
-    // request drawlist to render full screen quad
-    ptAppData->ptAppDrawlist = gptDraw->request_2d_drawlist();
-    ptAppData->ptFGLayer     = gptDraw->request_2d_layer(ptAppData->ptAppDrawlist);
+    ptAppData->pt3dDrawlist = gptDraw->request_3d_drawlist();
 
-    // request 3D drawlist
-    ptAppData->pt3dDrawlist  = gptDraw->request_3d_drawlist();
-
-    // for convience
-    plDevice* ptDevice = gptStarter->get_device();
-
-    // create camera
+    plIO* ptIO = gptIO->get_io();
     ptAppData->tCamera = (plCamera){
-        .tPos         = {5.0f, 10.0f, 10.0f},
+        .tPos         = {10.0f, 15.0f, 10.0f},
         .fNearZ       = 0.01f,
-        .fFarZ        = 50.0f,
+        .fFarZ        = 100.0f,
         .fFieldOfView = PL_PI_3,
-        .fAspectRatio = ptAppData->tOffscreenSize.x / ptAppData->tOffscreenSize.y,
+        .fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y,
         .fYaw         = PL_PI + PL_PI_4,
         .fPitch       = -PL_PI_4,
     };
     camera_update(&ptAppData->tCamera);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~samplers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // create voxel grid (20x1x20 for now)
+    plVec3 tOrigin = {0.0f, 0.0f, 0.0f};
+    ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(20, 1, 20, 1.0f, tOrigin);
 
-    // create default sampler
-    const plSamplerDesc tSamplerDesc = {
-        .tMagFilter      = PL_FILTER_LINEAR,
-        .tMinFilter      = PL_FILTER_LINEAR,
-        .fMinMip         = 0.0f,
-        .fMaxMip         = 64.0f,
-        .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .pcDebugName     = "default sampler"
-    };
-    ptAppData->tDefaultSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);
+    // TODO: add obstacles here
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 1, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 2, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 3, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 4, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 5, true);
+    gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, 3, 0, 6, true);
 
-    // create offscreen per-frame resources
+    // TODO: create pathfinding query and find path
+    // create pathfinding query - guaranteed connected path exists
+    plPathFindingQuery tQuery = {0};
+    tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};   // top-left corner (inside outer walls)
+    tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};  // bottom-right corner (inside outer walls)
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // find path
+    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &tQuery);
 
-    const plTextureDesc tColorTextureDesc = {
-        .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-        .pcDebugName   = "offscreen color texture"
-    };
-
-    const plTextureDesc tDepthTextureDesc = {
-        .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
-        .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-        .pcDebugName   = "offscreen depth texture"
-    };
-
-    // create textures
-    ptAppData->tColorTexture = gptGfx->create_texture(ptDevice, &tColorTextureDesc, NULL);
-    ptAppData->tDepthTexture = gptGfx->create_texture(ptDevice, &tDepthTextureDesc, NULL);
-
-    // retrieve textures (we aren't using the out params above since the second allocation
-    //                    could invalidate the first)
-    plTexture* ptColorTexture = gptGfx->get_texture(ptDevice, ptAppData->tColorTexture);
-    plTexture* ptDepthTexture = gptGfx->get_texture(ptDevice, ptAppData->tDepthTexture);
-
-    // allocate memory
-    const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(ptDevice, 
-        ptColorTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
-        "color texture memory");
-
-    const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(ptDevice, 
-        ptDepthTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
-        "depth texture memory");
-
-    // bind memory
-    gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tColorTexture, &tColorAllocation);
-    gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tDepthTexture, &tDepthAllocation);
-
-    // using a helper from the draw backend extension to allocate
-    // a bind group for use to use for drawing
-    ptAppData->tColorTextureBg = gptDraw->create_bind_group_for_texture(ptAppData->tColorTexture);
-
-    // begin blit pass, copy buffer, end pass
-    plBlitEncoder* ptEncoder = gptStarter->get_blit_encoder();
-
-    // set the initial texture usage (this is a no-op in metal but does layout transition for vulkan)
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tColorTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
-
-    gptStarter->return_blit_encoder(ptEncoder);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~render pass stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // NOTE: even if you don't need to double buffer a texture, the number of
-    //       render pass attachment sets must equal the frames in flight
-    //       (backend implementation details require this currently)
-    //
-    // NOTE: Render passes directly map to render passes in Vulkan. In Metal
-    //       we emulate them by places appropriate barriers & fences.
-
-    plRenderPassAttachments atAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
-
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-        // add textures to attachment set for render pass
-        atAttachmentSets[i].atViewAttachments[0] = ptAppData->tDepthTexture;
-        atAttachmentSets[i].atViewAttachments[1] = ptAppData->tColorTexture;
-    }
-
-    // create offscreen renderpass layout
-    const plRenderPassLayoutDesc tRenderPassLayoutDesc = {
-        .atRenderTargets = {
-            { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true }, // depth buffer
-            { .tFormat = PL_FORMAT_R32G32B32A32_FLOAT } // color
-        },
-        .atSubpasses = {
-            {
-                .uRenderTargetCount = 2,
-                .auRenderTargets = {0, 1}, // these are indices into the render targets above (depth/resolve must be before colors)
-            },
-        },
-        .atSubpassDependencies = { // this map directly in Vulkan
-            {
-                .uSourceSubpass         = UINT32_MAX,
-                .uDestinationSubpass    = 0,
-                .tSourceStageMask       = PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tDestinationStageMask  = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tSourceAccessMask      = PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
-            {
-                .uSourceSubpass         = 0,
-                .uDestinationSubpass    = UINT32_MAX,
-                .tSourceStageMask       = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tDestinationStageMask  = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tSourceAccessMask      = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
-        }
-    };
-
-    // create offscreen renderpass
-    const plRenderPassDesc tRenderPassDesc = {
-        .tLayout = gptGfx->create_render_pass_layout(ptDevice, &tRenderPassLayoutDesc),
-        .tDepthTarget = {
-                .tLoadOp         = PL_LOAD_OP_CLEAR,
-                .tStoreOp        = PL_STORE_OP_DONT_CARE,
-                .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
-                .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
-                .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .fClearZ         = 1.0f
-        },
-        .atColorTargets = {
-            {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
-            }
-        },
-        .tDimensions = {.x = ptAppData->tOffscreenSize.x, .y = ptAppData->tOffscreenSize.y}
-    };
-    ptAppData->tOffscreenRenderPass = gptGfx->create_render_pass(ptDevice, &tRenderPassDesc, atAttachmentSets);
-
-    // return app memory
     return ptAppData;
 }
 
@@ -374,13 +185,10 @@ PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
     plDevice* ptDevice = gptStarter->get_device();
-
-    // ensure the GPU is done with our resources
     gptGfx->flush_device(ptDevice);
 
-    // cleanup our resources
-    gptGfx->destroy_texture(ptDevice, ptAppData->tColorTexture);
-    gptGfx->destroy_texture(ptDevice, ptAppData->tDepthTexture);
+    gptPathFinding->free_result(&ptAppData->tPathResult);
+    gptPathFinding->destroy_voxel_grid(ptAppData->ptVoxelGrid);
 
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
@@ -395,13 +203,6 @@ PL_EXPORT void
 pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     gptStarter->resize();
-
-    // NOTE: you could recreate the offscreen resources here but we prefer
-    //       not to do that since you could get several resize calls before
-    //       you actually get a chance to render again, so we defer until the
-    //       update.
-    ptAppData->bResize = true;
-
     plIO* ptIO = gptIO->get_io();
     ptAppData->tCamera.fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y;
 }
@@ -416,121 +217,118 @@ pl_app_update(plAppData* ptAppData)
     if(!gptStarter->begin_frame())
         return;
 
-    // for convience
     plIO* ptIO = gptIO->get_io();
 
-    if(ptAppData->bResize)
-    {
-        ptAppData->tOffscreenSize.x = ptIO->tMainViewportSize.x;
-        ptAppData->tOffscreenSize.y = ptIO->tMainViewportSize.y;
-        resize_offscreen_resources(ptAppData);
-        ptAppData->bResize = false;
-    }
-
-    static const float fCameraTravelSpeed = 4.0f;
+    // camera controls
+    static const float fCameraTravelSpeed = 8.0f;
     static const float fCameraRotationSpeed = 0.005f;
 
     plCamera* ptCamera = &ptAppData->tCamera;
 
-    // camera space
     if(gptIO->is_key_down(PL_KEY_W)) camera_translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
-    if(gptIO->is_key_down(PL_KEY_S)) camera_translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
+    if(gptIO->is_key_down(PL_KEY_S)) camera_translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime);
     if(gptIO->is_key_down(PL_KEY_A)) camera_translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
     if(gptIO->is_key_down(PL_KEY_D)) camera_translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-
-    // world space
-    if(gptIO->is_key_down(PL_KEY_F)) { camera_translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
-    if(gptIO->is_key_down(PL_KEY_R)) { camera_translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+    if(gptIO->is_key_down(PL_KEY_F)) camera_translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
+    if(gptIO->is_key_down(PL_KEY_R)) camera_translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
 
     if(gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
     {
         const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
-        camera_rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
+        camera_rotate(ptCamera, -tMouseDelta.y * fCameraRotationSpeed, -tMouseDelta.x * fCameraRotationSpeed);
         gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
     camera_update(ptCamera);
 
-    // 3d drawing API usage
+    // draw origin axes
     const plMat4 tOrigin = pl_identity_mat4();
-    gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 10.0f, (plDrawLineOptions){.fThickness = 0.2f});
+    gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 5.0f, (plDrawLineOptions){.fThickness = 0.1f});
 
-    plCylinder tCylinderDesc = {
-        .fRadius = 1.5f,
-        .tBasePos = {-2.5f, 1.0f, 0.0f},
-        .tTipPos  = {-2.5f, 4.0f, 0.0f}
-    };
-    gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, tCylinderDesc, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
+    // draw wire frame grid
+    for(uint32_t i = 0; i < 21; i++)
+    {
+        for(uint32_t j = 0; j < 21; j++)
+        {
+            float fx = (float)i + 0.5f;
+            float fz = (float)j + 0.5f;
 
+            if((i + j) % 2)
+            {
+                draw_wireframe_cube(ptAppData->pt3dDrawlist, (plVec3){fx, 0.5f, fz}, 1, (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 0.5f), .fThickness = 0.05f});
+            }
+            else 
+                draw_wireframe_cube(ptAppData->pt3dDrawlist, (plVec3){fx, 0.5f, fz}, 1, (plDrawLineOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 1.0f, 0.0f, 0.5f), .fThickness = 0.05f});
+        }
+    }
+
+
+    // TODO: draw path as 3D lines
+    // Loop through waypoints
+    // Connect consecutive waypoints with lines
+
+    // start sphere 
+    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, (plSphere){.fRadius = 0.35f, .tCenter = {0.5f, 0.5f, 0.5f}}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_MAGENTA});
+    // goal sphere
+    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, (plSphere){.fRadius = 0.35f, .tCenter = {18.5f, 0.5f, 18.5f}}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_CYAN});    
+
+    // draw obstacles
+    for(uint32_t k = 0; k < 7; k++)
+    {
+        gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, (plSphere){.fRadius = 0.35f, .tCenter = {3.5f, 0.5f, (k + 0.5f)}}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_ORANGE});   
+    }
+
+    // draw path
+    if(ptAppData->tPathResult.bSuccess)
+    {
+        for(uint32_t i = 0; i < ptAppData->tPathResult.uWaypointCount - 1; i++)
+        {
+            float fX0 = ptAppData->tPathResult.atWaypoints[i].x;
+            float fZ0 = ptAppData->tPathResult.atWaypoints[i].z;
+
+            float fX1 = ptAppData->tPathResult.atWaypoints[i+1].x;
+            float fZ1 = ptAppData->tPathResult.atWaypoints[i+1].z;
+            // draw line between waypoints
+            gptDraw->add_3d_line(ptAppData->pt3dDrawlist, (plVec3){fX0 + 0.5f, 0.5f, fZ0 + 0.5f}, (plVec3){fX1 + 0.5f, 0.5f, fZ1 + 0.5f}, (plDrawLineOptions){.uColor = PL_COLOR_32_BLUE, .fThickness = 0.05f});
+        }
+    }
+
+    // draw "ground layer"
+    // quad vertex data 
+    plVec3 tCorner1 = {0,  0, 0};  // bottom-left
+    plVec3 tCorner2 = {20, 0, 0};  // bottom-right
+    plVec3 tCorner3 = {0,  0, 20};  // top-left
+    plVec3 tCorner4 = {20, 0, 20};  // top-right
+
+    // draw triangle 1
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
-        (plVec3){1.0f, 1.0f, 0.0f},
-        (plVec3){4.0f, 1.0f, 0.0f},
-        (plVec3){1.0f, 4.0f, 0.0f},
-        (plDrawSolidOptions){.uColor = PL_COLOR_32_YELLOW});
+        tCorner1, tCorner2, tCorner3,
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(.3, .3, .3, .5)});
 
-    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist,
-        (plSphere){.fRadius = 1.0F, .tCenter = {5.5f, 2.5f, 0.0f}}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
+    // draw triangle 2
+    gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
+        tCorner2, tCorner4, tCorner3, 
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(.3, .3, .3, .5)});
 
-    gptDraw->add_3d_circle_xz_filled(ptAppData->pt3dDrawlist,
-        (plVec3){8.5f, 2.5f, 0.0f}, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
-
-    gptDraw->add_3d_band_xz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
-    gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 0.75f)});
-    gptDraw->add_3d_band_yz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 1.0f, 0.75f)});
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing prep~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // submit our draw layers
-    gptDraw->submit_2d_layer(ptAppData->ptFGLayer);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~offscreen~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // NOTE: we are letting the starter extension handle command buffer management
-    //       and coarse syncronization (utilizing timeline semaphores to ensure
-    //       previous submissions are finished and this work finishes before the main
-    //       pass below)
-
-    // retrieve command buffer (already in recording state)
-    plCommandBuffer* ptCommandBuffer = gptStarter->get_command_buffer();
-
-    // begin offscreen renderpass
-    plRenderEncoder* ptEncoder = gptGfx->begin_render_pass(ptCommandBuffer, ptAppData->tOffscreenRenderPass, NULL);
+    
+    // submit 3D drawlist
+    plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
 
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
-    // submit our 3D drawlist
     gptDraw->submit_3d_drawlist(ptAppData->pt3dDrawlist,
         ptEncoder,
-        ptAppData->tOffscreenSize.x,
-        ptAppData->tOffscreenSize.y,
+        ptIO->tMainViewportSize.x,
+        ptIO->tMainViewportSize.y,
         &tMVP,
-        PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
+        PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE,
+        1);
 
-    // end offscreen render pass
-    gptGfx->end_render_pass(ptEncoder);
-
-    // submit and return our command buffer
-    gptStarter->submit_command_buffer(ptCommandBuffer);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~main~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // add full screen quad for offscreen render
-    gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->tColorTextureBg.uData, (plVec2){0}, ptIO->tMainViewportSize);
-
-    // begin main renderpass (directly to swapchain)
-    plRenderEncoder* ptMainEncoder = gptStarter->begin_main_pass();
-
-    // submit drawlists
-    gptDraw->submit_2d_drawlist(ptAppData->ptAppDrawlist, ptMainEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
-
-    // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();
-
-    // must be the last function called when using the starter extension
     gptStarter->end_frame(); 
 }
 
 //-----------------------------------------------------------------------------
-// [SECTION] helper function declarations
+// [SECTION] helper function definitions
 //-----------------------------------------------------------------------------
 
 static inline float
@@ -556,7 +354,6 @@ camera_rotate(plCamera* ptCamera, float fDPitch, float fDYaw)
 {
     ptCamera->fPitch += fDPitch;
     ptCamera->fYaw += fDYaw;
-
     ptCamera->fYaw = wrap_angle(ptCamera->fYaw);
     ptCamera->fPitch = pl_clampf(0.995f * -PL_PI_2, ptCamera->fPitch, 0.995f * PL_PI_2);
 }
@@ -564,9 +361,6 @@ camera_rotate(plCamera* ptCamera, float fDPitch, float fDYaw)
 void
 camera_update(plCamera* ptCamera)
 {
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // world space
     static const plVec4 tOriginalUpVec      = {0.0f, 1.0f, 0.0f, 0.0f};
     static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, 1.0f, 0.0f};
     static const plVec4 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f, 0.0f};
@@ -576,26 +370,19 @@ camera_update(plCamera* ptCamera)
     const plMat4 tZRotMat   = pl_mat4_rotate_vec3(ptCamera->fRoll, tOriginalForwardVec.xyz);
     const plMat4 tTranslate = pl_mat4_translate_vec3((plVec3){ptCamera->tPos.x, ptCamera->tPos.y, ptCamera->tPos.z});
 
-    // rotations: rotY * rotX * rotZ
     plMat4 tRotations = pl_mul_mat4t(&tXRotMat, &tZRotMat);
     tRotations        = pl_mul_mat4t(&tYRotMat, &tRotations);
 
-    // update camera vectors
     ptCamera->_tRightVec   = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalRightVec)).xyz;
     ptCamera->_tUpVec      = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalUpVec)).xyz;
     ptCamera->_tForwardVec = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalForwardVec)).xyz;
 
-    // update camera transform: translate * rotate
     ptCamera->tTransformMat = pl_mul_mat4t(&tTranslate, &tRotations);
+    ptCamera->tViewMat      = pl_mat4t_invert(&ptCamera->tTransformMat);
 
-    // update camera view matrix
-    ptCamera->tViewMat   = pl_mat4t_invert(&ptCamera->tTransformMat);
-
-    // flip x & y so camera looks down +z and remains right handed (+x to the right)
     const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
     ptCamera->tViewMat   = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
     ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
     ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
@@ -605,90 +392,44 @@ camera_update(plCamera* ptCamera)
     ptCamera->tProjMat.col[3].w = 0.0f;  
 }
 
-void
-resize_offscreen_resources(plAppData* ptAppData)
+void 
+draw_wireframe_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, plDrawLineOptions tOptions)
 {
-    plDevice* ptDevice = gptStarter->get_device();
-
-    plBlitEncoder* ptEncoder = gptStarter->get_blit_encoder();
-
-    const plTextureDesc tColorTextureDesc = {
-        .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-        .pcDebugName   = "offscreen color texture"
-    };
-
-    const plTextureDesc tDepthTextureDesc = {
-        .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
-        .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-        .pcDebugName   = "offscreen depth texture"
-    };
-
-    // queue old resources for deletion
-    gptGfx->queue_texture_for_deletion(ptDevice, ptAppData->tColorTexture);
-    gptGfx->queue_texture_for_deletion(ptDevice, ptAppData->tDepthTexture);
-
-    // create new textures
-    ptAppData->tColorTexture = gptGfx->create_texture(ptDevice, &tColorTextureDesc, NULL);
-    ptAppData->tDepthTexture = gptGfx->create_texture(ptDevice, &tDepthTextureDesc, NULL);
-
-    // retrieve textures
-    plTexture* ptColorTexture = gptGfx->get_texture(ptDevice, ptAppData->tColorTexture);
-    plTexture* ptDepthTexture = gptGfx->get_texture(ptDevice, ptAppData->tDepthTexture);
-
-    const plDeviceMemoryAllocation tColorAllocation = gptGfx->allocate_memory(ptDevice, 
-        ptColorTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptColorTexture->tMemoryRequirements.uMemoryTypeBits,
-        "color texture memory");
-
-    const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(ptDevice, 
-        ptDepthTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
-        "depth texture memory");
-
-    // bind memory
-    gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tColorTexture, &tColorAllocation);
-    gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tDepthTexture, &tDepthAllocation);
+    // calculate half size for offset from center
+    float fHalf = fSize * 0.5f;// * 0.965f; // leaving "air gap" so each cube can be differentiated 
     
-    // set initialial usage
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tColorTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
+    // 8 vertices of cube
+    plVec3 v0 = {tCenter.x - fHalf, tCenter.y - fHalf, tCenter.z - fHalf}; // back bottom left
+    plVec3 v1 = {tCenter.x + fHalf, tCenter.y - fHalf, tCenter.z - fHalf}; // back bottom right
+    plVec3 v2 = {tCenter.x + fHalf, tCenter.y + fHalf, tCenter.z - fHalf}; // back top right
+    plVec3 v3 = {tCenter.x - fHalf, tCenter.y + fHalf, tCenter.z - fHalf}; // back top left
+    plVec3 v4 = {tCenter.x - fHalf, tCenter.y - fHalf, tCenter.z + fHalf}; // front bottom left
+    plVec3 v5 = {tCenter.x + fHalf, tCenter.y - fHalf, tCenter.z + fHalf}; // front bottom right
+    plVec3 v6 = {tCenter.x + fHalf, tCenter.y + fHalf, tCenter.z + fHalf}; // front top right
+    plVec3 v7 = {tCenter.x - fHalf, tCenter.y + fHalf, tCenter.z + fHalf}; // front top left
+    
+    // bottom face
+    gptDraw->add_3d_line(ptDrawlist, v0, v1, tOptions);
+    gptDraw->add_3d_line(ptDrawlist, v1, v5, tOptions);
+    gptDraw->add_3d_line(ptDrawlist, v5, v4, tOptions);
+    gptDraw->add_3d_line(ptDrawlist, v4, v0, tOptions);
+    
+    // top face
+    gptDraw->add_3d_line(ptDrawlist, v3, v2, tOptions);
+    gptDraw->add_3d_line(ptDrawlist, v2, v6, tOptions);
+    gptDraw->add_3d_line(ptDrawlist, v6, v7, tOptions);
+    gptDraw->add_3d_line(ptDrawlist, v7, v3, tOptions);
+    
+    // vertical edges
+    gptDraw->add_3d_line(ptDrawlist, v0, v3, tOptions);
+    gptDraw->add_3d_line(ptDrawlist, v1, v2, tOptions);
+    gptDraw->add_3d_line(ptDrawlist, v5, v6, tOptions);
+    gptDraw->add_3d_line(ptDrawlist, v4, v7, tOptions);
+}
 
-    // update our previous allocated bind group
-    const plBindGroupUpdateTextureData atBGTextureData[] = {
-        {
-            .tTexture = ptAppData->tColorTexture,
-            .uSlot    = 0,
-            .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
-        }
-    };
-    const plBindGroupUpdateData tBGData = {
-        .uTextureCount     = 1,
-        .atTextureBindings = atBGTextureData
-    };
-    gptGfx->update_bind_group(ptDevice, ptAppData->tColorTextureBg, &tBGData);
-
-    plRenderPassAttachments atAttachmentSets[PL_MAX_FRAMES_IN_FLIGHT] = {0};
-
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-        // add textures to attachment set for render pass
-        atAttachmentSets[i].atViewAttachments[0] = ptAppData->tDepthTexture;
-        atAttachmentSets[i].atViewAttachments[1] = ptAppData->tColorTexture;
-    }
-
-    gptStarter->return_blit_encoder(ptEncoder);
-
-    // don't create new render pass, just update the attachments
-    gptGfx->update_render_pass_attachments(ptDevice, ptAppData->tOffscreenRenderPass, ptAppData->tOffscreenSize, atAttachmentSets);
+void 
+draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor)
+{
+    // calculate 8 corner vertices
+    // draw 12 triangles (2 per face)
 }
