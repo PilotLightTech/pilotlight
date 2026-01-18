@@ -71,13 +71,19 @@ typedef struct _plAppData
     bool bShowOriginAxes;
     bool bShowObstacles;
 
+    // maps
+    bool bDrawMapOne;
+
     // storing variables for drawing 
     plVec3 tOrigin;
     plVec3 tGridEnd;
 
     // for app features
-    plVec3   tObstacles[174];
+    plVec3   tObstacles[200];
     uint32_t uObstacleCount;
+    float    fPathAnimTimer;
+    uint32_t uPathSegmentsDrawn;
+    float    fCurrentSegmentProgress;
 
 } plAppData;
 
@@ -99,10 +105,14 @@ const plPathFindingI* gptPathFinding = NULL;
 void        camera_translate(plCamera*, float fDx, float fDy, float fDz);
 void        camera_rotate   (plCamera*, float fDPitch, float fDYaw);
 void        camera_update   (plCamera*);
-void        draw_wireframe_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, plDrawLineOptions tOptions);
-void        draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGrid, plDrawLineOptions tOptions);
-void        draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor);
+static void load_map(plAppData* ptAppData, uint32_t uMapNumber);
 static void set_voxels_maze_one(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
+static void set_voxels_maze_two(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
+static void set_voxels_maze_three(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
+static void set_voxels_maze_four(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
+static void set_voxels_maze_five(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
+static void draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGrid, plDrawLineOptions tOptions);
+// TODO: void draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor); 
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -159,7 +169,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plIO* ptIO = gptIO->get_io();
     ptAppData->tCamera = (plCamera){
-        .tPos         = {10.0f, 15.0f, 10.0f},
+        .tPos         = {10.0f, 20.0f, 30.0f},
         .fNearZ       = 0.01f,
         .fFarZ        = 100.0f,
         .fFieldOfView = PL_PI_3,
@@ -168,32 +178,33 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .fPitch       = -PL_PI_4,
     };
     camera_update(&ptAppData->tCamera);
+    camera_rotate(&ptAppData->tCamera, -0.10f, -0.80f);
 
     // create voxel grid (20x1x20 for now)
-    ptAppData->tOrigin.x = 0.0f;
-    ptAppData->tOrigin.y = 0.0f;
-    ptAppData->tOrigin.z = 0.0f;
-    ptAppData->tGridEnd.x = 20.0f;
-    ptAppData->tGridEnd.y = 0.0f;
-    ptAppData->tGridEnd.z = 20.0f;
+    ptAppData->tOrigin.x   = 0.0f;
+    ptAppData->tOrigin.y   = 0.0f;
+    ptAppData->tOrigin.z   = 0.0f;
+    ptAppData->tGridEnd.x  = 20.0f;
+    ptAppData->tGridEnd.y  = 0.0f;
+    ptAppData->tGridEnd.z  = 20.0f;
     ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(20, 1, 20, 1.0f, ptAppData->tOrigin);
-
-    // TODO: store obstacles in an array to draw directly from instead of hard coded values for drawing 
-    ptAppData->uObstacleCount = 0;
+    
     // set voxel calls for filled cells
+    ptAppData->uObstacleCount = 0;
     set_voxels_maze_one(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
 
     // set path start and end 
-    ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};   // top-left corner (inside outer walls)
-    ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};  // bottom-right corner (inside outer walls)
+    ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
+    ptAppData->tQuery.tGoal  = (plVec3){18.5f, 0.5f, 18.5f};
 
-    // find path
+    // find path and set option defaults
     ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery);
-
-    // set option defaults
-    ptAppData->bShowWireFrame  = true;
-    ptAppData->bShowOriginAxes = true;
-    ptAppData->bShowObstacles  = true;
+    ptAppData->fPathAnimTimer          = 0.0f;
+    ptAppData->uPathSegmentsDrawn      = 0;
+    ptAppData->fCurrentSegmentProgress = 0.0f;
+    ptAppData->bShowWireFrame          = true;
+    ptAppData->bShowOriginAxes         = true;
+    ptAppData->bShowObstacles          = true;
 
     return ptAppData;
 }
@@ -240,6 +251,28 @@ pl_app_update(plAppData* ptAppData)
 
     plIO* ptIO = gptIO->get_io();
 
+    // map switching
+    if(gptIO->is_key_pressed(PL_KEY_1, false))
+    {
+        load_map(ptAppData, 1);
+    }
+    if(gptIO->is_key_pressed(PL_KEY_2, false))
+    {
+        load_map(ptAppData, 2);
+    }
+    if(gptIO->is_key_pressed(PL_KEY_3, false))
+    {
+        load_map(ptAppData, 3);
+    }
+    if(gptIO->is_key_pressed(PL_KEY_4, false))
+    {
+        load_map(ptAppData, 4);
+    }
+    if(gptIO->is_key_pressed(PL_KEY_5, false))
+    {
+        load_map(ptAppData, 5);
+    }
+
     // camera controls
     static const float fCameraTravelSpeed = 8.0f;
     static const float fCameraRotationSpeed = 0.005f;
@@ -267,18 +300,15 @@ pl_app_update(plAppData* ptAppData)
     plVec3 tCorner3 = {ptAppData->tOrigin.x,  0, ptAppData->tGridEnd.z};  // top-left
     plVec3 tCorner4 = {ptAppData->tGridEnd.x, 0, ptAppData->tGridEnd.z};  // top-right
 
-    // draw triangle 1
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
         tCorner1, tCorner2, tCorner3,
         (plDrawSolidOptions){.uColor = PL_COLOR_32_LIGHT_GREY});
-
-    // draw triangle 2
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
         tCorner2, tCorner4, tCorner3, 
         (plDrawSolidOptions){.uColor = PL_COLOR_32_LIGHT_GREY});
 
     // draw origin axes
-    if(gptIO->is_key_pressed(PL_KEY_1, false))
+    if(gptIO->is_key_pressed(PL_KEY_C, false))
     {
         ptAppData->bShowOriginAxes = !ptAppData->bShowOriginAxes;
     }
@@ -289,7 +319,7 @@ pl_app_update(plAppData* ptAppData)
     }
         
     // draw wire frame grid
-    if(gptIO->is_key_pressed(PL_KEY_2, false))
+    if(gptIO->is_key_pressed(PL_KEY_X, false))
     {
         ptAppData->bShowWireFrame = !ptAppData->bShowWireFrame;
     }
@@ -313,7 +343,7 @@ pl_app_update(plAppData* ptAppData)
         (plDrawSolidOptions){.uColor = PL_COLOR_32_CYAN});    
 
     // draw obstacles
-    if(gptIO->is_key_pressed(PL_KEY_3, false))
+    if(gptIO->is_key_pressed(PL_KEY_Z, false))
     {
         ptAppData->bShowObstacles = !ptAppData->bShowObstacles;
     }
@@ -326,7 +356,7 @@ pl_app_update(plAppData* ptAppData)
             float fCenterZ = ptAppData->tObstacles[i].z + 0.5f;
         
             gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, 
-                (plSphere){.fRadius = 0.45f, .tCenter = {fCenterX, 0.5f, fCenterZ}}, 0, 0, 
+                (plSphere){.fRadius = 0.55f, .tCenter = {fCenterX, 0.5f, fCenterZ}}, 0, 0, 
                 (plDrawSolidOptions){.uColor = PL_COLOR_32_GREEN}); 
         }
     }
@@ -334,15 +364,48 @@ pl_app_update(plAppData* ptAppData)
     // draw path
     if(ptAppData->tPathResult.bSuccess)
     {
-        for(uint32_t i = 0; i < ptAppData->tPathResult.uWaypointCount - 1; i++)
+        ptAppData->fPathAnimTimer += ptIO->fDeltaTime;
+
+        // increment progress every frame
+        float fSegmentSpeed = 20.0f; // segments per second
+        float fProgressIncrement = fSegmentSpeed * ptIO->fDeltaTime;
+
+        ptAppData->fCurrentSegmentProgress += fProgressIncrement;
+
+        // move to next segment when current is complete
+        if(ptAppData->fCurrentSegmentProgress >= 1.0f && ptAppData->uPathSegmentsDrawn < ptAppData->tPathResult.uWaypointCount - 1)
+        {
+            ptAppData->uPathSegmentsDrawn++;
+            ptAppData->fCurrentSegmentProgress = 0.0f;
+        }
+
+        // draw all completed segments
+        for(uint32_t i = 0; i < ptAppData->uPathSegmentsDrawn; i++)
         {
             gptDraw->add_3d_line(ptAppData->pt3dDrawlist, 
                 ptAppData->tPathResult.atWaypoints[i], 
                 ptAppData->tPathResult.atWaypoints[i + 1], 
                 (plDrawLineOptions){.uColor = PL_COLOR_32_BLUE, .fThickness = 0.3f});
         }
-    }
 
+        // draw current partial segment
+        if(ptAppData->uPathSegmentsDrawn < ptAppData->tPathResult.uWaypointCount - 1)
+        {
+            plVec3 tStart = ptAppData->tPathResult.atWaypoints[ptAppData->uPathSegmentsDrawn];
+            plVec3 tEnd = ptAppData->tPathResult.atWaypoints[ptAppData->uPathSegmentsDrawn + 1];
+
+            // lerp between start and end based on progress
+            plVec3 tPartialEnd = {
+                tStart.x + (tEnd.x - tStart.x) * ptAppData->fCurrentSegmentProgress,
+                tStart.y + (tEnd.y - tStart.y) * ptAppData->fCurrentSegmentProgress,
+                tStart.z + (tEnd.z - tStart.z) * ptAppData->fCurrentSegmentProgress
+            };
+
+            gptDraw->add_3d_line(ptAppData->pt3dDrawlist, 
+                tStart, tPartialEnd,
+                (plDrawLineOptions){.uColor = PL_COLOR_32_BLUE, .fThickness = 0.3f});
+        }
+    }
     // submit 3D drawlist
     plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
 
@@ -426,46 +489,11 @@ camera_update(plCamera* ptCamera)
 }
 
 void 
-draw_wireframe_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, plDrawLineOptions tOptions)
-{
-    // calculate half size for offset from center
-    float fHalf = fSize * 0.5f;// * 0.965f; // leaving "air gap" so each cube can be differentiated 
-    
-    // 8 vertices of cube
-    plVec3 v0 = {tCenter.x - fHalf, tCenter.y - fHalf, tCenter.z - fHalf}; // back bottom left
-    plVec3 v1 = {tCenter.x + fHalf, tCenter.y - fHalf, tCenter.z - fHalf}; // back bottom right
-    plVec3 v2 = {tCenter.x + fHalf, tCenter.y + fHalf, tCenter.z - fHalf}; // back top right
-    plVec3 v3 = {tCenter.x - fHalf, tCenter.y + fHalf, tCenter.z - fHalf}; // back top left
-    plVec3 v4 = {tCenter.x - fHalf, tCenter.y - fHalf, tCenter.z + fHalf}; // front bottom left
-    plVec3 v5 = {tCenter.x + fHalf, tCenter.y - fHalf, tCenter.z + fHalf}; // front bottom right
-    plVec3 v6 = {tCenter.x + fHalf, tCenter.y + fHalf, tCenter.z + fHalf}; // front top right
-    plVec3 v7 = {tCenter.x - fHalf, tCenter.y + fHalf, tCenter.z + fHalf}; // front top left
-    
-    // bottom face
-    gptDraw->add_3d_line(ptDrawlist, v0, v1, tOptions);
-    gptDraw->add_3d_line(ptDrawlist, v1, v5, tOptions);
-    gptDraw->add_3d_line(ptDrawlist, v5, v4, tOptions);
-    gptDraw->add_3d_line(ptDrawlist, v4, v0, tOptions);
-    
-    // top face
-    gptDraw->add_3d_line(ptDrawlist, v3, v2, tOptions);
-    gptDraw->add_3d_line(ptDrawlist, v2, v6, tOptions);
-    gptDraw->add_3d_line(ptDrawlist, v6, v7, tOptions);
-    gptDraw->add_3d_line(ptDrawlist, v7, v3, tOptions);
-    
-    // vertical edges
-    gptDraw->add_3d_line(ptDrawlist, v0, v3, tOptions);
-    gptDraw->add_3d_line(ptDrawlist, v1, v2, tOptions);
-    gptDraw->add_3d_line(ptDrawlist, v5, v6, tOptions);
-    gptDraw->add_3d_line(ptDrawlist, v4, v7, tOptions);
-}
-
-void 
 draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGrid, plDrawLineOptions tOptions)
 {
     float fSize = ptGrid->fVoxelSize;
     
-    // draw lines parallel to x-axis
+    // draw grid lines
     for(uint32_t y = 0; y <= ptGrid->uDimY; y++)
     {
         for(uint32_t z = 0; z <= ptGrid->uDimZ; z++)
@@ -475,8 +503,6 @@ draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGr
             gptDraw->add_3d_line(ptDrawlist, p0, p1, tOptions);
         }
     }
-    
-    // draw lines parallel to y-axis
     for(uint32_t x = 0; x <= ptGrid->uDimX; x++)
     {
         for(uint32_t z = 0; z <= ptGrid->uDimZ; z++)
@@ -486,8 +512,6 @@ draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGr
             gptDraw->add_3d_line(ptDrawlist, p0, p1, tOptions);
         }
     }
-    
-    // draw lines parallel to z-axis
     for(uint32_t x = 0; x <= ptGrid->uDimX; x++)
     {
         for(uint32_t y = 0; y <= ptGrid->uDimY; y++)
@@ -499,11 +523,69 @@ draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGr
     }
 }
 
-void 
-draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor)
+// void 
+// draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor)
+// {
+//     // calculate 8 corner vertices
+//     // draw 12 triangles (2 per face)
+// }
+
+static void
+load_map(plAppData* ptAppData, uint32_t uMapNumber)
 {
-    // calculate 8 corner vertices
-    // draw 12 triangles (2 per face)
+    gptPathFinding->destroy_voxel_grid(ptAppData->ptVoxelGrid);
+    
+    // create new maps grid
+    plVec3 tOrigin = {0.0f, 0.0f, 0.0f};
+    uint32_t uMapLayers = 0;
+    if(uMapNumber == 1) uMapLayers = 1;
+    if(uMapNumber == 2) uMapLayers = 1;
+    if(uMapNumber == 3) uMapLayers = 3;
+    if(uMapNumber == 4) uMapLayers = 1;
+    if(uMapNumber == 5) uMapLayers = 1;
+    ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(20, uMapLayers, 20, 1.0f, tOrigin);
+    
+    // load map-specific obstacles
+    switch(uMapNumber)
+    {
+        case 1:
+            set_voxels_maze_one(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
+            ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
+            ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};
+            break;
+        case 2:
+            set_voxels_maze_two(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
+            ptAppData->tQuery.tStart = (plVec3){2.5f, 0.5f, 19.5f};
+            ptAppData->tQuery.tGoal = (plVec3){9.5f, 0.5f, 14.5f};
+            break;
+        case 3:
+        // TODO: validate start end points & fix map to be better 
+            set_voxels_maze_three(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
+            ptAppData->tQuery.tStart = (plVec3){2.5f, 0.5f, 2.5f};
+            ptAppData->tQuery.tGoal = (plVec3){18.5f, 2.5f, 18.5f};
+            break;
+        case 4:
+        // TODO: 
+            set_voxels_maze_four(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
+            ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
+            ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};
+            break;
+        case 5:
+        // TODO: 
+            set_voxels_maze_five(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
+            ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
+            ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};
+            break;
+    }
+    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery);
+    
+    // reset animation and settings
+    ptAppData->fPathAnimTimer = 0.0f;
+    ptAppData->uPathSegmentsDrawn = 0;
+    // TODO: should settings state reset or be static from map to map
+    // ptAppData->bShowWireFrame = true;
+    // ptAppData->bShowObstacles = true;
+    // ptAppData->bShowOriginAxes = true;
 }
 
 static void
@@ -514,524 +596,1067 @@ set_voxels_maze_one(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t
     // set voxels and store coordinates
     tObstacles[(*uObstacleCount)++] = (plVec3){2, 0, 0};
     gptPathFinding->set_voxel(ptGrid, 2, 0, 0, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){2, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 2, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 4, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 7, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 9, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 11, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){13, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 13, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 15, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 17, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 1};
     gptPathFinding->set_voxel(ptGrid, 18, 0, 1, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){2, 0, 2};
     gptPathFinding->set_voxel(ptGrid, 2, 0, 2, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 2};
     gptPathFinding->set_voxel(ptGrid, 4, 0, 2, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 2};
     gptPathFinding->set_voxel(ptGrid, 5, 0, 2, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 2};
     gptPathFinding->set_voxel(ptGrid, 6, 0, 2, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 2};
     gptPathFinding->set_voxel(ptGrid, 7, 0, 2, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 4, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 9, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 11, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){13, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 13, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 15, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 17, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 18, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){19, 0, 3};
     gptPathFinding->set_voxel(ptGrid, 19, 0, 3, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){0, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 0, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){2, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 2, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 4, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 7, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 9, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 15, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 4};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 4, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 5};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 5, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 5};
     gptPathFinding->set_voxel(ptGrid, 11, 0, 5, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 5};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 5, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 5};
     gptPathFinding->set_voxel(ptGrid, 17, 0, 5, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 5};
     gptPathFinding->set_voxel(ptGrid, 18, 0, 5, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 4, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 5, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 6, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 11, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){13, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 13, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 6};
     gptPathFinding->set_voxel(ptGrid, 18, 0, 6, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 7};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 7, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 7};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 7, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 7};
     gptPathFinding->set_voxel(ptGrid, 6, 0, 7, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 7};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 7, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 7};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 7, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 7};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 7, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 7};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 7, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 8};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 8, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 8};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 8, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 8};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 8, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 8};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 8, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 8};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 8, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 8};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 8, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 4, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 5, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 6, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 7, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 15, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 17, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 9};
     gptPathFinding->set_voxel(ptGrid, 18, 0, 9, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 10};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 10, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){2, 0, 10};
     gptPathFinding->set_voxel(ptGrid, 2, 0, 10, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 10};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 10, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 10};
     gptPathFinding->set_voxel(ptGrid, 7, 0, 10, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 10};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 10, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 10};
     gptPathFinding->set_voxel(ptGrid, 11, 0, 10, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 10};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 10, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 10};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 10, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 11};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 11, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 11};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 11, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 11};
     gptPathFinding->set_voxel(ptGrid, 5, 0, 11, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 11};
     gptPathFinding->set_voxel(ptGrid, 7, 0, 11, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 11};
     gptPathFinding->set_voxel(ptGrid, 9, 0, 11, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 11};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 11, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 11};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 11, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 11};
     gptPathFinding->set_voxel(ptGrid, 17, 0, 11, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){19, 0, 11};
     gptPathFinding->set_voxel(ptGrid, 19, 0, 11, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 5, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 9, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){13, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 13, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 15, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 17, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 18, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){19, 0, 12};
     gptPathFinding->set_voxel(ptGrid, 19, 0, 12, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 5, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 6, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 7, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 9, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 11, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){19, 0, 13};
     gptPathFinding->set_voxel(ptGrid, 19, 0, 13, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 14};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 14, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 14};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 14, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 14};
     gptPathFinding->set_voxel(ptGrid, 5, 0, 14, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 14};
     gptPathFinding->set_voxel(ptGrid, 11, 0, 14, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 14};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 14, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 14};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 14, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 5, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 9, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 11, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 17, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 15};
     gptPathFinding->set_voxel(ptGrid, 18, 0, 15, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 16};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 16, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 16};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 16, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 16};
     gptPathFinding->set_voxel(ptGrid, 4, 0, 16, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 16};
     gptPathFinding->set_voxel(ptGrid, 5, 0, 16, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 16};
     gptPathFinding->set_voxel(ptGrid, 6, 0, 16, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 16};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 16, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 16};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 16, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 16};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 16, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 16};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 16, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 16};
     gptPathFinding->set_voxel(ptGrid, 18, 0, 16, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 17};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 17, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 17};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 17, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 17};
     gptPathFinding->set_voxel(ptGrid, 6, 0, 17, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 17};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 17, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 17};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 17, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 17};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 17, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 17};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 17, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 17};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 17, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 18};
     gptPathFinding->set_voxel(ptGrid, 1, 0, 18, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 18};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 18, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 18};
     gptPathFinding->set_voxel(ptGrid, 6, 0, 18, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 18};
     gptPathFinding->set_voxel(ptGrid, 10, 0, 18, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 18};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 18, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 18};
     gptPathFinding->set_voxel(ptGrid, 14, 0, 18, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 18};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 18, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 19};
     gptPathFinding->set_voxel(ptGrid, 3, 0, 19, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 19};
     gptPathFinding->set_voxel(ptGrid, 8, 0, 19, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 19};
     gptPathFinding->set_voxel(ptGrid, 12, 0, 19, true);
-    
     tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 19};
     gptPathFinding->set_voxel(ptGrid, 16, 0, 19, true);
+
+}
+
+
+// TODO: build out 5 new maps
+static void
+set_voxels_maze_two(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount)
+{
+    *uObstacleCount = 0;
     
+    // set voxels and store coordinates
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 5, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 13, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 17, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 1};
+    gptPathFinding->set_voxel(ptGrid, 18, 0, 1, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 2};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 0, 2};
+    gptPathFinding->set_voxel(ptGrid, 2, 0, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 2};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 2};
+    gptPathFinding->set_voxel(ptGrid, 5, 0, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 5, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 9, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 13, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 17, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 18, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){19, 0, 3};
+    gptPathFinding->set_voxel(ptGrid, 19, 0, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 4};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 0, 4};
+    gptPathFinding->set_voxel(ptGrid, 2, 0, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 4};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 4};
+    gptPathFinding->set_voxel(ptGrid, 4, 0, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 4};
+    gptPathFinding->set_voxel(ptGrid, 5, 0, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 4};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 4};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 4};
+    gptPathFinding->set_voxel(ptGrid, 9, 0, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 4};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 5};
+    gptPathFinding->set_voxel(ptGrid, 5, 0, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 5};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 5};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 5};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 5};
+    gptPathFinding->set_voxel(ptGrid, 18, 0, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 4, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 5, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 6, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 18, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 6, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 17, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 18, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 5, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 18, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 2, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 4, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 5, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 9, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 17, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){19, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 19, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 5, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 9, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 13, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 17, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 18, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){19, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 19, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 5, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 6, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 9, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){19, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 19, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 2, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 6, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 9, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 17, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 15};
+    gptPathFinding->set_voxel(ptGrid, 18, 0, 15, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 6, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 18, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 17};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 17, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 17};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 17, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 17};
+    gptPathFinding->set_voxel(ptGrid, 6, 0, 17, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 17};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 17, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 17};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 17, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 17};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 17, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 17};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 17, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 17};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 17, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 18};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 18, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 18};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 18, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 0, 18};
+    gptPathFinding->set_voxel(ptGrid, 6, 0, 18, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 18};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 18, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 18};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 18, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 0, 18};
+    gptPathFinding->set_voxel(ptGrid, 14, 0, 18, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 18};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 18, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 19};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 19, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){8, 0, 19};
+    gptPathFinding->set_voxel(ptGrid, 8, 0, 19, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){12, 0, 19};
+    gptPathFinding->set_voxel(ptGrid, 12, 0, 19, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 19};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 19, true);
+}
+
+static void
+set_voxels_maze_three(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount)
+{
+    *uObstacleCount = 0;
+    
+    // set voxels and store coordinates
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 2};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 1, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 1, 2};
+    gptPathFinding->set_voxel(ptGrid, 1, 1, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 1, 8};
+    gptPathFinding->set_voxel(ptGrid, 1, 1, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 1, 16};
+    gptPathFinding->set_voxel(ptGrid, 1, 1, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 2, 2};
+    gptPathFinding->set_voxel(ptGrid, 1, 2, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 2, 8};
+    gptPathFinding->set_voxel(ptGrid, 1, 2, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){1, 2, 16};
+    gptPathFinding->set_voxel(ptGrid, 1, 2, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 2, 4};
+    gptPathFinding->set_voxel(ptGrid, 2, 2, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 2, 5};
+    gptPathFinding->set_voxel(ptGrid, 2, 2, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 2, 6};
+    gptPathFinding->set_voxel(ptGrid, 2, 2, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 2, 7};
+    gptPathFinding->set_voxel(ptGrid, 2, 2, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 2, 8};
+    gptPathFinding->set_voxel(ptGrid, 2, 2, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 2, 9};
+    gptPathFinding->set_voxel(ptGrid, 2, 2, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 2, 10};
+    gptPathFinding->set_voxel(ptGrid, 2, 2, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 2, 11};
+    gptPathFinding->set_voxel(ptGrid, 2, 2, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 2, 12};
+    gptPathFinding->set_voxel(ptGrid, 2, 2, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){2, 2, 13};
+    gptPathFinding->set_voxel(ptGrid, 2, 2, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 5};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){3, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 3, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 2};
+    gptPathFinding->set_voxel(ptGrid, 4, 0, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){4, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 4, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){4, 1, 2};
+    gptPathFinding->set_voxel(ptGrid, 4, 1, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){4, 1, 16};
+    gptPathFinding->set_voxel(ptGrid, 4, 1, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){4, 2, 2};
+    gptPathFinding->set_voxel(ptGrid, 4, 2, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){4, 2, 8};
+    gptPathFinding->set_voxel(ptGrid, 4, 2, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){4, 2, 16};
+    gptPathFinding->set_voxel(ptGrid, 4, 2, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 1, 3};
+    gptPathFinding->set_voxel(ptGrid, 5, 1, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 1, 4};
+    gptPathFinding->set_voxel(ptGrid, 5, 1, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 1, 5};
+    gptPathFinding->set_voxel(ptGrid, 5, 1, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 1, 6};
+    gptPathFinding->set_voxel(ptGrid, 5, 1, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 1, 7};
+    gptPathFinding->set_voxel(ptGrid, 5, 1, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 1, 8};
+    gptPathFinding->set_voxel(ptGrid, 5, 1, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 1, 9};
+    gptPathFinding->set_voxel(ptGrid, 5, 1, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 1, 10};
+    gptPathFinding->set_voxel(ptGrid, 5, 1, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 1, 11};
+    gptPathFinding->set_voxel(ptGrid, 5, 1, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){5, 1, 12};
+    gptPathFinding->set_voxel(ptGrid, 5, 1, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 2, 4};
+    gptPathFinding->set_voxel(ptGrid, 6, 2, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 2, 5};
+    gptPathFinding->set_voxel(ptGrid, 6, 2, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 2, 6};
+    gptPathFinding->set_voxel(ptGrid, 6, 2, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 2, 7};
+    gptPathFinding->set_voxel(ptGrid, 6, 2, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 2, 8};
+    gptPathFinding->set_voxel(ptGrid, 6, 2, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 2, 9};
+    gptPathFinding->set_voxel(ptGrid, 6, 2, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 2, 10};
+    gptPathFinding->set_voxel(ptGrid, 6, 2, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 2, 11};
+    gptPathFinding->set_voxel(ptGrid, 6, 2, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 2, 12};
+    gptPathFinding->set_voxel(ptGrid, 6, 2, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){6, 2, 13};
+    gptPathFinding->set_voxel(ptGrid, 6, 2, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 2};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 5};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 7, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 1, 2};
+    gptPathFinding->set_voxel(ptGrid, 7, 1, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 1, 8};
+    gptPathFinding->set_voxel(ptGrid, 7, 1, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 1, 16};
+    gptPathFinding->set_voxel(ptGrid, 7, 1, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 2, 2};
+    gptPathFinding->set_voxel(ptGrid, 7, 2, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 2, 8};
+    gptPathFinding->set_voxel(ptGrid, 7, 2, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){7, 2, 16};
+    gptPathFinding->set_voxel(ptGrid, 7, 2, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 1, 3};
+    gptPathFinding->set_voxel(ptGrid, 9, 1, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 1, 4};
+    gptPathFinding->set_voxel(ptGrid, 9, 1, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 1, 5};
+    gptPathFinding->set_voxel(ptGrid, 9, 1, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 1, 6};
+    gptPathFinding->set_voxel(ptGrid, 9, 1, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 1, 7};
+    gptPathFinding->set_voxel(ptGrid, 9, 1, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 1, 8};
+    gptPathFinding->set_voxel(ptGrid, 9, 1, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 1, 9};
+    gptPathFinding->set_voxel(ptGrid, 9, 1, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 1, 10};
+    gptPathFinding->set_voxel(ptGrid, 9, 1, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 1, 11};
+    gptPathFinding->set_voxel(ptGrid, 9, 1, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){9, 1, 12};
+    gptPathFinding->set_voxel(ptGrid, 9, 1, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 2};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 10, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 1, 2};
+    gptPathFinding->set_voxel(ptGrid, 10, 1, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 1, 8};
+    gptPathFinding->set_voxel(ptGrid, 10, 1, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 1, 16};
+    gptPathFinding->set_voxel(ptGrid, 10, 1, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 2};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 4};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 5};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 6};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 7};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 8};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 9};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 10};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 11};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 12};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 13};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){10, 2, 16};
+    gptPathFinding->set_voxel(ptGrid, 10, 2, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 5};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){11, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 11, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 0, 2};
+    gptPathFinding->set_voxel(ptGrid, 13, 0, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 13, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 13, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 2};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 3};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 4};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 5};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 6};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 7};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 8};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 9};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 10};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 11};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 12};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 1, 16};
+    gptPathFinding->set_voxel(ptGrid, 13, 1, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 2, 2};
+    gptPathFinding->set_voxel(ptGrid, 13, 2, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 2, 8};
+    gptPathFinding->set_voxel(ptGrid, 13, 2, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){13, 2, 16};
+    gptPathFinding->set_voxel(ptGrid, 13, 2, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 2, 4};
+    gptPathFinding->set_voxel(ptGrid, 14, 2, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 2, 5};
+    gptPathFinding->set_voxel(ptGrid, 14, 2, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 2, 6};
+    gptPathFinding->set_voxel(ptGrid, 14, 2, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 2, 7};
+    gptPathFinding->set_voxel(ptGrid, 14, 2, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 2, 8};
+    gptPathFinding->set_voxel(ptGrid, 14, 2, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 2, 9};
+    gptPathFinding->set_voxel(ptGrid, 14, 2, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 2, 10};
+    gptPathFinding->set_voxel(ptGrid, 14, 2, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 2, 11};
+    gptPathFinding->set_voxel(ptGrid, 14, 2, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 2, 12};
+    gptPathFinding->set_voxel(ptGrid, 14, 2, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){14, 2, 13};
+    gptPathFinding->set_voxel(ptGrid, 14, 2, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 5};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 6};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 7};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 9};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 10};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 11};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 12};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 13};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 13, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){15, 0, 14};
+    gptPathFinding->set_voxel(ptGrid, 15, 0, 14, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 2};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 8};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 0, 16};
+    gptPathFinding->set_voxel(ptGrid, 16, 0, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 1, 2};
+    gptPathFinding->set_voxel(ptGrid, 16, 1, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 1, 8};
+    gptPathFinding->set_voxel(ptGrid, 16, 1, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 1, 16};
+    gptPathFinding->set_voxel(ptGrid, 16, 1, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 2, 2};
+    gptPathFinding->set_voxel(ptGrid, 16, 2, 2, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 2, 8};
+    gptPathFinding->set_voxel(ptGrid, 16, 2, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){16, 2, 16};
+    gptPathFinding->set_voxel(ptGrid, 16, 2, 16, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 1, 3};
+    gptPathFinding->set_voxel(ptGrid, 17, 1, 3, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 1, 4};
+    gptPathFinding->set_voxel(ptGrid, 17, 1, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 1, 5};
+    gptPathFinding->set_voxel(ptGrid, 17, 1, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 1, 6};
+    gptPathFinding->set_voxel(ptGrid, 17, 1, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 1, 7};
+    gptPathFinding->set_voxel(ptGrid, 17, 1, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 1, 8};
+    gptPathFinding->set_voxel(ptGrid, 17, 1, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 1, 9};
+    gptPathFinding->set_voxel(ptGrid, 17, 1, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 1, 10};
+    gptPathFinding->set_voxel(ptGrid, 17, 1, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 1, 11};
+    gptPathFinding->set_voxel(ptGrid, 17, 1, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){17, 1, 12};
+    gptPathFinding->set_voxel(ptGrid, 17, 1, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 2, 4};
+    gptPathFinding->set_voxel(ptGrid, 18, 2, 4, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 2, 5};
+    gptPathFinding->set_voxel(ptGrid, 18, 2, 5, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 2, 6};
+    gptPathFinding->set_voxel(ptGrid, 18, 2, 6, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 2, 7};
+    gptPathFinding->set_voxel(ptGrid, 18, 2, 7, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 2, 8};
+    gptPathFinding->set_voxel(ptGrid, 18, 2, 8, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 2, 9};
+    gptPathFinding->set_voxel(ptGrid, 18, 2, 9, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 2, 10};
+    gptPathFinding->set_voxel(ptGrid, 18, 2, 10, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 2, 11};
+    gptPathFinding->set_voxel(ptGrid, 18, 2, 11, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 2, 12};
+    gptPathFinding->set_voxel(ptGrid, 18, 2, 12, true);
+    tObstacles[(*uObstacleCount)++] = (plVec3){18, 2, 13};
+    gptPathFinding->set_voxel(ptGrid, 18, 2, 13, true);
+}
+
+static void
+set_voxels_maze_four(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount)
+{
+    set_voxels_maze_one(ptGrid, tObstacles, uObstacleCount);
+}
+
+static void
+set_voxels_maze_five(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount)
+{
+    set_voxels_maze_one(ptGrid, tObstacles, uObstacleCount);
 }
