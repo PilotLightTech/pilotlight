@@ -112,7 +112,7 @@ static void set_voxels_maze_three(plPathFindingVoxelGrid* ptGrid, plVec3* tObsta
 static void set_voxels_maze_four(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
 static void set_voxels_maze_five(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
 static void draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGrid, plDrawLineOptions tOptions);
-// TODO: void draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor); 
+void        draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor); 
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -302,10 +302,10 @@ pl_app_update(plAppData* ptAppData)
 
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
         tCorner1, tCorner2, tCorner3,
-        (plDrawSolidOptions){.uColor = PL_COLOR_32_LIGHT_GREY});
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_GREY});
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
         tCorner2, tCorner4, tCorner3, 
-        (plDrawSolidOptions){.uColor = PL_COLOR_32_LIGHT_GREY});
+        (plDrawSolidOptions){.uColor = PL_COLOR_32_GREY});
 
     // draw origin axes
     if(gptIO->is_key_pressed(PL_KEY_C, false))
@@ -326,20 +326,22 @@ pl_app_update(plAppData* ptAppData)
 
     if(ptAppData->bShowWireFrame)
     {
-        draw_voxel_grid_wireframe(ptAppData->pt3dDrawlist, ptAppData->ptVoxelGrid, (plDrawLineOptions){.uColor = PL_COLOR_32_RED, .fThickness = 0.05f});
+        draw_voxel_grid_wireframe(ptAppData->pt3dDrawlist, ptAppData->ptVoxelGrid, (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 0.05f});
     }
 
     // start sphere 
     float fStartX = ptAppData->tQuery.tStart.x;
+    float fStartY = ptAppData->tQuery.tStart.y;
     float fStartZ = ptAppData->tQuery.tStart.z;
     gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, 
-        (plSphere){.fRadius = 0.35f, .tCenter = {fStartX, 0.5f, fStartZ}}, 0, 0, 
+        (plSphere){.fRadius = 0.35f, .tCenter = {fStartX, fStartY, fStartZ}}, 0, 0, 
         (plDrawSolidOptions){.uColor = PL_COLOR_32_MAGENTA});
     // goal sphere
     float fGoalX = ptAppData->tQuery.tGoal.x;
+    float fGoalY = ptAppData->tQuery.tGoal.y;
     float fGoalZ = ptAppData->tQuery.tGoal.z;
     gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, 
-        (plSphere){.fRadius = 0.35f, .tCenter = {fGoalX, 0.5f, fGoalZ}}, 0, 0, 
+        (plSphere){.fRadius = 0.35f, .tCenter = {fGoalX, fGoalY, fGoalZ}}, 0, 0, 
         (plDrawSolidOptions){.uColor = PL_COLOR_32_CYAN});    
 
     // draw obstacles
@@ -353,11 +355,29 @@ pl_app_update(plAppData* ptAppData)
         for(uint32_t i = 0; i < ptAppData->uObstacleCount; i++)
         {
             float fCenterX = ptAppData->tObstacles[i].x + 0.5f;
+            float fCenterY = ptAppData->tObstacles[i].y + 0.5f;
             float fCenterZ = ptAppData->tObstacles[i].z + 0.5f;
+
+            // change color for each layer TODO: add more layer colors
+            plDrawSolidOptions tOptions;
+            if(fCenterY == 0.5f) 
+            {
+                tOptions.uColor = PL_COLOR_32_RED;
+            }
+            else if(fCenterY == 1.5f) 
+            {
+                tOptions.uColor = PL_COLOR_32_GREEN;
+            }
+            else if(fCenterY == 2.5f) 
+            {
+                tOptions.uColor = PL_COLOR_32_BLUE;
+            }
+            else
+            {
+                tOptions.uColor = PL_COLOR_32_WHITE;
+            }
         
-            gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, 
-                (plSphere){.fRadius = 0.55f, .tCenter = {fCenterX, 0.5f, fCenterZ}}, 0, 0, 
-                (plDrawSolidOptions){.uColor = PL_COLOR_32_GREEN}); 
+            draw_cube(ptAppData->pt3dDrawlist, (plVec3){fCenterX, fCenterY, fCenterZ}, 1.0f, tOptions.uColor); 
         }
     }
 
@@ -385,7 +405,7 @@ pl_app_update(plAppData* ptAppData)
             gptDraw->add_3d_line(ptAppData->pt3dDrawlist, 
                 ptAppData->tPathResult.atWaypoints[i], 
                 ptAppData->tPathResult.atWaypoints[i + 1], 
-                (plDrawLineOptions){.uColor = PL_COLOR_32_BLUE, .fThickness = 0.3f});
+                (plDrawLineOptions){.uColor = PL_COLOR_32_DARK_BLUE, .fThickness = 0.3f});
         }
 
         // draw current partial segment
@@ -403,7 +423,7 @@ pl_app_update(plAppData* ptAppData)
 
             gptDraw->add_3d_line(ptAppData->pt3dDrawlist, 
                 tStart, tPartialEnd,
-                (plDrawLineOptions){.uColor = PL_COLOR_32_BLUE, .fThickness = 0.3f});
+                (plDrawLineOptions){.uColor = PL_COLOR_32_DARK_BLUE, .fThickness = 0.3f});
         }
     }
     // submit 3D drawlist
@@ -523,12 +543,37 @@ draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGr
     }
 }
 
-// void 
-// draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor)
-// {
-//     // calculate 8 corner vertices
-//     // draw 12 triangles (2 per face)
-// }
+void 
+draw_cube(plDrawList3D* ptDrawlist, plVec3 tCenter, float fSize, uint32_t uColor)
+{
+    // calculate half size for offset from center
+    float fHalf = fSize * 0.5f;
+    
+    // calculate 8 corner vertices
+    plVec3 v0 = {tCenter.x - fHalf, tCenter.y - fHalf, tCenter.z - fHalf}; // back bottom left
+    plVec3 v1 = {tCenter.x + fHalf, tCenter.y - fHalf, tCenter.z - fHalf}; // back bottom right
+    plVec3 v2 = {tCenter.x + fHalf, tCenter.y + fHalf, tCenter.z - fHalf}; // back top right
+    plVec3 v3 = {tCenter.x - fHalf, tCenter.y + fHalf, tCenter.z - fHalf}; // back top left
+    plVec3 v4 = {tCenter.x - fHalf, tCenter.y - fHalf, tCenter.z + fHalf}; // front bottom left
+    plVec3 v5 = {tCenter.x + fHalf, tCenter.y - fHalf, tCenter.z + fHalf}; // front bottom right
+    plVec3 v6 = {tCenter.x + fHalf, tCenter.y + fHalf, tCenter.z + fHalf}; // front top right
+    plVec3 v7 = {tCenter.x - fHalf, tCenter.y + fHalf, tCenter.z + fHalf}; // front top left
+    
+    plDrawSolidOptions tOptions = {.uColor = uColor};
+
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v4, v5, v6, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v4, v6, v7, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v1, v0, v3, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v1, v3, v2, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v5, v1, v2, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v5, v2, v6, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v0, v4, v7, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v0, v7, v3, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v3, v7, v6, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v3, v6, v2, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v0, v1, v5, tOptions);
+    gptDraw->add_3d_triangle_filled(ptDrawlist, v0, v5, v4, tOptions);
+}
 
 static void
 load_map(plAppData* ptAppData, uint32_t uMapNumber)
