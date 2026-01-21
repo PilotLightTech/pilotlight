@@ -33,6 +33,7 @@ Index of this file:
 // stable extensions
 #include "pl_platform_ext.h"
 #include "pl_image_ext.h"
+#include "pl_profile_ext.h"
 
 // unstable extensions
 #include "pl_mesh_ext.h"
@@ -52,6 +53,22 @@ typedef struct _plCdLodMapElement
     int8_t   iActivationLevel;
 } plCdLodMapElement;
 
+typedef union _plEdgeKey
+{
+    struct
+    {
+        uint32_t uLeft;
+        uint32_t uRight;
+    };
+    uint64_t uData;
+} plEdgeKey;
+
+typedef struct _plEdgeEntry
+{
+    uint32_t t0;
+    uint32_t t1;
+} plEdgeEntry;
+
 typedef struct _plCdLodHeightMap
 {
     bool                b3dErrorCalc; // true for ellipsoid
@@ -68,23 +85,8 @@ typedef struct _plCdLodHeightMap
     plCdLodMapElement* atElements;
     const char*         pcHeightMapFile;
     const char*         pcOutputFile;
+    plEdgeEntry*        sbtEdges;
 } plCdLodHeightMap;
-
-typedef union _plEdgeKey
-{
-    struct
-    {
-        uint32_t uLeft;
-        uint32_t uRight;
-    };
-    uint64_t uData;
-} plEdgeKey;
-
-typedef struct _plEdgeEntry
-{
-    uint32_t t0;
-    uint32_t t1;
-} plEdgeEntry;
 
 typedef struct _plTrianglePrimitive
 {
@@ -123,6 +125,7 @@ typedef struct _plCdLodContext
     static const plMeshBuilderI* gptMeshBuilder = NULL;
     static const plImageI*       gptImage       = NULL;
     static const plFileI*        gptFile        = NULL;
+    static const plProfileI*     gptProfile     = NULL;
 
 #endif
 
@@ -258,27 +261,36 @@ pl_process_cdlod_heightmap(plCdLodHeightMapInfo tInfo)
         .pcOutputFile    = tInfo.pcOutputFile
     };
 
+    pl_begin_cpu_sample(gptProfile, 0, "pl__initialize_cdlod_heightmap");
     pl__initialize_cdlod_heightmap(&tHeightMap);
+    pl_end_cpu_sample(gptProfile, 0);
+
 
     // update step
 
     // Run a view-independent L-K style BTT update on the heightfield, to generate
 	// error and activation_level values for each element.
+
+    pl_begin_cpu_sample(gptProfile, 0, "updating");
 	pl__update(&tHeightMap, tHeightMap.fMaxBaseError, 0, tHeightMap.iSize-1, tHeightMap.iSize-1, tHeightMap.iSize-1, 0, 0);	// sw half of the square
 	pl__update(&tHeightMap, tHeightMap.fMaxBaseError, tHeightMap.iSize-1, 0, 0, 0, tHeightMap.iSize-1, tHeightMap.iSize-1);	// ne half of the square
+    pl_end_cpu_sample(gptProfile, 0);
 
     // propogate step
 
 	// Propagate the activation_level values of verts to their
 	// uParent verts, quadtree LOD style.  Gives same result as L-K.
+    pl_begin_cpu_sample(gptProfile, 0, "propogation");
 	for(int i = 0; i < tHeightMap.iLogSize; i++)
     {
 		pl__propagate_activation_level(&tHeightMap, tHeightMap.iSize >> 1, tHeightMap.iSize >> 1, tHeightMap.iLogSize - 1, i);
 		pl__propagate_activation_level(&tHeightMap, tHeightMap.iSize >> 1, tHeightMap.iSize >> 1, tHeightMap.iLogSize - 1, i);
 	}
+    pl_end_cpu_sample(gptProfile, 0);
 
     // meshing step
 
+    pl_begin_cpu_sample(gptProfile, 0, "meshing");
     int iRootLevel = tInfo.iTreeDepth - 1;
 
     FILE* ptDataFile = fopen(tInfo.pcOutputFile, "wb");
@@ -290,10 +302,94 @@ pl_process_cdlod_heightmap(plCdLodHeightMapInfo tInfo)
     fwrite(&uChunkCount, 1, sizeof(uint32_t), ptDataFile);
 
     pl__terrain_mesh(ptDataFile, &tHeightMap, 0, 0, tHeightMap.iLogSize, iRootLevel);
+    pl_sb_free(tHeightMap.sbtEdges);
 
     PL_FREE(tHeightMap.atElements);
 
     fclose(ptDataFile);
+    pl_end_cpu_sample(gptProfile, 0);
+}
+
+static void pl__chlod_read_chunk(plCdLodChunkFile* ptFileOut, int iRecurseCount, FILE* ptDataFile, uint32_t* puCurrentChunk);
+
+bool
+pl_chlod_load_chunk_file(const char* pcPath, plCdLodChunkFile* ptFileOut)
+{
+    FILE* ptDataFile = fopen(pcPath, "rb");
+    
+    if(ptDataFile == NULL)
+    {
+        return false;
+    }
+    
+    fread(&ptFileOut->iTreeDepth, 1, sizeof(int), ptDataFile);
+    fread(&ptFileOut->fMaxBaseError, 1, sizeof(float), ptDataFile);
+    fread(&ptFileOut->uChunkCount, 1, sizeof(uint32_t), ptDataFile);
+
+    ptFileOut->atChunks = PL_ALLOC(ptFileOut->uChunkCount * sizeof(plCdLodChunk));
+    memset(ptFileOut->atChunks, 0, ptFileOut->uChunkCount * sizeof(plCdLodChunk));
+
+    uint32_t uCurrentChunk = 0;
+    pl__chlod_read_chunk(ptFileOut, ptFileOut->iTreeDepth - 1, ptDataFile, &uCurrentChunk);
+
+    fclose(ptDataFile);
+    return true;
+}
+
+void
+pl_chlod_unload_chunk_file(plCdLodChunkFile* ptFile)
+{
+    ptFile->atChunks = PL_FREE(ptFile->atChunks);
+    ptFile->atChunks = NULL;
+    ptFile->uChunkCount = 0;
+    ptFile->fMaxBaseError = 0.0f;
+    ptFile->iTreeDepth = 0;
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementation
+//-----------------------------------------------------------------------------
+
+static void
+pl__chlod_read_chunk(plCdLodChunkFile* ptFileOut, int iRecurseCount, FILE* ptDataFile, uint32_t* puCurrentChunk)
+{
+    plCdLodChunk* ptChunk = &ptFileOut->atChunks[*puCurrentChunk];
+    ptChunk->szFileLocation = (size_t)ftell(ptDataFile);
+
+    int iChunkLabel = 0;
+    fread(&iChunkLabel, 1, sizeof(int), ptDataFile);
+
+    int iLevel = 0;
+    fread(&iLevel, 1, sizeof(int), ptDataFile);
+    ptChunk->uLevel = (uint8_t)iLevel;
+
+    fread(&ptChunk->tMinBound, 1, sizeof(plVec3), ptDataFile);
+    fread(&ptChunk->tMaxBound, 1, sizeof(plVec3), ptDataFile);
+
+    uint32_t uVertexCount = 0;
+    fread(&uVertexCount, 1, sizeof(uint32_t), ptDataFile);
+    fseek(ptDataFile, sizeof(plVec3) * uVertexCount, SEEK_CUR);
+
+    uint32_t uIndexCount = 0;
+    fread(&uIndexCount, 1, sizeof(uint32_t), ptDataFile);
+    fseek(ptDataFile, sizeof(uint32_t) * uIndexCount, SEEK_CUR);
+
+    if(iRecurseCount > 0)
+    {
+        for(uint32_t i = 0; i < 4; i++)
+        {
+            ptChunk->aptChildren[i] = &ptFileOut->atChunks[++(*puCurrentChunk)];
+            ptChunk->aptChildren[i]->ptParent = ptChunk;
+            pl__chlod_read_chunk(ptFileOut, iRecurseCount - 1, ptDataFile, puCurrentChunk);
+        }
+    }
+    else
+    {
+        for(uint32_t i = 0; i < 4; i++)
+        {
+            ptChunk->aptChildren[i] = NULL;
+        }
+    }
 }
 
 static void
@@ -450,23 +546,16 @@ pl__initialize_cdlod_heightmap(plCdLodHeightMap* ptHeightMap)
     auHeightMapData = NULL;
 }
 
-//-----------------------------------------------------------------------------
-// [SECTION] internal api implementation
-//-----------------------------------------------------------------------------
-
 static void
 pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, int iStartIndexY, int iLogSize, int iLevel)
 {
     plMeshBuilder* ptMeshBuilder = gptMeshBuilder->create((plMeshBuilderOptions){.fWeldRadius = 0.001f});
     plTrianglePrimitive* sbtPrimitives = NULL;
 
-    plEdgeEntry* sbtEdges = NULL;
     plHashMap tEdgeHash = {0};
 
     int	iSize = (1 << iLogSize);
-    // int iEndIndexY = iStartIndexY + (iSize - 1);
     int iEndIndexY = iStartIndexY + (iSize);
-    // int iEndIndexX = iStartIndexX + (iSize - 1);
     int iEndIndexX = iStartIndexX + (iSize);
     int iMaxLevel = iLogSize * 2 + iLevel;
 
@@ -481,8 +570,6 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
     // chunk address
     fwrite(&iLevel, 1, sizeof(int), ptFile);
 
-
-    
     const uint32_t uMaxId = (1u << (iMaxLevel + 2)); // plenty
 
     plTrianglePrimitive* atTriangles = PL_ALLOC(uMaxId * sizeof(plTrianglePrimitive));
@@ -602,19 +689,19 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
             if(pl_hm_has_key(&tEdgeHash, tEdge.uData))
             {
                 uint64_t idx = pl_hm_lookup(&tEdgeHash, tEdge.uData);
-                sbtEdges[idx].t1 = uParent;
+                ptHeightMap->sbtEdges[idx].t1 = uParent;
             }
             else // first time edge registering
             {
                 uint64_t idx = pl_hm_get_free_index(&tEdgeHash);
                 if(idx == PL_DS_HASH_INVALID)
                 {
-                    idx = pl_sb_size(sbtEdges);
-                    pl_sb_add(sbtEdges);
+                    idx = pl_sb_size(ptHeightMap->sbtEdges);
+                    pl_sb_add(ptHeightMap->sbtEdges);
                 }
 
-                sbtEdges[idx].t0 = uParent;
-                sbtEdges[idx].t1 = UINT32_MAX;
+                ptHeightMap->sbtEdges[idx].t0 = uParent;
+                ptHeightMap->sbtEdges[idx].t1 = UINT32_MAX;
 
                 pl_hm_insert(&tEdgeHash, tEdge.uData, idx);
             }
@@ -660,7 +747,7 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
                 continue;
 
             uint64_t uEdgeIndex = pl_hm_lookup(&tEdgeHash, tEdgeKey.uData);
-            plEdgeEntry tEdgeEntry = sbtEdges[uEdgeIndex];
+            plEdgeEntry tEdgeEntry = ptHeightMap->sbtEdges[uEdgeIndex];
 
             // pick the other PARENT in the diamond
             uint32_t uMateParent = (tEdgeEntry.t0 == uParent) ? tEdgeEntry.t1 : tEdgeEntry.t0;
@@ -696,7 +783,7 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
     }
 
     pl_hm_free(&tEdgeHash);
-    pl_sb_free(sbtEdges);
+    pl_sb_reset(ptHeightMap->sbtEdges);
 
     plVec3 tMinBounding = {
         .x = FLT_MAX,
@@ -935,7 +1022,9 @@ pl_load_cdlod_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plCdLodI tApi = {
         .initialize        = pl_initialize_cdlod,
         .cleanup           = pl_cleanup_cdlod,
-        .process_heightmap = pl_process_cdlod_heightmap
+        .process_heightmap = pl_process_cdlod_heightmap,
+        .load_chunk_file   = pl_chlod_load_chunk_file,
+        .unload_chunk_file = pl_chlod_unload_chunk_file,
     };
     pl_set_api(ptApiRegistry, plCdLodI, &tApi);
 
@@ -944,6 +1033,7 @@ pl_load_cdlod_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptMeshBuilder = pl_get_api_latest(ptApiRegistry, plMeshBuilderI);
         gptImage       = pl_get_api_latest(ptApiRegistry, plImageI);
         gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
+        gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

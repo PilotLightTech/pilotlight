@@ -176,7 +176,7 @@ plProfileSample*  pl__get_last_frame_samples(uint32_t uThreadIndex, uint32_t* pu
     #define pl_get_profile_context() NULL
     #define pl_begin_profile_frame() //
     #define pl_end_profile_frame() //
-    #define pl_begin_profile_sampleuThreadIndex(uThreadIndex, pcName) //
+    #define pl_begin_profile_sample(uThreadIndex, pcName) //
     #define pl_end_profile_sample(uThreadIndex) //
     #define pl_get_last_frame_samples(uThreadIndex, puSize) NULL
     #define pl_get_profile_overhead() 0.0

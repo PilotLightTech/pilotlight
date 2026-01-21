@@ -625,39 +625,34 @@ pl_mesh_builder_add_triangle(plMeshBuilder* ptBuilder, plVec3 tA, plVec3 tB, plV
     {
         const plVec3* ptVertex = &ptBuilder->sbtVertices[i];
 
-        float fDist = pl_length_sqr_vec3(pl_sub_vec3(*ptVertex, tA));
-
-        if(fDist < fWeldRadiusSqr)
+        if(tTriangle.uIndex0 == UINT32_MAX)
         {
-            tTriangle.uIndex0 = i;
-            break;
+            float fDist = pl_length_sqr_vec3(pl_sub_vec3(*ptVertex, tA));
+
+            if(fDist < fWeldRadiusSqr)
+                tTriangle.uIndex0 = i;
         }
-    }
 
-    for(uint32_t i = 0; i < uVertexCount; i++)
-    {
-        const plVec3* ptVertex = &ptBuilder->sbtVertices[i];
-
-        float fDist = pl_length_sqr_vec3(pl_sub_vec3(*ptVertex, tB));
-
-        if(fDist < fWeldRadiusSqr)
+        if(tTriangle.uIndex1 == UINT32_MAX)
         {
-            tTriangle.uIndex1 = i;
-            break;
+            float fDist = pl_length_sqr_vec3(pl_sub_vec3(*ptVertex, tB));
+
+            if(fDist < fWeldRadiusSqr)
+                tTriangle.uIndex1 = i;
         }
-    }
 
-    for(uint32_t i = 0; i < uVertexCount; i++)
-    {
-        const plVec3* ptVertex = &ptBuilder->sbtVertices[i];
-
-        float fDist = pl_length_sqr_vec3(pl_sub_vec3(*ptVertex, tC));
-
-        if(fDist < fWeldRadiusSqr)
+        if(tTriangle.uIndex2 == UINT32_MAX)
         {
-            tTriangle.uIndex2 = i;
-            break;
+            float fDist = pl_length_sqr_vec3(pl_sub_vec3(*ptVertex, tC));
+
+            if(fDist < fWeldRadiusSqr)
+                tTriangle.uIndex2 = i;
         }
+
+        if(tTriangle.uIndex0 != UINT32_MAX &&
+           tTriangle.uIndex1 != UINT32_MAX &&
+           tTriangle.uIndex2 != UINT32_MAX)
+            break;
     }
 
     if(tTriangle.uIndex0 == UINT32_MAX)

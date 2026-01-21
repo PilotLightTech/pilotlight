@@ -40,6 +40,9 @@ Index of this file:
 
 // basic types
 typedef struct _plCdLodHeightMapInfo plCdLodHeightMapInfo;
+typedef struct _plCdLodChunk         plCdLodChunk;
+typedef struct _plCdLodChunkData     plCdLodChunkData;
+typedef struct _plCdLodChunkFile     plCdLodChunkFile;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -54,11 +57,43 @@ typedef struct _plCdLodI
 
     // offline preprocessing
     void (*process_heightmap)(plCdLodHeightMapInfo);
+
+    // runtime
+    bool (*load_chunk_file)  (const char* path, plCdLodChunkFile* fileOut);
+    void (*unload_chunk_file)(plCdLodChunkFile*);
 } plCdLodI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+typedef struct _plCdLodChunk
+{
+    plCdLodChunk* ptParent;
+    plCdLodChunk* aptChildren[4];
+
+    // chunk address (its position in the quadtree)
+    uint16_t uX;
+    uint16_t uY;
+    uint8_t uLevel;
+
+    // bounds
+    plVec3 tMinBound;
+    plVec3 tMaxBound;
+
+    // gpu data
+    plCdLodChunkData* ptData;
+
+    size_t szFileLocation;
+} plCdLodChunk;
+
+typedef struct _plCdLodChunkFile
+{
+    int           iTreeDepth;
+    float         fMaxBaseError;
+    uint32_t      uChunkCount;
+    plCdLodChunk* atChunks;
+} plCdLodChunkFile;
 
 typedef struct _plCdLodHeightMapInfo
 {
