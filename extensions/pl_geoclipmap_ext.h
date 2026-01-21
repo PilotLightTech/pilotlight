@@ -1,5 +1,6 @@
 /*
-   pl_terrain_ext.h
+   pl_geoclipmap_ext.h
+     - geometry clipmap terrain system
 */
 
 /*
@@ -43,14 +44,14 @@ Index of this file:
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
 
-#ifndef PL_TERRAIN_EXT_H
-#define PL_TERRAIN_EXT_H
+#ifndef PL_GEOCLIPMAP_EXT_H
+#define PL_GEOCLIPMAP_EXT_H
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plTerrainI_version {0, 1, 0}
+#define plGeoClipMapI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -58,17 +59,18 @@ Index of this file:
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "pl_math.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plTerrainInit       plTerrainInit;
-typedef struct _plTerrainTilingInfo plTerrainTilingInfo;
+typedef struct _plGeoClipMapInit       plGeoClipMapInit;
+typedef struct _plGeoClipMapTilingInfo plGeoClipMapTilingInfo;
 
 // enums/flags
-typedef int plTerrainFlags;
+typedef int plGeoClipMapFlags;
 
 // external
 typedef struct _plDevice                plDevice;                 // pl_graphics_ext.h
@@ -82,31 +84,31 @@ typedef struct _plCamera                plCamera;                 // pl_camera_e
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-typedef struct _plTerrainI
+typedef struct _plGeoClipMapI
 {
 
     // setup/shutdown
-    void (*initialize)     (plCommandBuffer*, plTerrainInit);
+    void (*initialize)     (plCommandBuffer*, plGeoClipMapInit);
     void (*finalize)       (plCommandBuffer*);
     void (*cleanup)        (void);
     void (*load_mesh)      (plCommandBuffer*, const char* file, uint32_t levels, uint32_t meshBaseLodExtentTexels);
-    void (*tile_height_map)(uint32_t count, plTerrainTilingInfo*);
+    void (*tile_height_map)(uint32_t count, plGeoClipMapTilingInfo*);
     
     // per frame
     void (*prepare)(plCamera*, plCommandBuffer*);
     void (*render) (plCamera*, plRenderEncoder*);
 
     // debugging helpers mostly
-    void           (*set_flags)     (plTerrainFlags);
-    plTerrainFlags (*get_flags)     (void);
-    void           (*reload_shaders)(void);
-} plTerrainI;
+    void              (*set_flags)     (plGeoClipMapFlags);
+    plGeoClipMapFlags (*get_flags)     (void);
+    void              (*reload_shaders)(void);
+} plGeoClipMapI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plTerrainInit
+typedef struct _plGeoClipMapInit
 {
     plDevice*                 ptDevice;
     plRenderPassLayoutHandle* ptRenderPassLayoutHandle;
@@ -116,32 +118,32 @@ typedef struct _plTerrainInit
     float                     fMinElevation;
     plVec2                    tMinPosition;
     plVec2                    tMaxPosition;
-} plTerrainInit;
+} plGeoClipMapInit;
 
-typedef struct _plTerrainTilingInfo
+typedef struct _plGeoClipMapTilingInfo
 {
     char   pcFile[64];
     plVec2 tOrigin; // world coordinates
     float  fMinHeight;
     float  fMaxHeight;
-} plTerrainTilingInfo;
+} plGeoClipMapTilingInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
-enum _plTerrainFlags
+enum _plGeoClipMapFlags
 {
-    PL_TERRAIN_FLAGS_NONE           = 0,
-    PL_TERRAIN_FLAGS_WIREFRAME      = 1 << 0,
-    PL_TERRAIN_FLAGS_TILE_STREAMING = 1 << 1,
-    PL_TERRAIN_FLAGS_SHOW_ORIGIN    = 1 << 2,
-    PL_TERRAIN_FLAGS_SHOW_BOUNDARY  = 1 << 3,
-    PL_TERRAIN_FLAGS_SHOW_GRID      = 1 << 4,
-    PL_TERRAIN_FLAGS_CACHE_TILES    = 1 << 5,
-    PL_TERRAIN_FLAGS_DEBUG_TOOLS    = 1 << 6,
-    PL_TERRAIN_FLAGS_HIGH_RES       = 1 << 7,
-    PL_TERRAIN_FLAGS_LOW_RES        = 1 << 8,
+    PL_GEOCLIPMAP_FLAGS_NONE           = 0,
+    PL_GEOCLIPMAP_FLAGS_WIREFRAME      = 1 << 0,
+    PL_GEOCLIPMAP_FLAGS_TILE_STREAMING = 1 << 1,
+    PL_GEOCLIPMAP_FLAGS_SHOW_ORIGIN    = 1 << 2,
+    PL_GEOCLIPMAP_FLAGS_SHOW_BOUNDARY  = 1 << 3,
+    PL_GEOCLIPMAP_FLAGS_SHOW_GRID      = 1 << 4,
+    PL_GEOCLIPMAP_FLAGS_CACHE_TILES    = 1 << 5,
+    PL_GEOCLIPMAP_FLAGS_DEBUG_TOOLS    = 1 << 6,
+    PL_GEOCLIPMAP_FLAGS_HIGH_RES       = 1 << 7,
+    PL_GEOCLIPMAP_FLAGS_LOW_RES        = 1 << 8,
 };
 
-#endif // PL_TERRAIN_EXT_H
+#endif // PL_GEOCLIPMAP_EXT_H

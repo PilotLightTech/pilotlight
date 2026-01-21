@@ -59,7 +59,8 @@ static const struct _plDdsI*               gptDds           = 0;
 static const struct _plDxtI*               gptDxt           = 0;
 static const struct _plMaterialI*          gptMaterial      = 0;
 static const struct _plScriptI*            gptScript        = 0;
-static const struct _plTerrainI*           gptTerrain       = 0;
+static const struct _plGeoClipMapI*        gptGeoClipmap    = 0;
+static const struct _plCdLodI*             gptCdLod         = 0;
 
 // context
 static struct _plIO* gptIO = 0;

@@ -12,7 +12,7 @@ layout (set = 0, binding = 1, rgba32f) uniform writeonly image2D outputImage;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    plTerrainPrepDynamicData tInfo;
+    plGeoClipMapPrepDynamicData tInfo;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------

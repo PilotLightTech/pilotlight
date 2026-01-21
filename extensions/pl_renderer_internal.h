@@ -59,7 +59,6 @@ Index of this file:
 #include "pl_vfs_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_material_ext.h"
-#include "pl_terrain_ext.h"
 
 // shader interop
 #include "pl_shader_interop_renderer.h"
@@ -114,7 +113,6 @@ Index of this file:
     static const plMeshI*          gptMesh          = NULL;
     static const plShaderVariantI* gptShaderVariant = NULL;
     static const plMaterialI*      gptMaterial      = NULL;
-    static const plTerrainI*       gptTerrain       = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif

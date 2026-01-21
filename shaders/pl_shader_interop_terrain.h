@@ -1,7 +1,7 @@
 
 #include "pl_shader_interop.h"
 
-PL_BEGIN_STRUCT(plTerrainDynamicData)
+PL_BEGIN_STRUCT(plGeoClipMapDynamicData)
 
     vec4 tPos;
     vec4 tSunDirection;
@@ -19,9 +19,9 @@ PL_BEGIN_STRUCT(plTerrainDynamicData)
 
     vec4 tMinMax;
 
-PL_END_STRUCT(plTerrainDynamicData)
+PL_END_STRUCT(plGeoClipMapDynamicData)
 
-PL_BEGIN_STRUCT(plTerrainPrepDynamicData)
+PL_BEGIN_STRUCT(plGeoClipMapPrepDynamicData)
 
     float  fMetersPerHeightFieldTexel;
     float  fMaxHeight;
@@ -34,4 +34,4 @@ PL_BEGIN_STRUCT(plTerrainPrepDynamicData)
     float fGlobalMaxHeight;
     float fGlobalMinHeight;
 
-PL_END_STRUCT(plTerrainPrepDynamicData)
+PL_END_STRUCT(plGeoClipMapPrepDynamicData)

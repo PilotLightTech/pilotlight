@@ -55,7 +55,8 @@ Index of this file:
 #include "pl_dxt_ext.c"
 #include "pl_material_ext.c"
 #include "pl_script_ext.c"
-#include "pl_terrain_ext.c"
+#include "pl_geoclipmap_ext.c"
+#include "pl_cdlod_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -109,7 +110,8 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptDxt               = pl_get_api_latest(ptApiRegistry, plDxtI);
     gptMaterial          = pl_get_api_latest(ptApiRegistry, plMaterialI);
     gptScript            = pl_get_api_latest(ptApiRegistry, plScriptI);
-    gptTerrain           = pl_get_api_latest(ptApiRegistry, plTerrainI);
+    gptGeoClipmap        = pl_get_api_latest(ptApiRegistry, plGeoClipMapI);
+    gptCdLod             = pl_get_api_latest(ptApiRegistry, plCdLodI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -152,7 +154,8 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_dxt_ext(ptApiRegistry, bReload);
     pl_load_material_ext(ptApiRegistry, bReload);
     pl_load_script_ext(ptApiRegistry, bReload);
-    pl_load_terrain_ext(ptApiRegistry, bReload);
+    pl_load_geoclipmap_ext(ptApiRegistry, bReload);
+    pl_load_cdlod_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -196,7 +199,8 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_dxt_ext(ptApiRegistry, bReload);
     pl_unload_material_ext(ptApiRegistry, bReload);
     pl_unload_script_ext(ptApiRegistry, bReload);
-    pl_unload_terrain_ext(ptApiRegistry, bReload);
+    pl_unload_geoclipmap_ext(ptApiRegistry, bReload);
+    pl_unload_cdlod_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------

@@ -5175,7 +5175,6 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
         gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
-        gptTerrain       = pl_get_api_latest(ptApiRegistry, plTerrainI);
     #endif
 
     if(bReload)

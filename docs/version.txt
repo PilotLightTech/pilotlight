@@ -103,4 +103,5 @@ the API is complete. It just means we won't break what currently exists.
 * Dear ImGui          v0.1.0 (pl_dear_imgui_ext.h)
 * Animation           v0.1.0 (pl_animation_ext.h)
 * Material            v0.1.0 (pl_material_ext.h)
-* Terrain             v0.1.0 (pl_terrain_ext.h)
+* Clipmap Terrain     v0.1.0 (pl_geoclipmap_ext.h)
+* CDLOD Terrain       v0.1.0 (pl_cdlod_ext.h)

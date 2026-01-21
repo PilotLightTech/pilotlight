@@ -14,7 +14,7 @@ layout(set = 0, binding = 5)  uniform texture2D tHeightMap2;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    plTerrainDynamicData tInfo;
+    plGeoClipMapDynamicData tInfo;
 } tObjectInfo;
 
 
