@@ -26,6 +26,7 @@ Index of this file:
 #include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
+#include <math.h>
 
 // extensions
 #include "pl_graphics_ext.h"
@@ -56,6 +57,14 @@ typedef struct _plCamera
     plVec3 _tRightVec;
 } plCamera;
 
+typedef struct _plVoxel
+{
+    uint32_t tXPos;
+    uint32_t tYPos;
+    uint32_t tZPos;
+    bool   bOccupied;
+} plVoxel;
+
 typedef struct _plAppData
 {
     plWindow*      ptWindow;
@@ -72,9 +81,8 @@ typedef struct _plAppData
     bool bShowOriginAxes;
     bool bShowObstacles;
     bool bShowHelpWindow;
-
-    // maps
-    bool bDrawMapOne;
+    bool bEditObstacles;
+    bool bShowCrossHair;
 
     // storing variables for drawing 
     plVec3 tOrigin;
@@ -106,8 +114,8 @@ const plUiI*          gptUi          = NULL;
 //-----------------------------------------------------------------------------
 
 void        camera_translate(plCamera*, float fDx, float fDy, float fDz);
-void        camera_rotate   (plCamera*, float fDPitch, float fDYaw);
-void        camera_update   (plCamera*);
+void        camera_rotate(plCamera*, float fDPitch, float fDYaw);
+void        camera_update(plCamera*);
 static void load_map(plAppData* ptAppData, uint32_t uMapNumber);
 static void set_voxels_maze_one(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
 static void set_voxels_maze_two(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
@@ -115,6 +123,9 @@ static void set_voxels_maze_three(plPathFindingVoxelGrid* ptGrid, plVec3* tObsta
 static void set_voxels_maze_four(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
 static void set_voxels_maze_five(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
 static void draw_voxel_grid_wireframe(plDrawList3D *ptDrawlist, plPathFindingVoxelGrid *ptGrid, plDrawSolidOptions tOptions);
+bool        is_voxel_occupied(plPathFindingVoxelGrid* ptGrid, uint32_t uVoxelX, uint32_t uVoxelY, uint32_t uVoxelZ); // TODO: could move to ext 
+plVoxel     ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirection, uint32_t uMaxDepth);
+plVec3      get_ray_direction(plCamera* ptCamera);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -288,6 +299,8 @@ pl_app_update(plAppData* ptAppData)
             gptUi->text("Press Z to toggle Objects");
             gptUi->text("Press X to toddle wire frame");
             gptUi->text("Press C to toggle Origin");
+            gptUi->text("Press V to edit obstacles");
+            gptUi->text("Press B to toggle crosshair");
             gptUi->text("Press 1 for maze 1");
             gptUi->text("Press 2 for maze 2");
             gptUi->text("Press 3 for maze 3");
@@ -318,6 +331,37 @@ pl_app_update(plAppData* ptAppData)
     }
     camera_update(ptCamera);
 
+    // draw corsshairs
+    if(gptIO->is_key_pressed(PL_KEY_B, false))
+    {
+        ptAppData->bShowCrossHair = !ptAppData->bShowCrossHair;
+    }
+    if(ptAppData->bShowCrossHair)
+    {
+    float fCrosshairSize = 0.1f; // adjust size as needed
+    plVec3 tCameraPos = ptCamera->tPos;
+    plVec3 tCameraForward = get_ray_direction(ptCamera);
+
+    float fDistance = 3.0f; // distance from camera
+    plVec3 tCenter = {
+        .x = tCameraPos.x + tCameraForward.x * fDistance,
+        .y = tCameraPos.y + tCameraForward.y * fDistance,
+        .z = tCameraPos.z + tCameraForward.z * fDistance
+    };
+    plVec3 tRight = {-tCameraForward.z, 0, tCameraForward.x}; // perpendicular to forward in XZ plane
+
+    gptDraw->add_3d_line(ptAppData->pt3dDrawlist,
+        (plVec3){tCenter.x - tRight.x * fCrosshairSize, tCenter.y, tCenter.z - tRight.z * fCrosshairSize},
+        (plVec3){tCenter.x + tRight.x * fCrosshairSize, tCenter.y, tCenter.z + tRight.z * fCrosshairSize},
+        (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 0.01f});
+
+    gptDraw->add_3d_line(ptAppData->pt3dDrawlist,
+        (plVec3){tCenter.x, tCenter.y - fCrosshairSize, tCenter.z},
+        (plVec3){tCenter.x, tCenter.y + fCrosshairSize, tCenter.z},
+        (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 0.01f});
+
+    }
+
     // draw "ground layer"
     plVec3 tCorner1 = {ptAppData->tOrigin.x,  0, ptAppData->tOrigin.z};   // bottom-left
     plVec3 tCorner2 = {ptAppData->tGridEnd.x, 0, ptAppData->tOrigin.z};   // bottom-right
@@ -347,7 +391,6 @@ pl_app_update(plAppData* ptAppData)
     {
         ptAppData->bShowWireFrame = !ptAppData->bShowWireFrame;
     }
-
     if(ptAppData->bShowWireFrame)
     {
         draw_voxel_grid_wireframe(ptAppData->pt3dDrawlist, ptAppData->ptVoxelGrid,(plDrawSolidOptions){.uColor = PL_COLOR_32_WHITE});
@@ -368,7 +411,72 @@ pl_app_update(plAppData* ptAppData)
         (plSphere){.fRadius = 0.35f, .tCenter = {fGoalX, fGoalY, fGoalZ}}, 0, 0, 
         (plDrawSolidOptions){.uColor = PL_COLOR_32_CYAN});    
 
-if(ptAppData->bShowObstacles)
+    if(gptIO->is_key_pressed(PL_KEY_V, false))
+    {
+        ptAppData->bEditObstacles = !ptAppData->bEditObstacles;
+    }
+    if(ptAppData->bEditObstacles)
+    {
+        // calculate ray direction from camera
+        plVec3 tRayDir = get_ray_direction(ptCamera);
+        
+        // cast ray to find voxel position
+        plVoxel tVoxelHit = ray_cast(ptCamera, ptAppData->ptVoxelGrid, tRayDir, 10);
+
+        // draw ghost voxel at that position
+        // (use different color/transparency to show it's a preview)
+        float fCenterX = (float)tVoxelHit.tXPos + 0.5f;
+        float fCenterY = (float)tVoxelHit.tYPos + 0.5f;
+        float fCenterZ = (float)tVoxelHit.tZPos + 0.5f;
+        float fHalf = 0.5f;
+        float fRadius = 0.02f;
+        uint32_t uSegments = 6;
+
+        gptDraw->add_3d_centered_box_filled(ptAppData->pt3dDrawlist, 
+            (plVec3){fCenterX, fCenterY, fCenterZ}, 
+            1.0f, 1.0f, 1.0f,
+            (plDrawSolidOptions){.uColor = PL_COLOR_32_LIGHT_GREY});
+        
+        plDrawSolidOptions tDarkOptions = {.uColor = PL_COLOR_32_RGBA(64, 64, 64, 255)};
+        
+        // bottom edges
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
+        
+        // top edges
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
+        
+        // vertical edges
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
+        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
+
+        //TODO: how to draw over occupied voxel to clearly denote we can delete
+
+
+        // handle mouse wheel input
+        // if scroll up -> move ghost forward along ray (call step function)
+        // if scroll down -> move ghost backward along ray (call step function)
+        
+        // handle left click
+        // if clicked and ghost is on occupied voxel -> remove obstacle
+        
+        // handle right click  
+        // if clicked -> place obstacle at ghost position
+    }
+
+    // obstacle drawing
+    if(gptIO->is_key_pressed(PL_KEY_Z, false))
+    {
+        ptAppData->bShowObstacles = !ptAppData->bShowObstacles;
+    } 
+    if(ptAppData->bShowObstacles)
     {
         for(uint32_t i = 0; i < ptAppData->uObstacleCount; i++)
         {
@@ -1732,4 +1840,128 @@ static void
 set_voxels_maze_five(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount)
 {
     set_voxels_maze_one(ptGrid, tObstacles, uObstacleCount);
+}
+
+plVoxel
+ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirection, uint32_t uMaxDepth)
+{
+    // set to false so we can search until it is true
+    plVoxel tVoxel = {
+        .bOccupied = false
+    };
+
+    // convert to voxel space
+    int32_t iCurrentX = (int32_t)floor((ptCamera->tPos.x - ptGrid->tOrigin.x) / ptGrid->fVoxelSize);
+    int32_t iCurrentY = (int32_t)floor((ptCamera->tPos.y - ptGrid->tOrigin.y) / ptGrid->fVoxelSize);
+    int32_t iCurrentZ = (int32_t)floor((ptCamera->tPos.z - ptGrid->tOrigin.z) / ptGrid->fVoxelSize);
+
+    // check if starting outside of grid
+    bool bOutsideGrid = (iCurrentX < 0 || iCurrentX >= (int32_t)ptGrid->uDimX ||
+                         iCurrentY < 0 || iCurrentY >= (int32_t)ptGrid->uDimY ||
+                         iCurrentZ < 0 || iCurrentZ >= (int32_t)ptGrid->uDimZ);
+
+    // set algorithm specific variables
+    plVec3 tNextBoundary = {
+        .x = tRayDirection.x >= 0 ? (float)ceil(iCurrentX) : (float)floor(iCurrentX),
+        .y = tRayDirection.y >= 0 ? (float)ceil(iCurrentY) : (float)floor(iCurrentY),
+        .z = tRayDirection.z >= 0 ? (float)ceil(iCurrentZ) : (float)floor(iCurrentZ) 
+    };
+
+    float tMaxX = (tNextBoundary.x - iCurrentX) / tRayDirection.x;
+    float tMaxY = (tNextBoundary.y - iCurrentY) / tRayDirection.y;
+    float tMaxZ = (tNextBoundary.z - iCurrentZ) / tRayDirection.z;
+
+    int32_t iStepX = (tRayDirection.x >= 0) ? 1 : -1;
+    int32_t iStepY = (tRayDirection.y >= 0) ? 1 : -1;
+    int32_t iStepZ = (tRayDirection.z >= 0) ? 1 : -1;
+
+    float tDeltaX = ptGrid->fVoxelSize / fabsf(tRayDirection.x);
+    float tDeltaY = ptGrid->fVoxelSize / fabsf(tRayDirection.y);
+    float tDeltaZ = ptGrid->fVoxelSize / fabsf(tRayDirection.z);
+
+    int32_t uOutOfGridX = (iStepX > 0) ? ptGrid->uDimX : -1;
+    int32_t uOutOfGridY = (iStepY > 0) ? ptGrid->uDimY : -1;
+    int32_t uOutOfGridZ = (iStepZ > 0) ? ptGrid->uDimZ : -1;
+    
+    // travers through grid
+    while(true)
+    {
+        if(tMaxX < tMaxY) 
+        {
+            if(tMaxX < tMaxZ) 
+            {
+                iCurrentX += iStepX;
+                if(iCurrentX == uOutOfGridX)
+                    break; // exited grid
+                tMaxX = tMaxX + tDeltaX;
+            } 
+            else 
+            {
+                iCurrentZ += iStepZ;
+                if(iCurrentZ == uOutOfGridZ)
+                    break;
+                tMaxZ = tMaxZ + tDeltaZ;
+            }
+        } 
+        else 
+        {
+            if(tMaxY < tMaxZ) 
+            {
+                iCurrentY += iStepY;
+                if(iCurrentY == uOutOfGridY)
+                    break;
+                tMaxY = tMaxY + tDeltaY;
+            } 
+            else    
+            {
+                iCurrentZ += iStepZ;
+                if(iCurrentZ == uOutOfGridZ)
+                    break;
+                tMaxZ = tMaxZ + tDeltaZ;
+            }
+        }
+
+        // check if inside grid bounds
+        bool bInsideGrid = (iCurrentX >= 0 && iCurrentX < (int32_t)ptGrid->uDimX &&
+                            iCurrentY >= 0 && iCurrentY < (int32_t)ptGrid->uDimY &&
+                            iCurrentZ >= 0 && iCurrentZ < (int32_t)ptGrid->uDimZ);
+
+        if(bInsideGrid)
+        {
+            // store voxel position
+            tVoxel.tXPos = iCurrentX;
+            tVoxel.tYPos = iCurrentY;
+            tVoxel.tZPos = iCurrentZ;
+
+            if(is_voxel_occupied(ptGrid, iCurrentX, iCurrentY, iCurrentZ))
+            {
+                tVoxel.bOccupied = true;
+            }
+            break; 
+        }
+    }
+    return(tVoxel);
+};
+
+plVec3 
+get_ray_direction(plCamera* ptCamera)
+{
+    plVec3 tDir = {
+        .x = (float)sin(ptCamera->fYaw) * (float)cos(ptCamera->fPitch),
+        .y = (float)sin(ptCamera->fPitch),
+        .z = (float)cos(ptCamera->fYaw) * (float)cos(ptCamera->fPitch)
+    };
+    return tDir;
+}
+
+bool 
+is_voxel_occupied(plPathFindingVoxelGrid* ptGrid, uint32_t uVoxelX, uint32_t uVoxelY, uint32_t uVoxelZ)
+{
+    // convert 3d grid coordinates to 1d index
+    uint32_t uIndex = uVoxelZ * (ptGrid->uDimX * ptGrid->uDimY) + uVoxelY * ptGrid->uDimX + uVoxelX;
+    
+    uint32_t uArrayIndex = uIndex / 32;
+    uint32_t uBitIndex = uIndex % 32;
+    
+    return (ptGrid->apOccupancyBits[uArrayIndex] & (1u << uBitIndex)) != 0;
 }
