@@ -4492,7 +4492,8 @@ pl_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle 
 
     const VkBufferCopy tCopyRegion = {
         .size      = szSize,
-        .srcOffset = uSourceOffset
+        .srcOffset = uSourceOffset,
+        .dstOffset = uDestinationOffset
     };
 
     vkCmdCopyBuffer(ptCmdBuffer->tCmdBuffer, ptDevice->sbtBuffersHot[tSource.uIndex].tBuffer, ptDevice->sbtBuffersHot[tDestination.uIndex].tBuffer, 1, &tCopyRegion);
