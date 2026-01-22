@@ -65,7 +65,7 @@ static plVec3   pl_voxel_to_world_impl(const plPathFindingVoxelGrid* ptGrid, uin
 // pathfinding helpers
 static float pl_heuristic(uint32_t uFromX, uint32_t uFromY, uint32_t uFromZ, uint32_t uToX, uint32_t uToY, uint32_t uToZ);
 static float pl_movement_cost(int32_t iDeltaX, int32_t iDeltaY, int32_t iDeltaZ);
-static void  pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, uint32_t uCurrentY, uint32_t uCurrentZ, plPathNode* atNeighborsOut, uint32_t* puNeighborCountOut);
+static void  pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, uint32_t uCurrentY, uint32_t uCurrentZ, plPathNode* atNeighborsOut, uint32_t* puNeighborCountOut, bool bGenDiag);
 
 // priority queue
 static plPriorityQueue* pl_create_priority_queue(uint32_t uInitialCapacity);
@@ -125,7 +125,7 @@ pl_movement_cost(int32_t iDeltaX, int32_t iDeltaY, int32_t iDeltaZ)
 }
 
 static void
-pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, uint32_t uCurrentY, uint32_t uCurrentZ, plPathNode* atNeighborsOut, uint32_t* puNeighborCountOut)
+pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, uint32_t uCurrentY, uint32_t uCurrentZ, plPathNode* atNeighborsOut, uint32_t* puNeighborCountOut, bool bGenDiag)
 {
     *puNeighborCountOut = 0;
     
@@ -139,6 +139,14 @@ pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, 
                 // don't include current as neighbor
                 if(iDeltaX == 0 && iDeltaY == 0 && iDeltaZ == 0)
                     continue;
+
+                if(!bGenDiag) // skip diagonals if disabled
+                {
+                    int32_t iAxisCount = (iDeltaX != 0 ? 1 : 0) + (iDeltaY != 0 ? 1 : 0) + (iDeltaZ != 0 ? 1 : 0);
+                    if(iAxisCount > 1) // diagonal move
+                        continue;
+                }
+
                 int32_t iNeighborX = (int32_t)uCurrentX + iDeltaX;
                 int32_t iNeighborY = (int32_t)uCurrentY + iDeltaY;
                 int32_t iNeighborZ = (int32_t)uCurrentZ + iDeltaZ;
@@ -527,7 +535,7 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
 //-----------------------------------------------------------------------------
 
 static plPathFindingResult
-pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQuery)
+pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQuery, bool bSearchDiagonal)
 {
     plPathFindingResult tResult = {0};
 
@@ -607,7 +615,7 @@ pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery
         // get all neighbors of current
         plPathNode tNeighbors[26] = {0}; // 26 is max possible for 3D
         uint32_t uNeighborCount = 0;
-        pl_generate_neighbors(ptGrid, tCurrentNode.uX, tCurrentNode.uY, tCurrentNode.uZ, tNeighbors, &uNeighborCount);
+        pl_generate_neighbors(ptGrid, tCurrentNode.uX, tCurrentNode.uY, tCurrentNode.uZ, tNeighbors, &uNeighborCount, bSearchDiagonal);
  
         // process each neighbor
         for(uint32_t uNeighborToCheck = 0; uNeighborToCheck < uNeighborCount; uNeighborToCheck++)

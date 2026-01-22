@@ -213,7 +213,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tQuery.tGoal  = (plVec3){18.5f, 0.5f, 18.5f};
 
     // find path and set option defaults
-    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery);
+    // TODO: make the diagnal an app option
+    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, false);
     ptAppData->fPathAnimTimer          = 0.0f;
     ptAppData->uPathSegmentsDrawn      = 0;
     ptAppData->fCurrentSegmentProgress = 0.0f;
@@ -455,7 +456,7 @@ pl_app_update(plAppData* ptAppData)
                                                                           (float)tVoxelHit.tZPos};
 
             gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, tVoxelHit.tXPos, tVoxelHit.tYPos, tVoxelHit.tZPos, true);
-            ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery);
+            ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, false); // TODO: diag needs to be option
 
             // reset path drawing 
             ptAppData->uPathSegmentsDrawn = 0;
@@ -478,7 +479,7 @@ pl_app_update(plAppData* ptAppData)
                 }
             }
             gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, tVoxelHit.tXPos, tVoxelHit.tYPos, tVoxelHit.tZPos, false);
-            ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery);
+            ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, false); // TODO: diag needs to be option);
 
             // reset path drawing 
             ptAppData->uPathSegmentsDrawn = 0;
@@ -723,7 +724,7 @@ load_map(plAppData* ptAppData, uint32_t uMapNumber)
             ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};
             break;
     }
-    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery);
+    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, false); // TODO: diag needs to be option);
     
     // reset animation and settings
     ptAppData->fPathAnimTimer = 0.0f;
@@ -1501,6 +1502,7 @@ ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirectio
     int32_t uOutOfGridZ = (iStepZ > 0) ? ptGrid->uDimZ : -1;
 
     int32_t iStepsTaken = 0;
+    plVoxel tLastValidVoxel = tVoxel; // for if we go out of bounds
     
     // traverse through grid
     int iteration = 0;
@@ -1550,22 +1552,20 @@ ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirectio
         {
             iStepsTaken++;
 
-            // check if we've reached the desired step count
+            // update last valid voxel
+            tLastValidVoxel.tXPos  = iCurrentX;
+            tLastValidVoxel.tYPos  = iCurrentY;
+            tLastValidVoxel.tZPos  = iCurrentZ;
+            tLastValidVoxel.bValid = true;
+            tLastValidVoxel.bOccupied = is_voxel_occupied(ptGrid, iCurrentX, iCurrentY, iCurrentZ);
+
             if(iStepsTaken >= iStepCounter)
             {
-                tVoxel.tXPos  = iCurrentX;
-                tVoxel.tYPos  = iCurrentY;
-                tVoxel.tZPos  = iCurrentZ;
-                tVoxel.bValid = true;
-                if(is_voxel_occupied(ptGrid, iCurrentX, iCurrentY, iCurrentZ))
-                {
-                    tVoxel.bOccupied = true;
-                }
-                break;
+                return tLastValidVoxel;
             }
         }
     }
-    return tVoxel;
+    return tLastValidVoxel;
 }
 
 plVec3 

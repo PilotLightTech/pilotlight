@@ -84,7 +84,7 @@ typedef struct _plPathFindingI
     void (*voxelize_mesh)(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, uint32_t uVertexCount, const uint32_t* puIndices, uint32_t uIndexCount);
 
     // pathfinding queries
-    plPathFindingResult (*find_path)(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQuery);
+    plPathFindingResult (*find_path)(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQuery, bool bSearchDiagonal);
     void                (*free_result)(plPathFindingResult* ptResult);
 
     // coordinate conversion utilities
