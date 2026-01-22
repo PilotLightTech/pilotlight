@@ -63,6 +63,7 @@ typedef struct _plVoxel
     uint32_t tYPos;
     uint32_t tZPos;
     bool   bOccupied;
+    bool   bValid;
 } plVoxel;
 
 typedef struct _plAppData
@@ -91,9 +92,10 @@ typedef struct _plAppData
     // for app features
     plVec3   tObstacles[400]; // some max number of voxels
     uint32_t uObstacleCount;
-    float    fPathAnimTimer;
     uint32_t uPathSegmentsDrawn;
+    float    fPathAnimTimer;
     float    fCurrentSegmentProgress;
+    
 
 } plAppData;
 
@@ -122,7 +124,7 @@ static void set_voxels_maze_two(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacl
 static void set_voxels_maze_three(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
 static void draw_voxel_grid_wireframe(plDrawList3D *ptDrawlist, plPathFindingVoxelGrid *ptGrid, plDrawSolidOptions tOptions);
 bool        is_voxel_occupied(plPathFindingVoxelGrid* ptGrid, uint32_t uVoxelX, uint32_t uVoxelY, uint32_t uVoxelZ); // TODO: could move to ext 
-plVoxel     ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirection, uint32_t uMaxDepth);
+plVoxel     ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirection, uint32_t uMaxDepth, int32_t iStepCounter);
 plVec3      get_ray_direction(plCamera* ptCamera);
 void        draw_voxel(plDrawList3D* ptDrawlist, plVec3 tPos, uint32_t uFillColor, uint32_t uWireColor);
 
@@ -293,7 +295,8 @@ pl_app_update(plAppData* ptAppData)
             gptUi->text("Press C to toggle Origin");
             gptUi->text("Press V to toggle crosshair");
             gptUi->text("Press left shift to edit obstacles");
-            gptUi->text("   Q = delete & E = Add");
+            gptUi->text("  - Q = delete & E = Add");
+            gptUi->text("  - scroll for depth control");
             gptUi->vertical_spacing();
             gptUi->text("Press 1 for 1D maze");
             gptUi->text("Press 2 for 3D maze");
@@ -384,7 +387,7 @@ pl_app_update(plAppData* ptAppData)
     }
     if(ptAppData->bShowWireFrame)
     {
-        draw_voxel_grid_wireframe(ptAppData->pt3dDrawlist, ptAppData->ptVoxelGrid,(plDrawSolidOptions){.uColor = PL_COLOR_32_WHITE});
+        draw_voxel_grid_wireframe(ptAppData->pt3dDrawlist, ptAppData->ptVoxelGrid,(plDrawSolidOptions){.uColor = PL_COLOR_32_LIGHT_GREY});
     }
 
     // TODO: add option to move these
@@ -404,24 +407,48 @@ pl_app_update(plAppData* ptAppData)
         0, 0, 
         (plDrawSolidOptions){.uColor = PL_COLOR_32_CYAN});    
 
-    // edit obstacles 
+    // edit obstacles TODO: fix depth issue with added voxels
     if(gptIO->is_key_pressed(PL_KEY_LEFT_SHIFT, false))
     {
         ptAppData->bEditObstacles = !ptAppData->bEditObstacles;
     }
     if(ptAppData->bEditObstacles)
     {
+        // control depth of voxel add/delete
+        static int32_t iGhostDepth = 1;
+        float fMouseWheel = gptIO->get_mouse_wheel();
+        if(fMouseWheel > 0.0f)
+            iGhostDepth++;
+        else if(fMouseWheel < 0.0f && iGhostDepth > 1)
+            iGhostDepth--;
+
         plVec3 tRayDir = get_ray_direction(ptCamera);
-        plVoxel tVoxelHit = ray_cast(ptCamera, ptAppData->ptVoxelGrid, tRayDir, 10);
+        plVoxel tVoxelHit = ray_cast(ptCamera, ptAppData->ptVoxelGrid, tRayDir, 10, iGhostDepth);
 
         // draw ghost voxel at that position
         // (use different color/transparency to show it's a preview)
-        draw_voxel(ptAppData->pt3dDrawlist, 
-           (plVec3){(float)tVoxelHit.tXPos, (float)tVoxelHit.tYPos, (float)tVoxelHit.tZPos},
-           PL_COLOR_32_LIGHT_GREY, PL_COLOR_32_RGBA(64, 64, 64, 255));
+        if(tVoxelHit.bValid)
+        {
+            plDrawSolidOptions tGhostOptions;
+            plDrawSolidOptions tGhostBorderOptions;
+            if(tVoxelHit.tYPos == 0) 
+            {tGhostOptions.uColor = PL_COLOR_32_RGBA(1.0f, 0.75f, 0.75f, 1.0f); tGhostBorderOptions.uColor = PL_COLOR_32_RGBA(0.545f, 0.0f, 0.0f, 1.0f);}
+            else if(tVoxelHit.tYPos == 1) 
+            {tGhostOptions.uColor = PL_COLOR_32_RGBA(0.75f, 1.0f, 0.75f, 1.0f); tGhostBorderOptions.uColor = PL_COLOR_32_RGBA(0.0f, 0.545f, 0.0f, 1.0f);}
+            else if(tVoxelHit.tYPos == 2) 
+            {tGhostOptions.uColor = PL_COLOR_32_RGBA(0.75f, 0.75f, 1.0f, 1.0f); tGhostBorderOptions.uColor = PL_COLOR_32_RGBA(0.0f, 0.0f, 0.545f, 1.0f);}
+            else
+            {tGhostOptions.uColor = PL_COLOR_32_LIGHT_GREY; tGhostBorderOptions.uColor = PL_COLOR_32_RGBA(0.25f, 0.25f, 0.25f, 1.0f);}
+            draw_voxel(ptAppData->pt3dDrawlist, 
+                (plVec3){(float)tVoxelHit.tXPos, 
+                         (float)tVoxelHit.tYPos, 
+                         (float)tVoxelHit.tZPos},
+                tGhostOptions.uColor, 
+                tGhostBorderOptions.uColor);
+        }
 
         // add and remove voxel from key press
-        if(gptIO->is_key_pressed(PL_KEY_E, false))
+        if(gptIO->is_key_pressed(PL_KEY_E, false) && tVoxelHit.bValid)
         {
             ptAppData->tObstacles[ptAppData->uObstacleCount++] = (plVec3){(float)tVoxelHit.tXPos, 
                                                                           (float)tVoxelHit.tYPos, 
@@ -435,7 +462,7 @@ pl_app_update(plAppData* ptAppData)
             ptAppData->fCurrentSegmentProgress = 0.0f;
         }   
 
-        if(gptIO->is_key_pressed(PL_KEY_Q, false) && tVoxelHit.bOccupied)
+        if(gptIO->is_key_pressed(PL_KEY_Q, false) && tVoxelHit.bOccupied) // if occupied it should be a valid voxel
         { //TODO: how to draw over occupied voxel to clearly denote we can delete
             // find and remove from obstacles array
             for(uint32_t i = 0; i < ptAppData->uObstacleCount; i++)
@@ -457,12 +484,6 @@ pl_app_update(plAppData* ptAppData)
             ptAppData->uPathSegmentsDrawn = 0;
             ptAppData->fCurrentSegmentProgress = 0.0f;
         }
-        
-
-        // handle mouse wheel input
-        // if scroll up -> move ghost forward along ray (call step function)
-        // if scroll down -> move ghost backward along ray (call step function)
-        
     }
 
     // obstacle drawing
@@ -629,10 +650,10 @@ void
 draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGrid, plDrawSolidOptions tOptions)
 {
     float fSize = ptGrid->fVoxelSize;
-    float fRadius = fSize * 0.01f; // adjust thickness as needed
-    uint32_t uSegments = 8; // adjust smoothness as needed
+    float fRadius = fSize * 0.01f; // adjust thickness
+    uint32_t uSegments = 8; // adjust smoothness
     
-    // draw x-axis lines
+    // draw x lines
     for(uint32_t y = 0; y <= ptGrid->uDimY; y++)
     {
         for(uint32_t z = 0; z <= ptGrid->uDimZ; z++)
@@ -644,7 +665,7 @@ draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGr
         }
     }
     
-    // draw y-axis lines
+    // draw y lines
     for(uint32_t x = 0; x <= ptGrid->uDimX; x++)
     {
         for(uint32_t z = 0; z <= ptGrid->uDimZ; z++)
@@ -656,7 +677,7 @@ draw_voxel_grid_wireframe(plDrawList3D* ptDrawlist, plPathFindingVoxelGrid* ptGr
         }
     }
     
-    // draw z-axis lines
+    // draw z lines
     for(uint32_t x = 0; x <= ptGrid->uDimX; x++)
     {
         for(uint32_t y = 0; y <= ptGrid->uDimY; y++)
@@ -1439,11 +1460,12 @@ set_voxels_maze_three(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32
 }
 
 plVoxel
-ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirection, uint32_t uMaxDepth)
+ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirection, uint32_t uMaxDepth, int32_t iStepCounter)
 {
     // set to false so we can search until it is true
     plVoxel tVoxel = {
-        .bOccupied = false
+        .bOccupied = false,
+        .bValid    = false
     };
 
     float fVoxelX = (ptCamera->tPos.x - ptGrid->tOrigin.x) / ptGrid->fVoxelSize;
@@ -1477,6 +1499,8 @@ ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirectio
     int32_t uOutOfGridX = (iStepX > 0) ? ptGrid->uDimX : -1;
     int32_t uOutOfGridY = (iStepY > 0) ? ptGrid->uDimY : -1;
     int32_t uOutOfGridZ = (iStepZ > 0) ? ptGrid->uDimZ : -1;
+
+    int32_t iStepsTaken = 0;
     
     // traverse through grid
     int iteration = 0;
@@ -1524,18 +1548,23 @@ ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirectio
 
         if(bInsideGrid)
         {
-            tVoxel.tXPos = iCurrentX;
-            tVoxel.tYPos = iCurrentY;
-            tVoxel.tZPos = iCurrentZ;
+            iStepsTaken++;
 
-            if(is_voxel_occupied(ptGrid, iCurrentX, iCurrentY, iCurrentZ))
+            // check if we've reached the desired step count
+            if(iStepsTaken >= iStepCounter)
             {
-                tVoxel.bOccupied = true;
+                tVoxel.tXPos  = iCurrentX;
+                tVoxel.tYPos  = iCurrentY;
+                tVoxel.tZPos  = iCurrentZ;
+                tVoxel.bValid = true;
+                if(is_voxel_occupied(ptGrid, iCurrentX, iCurrentY, iCurrentZ))
+                {
+                    tVoxel.bOccupied = true;
+                }
+                break;
             }
-            break; 
         }
     }
-    
     return tVoxel;
 }
 
