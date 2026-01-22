@@ -126,6 +126,7 @@ static void draw_voxel_grid_wireframe(plDrawList3D *ptDrawlist, plPathFindingVox
 bool        is_voxel_occupied(plPathFindingVoxelGrid* ptGrid, uint32_t uVoxelX, uint32_t uVoxelY, uint32_t uVoxelZ); // TODO: could move to ext 
 plVoxel     ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirection, uint32_t uMaxDepth);
 plVec3      get_ray_direction(plCamera* ptCamera);
+void        draw_voxel(plDrawList3D* ptDrawlist, plVec3 tPos, uint32_t uFillColor, uint32_t uWireColor);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -220,6 +221,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->bShowWireFrame          = true;
     ptAppData->bShowOriginAxes         = true;
     ptAppData->bShowObstacles          = true;
+    ptAppData->bShowCrossHair          = true;
 
     return ptAppData;
 }
@@ -300,6 +302,7 @@ pl_app_update(plAppData* ptAppData)
             gptUi->text("Press X to toddle wire frame");
             gptUi->text("Press C to toggle Origin");
             gptUi->text("Press V to edit obstacles");
+            gptUi->text("   Q = delete & E = Add");
             gptUi->text("Press B to toggle crosshair");
             gptUi->text("Press 1 for maze 1");
             gptUi->text("Press 2 for maze 2");
@@ -425,38 +428,47 @@ pl_app_update(plAppData* ptAppData)
 
         // draw ghost voxel at that position
         // (use different color/transparency to show it's a preview)
-        float fCenterX = (float)tVoxelHit.tXPos + 0.5f;
-        float fCenterY = (float)tVoxelHit.tYPos + 0.5f;
-        float fCenterZ = (float)tVoxelHit.tZPos + 0.5f;
-        float fHalf = 0.5f;
-        float fRadius = 0.02f;
-        uint32_t uSegments = 6;
+        draw_voxel(ptAppData->pt3dDrawlist, 
+           (plVec3){(float)tVoxelHit.tXPos, (float)tVoxelHit.tYPos, (float)tVoxelHit.tZPos},
+           PL_COLOR_32_LIGHT_GREY, PL_COLOR_32_RGBA(64, 64, 64, 255));
 
-        gptDraw->add_3d_centered_box_filled(ptAppData->pt3dDrawlist, 
-            (plVec3){fCenterX, fCenterY, fCenterZ}, 
-            1.0f, 1.0f, 1.0f,
-            (plDrawSolidOptions){.uColor = PL_COLOR_32_LIGHT_GREY});
-        
-        plDrawSolidOptions tDarkOptions = {.uColor = PL_COLOR_32_RGBA(64, 64, 64, 255)};
-        
-        // bottom edges
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-        
-        // top edges
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-        
-        // vertical edges
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
-        gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
+        // add and remove voxel from key press
+        if(gptIO->is_key_pressed(PL_KEY_E, false))
+        {
+            // add to obstacles array
+            ptAppData->tObstacles[ptAppData->uObstacleCount++] = (plVec3){(float)tVoxelHit.tXPos, (float)tVoxelHit.tYPos, (float)tVoxelHit.tZPos};
+            // ptAppData->uObstacleCount++;
 
+            gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, tVoxelHit.tXPos, tVoxelHit.tYPos, tVoxelHit.tZPos, true);
+            ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery);
+
+            // reset path drawing 
+            ptAppData->uPathSegmentsDrawn = 0;
+            ptAppData->fCurrentSegmentProgress = 0.0f;
+        }   
+
+        if(gptIO->is_key_pressed(PL_KEY_Q, false) && tVoxelHit.bOccupied)
+        {
+            // find and remove from obstacles array
+            for(uint32_t i = 0; i < ptAppData->uObstacleCount; i++)
+            {
+                if(ptAppData->tObstacles[i].x == (float)tVoxelHit.tXPos &&
+                ptAppData->tObstacles[i].y == (float)tVoxelHit.tYPos &&
+                ptAppData->tObstacles[i].z == (float)tVoxelHit.tZPos)
+                {
+                    // swap delete from array
+                    ptAppData->tObstacles[i] = ptAppData->tObstacles[ptAppData->uObstacleCount - 1];
+                    ptAppData->uObstacleCount--;
+                    break;
+                }
+            }
+            gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, tVoxelHit.tXPos, tVoxelHit.tYPos, tVoxelHit.tZPos, false);
+            ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery);
+
+            // reset path drawing 
+            ptAppData->uPathSegmentsDrawn = 0;
+            ptAppData->fCurrentSegmentProgress = 0.0f;
+        }
         //TODO: how to draw over occupied voxel to clearly denote we can delete
 
 
@@ -508,31 +520,8 @@ pl_app_update(plAppData* ptAppData)
                 tDarkOptions.uColor = PL_COLOR_32_RGBA(128, 128, 128, 255);
             }
             
-            plVec3 tCenter = {fCenterX, fCenterY, fCenterZ};
-            gptDraw->add_3d_centered_box_filled(ptAppData->pt3dDrawlist, tCenter, 1.0f, 1.0f, 1.0f, tOptions);
-            
-            // draw wireframe edges using cylinders
-            float fRadius = 0.02f;
-            uint32_t uSegments = 6;
-            float fHalf = 0.5f;
-            
-            // bottom edges
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-            
-            // top edges
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-            
-            // vertical edges
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tDarkOptions);
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
-            gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tDarkOptions);
+            draw_voxel(ptAppData->pt3dDrawlist, ptAppData->tObstacles[i], tOptions.uColor, 
+                tDarkOptions.uColor);
         }
     }
 
@@ -746,7 +735,7 @@ load_map(plAppData* ptAppData, uint32_t uMapNumber)
             ptAppData->tQuery.tGoal = (plVec3){18.5f, 2.5f, 18.5f};
             break;
         case 4:
-        // TODO: 
+        // empty grid for drawing obstacles
             set_voxels_maze_four(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
             ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
             ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};
@@ -1833,7 +1822,7 @@ set_voxels_maze_three(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32
 static void
 set_voxels_maze_four(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount)
 {
-    set_voxels_maze_one(ptGrid, tObstacles, uObstacleCount);
+    *uObstacleCount = 0;
 }
 
 static void
@@ -1850,26 +1839,25 @@ ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirectio
         .bOccupied = false
     };
 
-    // convert to voxel space
-    int32_t iCurrentX = (int32_t)floor((ptCamera->tPos.x - ptGrid->tOrigin.x) / ptGrid->fVoxelSize);
-    int32_t iCurrentY = (int32_t)floor((ptCamera->tPos.y - ptGrid->tOrigin.y) / ptGrid->fVoxelSize);
-    int32_t iCurrentZ = (int32_t)floor((ptCamera->tPos.z - ptGrid->tOrigin.z) / ptGrid->fVoxelSize);
-
-    // check if starting outside of grid
-    bool bOutsideGrid = (iCurrentX < 0 || iCurrentX >= (int32_t)ptGrid->uDimX ||
-                         iCurrentY < 0 || iCurrentY >= (int32_t)ptGrid->uDimY ||
-                         iCurrentZ < 0 || iCurrentZ >= (int32_t)ptGrid->uDimZ);
+    float fVoxelX = (ptCamera->tPos.x - ptGrid->tOrigin.x) / ptGrid->fVoxelSize;
+    float fVoxelY = (ptCamera->tPos.y - ptGrid->tOrigin.y) / ptGrid->fVoxelSize;
+    float fVoxelZ = (ptCamera->tPos.z - ptGrid->tOrigin.z) / ptGrid->fVoxelSize;
+    
+    // starting voxel indices
+    int32_t iCurrentX = (int32_t)floor(fVoxelX);
+    int32_t iCurrentY = (int32_t)floor(fVoxelY);
+    int32_t iCurrentZ = (int32_t)floor(fVoxelZ);
 
     // set algorithm specific variables
     plVec3 tNextBoundary = {
-        .x = tRayDirection.x >= 0 ? (float)ceil(iCurrentX) : (float)floor(iCurrentX),
-        .y = tRayDirection.y >= 0 ? (float)ceil(iCurrentY) : (float)floor(iCurrentY),
-        .z = tRayDirection.z >= 0 ? (float)ceil(iCurrentZ) : (float)floor(iCurrentZ) 
+        .x = tRayDirection.x >= 0 ? (float)floor(fVoxelX) + 1.0f : (float)floor(fVoxelX),
+        .y = tRayDirection.y >= 0 ? (float)floor(fVoxelY) + 1.0f : (float)floor(fVoxelY),
+        .z = tRayDirection.z >= 0 ? (float)floor(fVoxelZ) + 1.0f : (float)floor(fVoxelZ) 
     };
 
-    float tMaxX = (tNextBoundary.x - iCurrentX) / tRayDirection.x;
-    float tMaxY = (tNextBoundary.y - iCurrentY) / tRayDirection.y;
-    float tMaxZ = (tNextBoundary.z - iCurrentZ) / tRayDirection.z;
+    float tMaxX = (tNextBoundary.x - fVoxelX) / tRayDirection.x;
+    float tMaxY = (tNextBoundary.y - fVoxelY) / tRayDirection.y;
+    float tMaxZ = (tNextBoundary.z - fVoxelZ) / tRayDirection.z;
 
     int32_t iStepX = (tRayDirection.x >= 0) ? 1 : -1;
     int32_t iStepY = (tRayDirection.y >= 0) ? 1 : -1;
@@ -1883,16 +1871,17 @@ ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirectio
     int32_t uOutOfGridY = (iStepY > 0) ? ptGrid->uDimY : -1;
     int32_t uOutOfGridZ = (iStepZ > 0) ? ptGrid->uDimZ : -1;
     
-    // travers through grid
+    // traverse through grid
+    int iteration = 0;
     while(true)
-    {
+    {           
         if(tMaxX < tMaxY) 
         {
             if(tMaxX < tMaxZ) 
             {
                 iCurrentX += iStepX;
                 if(iCurrentX == uOutOfGridX)
-                    break; // exited grid
+                    break;
                 tMaxX = tMaxX + tDeltaX;
             } 
             else 
@@ -1928,7 +1917,6 @@ ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirectio
 
         if(bInsideGrid)
         {
-            // store voxel position
             tVoxel.tXPos = iCurrentX;
             tVoxel.tYPos = iCurrentY;
             tVoxel.tZPos = iCurrentZ;
@@ -1940,8 +1928,9 @@ ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirectio
             break; 
         }
     }
-    return(tVoxel);
-};
+    
+    return tVoxel;
+}
 
 plVec3 
 get_ray_direction(plCamera* ptCamera)
@@ -1964,4 +1953,41 @@ is_voxel_occupied(plPathFindingVoxelGrid* ptGrid, uint32_t uVoxelX, uint32_t uVo
     uint32_t uBitIndex = uIndex % 32;
     
     return (ptGrid->apOccupancyBits[uArrayIndex] & (1u << uBitIndex)) != 0;
+}
+
+void
+draw_voxel(plDrawList3D* ptDrawlist, plVec3 tPos, uint32_t uFillColor, uint32_t uWireColor)
+{
+    float fCenterX = tPos.x + 0.5f;
+    float fCenterY = tPos.y + 0.5f;
+    float fCenterZ = tPos.z + 0.5f;
+    float fHalf = 0.5f;
+    float fRadius = 0.02f;
+    uint32_t uSegments = 6;
+
+    // draw main box
+    gptDraw->add_3d_centered_box_filled(ptDrawlist, 
+        (plVec3){fCenterX, fCenterY, fCenterZ}, 
+        1.0f, 1.0f, 1.0f,
+        (plDrawSolidOptions){.uColor = uFillColor});
+    
+    plDrawSolidOptions tWireOptions = {.uColor = uWireColor};
+    
+    // bottom edges
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tWireOptions);
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tWireOptions);
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tWireOptions);
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tWireOptions);
+    
+    // top edges
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tWireOptions);
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tWireOptions);
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tWireOptions);
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tWireOptions);
+    
+    // vertical edges
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tWireOptions);
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ - fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ - fHalf}, fRadius}, uSegments, tWireOptions);
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX + fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX + fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tWireOptions);
+    gptDraw->add_3d_cylinder_filled(ptDrawlist, (plCylinder){{fCenterX - fHalf, fCenterY - fHalf, fCenterZ + fHalf}, {fCenterX - fHalf, fCenterY + fHalf, fCenterZ + fHalf}, fRadius}, uSegments, tWireOptions);
 }
