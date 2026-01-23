@@ -85,6 +85,7 @@ typedef struct _plAppData
     bool bEditObstacles;
     bool bShowCrossHair;
     bool bMouseLocked;
+    bool bAllowDiag;
 
     // storing variables for drawing 
     plVec3 tOrigin;
@@ -214,8 +215,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tQuery.tGoal  = (plVec3){18.5f, 0.5f, 18.5f};
 
     // find path and set option defaults
-    // TODO: make the diagnal an app option
-    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, false);
+    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, true); // diag true by default
     ptAppData->fPathAnimTimer          = 0.0f;
     ptAppData->uPathSegmentsDrawn      = 0;
     ptAppData->fCurrentSegmentProgress = 0.0f;
@@ -224,6 +224,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->bShowObstacles          = true;
     ptAppData->bShowCrossHair          = true;
     ptAppData->bMouseLocked            = false;
+    ptAppData->bAllowDiag              = true;
 
     return ptAppData;
 }
@@ -285,6 +286,21 @@ pl_app_update(plAppData* ptAppData)
         load_map(ptAppData, 3);
     }
 
+    // toggle diagnal paths 
+    static bool bResetPath = false;
+    if(gptIO->is_key_pressed(PL_KEY_B, false))
+    {
+        ptAppData->bAllowDiag = !ptAppData->bAllowDiag;
+        bResetPath = true;
+        ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, ptAppData->bAllowDiag);
+    }
+    if(bResetPath) // reset path drawing
+    {
+        ptAppData->uPathSegmentsDrawn = 0;
+        ptAppData->fCurrentSegmentProgress = 0.0f;
+        bResetPath = false;
+    }
+
     // creating a help window
     ptAppData->bShowHelpWindow = true;
     if(ptAppData->bShowHelpWindow)
@@ -298,6 +314,7 @@ pl_app_update(plAppData* ptAppData)
             gptUi->text("Press X to toddle wire frame");
             gptUi->text("Press C to toggle Origin");
             gptUi->text("Press V to toggle crosshair");
+            gptUi->text("Press B to toggle diagonal paths");
             gptUi->text("Press left shift to edit obstacles");
             gptUi->text("  - Left Click  -> add voxel");
             gptUi->text("  - Right Click -> delete voxel");
@@ -312,14 +329,13 @@ pl_app_update(plAppData* ptAppData)
 
     // camera controls
     static const float fCameraTravelSpeed = 8.0f;
-    static const float fCameraRotationSpeed = 0.002f;
+    static const float fCameraRotationSpeed = 0.006f;
 
     plCamera* ptCamera = &ptAppData->tCamera;
 
     // toggle mouse lock with ESC
     static bool bMouseLocked   = true;
     static bool bFirstFrame    = true;
-    static bool bSkipNextFrame = false;
     if(gptIO->is_key_pressed(PL_KEY_ESCAPE, false))
     {
         ptAppData->bMouseLocked = !ptAppData->bMouseLocked;
@@ -489,7 +505,7 @@ pl_app_update(plAppData* ptAppData)
                                                                           (float)tVoxelHit.tZPos};
 
             gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, tVoxelHit.tXPos, tVoxelHit.tYPos, tVoxelHit.tZPos, true);
-            ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, false); // TODO: diag needs to be option
+            ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, ptAppData->bAllowDiag);
 
             // reset path drawing 
             ptAppData->uPathSegmentsDrawn = 0;
@@ -512,7 +528,7 @@ pl_app_update(plAppData* ptAppData)
                 }
             }
             gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, tVoxelHit.tXPos, tVoxelHit.tYPos, tVoxelHit.tZPos, false);
-            ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, false); // TODO: diag needs to be option);
+            ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, ptAppData->bAllowDiag);
 
             // reset path drawing 
             ptAppData->uPathSegmentsDrawn = 0;
@@ -757,7 +773,7 @@ load_map(plAppData* ptAppData, uint32_t uMapNumber)
             ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};
             break;
     }
-    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, false); // TODO: diag needs to be option);
+    ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, ptAppData->bAllowDiag);
     
     // reset animation and settings
     ptAppData->fPathAnimTimer = 0.0f;

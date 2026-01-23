@@ -527,7 +527,49 @@ pl_clear_grid_impl(plPathFindingVoxelGrid* ptGrid)
 static void
 pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, uint32_t uVertexCount, const uint32_t* puIndices, uint32_t uIndexCount)
 {
-    // TODO: 
+    // mesh data format:
+    // pfVertices: flat array of floats [x0, y0, z0, x1, y1, z1, x2, y2, z2, ...]
+    //   - each vertex is 3 floats (x, y, z)
+    //   - total vertices = uVertexCount
+    // puIndices: array of vertex indices that define triangles [i0, i1, i2, i3, i4, i5, ...]
+    //   - every 3 indices = 1 triangle
+    //   - triangle count = uIndexCount / 3
+    
+    // algorithm steps:
+    // 1. iterate through triangles (for i = 0; i < uIndexCount; i += 3)
+    // 2. for each triangle:
+    //    a. extract 3 vertex positions from pfVertices using puIndices
+    //       - index0 = puIndices[i]
+    //       - index1 = puIndices[i+1]
+    //       - index2 = puIndices[i+2]
+    //       - v0 = (pfVertices[index0*3], pfVertices[index0*3+1], pfVertices[index0*3+2])
+    //       - v1 = (pfVertices[index1*3], ...)
+    //       - v2 = (pfVertices[index2*3], ...)
+    //    b. compute triangle AABB (min/max x,y,z of the 3 vertices)
+    //    c. convert AABB to voxel space (world coords → voxel indices)
+    //    d. iterate voxels in that AABB range
+    //    e. for each voxel, test if triangle intersects it:
+    //       - bounding box overlap (fast reject)
+    //       - vertex inside voxel test
+    //       - edge-box intersection test
+    //    f. if intersection found, mark voxel as occupied
+    
+    // helper functions to implement:
+    // - get_vertex(pfVertices, index) → plVec3
+    // - compute_triangle_aabb(v0, v1, v2) → (min, max)
+    // - voxel_to_world_bounds(voxelX, voxelY, voxelZ, grid) → (boxMin, boxMax)
+    // - aabb_overlap(triMin, triMax, voxelMin, voxelMax) → bool
+    // - point_in_box(point, boxMin, boxMax) → bool
+    // - edge_intersects_box(p0, p1, boxMin, boxMax) → bool
+    
+    // performance optimization ideas:
+    // - skip voxels outside grid bounds when converting AABB
+    // - early exit when first intersection found for a voxel
+    // - consider caching voxel bounds calculations
+    
+    // memory consideration:
+    // - occupancy is stored as bit array in ptGrid->apOccupancyBits
+    // - use existing set_voxel() function to mark occupied
 }
 
 //-----------------------------------------------------------------------------
