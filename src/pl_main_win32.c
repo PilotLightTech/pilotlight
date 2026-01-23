@@ -49,6 +49,7 @@ Index of this file:
 void             pl__render_frame(void);
 LRESULT CALLBACK pl__windows_procedure(HWND, UINT, WPARAM, LPARAM);
 void             pl__update_mouse_cursor(void);
+void             pl_set_mouse_pos_impl(int fX, int fY);
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -1089,6 +1090,15 @@ pl_unlock_mutex(plMutex* ptMutex)
         printf("ReleaseMutex error: %d\n", GetLastError());
         PL_ASSERT(false);
     }
+}
+
+void
+pl_set_mouse_pos_impl(int iX, int iY)
+{
+    HWND tHandle = (HWND)gptMainWindow->_pBackendData;
+    POINT tPoint = {iX, iY};
+    ClientToScreen(tHandle, &tPoint);
+    SetCursorPos(tPoint.x, tPoint.y);
 }
 
 //-----------------------------------------------------------------------------

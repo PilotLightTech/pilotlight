@@ -84,6 +84,7 @@ typedef struct _plAppData
     bool bShowHelpWindow;
     bool bEditObstacles;
     bool bShowCrossHair;
+    bool bMouseLocked;
 
     // storing variables for drawing 
     plVec3 tOrigin;
@@ -200,7 +201,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tOrigin.y   = 0.0f;
     ptAppData->tOrigin.z   = 0.0f;
     ptAppData->tGridEnd.x  = 20.0f;
-    ptAppData->tGridEnd.y  = 0.0f;
+    ptAppData->tGridEnd.y  = 1.0f;
     ptAppData->tGridEnd.z  = 20.0f;
     ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(20, 1, 20, 1.0f, ptAppData->tOrigin);
     
@@ -222,6 +223,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->bShowOriginAxes         = true;
     ptAppData->bShowObstacles          = true;
     ptAppData->bShowCrossHair          = true;
+    ptAppData->bMouseLocked            = false;
 
     return ptAppData;
 }
@@ -291,12 +293,14 @@ pl_app_update(plAppData* ptAppData)
         if(gptUi->begin_window("Help", NULL, PL_UI_WINDOW_FLAGS_AUTO_SIZE))
         {
             gptUi->layout_static(0.0f, 400.0f, 1);
+            gptUi->text("Press ESC to to unlock mouse");
             gptUi->text("Press Z to toggle Objects");
             gptUi->text("Press X to toddle wire frame");
             gptUi->text("Press C to toggle Origin");
             gptUi->text("Press V to toggle crosshair");
             gptUi->text("Press left shift to edit obstacles");
-            gptUi->text("  - Q = delete & E = Add");
+            gptUi->text("  - Left Click  -> add voxel");
+            gptUi->text("  - Right Click -> delete voxel");
             gptUi->text("  - scroll for depth control");
             gptUi->vertical_spacing();
             gptUi->text("Press 1 for 1D maze");
@@ -308,8 +312,19 @@ pl_app_update(plAppData* ptAppData)
 
     // camera controls
     static const float fCameraTravelSpeed = 8.0f;
-    static const float fCameraRotationSpeed = 0.005f;
+    static const float fCameraRotationSpeed = 0.002f;
+
     plCamera* ptCamera = &ptAppData->tCamera;
+
+    // toggle mouse lock with ESC
+    static bool bMouseLocked   = true;
+    static bool bFirstFrame    = true;
+    static bool bSkipNextFrame = false;
+    if(gptIO->is_key_pressed(PL_KEY_ESCAPE, false))
+    {
+        ptAppData->bMouseLocked = !ptAppData->bMouseLocked;
+        bFirstFrame  = true; // reset deltas
+    }
     if(gptIO->is_key_down(PL_KEY_W)) camera_translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
     if(gptIO->is_key_down(PL_KEY_S)) camera_translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime);
     if(gptIO->is_key_down(PL_KEY_A)) camera_translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
@@ -317,12 +332,30 @@ pl_app_update(plAppData* ptAppData)
     if(gptIO->is_key_down(PL_KEY_F)) camera_translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
     if(gptIO->is_key_down(PL_KEY_R)) camera_translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
 
-    // mouse camera controls
-    if(gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+    // FPS mouse look (only when locked)
+    if(ptAppData->bMouseLocked)
     {
-        const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
-        camera_rotate(ptCamera, -tMouseDelta.y * fCameraRotationSpeed, -tMouseDelta.x * fCameraRotationSpeed);
-        gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
+        plVec2 tCurrentMousePos = gptIO->get_mouse_pos();
+        
+        // recalculate center screen
+        int iCenterX = (int)roundf(ptIO->tMainViewportSize.x * 0.5f);
+        int iCenterY = (int)roundf(ptIO->tMainViewportSize.y * 0.5f);
+
+        if(bFirstFrame)
+        {
+            gptIO->set_mouse_pos(iCenterX, iCenterY);
+            bFirstFrame = false;
+        }
+        else
+        {
+            plVec2 tMouseDelta = {
+                .x = tCurrentMousePos.x - (float)iCenterX,
+                .y = tCurrentMousePos.y - (float)iCenterY
+            };
+
+            camera_rotate(ptCamera, -tMouseDelta.y * fCameraRotationSpeed, -tMouseDelta.x * fCameraRotationSpeed);
+            gptIO->set_mouse_pos(iCenterX, iCenterY);
+        }
     }
     camera_update(ptCamera);
 
@@ -449,7 +482,7 @@ pl_app_update(plAppData* ptAppData)
         }
 
         // add and remove voxel from key press
-        if(gptIO->is_key_pressed(PL_KEY_E, false) && tVoxelHit.bValid)
+        if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) && tVoxelHit.bValid)
         {
             ptAppData->tObstacles[ptAppData->uObstacleCount++] = (plVec3){(float)tVoxelHit.tXPos, 
                                                                           (float)tVoxelHit.tYPos, 
@@ -463,7 +496,7 @@ pl_app_update(plAppData* ptAppData)
             ptAppData->fCurrentSegmentProgress = 0.0f;
         }   
 
-        if(gptIO->is_key_pressed(PL_KEY_Q, false) && tVoxelHit.bOccupied) // if occupied it should be a valid voxel
+        if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false) && tVoxelHit.bOccupied) // if occupied it should be a valid voxel
         { //TODO: how to draw over occupied voxel to clearly denote we can delete
             // find and remove from obstacles array
             for(uint32_t i = 0; i < ptAppData->uObstacleCount; i++)

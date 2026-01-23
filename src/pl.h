@@ -164,6 +164,7 @@ typedef struct _plIOI
     float  (*get_mouse_wheel)        (void);
     bool   (*is_mouse_pos_valid)     (plVec2);
     void   (*set_mouse_cursor)       (plMouseCursor);
+    void   (*set_mouse_pos)          (int x, int y);
 
     // input functions (used by backends)
     void (*add_key_event)         (plKey, bool down);

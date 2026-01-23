@@ -1681,6 +1681,7 @@ pl__load_core_apis(void)
     tIOApi.clear_input_characters  = pl_clear_input_characters;
     tIOApi.get_version             = pl_get_version;
     tIOApi.get_version_string      = pl_get_version_string;
+    tIOApi.set_mouse_pos           = pl_set_mouse_pos_impl;
 
     plDataRegistryI tDataRegistryApi = PL_ZERO_INIT;
     tDataRegistryApi.set_data           = pl_set_data;
