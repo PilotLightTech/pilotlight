@@ -427,6 +427,114 @@ pl_reconstruct_path(const plPathFindingVoxelGrid* ptGrid, plPathNode tGoalNode, 
     return tResult;
 }
 
+plVec3 
+get_vertex(const float* pfVertices, uint32_t uIndex)
+{
+    return (plVec3){
+        pfVertices[uIndex * 3 + 0],
+        pfVertices[uIndex * 3 + 1],
+        pfVertices[uIndex * 3 + 2]
+    };
+}
+
+bool 
+aabb_overlap(plAABB* triAABB, plAABB* voxelAABB)
+{
+    return (triAABB->tMax.x >= voxelAABB->tMin.x && triAABB->tMin.x <= voxelAABB->tMax.x) &&
+           (triAABB->tMax.y >= voxelAABB->tMin.y && triAABB->tMin.y <= voxelAABB->tMax.y) &&
+           (triAABB->tMax.z >= voxelAABB->tMin.z && triAABB->tMin.z <= voxelAABB->tMax.z);
+}
+
+bool 
+point_in_box(plVec3 point, plVec3 boxMin, plVec3 boxMax)
+{
+    return (point.x >= boxMin.x && point.x <= boxMax.x) &&
+           (point.y >= boxMin.y && point.y <= boxMax.y) &&
+           (point.z >= boxMin.z && point.z <= boxMax.z);
+}
+
+bool 
+edge_intersects_box(plVec3 v0, plVec3 v1, plVec3 tVoxelMin, plVec3 tVoxelMax)
+{
+    plVec3 dir = {v1.x - v0.x, v1.y - v0.y, v1.z - v0.z};
+    
+    // test all 6 faces
+    // +X face
+    if(fabsf(dir.x) > 0.0001f) 
+    {
+        float t = (tVoxelMax.x - v0.x) / dir.x;
+        if(t >= 0.0f && t <= 1.0f) 
+        {
+            float y = v0.y + t * dir.y;
+            float z = v0.z + t * dir.z;
+            if(y >= tVoxelMin.y && y <= tVoxelMax.y && z >= tVoxelMin.z && z <= tVoxelMax.z)
+                return true;
+        }
+    }
+    // -X face
+    if(fabsf(dir.x) > 0.0001f) 
+    {
+        float t = (tVoxelMin.x - v0.x) / dir.x;
+        if(t >= 0.0f && t <= 1.0f) 
+        {
+            float y = v0.y + t * dir.y;
+            float z = v0.z + t * dir.z;
+            if(y >= tVoxelMin.y && y <= tVoxelMax.y && z >= tVoxelMin.z && z <= tVoxelMax.z)
+                return true;
+        }
+    }
+    // +Y face
+    if(fabsf(dir.y) > 0.0001f) 
+    {
+        float t = (tVoxelMax.y - v0.y) / dir.y;
+        if(t >= 0.0f && t <= 1.0f) 
+        {
+            float x = v0.x + t * dir.x;
+            float z = v0.z + t * dir.z;
+            if(x >= tVoxelMin.x && x <= tVoxelMax.x && z >= tVoxelMin.z && z <= tVoxelMax.z)
+                return true;
+        }
+    }
+    // -Y face
+    if(fabsf(dir.y) > 0.0001f) 
+    {
+        float t = (tVoxelMin.y - v0.y) / dir.y;
+        if(t >= 0.0f && t <= 1.0f) 
+        {
+            float x = v0.x + t * dir.x;
+            float z = v0.z + t * dir.z;
+            if(x >= tVoxelMin.x && x <= tVoxelMax.x && z >= tVoxelMin.z && z <= tVoxelMax.z)
+                return true;
+        }
+    }
+    // +Z face
+    if(fabsf(dir.z) > 0.0001f) 
+    {
+        float t = (tVoxelMax.z - v0.z) / dir.z;
+        if(t >= 0.0f && t <= 1.0f) 
+        {
+            float x = v0.x + t * dir.x;
+            float y = v0.y + t * dir.y;
+            if(x >= tVoxelMin.x && x <= tVoxelMax.x && y >= tVoxelMin.y && y <= tVoxelMax.y)
+                return true;
+        }
+    }
+    // -Z face
+    if(fabsf(dir.z) > 0.0001f) 
+    {
+        float t = (tVoxelMin.z - v0.z) / dir.z;
+        if(t >= 0.0f && t <= 1.0f) 
+        {
+            float x = v0.x + t * dir.x;
+            float y = v0.y + t * dir.y;
+            if(x >= tVoxelMin.x && x <= tVoxelMax.x && y >= tVoxelMin.y && y <= tVoxelMax.y)
+                return true;
+        }
+    }
+    
+    return false;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -534,33 +642,83 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
     // puIndices: array of vertex indices that define triangles [i0, i1, i2, i3, i4, i5, ...]
     //   - every 3 indices = 1 triangle
     //   - triangle count = uIndexCount / 3
-    
-    // algorithm steps:
-    // 1. iterate through triangles (for i = 0; i < uIndexCount; i += 3)
-    // 2. for each triangle:
-    //    a. extract 3 vertex positions from pfVertices using puIndices
-    //       - index0 = puIndices[i]
-    //       - index1 = puIndices[i+1]
-    //       - index2 = puIndices[i+2]
-    //       - v0 = (pfVertices[index0*3], pfVertices[index0*3+1], pfVertices[index0*3+2])
-    //       - v1 = (pfVertices[index1*3], ...)
-    //       - v2 = (pfVertices[index2*3], ...)
-    //    b. compute triangle AABB (min/max x,y,z of the 3 vertices)
-    //    c. convert AABB to voxel space (world coords → voxel indices)
-    //    d. iterate voxels in that AABB range
-    //    e. for each voxel, test if triangle intersects it:
-    //       - bounding box overlap (fast reject)
-    //       - vertex inside voxel test
-    //       - edge-box intersection test
-    //    f. if intersection found, mark voxel as occupied
-    
-    // helper functions to implement:
-    // - get_vertex(pfVertices, index) → plVec3
-    // - compute_triangle_aabb(v0, v1, v2) → (min, max)
-    // - voxel_to_world_bounds(voxelX, voxelY, voxelZ, grid) → (boxMin, boxMax)
-    // - aabb_overlap(triMin, triMax, voxelMin, voxelMax) → bool
-    // - point_in_box(point, boxMin, boxMax) → bool
-    // - edge_intersects_box(p0, p1, boxMin, boxMax) → bool
+    for(uint32_t i = 0; i < uIndexCount; i += 3)
+    {
+        // get index and vertex data 
+        uint32_t uIndex0 = puIndices[i];
+        uint32_t uIndex1 = puIndices[i + 1];
+        uint32_t uIndex2 = puIndices[i + 2];
+
+        plVec3 tVertex0 = get_vertex(pfVertices, uIndex0);
+        plVec3 tVertex1 = get_vertex(pfVertices, uIndex1);
+        plVec3 tVertex2 = get_vertex(pfVertices, uIndex2);
+
+        // compute triangle AABB
+        plAABB tTriangleAABB = {
+            .tMin = {
+                .x = fminf(fminf(tVertex0.x, tVertex1.x), tVertex2.x),
+                .y = fminf(fminf(tVertex0.y, tVertex1.y), tVertex2.y),
+                .z = fminf(fminf(tVertex0.z, tVertex1.z), tVertex2.z)
+            },
+            .tMax = {
+                .x = fmaxf(fmaxf(tVertex0.x, tVertex1.x), tVertex2.x),
+                .y = fmaxf(fmaxf(tVertex0.y, tVertex1.y), tVertex2.y),
+                .z = fmaxf(fmaxf(tVertex0.z, tVertex1.z), tVertex2.z)
+            }
+        };
+        int32_t iStartX = (int32_t)floorf((tTriangleAABB.tMin.x - ptGrid->tOrigin.x) / ptGrid->fVoxelSize);
+        int32_t iStartY = (int32_t)floorf((tTriangleAABB.tMin.y - ptGrid->tOrigin.y) / ptGrid->fVoxelSize);
+        int32_t iStartZ = (int32_t)floorf((tTriangleAABB.tMin.z - ptGrid->tOrigin.z) / ptGrid->fVoxelSize);
+
+        int32_t iEndX = (int32_t)floorf((tTriangleAABB.tMax.x - ptGrid->tOrigin.x) / ptGrid->fVoxelSize);
+        int32_t iEndY = (int32_t)floorf((tTriangleAABB.tMax.y - ptGrid->tOrigin.y) / ptGrid->fVoxelSize);
+        int32_t iEndZ = (int32_t)floorf((tTriangleAABB.tMax.z - ptGrid->tOrigin.z) / ptGrid->fVoxelSize);
+
+        // clamp to grid
+        iStartX = iStartX < 0 ? 0 : (iStartX >= (int32_t)ptGrid->uDimX ? ptGrid->uDimX - 1 : iStartX);
+        iStartY = iStartY < 0 ? 0 : (iStartY >= (int32_t)ptGrid->uDimY ? ptGrid->uDimY - 1 : iStartY);
+        iStartZ = iStartZ < 0 ? 0 : (iStartZ >= (int32_t)ptGrid->uDimZ ? ptGrid->uDimZ - 1 : iStartZ);
+        iEndX = iEndX < 0 ? 0 : (iEndX >= (int32_t)ptGrid->uDimX ? ptGrid->uDimX - 1 : iEndX);
+        iEndY = iEndY < 0 ? 0 : (iEndY >= (int32_t)ptGrid->uDimY ? ptGrid->uDimY - 1 : iEndY);
+        iEndZ = iEndZ < 0 ? 0 : (iEndZ >= (int32_t)ptGrid->uDimZ ? ptGrid->uDimZ - 1 : iEndZ);
+
+        for(int32_t iZ = iStartZ; iZ <= iEndZ; iZ++)
+        {
+            for(int32_t iY = iStartY; iY <= iEndY; iY++)
+            {
+                for(int32_t iX = iStartX; iX <= iEndX; iX++)
+                {
+                    // create the voxel AABB 
+                    plVec3 tVoxelMin = pl_voxel_to_world_impl(ptGrid, iX, iY, iZ);
+                    plAABB tVoxelAABB = {
+                        .tMin = tVoxelMin,
+                        .tMax = {
+                            .x = tVoxelMin.x + ptGrid->fVoxelSize,
+                            .y = tVoxelMin.y + ptGrid->fVoxelSize,
+                            .z = tVoxelMin.z + ptGrid->fVoxelSize
+                        }
+                    };
+                    if(!aabb_overlap(&tTriangleAABB, &tVoxelAABB)) // bounding box overlap (fast reject)
+                        continue; 
+
+                    if(point_in_box(tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax) || 
+                       point_in_box(tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) || 
+                       point_in_box(tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax))
+                    {
+                        pl_set_voxel_impl(ptGrid, iX, iY, iZ, true);
+                    }
+
+                    // v0, v1, v2 are the triangle vertices
+                    if(edge_intersects_box(tVertex0, tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
+                       edge_intersects_box(tVertex1, tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
+                       edge_intersects_box(tVertex2, tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax))
+                    {
+                        pl_set_voxel_impl(ptGrid, iX, iY, iZ, true);
+                    }
+                }
+            }
+        }
+    }
     
     // performance optimization ideas:
     // - skip voxels outside grid bounds when converting AABB
