@@ -686,12 +686,12 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
         int32_t iEndZ = (int32_t)floorf((tTriangleAABB.tMax.z - ptGrid->tOrigin.z) / ptGrid->fVoxelSize);
 
         // clamp to grid
-        iStartX = iStartX < 0 ? 0 : (iStartX >= (int32_t)ptGrid->uDimX ? ptGrid->uDimX - 1 : iStartX);
-        iStartY = iStartY < 0 ? 0 : (iStartY >= (int32_t)ptGrid->uDimY ? ptGrid->uDimY - 1 : iStartY);
-        iStartZ = iStartZ < 0 ? 0 : (iStartZ >= (int32_t)ptGrid->uDimZ ? ptGrid->uDimZ - 1 : iStartZ);
-        iEndX = iEndX < 0 ? 0 : (iEndX >= (int32_t)ptGrid->uDimX ? ptGrid->uDimX - 1 : iEndX);
-        iEndY = iEndY < 0 ? 0 : (iEndY >= (int32_t)ptGrid->uDimY ? ptGrid->uDimY - 1 : iEndY);
-        iEndZ = iEndZ < 0 ? 0 : (iEndZ >= (int32_t)ptGrid->uDimZ ? ptGrid->uDimZ - 1 : iEndZ);
+        int32_t iStartX = fmax(0, fmin(iStartX, (int32_t)ptGrid->uDimX - 1));
+        int32_t iStartY = fmax(0, fmin(iStartY, (int32_t)ptGrid->uDimY - 1));
+        int32_t iStartZ = fmax(0, fmin(iStartZ, (int32_t)ptGrid->uDimZ - 1));
+        int32_t iEndX = fmax(0, fmin(iEndX, (int32_t)ptGrid->uDimX - 1));
+        int32_t iEndY = fmax(0, fmin(iEndY, (int32_t)ptGrid->uDimY - 1));
+        int32_t iEndZ = fmax(0, fmin(iEndZ, (int32_t)ptGrid->uDimZ - 1));
 
         for(int32_t iZ = iStartZ; iZ <= iEndZ; iZ++)
         {
@@ -710,10 +710,10 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
                         }
                     };
                     
-                    if(!aabb_overlap(&tTriangleAABB, &tVoxelAABB))
+                    if(!aabb_overlap(&tTriangleAABB, &tVoxelAABB)) // if bounding box overlap - early exit 
                         continue;
 
-                    if(point_in_box(tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax) || 
+                    if(point_in_box(tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax) || // check if vertex in voxel - early exit
                        point_in_box(tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) || 
                        point_in_box(tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax))
                     {
