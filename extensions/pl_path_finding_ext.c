@@ -635,16 +635,8 @@ pl_clear_grid_impl(plPathFindingVoxelGrid* ptGrid)
 static void
 pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, uint32_t uVertexCount, const uint32_t* puIndices, uint32_t uIndexCount)
 {
-    // mesh data format:
-    // pfVertices: flat array of floats [x0, y0, z0, x1, y1, z1, x2, y2, z2, ...]
-    //   - each vertex is 3 floats (x, y, z)
-    //   - total vertices = uVertexCount
-    // puIndices: array of vertex indices that define triangles [i0, i1, i2, i3, i4, i5, ...]
-    //   - every 3 indices = 1 triangle
-    //   - triangle count = uIndexCount / 3
     for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
-        // get index and vertex data 
         uint32_t uIndex0 = puIndices[i];
         uint32_t uIndex1 = puIndices[i + 1];
         uint32_t uIndex2 = puIndices[i + 2];
@@ -666,6 +658,25 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
                 .z = fmaxf(fmaxf(tVertex0.z, tVertex1.z), tVertex2.z)
             }
         };
+        
+        // expand flat triangles to handle parallel lines 
+        const float epsilon = 0.01f;
+        if(tTriangleAABB.tMax.x - tTriangleAABB.tMin.x < epsilon)
+        {
+            tTriangleAABB.tMin.x -= epsilon;
+            tTriangleAABB.tMax.x += epsilon;
+        }
+        if(tTriangleAABB.tMax.y - tTriangleAABB.tMin.y < epsilon)
+        {
+            tTriangleAABB.tMin.y -= epsilon;
+            tTriangleAABB.tMax.y += epsilon;
+        }
+        if(tTriangleAABB.tMax.z - tTriangleAABB.tMin.z < epsilon)
+        {
+            tTriangleAABB.tMin.z -= epsilon;
+            tTriangleAABB.tMax.z += epsilon;
+        }
+        
         int32_t iStartX = (int32_t)floorf((tTriangleAABB.tMin.x - ptGrid->tOrigin.x) / ptGrid->fVoxelSize);
         int32_t iStartY = (int32_t)floorf((tTriangleAABB.tMin.y - ptGrid->tOrigin.y) / ptGrid->fVoxelSize);
         int32_t iStartZ = (int32_t)floorf((tTriangleAABB.tMin.z - ptGrid->tOrigin.z) / ptGrid->fVoxelSize);
@@ -698,8 +709,9 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
                             .z = tVoxelMin.z + ptGrid->fVoxelSize
                         }
                     };
-                    if(!aabb_overlap(&tTriangleAABB, &tVoxelAABB)) // bounding box overlap (fast reject)
-                        continue; 
+                    
+                    if(!aabb_overlap(&tTriangleAABB, &tVoxelAABB))
+                        continue;
 
                     if(point_in_box(tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax) || 
                        point_in_box(tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) || 
@@ -708,7 +720,6 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
                         pl_set_voxel_impl(ptGrid, iX, iY, iZ, true);
                     }
 
-                    // v0, v1, v2 are the triangle vertices
                     if(edge_intersects_box(tVertex0, tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
                        edge_intersects_box(tVertex1, tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
                        edge_intersects_box(tVertex2, tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax))
@@ -719,15 +730,6 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
             }
         }
     }
-    
-    // performance optimization ideas:
-    // - skip voxels outside grid bounds when converting AABB
-    // - early exit when first intersection found for a voxel
-    // - consider caching voxel bounds calculations
-    
-    // memory consideration:
-    // - occupancy is stored as bit array in ptGrid->apOccupancyBits
-    // - use existing set_voxel() function to mark occupied
 }
 
 //-----------------------------------------------------------------------------
