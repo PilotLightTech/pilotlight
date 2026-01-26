@@ -34,6 +34,7 @@ Index of this file:
 #include "pl_starter_ext.h"
 #include "pl_path_finding_ext.h"
 #include "pl_ui_ext.h"
+#include "pl_shader_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -65,6 +66,14 @@ typedef struct _plVoxel
     bool   bOccupied;
     bool   bValid;
 } plVoxel;
+
+typedef struct _plMeshData
+{
+    float*    pfVertices;
+    uint32_t  uVertexCount;
+    uint32_t* puIndices;
+    uint32_t  uIndexCount;
+} plMeshData;
 
 typedef struct _plAppData
 {
@@ -98,6 +107,16 @@ typedef struct _plAppData
     float    fPathAnimTimer;
     float    fCurrentSegmentProgress;
     
+    // mesh rendering
+    plShaderHandle   tMeshShader;
+    plBufferHandle   tMeshVertexBuffer;
+    plBufferHandle   tMeshIndexBuffer;
+    plBufferHandle   tMeshStagingBuffer;
+    uint32_t         uMeshIndexCount;
+
+    // test scene resources
+    plMeshData tSceneMeshes[5]; // one for each obstacle
+    uint32_t   uSceneMeshCount;
 
 } plAppData;
 
@@ -112,6 +131,7 @@ const plDrawI*        gptDraw        = NULL;
 const plStarterI*     gptStarter     = NULL;
 const plPathFindingI* gptPathFinding = NULL;
 const plUiI*          gptUi          = NULL;
+const plShaderI*      gptShader      = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper function declarations
@@ -121,9 +141,9 @@ void        camera_translate(plCamera*, float fDx, float fDy, float fDz);
 void        camera_rotate(plCamera*, float fDPitch, float fDYaw);
 void        camera_update(plCamera*);
 static void load_map(plAppData* ptAppData, uint32_t uMapNumber);
-static void set_voxels_maze_one(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
-static void set_voxels_maze_two(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
 static void set_voxels_maze_three(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
+static void set_voxels_maze_two(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount);
+static void set_voxels_maze_one(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount, plMeshData* atMeshes, uint32_t* puMeshCount);
 static void draw_voxel_grid_wireframe(plDrawList3D *ptDrawlist, plPathFindingVoxelGrid *ptGrid, plDrawSolidOptions tOptions);
 bool        is_voxel_occupied(plPathFindingVoxelGrid* ptGrid, uint32_t uVoxelX, uint32_t uVoxelY, uint32_t uVoxelZ); // TODO: could move to ext 
 plVoxel     ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirection, uint32_t uMaxDepth, int32_t iStepCounter);
@@ -146,6 +166,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptPathFinding = pl_get_api_latest(ptApiRegistry, plPathFindingI);
         gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
+        gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
         return ptAppData;
     }
 
@@ -163,6 +184,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptPathFinding = pl_get_api_latest(ptApiRegistry, plPathFindingI);
     gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
 
     plWindowDesc tWindowDesc = {
         .pcTitle = "3D Pathfinding Example",
@@ -179,9 +201,21 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .ptWindow = ptAppData->ptWindow
     };
 
-    gptStarter->initialize(tStarterInit);
-    gptStarter->finalize();
+    // handle shaders ourselves
+    tStarterInit.tFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
 
+    static const plShaderOptions tDefaultShaderOptions = {
+        .apcIncludeDirectories = {
+            "../examples/shaders/"
+        },
+        .apcDirectories = {
+            "../shaders/",
+            "../examples/shaders/"
+        },
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
+    };
+    gptShader->initialize(&tDefaultShaderOptions);
+    gptStarter->initialize(tStarterInit);
     ptAppData->pt3dDrawlist = gptDraw->request_3d_drawlist();
 
     plIO* ptIO = gptIO->get_io();
@@ -197,22 +231,158 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     camera_update(&ptAppData->tCamera);
     camera_rotate(&ptAppData->tCamera, -0.10f, -0.80f);
 
-    // create voxel grid 20x1x20 as default
+    // create voxel grid 20x3x20 as default (scene 1)
     ptAppData->tOrigin.x   = 0.0f;
     ptAppData->tOrigin.y   = 0.0f;
     ptAppData->tOrigin.z   = 0.0f;
     ptAppData->tGridEnd.x  = 20.0f;
-    ptAppData->tGridEnd.y  = 1.0f;
+    ptAppData->tGridEnd.y  = 3.0f;
     ptAppData->tGridEnd.z  = 20.0f;
-    ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(20, 1, 20, 1.0f, ptAppData->tOrigin);
-    
-    // set voxel for default 1D maze
+    ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(20, 3, 20, 1.0f, ptAppData->tOrigin);
+
+    // set voxel for default scene (with mesh obstacles)
     ptAppData->uObstacleCount = 0;
-    set_voxels_maze_one(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
+    ptAppData->uSceneMeshCount = 0;
+    set_voxels_maze_one(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount,
+                        ptAppData->tSceneMeshes, &ptAppData->uSceneMeshCount);
 
     // set path start and end 
-    ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
-    ptAppData->tQuery.tGoal  = (plVec3){18.5f, 0.5f, 18.5f};
+    ptAppData->tQuery.tStart = (plVec3){1.5f, 1.5f, 1.5f};
+    ptAppData->tQuery.tGoal  = (plVec3){18.5f, 1.5f, 18.5f};
+
+    // gfx resources from geometry drawing 
+    plDevice* ptDevice = gptStarter->get_device();
+
+    // calculate total buffer sizes needed
+    uint32_t uTotalVertexCount = 0;
+    uint32_t uTotalIndexCount = 0;
+    for(uint32_t i = 0; i < ptAppData->uSceneMeshCount; i++)
+    {
+        uTotalVertexCount += ptAppData->tSceneMeshes[i].uVertexCount;
+        uTotalIndexCount += ptAppData->tSceneMeshes[i].uIndexCount;
+    }
+
+    if(uTotalVertexCount > 0)  // only create buffers if we have meshes
+    {
+        // create vertex buffer
+        const plBufferDesc tMeshVertexBufferDesc = {
+            .tUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
+            .szByteSize  = sizeof(float) * 3 * uTotalVertexCount,  // 3 floats per vertex
+            .pcDebugName = "mesh vertex buffer"
+        };
+        ptAppData->tMeshVertexBuffer = gptGfx->create_buffer(ptDevice, &tMeshVertexBufferDesc, NULL);
+        
+        plBuffer* ptMeshVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tMeshVertexBuffer);
+        const plDeviceMemoryAllocation tMeshVertexAlloc = gptGfx->allocate_memory(ptDevice,
+            ptMeshVertexBuffer->tMemoryRequirements.ulSize,
+            PL_MEMORY_FLAGS_DEVICE_LOCAL,
+            ptMeshVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
+            "mesh vertex memory");
+        gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tMeshVertexBuffer, &tMeshVertexAlloc);
+        
+        // create index buffer
+        const plBufferDesc tMeshIndexBufferDesc = {
+            .tUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
+            .szByteSize  = sizeof(uint32_t) * uTotalIndexCount,
+            .pcDebugName = "mesh index buffer"
+        };
+        ptAppData->tMeshIndexBuffer = gptGfx->create_buffer(ptDevice, &tMeshIndexBufferDesc, NULL);
+        
+        plBuffer* ptMeshIndexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tMeshIndexBuffer);
+        const plDeviceMemoryAllocation tMeshIndexAlloc = gptGfx->allocate_memory(ptDevice,
+            ptMeshIndexBuffer->tMemoryRequirements.ulSize,
+            PL_MEMORY_FLAGS_DEVICE_LOCAL,
+            ptMeshIndexBuffer->tMemoryRequirements.uMemoryTypeBits,
+            "mesh index memory");
+        gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tMeshIndexBuffer, &tMeshIndexAlloc);
+        
+        // create staging buffer
+        const plBufferDesc tMeshStagingBufferDesc = {
+            .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
+            .szByteSize  = tMeshVertexBufferDesc.szByteSize + tMeshIndexBufferDesc.szByteSize,
+            .pcDebugName = "mesh staging buffer"
+        };
+        ptAppData->tMeshStagingBuffer = gptGfx->create_buffer(ptDevice, &tMeshStagingBufferDesc, NULL);
+        
+        plBuffer* ptMeshStagingBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tMeshStagingBuffer);
+        const plDeviceMemoryAllocation tMeshStagingAlloc = gptGfx->allocate_memory(ptDevice,
+            ptMeshStagingBuffer->tMemoryRequirements.ulSize,
+            PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
+            ptMeshStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
+            "mesh staging memory");
+        gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tMeshStagingBuffer, &tMeshStagingAlloc);
+        
+        uint32_t uVertexOffset = 0;
+        uint32_t uCurrentVertexBase = 0;  // track vertex offset for index adjustment
+
+        for(uint32_t i = 0; i < ptAppData->uSceneMeshCount; i++)
+        {
+            memcpy(&ptMeshStagingBuffer->tMemoryAllocation.pHostMapped[uVertexOffset],
+                ptAppData->tSceneMeshes[i].pfVertices,
+                sizeof(float) * 3 * ptAppData->tSceneMeshes[i].uVertexCount);
+            uVertexOffset += sizeof(float) * 3 * ptAppData->tSceneMeshes[i].uVertexCount;
+        }
+
+        size_t uIndexBufferOffset = tMeshVertexBufferDesc.szByteSize;
+        size_t uIndexOffset = 0;
+        uCurrentVertexBase = 0;
+
+        for(uint32_t i = 0; i < ptAppData->uSceneMeshCount; i++)
+        {
+            // copy indices with vertex base offset applied
+            uint32_t* pDestIndices = (uint32_t*)&ptMeshStagingBuffer->tMemoryAllocation.pHostMapped[uIndexBufferOffset + uIndexOffset];
+            
+            for(uint32_t j = 0; j < ptAppData->tSceneMeshes[i].uIndexCount; j++)
+            {
+                pDestIndices[j] = ptAppData->tSceneMeshes[i].puIndices[j] + uCurrentVertexBase;
+            }
+            
+            uIndexOffset += sizeof(uint32_t) * ptAppData->tSceneMeshes[i].uIndexCount;
+            uCurrentVertexBase += ptAppData->tSceneMeshes[i].uVertexCount;
+        }
+        
+        // transfer to GPU
+        plBlitEncoder* ptBlitEncoder = gptStarter->get_blit_encoder();
+        gptGfx->copy_buffer(ptBlitEncoder, ptAppData->tMeshStagingBuffer, ptAppData->tMeshVertexBuffer, 
+                            0, 0, tMeshVertexBufferDesc.szByteSize);
+        gptGfx->copy_buffer(ptBlitEncoder, ptAppData->tMeshStagingBuffer, ptAppData->tMeshIndexBuffer, 
+                            (uint32_t)uIndexBufferOffset, 0, tMeshIndexBufferDesc.szByteSize);
+        gptStarter->return_blit_encoder(ptBlitEncoder);
+        
+        ptAppData->uMeshIndexCount = uTotalIndexCount;
+    }
+
+        const plShaderDesc tMeshShaderDesc = {
+        .tVertexShader            = gptShader->load_glsl("mesh_3d.vert", "main", NULL, NULL),
+        .tFragmentShader          = gptShader->load_glsl("mesh_3d.frag", "main", NULL, NULL),
+        .tGraphicsState = {
+            .ulDepthWriteEnabled  = 1,
+            .ulDepthMode          = PL_COMPARE_MODE_LESS,
+            .ulCullMode           = PL_CULL_MODE_NONE,
+            .ulWireframe          = 0,
+            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+            .ulStencilRef         = 0xff,
+            .ulStencilMask        = 0xff,
+            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+        },
+        .atVertexBufferLayouts = {
+            {
+                .atAttributes = {
+                    {.tFormat = PL_VERTEX_FORMAT_FLOAT3}
+                }
+            }
+        },
+        .atBlendStates = {
+            {
+                .bBlendEnabled = false,
+                .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
+            }
+        },
+        .tRenderPassLayout = gptStarter->get_render_pass_layout()
+    };
+    ptAppData->tMeshShader = gptGfx->create_shader(ptDevice, &tMeshShaderDesc);
 
     // find path and set option defaults
     ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, true); // diag true by default
@@ -221,11 +391,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->fCurrentSegmentProgress = 0.0f;
     ptAppData->bShowWireFrame          = true;
     ptAppData->bShowOriginAxes         = true;
-    ptAppData->bShowObstacles          = true;
+    ptAppData->bShowObstacles          = false; // default scene will draw geometry 
     ptAppData->bShowCrossHair          = true;
     ptAppData->bMouseLocked            = false;
     ptAppData->bAllowDiag              = true;
 
+
+    gptStarter->finalize();
     return ptAppData;
 }
 
@@ -271,6 +443,7 @@ pl_app_update(plAppData* ptAppData)
         return;
 
     plIO* ptIO = gptIO->get_io();
+    plDevice* ptDevice = gptStarter->get_device();
 
     // loading different mazes
     if(gptIO->is_key_pressed(PL_KEY_1, false))
@@ -310,7 +483,7 @@ pl_app_update(plAppData* ptAppData)
         {
             gptUi->layout_static(0.0f, 400.0f, 1);
             gptUi->text("Press ESC to to unlock mouse");
-            gptUi->text("Press Z to toggle Objects");
+            gptUi->text("Press Z to toggle voxel visualization");
             gptUi->text("Press X to toddle wire frame");
             gptUi->text("Press C to toggle Origin");
             gptUi->text("Press V to toggle crosshair");
@@ -322,7 +495,7 @@ pl_app_update(plAppData* ptAppData)
             gptUi->vertical_spacing();
             gptUi->text("Press 1 for 1D maze");
             gptUi->text("Press 2 for 3D maze");
-            gptUi->text("Press 3 for blank maze");
+            gptUi->text("Press 3 for mesh obstacles");
             gptUi->end_window();
         }
     }
@@ -348,7 +521,7 @@ pl_app_update(plAppData* ptAppData)
     if(gptIO->is_key_down(PL_KEY_F)) camera_translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
     if(gptIO->is_key_down(PL_KEY_R)) camera_translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f);
 
-    // FPS mouse look (only when locked)
+    // FPS style mouse look (only when locked)
     if(ptAppData->bMouseLocked)
     {
         plVec2 tCurrentMousePos = gptIO->get_mouse_pos();
@@ -375,24 +548,24 @@ pl_app_update(plAppData* ptAppData)
     }
     camera_update(ptCamera);
 
-    // draw corsshairs
+    // draw corsshairs // TODO: crude needs better solution and hide cursor (maybe replace cursor)
     if(gptIO->is_key_pressed(PL_KEY_V, false))
     {
         ptAppData->bShowCrossHair = !ptAppData->bShowCrossHair;
     }
     if(ptAppData->bShowCrossHair)
     {
-        float fCrosshairSize = 0.1f; // adjust size as needed
+        float fCrosshairSize = 0.1f;
         plVec3 tCameraPos = ptCamera->tPos;
         plVec3 tCameraForward = get_ray_direction(ptCamera);
 
-        float fDistance = 3.0f; // distance from camera
+        float fDistance = 3.0f;
         plVec3 tCenter = {
             .x = tCameraPos.x + tCameraForward.x * fDistance,
             .y = tCameraPos.y + tCameraForward.y * fDistance,
             .z = tCameraPos.z + tCameraForward.z * fDistance
         };
-        plVec3 tRight = {-tCameraForward.z, 0, tCameraForward.x}; // perpendicular to forward in XZ plane
+        plVec3 tRight = {-tCameraForward.z, 0, tCameraForward.x};
 
         gptDraw->add_3d_line(ptAppData->pt3dDrawlist,
             (plVec3){tCenter.x - tRight.x * fCrosshairSize, tCenter.y, tCenter.z - tRight.z * fCrosshairSize},
@@ -403,14 +576,13 @@ pl_app_update(plAppData* ptAppData)
             (plVec3){tCenter.x, tCenter.y - fCrosshairSize, tCenter.z},
             (plVec3){tCenter.x, tCenter.y + fCrosshairSize, tCenter.z},
             (plDrawLineOptions){.uColor = PL_COLOR_32_WHITE, .fThickness = 0.01f});
-
     }
 
     // draw "ground layer" of maze
-    plVec3 tCorner1 = {ptAppData->tOrigin.x,  0, ptAppData->tOrigin.z};   // bottom-left
-    plVec3 tCorner2 = {ptAppData->tGridEnd.x, 0, ptAppData->tOrigin.z};   // bottom-right
-    plVec3 tCorner3 = {ptAppData->tOrigin.x,  0, ptAppData->tGridEnd.z};  // top-left
-    plVec3 tCorner4 = {ptAppData->tGridEnd.x, 0, ptAppData->tGridEnd.z};  // top-right
+    plVec3 tCorner1 = {ptAppData->tOrigin.x,  0, ptAppData->tOrigin.z};
+    plVec3 tCorner2 = {ptAppData->tGridEnd.x, 0, ptAppData->tOrigin.z};
+    plVec3 tCorner3 = {ptAppData->tOrigin.x,  0, ptAppData->tGridEnd.z};
+    plVec3 tCorner4 = {ptAppData->tGridEnd.x, 0, ptAppData->tGridEnd.z};
 
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
         tCorner1, tCorner2, tCorner3,
@@ -440,7 +612,6 @@ pl_app_update(plAppData* ptAppData)
         draw_voxel_grid_wireframe(ptAppData->pt3dDrawlist, ptAppData->ptVoxelGrid,(plDrawSolidOptions){.uColor = PL_COLOR_32_LIGHT_GREY});
     }
 
-    // TODO: add option to move these
     // draw start and goal spheres 
     gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist, 
         (plSphere){.fRadius = 0.35f, 
@@ -457,7 +628,7 @@ pl_app_update(plAppData* ptAppData)
         0, 0, 
         (plDrawSolidOptions){.uColor = PL_COLOR_32_CYAN});    
 
-    // edit obstacles TODO: fix depth issue with added voxels
+    // edit obstacles
     if(gptIO->is_key_pressed(PL_KEY_LEFT_SHIFT, false))
     {
         ptAppData->bEditObstacles = !ptAppData->bEditObstacles;
@@ -475,8 +646,6 @@ pl_app_update(plAppData* ptAppData)
         plVec3 tRayDir = get_ray_direction(ptCamera);
         plVoxel tVoxelHit = ray_cast(ptCamera, ptAppData->ptVoxelGrid, tRayDir, 10, iGhostDepth);
 
-        // draw ghost voxel at that position
-        // (use different color/transparency to show it's a preview)
         if(tVoxelHit.bValid)
         {
             plDrawSolidOptions tGhostOptions;
@@ -497,7 +666,6 @@ pl_app_update(plAppData* ptAppData)
                 tGhostBorderOptions.uColor);
         }
 
-        // add and remove voxel from key press
         if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false) && tVoxelHit.bValid)
         {
             ptAppData->tObstacles[ptAppData->uObstacleCount++] = (plVec3){(float)tVoxelHit.tXPos, 
@@ -507,21 +675,18 @@ pl_app_update(plAppData* ptAppData)
             gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, tVoxelHit.tXPos, tVoxelHit.tYPos, tVoxelHit.tZPos, true);
             ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, ptAppData->bAllowDiag);
 
-            // reset path drawing 
             ptAppData->uPathSegmentsDrawn = 0;
             ptAppData->fCurrentSegmentProgress = 0.0f;
         }   
 
-        if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false) && tVoxelHit.bOccupied) // if occupied it should be a valid voxel
-        { //TODO: how to draw over occupied voxel to clearly denote we can delete
-            // find and remove from obstacles array
+        if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false) && tVoxelHit.bOccupied)
+        {
             for(uint32_t i = 0; i < ptAppData->uObstacleCount; i++)
             {
                 if(ptAppData->tObstacles[i].x == (float)tVoxelHit.tXPos &&
                    ptAppData->tObstacles[i].y == (float)tVoxelHit.tYPos &&
                    ptAppData->tObstacles[i].z == (float)tVoxelHit.tZPos)
                 {
-                    // swap delete from array
                     ptAppData->tObstacles[i] = ptAppData->tObstacles[ptAppData->uObstacleCount - 1];
                     ptAppData->uObstacleCount--;
                     break;
@@ -530,13 +695,12 @@ pl_app_update(plAppData* ptAppData)
             gptPathFinding->set_voxel(ptAppData->ptVoxelGrid, tVoxelHit.tXPos, tVoxelHit.tYPos, tVoxelHit.tZPos, false);
             ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, ptAppData->bAllowDiag);
 
-            // reset path drawing 
             ptAppData->uPathSegmentsDrawn = 0;
             ptAppData->fCurrentSegmentProgress = 0.0f;
         }
     }
 
-    // obstacle drawing
+    // voxel visualization 
     if(gptIO->is_key_pressed(PL_KEY_Z, false))
     {
         ptAppData->bShowObstacles = !ptAppData->bShowObstacles;
@@ -549,7 +713,6 @@ pl_app_update(plAppData* ptAppData)
             float fCenterY = ptAppData->tObstacles[i].y + 0.5f;
             float fCenterZ = ptAppData->tObstacles[i].z + 0.5f;
 
-            // change color for each layer
             plDrawSolidOptions tOptions;
             plDrawSolidOptions tDarkOptions;
             if(fCenterY == 0.5f) 
@@ -558,7 +721,7 @@ pl_app_update(plAppData* ptAppData)
             {tOptions.uColor = PL_COLOR_32_GREEN; tDarkOptions.uColor = PL_COLOR_32_RGBA(0.0f, 0.545f, 0.0f, 1.0f);}
             else if(fCenterY == 2.5f) 
             {tOptions.uColor = PL_COLOR_32_BLUE; tDarkOptions.uColor = PL_COLOR_32_DARK_BLUE;}
-            else // default
+            else
             {tOptions.uColor = PL_COLOR_32_WHITE; tDarkOptions.uColor = PL_COLOR_32_RGBA(128, 128, 128, 255);}
             
             draw_voxel(ptAppData->pt3dDrawlist, ptAppData->tObstacles[i], tOptions.uColor, 
@@ -567,13 +730,11 @@ pl_app_update(plAppData* ptAppData)
     }
 
     // draw path
-    // TODO: figure out path depth buffering issue 
     if(ptAppData->tPathResult.bSuccess)
     {
         ptAppData->fPathAnimTimer += ptIO->fDeltaTime;
 
-        // increment progress every frame
-        float fSegmentSpeed = 20.0f; // segments per second
+        float fSegmentSpeed = 20.0f;
         float fProgressIncrement = fSegmentSpeed * ptIO->fDeltaTime;
         ptAppData->fCurrentSegmentProgress += fProgressIncrement;
 
@@ -583,7 +744,7 @@ pl_app_update(plAppData* ptAppData)
             ptAppData->fCurrentSegmentProgress = 0.0f;
         }
 
-        float fRadius = 0.15f; // thickness 
+        float fRadius = 0.15f;
         uint32_t uSegments = 8;
 
         for(uint32_t i = 0; i < ptAppData->uPathSegmentsDrawn; i++)
@@ -596,7 +757,7 @@ pl_app_update(plAppData* ptAppData)
             gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, tCylinder, uSegments,
                 (plDrawSolidOptions){.uColor = PL_COLOR_32_DARK_BLUE});
         }
-        // draw current partial segment
+
         if(ptAppData->uPathSegmentsDrawn < ptAppData->tPathResult.uWaypointCount - 1)
         {
             plVec3 tStart = ptAppData->tPathResult.atWaypoints[ptAppData->uPathSegmentsDrawn];
@@ -627,10 +788,30 @@ pl_app_update(plAppData* ptAppData)
         PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE | PL_DRAW_FLAG_CULL_FRONT,
         1);
 
+   // draw mesh obstacles
+    if(ptAppData->uMeshIndexCount > 0)
+    {
+        plDynamicDataBlock tBlock = gptGfx->allocate_dynamic_data_block(ptDevice);
+        plDynamicBinding tBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &tBlock);
+        
+        plMat4* pMVP = (plMat4*)tBinding.pcData;
+        *pMVP = tMVP;
+        
+        gptGfx->bind_shader(ptEncoder, ptAppData->tMeshShader);
+        gptGfx->bind_vertex_buffer(ptEncoder, ptAppData->tMeshVertexBuffer);
+        gptGfx->bind_graphics_bind_groups(ptEncoder, ptAppData->tMeshShader, 0, 0, NULL, 1, &tBinding);
+        
+        const plDrawIndex tMeshDraw = {
+            .uInstanceCount = 1,
+            .uIndexCount = ptAppData->uMeshIndexCount,
+            .tIndexBuffer = ptAppData->tMeshIndexBuffer
+        };
+        gptGfx->draw_indexed(ptEncoder, 1, &tMeshDraw);
+    }
+
     gptStarter->end_main_pass();
     gptStarter->end_frame(); 
 }
-
 //-----------------------------------------------------------------------------
 // [SECTION] helper function definitions
 //-----------------------------------------------------------------------------
@@ -748,7 +929,7 @@ load_map(plAppData* ptAppData, uint32_t uMapNumber)
     // create new maps grid
     plVec3 tOrigin = {0.0f, 0.0f, 0.0f};
     uint32_t uMapLayers = 0;
-    if(uMapNumber == 1) uMapLayers = 1;
+    if(uMapNumber == 1) uMapLayers = 3;
     if(uMapNumber == 2) uMapLayers = 3;
     if(uMapNumber == 3) uMapLayers = 1;
 
@@ -758,10 +939,11 @@ load_map(plAppData* ptAppData, uint32_t uMapNumber)
     switch(uMapNumber)
     {
         case 1:
-            set_voxels_maze_one(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
-            ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
-            ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};
-            break;
+            set_voxels_maze_one(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount, 
+                                ptAppData->tSceneMeshes, &ptAppData->uSceneMeshCount);
+            ptAppData->tQuery.tStart = (plVec3){1.5f, 1.5f, 1.5f};
+            ptAppData->tQuery.tGoal = (plVec3){18.5f, 1.5f, 18.5f};
+
         case 2:
             set_voxels_maze_two(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
             ptAppData->tQuery.tStart = (plVec3){2.5f, 0.5f, 2.5f};
@@ -772,6 +954,7 @@ load_map(plAppData* ptAppData, uint32_t uMapNumber)
             ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
             ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};
             break;
+            break;
     }
     ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, ptAppData->bAllowDiag);
     
@@ -781,7 +964,7 @@ load_map(plAppData* ptAppData, uint32_t uMapNumber)
 }
 
 static void
-set_voxels_maze_one(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount)
+set_voxels_maze_three(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount)
 {
     *uObstacleCount = 0;
     
@@ -1504,9 +1687,152 @@ set_voxels_maze_two(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t
 }
 
 static void
-set_voxels_maze_three(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount)
+set_voxels_maze_one(plPathFindingVoxelGrid* ptGrid, plVec3* tObstacles, uint32_t* uObstacleCount, plMeshData* atMeshes, uint32_t* puMeshCount)
 {
     *uObstacleCount = 0;
+    *puMeshCount = 0;
+    
+    // obstacle 1: rotated box blocking direct path from start
+    static float box1_vertices[] = {
+        // x, y, z (position only for now)
+        3.5f, 0.0f, 3.5f,   // 0
+        6.5f, 0.0f, 3.5f,   // 1
+        6.5f, 0.0f, 6.5f,   // 2
+        3.5f, 0.0f, 6.5f,   // 3
+        3.5f, 2.0f, 3.5f,   // 4
+        6.5f, 2.0f, 3.5f,   // 5
+        6.5f, 2.0f, 6.5f,   // 6
+        3.5f, 2.0f, 6.5f    // 7
+    };
+    static uint32_t box1_indices[] = {
+        0,1,2, 0,2,3,  // bottom
+        4,6,5, 4,7,6,  // top
+        3,2,6, 3,6,7,  // front
+        0,5,1, 0,4,5,  // back
+        0,3,7, 0,7,4,  // left
+        1,6,2, 1,5,6   // right
+    };
+    atMeshes[*puMeshCount].pfVertices = box1_vertices;
+    atMeshes[*puMeshCount].uVertexCount = 8;
+    atMeshes[*puMeshCount].puIndices = box1_indices;
+    atMeshes[*puMeshCount].uIndexCount = 36;
+    (*puMeshCount)++;
+    gptPathFinding->voxelize_mesh(ptGrid, box1_vertices, 8, box1_indices, 36);
+    
+    // obstacle 2: wedge/ramp in middle area
+    static float wedge_vertices[] = {
+        9.0f, 0.0f, 7.0f,   // 0
+        11.0f, 0.0f, 7.0f,  // 1
+        11.0f, 0.0f, 10.0f, // 2
+        9.0f, 0.0f, 10.0f,  // 3
+        10.0f, 2.5f, 8.5f   // 4 - peak
+    };
+    static uint32_t wedge_indices[] = {
+        0,1,2, 0,2,3,  // bottom
+        0,4,1,         // front face
+        1,4,2,         // right face
+        2,4,3,         // back face
+        3,4,0          // left face
+    };
+    atMeshes[*puMeshCount].pfVertices = wedge_vertices;
+    atMeshes[*puMeshCount].uVertexCount = 5;
+    atMeshes[*puMeshCount].puIndices = wedge_indices;
+    atMeshes[*puMeshCount].uIndexCount = 15;
+    (*puMeshCount)++;
+    gptPathFinding->voxelize_mesh(ptGrid, wedge_vertices, 5, wedge_indices, 15);
+    
+    // obstacle 3: tilted box near goal
+    static float box2_vertices[] = {
+        13.0f, 0.0f, 13.5f,  // 0
+        15.5f, 0.0f, 13.0f,  // 1
+        16.0f, 0.0f, 15.5f,  // 2
+        13.5f, 0.0f, 16.0f,  // 3
+        13.0f, 2.5f, 13.5f,  // 4
+        15.5f, 2.5f, 13.0f,  // 5
+        16.0f, 2.5f, 15.5f,  // 6
+        13.5f, 2.5f, 16.0f   // 7
+    };
+    static uint32_t box2_indices[] = {
+        0,1,2, 0,2,3,
+        4,6,5, 4,7,6,
+        3,2,6, 3,6,7,
+        0,5,1, 0,4,5,
+        0,3,7, 0,7,4,
+        1,6,2, 1,5,6
+    };
+    atMeshes[*puMeshCount].pfVertices = box2_vertices;
+    atMeshes[*puMeshCount].uVertexCount = 8;
+    atMeshes[*puMeshCount].puIndices = box2_indices;
+    atMeshes[*puMeshCount].uIndexCount = 36;
+    (*puMeshCount)++;
+    gptPathFinding->voxelize_mesh(ptGrid, box2_vertices, 8, box2_indices, 36);
+    
+    // obstacle 4: diagonal wall in mid-left area
+    static float wall_vertices[] = {
+        3.8f, 0.0f, 11.8f,  // 0
+        7.2f, 0.0f, 15.2f,  // 1
+        6.8f, 0.0f, 15.6f,  // 2
+        3.4f, 0.0f, 12.2f,  // 3
+        3.8f, 2.0f, 11.8f,  // 4
+        7.2f, 2.0f, 15.2f,  // 5
+        6.8f, 2.0f, 15.6f,  // 6
+        3.4f, 2.0f, 12.2f   // 7
+    };
+    static uint32_t wall_indices[] = {
+        0,1,2, 0,2,3,
+        4,6,5, 4,7,6,
+        3,2,6, 3,6,7,
+        0,5,1, 0,4,5,
+        0,3,7, 0,7,4,
+        1,6,2, 1,5,6
+    };
+    atMeshes[*puMeshCount].pfVertices = wall_vertices;
+    atMeshes[*puMeshCount].uVertexCount = 8;
+    atMeshes[*puMeshCount].puIndices = wall_indices;
+    atMeshes[*puMeshCount].uIndexCount = 36;
+    (*puMeshCount)++;
+    gptPathFinding->voxelize_mesh(ptGrid, wall_vertices, 8, wall_indices, 36);
+    
+    // obstacle 5: small angled platform
+    static float platform_vertices[] = {
+        10.2f, 1.0f, 3.2f,  // 0
+        12.8f, 1.0f, 3.8f,  // 1
+        12.2f, 1.0f, 5.8f,  // 2
+        9.8f, 1.0f, 5.2f,   // 3
+        10.2f, 2.0f, 3.2f,  // 4
+        12.8f, 2.0f, 3.8f,  // 5
+        12.2f, 2.0f, 5.8f,  // 6
+        9.8f, 2.0f, 5.2f    // 7
+    };
+    static uint32_t platform_indices[] = {
+        0,1,2, 0,2,3,
+        4,6,5, 4,7,6,
+        3,2,6, 3,6,7,
+        0,5,1, 0,4,5,
+        0,3,7, 0,7,4,
+        1,6,2, 1,5,6
+    };
+    atMeshes[*puMeshCount].pfVertices = platform_vertices;
+    atMeshes[*puMeshCount].uVertexCount = 8;
+    atMeshes[*puMeshCount].puIndices = platform_indices;
+    atMeshes[*puMeshCount].uIndexCount = 36;
+    (*puMeshCount)++;
+    gptPathFinding->voxelize_mesh(ptGrid, platform_vertices, 8, platform_indices, 36);
+    
+    // populate obstacles array for rendering by checking which voxels are occupied
+    for(uint32_t z = 0; z < ptGrid->uDimZ; z++)
+    {
+        for(uint32_t y = 0; y < ptGrid->uDimY; y++)
+        {
+            for(uint32_t x = 0; x < ptGrid->uDimX; x++)
+            {
+                if(gptPathFinding->is_voxel_occupied(ptGrid, x, y, z))
+                {
+                    tObstacles[(*uObstacleCount)++] = (plVec3){(float)x, (float)y, (float)z};
+                }
+            }
+        }
+    }
 }
 
 plVoxel

@@ -686,12 +686,12 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
         int32_t iEndZ = (int32_t)floorf((tTriangleAABB.tMax.z - ptGrid->tOrigin.z) / ptGrid->fVoxelSize);
 
         // clamp to grid
-        int32_t iStartX = fmax(0, fmin(iStartX, (int32_t)ptGrid->uDimX - 1));
-        int32_t iStartY = fmax(0, fmin(iStartY, (int32_t)ptGrid->uDimY - 1));
-        int32_t iStartZ = fmax(0, fmin(iStartZ, (int32_t)ptGrid->uDimZ - 1));
-        int32_t iEndX = fmax(0, fmin(iEndX, (int32_t)ptGrid->uDimX - 1));
-        int32_t iEndY = fmax(0, fmin(iEndY, (int32_t)ptGrid->uDimY - 1));
-        int32_t iEndZ = fmax(0, fmin(iEndZ, (int32_t)ptGrid->uDimZ - 1));
+        iStartX = (int32_t)fmax(0, fmin(iStartX, (int32_t)ptGrid->uDimX - 1));
+        iStartY = (int32_t)fmax(0, fmin(iStartY, (int32_t)ptGrid->uDimY - 1));
+        iStartZ = (int32_t)fmax(0, fmin(iStartZ, (int32_t)ptGrid->uDimZ - 1));
+        iEndX = (int32_t)fmax(0, fmin(iEndX, (int32_t)ptGrid->uDimX - 1));
+        iEndY = (int32_t)fmax(0, fmin(iEndY, (int32_t)ptGrid->uDimY - 1));
+        iEndZ = (int32_t)fmax(0, fmin(iEndZ, (int32_t)ptGrid->uDimZ - 1));
 
         for(int32_t iZ = iStartZ; iZ <= iEndZ; iZ++)
         {
