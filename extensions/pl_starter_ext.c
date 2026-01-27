@@ -1476,8 +1476,7 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
             { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true, .tSamples = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount }, // depth buffer
             { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat, .bResolve = true }, // swapchain
             { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat, .tSamples = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount}, // msaa
-            
-
+    
         },
         .atSubpasses = {
             {

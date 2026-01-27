@@ -106,6 +106,7 @@ typedef struct _plAppData
     uint32_t uPathSegmentsDrawn;
     float    fPathAnimTimer;
     float    fCurrentSegmentProgress;
+    uint32_t uCurrentMap;
     
     // mesh rendering
     plShaderHandle   tMeshShader;
@@ -197,7 +198,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {
-        .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
+        .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS | PL_STARTER_FLAGS_DEPTH_BUFFER,
         .ptWindow = ptAppData->ptWindow
     };
 
@@ -395,6 +396,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->bShowCrossHair          = true;
     ptAppData->bMouseLocked            = false;
     ptAppData->bAllowDiag              = true;
+    ptAppData->uCurrentMap             = 1;
 
 
     gptStarter->finalize();
@@ -449,14 +451,17 @@ pl_app_update(plAppData* ptAppData)
     if(gptIO->is_key_pressed(PL_KEY_1, false))
     {
         load_map(ptAppData, 1);
+        ptAppData->uCurrentMap = 1;
     }
     if(gptIO->is_key_pressed(PL_KEY_2, false))
     {
         load_map(ptAppData, 2);
+        ptAppData->uCurrentMap = 2;
     }
     if(gptIO->is_key_pressed(PL_KEY_3, false))
     {
         load_map(ptAppData, 3);
+        ptAppData->uCurrentMap = 3;
     }
 
     // toggle diagnal paths 
@@ -785,11 +790,11 @@ pl_app_update(plAppData* ptAppData)
         ptIO->tMainViewportSize.x,
         ptIO->tMainViewportSize.y,
         &tMVP,
-        PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE | PL_DRAW_FLAG_CULL_FRONT,
+        PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE | PL_DRAW_FLAG_CULL_BACK,
         1);
 
    // draw mesh obstacles
-    if(ptAppData->uMeshIndexCount > 0)
+    if(ptAppData->uMeshIndexCount > 0 && ptAppData->uCurrentMap == 1)
     {
         plDynamicDataBlock tBlock = gptGfx->allocate_dynamic_data_block(ptDevice);
         plDynamicBinding tBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &tBlock);
