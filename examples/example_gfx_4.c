@@ -150,7 +150,6 @@ bool        is_voxel_occupied(plPathFindingVoxelGrid* ptGrid, uint32_t uVoxelX, 
 plVoxel     ray_cast(plCamera* ptCamera, plPathFindingVoxelGrid* ptGrid, plVec3 tRayDirection, uint32_t uMaxDepth, int32_t iStepCounter);
 plVec3      get_ray_direction(plCamera* ptCamera);
 void        draw_voxel(plDrawList3D* ptDrawlist, plVec3 tPos, uint32_t uFillColor, uint32_t uWireColor);
-
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
 //-----------------------------------------------------------------------------
@@ -506,8 +505,20 @@ pl_app_update(plAppData* ptAppData)
     }
 
     // camera controls
+    static float fCameraRotationSpeed = 0.004f;
+    if(gptIO->is_key_pressed(PL_KEY_UP_ARROW, false))
+    {
+        fCameraRotationSpeed += 0.001f;
+        if(fCameraRotationSpeed > 0.02f)  // max speed
+            fCameraRotationSpeed = 0.02f;
+    }
+    if(gptIO->is_key_pressed(PL_KEY_DOWN_ARROW, false))
+    {
+        fCameraRotationSpeed -= 0.001f;
+        if(fCameraRotationSpeed < 0.001f)  // min speed (prevents negative/reversal)
+            fCameraRotationSpeed = 0.001f;
+    }
     static const float fCameraTravelSpeed = 8.0f;
-    static const float fCameraRotationSpeed = 0.006f;
 
     plCamera* ptCamera = &ptAppData->tCamera;
 
@@ -590,10 +601,10 @@ pl_app_update(plAppData* ptAppData)
     plVec3 tCorner4 = {ptAppData->tGridEnd.x, 0, ptAppData->tGridEnd.z};
 
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
-        tCorner1, tCorner2, tCorner3,
+        tCorner1, tCorner3, tCorner2,
         (plDrawSolidOptions){.uColor = PL_COLOR_32_GREY});
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
-        tCorner2, tCorner4, tCorner3, 
+        tCorner2, tCorner3, tCorner4, 
         (plDrawSolidOptions){.uColor = PL_COLOR_32_GREY});
 
     // draw origin axes
@@ -958,7 +969,6 @@ load_map(plAppData* ptAppData, uint32_t uMapNumber)
             set_voxels_maze_three(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
             ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
             ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};
-            break;
             break;
     }
     ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, ptAppData->bAllowDiag);

@@ -88,11 +88,6 @@ static plPathFindingResult pl_reconstruct_path(const plPathFindingVoxelGrid* ptG
 // [SECTION] internal helper functions
 //-----------------------------------------------------------------------------
 
-// TODO: add bit manipulation helpers
-//       - get bit at index
-//       - set bit at index
-//       - clear bit at index
-
 static uint32_t
 pl_voxel_index(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ)
 {
@@ -535,10 +530,147 @@ edge_intersects_box(plVec3 v0, plVec3 v1, plVec3 tVoxelMin, plVec3 tVoxelMax)
     return false;
 }
 
+static bool
+triangle_intersects_box(plVec3 v0, plVec3 v1, plVec3 v2, plVec3 boxMin, plVec3 boxMax)
+{
+    // separating axis theorem (sat) test for triangle-aabb intersection
+    // credit to: tomas akenine-möller's algorithm
+    // https://fileadmin.cs.lth.se/cs/Personal/Tomas_Akenine-Moller/code/tribox2.txt
+    
+    // compute box center and half-extents
+    plVec3 boxCenter = {
+        (boxMin.x + boxMax.x) * 0.5f,
+        (boxMin.y + boxMax.y) * 0.5f,
+        (boxMin.z + boxMax.z) * 0.5f
+    };
+    plVec3 boxHalfSize = {
+        (boxMax.x - boxMin.x) * 0.5f,
+        (boxMax.y - boxMin.y) * 0.5f,
+        (boxMax.z - boxMin.z) * 0.5f
+    };
+    
+    // translate triangle to box-centered coordinates & compute triangle edges
+    plVec3 t0 = {v0.x - boxCenter.x, v0.y - boxCenter.y, v0.z - boxCenter.z};
+    plVec3 t1 = {v1.x - boxCenter.x, v1.y - boxCenter.y, v1.z - boxCenter.z};
+    plVec3 t2 = {v2.x - boxCenter.x, v2.y - boxCenter.y, v2.z - boxCenter.z};
+    plVec3 e0 = {t1.x - t0.x, t1.y - t0.y, t1.z - t0.z};
+    plVec3 e1 = {t2.x - t1.x, t2.y - t1.y, t2.z - t1.z};
+    plVec3 e2 = {t0.x - t2.x, t0.y - t2.y, t0.z - t2.z};
+    
+    // test axes from cross products of triangle edges with box axes
+    // axis test macros
+    #define AXISTEST_X01(a, b, fa, fb) \
+        p0 = a * t0.y - b * t0.z; \
+        p2 = a * t2.y - b * t2.z; \
+        if(p0 < p2) { min = p0; max = p2; } else { min = p2; max = p0; } \
+        rad = fa * boxHalfSize.y + fb * boxHalfSize.z; \
+        if(min > rad || max < -rad) return false;
+    
+    #define AXISTEST_X2(a, b, fa, fb) \
+        p0 = a * t0.y - b * t0.z; \
+        p1 = a * t1.y - b * t1.z; \
+        if(p0 < p1) { min = p0; max = p1; } else { min = p1; max = p0; } \
+        rad = fa * boxHalfSize.y + fb * boxHalfSize.z; \
+        if(min > rad || max < -rad) return false;
+    
+    #define AXISTEST_Y02(a, b, fa, fb) \
+        p0 = -a * t0.x + b * t0.z; \
+        p2 = -a * t2.x + b * t2.z; \
+        if(p0 < p2) { min = p0; max = p2; } else { min = p2; max = p0; } \
+        rad = fa * boxHalfSize.x + fb * boxHalfSize.z; \
+        if(min > rad || max < -rad) return false;
+    
+    #define AXISTEST_Y1(a, b, fa, fb) \
+        p0 = -a * t0.x + b * t0.z; \
+        p1 = -a * t1.x + b * t1.z; \
+        if(p0 < p1) { min = p0; max = p1; } else { min = p1; max = p0; } \
+        rad = fa * boxHalfSize.x + fb * boxHalfSize.z; \
+        if(min > rad || max < -rad) return false;
+    
+    #define AXISTEST_Z12(a, b, fa, fb) \
+        p1 = a * t1.x - b * t1.y; \
+        p2 = a * t2.x - b * t2.y; \
+        if(p1 < p2) { min = p1; max = p2; } else { min = p2; max = p1; } \
+        rad = fa * boxHalfSize.x + fb * boxHalfSize.y; \
+        if(min > rad || max < -rad) return false;
+    
+    #define AXISTEST_Z0(a, b, fa, fb) \
+        p0 = a * t0.x - b * t0.y; \
+        p1 = a * t1.x - b * t1.y; \
+        if(p0 < p1) { min = p0; max = p1; } else { min = p1; max = p0; } \
+        rad = fa * boxHalfSize.x + fb * boxHalfSize.y; \
+        if(min > rad || max < -rad) return false;
+    
+    float min, max, p0, p1, p2, rad, fex, fey, fez;
+    
+    // test edge 0
+    fex = fabsf(e0.x);
+    fey = fabsf(e0.y);
+    fez = fabsf(e0.z);
+    AXISTEST_X01(e0.z, e0.y, fez, fey);
+    AXISTEST_Y02(e0.z, e0.x, fez, fex);
+    AXISTEST_Z12(e0.y, e0.x, fey, fex);
+    
+    // test edge 1
+    fex = fabsf(e1.x);
+    fey = fabsf(e1.y);
+    fez = fabsf(e1.z);
+    AXISTEST_X01(e1.z, e1.y, fez, fey);
+    AXISTEST_Y02(e1.z, e1.x, fez, fex);
+    AXISTEST_Z0(e1.y, e1.x, fey, fex);
+    
+    // test edge 2
+    fex = fabsf(e2.x);
+    fey = fabsf(e2.y);
+    fez = fabsf(e2.z);
+    AXISTEST_X2(e2.z, e2.y, fez, fey);
+    AXISTEST_Y1(e2.z, e2.x, fez, fex);
+    AXISTEST_Z12(e2.y, e2.x, fey, fex);
+    
+    #undef AXISTEST_X01
+    #undef AXISTEST_X2
+    #undef AXISTEST_Y02
+    #undef AXISTEST_Y1
+    #undef AXISTEST_Z12
+    #undef AXISTEST_Z0
+    
+    // test overlap in x, y, z axes (box faces)
+    // x axis
+    min = t0.x < t1.x ? (t0.x < t2.x ? t0.x : t2.x) : (t1.x < t2.x ? t1.x : t2.x);
+    max = t0.x > t1.x ? (t0.x > t2.x ? t0.x : t2.x) : (t1.x > t2.x ? t1.x : t2.x);
+    if(min > boxHalfSize.x || max < -boxHalfSize.x) return false;
+    
+    // y axis
+    min = t0.y < t1.y ? (t0.y < t2.y ? t0.y : t2.y) : (t1.y < t2.y ? t1.y : t2.y);
+    max = t0.y > t1.y ? (t0.y > t2.y ? t0.y : t2.y) : (t1.y > t2.y ? t1.y : t2.y);
+    if(min > boxHalfSize.y || max < -boxHalfSize.y) return false;
+    
+    // z axis
+    min = t0.z < t1.z ? (t0.z < t2.z ? t0.z : t2.z) : (t1.z < t2.z ? t1.z : t2.z);
+    max = t0.z > t1.z ? (t0.z > t2.z ? t0.z : t2.z) : (t1.z > t2.z ? t1.z : t2.z);
+    if(min > boxHalfSize.z || max < -boxHalfSize.z) return false;
+    
+    // test triangle plane
+    plVec3 normal = {
+        e0.y * e1.z - e0.z * e1.y,
+        e0.z * e1.x - e0.x * e1.z,
+        e0.x * e1.y - e0.y * e1.x
+    };
+    float d = -(normal.x * t0.x + normal.y * t0.y + normal.z * t0.z);
+    
+    // project box onto triangle normal
+    float r = boxHalfSize.x * fabsf(normal.x) + 
+              boxHalfSize.y * fabsf(normal.y) + 
+              boxHalfSize.z * fabsf(normal.z);
+    
+    if(d > r || d < -r) return false;
+    
+    return true;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
-
 
 //-----------------------------------------------------------------------------
 // grid management
@@ -693,42 +825,93 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
         iEndY = (int32_t)fmax(0, fmin(iEndY, (int32_t)ptGrid->uDimY - 1));
         iEndZ = (int32_t)fmax(0, fmin(iEndZ, (int32_t)ptGrid->uDimZ - 1));
 
-        for(int32_t iZ = iStartZ; iZ <= iEndZ; iZ++)
+        bool bDebugVoxel = (iStartX <= 4 && iEndX >= 4 && 
+                    iStartY <= 1 && iEndY >= 1 && 
+                    iStartZ <= 6 && iEndZ >= 6);
+
+if(bDebugVoxel)
+{
+    printf("\n*** Triangle %d covers voxel (4,1,6) ***\n", i/3);
+    printf("Triangle verts: (%.1f,%.1f,%.1f) (%.1f,%.1f,%.1f) (%.1f,%.1f,%.1f)\n",
+           tVertex0.x, tVertex0.y, tVertex0.z,
+           tVertex1.x, tVertex1.y, tVertex1.z,
+           tVertex2.x, tVertex2.y, tVertex2.z);
+    printf("Triangle AABB: (%.2f,%.2f,%.2f) to (%.2f,%.2f,%.2f)\n",
+           tTriangleAABB.tMin.x, tTriangleAABB.tMin.y, tTriangleAABB.tMin.z,
+           tTriangleAABB.tMax.x, tTriangleAABB.tMax.y, tTriangleAABB.tMax.z);
+    printf("Voxel range: X[%d,%d] Y[%d,%d] Z[%d,%d]\n",
+           iStartX, iEndX, iStartY, iEndY, iStartZ, iEndZ);
+}
+
+
+
+for(int32_t iZ = iStartZ; iZ <= iEndZ; iZ++)
+{
+    for(int32_t iY = iStartY; iY <= iEndY; iY++)
+    {
+        for(int32_t iX = iStartX; iX <= iEndX; iX++)
         {
-            for(int32_t iY = iStartY; iY <= iEndY; iY++)
+            // debug check if we're testing the target voxel
+            if(bDebugVoxel && iX == 4 && iY == 1 && iZ == 6)
             {
-                for(int32_t iX = iStartX; iX <= iEndX; iX++)
-                {
-                    // create the voxel AABB 
-                    plVec3 tVoxelMin = pl_voxel_to_world_impl(ptGrid, iX, iY, iZ);
-                    plAABB tVoxelAABB = {
-                        .tMin = tVoxelMin,
-                        .tMax = {
-                            .x = tVoxelMin.x + ptGrid->fVoxelSize,
-                            .y = tVoxelMin.y + ptGrid->fVoxelSize,
-                            .z = tVoxelMin.z + ptGrid->fVoxelSize
-                        }
-                    };
-                    
-                    if(!aabb_overlap(&tTriangleAABB, &tVoxelAABB)) // if bounding box overlap - early exit 
-                        continue;
-
-                    if(point_in_box(tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax) || // check if vertex in voxel - early exit
-                       point_in_box(tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) || 
-                       point_in_box(tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax))
-                    {
-                        pl_set_voxel_impl(ptGrid, iX, iY, iZ, true);
-                    }
-
-                    if(edge_intersects_box(tVertex0, tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
-                       edge_intersects_box(tVertex1, tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
-                       edge_intersects_box(tVertex2, tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax))
-                    {
-                        pl_set_voxel_impl(ptGrid, iX, iY, iZ, true);
-                    }
+                printf("  Testing voxel (4,1,6) for triangle %d...\n", i/3);
+            }
+            
+            plVec3 tVoxelMin = {
+                ptGrid->tOrigin.x + (float)iX * ptGrid->fVoxelSize,
+                ptGrid->tOrigin.y + (float)iY * ptGrid->fVoxelSize,
+                ptGrid->tOrigin.z + (float)iZ * ptGrid->fVoxelSize
+            };
+            
+            plAABB tVoxelAABB = {
+                .tMin = tVoxelMin,
+                .tMax = {
+                    tVoxelMin.x + ptGrid->fVoxelSize,
+                    tVoxelMin.y + ptGrid->fVoxelSize,
+                    tVoxelMin.z + ptGrid->fVoxelSize
                 }
+            };
+            
+            // check if any vertex is inside this voxel
+            bool bVertexInside = point_in_box(tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
+                                point_in_box(tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
+                                point_in_box(tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax);
+            
+            if(bDebugVoxel && iX == 4 && iY == 1 && iZ == 6)
+            {
+                printf("    Vertex inside test: %s\n", bVertexInside ? "YES" : "NO");
+            }
+            
+            // check if any edge intersects this voxel
+            bool bEdgeIntersects = edge_intersects_box(tVertex0, tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
+                                  edge_intersects_box(tVertex1, tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
+                                  edge_intersects_box(tVertex2, tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax);
+            
+            if(bDebugVoxel && iX == 4 && iY == 1 && iZ == 6)
+            {
+                printf("    Edge intersects test: %s\n", bEdgeIntersects ? "YES" : "NO");
+            }
+            
+            // check if triangle face intersects this voxel
+            bool bTriangleIntersects = triangle_intersects_box(tVertex0, tVertex1, tVertex2, 
+                                                              tVoxelAABB.tMin, tVoxelAABB.tMax);
+            
+            if(bDebugVoxel && iX == 4 && iY == 1 && iZ == 6)
+            {
+                printf("    Triangle face test: %s\n", bTriangleIntersects ? "YES" : "NO");
+            }
+            
+            if(bVertexInside || bEdgeIntersects || bTriangleIntersects)
+            {
+                pl_set_voxel_impl(ptGrid, iX, iY, iZ, true);
+            }
+            else if(bDebugVoxel && iX == 4 && iY == 1 && iZ == 6)
+            {
+                printf("    FAILED: All three tests failed!\n");
             }
         }
+    }
+}
     }
 }
 
