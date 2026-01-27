@@ -825,93 +825,44 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
         iEndY = (int32_t)fmax(0, fmin(iEndY, (int32_t)ptGrid->uDimY - 1));
         iEndZ = (int32_t)fmax(0, fmin(iEndZ, (int32_t)ptGrid->uDimZ - 1));
 
-        bool bDebugVoxel = (iStartX <= 4 && iEndX >= 4 && 
-                    iStartY <= 1 && iEndY >= 1 && 
-                    iStartZ <= 6 && iEndZ >= 6);
-
-if(bDebugVoxel)
-{
-    printf("\n*** Triangle %d covers voxel (4,1,6) ***\n", i/3);
-    printf("Triangle verts: (%.1f,%.1f,%.1f) (%.1f,%.1f,%.1f) (%.1f,%.1f,%.1f)\n",
-           tVertex0.x, tVertex0.y, tVertex0.z,
-           tVertex1.x, tVertex1.y, tVertex1.z,
-           tVertex2.x, tVertex2.y, tVertex2.z);
-    printf("Triangle AABB: (%.2f,%.2f,%.2f) to (%.2f,%.2f,%.2f)\n",
-           tTriangleAABB.tMin.x, tTriangleAABB.tMin.y, tTriangleAABB.tMin.z,
-           tTriangleAABB.tMax.x, tTriangleAABB.tMax.y, tTriangleAABB.tMax.z);
-    printf("Voxel range: X[%d,%d] Y[%d,%d] Z[%d,%d]\n",
-           iStartX, iEndX, iStartY, iEndY, iStartZ, iEndZ);
-}
-
-
-
-for(int32_t iZ = iStartZ; iZ <= iEndZ; iZ++)
-{
-    for(int32_t iY = iStartY; iY <= iEndY; iY++)
-    {
-        for(int32_t iX = iStartX; iX <= iEndX; iX++)
+        for(int32_t iZ = iStartZ; iZ <= iEndZ; iZ++)
         {
-            // debug check if we're testing the target voxel
-            if(bDebugVoxel && iX == 4 && iY == 1 && iZ == 6)
+            for(int32_t iY = iStartY; iY <= iEndY; iY++)
             {
-                printf("  Testing voxel (4,1,6) for triangle %d...\n", i/3);
-            }
-            
-            plVec3 tVoxelMin = {
-                ptGrid->tOrigin.x + (float)iX * ptGrid->fVoxelSize,
-                ptGrid->tOrigin.y + (float)iY * ptGrid->fVoxelSize,
-                ptGrid->tOrigin.z + (float)iZ * ptGrid->fVoxelSize
-            };
-            
-            plAABB tVoxelAABB = {
-                .tMin = tVoxelMin,
-                .tMax = {
-                    tVoxelMin.x + ptGrid->fVoxelSize,
-                    tVoxelMin.y + ptGrid->fVoxelSize,
-                    tVoxelMin.z + ptGrid->fVoxelSize
+                for(int32_t iX = iStartX; iX <= iEndX; iX++)
+                {
+                    plVec3 tVoxelMin = {
+                        ptGrid->tOrigin.x + (float)iX * ptGrid->fVoxelSize,
+                        ptGrid->tOrigin.y + (float)iY * ptGrid->fVoxelSize,
+                        ptGrid->tOrigin.z + (float)iZ * ptGrid->fVoxelSize
+                    };
+                    
+                    plAABB tVoxelAABB = {
+                        .tMin = tVoxelMin,
+                        .tMax = {
+                            tVoxelMin.x + ptGrid->fVoxelSize,
+                            tVoxelMin.y + ptGrid->fVoxelSize,
+                            tVoxelMin.z + ptGrid->fVoxelSize
+                        }
+                    };
+                    
+                    // checks for voxel occupation
+                    bool bVertexInside = point_in_box(tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
+                                         point_in_box(tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
+                                         point_in_box(tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax);
+                    bool bEdgeIntersects = edge_intersects_box(tVertex0, tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
+                                           edge_intersects_box(tVertex1, tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
+                                           edge_intersects_box(tVertex2, tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax);
+                    bool bTriangleIntersects = triangle_intersects_box(tVertex0, tVertex1, tVertex2, 
+                                                                    tVoxelAABB.tMin, tVoxelAABB.tMax);
+                    // set if occupied
+                    if(bVertexInside || bEdgeIntersects || bTriangleIntersects)
+                    {
+                        pl_set_voxel_impl(ptGrid, iX, iY, iZ, true);
+                    }
                 }
-            };
-            
-            // check if any vertex is inside this voxel
-            bool bVertexInside = point_in_box(tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
-                                point_in_box(tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
-                                point_in_box(tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax);
-            
-            if(bDebugVoxel && iX == 4 && iY == 1 && iZ == 6)
-            {
-                printf("    Vertex inside test: %s\n", bVertexInside ? "YES" : "NO");
-            }
-            
-            // check if any edge intersects this voxel
-            bool bEdgeIntersects = edge_intersects_box(tVertex0, tVertex1, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
-                                  edge_intersects_box(tVertex1, tVertex2, tVoxelAABB.tMin, tVoxelAABB.tMax) ||
-                                  edge_intersects_box(tVertex2, tVertex0, tVoxelAABB.tMin, tVoxelAABB.tMax);
-            
-            if(bDebugVoxel && iX == 4 && iY == 1 && iZ == 6)
-            {
-                printf("    Edge intersects test: %s\n", bEdgeIntersects ? "YES" : "NO");
-            }
-            
-            // check if triangle face intersects this voxel
-            bool bTriangleIntersects = triangle_intersects_box(tVertex0, tVertex1, tVertex2, 
-                                                              tVoxelAABB.tMin, tVoxelAABB.tMax);
-            
-            if(bDebugVoxel && iX == 4 && iY == 1 && iZ == 6)
-            {
-                printf("    Triangle face test: %s\n", bTriangleIntersects ? "YES" : "NO");
-            }
-            
-            if(bVertexInside || bEdgeIntersects || bTriangleIntersects)
-            {
-                pl_set_voxel_impl(ptGrid, iX, iY, iZ, true);
-            }
-            else if(bDebugVoxel && iX == 4 && iY == 1 && iZ == 6)
-            {
-                printf("    FAILED: All three tests failed!\n");
             }
         }
-    }
-}
     }
 }
 
