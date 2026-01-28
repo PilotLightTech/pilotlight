@@ -1,37 +1,30 @@
+#ifndef PL_SHADER_INTEROP_TERRAIN_H
+#define PL_SHADER_INTEROP_TERRAIN_H
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
 
 #include "pl_shader_interop.h"
 
-PL_BEGIN_STRUCT(plGeoClipMapDynamicData)
+//-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
 
-    vec4 tPos;
-    vec4 tSunDirection;
-    mat4 tCameraViewProjection;
+PL_BEGIN_ENUM(plTerrainShaderFlags)
+    PL_ENUM_ITEM(PL_TERRAIN_SHADER_FLAGS_NONE,    0)
+    PL_ENUM_ITEM(PL_TERRAIN_SHADER_FLAGS_WIREFRAME,    1 << 0)
+    PL_ENUM_ITEM(PL_TERRAIN_SHADER_FLAGS_SHOW_LEVELS,    1 << 1)
+PL_END_ENUM
 
-    float fMetersPerHeightFieldTexel;
-    float fGlobalMaxHeight;
-    float fGlobalMinHeight;
-    float fXUVOffset;
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
 
-    float fYUVOffset;
-    float fStencilRadius;
-    float fBlurRadius;
-    int    _iUnused0;
+PL_BEGIN_STRUCT(plGpuDynTerrainData)
+    mat4 tMvp;
+    int iLevel;
+    int tFlags;
+PL_END_STRUCT(plGpuDynTerrainData)
 
-    vec4 tMinMax;
-
-PL_END_STRUCT(plGeoClipMapDynamicData)
-
-PL_BEGIN_STRUCT(plGeoClipMapPrepDynamicData)
-
-    float  fMetersPerHeightFieldTexel;
-    float  fMaxHeight;
-    float  fMinHeight;
-
-    int    iXOffset;
-    int    iYOffset;
-    int    iNormalCalcReach;
-
-    float fGlobalMaxHeight;
-    float fGlobalMinHeight;
-
-PL_END_STRUCT(plGeoClipMapPrepDynamicData)
+#endif // PL_SHADER_INTEROP_TERRAIN_H

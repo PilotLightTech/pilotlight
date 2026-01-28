@@ -135,8 +135,8 @@ with pl.project("pilotlight deploy"):
         "pl_pak_ext",
         "pl_script_ext",
         "pl_material_ext",
-        "pl_geoclipmap_ext",
-        "pl_cdlod_ext",
+        "pl_terrain_ext",
+        "pl_terrain_processor_ext",
         "pl_freelist_ext",
     ]
 

@@ -66,8 +66,8 @@ extension_headers = [
     "pl_dxt_ext.h",
     "pl_datetime_ext.h",
     "pl_material_ext.h",
-    "pl_geoclipmap_ext.h",
-    "pl_cdlod_ext.h",
+    "pl_terrain_ext.h",
+    "pl_terrain_processor_ext.h",
     "pl_freelist_ext.h",
 ]
 
@@ -111,8 +111,8 @@ extensions = [
     "pl_dxt_ext",
     "pl_material_ext",
     "pl_script_ext",
-    "pl_geoclipmap_ext",
-    "pl_cdlod_ext",
+    "pl_terrain_ext",
+    "pl_terrain_processor_ext",
     "pl_freelist_ext",
     "pl_ui_ext"
 ]

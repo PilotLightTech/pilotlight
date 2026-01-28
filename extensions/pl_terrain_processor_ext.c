@@ -1,15 +1,19 @@
 /*
-   pl_cdlod_ext.c
+   pl_terrain_ext.c
 */
 
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] defines
+// [SECTION] forward declarations
 // [SECTION] structs
 // [SECTION] global data
-// [SECTION] internal helpers
+// [SECTION] internal helpers (preprocessing)
+// [SECTION] internal helpers (rendering)
 // [SECTION] public api implementation
-// [SECTION] internal helpers implementation
+// [SECTION] internal helpers implementation (preprocessing)
+// [SECTION] internal helpers implementation (rendering)
 // [SECTION] extension loading
 // [SECTION] unity build
 */
@@ -21,8 +25,9 @@ Index of this file:
 #include <stdio.h>
 #include <float.h>
 #include <stdlib.h>
+#include <limits.h> // UINT_MAX
 #include "pl.h"
-#include "pl_cdlod_ext.h"
+#include "pl_terrain_processor_ext.h"
 
 // libs
 #define PL_MATH_INCLUDE_FUNCTIONS
@@ -34,33 +39,58 @@ Index of this file:
 #include "pl_platform_ext.h"
 #include "pl_image_ext.h"
 #include "pl_profile_ext.h"
+#include "pl_graphics_ext.h"
+#include "pl_starter_ext.h"
+#include "pl_shader_ext.h"
+#include "pl_screen_log_ext.h"
+#include "pl_draw_ext.h"
 
 // unstable extensions
-#include "pl_mesh_ext.h"
+#include "pl_collision_ext.h"
+#include "pl_freelist_ext.h"
+#include "pl_camera_ext.h"
+
+// shader interop
+#include "pl_shader_interop_terrain.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] forward declarations
+//-----------------------------------------------------------------------------
+
+// basic types for preprocessing
+typedef struct  _plEdgeKey          plEdgeKey;
+typedef struct _plTerrainMapElement plTerrainMapElement;
+typedef struct _plEdgeEntry         plEdgeEntry;
+typedef struct _plTrianglePrimitive plTrianglePrimitive;
+typedef struct _plTerrainHeightMap  plTerrainHeightMap;
+
+// basic types for rendering
+typedef struct _plTerrainChunk           plTerrainChunk;
+typedef struct _plTerrainChunkFile       plTerrainChunkFile;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plCdLodMapElement
+typedef struct _plTerrainMapElement
 {
     uint32_t uX;
     uint32_t uZ;
     float    fX;
     float    fY;
     float    fZ;
+    float    fN0;
+    float    fN1;
     float    fError;
     int8_t   iActivationLevel;
-} plCdLodMapElement;
+    uint32_t uVertexBufferIndex;
+} plTerrainMapElement;
 
-typedef union _plEdgeKey
+typedef struct _plEdgeKey
 {
-    struct
-    {
-        uint32_t uLeft;
-        uint32_t uRight;
-    };
-    uint64_t uData;
+    uint32_t uLeft;
+    uint32_t uRight;
+    int iLevel;
 } plEdgeKey;
 
 typedef struct _plEdgeEntry
@@ -68,25 +98,6 @@ typedef struct _plEdgeEntry
     uint32_t t0;
     uint32_t t1;
 } plEdgeEntry;
-
-typedef struct _plCdLodHeightMap
-{
-    bool                b3dErrorCalc; // true for ellipsoid
-    bool                bEllipsoid;
-    int                 iSize;
-    int                 iLogSize;
-    float               fSampleSpacing;
-    float               fMaxBaseError;
-    float               fMetersPerPixel;
-    float               fMaxHeight;
-    float               fMinHeight;
-    float               fRadius;
-    plVec3              tCenter;
-    plCdLodMapElement* atElements;
-    const char*         pcHeightMapFile;
-    const char*         pcOutputFile;
-    plEdgeEntry*        sbtEdges;
-} plCdLodHeightMap;
 
 typedef struct _plTrianglePrimitive
 {
@@ -97,10 +108,28 @@ typedef struct _plTrianglePrimitive
     uint32_t uRight;
 } plTrianglePrimitive;
 
-typedef struct _plCdLodContext
+typedef struct _plTerrainHeightMap
 {
-    float fMaxBaseError;
-} plCdLodContext;
+    bool                 b3dErrorCalc; // true for ellipsoid
+    bool                 bEllipsoid;
+    int                  iSize;
+    int                  iLogSize;
+    float                fSampleSpacing;
+    float                fMaxBaseError;
+    float                fMetersPerPixel;
+    float                fMaxHeight;
+    float                fMinHeight;
+    float                fRadius;
+    plVec3               tCenter;
+    plTerrainMapElement* atElements;
+    const char*          pcHeightMapFile;
+    const char*          pcOutputFile;
+    plEdgeEntry*         sbtEdges;
+    plVec3               tMinBounding;
+    plVec3               tMaxBounding;
+    uint32_t             uChunkCount;
+    plTrianglePrimitive* sbtPrimitives;
+} plTerrainHeightMap;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
@@ -122,20 +151,19 @@ typedef struct _plCdLodContext
     #endif
 
     // required APIs
-    static const plMeshBuilderI* gptMeshBuilder = NULL;
-    static const plImageI*       gptImage       = NULL;
-    static const plFileI*        gptFile        = NULL;
-    static const plProfileI*     gptProfile     = NULL;
+    static const plImageI*   gptImage   = NULL;
+    static const plFileI*    gptFile    = NULL;
+    static const plProfileI* gptProfile = NULL;
+    
 
 #endif
 
 #include "pl_ds.h"
 
 // context
-static plCdLodContext* gptCdLodCtx = NULL;
 
 //-----------------------------------------------------------------------------
-// [SECTION] internal helpers
+// [SECTION] internal helpers (preprocessing)
 //-----------------------------------------------------------------------------
 
 static inline int
@@ -158,7 +186,7 @@ pl__lowest_one(int x)
 }
 
 static inline int
-pl__vertex_index(plCdLodHeightMap* ptHeightMap, int x, int z)
+pl__vertex_index(plTerrainHeightMap* ptHeightMap, int x, int z)
 {
     if (x < 0 || x >= ptHeightMap->iSize || z < 0 || z >= ptHeightMap->iSize)
         return -1;
@@ -166,20 +194,20 @@ pl__vertex_index(plCdLodHeightMap* ptHeightMap, int x, int z)
 }
 
 static inline void
-pl__activate_height_map_element(plCdLodMapElement* ptElement, int iLevel)
+pl__activate_height_map_element(plTerrainMapElement* ptElement, int iLevel)
 {
     if(iLevel > ptElement->iActivationLevel)
         ptElement->iActivationLevel = (int8_t)iLevel;
 }
 
-static inline plCdLodMapElement*
-pl__get_elem(plCdLodHeightMap* ptHeightMap, int x, int z)
+static inline plTerrainMapElement*
+pl__get_elem(plTerrainHeightMap* ptHeightMap, int x, int z)
 {
     return &ptHeightMap->atElements[x + z * ptHeightMap->iSize];
 }
 
 static inline int
-pl__node_index(plCdLodHeightMap* ptHeightMap, int x, int z)
+pl__node_index(plTerrainHeightMap* ptHeightMap, int x, int z)
 {
 	// Given the coordinates of the center of a quadtree node, this
 	// function returns its node index.  The node index is essentially
@@ -209,45 +237,60 @@ static inline uint32_t pl_parent(uint32_t id)  { return id >> 1u; }
 static inline uint32_t pl_sibling(uint32_t id) { return id ^ 1u; }
 
 static inline int
-pl__mid_activation(plCdLodHeightMap* ptHeightMap, uint32_t uLeft, uint32_t uRight)
+pl__mid_activation(plTerrainHeightMap* ptHeightMap, uint32_t uLeft, uint32_t uRight)
 {
-    plCdLodMapElement* eL = &ptHeightMap->atElements[uLeft];
-    plCdLodMapElement* eR = &ptHeightMap->atElements[uRight];
+    plTerrainMapElement* eL = &ptHeightMap->atElements[uLeft];
+    plTerrainMapElement* eR = &ptHeightMap->atElements[uRight];
 
     int iMidX = ((int)eL->uX + (int)eR->uX) / 2;
     int iMidZ = ((int)eL->uZ + (int)eR->uZ) / 2;
 
-    plCdLodMapElement* ptElement = pl__get_elem(ptHeightMap, iMidX, iMidZ);
+    plTerrainMapElement* ptElement = pl__get_elem(ptHeightMap, iMidX, iMidZ);
     return ptElement->iActivationLevel;
 }
 
 // Given the triangle, computes an error value and activation level
 // for its base vertex, and recurses to child triangles.
-static void pl__update(plCdLodHeightMap*, float base_max_error, int ax, int az, int rx, int rz, int lx, int lz);
-static void pl__propagate_activation_level(plCdLodHeightMap*, int cx, int cz, int level, int target_level);
+static void pl__update(plTerrainHeightMap*, float base_max_error, int ax, int az, int rx, int rz, int lx, int lz);
+static void pl__propagate_activation_level(plTerrainHeightMap*, int cx, int cz, int level, int target_level);
 
 // main steps
-static void pl__initialize_cdlod_heightmap(plCdLodHeightMap*);
-static void pl__terrain_mesh(FILE*, plCdLodHeightMap*, int iStartIndexX, int iStartIndexY, int iLogSize, int iLevel);
+static void pl__initialize_cdlod_heightmap(plTerrainHeightMap*);
+static void pl__terrain_mesh(FILE*, plTerrainHeightMap*, int iStartIndexX, int iStartIndexY, int iLogSize, int iLevel);
+
+static inline plVec2
+pl__oct_wrap( plVec2 v )
+{
+    plVec2 w = {
+        .x = 1.0f - fabsf( v.y ),
+        .y = 1.0f - fabsf( v.x ),
+    };
+    if (v.x < 0.0f) w.x = -w.x;
+    if (v.y < 0.0f) w.y = -w.y;
+    return w;
+}
+ 
+plVec2
+pl__encode( plVec3 n )
+{
+    n = pl_div_vec3_scalarf(n, ( fabsf( n.x ) + fabsf( n.y ) + fabsf( n.z ) ));
+    n.xy = n.z > 0.0f ? n.xy : pl__oct_wrap( n.xy );
+    // n.xy = n.xy * 0.5 + 0.5;
+    n.xy = pl_mul_vec2_scalarf(n.xy, 0.5f);
+    n.x += 0.5f;
+    n.y += 0.5f;
+    return n.xy;
+}
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 void
-pl_initialize_cdlod(void)
+pl_process_cdlod_heightmap(plTerrainHeightMapInfo tInfo)
 {
-}
-
-void
-pl_cleanup_cdlod(void)
-{
-}
-
-void
-pl_process_cdlod_heightmap(plCdLodHeightMapInfo tInfo)
-{
-    plCdLodHeightMap tHeightMap = {
+    plTerrainHeightMap tHeightMap = {
         .b3dErrorCalc    = tInfo.b3dErrorCalc,
         .bEllipsoid      = tInfo.bEllipsoid,
         .fSampleSpacing  = 1.0f,
@@ -298,11 +341,16 @@ pl_process_cdlod_heightmap(plCdLodHeightMapInfo tInfo)
     fwrite(&tInfo.iTreeDepth, 1, sizeof(int), ptDataFile);
     fwrite(&tHeightMap.fMaxBaseError, 1, sizeof(float), ptDataFile);
 
-    uint32_t uChunkCount = 0x55555555 & ((1 << (tInfo.iTreeDepth*2)) - 1);
-    fwrite(&uChunkCount, 1, sizeof(uint32_t), ptDataFile);
+    tHeightMap.uChunkCount = 0x55555555 & ((1 << (tInfo.iTreeDepth*2)) - 1);
+    fwrite(&tHeightMap.uChunkCount, 1, sizeof(uint32_t), ptDataFile);
+
+    pl_sb_reserve(tHeightMap.sbtEdges, tHeightMap.iSize * tHeightMap.iSize);
+
+    pl_sb_reserve(tHeightMap.sbtPrimitives, tHeightMap.iSize * tHeightMap.iSize * 2);
 
     pl__terrain_mesh(ptDataFile, &tHeightMap, 0, 0, tHeightMap.iLogSize, iRootLevel);
     pl_sb_free(tHeightMap.sbtEdges);
+    pl_sb_free(tHeightMap.sbtPrimitives);
 
     PL_FREE(tHeightMap.atElements);
 
@@ -310,50 +358,39 @@ pl_process_cdlod_heightmap(plCdLodHeightMapInfo tInfo)
     pl_end_cpu_sample(gptProfile, 0);
 }
 
-static void pl__chlod_read_chunk(plCdLodChunkFile* ptFileOut, int iRecurseCount, FILE* ptDataFile, uint32_t* puCurrentChunk);
+static void pl__chlod_read_chunk(plTerrainChunkFile* ptFileOut, int iRecurseCount, FILE* ptDataFile, uint32_t* puCurrentChunk);
+
 
 bool
-pl_chlod_load_chunk_file(const char* pcPath, plCdLodChunkFile* ptFileOut)
+pl_terrain_load_chunk_file(const char* pcPath, plTerrainChunkFile* ptFile, uint32_t uFileID)
 {
     FILE* ptDataFile = fopen(pcPath, "rb");
+    strncpy(ptFile->acFile, pcPath, 128);
     
     if(ptDataFile == NULL)
     {
         return false;
     }
     
-    fread(&ptFileOut->iTreeDepth, 1, sizeof(int), ptDataFile);
-    fread(&ptFileOut->fMaxBaseError, 1, sizeof(float), ptDataFile);
-    fread(&ptFileOut->uChunkCount, 1, sizeof(uint32_t), ptDataFile);
+    fread(&ptFile->iTreeDepth, 1, sizeof(int), ptDataFile);
+    fread(&ptFile->fMaxBaseError, 1, sizeof(float), ptDataFile);
+    fread(&ptFile->uChunkCount, 1, sizeof(uint32_t), ptDataFile);
 
-    ptFileOut->atChunks = PL_ALLOC(ptFileOut->uChunkCount * sizeof(plCdLodChunk));
-    memset(ptFileOut->atChunks, 0, ptFileOut->uChunkCount * sizeof(plCdLodChunk));
+    ptFile->atChunks = PL_ALLOC(ptFile->uChunkCount * sizeof(plTerrainChunk));
+    memset(ptFile->atChunks, 0, ptFile->uChunkCount * sizeof(plTerrainChunk));
 
     uint32_t uCurrentChunk = 0;
-    pl__chlod_read_chunk(ptFileOut, ptFileOut->iTreeDepth - 1, ptDataFile, &uCurrentChunk);
+    ptFile->atChunks[0].uFileID = uFileID;
+    pl__chlod_read_chunk(ptFile, ptFile->iTreeDepth - 1, ptDataFile, &uCurrentChunk);
 
     fclose(ptDataFile);
     return true;
 }
 
-void
-pl_chlod_unload_chunk_file(plCdLodChunkFile* ptFile)
-{
-    ptFile->atChunks = PL_FREE(ptFile->atChunks);
-    ptFile->atChunks = NULL;
-    ptFile->uChunkCount = 0;
-    ptFile->fMaxBaseError = 0.0f;
-    ptFile->iTreeDepth = 0;
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] internal api implementation
-//-----------------------------------------------------------------------------
-
 static void
-pl__chlod_read_chunk(plCdLodChunkFile* ptFileOut, int iRecurseCount, FILE* ptDataFile, uint32_t* puCurrentChunk)
+pl__chlod_read_chunk(plTerrainChunkFile* ptFileOut, int iRecurseCount, FILE* ptDataFile, uint32_t* puCurrentChunk)
 {
-    plCdLodChunk* ptChunk = &ptFileOut->atChunks[*puCurrentChunk];
+    plTerrainChunk* ptChunk = &ptFileOut->atChunks[*puCurrentChunk];
     ptChunk->szFileLocation = (size_t)ftell(ptDataFile);
 
     int iChunkLabel = 0;
@@ -368,7 +405,7 @@ pl__chlod_read_chunk(plCdLodChunkFile* ptFileOut, int iRecurseCount, FILE* ptDat
 
     uint32_t uVertexCount = 0;
     fread(&uVertexCount, 1, sizeof(uint32_t), ptDataFile);
-    fseek(ptDataFile, sizeof(plVec3) * uVertexCount, SEEK_CUR);
+    fseek(ptDataFile, sizeof(plTerrainVertex) * uVertexCount, SEEK_CUR);
 
     uint32_t uIndexCount = 0;
     fread(&uIndexCount, 1, sizeof(uint32_t), ptDataFile);
@@ -380,6 +417,7 @@ pl__chlod_read_chunk(plCdLodChunkFile* ptFileOut, int iRecurseCount, FILE* ptDat
         {
             ptChunk->aptChildren[i] = &ptFileOut->atChunks[++(*puCurrentChunk)];
             ptChunk->aptChildren[i]->ptParent = ptChunk;
+            ptChunk->aptChildren[i]->uFileID = ptChunk->uFileID;
             pl__chlod_read_chunk(ptFileOut, iRecurseCount - 1, ptDataFile, puCurrentChunk);
         }
     }
@@ -392,23 +430,84 @@ pl__chlod_read_chunk(plCdLodChunkFile* ptFileOut, int iRecurseCount, FILE* ptDat
     }
 }
 
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api implementation
+//-----------------------------------------------------------------------------
+
 static void
-pl__initialize_cdlod_heightmap(plCdLodHeightMap* ptHeightMap)
+pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap)
 {
     size_t szFileSize = 0;
     gptFile->binary_read(ptHeightMap->pcHeightMapFile, &szFileSize, NULL);
     uint8_t* puFileData = PL_ALLOC(szFileSize + 1);
     memset(puFileData, 0, szFileSize + 1);
     gptFile->binary_read(ptHeightMap->pcHeightMapFile, &szFileSize, puFileData);
-    int iWidth = 0;
-    int iHeight = 0;
-    int iChannels = 0;
-    uint8_t* puData = gptImage->load(puFileData, (int)szFileSize, &iWidth, &iHeight, &iChannels, 1);
+
+    // load image info
+    plImageInfo tImageInfo = {0};
+    gptImage->get_info(puFileData, (int)szFileSize, &tImageInfo);
+    int iImageWidth = tImageInfo.iWidth;
+    int iImageHeight = tImageInfo.iHeight;
+
+    void*          pImageData     = NULL;
+    void*          pConvertedData = NULL; // if not loaded as 16 bit
+    unsigned char* pucImageData   = NULL; // could be converted or not (aliased)
+
+    int _unused = 0;
+    if(tImageInfo.b16Bit)
+    {
+        uint16_t* puImageData = gptImage->load_16bit(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        pucImageData = (unsigned char*)puImageData;
+        pImageData = puImageData;
+    }
+    else if(tImageInfo.bHDR)
+    {
+        float* pufImageData = gptImage->load_hdr(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
+        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
+
+        // scale for 16 bit
+        for(uint32_t i = 0; i < uPixelCount; i++)
+            puConvertedData[i] = (uint16_t)(pufImageData[i] * 65535.0f);
+
+        gptImage->free(pufImageData);
+        pucImageData = (unsigned char*)puConvertedData;
+        pConvertedData = puConvertedData;
+
+    }
+    else
+    {
+        uint8_t* puImageData = gptImage->load(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
+        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
+
+        // scale for 16 bit
+        for(uint32_t i = 0; i < uPixelCount; i++)
+            puConvertedData[i] = (uint16_t)(((float)puImageData[i] / 255.0f) * 65535.0f);
+
+        gptImage->free(puImageData);
+        pucImageData = (unsigned char*)puConvertedData;
+        pConvertedData = puConvertedData;
+    }
+
     PL_FREE(puFileData);
     puFileData = NULL;
 
-    ptHeightMap->iSize = pl_max(iWidth, iHeight);
+    ptHeightMap->iSize = pl_max(iImageWidth, iImageHeight);
     ptHeightMap->iLogSize = (int) (log2(ptHeightMap->iSize - 1) + 0.5f);
+
+   ptHeightMap->tMinBounding = (plVec3){
+        .x = FLT_MAX,
+        .y = FLT_MAX,
+        .z = FLT_MAX
+    };
+
+    ptHeightMap->tMaxBounding = (plVec3){
+        .x = -FLT_MAX,
+        .y = -FLT_MAX,
+        .z = -FLT_MAX
+    };
 
     // expand the heightfield dimension to contain the bitmap.
     while (((1 << ptHeightMap->iLogSize) + 1) < ptHeightMap->iSize)
@@ -425,23 +524,20 @@ pl__initialize_cdlod_heightmap(plCdLodHeightMap* ptHeightMap)
     {
         for(uint32_t j = 0; j < (uint32_t)ptHeightMap->iSize - 1; j++)
         {
-            if(i < (uint32_t)iWidth && j < (uint32_t)iHeight)
+            if(i < (uint32_t)iImageWidth && j < (uint32_t)iImageHeight)
             {
-                uint16_t uOldValue = (uint16_t)(((puData[i + j * iWidth] - fMinHeight) / (fMaxHeight - fMinHeight)) * 255.0f);
-                uint8_t uRawHeight = puData[i + j * iWidth];
-                uint16_t uModHeight = (uint16_t)(((double)uRawHeight / (double)UINT8_MAX) * (double)UINT16_MAX);
-                auHeightMapData[j * ptHeightMap->iSize + i] = uModHeight;
+                uint16_t uRawValue = *(uint16_t*)&pucImageData[(i + j * iImageWidth) * sizeof(uint16_t)];
+                // float fPercentage = (float)uRawValue / (float)UINT16_MAX;
+                // float fHeight = (fMaxHeight - fMinHeight) * fPercentage + fMinHeight;
+                auHeightMapData[j * ptHeightMap->iSize + i] = uRawValue;
             }
         }
     }
 
-    gptImage->free(puData);
-    puData = NULL;
-
     // Allocate storage.
     int	iSampleCount = ptHeightMap->iSize * ptHeightMap->iSize;
-    ptHeightMap->atElements = PL_ALLOC(iSampleCount * sizeof(plCdLodMapElement));
-    memset(ptHeightMap->atElements, 0, iSampleCount * sizeof(plCdLodMapElement));
+    ptHeightMap->atElements = PL_ALLOC(iSampleCount * sizeof(plTerrainMapElement));
+    memset(ptHeightMap->atElements, 0, iSampleCount * sizeof(plTerrainMapElement));
 
     
     if(ptHeightMap->bEllipsoid)
@@ -458,8 +554,8 @@ pl__initialize_cdlod_heightmap(plCdLodHeightMap* ptHeightMap)
                 float fY = 0.0f;
 
                 // Extract a height value from the pixel data.
-                uint32_t x = pl_min(i, ptHeightMap->iSize - 1);
-                uint32_t y = pl_min(j, ptHeightMap->iSize - 1);
+                uint32_t x = pl_min(i, ptHeightMap->iSize - 2);
+                uint32_t y = pl_min(j, ptHeightMap->iSize - 2);
 
                 uint16_t r = 0;
                 if(x > (uint32_t)ptHeightMap->iSize - 1 || y > (uint32_t)ptHeightMap->iSize - 1)
@@ -479,10 +575,14 @@ pl__initialize_cdlod_heightmap(plCdLodHeightMap* ptHeightMap)
                 ptHeightMap->atElements[iElementIndex].iActivationLevel = -1;
                 ptHeightMap->atElements[iElementIndex].uX = i;
                 ptHeightMap->atElements[iElementIndex].uZ = j;
+                ptHeightMap->atElements[iElementIndex].uVertexBufferIndex = UINT_MAX;
 
 
                 float fX = ((float)i * fExtent / (float)(ptHeightMap->iSize - 1)) + fMinExtent;
                 float fZ = ((float)j * fExtent / (float)(ptHeightMap->iSize - 1)) + fMinExtent;
+
+                fX += ptHeightMap->tCenter.x;
+                fZ += ptHeightMap->tCenter.z;
 
                 float fLongitude = atan2f(fX, (fZ - 0.0f));
                 float fR = hypotf(fX, fZ);
@@ -515,16 +615,10 @@ pl__initialize_cdlod_heightmap(plCdLodHeightMap* ptHeightMap)
                 float fY = 0.0f;
 
                 // Extract a height value from the pixel data.
-                uint32_t x = pl_min(i, ptHeightMap->iSize - 1);
-                uint32_t y = pl_min(j, ptHeightMap->iSize - 1);
+                uint32_t x = pl_min(i, ptHeightMap->iSize - 2);
+                uint32_t y = pl_min(j, ptHeightMap->iSize - 2);
 
-                uint16_t r = 0;
-                if(x > (uint32_t)ptHeightMap->iSize - 1 || y > (uint32_t)ptHeightMap->iSize - 1)
-                {
-
-                }
-                else
-                    r = auHeightMapData[y * ptHeightMap->iSize + x];
+                uint16_t r = auHeightMapData[y * ptHeightMap->iSize + x];
 
                 // y = (float)r / 65355.0f;	// just using red component for now.
                 fY = (float)r / (float)UINT16_MAX;	// just using red component for now.
@@ -535,29 +629,130 @@ pl__initialize_cdlod_heightmap(plCdLodHeightMap* ptHeightMap)
                 ptHeightMap->atElements[iElementIndex].iActivationLevel = -1;
                 ptHeightMap->atElements[iElementIndex].uX = i;
                 ptHeightMap->atElements[iElementIndex].uZ = j;
+                ptHeightMap->atElements[iElementIndex].uVertexBufferIndex = UINT_MAX;
                 ptHeightMap->atElements[iElementIndex].fX = (float)i * ptHeightMap->fMetersPerPixel + ptHeightMap->tCenter.x - ptHeightMap->iSize * ptHeightMap->fMetersPerPixel * 0.5f;
                 ptHeightMap->atElements[iElementIndex].fY = fY + ptHeightMap->tCenter.y;
                 ptHeightMap->atElements[iElementIndex].fZ = (float)j * ptHeightMap->fMetersPerPixel + ptHeightMap->tCenter.z - ptHeightMap->iSize * ptHeightMap->fMetersPerPixel * 0.5f;
+
+                if(ptHeightMap->atElements[iElementIndex].fX < ptHeightMap->tMinBounding.x) ptHeightMap->tMinBounding.x = ptHeightMap->atElements[iElementIndex].fX;
+                if(ptHeightMap->atElements[iElementIndex].fY < ptHeightMap->tMinBounding.y) ptHeightMap->tMinBounding.y = ptHeightMap->atElements[iElementIndex].fY;
+                if(ptHeightMap->atElements[iElementIndex].fZ < ptHeightMap->tMinBounding.z) ptHeightMap->tMinBounding.z = ptHeightMap->atElements[iElementIndex].fZ;
+                if(ptHeightMap->atElements[iElementIndex].fX > ptHeightMap->tMaxBounding.x) ptHeightMap->tMaxBounding.x = ptHeightMap->atElements[iElementIndex].fX;
+                if(ptHeightMap->atElements[iElementIndex].fY > ptHeightMap->tMaxBounding.y) ptHeightMap->tMaxBounding.y = ptHeightMap->atElements[iElementIndex].fY;
+                if(ptHeightMap->atElements[iElementIndex].fZ > ptHeightMap->tMaxBounding.z) ptHeightMap->tMaxBounding.z = ptHeightMap->atElements[iElementIndex].fZ;
+
+            }
+        }
+    }
+
+    int N = ptHeightMap->iSize;
+
+    if(!ptHeightMap->bEllipsoid)
+    {
+        float dx = ptHeightMap->fMetersPerPixel;
+        float dz = ptHeightMap->fMetersPerPixel;
+
+        for(int j = 0; j < N; ++j)
+        {
+            for(int i = 0; i < N; ++i)
+            {
+                int iL = (i > 0)     ? i - 1 : i;
+                int iR = (i < N - 1) ? i + 1 : i;
+                int jD = (j > 0)     ? j - 1 : j;
+                int jU = (j < N - 1) ? j + 1 : j;
+
+                float hL = ptHeightMap->atElements[iL + N*j].fY;
+                float hR = ptHeightMap->atElements[iR + N*j].fY;
+                float hD = ptHeightMap->atElements[i + N*jD].fY;
+                float hU = ptHeightMap->atElements[i + N*jU].fY;
+
+                // Tangents in world units
+                plVec3 tX = { 2.0f * dx, (hR - hL), 0.0f };
+                plVec3 tZ = { 0.0f,      (hU - hD), 2.0f * dz };
+
+                // Normal (pick cross order for your winding; this gives +Y up for typical XZ plane)
+                plVec3 n = pl_cross_vec3(tZ, tX);
+                n = pl_norm_vec3(n);
+
+                plVec2 tEncodedN = pl__encode(n);
+
+                int idx = i + N*j;
+                ptHeightMap->atElements[idx].fN0 = tEncodedN.x;
+                ptHeightMap->atElements[idx].fN1 = tEncodedN.y;
+            }
+        }
+    }
+
+    else
+    {
+        for(int j = 0; j < N; ++j)
+        {
+            for(int i = 0; i < N; ++i)
+            {
+                int iL = (i > 0)     ? i - 1 : i;
+                int iR = (i < N - 1) ? i + 1 : i;
+                int jD = (j > 0)     ? j - 1 : j;
+                int jU = (j < N - 1) ? j + 1 : j;
+
+                plTerrainMapElement* eL = &ptHeightMap->atElements[iL + N*j];
+                plTerrainMapElement* eR = &ptHeightMap->atElements[iR + N*j];
+                plTerrainMapElement* eD = &ptHeightMap->atElements[i  + N*jD];
+                plTerrainMapElement* eU = &ptHeightMap->atElements[i  + N*jU];
+
+                plVec3 pL = { eL->fX, eL->fY, eL->fZ };
+                plVec3 pR = { eR->fX, eR->fY, eR->fZ };
+                plVec3 pD = { eD->fX, eD->fY, eD->fZ };
+                plVec3 pU = { eU->fX, eU->fY, eU->fZ };
+
+                // Tangents are now true 3D directions along the surface sampling grid
+                plVec3 tX = pl_sub_vec3(pR, pL);
+                plVec3 tZ = pl_sub_vec3(pU, pD);
+
+                plVec3 n = pl_cross_vec3(tZ, tX);   // swap order if flipped
+                n = pl_norm_vec3(n);
+
+                // Optional: enforce outward normal for a planet centered at ptHeightMap->tCenter
+                // (prevents occasional flips near steep/degenerate spots)
+                // plVec3 center = ptHeightMap->tCenter;
+                // plVec3 pC = { ptHeightMap->atElements[i + N*j].fX,
+                //             ptHeightMap->atElements[i + N*j].fY,
+                //             ptHeightMap->atElements[i + N*j].fZ };
+                // plVec3 out = pl_norm_vec3(pl_sub_vec3(pC, center));
+                // if(pl_dot_vec3(n, out) < 0.0f)
+                //     n = pl_mul_vec3_scalarf(n, -1.0f);
+
+                plVec2 tEncodedN = pl__encode(n);
+
+                int idx = i + N*j;
+                ptHeightMap->atElements[idx].fN0 = tEncodedN.x;
+                ptHeightMap->atElements[idx].fN1 = tEncodedN.y;
             }
         }
     }
     
     PL_FREE(auHeightMapData);
     auHeightMapData = NULL;
+
+    if(pImageData)
+        gptImage->free(pImageData);
+    if(pConvertedData)
+    {
+        PL_FREE(pConvertedData);
+    }
 }
 
 static void
-pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, int iStartIndexY, int iLogSize, int iLevel)
+pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX, int iStartIndexY, int iLogSize, int iLevel)
 {
-    plMeshBuilder* ptMeshBuilder = gptMeshBuilder->create((plMeshBuilderOptions){.fWeldRadius = 0.001f});
-    plTrianglePrimitive* sbtPrimitives = NULL;
+    static int uChunk = 0;
+    printf("%d of %u\n", uChunk++, ptHeightMap->uChunkCount);
 
     plHashMap tEdgeHash = {0};
 
     int	iSize = (1 << iLogSize);
-    int iEndIndexY = iStartIndexY + (iSize);
-    int iEndIndexX = iStartIndexX + (iSize);
-    int iMaxLevel = iLogSize * 2 + iLevel;
+    int iEndIndexY = iStartIndexY + iSize;
+    int iEndIndexX = iStartIndexX + iSize;
+    int iMaxLevel = iLogSize * 2;
 
 	int	iHalfSize = iSize >> 1;
 	int	iCx = iStartIndexX + iHalfSize;
@@ -602,20 +797,29 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
         .uRight = (uint32_t)pl__vertex_index(ptHeightMap, iStartIndexX, iStartIndexY)
     };
 
-    plCdLodMapElement* ptRootElement0 = &(ptHeightMap->atElements[tPrimitiveRoot0.uLeft]);
-    plCdLodMapElement* ptRootElement1 = &(ptHeightMap->atElements[tPrimitiveRoot1.uLeft]);
+    plTerrainMapElement* ptRootElement0 = &(ptHeightMap->atElements[tPrimitiveRoot0.uLeft]);
+    plTerrainMapElement* ptRootElement1 = &(ptHeightMap->atElements[tPrimitiveRoot1.uLeft]);
 
-    pl_sb_push(sbtPrimitives, tPrimitiveRoot0);
-    pl_sb_push(sbtPrimitives, tPrimitiveRoot1);
+    pl_sb_push(ptHeightMap->sbtPrimitives, tPrimitiveRoot0);
+    pl_sb_push(ptHeightMap->sbtPrimitives, tPrimitiveRoot1);
 
+    gptProfile->begin_sample(0, "generate triangles at finest level");
+    
     // generate triangles at finest level
-    while(pl_sb_size(sbtPrimitives) > 0)
+    while(pl_sb_size(ptHeightMap->sbtPrimitives) > 0)
     {
 
-        plTrianglePrimitive tPrimitive = pl_sb_pop(sbtPrimitives);
+        plTrianglePrimitive tPrimitive = pl_sb_pop(ptHeightMap->sbtPrimitives);
 
         // assign triangle based on id
         atTriangles[tPrimitive.iId] = tPrimitive;
+
+        plTerrainMapElement* ptElement0 = &(ptHeightMap->atElements[tPrimitive.uApex]);
+        plTerrainMapElement* ptElement1 = &(ptHeightMap->atElements[tPrimitive.uRight]);
+        plTerrainMapElement* ptElement2 = &(ptHeightMap->atElements[tPrimitive.uLeft]);
+        ptElement0->uVertexBufferIndex = UINT32_MAX;
+        ptElement1->uVertexBufferIndex = UINT32_MAX;
+        ptElement2->uVertexBufferIndex = UINT32_MAX;
 
         // we've reached target level, no more splitting necessary
         if(tPrimitive.iLevel == iMaxLevel)
@@ -626,10 +830,6 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
 
         // split triangle into children
 
-        plCdLodMapElement* ptElement0 = &(ptHeightMap->atElements[tPrimitive.uApex]);
-        plCdLodMapElement* ptElement1 = &(ptHeightMap->atElements[tPrimitive.uRight]);
-        plCdLodMapElement* ptElement2 = &(ptHeightMap->atElements[tPrimitive.uLeft]);
-
         const int iChildLevel = tPrimitive.iLevel + 1;
 
         const int iMidPointX = ((int)ptElement1->uX + (int)ptElement2->uX) / 2;
@@ -637,7 +837,7 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
         const uint32_t uMidPoint = pl__vertex_index(ptHeightMap, iMidPointX, iMidPointZ);
 
         plTrianglePrimitive tChild0 = {
-            .iId    = tPrimitive.iId << 1,
+            .iId    = tPrimitive.iId << 1u,
             .iLevel = iChildLevel,
             .uApex  = uMidPoint,
             .uLeft  = tPrimitive.uApex,
@@ -645,22 +845,26 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
         };
 
         plTrianglePrimitive tChild1 = {
-            .iId    = (tPrimitive.iId << 1) | 1,
+            .iId    = (tPrimitive.iId << 1u) | 1u,
             .iLevel = iChildLevel,
             .uApex  = uMidPoint,
             .uLeft  = tPrimitive.uRight,
             .uRight = tPrimitive.uApex
         };
-        pl_sb_push(sbtPrimitives, tChild0);
-        pl_sb_push(sbtPrimitives, tChild1);
+        pl_sb_push(ptHeightMap->sbtPrimitives, tChild0);
+        pl_sb_push(ptHeightMap->sbtPrimitives, tChild1);
     }
-    pl_sb_free(sbtPrimitives);
-    sbtPrimitives = NULL;
+    pl_sb_reset(ptHeightMap->sbtPrimitives);
+
+    gptProfile->end_sample(0);
+
+    gptProfile->begin_sample(0, "simplify mesh");
 
     // simply mesh starting from finest level
+    pl_hm_free(&tEdgeHash);
+    pl_sb_reset(ptHeightMap->sbtEdges);
     for(int iCurrentLevel = iMaxLevel - 1; iCurrentLevel >= 0; iCurrentLevel--)
     {
-        pl_hm_free(&tEdgeHash);
 
         // build base-edge adjacency for PARENTS at level iCurrentLevel
         for(uint32_t uParent = 1; uParent < uMaxId; uParent++)
@@ -668,8 +872,8 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
             if(atTriangles[uParent].iLevel != iCurrentLevel)
                 continue;
 
-            const uint32_t uChild0 = uParent << 1;
-            const uint32_t uChild1 = (uParent << 1) | 1u;
+            const uint32_t uChild0 = uParent << 1u;
+            const uint32_t uChild1 = (uParent << 1u) | 1u;
 
             if(uChild1 >= uMaxId)
                 continue;
@@ -681,29 +885,26 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
             plTrianglePrimitive tParent = atTriangles[uParent];
 
             plEdgeKey tEdge = {
+                .iLevel = iCurrentLevel,
                 .uLeft  = pl_min(tParent.uLeft, tParent.uRight),
                 .uRight = pl_max(tParent.uLeft, tParent.uRight)
             };
 
             // check if edge mate already registered
-            if(pl_hm_has_key(&tEdgeHash, tEdge.uData))
+            uint64_t uHash = pl_hm_hash(&tEdge, sizeof(plEdgeKey), 0);
+            if(pl_hm_has_key(&tEdgeHash, uHash))
             {
-                uint64_t idx = pl_hm_lookup(&tEdgeHash, tEdge.uData);
+                uint64_t idx = pl_hm_lookup(&tEdgeHash, uHash);
                 ptHeightMap->sbtEdges[idx].t1 = uParent;
             }
             else // first time edge registering
             {
-                uint64_t idx = pl_hm_get_free_index(&tEdgeHash);
-                if(idx == PL_DS_HASH_INVALID)
-                {
-                    idx = pl_sb_size(ptHeightMap->sbtEdges);
-                    pl_sb_add(ptHeightMap->sbtEdges);
-                }
-
+                uint64_t idx = pl_sb_size(ptHeightMap->sbtEdges);
+                pl_sb_add(ptHeightMap->sbtEdges);
                 ptHeightMap->sbtEdges[idx].t0 = uParent;
                 ptHeightMap->sbtEdges[idx].t1 = UINT32_MAX;
 
-                pl_hm_insert(&tEdgeHash, tEdge.uData, idx);
+                pl_hm_insert(&tEdgeHash, uHash, idx);
             }
         }
 
@@ -714,6 +915,7 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
             if(!atPresent[i])
                 continue;
 
+            // only processing children
             if(atTriangles[i].iLevel != iCurrentLevel + 1)
                 continue;
 
@@ -739,24 +941,38 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
 
             // Find diamond mate across PARENT base edge (mate is a PARENT id)
             plEdgeKey tEdgeKey = {
+                .iLevel = iCurrentLevel,
                 .uLeft  = pl_min(atTriangles[uParent].uLeft, atTriangles[uParent].uRight),
                 .uRight = pl_max(atTriangles[uParent].uLeft, atTriangles[uParent].uRight)
             };
+            uint64_t uHash = pl_hm_hash(&tEdgeKey, sizeof(plEdgeKey), 0);
 
-            if(!pl_hm_has_key(&tEdgeHash, tEdgeKey.uData))
+            if(!pl_hm_has_key(&tEdgeHash, uHash))
+            {
+                // TODO: add flag for border options
+                // atPresent[i] = false;
+                // atPresent[uSibling] = false;
+                // atPresent[uParent] = true;
                 continue;
+            }
 
-            uint64_t uEdgeIndex = pl_hm_lookup(&tEdgeHash, tEdgeKey.uData);
+            uint64_t uEdgeIndex = pl_hm_lookup(&tEdgeHash, uHash);
             plEdgeEntry tEdgeEntry = ptHeightMap->sbtEdges[uEdgeIndex];
 
             // pick the other PARENT in the diamond
             uint32_t uMateParent = (tEdgeEntry.t0 == uParent) ? tEdgeEntry.t1 : tEdgeEntry.t0;
             if(uMateParent == UINT32_MAX || uMateParent == 0 || uMateParent >= uMaxId)
+            {
+                // TODO: add flag for border options
+                atPresent[i] = false;
+                atPresent[uSibling] = false;
+                atPresent[uParent] = true;
                 continue; // boundary / missing mate
+            }
 
             // uMateParent must currently be split too
-            uint32_t uMateChild0 = uMateParent << 1;
-            uint32_t uMateChild1 = (uMateParent << 1) | 1u;
+            uint32_t uMateChild0 = uMateParent << 1u;
+            uint32_t uMateChild1 = (uMateParent << 1u) | 1u;
             if(uMateChild1 >= uMaxId)
                 continue;
             if(!atPresent[uMateChild0] || !atPresent[uMateChild1])
@@ -764,7 +980,7 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
 
             // mate side midpoint must also allow merge
             int iActivationB = pl__mid_activation(ptHeightMap, atTriangles[uMateParent].uLeft, atTriangles[uMateParent].uRight);
-            if(iActivationA >= iLevel)
+            if(iActivationB >= iLevel)
                 continue;
 
             // avoid double-merging the same diamond
@@ -785,6 +1001,8 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
     pl_hm_free(&tEdgeHash);
     pl_sb_reset(ptHeightMap->sbtEdges);
 
+    gptProfile->end_sample(0);
+
     plVec3 tMinBounding = {
         .x = FLT_MAX,
         .y = FLT_MAX,
@@ -797,18 +1015,35 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
         .z = -FLT_MAX
     };
 
-    // submit present triangles
+    gptProfile->begin_sample(0, "submit");
+
+    uint32_t uPresentCount = 0;
+    uint32_t uVertexCount = 0;
     for(uint32_t i = 1; i < uMaxId; i++)
     {
 
         if(!atPresent[i])
             continue;
+        uPresentCount++;
 
         plTrianglePrimitive tPrimitive = atTriangles[i];
 
-        plCdLodMapElement* ptElement0 = &(ptHeightMap->atElements[tPrimitive.uApex]);
-        plCdLodMapElement* ptElement1 = &(ptHeightMap->atElements[tPrimitive.uRight]);
-        plCdLodMapElement* ptElement2 = &(ptHeightMap->atElements[tPrimitive.uLeft]);
+        plTerrainMapElement* ptElement0 = &(ptHeightMap->atElements[tPrimitive.uApex]);
+        plTerrainMapElement* ptElement1 = &(ptHeightMap->atElements[tPrimitive.uRight]);
+        plTerrainMapElement* ptElement2 = &(ptHeightMap->atElements[tPrimitive.uLeft]);
+
+        if(ptElement0->uVertexBufferIndex == UINT32_MAX)
+        {
+            ptElement0->uVertexBufferIndex = uVertexCount++;
+        }
+        if(ptElement1->uVertexBufferIndex == UINT32_MAX)
+        {
+            ptElement1->uVertexBufferIndex = uVertexCount++;
+        }
+        if(ptElement2->uVertexBufferIndex == UINT32_MAX)
+        {
+            ptElement2->uVertexBufferIndex = uVertexCount++;
+        }
 
         if(ptElement0->fX < tMinBounding.x) tMinBounding.x = ptElement0->fX;
         if(ptElement1->fX < tMinBounding.x) tMinBounding.x = ptElement1->fX;
@@ -830,48 +1065,69 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
         if(ptElement0->fZ > tMaxBounding.z) tMaxBounding.z = ptElement0->fZ;
         if(ptElement1->fZ > tMaxBounding.z) tMaxBounding.z = ptElement1->fZ;
         if(ptElement2->fZ > tMaxBounding.z) tMaxBounding.z = ptElement2->fZ;
-
-        gptMeshBuilder->add_triangle(ptMeshBuilder, 
-            (plVec3){
-                ptElement0->fX,
-                ptElement0->fY,
-                ptElement0->fZ
-            },
-            (plVec3){
-                ptElement1->fX,
-                ptElement1->fY,
-                ptElement1->fZ
-            },
-            (plVec3){
-                ptElement2->fX,
-                ptElement2->fY,
-                ptElement2->fZ
-            }
-        );
-
     }
+
+    plTerrainVertex* atVertexData = PL_ALLOC(uVertexCount * sizeof(plTerrainVertex));
+    uint32_t uIndexCount = 3 * uPresentCount;
+    uint32_t* atIndexData = PL_ALLOC(uIndexCount * sizeof(uint32_t));
+
+    uint32_t uCurrentIndex = 0;
+
+    // submit present triangles
+    for(uint32_t i = 1; i < uMaxId; i++)
+    {
+
+        if(!atPresent[i])
+            continue;
+
+        plTrianglePrimitive tPrimitive = atTriangles[i];
+
+        plTerrainMapElement* ptElement0 = &(ptHeightMap->atElements[tPrimitive.uApex]);
+        plTerrainMapElement* ptElement1 = &(ptHeightMap->atElements[tPrimitive.uRight]);
+        plTerrainMapElement* ptElement2 = &(ptHeightMap->atElements[tPrimitive.uLeft]);
+
+        atVertexData[ptElement0->uVertexBufferIndex].tPosition.x = ptElement0->fX;
+        atVertexData[ptElement0->uVertexBufferIndex].tPosition.y = ptElement0->fY;
+        atVertexData[ptElement0->uVertexBufferIndex].tPosition.z = ptElement0->fZ;
+
+        atVertexData[ptElement1->uVertexBufferIndex].tPosition.x = ptElement1->fX;
+        atVertexData[ptElement1->uVertexBufferIndex].tPosition.y = ptElement1->fY;
+        atVertexData[ptElement1->uVertexBufferIndex].tPosition.z = ptElement1->fZ;
+
+        atVertexData[ptElement2->uVertexBufferIndex].tPosition.x = ptElement2->fX;
+        atVertexData[ptElement2->uVertexBufferIndex].tPosition.y = ptElement2->fY;
+        atVertexData[ptElement2->uVertexBufferIndex].tPosition.z = ptElement2->fZ;
+
+        atVertexData[ptElement0->uVertexBufferIndex].tNormal.x = ptElement0->fN0;
+        atVertexData[ptElement0->uVertexBufferIndex].tNormal.y = ptElement0->fN1;
+
+        atVertexData[ptElement1->uVertexBufferIndex].tNormal.x = ptElement1->fN0;
+        atVertexData[ptElement1->uVertexBufferIndex].tNormal.y = ptElement1->fN1;
+
+        atVertexData[ptElement2->uVertexBufferIndex].tNormal.x = ptElement2->fN0;
+        atVertexData[ptElement2->uVertexBufferIndex].tNormal.y = ptElement2->fN1;
+
+        uint32_t uIndex0 = ptElement0->uVertexBufferIndex;
+        uint32_t uIndex1 = ptElement1->uVertexBufferIndex;
+        uint32_t uIndex2 = ptElement2->uVertexBufferIndex;
+        atIndexData[uCurrentIndex + 0] = uIndex0;
+        atIndexData[uCurrentIndex + 1] = uIndex2;
+        atIndexData[uCurrentIndex + 2] = uIndex1;
+        uCurrentIndex += 3;
+    }
+
+    gptProfile->end_sample(0);
 
     PL_FREE(atTriangles);
     PL_FREE(atPresent);
     atTriangles = NULL;
     atPresent = NULL;
 
-    uint32_t uVertexCount = 0;
-    uint32_t uIndexCount = 0;
-    gptMeshBuilder->commit(ptMeshBuilder, NULL, NULL, &uIndexCount, &uVertexCount);
-
-    plVec3* atVertexData = PL_ALLOC(uVertexCount * sizeof(plVec3));
-    uint32_t* atIndexData = PL_ALLOC(uIndexCount * sizeof(uint32_t));
-    gptMeshBuilder->commit(ptMeshBuilder, atIndexData, atVertexData, &uIndexCount, &uVertexCount);
-
-    gptMeshBuilder->cleanup(ptMeshBuilder);
-    ptMeshBuilder = NULL;
-
     fwrite(&tMinBounding, 1, sizeof(plVec3), ptFile);
     fwrite(&tMaxBounding, 1, sizeof(plVec3), ptFile);
 
     fwrite(&uVertexCount, 1, sizeof(uint32_t), ptFile);
-    fwrite(atVertexData, 1, sizeof(plVec3) * uVertexCount, ptFile);
+    fwrite(atVertexData, 1, sizeof(plTerrainVertex) * uVertexCount, ptFile);
 
     fwrite(&uIndexCount, 1, sizeof(uint32_t), ptFile);
     fwrite(atIndexData, 1, sizeof(uint32_t) * uIndexCount, ptFile);
@@ -884,15 +1140,15 @@ pl__terrain_mesh(FILE* ptFile, plCdLodHeightMap* ptHeightMap, int iStartIndexX, 
 
         iHalfSize = (1 << (iLogSize - 1));
         // [nw, ne, sw, se]
-        pl__terrain_mesh(ptFile, ptHeightMap,                 iStartIndexX,             iStartIndexY + 0, iLogSize - 1, iLevel - 1);
-        pl__terrain_mesh(ptFile, ptHeightMap, iStartIndexX + iHalfSize,             iStartIndexY + 0, iLogSize - 1, iLevel - 1);
-        pl__terrain_mesh(ptFile, ptHeightMap,             iStartIndexX + 0, iStartIndexY + iHalfSize, iLogSize - 1, iLevel - 1);
+        pl__terrain_mesh(ptFile, ptHeightMap,             iStartIndexX,         iStartIndexY + 0, iLogSize - 1, iLevel - 1);
+        pl__terrain_mesh(ptFile, ptHeightMap, iStartIndexX + iHalfSize,         iStartIndexY + 0, iLogSize - 1, iLevel - 1);
+        pl__terrain_mesh(ptFile, ptHeightMap,         iStartIndexX + 0, iStartIndexY + iHalfSize, iLogSize - 1, iLevel - 1);
         pl__terrain_mesh(ptFile, ptHeightMap, iStartIndexX + iHalfSize, iStartIndexY + iHalfSize, iLogSize - 1, iLevel - 1);
     }
 }
 
 static void
-pl__update(plCdLodHeightMap* ptHeightMap, float fBaseMaxError, int iApexX, int iApexZ, int iRightX, int iRightZ, int iLeftX, int iLeftZ)
+pl__update(plTerrainHeightMap* ptHeightMap, float fBaseMaxError, int iApexX, int iApexZ, int iRightX, int iRightZ, int iLeftX, int iLeftZ)
 {
 	// compute the coordinates of this triangle's base vertex.
 	const int iDx = iLeftX - iRightX;
@@ -909,9 +1165,9 @@ pl__update(plCdLodHeightMap* ptHeightMap, float fBaseMaxError, int iApexX, int i
 	const int iBaseX = iRightX + (iDx >> 1);
 	const int iBaseZ = iRightZ + (iDz >> 1);
 
-    plCdLodMapElement* ptBaseElement = pl__get_elem(ptHeightMap, iBaseX, iBaseZ);
-    plCdLodMapElement* ptLeftElement = pl__get_elem(ptHeightMap, iLeftX, iLeftZ);
-    plCdLodMapElement* ptRightElement = pl__get_elem(ptHeightMap, iRightX, iRightZ);
+    plTerrainMapElement* ptBaseElement = pl__get_elem(ptHeightMap, iBaseX, iBaseZ);
+    plTerrainMapElement* ptLeftElement = pl__get_elem(ptHeightMap, iLeftX, iLeftZ);
+    plTerrainMapElement* ptRightElement = pl__get_elem(ptHeightMap, iRightX, iRightZ);
 
     float fError = 0.0f;
     if(ptHeightMap->b3dErrorCalc)
@@ -934,7 +1190,7 @@ pl__update(plCdLodHeightMap* ptHeightMap, float fBaseMaxError, int iApexX, int i
 		int	iActivationLevel = (int) floor(log2(fabs(fError) / fBaseMaxError) + 0.5);
 
 		// Force the base vert to at least this activation level.
-		plCdLodMapElement* ptElem = pl__get_elem(ptHeightMap, iBaseX, iBaseZ);
+		plTerrainMapElement* ptElem = pl__get_elem(ptHeightMap, iBaseX, iBaseZ);
         pl__activate_height_map_element(ptElem, iActivationLevel);
 	}
 
@@ -945,7 +1201,7 @@ pl__update(plCdLodHeightMap* ptHeightMap, float fBaseMaxError, int iApexX, int i
 
 
 static void
-pl__propagate_activation_level(plCdLodHeightMap* ptHeightMap, int cx, int cz, int level, int target_level)
+pl__propagate_activation_level(plTerrainHeightMap* ptHeightMap, int cx, int cz, int level, int target_level)
 {
 
     // Does a quadtree descent through the heightfield, in the square with
@@ -979,10 +1235,10 @@ pl__propagate_activation_level(plCdLodHeightMap* ptHeightMap, int cx, int cz, in
 	// square.
 
 	// ee == east edge, en = north edge, etc
-	plCdLodMapElement*	ee = pl__get_elem(ptHeightMap, cx + half_size, cz);
-	plCdLodMapElement*	en = pl__get_elem(ptHeightMap, cx, cz - half_size);
-	plCdLodMapElement*	ew = pl__get_elem(ptHeightMap, cx - half_size, cz);
-	plCdLodMapElement*	es = pl__get_elem(ptHeightMap, cx, cz + half_size);
+	plTerrainMapElement*	ee = pl__get_elem(ptHeightMap, cx + half_size, cz);
+	plTerrainMapElement*	en = pl__get_elem(ptHeightMap, cx, cz - half_size);
+	plTerrainMapElement*	ew = pl__get_elem(ptHeightMap, cx - half_size, cz);
+	plTerrainMapElement*	es = pl__get_elem(ptHeightMap, cx, cz + half_size);
 	
 	if (level > 0)
     {
@@ -1005,7 +1261,7 @@ pl__propagate_activation_level(plCdLodHeightMap* ptHeightMap, int cx, int cz, in
 	}
 
 	// Propagate edge verts to center.
-	plCdLodMapElement*	c = pl__get_elem(ptHeightMap, cx, cz);
+	plTerrainMapElement*	c = pl__get_elem(ptHeightMap, cx, cz);
 	pl__activate_height_map_element(c, ee->iActivationLevel);
 	pl__activate_height_map_element(c, en->iActivationLevel);
 	pl__activate_height_map_element(c, es->iActivationLevel);
@@ -1017,47 +1273,32 @@ pl__propagate_activation_level(plCdLodHeightMap* ptHeightMap, int cx, int cz, in
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_load_cdlod_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+pl_load_terrain_processor_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
-    const plCdLodI tApi = {
-        .initialize        = pl_initialize_cdlod,
-        .cleanup           = pl_cleanup_cdlod,
+    const plTerrainProcessorI tApi = {
         .process_heightmap = pl_process_cdlod_heightmap,
-        .load_chunk_file   = pl_chlod_load_chunk_file,
-        .unload_chunk_file = pl_chlod_unload_chunk_file,
+        .load_chunk_file = pl_terrain_load_chunk_file,
     };
-    pl_set_api(ptApiRegistry, plCdLodI, &tApi);
+    pl_set_api(ptApiRegistry, plTerrainProcessorI, &tApi);
 
     #ifndef PL_UNITY_BUILD
-        gptMemory      = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptMeshBuilder = pl_get_api_latest(ptApiRegistry, plMeshBuilderI);
-        gptImage       = pl_get_api_latest(ptApiRegistry, plImageI);
-        gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
-        gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
+        gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
+        gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
+        gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-
-    if(bReload)
-    {
-        gptCdLodCtx = ptDataRegistry->get_data("plCdLodContext");
-    }
-    else
-    {
-        static plCdLodContext tCtx = {0};
-        gptCdLodCtx = &tCtx;
-        ptDataRegistry->set_data("plCdLodContext", gptCdLodCtx);
-    }
 }
 
 PL_EXPORT void
-pl_unload_cdlod_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+pl_unload_terrain_processor_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
     if(bReload)
         return;
 
-    const plCdLodI* ptApi = pl_get_api_latest(ptApiRegistry, plCdLodI);
+    const plTerrainProcessorI* ptApi = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
     ptApiRegistry->remove_api(ptApi);
 }
 
