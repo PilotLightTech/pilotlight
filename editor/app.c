@@ -1,24 +1,23 @@
 /*
-   app.c
-
-   Notes:
-     * absolute mess
-     * mostly a sandbox for now & testing experimental stuff
-     * probably better to look at the examples
+   example_gfx_3.c
+     - demonstrates loading APIs
+     - demonstrates loading extensions
+     - demonstrates hot reloading
+     - demonstrates starter extension
+     - demonstrates drawing extension (2D & 3D)
 */
 
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] global apis
 // [SECTION] structs
-// [SECTION] helper forward declarations
+// [SECTION] apis
+// [SECTION] helper function declarations
 // [SECTION] pl_app_load
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
-// [SECTION] helper implementations
-// [SECTION] unity build
+// [SECTION] helper function definitions
 */
 
 //-----------------------------------------------------------------------------
@@ -29,6 +28,7 @@ Index of this file:
 #include <stdlib.h>
 #include <stdio.h>
 #include <float.h>
+#include <math.h>
 
 // pilot light
 #include "pl.h"
@@ -77,12 +77,19 @@ Index of this file:
 #include "pl_vfs_ext.h"
 #include "pl_compress_ext.h"
 #include "pl_script_ext.h"
+#include "pl_freelist_ext.h"
 
-// shaders
-#include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
+// extensions
+#include "pl_graphics_ext.h"
+#include "pl_draw_ext.h"
+#include "pl_starter_ext.h"
+
+// new extension
+#include "pl_terrain_ext.h"
+#include "pl_terrain_processor_ext.h"
 
 //-----------------------------------------------------------------------------
-// [SECTION] global apis
+// [SECTION] apis
 //-----------------------------------------------------------------------------
 
 const plWindowI*            gptWindows       = NULL;
@@ -122,6 +129,10 @@ const plDateTimeI*          gptDateTime      = NULL;
 const plCompressI*          gptCompress      = NULL;
 const plMaterialI*          gptMaterial      = NULL;
 const plScriptI*            gptScript        = NULL;
+const plMeshBuilderI*       gptMeshBuilder   = NULL;
+const plImageI*             gptImage         = NULL;
+const plTerrainI*           gptTerrain          = NULL;
+const plTerrainProcessorI*  gptTerrainProcessor = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -136,66 +147,39 @@ const plScriptI*            gptScript        = NULL;
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+
 typedef struct _plAppData
 {
-
-    // windows
+    // window
     plWindow* ptWindow;
 
-    // graphics
-    plDevice* ptDevice;
-    bool      bMSAA;
-    bool      bVSync;
+    // 3d drawing
+    plCamera      tCamera;
+    plDrawList3D* pt3dDrawlist;
 
-    // swapchains
-    bool bResize;
+    // heightmap
+    plDynamicDataBlock tCurrentDynamicBufferBlock;
 
-    // ui options
-    bool  bSecondaryViewActive;
-    bool  bContinuousBVH;
-    bool  bFrustumCulling;
-    bool  bShowSkybox;
-    bool  bShowGrid;
-    bool  bShowBVH;
-    bool  bEditorAttached;
-    bool  bShowEntityWindow;
-    bool  bShowPilotLightTool;
-    bool  bShowDebugLights;
-    bool  bDrawAllBoundingBoxes;
+    // visual options
+    bool bShowOrigin;
+
+    // meshing
+    bool bShowResidency;
+
     bool* pbShowDeviceMemoryAnalyzer;
     bool* pbShowMemoryAllocations;
     bool* pbShowProfiling;
     bool* pbShowStats;
     bool* pbShowLogging;
 
-    // scene
-    plEntity tMainCamera;
-    plEntity tSecondaryCamera;
-
-    // scenes/views
-    plScene* ptScene;
-    plView*  ptView;
-    plView*  ptSecondaryView;
-
-    // drawing
-    plDrawLayer2D* ptDrawLayer;
-
-    // selection stuff
-    plEntity tSelectedEntity;
-
-    // physics
-    bool bPhysicsDebugDraw;
-
-    // misc
-    char* sbcTempBuffer;
-    plComponentLibrary* ptComponentLibrary;
+    plTerrain* ptTerrain;
+    float fTau;
 } plAppData;
 
 //-----------------------------------------------------------------------------
-// [SECTION] helper forward declarations
+// [SECTION] helper function declarations
 //-----------------------------------------------------------------------------
 
-void pl__show_editor_window(plAppData*);
 void pl__load_apis(plApiRegistryI*);
 
 //-----------------------------------------------------------------------------
@@ -205,7 +189,7 @@ void pl__load_apis(plApiRegistryI*);
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    // NOTE: on first load, "ptAppData" will be NULL but on reloads
+    // NOTE: on first load, "pAppData" will be NULL but on reloads
     //       it will be the value returned from this function
 
     // retrieve the data registry API, this is the API used for sharing data
@@ -214,291 +198,315 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
-    if(ptAppData) // reload
+    if(ptAppData)
     {
-
         // re-retrieve the apis since we are now in
         // a different dll/so
         pl__load_apis(ptApiRegistry);
 
-        gptScreenLog->add_message_ex(0, 15.0, PL_COLOR_32_MAGENTA, 1.5f, "%s", "App Hot Reloaded");
-
         return ptAppData;
     }
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~apis & extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // this path is taken only during first load, so we
+    // allocate app memory here
+    ptAppData = malloc(sizeof(plAppData));
+    memset(ptAppData, 0, sizeof(plAppData));
+    ptAppData->fTau = 0.2f;
 
     // retrieve extension registry
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
 
-    // load extensions
+    // load extensions (makes their APIs available)
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
     ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false);
-
-    // load apis
+    
     pl__load_apis(ptApiRegistry);
 
-    // this path is taken only during first load, so we
-    // allocate app memory here
-    ptAppData = (plAppData*)PL_ALLOC(sizeof(plAppData));
-    memset(ptAppData, 0, sizeof(plAppData));
-
-    gptVfs->mount_directory("/models", "../data/pilotlight-assets-master/models", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/gltf", "../data/glTF-Sample-Assets-main/Models", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/fonts", "../data/pilotlight-assets-master/fonts", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/environments", "../data/pilotlight-assets-master/environments", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/shaders", "../shaders", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/shader-temp", "../shader-temp", PL_VFS_MOUNT_FLAGS_NONE);
-    
-    gptFile->create_directory("../shader-temp");
-    
-
-    // defaults
-    ptAppData->tSelectedEntity.uData = UINT64_MAX;
-    ptAppData->bShowPilotLightTool = true;
-    ptAppData->bShowSkybox = true;
-    ptAppData->bFrustumCulling = true;
-    ptAppData->bVSync = true;
-    ptAppData->bShowDebugLights = true;
-
-    gptConfig->load_from_disk(NULL);
-    ptAppData->bEditorAttached = gptConfig->load_bool("bEditorAttached", true);
-    ptAppData->bShowEntityWindow = gptConfig->load_bool("bShowEntityWindow", false);
-    ptAppData->bPhysicsDebugDraw = gptConfig->load_bool("bPhysicsDebugDraw", false);
-
-    // initialize APIs that require it
-    gptEcsTools->initialize();
-    gptPhysics->initialize((plPhysicsEngineSettings){0});
-    
-    // create window (only 1 allowed currently)
+    // use window API to create a window
     plWindowDesc tWindowDesc = {
-        .pcTitle = "Pilot Light Sandbox",
+        .pcTitle = "Example GFX 3",
         .iXPos   = 200,
         .iYPos   = 200,
-        .uWidth  = 500,
-        .uHeight = 500,
+        .uWidth  = 600,
+        .uHeight = 600,
     };
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
     gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {
-        .tFlags   = PL_STARTER_FLAGS_NONE,
+        .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
 
-    // extensions handled by starter
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_GRAPHICS_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_PROFILE_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_STATS_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_CONSOLE_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_DRAW_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_UI_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
-
-    // initial flags
+    // we want the starter extension to include a depth buffer
+    // when setting up the render pass
     tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
-
-    // we handle these
-    // tStarterInit.tFlags |= PL_STARTER_FLAGS_SHADER_EXT;
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_REVERSE_Z;
+    tStarterInit.tFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
 
     // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
     // etc. which we will get to in later examples
     gptStarter->initialize(tStarterInit);
 
-    // initialize shader compiler
-    static plShaderOptions tDefaultShaderOptions = {
+    // initialize shader extension (we are doing this ourselves so we can add additional shader directories)
+    static const plShaderOptions tDefaultShaderOptions = {
         .apcIncludeDirectories = {
-            "/shaders/"
+            "../shaders/"
         },
         .apcDirectories = {
-            "/shaders/",
-            "/shader-temp/",
+            "../shaders/"
         },
-        .pcCacheOutputDirectory = "/shader-temp/",
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE | PL_SHADER_FLAGS_INCLUDE_DEBUG
     };
     gptShader->initialize(&tDefaultShaderOptions);
 
-    ptAppData->ptDevice = gptStarter->get_device();
+    // give starter extension chance to do its work now that we
+    // setup the shader extension
+    gptStarter->finalize();
 
-    // initialize job system
-    gptJobs->initialize((plJobSystemInit){0});
+    // request 3d drawlists
+    ptAppData->pt3dDrawlist = gptDraw->request_3d_drawlist();
 
-    const plShaderVariantInit tShaderVariantInit = {
-        .ptDevice = ptAppData->ptDevice
+    // create camera
+    ptAppData->tCamera = (plCamera){
+        // .tPos         = {5.0f, 10.0f, 10.0f},
+        // .fNearZ       = 0.01f,
+        // .fFarZ        = 50000.0f,
+
+        .tPos         = {1738400.0f * 1.2f, 0.0f, 10.0f},
+        .fNearZ       = 10.0f,
+        .fFarZ        = 1737400.0f * 3.0f,
+        // .fFarZ        = 100000.0f,
+
+        .fFieldOfView = PL_PI_3,
+        .fAspectRatio = 1.0f,
+        .fYaw         = PL_PI + PL_PI_4,
+        .fPitch       = -PL_PI_4,
+        .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z
     };
-    gptShaderVariant->initialize(tShaderVariantInit);
+    gptCamera->update(&ptAppData->tCamera);
 
-    // setup reference renderer
-    plRendererSettings tRenderSettings = {
-        .ptDevice = ptAppData->ptDevice,
-        .ptSwap = gptStarter->get_swapchain(),
-        .uMaxTextureResolution = 1024,
+    // for convience
+    plDevice* ptDevice = gptStarter->get_device();
+
+    plTerrainInit tTerrainInit = {
+        .ptDevice = ptDevice
     };
-    gptRenderer->initialize(tRenderSettings);
+    gptTerrain->initialize(tTerrainInit);
+    ptAppData->ptTerrain = gptTerrain->create_terrain();
 
-    // set some console variable
-    gptConsole->add_toggle_variable("a.PilotLight", &ptAppData->bShowPilotLightTool, "shows main pilot light window", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
-    gptConsole->add_toggle_variable("a.Entities", &ptAppData->bShowEntityWindow, "shows ecs tool", PL_CONSOLE_VARIABLE_FLAGS_CLOSE_CONSOLE);
+#if 1
 
-    // retrieve some console variables
+    
+
+
+    for(uint32_t i = 4; i < 6; i++)
+    {
+        for(uint32_t j = 4; j < 6; j++)
+        {
+            plTerrainTileInfo tTile = {
+                0
+            };
+            plTerrainHeightMapInfo tInfo =
+            {
+                .iTreeDepth      = 6,
+                .fRadius         = 1737400.0f,
+                .bEllipsoid      = true,
+                .b3dErrorCalc    = true,
+                .pcOutputFile    = "moon.chu",
+                .fMaxHeight      = 14052.0f,
+                .fMinHeight      = -18256.0f,
+                .fMaxBaseError   = 15.0f,
+                .fMetersPerPixel = 100.0f, // 4096
+                .tCenter = {
+                    .x = -1440000.0f + (float)i * 409600.0f + 409600.0f * 0.5f,
+                    .z = -1440000.0f + (float)j * 409600.0f + 409600.0f * 0.5f,
+                },
+                .atTiles = &tTile,
+                .uSize = 4096
+            };
+
+            sprintf(tInfo.atHaloTiles[0].acHeightMapFile, "../data/moon_%u_%u.png", i, j - 1); // north
+            sprintf(tInfo.atHaloTiles[1].acHeightMapFile, "../data/moon_%u_%u.png", i + 1, j - 1); // northeast
+            sprintf(tInfo.atHaloTiles[2].acHeightMapFile, "../data/moon_%u_%u.png", i + 1, j); // east
+            sprintf(tInfo.atHaloTiles[3].acHeightMapFile, "../data/moon_%u_%u.png", i + 1, j + 1); // southeast
+            sprintf(tInfo.atHaloTiles[4].acHeightMapFile, "../data/moon_%u_%u.png", i, j + 1); // south
+            sprintf(tInfo.atHaloTiles[5].acHeightMapFile, "../data/moon_%u_%u.png", i - 1, j + 1); // southwest
+            sprintf(tInfo.atHaloTiles[6].acHeightMapFile, "../data/moon_%u_%u.png", i - 1, j); // west
+            sprintf(tInfo.atHaloTiles[7].acHeightMapFile, "../data/moon_%u_%u.png", i - 1, j - 1); // northwest
+
+            char* sbNameBuffer1 = NULL;
+            char* sbNameBuffer2 = NULL;
+            pl_sb_sprintf(sbNameBuffer1, "moon_%u_%u.chu", i, j);
+            pl_sb_sprintf(sbNameBuffer2, "../data/moon_%u_%u.png", i, j);
+
+            strncpy(tTile.acHeightMapFile, sbNameBuffer2, 256);
+            tTile.fMinHeight = tInfo.fMinHeight;
+            tTile.fMaxHeight = tInfo.fMaxHeight;
+            tInfo.pcOutputFile = sbNameBuffer1;
+            tTile.uXOffset = 0;
+            tTile.uYOffset = 0;
+            tInfo.uTileCount++;
+
+
+            if(!gptFile->exists(tInfo.pcOutputFile))
+            {
+                gptTerrainProcessor->process_heightmap(tInfo);
+            }
+
+            gptTerrain->load_chunk_file(ptAppData->ptTerrain, tInfo.pcOutputFile);
+            pl_sb_free(sbNameBuffer1);
+            pl_sb_free(sbNameBuffer2);
+        }
+    }
+
+    // gptProfile->begin_frame();
+    // gptProfile->begin_sample(0, "FRAME");
+    // if(!gptFile->exists(tInfo.pcOutputFile))
+    // {
+    //     gptProfile->begin_sample(0, "process_heightmap");
+    //     gptTerrainProcessor->process_heightmap(tInfo);
+    //     gptProfile->end_sample(0);
+    // }
+
+    // gptProfile->begin_sample(0, "load_chunk_file");
+    // gptTerrain->load_chunk_file(ptAppData->ptTerrain, tInfo.pcOutputFile);
+    // gptProfile->end_sample(0);
+
+    // gptProfile->end_sample(0);
+    // gptProfile->end_frame();
+
+    // uint32_t uSampleCount = 0;
+    // plProfileCpuSample* ptSamples = gptProfile->get_last_frame_samples(0, &uSampleCount);
+
+    // const char* acSpaceBuffer = "                                      ";
+    // for(uint32_t j = 0; j < uSampleCount; j++)
+    // {
+    //     printf("%s %s: %0.6f\n", &acSpaceBuffer[39 - ptSamples[j]._uDepth], ptSamples[j].pcName, ptSamples[j].dDuration);
+    // }
+
+#else
+
+
+    plTerrainHeightMapInfo atHeightMapInit[] = {
+        // {
+        //     .pcHeightMapFile = "../data/mountains.png",
+        //     .pcOutputFile    = "mountains.chu",
+        //     .iTreeDepth      = 6,
+        //     .fMaxHeight      = 512.0f,
+        //     .fMinHeight      = -40.0f,
+        //     .fMaxBaseError   = 1.0f,
+        //     .fMetersPerPixel = 2.0f,
+        // },
+        {
+            .iTreeDepth      = 5,
+            .fRadius         = 1737400.0f,
+            .bEllipsoid      = true,
+            .b3dErrorCalc    = true,
+            .pcHeightMapFile = "../data/moon_q0.png",
+            .pcOutputFile    = "moon_q0.chu",
+            .fMaxHeight      = 14052.0f,
+            .fMinHeight      = -18256.0f,
+            .fMaxBaseError   = 10.0f,
+            .fMetersPerPixel = 351.5625f, // 4096
+            .tCenter = {
+                .x = -1440000.0f * 0.5f,
+                .z = -1440000.0f * 0.5f
+            }
+        },
+        {
+            .iTreeDepth      = 5,
+            .fRadius         = 1737400.0f,
+            .bEllipsoid      = true,
+            .b3dErrorCalc    = true,
+            .pcHeightMapFile = "../data/moon_q1.png",
+            .pcOutputFile    = "moon_q1.chu",
+            .fMaxHeight      = 14052.0f,
+            .fMinHeight      = -18256.0f,
+            .fMaxBaseError   = 10.0f,
+            .fMetersPerPixel = 351.5625f, // 4096
+            .tCenter = {
+                .x = 1440000.0f * 0.5f,
+                .z = -1440000.0f * 0.5f
+            }
+        },
+        {
+            .iTreeDepth      = 5,
+            .fRadius         = 1737400.0f,
+            .bEllipsoid      = true,
+            .b3dErrorCalc    = true,
+            .pcHeightMapFile = "../data/moon_q2.png",
+            .pcOutputFile    = "moon_q2.chu",
+            .fMaxHeight      = 14052.0f,
+            .fMinHeight      = -18256.0f,
+            .fMaxBaseError   = 10.0f,
+            .fMetersPerPixel = 351.5625f, // 4096
+            .tCenter = {
+                .x = 1440000.0f * 0.5f,
+                .z = 1440000.0f * 0.5f
+            }
+        },
+        {
+            .iTreeDepth      = 5,
+            .fRadius         = 1737400.0f,
+            .bEllipsoid      = true,
+            .b3dErrorCalc    = true,
+            .pcHeightMapFile = "../data/moon_q3.png",
+            .pcOutputFile    = "moon_q3.chu",
+            .fMaxHeight      = 14052.0f,
+            .fMinHeight      = -18256.0f,
+            .fMaxBaseError   = 10.0f,
+            .fMetersPerPixel = 351.5625f, // 4096
+            .tCenter = {
+                .x = -1440000.0f * 0.5f,
+                .z = 1440000.0f * 0.5f
+            }
+        },
+    };
+
+    for(uint32_t i = 0; i < PL_ARRAYSIZE(atHeightMapInit); i++)
+    {
+
+        gptProfile->begin_frame();
+        gptProfile->begin_sample(0, "FRAME");
+        if(!gptFile->exists(atHeightMapInit[i].pcOutputFile))
+        {
+            gptProfile->begin_sample(0, "process_heightmap");
+            gptTerrain->process_heightmap(atHeightMapInit[i]);
+            gptProfile->end_sample(0);
+        }
+
+        gptProfile->begin_sample(0, "load_chunk_file");
+        gptTerrain->load_chunk_file(ptAppData->ptTerrain, atHeightMapInit[i].pcOutputFile);
+        gptProfile->end_sample(0);
+
+        gptProfile->end_sample(0);
+        gptProfile->end_frame();
+
+        uint32_t uSampleCount = 0;
+        plProfileCpuSample* ptSamples = gptProfile->get_last_frame_samples(0, &uSampleCount);
+
+        const char* acSpaceBuffer = "                                      ";
+        for(uint32_t j = 0; j < uSampleCount; j++)
+        {
+            printf("%s %s: %0.6f\n", &acSpaceBuffer[39 - ptSamples[j]._uDepth], ptSamples[j].pcName, ptSamples[j].dDuration);
+        }
+    }
+#endif
+
+    gptTerrain->finalize_terrain(ptAppData->ptTerrain);
+
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     ptAppData->pbShowLogging              = (bool*)gptConsole->get_variable("t.LogTool", NULL, NULL);
     ptAppData->pbShowStats                = (bool*)gptConsole->get_variable("t.StatTool", NULL, NULL);
     ptAppData->pbShowProfiling            = (bool*)gptConsole->get_variable("t.ProfileTool", NULL, NULL);
     ptAppData->pbShowMemoryAllocations    = (bool*)gptConsole->get_variable("t.MemoryAllocationTool", NULL, NULL);
     ptAppData->pbShowDeviceMemoryAnalyzer = (bool*)gptConsole->get_variable("t.DeviceMemoryAnalyzerTool", NULL, NULL);
 
-    *ptAppData->pbShowLogging = gptConfig->load_bool("pbShowLogging", *ptAppData->pbShowLogging);
-    *ptAppData->pbShowStats = gptConfig->load_bool("pbShowStats", *ptAppData->pbShowStats);
-    *ptAppData->pbShowProfiling = gptConfig->load_bool("pbShowProfiling", *ptAppData->pbShowProfiling);
-    *ptAppData->pbShowMemoryAllocations = gptConfig->load_bool("pbShowMemoryAllocations", *ptAppData->pbShowMemoryAllocations);
-    *ptAppData->pbShowDeviceMemoryAnalyzer = gptConfig->load_bool("pbShowDeviceMemoryAnalyzer", *ptAppData->pbShowDeviceMemoryAnalyzer);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~setup draw extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // create fonts
-    plFontRange tFontRange = {
-        .iFirstCodePoint = 0x0020,
-        .uCharCount = 0x00FF - 0x0020
-    };
-
-    plFontConfig tFontConfig0 = {
-        .bSdf = false,
-        .fSize = 16.0f,
-        .uHOverSampling = 1,
-        .uVOverSampling = 1,
-        .ptRanges = &tFontRange,
-        .uRangeCount = 1
-    };
-    plFont* ptDefaultFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "/fonts/Cousine-Regular.ttf");
-
-    const plFontRange tIconRange = {
-        .iFirstCodePoint = ICON_MIN_FA,
-        .uCharCount = ICON_MAX_16_FA - ICON_MIN_FA
-    };
-
-    plFontConfig tFontConfig1 = {
-        .bSdf           = false,
-        .fSize          = 16.0f,
-        .uHOverSampling = 1,
-        .uVOverSampling = 1,
-        .ptMergeFont    = ptDefaultFont,
-        .ptRanges       = &tIconRange,
-        .uRangeCount    = 1
-    };
-    gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "/fonts/fa-solid-900.otf");
-    gptStarter->set_default_font(ptDefaultFont);
-    gptUI->set_default_font(ptDefaultFont);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~app stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    gptEcs->initialize((plEcsInit){0});
-    gptRenderer->register_ecs_system();
-    gptScript->register_ecs_system();
-    gptCamera->register_ecs_system();
-    gptAnimation->register_ecs_system();
-    gptMesh->register_ecs_system();
-    gptPhysics->register_ecs_system();
-    gptMaterial->register_ecs_system();
-    gptEcs->finalize();
-    ptAppData->ptComponentLibrary = gptEcs->get_default_library();
-
-    plIO* ptIO = gptIO->get_io();
-    plSceneInit tSceneInit = {
-        .ptComponentLibrary = ptAppData->ptComponentLibrary
-    };
-    ptAppData->ptScene = gptRenderer->create_scene(tSceneInit);
-    ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, ptIO->tMainViewportSize);
-
-    // create main camera
-    plCamera* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3(-4.012f, 2.984f, -1.109f), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 30.0f, true, &ptMainCamera);
-    gptCamera->set_pitch_yaw(ptMainCamera, -0.465f, 1.341f);
-    gptCamera->update(ptMainCamera);
-    gptScript->attach(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
-
-    // create secondary camera
-    plCamera* ptSecondaryCamera = NULL;
-    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "secondary camera", pl_create_vec3(-4.012f, 2.984f, -1.109f), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
-    gptCamera->set_pitch_yaw(ptSecondaryCamera, -0.465f, 1.341f);
-    gptCamera->update(ptSecondaryCamera);
-    plTransformComponent* ptSecondaryCameraTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSecondaryCamera);
-    ptSecondaryCameraTransform->tTranslation = pl_create_vec3(-4.012f, 2.984f, -1.109f);
-
-    // create lights
-    plLightComponent* ptLight = NULL;
-    gptRenderer->create_directional_light(ptAppData->ptComponentLibrary, "direction light", pl_create_vec3(0.0f, -1.0f, -0.085f), &ptLight);
-    ptLight->uCascadeCount = 4;
-    ptLight->fIntensity = 1.0f;
-    ptLight->uShadowResolution = 1024 * 2;
-    ptLight->afCascadeSplits[0] = 0.10f;
-    ptLight->afCascadeSplits[1] = 0.25f;
-    ptLight->afCascadeSplits[2] = 0.50f;
-    ptLight->afCascadeSplits[3] = 1.00f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-
-    plEntity tPointLight = gptRenderer->create_point_light(ptAppData->ptComponentLibrary, "point light", pl_create_vec3(0.0f, 2.0f, 2.0f), &ptLight);
-    ptLight->uShadowResolution = 512;
-    ptLight->tColor = (plVec3){0.0f, 1.0f, 0.0f};
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptPLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tPointLight);
-    ptPLightTransform->tTranslation = pl_create_vec3(9.316f, 1.497f, -1.042f);
-
-    plEntity tSpotLight = gptRenderer->create_spot_light(ptAppData->ptComponentLibrary, "spot light", pl_create_vec3(0.0f, 4.0f, -1.18f), pl_create_vec3(0.0, -0.390f, 0.368f), &ptLight);
-    ptLight->uShadowResolution = 512;
-    ptLight->tColor = (plVec3){1.0f, 0.0f, 1.0f};
-    ptLight->fRange = 10.0f;
-    ptLight->fRadius = 0.025f;
-    ptLight->fIntensity = 20.0f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-    plTransformComponent* ptSLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tSpotLight);
-    ptSLightTransform->tTranslation = pl_create_vec3(0.0f, 4.0f, -1.18f);
-
-    plEnvironmentProbeComponent* ptProbe = NULL;
-    plVec3 atProbeLocations[] = {
-        pl_create_vec3(0.0f, 3.0f, 0.0f),
-        // pl_create_vec3(-8.7f, 1.5f, 0.0f),
-        // pl_create_vec3(8.8f, 1.5f, 0.0f),
-    };
-
-    for(uint32_t i = 0; i < PL_ARRAYSIZE(atProbeLocations); i++)
-    {
-        gptRenderer->create_environment_probe(ptAppData->ptComponentLibrary, "Probe", atProbeLocations[i], &ptProbe);
-        ptProbe->fRange = 30.0f;
-        ptProbe->uResolution = 128;
-        ptProbe->uSamples = 1024;
-        ptProbe->uInterval = 6;
-        ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
-    }
-
-    gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/sky.hdr", 1024);
-
-    plModelLoaderData tLoaderData0 = {0};
-    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/sort.gltf", NULL, &tLoaderData0);
-    // plMat4 tRotation = pl_mat4_rotate_xyz(-PL_PI_2, 0.0f, 1.0f, 0.0f);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/CarConcept/glTF/CarConcept.gltf", &tRotation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/EnvironmentTest/glTF/EnvironmentTest.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/ClearCoatCarPaint/glTF/ClearCoatCarPaint.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/SheenChair/glTF/SheenChair.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformTest/glTF/TextureTransformTest.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformMultiTest/glTF/TextureTransformMultiTest.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TransmissionTest/glTF/TransmissionTest.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/BoxTextured/glTF/BoxTextured.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "C:/Users/Jonathan Hoffstadt/Documents/Models/BistroExteriorGltf/bistro_exterior.gltf", NULL, &tLoaderData0);
-    gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
-    gptModelLoader->free_data(&tLoaderData0);
-    gptRenderer->finalize_scene(ptAppData->ptScene);
-
-    // give starter extension chance to do its work now
-    gptStarter->finalize();
-
-    // temporary draw layer for submitting fullscreen quad of offscreen render
-    ptAppData->ptDrawLayer = gptDraw->request_2d_layer(gptUI->get_draw_list());
-
+    // return app memory
     return ptAppData;
 }
 
@@ -509,70 +517,16 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
-    gptJobs->cleanup();
-    pl_sb_free(ptAppData->sbcTempBuffer);
+    plDevice* ptDevice = gptStarter->get_device();
 
-    // ensure GPU is finished before cleanup
-    gptGfx->flush_device(ptAppData->ptDevice);
+    // ensure the GPU is done with our resources
+    gptGfx->flush_device(ptDevice);
 
-    // plPakFile* ptPak = NULL;
-    // gptPak->begin_packing("../data/shaders.pak", 4, &ptPak);
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "deferred_lighting.frag.spv", "../out-temp/deferred_lighting.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "deferred_lighting.vert.spv", "../out-temp/deferred_lighting.vert.spv",false));
-    // // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_2d_sdf.frag.spv", "../out-temp/draw_2d_sdf.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_2d.frag.spv", "../out-temp/draw_2d.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_2d.vert.spv", "../out-temp/draw_2d.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_3d_line.vert.spv", "../out-temp/draw_3d_line.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_3d.frag.spv", "../out-temp/draw_3d.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_3d.vert.spv", "../out-temp/draw_3d.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "filter_environment.comp.spv", "../out-temp/filter_environment.comp.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "forward.frag.spv", "../out-temp/forward.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "forward.vert.spv", "../out-temp/forward.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "full_screen.vert.spv", "../out-temp/full_screen.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "gbuffer_fill.frag.spv", "../out-temp/gbuffer_fill.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "gbuffer_fill.vert.spv", "../out-temp/gbuffer_fill.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "jumpfloodalgo.comp.spv", "../out-temp/jumpfloodalgo.comp.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "panorama_to_cubemap.comp.spv", "../out-temp/panorama_to_cubemap.comp.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "picking.frag.spv", "../out-temp/picking.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "picking.vert.spv", "../out-temp/picking.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "shadow.frag.spv", "../out-temp/shadow.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "shadow.vert.spv", "../out-temp/shadow.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "skinning.comp.spv", "../out-temp/skinning.comp.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "skybox.frag.spv", "../out-temp/skybox.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "skybox.vert.spv", "../out-temp/skybox.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "tonemap.frag.spv", "../out-temp/tonemap.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "uvmap.frag.spv", "../out-temp/uvmap.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "uvmap.vert.spv", "../out-temp/uvmap.vert.spv",false));
-    // gptPak->end_packing(&ptPak);
-
-    gptConfig->set_bool("bEditorAttached", ptAppData->bEditorAttached);
-    gptConfig->set_bool("bShowEntityWindow", ptAppData->bShowEntityWindow);
-    gptConfig->set_bool("bPhysicsDebugDraw", ptAppData->bPhysicsDebugDraw);
-    gptConfig->set_bool("pbShowLogging", *ptAppData->pbShowLogging);
-    gptConfig->set_bool("pbShowStats", *ptAppData->pbShowStats);
-    gptConfig->set_bool("pbShowProfiling", *ptAppData->pbShowProfiling);
-    gptConfig->set_bool("pbShowMemoryAllocations", *ptAppData->pbShowMemoryAllocations);
-    gptConfig->set_bool("pbShowDeviceMemoryAnalyzer", *ptAppData->pbShowDeviceMemoryAnalyzer);
-
-    gptConfig->save_to_disk(NULL);
-    gptConfig->cleanup();
-    gptEcsTools->cleanup();
-    gptPhysics->cleanup();
+    gptTerrain->cleanup_terrain(ptAppData->ptTerrain);
     gptShader->cleanup();
-    gptConsole->cleanup();
-
-    gptRenderer->cleanup_view(ptAppData->ptView);
-    if(ptAppData->ptSecondaryView)
-        gptRenderer->cleanup_view(ptAppData->ptSecondaryView);
-    gptRenderer->cleanup_scene(ptAppData->ptScene);
-    
-    gptEcs->cleanup();
-    gptRenderer->cleanup();
-    gptShaderVariant->cleanup();
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
-
-    PL_FREE(ptAppData);
+    free(ptAppData);
 }
 
 //-----------------------------------------------------------------------------
@@ -582,16 +536,19 @@ pl_app_shutdown(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
-    plIO* ptIO = gptIO->get_io();
-    if(ptAppData->ptScene)
-        gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCamera->get_ecs_type_key(), ptAppData->tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
-    ptAppData->bResize = true;
     gptStarter->resize();
+
+    plIO* ptIO = gptIO->get_io();
+    ptAppData->tCamera.fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y;
 }
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_update
 //-----------------------------------------------------------------------------
+
+static float fCameraTravelSpeed = 1000000.0f;
+// static float fCameraTravelSpeed = 100.0f;
 
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
@@ -599,538 +556,133 @@ pl_app_update(plAppData* ptAppData)
     if(!gptStarter->begin_frame())
         return;
 
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
-
-    gptResource->new_frame();
-    
     // for convience
     plIO* ptIO = gptIO->get_io();
 
-    gptRenderer->begin_frame();
+    static const float fCameraRotationSpeed = 0.005f;
 
-    if(ptAppData->bResize)
+    plCamera* ptCamera = &ptAppData->tCamera;
+
+    if(!gptUI->wants_mouse_capture())
     {
-        // gptOS->sleep(32);
-        if(ptAppData->ptScene)
-            gptRenderer->resize_view(ptAppData->ptView, ptIO->tMainViewportSize);
-        ptAppData->bResize = false;
-    }
 
-    // update statistics
-    gptShaderVariant->update_stats();
+        if(gptIO->is_key_pressed(PL_KEY_MINUS, false)) fCameraTravelSpeed /= 10.0f;
+        if(gptIO->is_key_pressed(PL_KEY_EQUAL, false)) fCameraTravelSpeed *= 10.0f;
 
-    plCamera* ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCamera->get_ecs_type_key(), ptAppData->tMainCamera);
-    plCamera* ptSecondaryCamera = (plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCamera->get_ecs_type_key(), ptAppData->tSecondaryCamera);
+        // camera space
+        if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
+        if(gptIO->is_key_down(PL_KEY_S)) gptCamera->translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
+        if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+        if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
 
-    gptCamera->update(ptSecondaryCamera);
+        // world space
+        if(gptIO->is_key_down(PL_KEY_F)) { gptCamera->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+        if(gptIO->is_key_down(PL_KEY_R)) { gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~selection stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    plVec2 tMousePos = gptIO->get_mouse_pos();
-
-    if(!gptUI->wants_mouse_capture() && !gptGizmo->active())
-    {
-        static plVec2 tClickPos = {0};
-        if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
+        if(gptIO->is_key_down(PL_KEY_O))
         {
-            tClickPos = tMousePos;
+            ptCamera->fRoll += 0.1f;
+            ptCamera->fRoll = fmodf(ptCamera->fRoll, PL_PI * 2.0f);
         }
-        else if(gptIO->is_mouse_released(PL_MOUSE_BUTTON_LEFT))
-        {
-            plVec2 tReleasePos = tMousePos;
-            plVec2 tHoverOffset = {0};
-            plVec2 tHoverScale = {1.0f, 1.0f};
 
-            if(tReleasePos.x == tClickPos.x && tReleasePos.y == tClickPos.y)
-                gptRenderer->update_hovered_entity(ptAppData->ptView, tHoverOffset, tHoverScale);
+        if(gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
+        {
+            const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
+            gptCamera->rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
+            gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }
     }
+    gptCamera->update(ptCamera);
 
-    // run ecs system
-    pl_begin_cpu_sample(gptProfile, 0, "Run ECS");
-    gptScript->run_update_system(ptAppData->ptComponentLibrary);
-    gptAnimation->run_animation_update_system(ptAppData->ptComponentLibrary, ptIO->fDeltaTime);
-    gptPhysics->update(ptIO->fDeltaTime, ptAppData->ptComponentLibrary);
-    gptEcs->run_transform_update_system(ptAppData->ptComponentLibrary);
-    gptEcs->run_hierarchy_update_system(ptAppData->ptComponentLibrary);
-    gptRenderer->run_light_update_system(ptAppData->ptComponentLibrary);
-    gptCamera->run_ecs(ptAppData->ptComponentLibrary);
-    gptAnimation->run_inverse_kinematics_update_system(ptAppData->ptComponentLibrary);
-    gptRenderer->run_skin_update_system(ptAppData->ptComponentLibrary);
-    gptRenderer->run_object_update_system(ptAppData->ptComponentLibrary);
-    gptRenderer->run_environment_probe_update_system(ptAppData->ptComponentLibrary); // run after object update
-    pl_end_cpu_sample(gptProfile, 0);
-
-    plEntity tNextEntity = {0};
-    if(gptRenderer->get_hovered_entity(ptAppData->ptView, &tNextEntity))
+    // 3d drawing API usage
+    if(ptAppData->bShowOrigin)
     {
-        
-        if(tNextEntity.uData == 0)
-        {
-            ptAppData->tSelectedEntity.uData = UINT64_MAX;
-            gptRenderer->outline_entities(ptAppData->ptScene, 0, NULL);
-        }
-        else if(ptAppData->tSelectedEntity.uData != tNextEntity.uData)
-        {
-            gptScreenLog->add_message_ex(565168477883, 5.0, PL_COLOR_32_RED, 1.0f, "Selected Entity {%u, %u}", tNextEntity.uIndex, tNextEntity.uGeneration);
-            gptRenderer->outline_entities(ptAppData->ptScene, 1, &tNextEntity);
-            ptAppData->tSelectedEntity = tNextEntity;
-            gptPhysics->set_angular_velocity(ptAppData->ptComponentLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
-            gptPhysics->set_linear_velocity(ptAppData->ptComponentLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
-        }
-
+        const plMat4 tOrigin = pl_identity_mat4();
+        // gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 1000.0f, (plDrawLineOptions){.fThickness = 10.0f});
+        gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 1737400.0f * 1.2f, (plDrawLineOptions){.fThickness = 1000.0f});
     }
 
-    if(gptIO->is_key_pressed(PL_KEY_M, true))
-        gptGizmo->next_mode();
-
-    if(ptAppData->bShowEntityWindow)
+    if(gptUI->begin_window("Debug", NULL, 0))
     {
-        if(gptEcsTools->show_ecs_window(ptAppData->ptComponentLibrary, &ptAppData->tSelectedEntity, ptAppData->ptScene, &ptAppData->bShowEntityWindow))
+        plTerrainFlags tFlags = gptTerrain->get_flags(ptAppData->ptTerrain);
+        bool bShowDebug = tFlags & PL_TERRAIN_FLAGS_SHOW_LEVELS;
+        bool bWireframe = tFlags & PL_TERRAIN_FLAGS_WIREFRAME;
+        gptUI->checkbox("Show Origin", &ptAppData->bShowOrigin);
+        gptUI->checkbox("Show Residency", &ptAppData->bShowResidency);
+        gptUI->slider_float("Tau", &ptAppData->fTau, 0.0f, 10.0f, 0);
+
+
+        if(gptUI->checkbox("Wireframe", &bWireframe))
         {
-            if(ptAppData->tSelectedEntity.uData == UINT64_MAX)
-            {
-                gptRenderer->outline_entities(ptAppData->ptScene, 0, NULL);
-            }
+            if(bWireframe)
+                tFlags |= PL_TERRAIN_FLAGS_WIREFRAME;
             else
-            {
-                gptRenderer->outline_entities(ptAppData->ptScene, 1, &ptAppData->tSelectedEntity);
-            }
+                tFlags &= ~PL_TERRAIN_FLAGS_WIREFRAME;
         }
-    }
 
-    if(ptAppData->tSelectedEntity.uIndex != UINT32_MAX)
-    {
-        plDrawList3D* ptGizmoDrawlist =  gptRenderer->get_gizmo_drawlist(ptAppData->ptView);
-        plObjectComponent* ptSelectedObject = (plObjectComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptRenderer->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
-        plTransformComponent* ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSelectedEntity);
-        plTransformComponent* ptParentTransform = NULL;
-        plHierarchyComponent* ptHierarchyComp = (plHierarchyComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_hierarchy(), ptAppData->tSelectedEntity);
-        if(ptHierarchyComp)
+        if(gptUI->checkbox("Levels", &bShowDebug))
         {
-            ptParentTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptHierarchyComp->tParent);
+            if(bShowDebug)
+                tFlags |= PL_TERRAIN_FLAGS_SHOW_LEVELS;
+            else
+                tFlags &= ~PL_TERRAIN_FLAGS_SHOW_LEVELS;
         }
-        if(ptSelectedTransform)
+
+        // gptUI->slider_float("Tau", &ptAppData->fTau, 0.0f, 10.0f, 0);
+        if(gptUI->button("Reload Shaders"))
         {
-            gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, (plVec2){0}, (plVec2){1.0f, 1.0f});
-        }
-        else if(ptSelectedObject)
-        {
-            ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptSelectedObject->tTransform);
-            gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, (plVec2){0}, (plVec2){1.0f, 1.0f});
-        }
-    }
-
-    if(ptAppData->bPhysicsDebugDraw)
-    {
-        plDrawList3D* ptDrawlist = gptRenderer->get_debug_drawlist(ptAppData->ptView);
-        gptPhysics->draw(ptAppData->ptComponentLibrary, ptDrawlist);
-    }
-
-    // debug rendering
-    if(ptAppData->bShowDebugLights)
-    {
-        plLightComponent* ptLights = NULL;
-        const uint32_t uLightCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptRenderer->get_ecs_type_key_light(), (void**)&ptLights, NULL);
-        gptRenderer->debug_draw_lights(ptAppData->ptView, ptLights, uLightCount);
-        if(ptAppData->ptSecondaryView)
-            gptRenderer->debug_draw_lights(ptAppData->ptSecondaryView, ptLights, uLightCount);
-    }
-
-    if(ptAppData->bDrawAllBoundingBoxes)
-    {
-        gptRenderer->debug_draw_all_bound_boxes(ptAppData->ptView);
-        if(ptAppData->ptSecondaryView)
-            gptRenderer->debug_draw_all_bound_boxes(ptAppData->ptSecondaryView);
-    }
-
-    if(ptAppData->bShowSkybox)
-    {
-        gptRenderer->show_skybox(ptAppData->ptView);
-        if(ptAppData->ptSecondaryView)
-            gptRenderer->show_skybox(ptAppData->ptSecondaryView);
-    }
-
-    if(ptAppData->bShowBVH)
-    {
-        gptRenderer->debug_draw_bvh(ptAppData->ptView);
-        if(ptAppData->ptSecondaryView)
-            gptRenderer->debug_draw_bvh(ptAppData->ptSecondaryView);
-    }
-
-    if(ptAppData->bShowGrid)
-    {
-        gptRenderer->show_grid(ptAppData->ptView);
-        if(ptAppData->ptSecondaryView)
-            gptRenderer->show_grid(ptAppData->ptSecondaryView);
-    }
-
-    if(ptAppData->bSecondaryViewActive)
-    {
-        plDrawFrustumDesc tFrustumDesc = {0};
-        tFrustumDesc.fAspectRatio = ptSecondaryCamera->fAspectRatio;
-        tFrustumDesc.fFarZ        = ptSecondaryCamera->fFarZ;
-        tFrustumDesc.fNearZ       = ptSecondaryCamera->fNearZ;
-        tFrustumDesc.fYFov        = ptSecondaryCamera->fFieldOfView;
-        plDrawLineOptions tDrawCamOptions = {0};
-        tDrawCamOptions.uColor = PL_COLOR_32_YELLOW;
-        tDrawCamOptions.fThickness = 0.02f;
-        gptDraw->add_3d_frustum(gptRenderer->get_debug_drawlist(ptAppData->ptView), &ptSecondaryCamera->tTransformMat, tFrustumDesc, tDrawCamOptions);
-    }
-
-    // render scene
-    gptRenderer->prepare_scene(ptAppData->ptScene);
-    gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
-    gptRenderer->render_view(ptAppData->ptView, ptCamera, ptAppData->bFrustumCulling ? ptCamera : NULL);
-    if(ptAppData->bSecondaryViewActive)
-    {
-        gptRenderer->prepare_view(ptAppData->ptSecondaryView, ptSecondaryCamera);
-        gptRenderer->render_view(ptAppData->ptSecondaryView, ptSecondaryCamera, ptSecondaryCamera);
-    }
-
-    // main "editor" debug window
-    if(ptAppData->bShowPilotLightTool)
-        pl__show_editor_window(ptAppData);
-
-    // add full screen quad for offscreen render
-    if(ptAppData->ptScene)
-    {
-        {
-            plVec2 tStartPos = {0};
-            plVec2 tEndPos = ptIO->tMainViewportSize;
-            gptDraw->add_image_ex(ptAppData->ptDrawLayer,
-                gptRenderer->get_view_color_texture(ptAppData->ptView).uData,
-                tStartPos,
-                tEndPos,
-                (plVec2){0},
-                gptRenderer->get_view_color_texture_max_uv(ptAppData->ptView),
-                PL_COLOR_32_WHITE);
+            gptTerrain->reload_shaders(ptAppData->ptTerrain);
         }
 
-        if(ptAppData->bSecondaryViewActive)
-        {
-            plVec2 tStartPos = { 0.75f * ptIO->tMainViewportSize.x, 0.0f};
-            plVec2 tEndPos = {ptIO->tMainViewportSize.x, 0.25f * ptIO->tMainViewportSize.y};
-            gptDraw->add_image_ex(ptAppData->ptDrawLayer,
-                gptRenderer->get_view_color_texture(ptAppData->ptSecondaryView).uData,
-                tStartPos,
-                tEndPos,
-                (plVec2){0},
-                gptRenderer->get_view_color_texture_max_uv(ptAppData->ptSecondaryView),
-                PL_COLOR_32_WHITE);
-            gptCamera->set_aspect(ptSecondaryCamera, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
-        }
-    }
-
-    gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
-
-    plRenderEncoder* ptRenderEncoder = gptStarter->begin_main_pass();
-    gptStarter->end_main_pass();
-    pl_end_cpu_sample(gptProfile, 0);
-    gptStarter->end_frame();
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] helper implementations
-//-----------------------------------------------------------------------------
-
-void
-pl__show_editor_window(plAppData* ptAppData)
-{
-    plIO* ptIO = gptIO->get_io();
-
-    plUiWindowFlags tWindowFlags = PL_UI_WINDOW_FLAGS_NONE;
-
-    if(ptAppData->bEditorAttached)
-    {
-        tWindowFlags = PL_UI_WINDOW_FLAGS_NO_TITLE_BAR | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR;
-        gptUI->set_next_window_pos(pl_create_vec2(0, 0), PL_UI_COND_ALWAYS);
-        gptUI->set_next_window_size(pl_create_vec2(600.0f, ptIO->tMainViewportSize.y), PL_UI_COND_ALWAYS);
-    }
-
-    if(gptUI->begin_window("Pilot Light", NULL, tWindowFlags))
-    {
-        gptUI->vertical_spacing();
-        // gptUI->vertical_spacing();
-        // gptUI->vertical_spacing();
-
-        const float pfRatios[] = {1.0f};
-        const float pfRatios2[] = {0.5f, 0.5f};
-        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-
-        if(gptUI->begin_collapsing_header(ICON_FA_CIRCLE_INFO " Information", 0))
-        {
-            gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
-            gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
-
-            gptUI->layout_static(0.0f, 200.0f, 1);
-            if(gptUI->button("Show Camera Controls"))
-            {
-                const char* acMouseInfo = "Camera Controls\n"
-                "_______________\n"
-                "LMB + Drag: Moves camera forward & backward and rotates left & right.\n\n"
-                "RMB + Drag: Rotates camera.\n\n"
-                "LMB + RMB + Drag: Pans Camera\n\n"
-                "Game style (when holding RMB)\n"
-                "_____________________________\n"
-                "W    Moves the camera forward.\n"
-                "S    Moves the camera backward.\n"
-                "A    Moves the camera left.\n"
-                "D    Moves the camera right.\n"
-                "E    Moves the camera up.\n"
-                "Q    Moves the camera down.\n"
-                "Z    Zooms the camera out (raises FOV).\n"
-                "C    Zooms the camera in (lowers FOV).\n";
-                gptScreenLog->add_message_ex(651984984, 45.0, PL_COLOR_32_GREEN, 1.5f, acMouseInfo);
-            }
-            gptUI->end_collapsing_header();
-        }
-        if(gptUI->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
-        {
-            gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
-            gptUI->checkbox("Show Debug Lights", &ptAppData->bShowDebugLights);
-            gptUI->checkbox("Show Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);
-            if(gptUI->checkbox("Secondary View", &ptAppData->bSecondaryViewActive))
-            {
-                if(ptAppData->bSecondaryViewActive)
-                {
-                    ptAppData->ptSecondaryView = gptRenderer->create_view(ptAppData->ptScene, (plVec2){500.0f, 500.0f});
-                }
-                else
-                {
-                    gptRenderer->cleanup_view(ptAppData->ptSecondaryView);
-                    ptAppData->ptSecondaryView = NULL;
-                }
-            }
-
-            gptUI->vertical_spacing();
-
-            const float pfWidths[] = {150.0f, 150.0f};
-            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfWidths);
-
-            gptUI->end_collapsing_header();
-        }
-
-        bool bReloadShaders = false;
-        
-        if(gptUI->begin_collapsing_header(ICON_FA_DICE_D6 " Graphics", 0))
-        {
-            plRendererRuntimeOptions* ptRuntimeOptions = gptRenderer->get_runtime_options();
-            if(gptUI->checkbox("VSync", &ptAppData->bVSync))
-            {
-                if(ptAppData->bVSync)
-                    gptStarter->activate_vsync();
-                else
-                    gptStarter->deactivate_vsync();
-            }
-
-
-            static const char* apcShaderDebugModeText[] = {
-                "None",
-                "Base Color",
-                "Metallic",
-                "Roughness",
-                "Alpha",
-                "Emissive",
-                "Occlusion",
-                "Shading Normal",
-                "Texture Normal",
-                "Geometry Normal",
-                "Geometry Tangent",
-                "Geometry Bitangent",
-                "UV 0",
-                "Clearcoat",
-                "Clearcoat Roughness",
-                "Clearcoat Normal",
-                "Sheen Color",
-                "Sheen Roughness",
-                "Iridescence Factor",
-                "Iridescence Thickness",
-                "Anisotropy Strength",
-                "Anisotropy Direction",
-                "Transmission Strength",
-                "Volume Thickness",
-                "Diffuse Transmission Strength",
-                "Diffuse Transmission Color",
-            };
-            bool abShaderDebugMode[PL_ARRAYSIZE(apcShaderDebugModeText)] = {0};
-            abShaderDebugMode[ptRuntimeOptions->tShaderDebugMode] = true;
-            if(gptUI->begin_combo("Shader Debug Mode", apcShaderDebugModeText[ptRuntimeOptions->tShaderDebugMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
-            {
-                for(uint32_t i = 0; i < PL_ARRAYSIZE(apcShaderDebugModeText); i++)
-                {
-                    if(gptUI->selectable(apcShaderDebugModeText[i], &abShaderDebugMode[i], 0))
-                    {
-                        bReloadShaders = true;
-                        if(i == 0)
-                            ptRuntimeOptions->tTonemapMode = PL_TONEMAP_MODE_SIMPLE;
-                        else
-                            ptRuntimeOptions->tTonemapMode = PL_TONEMAP_MODE_NONE;
-                        ptRuntimeOptions->tShaderDebugMode = i;
-                        gptUI->close_current_popup();
-                    } 
-                }
-                gptUI->end_combo();
-            }
-
-            gptUI->checkbox("Show Origin", &ptRuntimeOptions->bShowOrigin);
-            gptUI->checkbox("Show BVH", &ptAppData->bShowBVH);
-            gptUI->checkbox("Show Skybox", &ptAppData->bShowSkybox);
-            gptUI->checkbox("Show Grid", &ptAppData->bShowGrid);
-            
-            if(gptUI->checkbox("Wireframe", &ptRuntimeOptions->bWireframe)) bReloadShaders = true;
-            if(gptUI->checkbox("MultiViewport Shadows", &ptRuntimeOptions->bMultiViewportShadows)) bReloadShaders = true;
-            if(gptUI->checkbox("Image Based Lighting", &ptRuntimeOptions->bImageBasedLighting)) bReloadShaders = true;
-            if(gptUI->checkbox("Punctual Lighting", &ptRuntimeOptions->bPunctualLighting)) bReloadShaders = true;
-            if(gptUI->checkbox("Normal Mapping", &ptRuntimeOptions->bNormalMapping)) bReloadShaders = true;
-            if(gptUI->checkbox("PCF Shadows", &ptRuntimeOptions->bPcfShadows)) bReloadShaders = true;
-            gptUI->checkbox("Show Probes", &ptRuntimeOptions->bShowProbes);
-            if(gptUI->checkbox("UI MSAA", &ptAppData->bMSAA))
-            {
-                if(ptAppData->bMSAA)
-                    gptStarter->activate_msaa();
-                else
-                    gptStarter->deactivate_msaa();
-            }
-
-            gptUI->checkbox("Frustum Culling", &ptAppData->bFrustumCulling);
-            gptUI->checkbox("Selected Bounding Box", &ptRuntimeOptions->bShowSelectedBoundingBox);
-            
-            gptUI->input_float("Depth Bias", &ptRuntimeOptions->fShadowConstantDepthBias, NULL, 0);
-            gptUI->input_float("Slope Depth Bias", &ptRuntimeOptions->fShadowSlopeDepthBias, NULL, 0);
-            gptUI->slider_uint("Outline Width", &ptRuntimeOptions->uOutlineWidth, 2, 50, 0);
-            
-            if(ptAppData->ptScene)
-            {
-                if(gptUI->tree_node("Scene", 0))
-                {
-                    gptUI->checkbox("Dynamic BVH", &ptAppData->bContinuousBVH);
-                    if(gptUI->button("Build BVH") || ptAppData->bContinuousBVH)
-                        gptRenderer->rebuild_scene_bvh(ptAppData->ptScene);
-                    gptUI->tree_pop();
-                }
-            }
-            gptUI->end_collapsing_header();
-        }
-
-        if(gptUI->begin_collapsing_header(ICON_FA_FILE_IMAGE " Post Process", 0))
-        {
-            plRendererRuntimeOptions* ptRuntimeOptions = gptRenderer->get_runtime_options();
-
-            static const char* apcTonemapText[] = {
-                "None",
-                "Simple",
-                "ACES Filmic (Narkowicz)",
-                "ACES Filmic (Hill)",
-                "ACES Filmic (Hill Exposure Boost)",
-                "Reinhard",
-                "Khronos PBR Neutral",
-            };
-            bool abTonemap[PL_ARRAYSIZE(apcTonemapText)] = {0};
-            abTonemap[ptRuntimeOptions->tTonemapMode] = true;
-            if(gptUI->begin_combo("Tonemapping", apcTonemapText[ptRuntimeOptions->tTonemapMode], PL_UI_COMBO_FLAGS_HEIGHT_REGULAR))
-            {
-                for(uint32_t i = 0; i < PL_ARRAYSIZE(apcTonemapText); i++)
-                {
-                    if(gptUI->selectable(apcTonemapText[i], &abTonemap[i], 0))
-                    {
-                        ptRuntimeOptions->tTonemapMode = i;
-                        gptUI->close_current_popup();
-                    } 
-                }
-                gptUI->end_combo();
-            }
-
-            gptUI->slider_float("Exposure", &ptRuntimeOptions->fExposure, 0.0f, 3.0f, 0);
-            gptUI->slider_float("Brightness", &ptRuntimeOptions->fBrightness, -1.0f, 1.0f, 0);
-            gptUI->slider_float("Contrast", &ptRuntimeOptions->fContrast, 0.0f, 2.0f, 0);
-            gptUI->slider_float("Saturation", &ptRuntimeOptions->fSaturation, 0.0f, 2.0f, 0);
-
-            gptUI->separator_text("Bloom");
-            gptUI->checkbox("Bloom", &ptRuntimeOptions->bBloomActive);
-            if(ptRuntimeOptions->bBloomActive)
-            {
-                gptUI->slider_float("Bloom Radius", &ptRuntimeOptions->fBloomRadius, 0.0f, 10.0f, 0);
-                gptUI->slider_float("Bloom Strength", &ptRuntimeOptions->fBloomStrength, 0.0f, 1.0f, 0);
-                gptUI->slider_uint("Bloom Chain", &ptRuntimeOptions->uBloomChainLength, 1, 10, 0);
-            }
-
-            gptUI->separator_text("Fog");
-            gptUI->checkbox("Fog", &ptRuntimeOptions->bFog);
-            if(ptRuntimeOptions->bFog)
-            {
-                gptUI->checkbox("Linear Fog", &ptRuntimeOptions->bLinearFog);
-                gptUI->slider_float("Fog Start", &ptRuntimeOptions->fFogStart, 0.0f, 100.0f, 0);
-                gptUI->slider_float("Fog End", &ptRuntimeOptions->fFogCutOffDistance, 0.0f, 10000.0f, 0);
-                gptUI->slider_float("Fog Max Opacity", &ptRuntimeOptions->fFogMaxOpacity, 0.0f, 1.0f, 0);
-                gptUI->input_float3("Fog Color", ptRuntimeOptions->tFogColor.d, NULL, 0);
-                if(!ptRuntimeOptions->bLinearFog)
-                {
-                    gptUI->slider_float("Fog Density", &ptRuntimeOptions->fFogDensity, 0.0f, 1.0f, 0);
-                    gptUI->slider_float("Fog Height", &ptRuntimeOptions->fFogHeight, -100.0f, 100.0f, 0);
-                    gptUI->slider_float("Fog Height Falloff", &ptRuntimeOptions->fFogHeightFalloff, 0.0f, 1.0f, 0);
-                }  
-            }
-
-            gptUI->end_collapsing_header();
-        }
-
-        if(bReloadShaders)
-        {
-            gptRenderer->reload_scene_shaders(ptAppData->ptScene);
-        }
-
-        if(gptUI->begin_collapsing_header(ICON_FA_BOXES_STACKED " Physics", 0))
-        {
-            plPhysicsEngineSettings tPhysicsSettings = gptPhysics->get_settings();
-
-            gptUI->checkbox("Enabled", &tPhysicsSettings.bEnabled);
-            gptUI->checkbox("Debug Draw", &ptAppData->bPhysicsDebugDraw);
-            gptUI->slider_float("Simulation Speed", &tPhysicsSettings.fSimulationMultiplier, 0.01f, 3.0f, 0);
-            gptUI->input_float("Sleep Epsilon", &tPhysicsSettings.fSleepEpsilon, "%g", 0);
-            gptUI->input_float("Position Epsilon", &tPhysicsSettings.fPositionEpsilon, "%g", 0);
-            gptUI->input_float("Velocity Epsilon", &tPhysicsSettings.fVelocityEpsilon, "%g", 0);
-            gptUI->input_uint("Max Position Its.", &tPhysicsSettings.uMaxPositionIterations, 0);
-            gptUI->input_uint("Max Velocity Its.", &tPhysicsSettings.uMaxVelocityIterations, 0);
-            gptUI->input_float("Frame Rate", &tPhysicsSettings.fSimulationFrameRate, "%g", 0);
-            if(gptUI->button("Wake All")) gptPhysics->wake_up_all();
-            if(gptUI->button("Sleep All")) gptPhysics->sleep_all();
-
-            gptPhysics->set_settings(tPhysicsSettings);
-
-            gptUI->end_collapsing_header();
-        }
-
-        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
-        if(gptUI->begin_collapsing_header(ICON_FA_SCREWDRIVER_WRENCH " Tools", 0))
-        {
-            gptUI->checkbox("Device Memory", ptAppData->pbShowDeviceMemoryAnalyzer);
-            gptUI->checkbox("Memory Allocations", ptAppData->pbShowMemoryAllocations);
-            gptUI->checkbox("Profiling", ptAppData->pbShowProfiling);
-            gptUI->checkbox("Statistics", ptAppData->pbShowStats);
-            gptUI->checkbox("Logging", ptAppData->pbShowLogging);
-            gptUI->checkbox("Entities", &ptAppData->bShowEntityWindow);
-            gptUI->end_collapsing_header();
-        }
-        if(gptUI->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface", 0))
-        {
-            gptUI->end_collapsing_header();
-        }
-
-        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
-
-        if(gptUI->begin_collapsing_header(ICON_FA_PHOTO_FILM " Renderer", 0))
-        {
-
-            if(gptUI->button("Reload Shaders"))
-            {
-                gptRenderer->reload_scene_shaders(ptAppData->ptScene);
-            }
-            gptUI->end_collapsing_header();
-        }
+        gptTerrain->set_flags(ptAppData->ptTerrain, tFlags);
         gptUI->end_window();
     }
+
+    gptScreenLog->add_message_ex(186, 10.0, PL_COLOR_32_GREEN, 1.0f, "FPS: %0.0f", ptIO->fFrameRate);
+    gptScreenLog->add_message_ex(187, 10.0, PL_COLOR_32_GREEN, 1.0f, "Pos: %0.3f, %0.3f, %0.3f", ptCamera->tPos.x, ptCamera->tPos.y, ptCamera->tPos.z);
+    
+    gptScreenLog->add_message_ex(189, 10.0, PL_COLOR_32_GREEN, 1.0f, "%0.0f meters / second", fCameraTravelSpeed);
+    gptScreenLog->add_message_ex(190, 10.0, PL_COLOR_32_GREEN, 1.0f, "Yaw:   %0.0f", pl_degreesf(ptCamera->fYaw));
+    gptScreenLog->add_message_ex(191, 10.0, PL_COLOR_32_GREEN, 1.0f, "Pitch: %0.0f", pl_degreesf(ptCamera->fPitch));
+    gptScreenLog->add_message_ex(192, 10.0, PL_COLOR_32_GREEN, 1.0f, "Roll:  %0.0f", pl_degreesf(ptCamera->fRoll));
+    // gptScreenLog->add_message_ex(193, 10.0, PL_COLOR_32_GREEN, 1.0f, "Index Buffer Usage:  %0.2f %%", 100.0f * (float)ptAppData->tIndexBufferManager.uUsedSpace / (float)ptAppData->tIndexBufferManager.uSize);
+    // gptScreenLog->add_message_ex(194, 10.0, PL_COLOR_32_GREEN, 1.0f, "Vertex Buffer Usage:  %0.2f %%", 100.0f * (float)ptAppData->tVertexBufferManager.uUsedSpace / (float)ptAppData->tVertexBufferManager.uSize);
+    // gptScreenLog->add_message_ex(194, 10.0, PL_COLOR_32_GREEN, 1.0f, "Queued Chunks:  %d",pl_sb_size(ptAppData->sbtResidencyRequests));
+
+    gptTerrain->prepare_terrain(ptAppData->ptTerrain);
+
+    if(ptAppData->bShowResidency)
+        gptTerrain->draw_residency(ptAppData->ptTerrain, gptStarter->get_foreground_layer(), (plVec2){1000.0f, 20.0f}, 3.0f);
+
+    // start main pass & return the encoder being used
+    plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
+
+    plDevice* ptDevice = gptStarter->get_device();
+    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
+
+    ptAppData->tCurrentDynamicBufferBlock = gptGfx->allocate_dynamic_data_block(ptDevice);
+
+    gptTerrain->render_terrain(ptAppData->ptTerrain, ptEncoder, ptCamera, &ptAppData->tCurrentDynamicBufferBlock, ptAppData->fTau);
+
+    // submit 3d drawlist
+    gptDraw->submit_3d_drawlist(ptAppData->pt3dDrawlist,
+        ptEncoder,
+        ptIO->tMainViewportSize.x,
+        ptIO->tMainViewportSize.y,
+        &tMVP,
+        PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE | PL_DRAW_FLAG_REVERSE_Z_DEPTH,
+        gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
+
+    // allows the starter extension to handle some things then ends the main pass
+    gptStarter->end_main_pass();
+
+    // must be the last function called when using the starter extension
+    gptStarter->end_frame(); 
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] helper function declarations
+//-----------------------------------------------------------------------------
 
 void
 pl__load_apis(plApiRegistryI* ptApiRegistry)
@@ -1172,18 +724,8 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
     gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
     gptScript        = pl_get_api_latest(ptApiRegistry, plScriptI);
+    gptMeshBuilder   = pl_get_api_latest(ptApiRegistry, plMeshBuilderI);
+    gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
+    gptTerrain         = pl_get_api_latest(ptApiRegistry, plTerrainI);
+    gptTerrainProcessor = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
 }
-
-
-//-----------------------------------------------------------------------------
-// [SECTION] unity build
-//-----------------------------------------------------------------------------
-
-#ifdef PL_USE_STB_SPRINTF
-    #define STB_SPRINTF_IMPLEMENTATION
-    #include "stb_sprintf.h"
-    #undef STB_SPRINTF_IMPLEMENTATION
-#endif
-
-#define PL_STRING_IMPLEMENTATION
-#include "pl_string.h"

@@ -60,21 +60,34 @@ typedef struct _plTerrainProcessorI
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plTerrainTileInfo
+{
+    uint32_t    uXOffset; // pixels
+    uint32_t    uYOffset; // pixels
+    float       fMaxHeight;
+    float       fMinHeight;
+    char        acHeightMapFile[256];
+} plTerrainTileInfo;
+
 typedef struct _plTerrainHeightMapInfo
 {
+    uint32_t    uSize;
     float       fMaxBaseError;
     float       fMetersPerPixel;
     float       fMaxHeight;
     float       fMinHeight;
     int         iTreeDepth;
     plVec3      tCenter;
-    const char* pcHeightMapFile;
     const char* pcOutputFile;
 
     // ellipsoid specific settings
     bool  b3dErrorCalc; // true for ellipsoid
     bool  bEllipsoid;
     float fRadius;
+
+    uint32_t uTileCount;
+    plTerrainTileInfo* atTiles;
+    plTerrainTileInfo atHaloTiles[8]; // north, northeast, east, southeast, south, southwest, west, northwest
 } plTerrainHeightMapInfo;
 
 typedef struct _plTerrainChunk

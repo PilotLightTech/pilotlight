@@ -200,7 +200,7 @@ pl_create_terrain(void)
     memset(ptTerrain, 0, sizeof(plTerrain));
 
     ptTerrain->fTau = 1.0f;
-    ptTerrain->uStagingBufferSize = 268435456 / 4;
+    ptTerrain->uStagingBufferSize = 268435456 * 2;
 
     pl_sb_resize(ptTerrain->sbuFreeRequests, PL_REQUEST_QUEUE_SIZE);
 
@@ -209,8 +209,8 @@ pl_create_terrain(void)
         ptTerrain->sbuFreeRequests[i] = i;
     }
 
-    gptFreeList->create(268435456u, 256, &ptTerrain->tVertexBufferManager);
-    gptFreeList->create(268435456u, 256, &ptTerrain->tIndexBufferManager);
+    gptFreeList->create(268435456u * 3, 256, &ptTerrain->tVertexBufferManager);
+    gptFreeList->create(268435456u * 3, 256, &ptTerrain->tIndexBufferManager);
 
     return ptTerrain;
 }
@@ -323,6 +323,52 @@ pl_chlod_load_chunk_file(plTerrain* ptTerrain, const char* pcPath)
     plTerrainChunkFile tFile = {0};
     gptTerrainProcessor->load_chunk_file(pcPath, &tFile, pl_sb_size(ptTerrain->sbtChunkFiles));
     pl_sb_push(ptTerrain->sbtChunkFiles, tFile);
+
+    uint32_t uMinIndexCount = UINT32_MAX;
+    uint32_t uMinVertexCount = UINT32_MAX;
+    uint32_t uMaxIndexCount = 0;
+    uint32_t uMaxVertexCount = 0;
+    uint32_t uMaxVertexChunk = 0;
+    uint32_t uMaxIndexChunk = 0;
+    for(uint32_t i = 0; i < tFile.uChunkCount; i++)
+    {
+
+        FILE* ptDataFile = fopen(tFile.acFile, "rb");
+        fseek(ptDataFile, (long)tFile.atChunks[i].szFileLocation, SEEK_SET);
+
+        fseek(ptDataFile, sizeof(plVec3) * 2 + sizeof(int) + sizeof(int), SEEK_CUR);
+
+        uint32_t uVertexCount = 0;
+        fread(&uVertexCount, 1, sizeof(uint32_t), ptDataFile);
+        fseek(ptDataFile, sizeof(plTerrainVertex) * uVertexCount, SEEK_CUR);
+
+        uint32_t uIndexCount = 0;
+        fread(&uIndexCount, 1, sizeof(uint32_t), ptDataFile);
+        
+        fclose(ptDataFile);
+
+        if(uIndexCount > uMaxIndexCount)
+        {
+            uMaxIndexCount = uIndexCount;
+            uMaxIndexChunk = i;
+        }
+
+        if(uIndexCount < uMinIndexCount)
+            uMinIndexCount = uIndexCount;
+
+        if(uVertexCount > uMaxVertexCount)
+        {
+            uMaxVertexCount = uVertexCount;
+            uMaxVertexChunk = i;
+        }
+
+        if(uVertexCount < uMinVertexCount)
+            uMinVertexCount = uVertexCount;
+    }
+    printf("Max Vertex Count: %u\n", uMaxVertexCount);
+    printf("Max Inex Count:   %u\n", uMaxIndexCount);
+    printf("Min Vertex Count: %u\n", uMaxVertexCount);
+    printf("Min Inex Count:   %u\n", uMaxIndexCount);
     return true;
 }
 
