@@ -65,7 +65,7 @@ static plVec3   pl_voxel_to_world_impl(const plPathFindingVoxelGrid* ptGrid, uin
 // pathfinding helpers
 static float pl_heuristic(uint32_t uFromX, uint32_t uFromY, uint32_t uFromZ, uint32_t uToX, uint32_t uToY, uint32_t uToZ);
 static float pl_movement_cost(int32_t iDeltaX, int32_t iDeltaY, int32_t iDeltaZ);
-static void  pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, uint32_t uCurrentY, uint32_t uCurrentZ, plPathNode* atNeighborsOut, uint32_t* puNeighborCountOut, bool bGenDiag);
+static void  pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, uint32_t uCurrentY, uint32_t uCurrentZ, plPathNode* atNeighborsOut, uint32_t* puNeighborCountOut, bool bGenDia, const plPathFindingQuery* tQuery);
 
 // priority queue
 static plPriorityQueue* pl_create_priority_queue(uint32_t uInitialCapacity);
@@ -120,14 +120,17 @@ pl_movement_cost(int32_t iDeltaX, int32_t iDeltaY, int32_t iDeltaZ)
 }
 
 static void
-pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, uint32_t uCurrentY, uint32_t uCurrentZ, plPathNode* atNeighborsOut, uint32_t* puNeighborCountOut, bool bGenDiag)
+pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, uint32_t uCurrentY, uint32_t uCurrentZ, plPathNode* atNeighborsOut, uint32_t* puNeighborCountOut, bool bGenDiag, const plPathFindingQuery* tQuery)
 {
     *puNeighborCountOut = 0;
     
     // iterate through all 26 directions (-1, 0, +1 for each axis)
+    int32_t iYStart = tQuery->bFlying ? -1 : 0;
+    int32_t iYEnd = tQuery->bFlying ? 1 : 0;
+
     for(int32_t iDeltaX = -1; iDeltaX <= 1; iDeltaX++)
     {
-        for(int32_t iDeltaY = -1; iDeltaY <= 1; iDeltaY++)
+        for(int32_t iDeltaY = iYStart; iDeltaY <= iYEnd; iDeltaY++)
         {
             for(int32_t iDeltaZ = -1; iDeltaZ <= 1; iDeltaZ++)
             {
@@ -951,7 +954,7 @@ pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery
         // get all neighbors of current
         plPathNode tNeighbors[26] = {0}; // 26 is max possible for 3D
         uint32_t uNeighborCount = 0;
-        pl_generate_neighbors(ptGrid, tCurrentNode.uX, tCurrentNode.uY, tCurrentNode.uZ, tNeighbors, &uNeighborCount, bSearchDiagonal);
+        pl_generate_neighbors(ptGrid, tCurrentNode.uX, tCurrentNode.uY, tCurrentNode.uZ, tNeighbors, &uNeighborCount, bSearchDiagonal, ptQuery);
  
         // process each neighbor
         for(uint32_t uNeighborToCheck = 0; uNeighborToCheck < uNeighborCount; uNeighborToCheck++)

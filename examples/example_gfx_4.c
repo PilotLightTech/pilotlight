@@ -37,6 +37,16 @@ Index of this file:
 #include "pl_shader_ext.h"
 
 //-----------------------------------------------------------------------------
+// [SECTION] macros 
+//-----------------------------------------------------------------------------
+
+#define GRID_X 50
+#define GRID_Y 3
+#define GRID_Z 50
+#define FLYING true
+
+
+//-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
@@ -231,14 +241,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     camera_update(&ptAppData->tCamera);
     camera_rotate(&ptAppData->tCamera, -0.10f, -0.80f);
 
-    // create voxel grid 20x3x20 as default (scene 1)
+    // create voxel grid
     ptAppData->tOrigin.x   = 0.0f;
     ptAppData->tOrigin.y   = 0.0f;
     ptAppData->tOrigin.z   = 0.0f;
-    ptAppData->tGridEnd.x  = 20.0f;
-    ptAppData->tGridEnd.y  = 3.0f;
-    ptAppData->tGridEnd.z  = 20.0f;
-    ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(20, 3, 20, 1.0f, ptAppData->tOrigin);
+    ptAppData->tGridEnd.x  = (float)GRID_X;
+    ptAppData->tGridEnd.y  = (float)GRID_Y;
+    ptAppData->tGridEnd.z  = (float)GRID_Z;
+    ptAppData->ptVoxelGrid = gptPathFinding->create_voxel_grid(GRID_X, GRID_Y, GRID_Z, 1.0f, ptAppData->tOrigin);
 
     // set voxel for default scene (with mesh obstacles)
     ptAppData->uObstacleCount = 0;
@@ -247,8 +257,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
                         ptAppData->tSceneMeshes, &ptAppData->uSceneMeshCount);
 
     // set path start and end 
-    ptAppData->tQuery.tStart = (plVec3){1.5f, 1.5f, 1.5f};
-    ptAppData->tQuery.tGoal  = (plVec3){18.5f, 1.5f, 18.5f};
+    ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
+    ptAppData->tQuery.tGoal  = (plVec3){18.5f, 2.5f, 18.5f};
+    ptAppData->tQuery.bFlying = FLYING;
 
     // gfx resources from geometry drawing 
     plDevice* ptDevice = gptStarter->get_device();
@@ -358,7 +369,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .tGraphicsState = {
             .ulDepthWriteEnabled  = 1,
             .ulDepthMode          = PL_COMPARE_MODE_LESS,
-            .ulCullMode           = PL_CULL_MODE_NONE,
+            .ulCullMode           = PL_CULL_MODE_CULL_BACK,
             .ulWireframe          = 0,
             .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
             .ulStencilRef         = 0xff,
@@ -489,7 +500,6 @@ pl_app_update(plAppData* ptAppData)
             gptUi->text("Press ESC to to unlock mouse");
             gptUi->text("Press Z to toggle voxel visualization");
             gptUi->text("Press X to toddle wire frame");
-            gptUi->text("Press C to toggle Origin");
             gptUi->text("Press V to toggle crosshair");
             gptUi->text("Press B to toggle diagonal paths");
             gptUi->text("Press left shift to edit obstacles");
@@ -595,10 +605,10 @@ pl_app_update(plAppData* ptAppData)
     }
 
     // draw "ground layer" of maze
-    plVec3 tCorner1 = {ptAppData->tOrigin.x,  0, ptAppData->tOrigin.z};
-    plVec3 tCorner2 = {ptAppData->tGridEnd.x, 0, ptAppData->tOrigin.z};
-    plVec3 tCorner3 = {ptAppData->tOrigin.x,  0, ptAppData->tGridEnd.z};
-    plVec3 tCorner4 = {ptAppData->tGridEnd.x, 0, ptAppData->tGridEnd.z};
+    plVec3 tCorner1 = {ptAppData->tOrigin.x,  -0.01f, ptAppData->tOrigin.z};
+    plVec3 tCorner2 = {ptAppData->tGridEnd.x, -0.01f, ptAppData->tOrigin.z};
+    plVec3 tCorner3 = {ptAppData->tOrigin.x,  -0.01f, ptAppData->tGridEnd.z};
+    plVec3 tCorner4 = {ptAppData->tGridEnd.x, -0.01f, ptAppData->tGridEnd.z};
 
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
         tCorner1, tCorner3, tCorner2,
@@ -606,17 +616,6 @@ pl_app_update(plAppData* ptAppData)
     gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
         tCorner2, tCorner3, tCorner4, 
         (plDrawSolidOptions){.uColor = PL_COLOR_32_GREY});
-
-    // draw origin axes
-    if(gptIO->is_key_pressed(PL_KEY_C, false))
-    {
-        ptAppData->bShowOriginAxes = !ptAppData->bShowOriginAxes;
-    }
-    if(ptAppData->bShowOriginAxes)
-    {
-        const plMat4 tOrigin = pl_identity_mat4();
-        gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 5.0f, (plDrawLineOptions){.fThickness = 0.1f});
-    }
         
     // draw wire frame grid
     if(gptIO->is_key_pressed(PL_KEY_X, false))
@@ -959,16 +958,19 @@ load_map(plAppData* ptAppData, uint32_t uMapNumber)
                                 ptAppData->tSceneMeshes, &ptAppData->uSceneMeshCount);
             ptAppData->tQuery.tStart = (plVec3){1.5f, 1.5f, 1.5f};
             ptAppData->tQuery.tGoal = (plVec3){18.5f, 1.5f, 18.5f};
-
+            ptAppData->tQuery.bFlying = FLYING;
+            break;
         case 2:
             set_voxels_maze_two(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
             ptAppData->tQuery.tStart = (plVec3){2.5f, 0.5f, 2.5f};
             ptAppData->tQuery.tGoal = (plVec3){18.5f, 2.5f, 18.5f};
+            ptAppData->tQuery.bFlying = FLYING;
             break;
         case 3:
             set_voxels_maze_three(ptAppData->ptVoxelGrid, ptAppData->tObstacles, &ptAppData->uObstacleCount);
             ptAppData->tQuery.tStart = (plVec3){1.5f, 0.5f, 1.5f};
             ptAppData->tQuery.tGoal = (plVec3){18.5f, 0.5f, 18.5f};
+            ptAppData->tQuery.bFlying = FLYING;
             break;
     }
     ptAppData->tPathResult = gptPathFinding->find_path(ptAppData->ptVoxelGrid, &ptAppData->tQuery, ptAppData->bAllowDiag);
