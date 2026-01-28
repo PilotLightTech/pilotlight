@@ -114,7 +114,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 7, 1}
+#define plGraphicsI_version {1, 7, 2}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -416,7 +416,7 @@ typedef struct _plGraphicsI
     void             (*copy_texture_to_buffer)         (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
     void             (*copy_texture)                   (plBlitEncoder*, plTextureHandle src, plTextureHandle dst, uint32_t regionCount, const plImageCopy*);
     void             (*generate_mipmaps)               (plBlitEncoder*, plTextureHandle);
-    void             (*copy_buffer)                    (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint32_t sourceOffset, uint32_t destinationOffset, size_t);
+    void             (*copy_buffer)                    (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint64_t sourceOffset, uint64_t destinationOffset, size_t);
     plCommandBuffer* (*get_blit_encoder_command_buffer)(plBlitEncoder*);
 
     // global barriers

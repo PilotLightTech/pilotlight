@@ -680,7 +680,7 @@ pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHand
 }
 
 static void
-pl_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint32_t uSourceOffset, uint32_t uDestinationOffset, size_t szSize)
+pl_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint64_t uSourceOffset, uint64_t uDestinationOffset, size_t szSize)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
