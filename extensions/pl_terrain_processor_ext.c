@@ -543,8 +543,8 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap)
     if(ptHeightMap->bEllipsoid)
     {
 
-        float fMinExtent = -(float)(ptHeightMap->iSize) * ptHeightMap->fMetersPerPixel * 0.5f;
-        float fExtent = (float)(ptHeightMap->iSize - 1) * ptHeightMap->fMetersPerPixel;
+        float fMinExtent = -(float)(ptHeightMap->iSize - 2) * ptHeightMap->fMetersPerPixel * 0.5f;
+        float fExtent = (float)(ptHeightMap->iSize - 2) * ptHeightMap->fMetersPerPixel;
 
         // Initialize the data.
         for (int i = 0; i < ptHeightMap->iSize; i++)
@@ -557,13 +557,7 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap)
                 uint32_t x = pl_min(i, ptHeightMap->iSize - 2);
                 uint32_t y = pl_min(j, ptHeightMap->iSize - 2);
 
-                uint16_t r = 0;
-                if(x > (uint32_t)ptHeightMap->iSize - 1 || y > (uint32_t)ptHeightMap->iSize - 1)
-                {
-
-                }
-                else
-                    r = auHeightMapData[y * ptHeightMap->iSize + x];
+                uint16_t r = auHeightMapData[y * ptHeightMap->iSize + x];
 
                 // y = (float)r / 65355.0f;	// just using red component for now.
                 fY = (float)r / (float)UINT16_MAX;	// just using red component for now.
@@ -578,8 +572,8 @@ pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap)
                 ptHeightMap->atElements[iElementIndex].uVertexBufferIndex = UINT_MAX;
 
 
-                float fX = ((float)i * fExtent / (float)(ptHeightMap->iSize - 1)) + fMinExtent;
-                float fZ = ((float)j * fExtent / (float)(ptHeightMap->iSize - 1)) + fMinExtent;
+                float fX = ((float)i * fExtent / (float)(ptHeightMap->iSize - 2)) + fMinExtent;
+                float fZ = ((float)j * fExtent / (float)(ptHeightMap->iSize - 2)) + fMinExtent;
 
                 fX += ptHeightMap->tCenter.x;
                 fZ += ptHeightMap->tCenter.z;
