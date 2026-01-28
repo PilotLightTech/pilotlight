@@ -105,3 +105,4 @@ the API is complete. It just means we won't break what currently exists.
 * Material            v0.1.0 (pl_material_ext.h)
 * Clipmap Terrain     v0.1.0 (pl_geoclipmap_ext.h)
 * CDLOD Terrain       v0.1.0 (pl_cdlod_ext.h)
+* Free List           v0.1.0 (pl_freelist_ext.h)

@@ -137,6 +137,7 @@ with pl.project("pilotlight deploy"):
         "pl_material_ext",
         "pl_geoclipmap_ext",
         "pl_cdlod_ext",
+        "pl_freelist_ext",
     ]
 
     for extension in extensions:

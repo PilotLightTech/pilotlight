@@ -68,6 +68,7 @@ extension_headers = [
     "pl_material_ext.h",
     "pl_geoclipmap_ext.h",
     "pl_cdlod_ext.h",
+    "pl_freelist_ext.h",
 ]
 
 # extension binaries
@@ -112,6 +113,7 @@ extensions = [
     "pl_script_ext",
     "pl_geoclipmap_ext",
     "pl_cdlod_ext",
+    "pl_freelist_ext",
     "pl_ui_ext"
 ]
 

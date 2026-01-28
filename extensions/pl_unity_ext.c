@@ -57,6 +57,7 @@ Index of this file:
 #include "pl_script_ext.c"
 #include "pl_geoclipmap_ext.c"
 #include "pl_cdlod_ext.c"
+#include "pl_freelist_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -111,7 +112,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptMaterial          = pl_get_api_latest(ptApiRegistry, plMaterialI);
     gptScript            = pl_get_api_latest(ptApiRegistry, plScriptI);
     gptGeoClipmap        = pl_get_api_latest(ptApiRegistry, plGeoClipMapI);
-    gptCdLod             = pl_get_api_latest(ptApiRegistry, plCdLodI);
+    gptFreeList          = pl_get_api_latest(ptApiRegistry, plFreeListI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -156,6 +157,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_script_ext(ptApiRegistry, bReload);
     pl_load_geoclipmap_ext(ptApiRegistry, bReload);
     pl_load_cdlod_ext(ptApiRegistry, bReload);
+    pl_load_freelist_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -201,6 +203,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_script_ext(ptApiRegistry, bReload);
     pl_unload_geoclipmap_ext(ptApiRegistry, bReload);
     pl_unload_cdlod_ext(ptApiRegistry, bReload);
+    pl_unload_freelist_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------
