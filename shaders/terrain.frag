@@ -41,6 +41,7 @@ void main()
     // vec3 w_i = normalize(-vec3(0.0, 1.0, 0.0));
 
     outColor.xyz = diffuse * (max(0.0, dot(normal, w_i)) * sunlightColor + ambient);
+    outColor.a = 1.0;
     // outColor.rgb = normal;
 
     if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_SHOW_LEVELS))

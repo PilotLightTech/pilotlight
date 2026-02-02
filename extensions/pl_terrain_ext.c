@@ -118,6 +118,29 @@ typedef struct _plTerrainContext
     plDevice* ptDevice;
     uint32_t  uVisibleChunks;
     uint32_t  uVisibleRootChunks;
+
+    plTerrainFlags      tFlags;
+    plTerrainChunkFile* sbtChunkFiles;
+    float               fTau;
+
+    // shaders
+    plShaderHandle tShader;
+    plShaderHandle tWireframeShader;
+
+    plBufferHandle tStagingBuffer;
+    uint32_t       uStagingBufferSize;
+
+    plBufferHandle tIndexBuffer;
+    plFreeList tIndexBufferManager;
+    
+    plBufferHandle tVertexBuffer;
+    plFreeList tVertexBufferManager;
+    
+    plTerrainResidencyNode tRequestQueue;
+    plTerrainResidencyNode atRequests[PL_REQUEST_QUEUE_SIZE];
+    uint32_t*              sbuFreeRequests;
+
+    plTerrainChunk tReplacementQueue;
 } plTerrainContext;
 
 //-----------------------------------------------------------------------------
@@ -164,19 +187,19 @@ static plTerrainContext* gptTerrainCtx = NULL;
 // [SECTION] internal helpers (rendering)
 //-----------------------------------------------------------------------------
 
-void pl_terrain_load_shaders(plTerrain* ptTerrain);
+void pl_terrain_load_shaders(void);
 
 // rendering
-static void pl__handle_residency (plTerrain*);
-static void pl__request_residency(plTerrain*, plTerrainChunk*, float);
-static void pl__touch_chunk(plTerrain*, plTerrainChunk*);
-static void pl__make_unresident  (plTerrain*, plTerrainChunk*);
+static void pl__handle_residency (void);
+static void pl__request_residency(plTerrainChunk*, float);
+static void pl__touch_chunk(plTerrainChunk*);
+static void pl__make_unresident(plTerrainChunk*);
 
-static void pl__render_chunk(plTerrain*, plCamera*, plDynamicDataBlock*, plRenderEncoder*, plTerrainChunk*, plTerrainChunkFile*);
+static void pl__render_chunk(plCamera*, plDynamicDataBlock*, plRenderEncoder*, plTerrainChunk*, plTerrainChunkFile*);
 static bool pl__sat_visibility_test(plCamera*, const plAABB*);
 
-void pl__draw_residency(plTerrain* ptTerrain, plDrawLayer2D* ptLayer, plTerrainChunk* ptChunk, plVec2 tOrigin, float fRadius, plTerrainChunkFile* ptFile);
-static void pl__free_chunk(plTerrain* ptTerrain , float, uint64_t);
+void pl__draw_residency(plDrawLayer2D* ptLayer, plTerrainChunk* ptChunk, plVec2 tOrigin, float fRadius, plTerrainChunkFile* ptFile);
+static void pl__free_chunk(float, uint64_t);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -186,76 +209,62 @@ void
 pl_initialize_cdlod(plTerrainInit tInit)
 {
     gptTerrainCtx->ptDevice = tInit.ptDevice;
+
+    gptTerrainCtx->fTau = 1.0f;
+    gptTerrainCtx->uStagingBufferSize = 268435456;
+
+    pl_sb_resize(gptTerrainCtx->sbuFreeRequests, PL_REQUEST_QUEUE_SIZE);
+
+    for(uint32_t i = 0; i < PL_REQUEST_QUEUE_SIZE; i++) 
+    {
+        gptTerrainCtx->sbuFreeRequests[i] = i;
+    }
+
+    gptFreeList->create(268435456u, 256, &gptTerrainCtx->tVertexBufferManager);
+    gptFreeList->create(268435456u, 256, &gptTerrainCtx->tIndexBufferManager);
+
 }
 
 void
 pl_cleanup_cdlod(void)
 {
-}
-
-plTerrain*
-pl_create_terrain(void)
-{
-    plTerrain* ptTerrain = PL_ALLOC(sizeof(plTerrain));
-    memset(ptTerrain, 0, sizeof(plTerrain));
-
-    ptTerrain->fTau = 1.0f;
-    ptTerrain->uStagingBufferSize = 268435456 / 4;
-
-    pl_sb_resize(ptTerrain->sbuFreeRequests, PL_REQUEST_QUEUE_SIZE);
-
-    for(uint32_t i = 0; i < PL_REQUEST_QUEUE_SIZE; i++)
-    {
-        ptTerrain->sbuFreeRequests[i] = i;
-    }
-
-    gptFreeList->create(268435456u, 256, &ptTerrain->tVertexBufferManager);
-    gptFreeList->create(268435456u, 256, &ptTerrain->tIndexBufferManager);
-
-    return ptTerrain;
-}
-
-void
-pl_cleanup_terrain(plTerrain* ptTerrain)
-{
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
 
-    for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
+    for(uint32_t i = 0; i < pl_sb_size(gptTerrainCtx->sbtChunkFiles); i++)
     {
-        PL_FREE(ptTerrain->sbtChunkFiles[i].atChunks);
-        ptTerrain->sbtChunkFiles[i].atChunks = NULL;
-        ptTerrain->sbtChunkFiles[i].uChunkCount = 0;
-        ptTerrain->sbtChunkFiles[i].fMaxBaseError = 0.0f;
-        ptTerrain->sbtChunkFiles[i].iTreeDepth = 0;
+        PL_FREE(gptTerrainCtx->sbtChunkFiles[i].atChunks);
+        gptTerrainCtx->sbtChunkFiles[i].atChunks = NULL;
+        gptTerrainCtx->sbtChunkFiles[i].uChunkCount = 0;
+        gptTerrainCtx->sbtChunkFiles[i].fMaxBaseError = 0.0f;
+        gptTerrainCtx->sbtChunkFiles[i].iTreeDepth = 0;
     }
 
     // cleanup our resources
-    gptGfx->destroy_buffer(ptDevice, ptTerrain->tVertexBuffer);
-    gptGfx->destroy_buffer(ptDevice, ptTerrain->tIndexBuffer);
-    gptGfx->destroy_buffer(ptDevice, ptTerrain->tStagingBuffer);
+    gptGfx->destroy_buffer(ptDevice, gptTerrainCtx->tVertexBuffer);
+    gptGfx->destroy_buffer(ptDevice, gptTerrainCtx->tIndexBuffer);
+    gptGfx->destroy_buffer(ptDevice, gptTerrainCtx->tStagingBuffer);
 
-    gptFreeList->cleanup(&ptTerrain->tVertexBufferManager);
-    gptFreeList->cleanup(&ptTerrain->tIndexBufferManager);
+    gptFreeList->cleanup(&gptTerrainCtx->tVertexBufferManager);
+    gptFreeList->cleanup(&gptTerrainCtx->tIndexBufferManager);
 
-    pl_sb_free(ptTerrain->sbuFreeRequests);
-    pl_sb_free(ptTerrain->sbtChunkFiles);
-    PL_FREE(ptTerrain);
+    pl_sb_free(gptTerrainCtx->sbuFreeRequests);
+    pl_sb_free(gptTerrainCtx->sbtChunkFiles);
 }
 
 void
-pl_finalize_terrain(plTerrain* ptTerrain)
+pl_finalize_terrain(void)
 {
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
 
     const plBufferDesc tVertexBufferDesc = {
         .tUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
-        .szByteSize  = ptTerrain->tVertexBufferManager.uSize,
+        .szByteSize  = gptTerrainCtx->tVertexBufferManager.uSize,
         .pcDebugName = "vertex buffer"
     };
-    ptTerrain->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
+    gptTerrainCtx->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptTerrain->tVertexBuffer);
+    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, gptTerrainCtx->tVertexBuffer);
 
     // allocate memory for the vertex buffer
     const plDeviceMemoryAllocation tVertexBufferAllocation = gptGfx->allocate_memory(ptDevice,
@@ -265,18 +274,18 @@ pl_finalize_terrain(plTerrain* ptTerrain)
         "vertex buffer memory");
 
     // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tVertexBuffer, &tVertexBufferAllocation);
+    gptGfx->bind_buffer_to_memory(ptDevice, gptTerrainCtx->tVertexBuffer, &tVertexBufferAllocation);
 
     // create index buffer
     const plBufferDesc tIndexBufferDesc = {
         .tUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
-        .szByteSize  = ptTerrain->tIndexBufferManager.uSize,
+        .szByteSize  = gptTerrainCtx->tIndexBufferManager.uSize,
         .pcDebugName = "index buffer"
     };
-    ptTerrain->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, NULL);
+    gptTerrainCtx->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, NULL);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, ptTerrain->tIndexBuffer);
+    plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, gptTerrainCtx->tIndexBuffer);
 
     // allocate memory for the index buffer
     const plDeviceMemoryAllocation tIndexBufferAllocation = gptGfx->allocate_memory(ptDevice,
@@ -286,18 +295,18 @@ pl_finalize_terrain(plTerrain* ptTerrain)
         "index buffer memory");
 
     // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tIndexBuffer, &tIndexBufferAllocation);
+    gptGfx->bind_buffer_to_memory(ptDevice, gptTerrainCtx->tIndexBuffer, &tIndexBufferAllocation);
 
     // create vertex buffer
     const plBufferDesc tStagingBufferDesc = {
         .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
-        .szByteSize  = ptTerrain->uStagingBufferSize,
+        .szByteSize  = gptTerrainCtx->uStagingBufferSize,
         .pcDebugName = "cdlod staging buffer"
     };
-    ptTerrain->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, NULL);
+    gptTerrainCtx->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, NULL);
 
     // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptTerrain->tStagingBuffer);
+    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptTerrainCtx->tStagingBuffer);
 
     // allocate memory for the vertex buffer
     const plDeviceMemoryAllocation tStagingBufferAllocation = gptGfx->allocate_memory(ptDevice,
@@ -307,32 +316,78 @@ pl_finalize_terrain(plTerrain* ptTerrain)
         "staging buffer memory");
 
     // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tStagingBuffer, &tStagingBufferAllocation);
+    gptGfx->bind_buffer_to_memory(ptDevice, gptTerrainCtx->tStagingBuffer, &tStagingBufferAllocation);
 
-    for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
-        pl__request_residency(ptTerrain, &ptTerrain->sbtChunkFiles[i].atChunks[0], 0.0f);
-    for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
-        pl__handle_residency(ptTerrain);
+    for(uint32_t i = 0; i < pl_sb_size(gptTerrainCtx->sbtChunkFiles); i++)
+        pl__request_residency(&gptTerrainCtx->sbtChunkFiles[i].atChunks[0], 0.0f);
+    for(uint32_t i = 0; i < pl_sb_size(gptTerrainCtx->sbtChunkFiles); i++)
+        pl__handle_residency();
 
-    pl_terrain_load_shaders(ptTerrain);
+    pl_terrain_load_shaders();
 }
 
 bool
-pl_chlod_load_chunk_file(plTerrain* ptTerrain, const char* pcPath)
+pl_chlod_load_chunk_file(const char* pcPath)
 {
     plTerrainChunkFile tFile = {0};
-    gptTerrainProcessor->load_chunk_file(pcPath, &tFile, pl_sb_size(ptTerrain->sbtChunkFiles));
-    pl_sb_push(ptTerrain->sbtChunkFiles, tFile);
+    gptTerrainProcessor->load_chunk_file(pcPath, &tFile, pl_sb_size(gptTerrainCtx->sbtChunkFiles));
+    pl_sb_push(gptTerrainCtx->sbtChunkFiles, tFile);
+
+    // uint32_t uMinIndexCount = UINT32_MAX;
+    // uint32_t uMinVertexCount = UINT32_MAX;
+    // uint32_t uMaxIndexCount = 0;
+    // uint32_t uMaxVertexCount = 0;
+    // uint32_t uMaxVertexChunk = 0;
+    // uint32_t uMaxIndexChunk = 0;
+    // for(uint32_t i = 0; i < tFile.uChunkCount; i++)
+    // {
+
+    //     FILE* ptDataFile = fopen(tFile.acFile, "rb");
+    //     fseek(ptDataFile, (long)tFile.atChunks[i].szFileLocation, SEEK_SET);
+
+    //     fseek(ptDataFile, sizeof(plVec3) * 2 + sizeof(int) + sizeof(int), SEEK_CUR);
+
+    //     uint32_t uVertexCount = 0;
+    //     fread(&uVertexCount, 1, sizeof(uint32_t), ptDataFile);
+    //     fseek(ptDataFile, sizeof(plTerrainVertex) * uVertexCount, SEEK_CUR);
+
+    //     uint32_t uIndexCount = 0;
+    //     fread(&uIndexCount, 1, sizeof(uint32_t), ptDataFile);
+        
+    //     fclose(ptDataFile);
+
+    //     if(uIndexCount > uMaxIndexCount)
+    //     {
+    //         uMaxIndexCount = uIndexCount;
+    //         uMaxIndexChunk = i;
+    //     }
+
+    //     if(uIndexCount < uMinIndexCount)
+    //         uMinIndexCount = uIndexCount;
+
+    //     if(uVertexCount > uMaxVertexCount)
+    //     {
+    //         uMaxVertexCount = uVertexCount;
+    //         uMaxVertexChunk = i;
+    //     }
+
+    //     if(uVertexCount < uMinVertexCount)
+    //         uMinVertexCount = uVertexCount;
+    // }
+    // printf("Max Vertex Count: %u\n", uMaxVertexCount);
+    // printf("Max Inex Count:   %u\n", uMaxIndexCount);
+    // printf("Min Vertex Count: %u\n", uMaxVertexCount);
+    // printf("Min Inex Count:   %u\n", uMaxIndexCount);
     return true;
 }
 
 void
-pl_terrain_load_shaders(plTerrain* ptTerrain)
+pl_terrain_load_shaders(void)
 {
-    if(gptGfx->is_shader_valid(gptTerrainCtx->ptDevice, ptTerrain->tShader))
+    if(gptGfx->is_shader_valid(gptTerrainCtx->ptDevice, gptTerrainCtx->tShader))
     {
-        gptGfx->queue_shader_for_deletion(gptTerrainCtx->ptDevice, ptTerrain->tShader);
-        gptGfx->queue_shader_for_deletion(gptTerrainCtx->ptDevice, ptTerrain->tWireframeShader);
+        gptGfx->queue_shader_for_deletion(gptTerrainCtx->ptDevice, gptTerrainCtx->tShader);
+        gptGfx->queue_shader_for_deletion(gptTerrainCtx->ptDevice, gptTerrainCtx->tWireframeShader);
     }
 
     plShaderDesc tShaderDesc = {
@@ -367,35 +422,35 @@ pl_terrain_load_shaders(plTerrain* ptTerrain)
         .tRenderPassLayout = gptStarter->get_render_pass_layout(),
     };
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
-    ptTerrain->tShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
+    gptTerrainCtx->tShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
 
     tShaderDesc.tGraphicsState.ulWireframe = 1;
     tShaderDesc.tGraphicsState.ulDepthWriteEnabled = 0;
     tShaderDesc.tGraphicsState.ulDepthMode = PL_COMPARE_MODE_ALWAYS;
-    ptTerrain->tWireframeShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
+    gptTerrainCtx->tWireframeShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
 }
 
 void
-pl_prepare_terrain(plTerrain* ptTerrain)
+pl_prepare_terrain(void)
 {
-    while(ptTerrain->tRequestQueue.ptNext)
-        pl__handle_residency(ptTerrain);
+    while(gptTerrainCtx->tRequestQueue.ptNext)
+        pl__handle_residency();
 }
 
 void
-pl_render_terrain(plTerrain* ptTerrain, plRenderEncoder* ptEncoder, plCamera* ptCamera, plDynamicDataBlock* ptDynamicDataBlock, float fTau)
+pl_render_terrain(plRenderEncoder* ptEncoder, plCamera* ptCamera, plDynamicDataBlock* ptDynamicDataBlock, float fTau)
 {
 
     gptTerrainCtx->uVisibleRootChunks = 0;
     gptTerrainCtx->uVisibleChunks = 0;
-    // pl__free_unused_chunks(ptTerrain);
+    // pl__free_unused_chunks(gptTerrainCtx);
 
-    gptScreenLog->add_message_ex(193, 10.0, PL_COLOR_32_GREEN, 1.0f, "Index Buffer Usage:  %0.2f %%", 100.0f * (float)ptTerrain->tIndexBufferManager.uUsedSpace / (float)ptTerrain->tIndexBufferManager.uSize);
-    gptScreenLog->add_message_ex(194, 10.0, PL_COLOR_32_GREEN, 1.0f, "Vertex Buffer Usage:  %0.2f %%", 100.0f * (float)ptTerrain->tVertexBufferManager.uUsedSpace / (float)ptTerrain->tVertexBufferManager.uSize);
+    gptScreenLog->add_message_ex(193, 10.0, PL_COLOR_32_GREEN, 1.0f, "Index Buffer Usage:  %0.2f %%", 100.0f * (float)gptTerrainCtx->tIndexBufferManager.uUsedSpace / (float)gptTerrainCtx->tIndexBufferManager.uSize);
+    gptScreenLog->add_message_ex(194, 10.0, PL_COLOR_32_GREEN, 1.0f, "Vertex Buffer Usage:  %0.2f %%", 100.0f * (float)gptTerrainCtx->tVertexBufferManager.uUsedSpace / (float)gptTerrainCtx->tVertexBufferManager.uSize);
 
-    ptTerrain->fTau = fTau;
-    for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
-        pl__render_chunk(ptTerrain, ptCamera, ptDynamicDataBlock, ptEncoder, &ptTerrain->sbtChunkFiles[i].atChunks[0], &ptTerrain->sbtChunkFiles[i]);
+    gptTerrainCtx->fTau = fTau;
+    for(uint32_t i = 0; i < pl_sb_size(gptTerrainCtx->sbtChunkFiles); i++)
+        pl__render_chunk(ptCamera, ptDynamicDataBlock, ptEncoder, &gptTerrainCtx->sbtChunkFiles[i].atChunks[0], &gptTerrainCtx->sbtChunkFiles[i]);
 
     gptScreenLog->add_message_ex(195, 10.0, PL_COLOR_32_GREEN, 1.0f, "Visible Root Chunks:  %u", gptTerrainCtx->uVisibleRootChunks);
     gptScreenLog->add_message_ex(196, 10.0, PL_COLOR_32_GREEN, 1.0f, "Visible Chunks:  %u", gptTerrainCtx->uVisibleChunks);
@@ -403,22 +458,22 @@ pl_render_terrain(plTerrain* ptTerrain, plRenderEncoder* ptEncoder, plCamera* pt
 }
 
 void
-pl_terrain_set_flags(plTerrain* ptTerrain, plTerrainFlags tFlags)
+pl_terrain_set_flags(plTerrainFlags tFlags)
 {
-    ptTerrain->tFlags = tFlags;
+    gptTerrainCtx->tFlags = tFlags;
 }
 
 plTerrainFlags
-pl_terrain_get_flags(plTerrain* ptTerrain)
+pl_terrain_get_flags(void)
 {
-    return ptTerrain->tFlags;
+    return gptTerrainCtx->tFlags;
 }
 
 void
-pl_terrain_draw_residency(plTerrain* ptTerrain, plDrawLayer2D* ptLayer, plVec2 tOrigin, float fRadius)
+pl_terrain_draw_residency(plDrawLayer2D* ptLayer, plVec2 tOrigin, float fRadius)
 {
-    for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
-        pl__draw_residency(ptTerrain, ptLayer, &ptTerrain->sbtChunkFiles[i].atChunks[0], tOrigin, fRadius, &ptTerrain->sbtChunkFiles[i]);
+    for(uint32_t i = 0; i < pl_sb_size(gptTerrainCtx->sbtChunkFiles); i++)
+        pl__draw_residency(ptLayer, &gptTerrainCtx->sbtChunkFiles[i].atChunks[0], tOrigin, fRadius, &gptTerrainCtx->sbtChunkFiles[i]);
 }
 
 //-----------------------------------------------------------------------------
@@ -426,14 +481,14 @@ pl_terrain_draw_residency(plTerrain* ptTerrain, plDrawLayer2D* ptLayer, plVec2 t
 //-----------------------------------------------------------------------------
 
 static void
-pl__unload_children(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
+pl__unload_children(plTerrainChunk* ptChunk)
 {
     if(ptChunk->aptChildren[0] == NULL)
         return;
-    if(ptChunk->aptChildren[0]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[0]);
-    if(ptChunk->aptChildren[1]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[1]);
-    if(ptChunk->aptChildren[2]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[2]);
-    if(ptChunk->aptChildren[3]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[3]);    
+    if(ptChunk->aptChildren[0]->ptIndexHole) pl__make_unresident(ptChunk->aptChildren[0]);
+    if(ptChunk->aptChildren[1]->ptIndexHole) pl__make_unresident(ptChunk->aptChildren[1]);
+    if(ptChunk->aptChildren[2]->ptIndexHole) pl__make_unresident(ptChunk->aptChildren[2]);
+    if(ptChunk->aptChildren[3]->ptIndexHole) pl__make_unresident(ptChunk->aptChildren[3]);    
 }
 
 bool
@@ -449,9 +504,9 @@ pl__all_children_resident(plTerrainChunk* ptChunk)
 }
 
 void
-pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
+pl__remove_from_replacement_queue(plTerrainChunk* ptChunk)
 {
-    plTerrainChunk* ptCurrentRequest = ptTerrain->tReplacementQueue.ptNext;
+    plTerrainChunk* ptCurrentRequest = gptTerrainCtx->tReplacementQueue.ptNext;
 
     plTerrainChunk* ptExistingRequest = NULL;
     plTerrainChunk* ptLastRequest = NULL;
@@ -473,48 +528,20 @@ pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
         if(ptExistingRequest->ptPrev)
             ptExistingRequest->ptPrev->ptNext = ptExistingRequest->ptNext;
         else
-            ptTerrain->tReplacementQueue.ptNext = ptExistingRequest->ptNext;
+            gptTerrainCtx->tReplacementQueue.ptNext = ptExistingRequest->ptNext;
 
         if(ptExistingRequest->ptNext)
             ptExistingRequest->ptNext->ptPrev = ptExistingRequest->ptPrev;
     }
 }
 
-
-// static void
-// pl__free_unused_chunks(plTerrain* ptTerrain)
-// {
-//     const uint64_t uCurrentFrame = gptIOI->get_io()->ulFrameCount;
-
-//     // find last used item
-//     plTerrainReplacementNode* ptCurrentRequest = ptTerrain->tReplacementQueue.ptNext;
-
-//     while(ptCurrentRequest)
-//     {
-//         plTerrainReplacementNode* ptLastRequest = ptCurrentRequest;
-
-//         // get to end
-//         while(ptLastRequest->ptNext)
-//             ptLastRequest = ptLastRequest->ptNext;
-
-//         if(uCurrentFrame - ptLastRequest->ptChunk->uLastFrameUsed > 10)
-//         {
-//             pl__make_unresident(ptTerrain, ptLastRequest->ptChunk);
-//             ptLastRequest->ptChunk = NULL;
-//             ptCurrentRequest = ptTerrain->tReplacementQueue.ptNext;
-//         }
-//         else
-//             ptCurrentRequest = NULL;
-//     }
-// }
-
 static void
-pl__free_chunk(plTerrain* ptTerrain, float fDistance, uint64_t uIndexCount)
+pl__free_chunk(float fDistance, uint64_t uIndexCount)
 {
     const uint64_t uCurrentFrame = gptIOI->get_io()->ulFrameCount;
 
     // find last used item
-    plTerrainChunk* ptCurrentRequest = ptTerrain->tReplacementQueue.ptNext;
+    plTerrainChunk* ptCurrentRequest = gptTerrainCtx->tReplacementQueue.ptNext;
 
     if(ptCurrentRequest == NULL)
         return;
@@ -529,7 +556,7 @@ pl__free_chunk(plTerrain* ptTerrain, float fDistance, uint64_t uIndexCount)
     {
         if(ptCurrentRequest->uIndexCount > uIndexCount)
         {
-            pl__make_unresident(ptTerrain, ptCurrentRequest);
+            pl__make_unresident(ptCurrentRequest);
             bChunkFreed = true;
             break;
         }
@@ -545,7 +572,7 @@ pl__free_chunk(plTerrain* ptTerrain, float fDistance, uint64_t uIndexCount)
             {
                 plTerrainChunk* ptChunkToRemove = ptCurrentRequest;
                 ptCurrentRequest = ptCurrentRequest->ptPrev;
-                pl__make_unresident(ptTerrain, ptChunkToRemove);
+                pl__make_unresident(ptChunkToRemove);
                 bChunkFreed = true;
                 // break;
             }
@@ -554,45 +581,14 @@ pl__free_chunk(plTerrain* ptTerrain, float fDistance, uint64_t uIndexCount)
         }
     }
 
-    
-    // if(uCurrentFrame - ptCurrentRequest->uLastFrameUsed > 1)
-    // {
-    //     pl__make_unresident(ptTerrain, ptCurrentRequest);
-    //     bChunkFreed = true;
-    // }
-    
-    // find further distance chunk to release
-    // if(!bChunkFreed)
-    // {
-    //     ptCurrentRequest = ptTerrain->tReplacementQueue.ptNext;
-    //     plTerrainChunk* ptFurthestChunk = ptCurrentRequest;
-
-    //     while(ptCurrentRequest)
-    //     {
-
-    //         if(ptCurrentRequest->uIndexCount >= ptFurthestChunk->uIndexCount)
-    //         {
-    //             ptFurthestChunk = ptCurrentRequest;
-
-    //         }
-    //         ptCurrentRequest = ptCurrentRequest->ptNext;
-    //     }
-
-    //     if(ptFurthestChunk->uIndexCount > uIndexCount)
-    //     {
-    //         pl__make_unresident(ptTerrain, ptFurthestChunk);
-    //         bChunkFreed = true;
-    //     }
-    // }
-
     if(!bChunkFreed)
         printf("Couldn't free chunks\n");
 }
 
 void
-pl__remove_from_residency_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
+pl__remove_from_residency_queue(plTerrainChunk* ptChunk)
 {
-    plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
+    plTerrainResidencyNode* ptCurrentRequest = gptTerrainCtx->tRequestQueue.ptNext;
 
     plTerrainResidencyNode* ptExistingRequest = NULL;
     plTerrainResidencyNode* ptLastRequest = NULL;
@@ -614,27 +610,27 @@ pl__remove_from_residency_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
         if(ptExistingRequest->ptPrev)
             ptExistingRequest->ptPrev->ptNext = ptExistingRequest->ptNext;
         else
-            ptTerrain->tRequestQueue.ptNext = ptExistingRequest->ptNext;
+            gptTerrainCtx->tRequestQueue.ptNext = ptExistingRequest->ptNext;
 
         if(ptExistingRequest->ptNext)
             ptExistingRequest->ptNext->ptPrev = ptExistingRequest->ptPrev;
 
-        uint32_t uIndex = (uint32_t)(ptExistingRequest - &ptTerrain->atRequests[0]);
-        pl_sb_push(ptTerrain->sbuFreeRequests, uIndex);
+        uint32_t uIndex = (uint32_t)(ptExistingRequest - &gptTerrainCtx->atRequests[0]);
+        pl_sb_push(gptTerrainCtx->sbuFreeRequests, uIndex);
     }
 }
 
 static void
-pl__make_unresident(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
+pl__make_unresident(plTerrainChunk* ptChunk)
 {
-    pl__remove_from_residency_queue(ptTerrain, ptChunk);
-    pl__remove_from_replacement_queue(ptTerrain, ptChunk);
+    pl__remove_from_residency_queue(ptChunk);
+    pl__remove_from_replacement_queue(ptChunk);
     if(ptChunk->ptIndexHole && ptChunk->uIndexCount > 0)
     {
         if(ptChunk->ptIndexHole)
-            gptFreeList->return_node(&ptTerrain->tIndexBufferManager, ptChunk->ptIndexHole);
+            gptFreeList->return_node(&gptTerrainCtx->tIndexBufferManager, ptChunk->ptIndexHole);
         if(ptChunk->ptVertexHole)
-            gptFreeList->return_node(&ptTerrain->tVertexBufferManager, ptChunk->ptVertexHole);
+            gptFreeList->return_node(&gptTerrainCtx->tVertexBufferManager, ptChunk->ptVertexHole);
         ptChunk->uIndexCount = 0;
         ptChunk->uLastFrameUsed = 0;
         ptChunk->ptIndexHole = NULL;
@@ -642,20 +638,20 @@ pl__make_unresident(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
         ptChunk->ptVertexHole = NULL;
         if(ptChunk->aptChildren[0] != NULL)
         {
-            pl__make_unresident(ptTerrain, ptChunk->aptChildren[0]);
-            pl__make_unresident(ptTerrain, ptChunk->aptChildren[1]);
-            pl__make_unresident(ptTerrain, ptChunk->aptChildren[2]);
-            pl__make_unresident(ptTerrain, ptChunk->aptChildren[3]);
+            pl__make_unresident(ptChunk->aptChildren[0]);
+            pl__make_unresident(ptChunk->aptChildren[1]);
+            pl__make_unresident(ptChunk->aptChildren[2]);
+            pl__make_unresident(ptChunk->aptChildren[3]);
         }
     }
 }
 
 static void
-pl__handle_residency(plTerrain* ptTerrain)
+pl__handle_residency(void)
 {
     const uint64_t uCurrentFrame = gptIOI->get_io()->ulFrameCount;
 
-    plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
+    plTerrainResidencyNode* ptCurrentRequest = gptTerrainCtx->tRequestQueue.ptNext;
     // ptCurrentRequest->uFrameRequested
 
     if(ptCurrentRequest)
@@ -663,7 +659,7 @@ pl__handle_residency(plTerrain* ptTerrain)
 
         plTerrainChunk* ptChunk = ptCurrentRequest->ptChunk;
 
-        FILE* ptDataFile = fopen(ptTerrain->sbtChunkFiles[ptChunk->uFileID].acFile, "rb");
+        FILE* ptDataFile = fopen(gptTerrainCtx->sbtChunkFiles[ptChunk->uFileID].acFile, "rb");
         fseek(ptDataFile, (long)ptChunk->szFileLocation, SEEK_SET);
 
         fseek(ptDataFile, sizeof(plVec3) * 2 + sizeof(int) + sizeof(int), SEEK_CUR);
@@ -687,23 +683,23 @@ pl__handle_residency(plTerrain* ptTerrain)
         const uint32_t uVertexStageOffset = uIndexBufferSizeBytes;
 
         // update chunk offsets
-        plFreeListNode* ptIndexHole = gptFreeList->get_node(&ptTerrain->tIndexBufferManager, uIndexCount * sizeof(uint32_t));
-        plFreeListNode* ptVertexHole = gptFreeList->get_node(&ptTerrain->tVertexBufferManager, uVertexCount * sizeof(plTerrainVertex));
+        plFreeListNode* ptIndexHole = gptFreeList->get_node(&gptTerrainCtx->tIndexBufferManager, uIndexCount * sizeof(uint32_t));
+        plFreeListNode* ptVertexHole = gptFreeList->get_node(&gptTerrainCtx->tVertexBufferManager, uVertexCount * sizeof(plTerrainVertex));
 
         if(ptIndexHole == NULL || ptVertexHole == NULL)
         {
-            if(ptIndexHole) gptFreeList->return_node(&ptTerrain->tIndexBufferManager, ptIndexHole);
-            if(ptVertexHole) gptFreeList->return_node(&ptTerrain->tVertexBufferManager, ptVertexHole);
-            pl__free_chunk(ptTerrain, ptCurrentRequest->fDistance, uIndexCount);
-            ptIndexHole = gptFreeList->get_node(&ptTerrain->tIndexBufferManager, uIndexCount * sizeof(uint32_t));
-            ptVertexHole = gptFreeList->get_node(&ptTerrain->tVertexBufferManager, uVertexCount * sizeof(plTerrainVertex));
+            if(ptIndexHole) gptFreeList->return_node(&gptTerrainCtx->tIndexBufferManager, ptIndexHole);
+            if(ptVertexHole) gptFreeList->return_node(&gptTerrainCtx->tVertexBufferManager, ptVertexHole);
+            pl__free_chunk(ptCurrentRequest->fDistance, uIndexCount);
+            ptIndexHole = gptFreeList->get_node(&gptTerrainCtx->tIndexBufferManager, uIndexCount * sizeof(uint32_t));
+            ptVertexHole = gptFreeList->get_node(&gptTerrainCtx->tVertexBufferManager, uVertexCount * sizeof(plTerrainVertex));
         }
 
         if(ptIndexHole == NULL || ptVertexHole == NULL)
         {
-            if(ptIndexHole) gptFreeList->return_node(&ptTerrain->tIndexBufferManager, ptIndexHole);
-            if(ptVertexHole) gptFreeList->return_node(&ptTerrain->tVertexBufferManager, ptVertexHole);
-            pl__free_chunk(ptTerrain, ptCurrentRequest->fDistance, uIndexCount);
+            if(ptIndexHole) gptFreeList->return_node(&gptTerrainCtx->tIndexBufferManager, ptIndexHole);
+            if(ptVertexHole) gptFreeList->return_node(&gptTerrainCtx->tVertexBufferManager, ptVertexHole);
+            pl__free_chunk(ptCurrentRequest->fDistance, uIndexCount);
             PL_FREE(ptVertices);
             PL_FREE(ptIndices);
             fclose(ptDataFile);
@@ -718,7 +714,7 @@ pl__handle_residency(plTerrain* ptTerrain)
         // update buffer offsets
 
         plDevice* ptDevice = gptTerrainCtx->ptDevice;
-        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptTerrain->tStagingBuffer);
+        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptTerrainCtx->tStagingBuffer);
 
         void* ptIndexStageDest = &ptStagingBuffer->tMemoryAllocation.pHostMapped[uIndexStageOffset];
         void* ptVertexStageDest = &ptStagingBuffer->tMemoryAllocation.pHostMapped[uVertexStageOffset];
@@ -735,8 +731,8 @@ pl__handle_residency(plTerrain* ptTerrain)
         // NOTE: we are using the starter extension to get a blit encoder, later examples we will
         //       handle this ourselves
         plBlitEncoder* ptEncoder = gptStarter->get_blit_encoder();
-        gptGfx->copy_buffer(ptEncoder, ptTerrain->tStagingBuffer, ptTerrain->tIndexBuffer, uIndexStageOffset, uIndexFinalOffset, uIndexBufferSizeBytes);
-        gptGfx->copy_buffer(ptEncoder, ptTerrain->tStagingBuffer, ptTerrain->tVertexBuffer, uVertexStageOffset, uVertexFinalOffset, uVertexBufferSizeBytes);
+        gptGfx->copy_buffer(ptEncoder, gptTerrainCtx->tStagingBuffer, gptTerrainCtx->tIndexBuffer, uIndexStageOffset, uIndexFinalOffset, uIndexBufferSizeBytes);
+        gptGfx->copy_buffer(ptEncoder, gptTerrainCtx->tStagingBuffer, gptTerrainCtx->tVertexBuffer, uVertexStageOffset, uVertexFinalOffset, uVertexBufferSizeBytes);
         
         gptStarter->return_blit_encoder(ptEncoder);
 
@@ -747,12 +743,12 @@ pl__handle_residency(plTerrain* ptTerrain)
 
         fclose(ptDataFile);
 
-        pl__remove_from_residency_queue(ptTerrain, ptCurrentRequest->ptChunk);
+        pl__remove_from_residency_queue(ptCurrentRequest->ptChunk);
     }
 }
 
 static void
-pl__touch_chunk(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
+pl__touch_chunk(plTerrainChunk* ptChunk)
 {
     if(ptChunk == NULL)
         return;
@@ -760,7 +756,7 @@ pl__touch_chunk(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
   
     ptChunk->uLastFrameUsed = gptIOI->get_io()->ulFrameCount;
 
-    plTerrainChunk* ptCurrentRequest = ptTerrain->tReplacementQueue.ptNext;
+    plTerrainChunk* ptCurrentRequest = gptTerrainCtx->tReplacementQueue.ptNext;
 
     plTerrainChunk* ptExistingRequest = NULL;
 
@@ -791,9 +787,9 @@ pl__touch_chunk(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 
     // place node at beginning
     ptExistingRequest->ptPrev = NULL;
-    if(ptExistingRequest != ptTerrain->tReplacementQueue.ptNext)
-        ptExistingRequest->ptNext = ptTerrain->tReplacementQueue.ptNext;
-    ptTerrain->tReplacementQueue.ptNext = ptExistingRequest;
+    if(ptExistingRequest != gptTerrainCtx->tReplacementQueue.ptNext)
+        ptExistingRequest->ptNext = gptTerrainCtx->tReplacementQueue.ptNext;
+    gptTerrainCtx->tReplacementQueue.ptNext = ptExistingRequest;
     if(ptExistingRequest->ptNext)
         ptExistingRequest->ptNext->ptPrev = ptExistingRequest;
 
@@ -803,14 +799,14 @@ pl__touch_chunk(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 }
 
 static void
-pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk, float fDistance)
+pl__request_residency(plTerrainChunk* ptChunk, float fDistance)
 {
     if(ptChunk == NULL)
         return;
 
     if(ptChunk->ptIndexHole == NULL)
     {
-        plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
+        plTerrainResidencyNode* ptCurrentRequest = gptTerrainCtx->tRequestQueue.ptNext;
 
         plTerrainResidencyNode* ptExistingRequest = NULL;
         plTerrainResidencyNode* ptLastRequest = NULL;
@@ -839,10 +835,10 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk, float fDist
         }
         else
         {
-            if(pl_sb_size(ptTerrain->sbuFreeRequests) > 0)
+            if(pl_sb_size(gptTerrainCtx->sbuFreeRequests) > 0)
             {
-                uint32_t uNewIndex = pl_sb_pop(ptTerrain->sbuFreeRequests);
-                ptExistingRequest = &ptTerrain->atRequests[uNewIndex];
+                uint32_t uNewIndex = pl_sb_pop(gptTerrainCtx->sbuFreeRequests);
+                ptExistingRequest = &gptTerrainCtx->atRequests[uNewIndex];
 
             }
             else if(ptLastRequest)
@@ -859,9 +855,9 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk, float fDist
 
         // place node at beginning
         ptExistingRequest->ptPrev = NULL;
-        if(ptExistingRequest != ptTerrain->tRequestQueue.ptNext)
-            ptExistingRequest->ptNext = ptTerrain->tRequestQueue.ptNext;
-        ptTerrain->tRequestQueue.ptNext = ptExistingRequest;
+        if(ptExistingRequest != gptTerrainCtx->tRequestQueue.ptNext)
+            ptExistingRequest->ptNext = gptTerrainCtx->tRequestQueue.ptNext;
+        gptTerrainCtx->tRequestQueue.ptNext = ptExistingRequest;
         if(ptExistingRequest->ptNext)
             ptExistingRequest->ptNext->ptPrev = ptExistingRequest;
 
@@ -872,7 +868,7 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk, float fDist
 }
 
 static void
-pl__render_chunk(plTerrain* ptTerrain, plCamera* ptCamera , plDynamicDataBlock* ptDynamicDataBlock, plRenderEncoder* ptEncoder, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile)
+pl__render_chunk(plCamera* ptCamera , plDynamicDataBlock* ptDynamicDataBlock, plRenderEncoder* ptEncoder, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -891,7 +887,7 @@ pl__render_chunk(plTerrain* ptTerrain, plCamera* ptCamera , plDynamicDataBlock* 
     plVec3 tClosestPoint = gptCollision->point_closest_point_aabb(ptCamera->tPos, tAABB);
     float fDistance = fabsf(pl_length_vec3(pl_sub_vec3(tClosestPoint, ptCamera->tPos)));
 
-    pl__request_residency(ptTerrain, ptChunk, fDistance);
+    pl__request_residency(ptChunk, fDistance);
 
     if(ptChunk->ptIndexHole == NULL)
         return;
@@ -906,7 +902,7 @@ pl__render_chunk(plTerrain* ptTerrain, plCamera* ptCamera , plDynamicDataBlock* 
 
     float fRho = fGeometricError * fK / fDistance;
 
-    if(!pl__all_children_resident(ptChunk) || fRho <= ptTerrain->fTau)
+    if(!pl__all_children_resident(ptChunk) || fRho <= gptTerrainCtx->fTau)
     {
 
         const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
@@ -915,12 +911,12 @@ pl__render_chunk(plTerrain* ptTerrain, plCamera* ptCamera , plDynamicDataBlock* 
         plGpuDynTerrainData* ptDynamic = (plGpuDynTerrainData*)tDynamicBinding.pcData;
         ptDynamic->tMvp = tMVP;
         ptDynamic->iLevel = (int)ptChunk->uLevel;
-        ptDynamic->tFlags = ptTerrain->tFlags;
+        ptDynamic->tFlags = gptTerrainCtx->tFlags;
 
         // submit nonindexed draw using basic API
-        plShaderHandle tShader = (ptTerrain->tFlags & PL_TERRAIN_FLAGS_WIREFRAME) ? ptTerrain->tWireframeShader : ptTerrain->tShader;
+        plShaderHandle tShader = (gptTerrainCtx->tFlags & PL_TERRAIN_FLAGS_WIREFRAME) ? gptTerrainCtx->tWireframeShader : gptTerrainCtx->tShader;
         gptGfx->bind_shader(ptEncoder, tShader);
-        gptGfx->bind_vertex_buffer(ptEncoder, ptTerrain->tVertexBuffer);
+        gptGfx->bind_vertex_buffer(ptEncoder, gptTerrainCtx->tVertexBuffer);
         gptGfx->bind_graphics_bind_groups(ptEncoder, tShader, 0, 0, NULL, 1, &tDynamicBinding);
 
         const plDrawIndex tDraw = {
@@ -928,7 +924,7 @@ pl__render_chunk(plTerrain* ptTerrain, plCamera* ptCamera , plDynamicDataBlock* 
             .uIndexCount    = ptChunk->uIndexCount,
             .uVertexStart   = (uint32_t)ptChunk->ptVertexHole->uOffset / sizeof(plTerrainVertex),
             .uIndexStart    = (uint32_t)ptChunk->ptIndexHole->uOffset / sizeof(uint32_t),
-            .tIndexBuffer   = ptTerrain->tIndexBuffer
+            .tIndexBuffer   = gptTerrainCtx->tIndexBuffer
         };
         gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
 
@@ -941,10 +937,10 @@ pl__render_chunk(plTerrain* ptTerrain, plCamera* ptCamera , plDynamicDataBlock* 
         //     PL_COLOR_32_CYAN
         // };
 
-        // gptDraw->add_3d_aabb(ptTerrain->pt3dDrawlist, ptChunk->tMinBound, ptChunk->tMaxBound, (plDrawLineOptions){.fThickness = 1000.0f, .uColor = atColors[ptChunk->uLevel]});
+        // gptDraw->add_3d_aabb(gptTerrainCtx->pt3dDrawlist, ptChunk->tMinBound, ptChunk->tMaxBound, (plDrawLineOptions){.fThickness = 1000.0f, .uColor = atColors[ptChunk->uLevel]});
 
-        pl__touch_chunk(ptTerrain, ptChunk);
-        if(fRho > ptTerrain->fTau) // we actually want children
+        pl__touch_chunk(ptChunk);
+        if(fRho > gptTerrainCtx->fTau) // we actually want children
         {
             for(uint32_t i = 0; i < 4; i++)
             {
@@ -957,18 +953,18 @@ pl__render_chunk(plTerrain* ptTerrain, plCamera* ptCamera , plDynamicDataBlock* 
                 };
                 plVec3 tClosestChildPoint = gptCollision->point_closest_point_aabb(ptCamera->tPos, tChildAABB);
                 float fChildDistance = fabsf(pl_length_vec3(pl_sub_vec3(tClosestChildPoint, ptCamera->tPos)));
-                pl__request_residency(ptTerrain, ptChunk->aptChildren[i], fChildDistance);
+                pl__request_residency(ptChunk->aptChildren[i], fChildDistance);
             }
         }
         else // we actually want this chunk, not children
         {
-            pl__unload_children(ptTerrain, ptChunk);
+            pl__unload_children(ptChunk);
         }
     }
     else
     {
         for(uint32_t i = 0; i < 4; i++)
-            pl__render_chunk(ptTerrain, ptCamera, ptDynamicDataBlock, ptEncoder, ptChunk->aptChildren[i], ptFile);
+            pl__render_chunk(ptCamera, ptDynamicDataBlock, ptEncoder, ptChunk->aptChildren[i], ptFile);
     }
 }
 
@@ -1220,7 +1216,7 @@ pl__sat_visibility_test(plCamera* ptCamera, const plAABB* ptAABB)
 }
 
 void
-pl__draw_residency(plTerrain* ptTerrain, plDrawLayer2D* ptLayer, plTerrainChunk* ptChunk, plVec2 tOrigin, float fRadius, plTerrainChunkFile* ptFile)
+pl__draw_residency(plDrawLayer2D* ptLayer, plTerrainChunk* ptChunk, plVec2 tOrigin, float fRadius, plTerrainChunkFile* ptFile)
 {
     int iTopDownLevel = (int)(ptFile->iTreeDepth - (int)ptChunk->uLevel - 1);
 
@@ -1250,7 +1246,7 @@ pl__draw_residency(plTerrain* ptTerrain, plDrawLayer2D* ptLayer, plTerrainChunk*
         if(ptChunk->aptChildren[i])
         {
             gptDraw->add_line(ptLayer, tOrigin, (plVec2){.x = fXOffset, .y = fRadius * 4.0f + tOrigin.y}, (plDrawLineOptions){.fThickness = 1.0f, .uColor = PL_COLOR_32_WHITE});
-            pl__draw_residency(ptTerrain, ptLayer, ptChunk->aptChildren[i], (plVec2){.x = fXOffset, .y = 4.0f * fRadius + tOrigin.y}, fRadius, ptFile);
+            pl__draw_residency(ptLayer, ptChunk->aptChildren[i], (plVec2){.x = fXOffset, .y = 4.0f * fRadius + tOrigin.y}, fRadius, ptFile);
         }
     }
 }
@@ -1266,11 +1262,9 @@ pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .initialize        = pl_initialize_cdlod,
         .cleanup           = pl_cleanup_cdlod,
         .load_chunk_file   = pl_chlod_load_chunk_file,
-        .create_terrain    = pl_create_terrain,
-        .cleanup_terrain   = pl_cleanup_terrain,
-        .finalize_terrain  = pl_finalize_terrain,
-        .render_terrain    = pl_render_terrain,
-        .prepare_terrain   = pl_prepare_terrain,
+        .finalize          = pl_finalize_terrain,
+        .render            = pl_render_terrain,
+        .prepare           = pl_prepare_terrain,
         .reload_shaders    = pl_terrain_load_shaders,
         .set_flags         = pl_terrain_set_flags,
         .get_flags         = pl_terrain_get_flags,
@@ -1279,18 +1273,19 @@ pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plTerrainI, &tApi);
 
     #ifndef PL_UNITY_BUILD
-        gptMemory      = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptImage       = pl_get_api_latest(ptApiRegistry, plImageI);
-        gptFile        = pl_get_api_latest(ptApiRegistry, plFileI);
-        gptProfile     = pl_get_api_latest(ptApiRegistry, plProfileI);
-        gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-        gptFreeList    = pl_get_api_latest(ptApiRegistry, plFreeListI);
-        gptIOI         = pl_get_api_latest(ptApiRegistry, plIOI);
-        gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
-        gptShader      = pl_get_api_latest(ptApiRegistry, plShaderI);
-        gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
-        gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
-        gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptMemory           = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptImage            = pl_get_api_latest(ptApiRegistry, plImageI);
+        gptFile             = pl_get_api_latest(ptApiRegistry, plFileI);
+        gptProfile          = pl_get_api_latest(ptApiRegistry, plProfileI);
+        gptGfx              = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptFreeList         = pl_get_api_latest(ptApiRegistry, plFreeListI);
+        gptIOI              = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptStarter          = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptShader           = pl_get_api_latest(ptApiRegistry, plShaderI);
+        gptCollision        = pl_get_api_latest(ptApiRegistry, plCollisionI);
+        gptScreenLog        = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+        gptDraw             = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptTerrainProcessor = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

@@ -40,7 +40,6 @@ Index of this file:
 
 // basic types
 typedef struct _plTerrainInit plTerrainInit;
-typedef struct _plTerrain     plTerrain;
 
 // enums/flags
 typedef int plTerrainFlags;
@@ -61,25 +60,22 @@ typedef struct _plTerrainI
 
     // setup/shutdown
     void (*initialize)(plTerrainInit);
+    void (*finalize)(void);
     void (*cleanup)   (void);
-
-    // terrain setup/finalization/shutdown
-    plTerrain* (*create_terrain) (void);
-    void       (*finalize_terrain)(plTerrain*);
-    void       (*cleanup_terrain)(plTerrain*);
+    
 
     // runtime setup/shutdown
-    bool (*load_chunk_file)(plTerrain*, const char* path);
+    bool (*load_chunk_file)(const char* path);
 
     // per frame
-    void (*prepare_terrain)(plTerrain*);
-    void (*render_terrain)(plTerrain*, plRenderEncoder*, plCamera*, plDynamicDataBlock*, float tau);
+    void (*prepare)(void);
+    void (*render)(plRenderEncoder*, plCamera*, plDynamicDataBlock*, float tau);
     
     // debugging helpers mostly
-    void           (*set_flags)     (plTerrain*, plTerrainFlags);
-    plTerrainFlags (*get_flags)     (plTerrain*);
-    void           (*reload_shaders)(plTerrain*);
-    void           (*draw_residency)(plTerrain* ptTerrain, plDrawLayer2D*, plVec2 origin, float radius);
+    void           (*set_flags)     (plTerrainFlags);
+    plTerrainFlags (*get_flags)     (void);
+    void           (*reload_shaders)(void);
+    void           (*draw_residency)(plDrawLayer2D*, plVec2 origin, float radius);
 
 } plTerrainI;
 

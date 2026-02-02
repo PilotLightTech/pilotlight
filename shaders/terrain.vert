@@ -38,14 +38,6 @@ void main()
     // gl_Position = tDynamicData.mvp * vec4(inPos.x, 0.0, inPos.z, 1.0);
     // float fScale = max((inPos.y + 40.0) / 552.0, 0.2);
 
-    // ellipsoid stuff
-    
-    // float blah = length(inPos) - 1737400.0 + 18256.0;
-    // float fScale = max(blah / (14052.0 - -18256.0), 0.0);
-
-    // float blah = length(inPos) - 1737400.0 + 4380.518;
-    // float fScale = max(blah / (2713.087 - -4380.518), 0.0);
-
     // tShaderOut.tColor = vec4(fScale.xxx, 1.0);
     tShaderOut.tWorldPosition = inPos;
     tShaderOut.tWorldNormal = Decode(inNormal);
