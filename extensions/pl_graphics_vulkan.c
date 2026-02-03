@@ -4641,6 +4641,7 @@ pl_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHand
 
     plVulkanRenderPassLayout* ptVulkanResource = &ptDevice->sbtRenderPassLayoutsHot[tHandle.uIndex];
     vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, gptGraphics->ptAllocationCallbacks);
+    ptVulkanResource->tRenderPass = VK_NULL_HANDLE;
     pl_sb_push(ptDevice->sbtRenderPassLayoutFreeIndices, tHandle.uIndex);
 }
 
