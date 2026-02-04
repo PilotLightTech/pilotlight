@@ -661,6 +661,12 @@ typedef struct _plVersion
     #endif
 #endif
 
+#ifdef PL_DEBUG_PARANOID
+#define PL_ASSERT_PARANOID(_EXPR) PL_ASSERT(_EXPR)
+#else
+#define PL_ASSERT_PARANOID(_EXPR)
+#endif
+
 #ifndef PL_MAX_API_FUNCTIONS
     #define PL_MAX_API_FUNCTIONS 256
 #endif
