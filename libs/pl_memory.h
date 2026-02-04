@@ -20,8 +20,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_MEMORY_VERSION    "1.1.2"
-#define PL_MEMORY_VERSION_NUM 10102
+#define PL_MEMORY_VERSION    "1.1.3"
+#define PL_MEMORY_VERSION_NUM 10103
 
 /*
 Index of this file:
@@ -137,7 +137,8 @@ void  pl_general_allocator_aligned_free (plGeneralAllocator*, void*);
 
 typedef struct _plTempAllocatorBlock
 {
-    char* pcBuffer;
+    char*  pcBuffer;
+    size_t szSize;
 } plTempAllocatorBlock;
 
 typedef struct _plTempAllocator
@@ -281,6 +282,13 @@ pl__align_forward_size(size_t szPtr, size_t szAlign)
 	return p;
 }
 
+static inline size_t
+pl__align_up_sz(size_t x, size_t a)
+{
+    return (x + (a - 1)) & ~(a - 1);
+}
+
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
@@ -342,29 +350,50 @@ pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
         memset(ptAllocator->acStackBuffer, 0, PL_MEMORY_TEMP_STACK_SIZE); 
     }
 
+    const size_t ALIGN = 8;
+
+// Align offset + size BEFORE checking capacity
+    size_t szAlignedOffset = pl__align_up_sz(ptAllocator->szOffset, ALIGN);
+    size_t szAlignedSize   = pl__align_up_sz(szSize, ALIGN);
+
+    // Total bytes consumed from the current block includes padding to alignment
+    size_t szPadding = szAlignedOffset - ptAllocator->szOffset;
+    size_t szNeeded  = szPadding + szAlignedSize;
+
     void* pRequestedMemory = NULL;
 
     // not enough room is available
-    if(szSize > ptAllocator->szAvailableBytes)
+    if(szNeeded > ptAllocator->szAvailableBytes)
     {
 
         size_t szNewBlockSize = PL_MEMORY_TEMP_STACK_SIZE * 2;
-        size_t szCurrentBlockIndex = 0;
+        size_t szNewBlockIndex = 0;
 
         if(ptAllocator->atMemoryBlocks) // grow
         {
-            szNewBlockSize = ptAllocator->szTotalBytes * 2;
-            szCurrentBlockIndex = ++ptAllocator->szCurrentBlockIndex;
+            // Move to next block
+            szNewBlockIndex = ++ptAllocator->szCurrentBlockIndex;
 
-            if(ptAllocator->szCurrentBlockIndex == ptAllocator->szMemoryBlockCapacity - 1)
+            // Ensure metadata capacity
+            if(ptAllocator->szCurrentBlockIndex >= ptAllocator->szMemoryBlockCapacity)
             {
+                size_t szOldCap = ptAllocator->szMemoryBlockCapacity;
+                size_t szNewCap = (szOldCap == 0) ? 4 : (szOldCap * 2);
+
                 plTempAllocatorBlock* atOldBlocks = ptAllocator->atMemoryBlocks;
-                ptAllocator->atMemoryBlocks = (plTempAllocatorBlock*)PL_MEMORY_ALLOC(sizeof(plTempAllocatorBlock) * (ptAllocator->szMemoryBlockCapacity + 1));
-                memset(ptAllocator->atMemoryBlocks, 0, (sizeof(plTempAllocatorBlock) * (ptAllocator->szMemoryBlockCapacity + 1)));
-                memcpy(ptAllocator->atMemoryBlocks, atOldBlocks, sizeof(plTempAllocatorBlock) * ptAllocator->szMemoryBlockCapacity);
-                ptAllocator->szMemoryBlockCapacity++;
+                ptAllocator->atMemoryBlocks = (plTempAllocatorBlock*)PL_MEMORY_ALLOC(sizeof(plTempAllocatorBlock) * szNewCap);
+                memset(ptAllocator->atMemoryBlocks, 0, sizeof(plTempAllocatorBlock) * szNewCap);
+
+                memcpy(ptAllocator->atMemoryBlocks, atOldBlocks, sizeof(plTempAllocatorBlock) * szOldCap);
+                ptAllocator->szMemoryBlockCapacity = szNewCap;
                 PL_MEMORY_FREE(atOldBlocks);
             }
+
+            // Grow block size based on previous total (your original intent),
+            // but use at least 2x stack as a sane floor.
+            szNewBlockSize = ptAllocator->szTotalBytes * 2;
+            if(szNewBlockSize < PL_MEMORY_TEMP_STACK_SIZE * 2)
+                szNewBlockSize = PL_MEMORY_TEMP_STACK_SIZE * 2;
         }
         else // first overflow
         {
@@ -373,27 +402,40 @@ pl_temp_allocator_alloc(plTempAllocator* ptAllocator, size_t szSize)
             ptAllocator->szMemoryBlockCapacity = 4;
             ptAllocator->atMemoryBlocks = (plTempAllocatorBlock*)PL_MEMORY_ALLOC(sizeof(plTempAllocatorBlock) * ptAllocator->szMemoryBlockCapacity);
             memset(ptAllocator->atMemoryBlocks, 0, (sizeof(plTempAllocatorBlock) * ptAllocator->szMemoryBlockCapacity));
+
+            szNewBlockIndex = 0;
         }
 
 
-        if(szSize > szNewBlockSize)
-            szNewBlockSize = pl__get_next_power_of_2(szSize);
+        if(szNeeded > szNewBlockSize)
+            szNewBlockSize = pl__get_next_power_of_2(szNeeded);
 
-        ptAllocator->atMemoryBlocks[szCurrentBlockIndex].pcBuffer = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
-        memset(ptAllocator->atMemoryBlocks[szCurrentBlockIndex].pcBuffer, 0, szNewBlockSize);
-        ptAllocator->szAvailableBytes = szNewBlockSize;
+        // Allocate the new block
+        ptAllocator->atMemoryBlocks[szNewBlockIndex].pcBuffer = (char*)PL_MEMORY_ALLOC(szNewBlockSize);
+        ptAllocator->atMemoryBlocks[szNewBlockIndex].szSize   = szNewBlockSize;
+        memset(ptAllocator->atMemoryBlocks[szNewBlockIndex].pcBuffer, 0, szNewBlockSize);
+
         ptAllocator->szTotalBytes += szNewBlockSize;
         ptAllocator->szOffset = 0;
+        ptAllocator->szAvailableBytes = szNewBlockSize;
+
+        // Recompute alignment relative to the fresh block start
+        szAlignedOffset = pl__align_up_sz(ptAllocator->szOffset, ALIGN);
+        szAlignedSize   = pl__align_up_sz(szSize, ALIGN);
+        szPadding       = szAlignedOffset - ptAllocator->szOffset;
+        szNeeded        = szPadding + szAlignedSize;
     }
 
-    if(ptAllocator->atMemoryBlocks)
-        pRequestedMemory = &ptAllocator->atMemoryBlocks[ptAllocator->szCurrentBlockIndex].pcBuffer[ptAllocator->szOffset];
-    else
-        pRequestedMemory = &ptAllocator->acStackBuffer[ptAllocator->szOffset];
+    // Apply padding (align the offset) BEFORE taking the pointer
+    ptAllocator->szOffset = szAlignedOffset;
 
-    szSize = (szSize + 7) & ~7;
-    ptAllocator->szOffset += szSize;
-    ptAllocator->szAvailableBytes -= szSize;
+    if(ptAllocator->atMemoryBlocks)
+        pRequestedMemory = (void*)&ptAllocator->atMemoryBlocks[ptAllocator->szCurrentBlockIndex].pcBuffer[ptAllocator->szOffset];
+    else
+        pRequestedMemory = (void*)&ptAllocator->acStackBuffer[ptAllocator->szOffset];
+
+    ptAllocator->szOffset += szAlignedSize;
+    ptAllocator->szAvailableBytes -= szNeeded;
     return pRequestedMemory;
 }
 
@@ -401,25 +443,37 @@ void
 pl_temp_allocator_reset(plTempAllocator* ptAllocator)
 {
     ptAllocator->szOffset = 0;
-    ptAllocator->szAvailableBytes = ptAllocator->szTotalBytes;
-    
-    if(ptAllocator->atMemoryBlocks && ptAllocator->szCurrentBlockIndex > 0) // consolidate blocks
+
+    // Stack-only case
+    if(!ptAllocator->atMemoryBlocks)
     {
-        // free all blocks
+        ptAllocator->szAvailableBytes = ptAllocator->szTotalBytes; // stack size
+        return;
+    }
+
+    // If multiple blocks were used, consolidate into one block sized to total bytes.
+    // (This also ensures szAvailableBytes matches the one active block.)
+    if(ptAllocator->szCurrentBlockIndex > 0)
+    {
+        // Free all existing buffers
         for(size_t i = 0; i < ptAllocator->szMemoryBlockCapacity; i++)
         {
             if(ptAllocator->atMemoryBlocks[i].pcBuffer)
             {
                 PL_MEMORY_FREE(ptAllocator->atMemoryBlocks[i].pcBuffer);
                 ptAllocator->atMemoryBlocks[i].pcBuffer = NULL;
+                ptAllocator->atMemoryBlocks[i].szSize = 0;
             }
         }
 
         ptAllocator->atMemoryBlocks[0].pcBuffer = (char*)PL_MEMORY_ALLOC(ptAllocator->szTotalBytes);
+        ptAllocator->atMemoryBlocks[0].szSize   = ptAllocator->szTotalBytes;
         memset(ptAllocator->atMemoryBlocks[0].pcBuffer, 0, ptAllocator->szTotalBytes);
         ptAllocator->szCurrentBlockIndex = 0;
     }
 
+    // Available bytes must reflect the CURRENT active block size
+    ptAllocator->szAvailableBytes = ptAllocator->atMemoryBlocks[ptAllocator->szCurrentBlockIndex].szSize;
 }
 
 void

@@ -684,7 +684,6 @@ pl_cleanup(void)
         }
         pl_sb_free(ptDrawlist->_sbtLayersCreated);
     }
-    pl_temp_allocator_free(&gptDrawCtx->tTempAllocator);
 }
 
 static plDrawList2D*
