@@ -49,14 +49,15 @@ typedef struct _plImageOpsI
     void (*cleanup)(plImageOpData*);
 
     // building operations
-    void (*add)(plImageOpData*, plImageOpInfo, uint32_t uXOffset, uint32_t uYOffset);
+    void (*add)(plImageOpData*, plImageOpInfo, uint32_t xOffset, uint32_t yOffset);
 
     // in-place place operations
-    void (*upsample)(plImageOpData* dataIn, uint32_t uFactor);
-    void (*downsample)(plImageOpData* dataIn, uint32_t uFactor);
+    void (*upsample)  (plImageOpData* dataIn, uint32_t factor); // factor is how many times to double resolution
+    void (*downsample)(plImageOpData* dataIn, uint32_t factor); // factor is how many times to half resolution
+    void (*square)    (plImageOpData* dataIn);
     
     // misc.
-    void (*extract)(plImageOpData* dataIn, uint32_t uXOffset, uint32_t uYOffset, uint32_t uWidth, uint32_t uHeight, plImageOpData* dataOut);
+    void (*extract)(plImageOpData* dataIn, uint32_t xOffset, uint32_t yOffset, uint32_t width, uint32_t height, plImageOpData* dataOut);
 
 } plImageOpsI;
 

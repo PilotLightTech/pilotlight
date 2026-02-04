@@ -5,7 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] internal api implementation
+// [SECTION] public api implementation
 // [SECTION] extension loading
 */
 
@@ -17,6 +17,8 @@ Index of this file:
 #include <math.h> // pow
 #include "pl.h"
 #include "pl_image_ops_ext.h"
+#define PL_MATH_INCLUDE_FUNCTIONS
+#include "pl_math.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -36,7 +38,7 @@ Index of this file:
 #include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api
+// [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 void
@@ -178,6 +180,50 @@ pl_image_op_downsample(plImageOpData* ptData, uint32_t uFactor)
 }
 
 void
+pl_image_op_square(plImageOpData* ptData)
+{
+
+    uint64_t uOldDataSize = ptData->uDataSize;
+    uint8_t* puOldData = ptData->puData;
+    uint32_t uOldWidth = ptData->uWidth;
+    uint32_t uOldHeight = ptData->uHeight;
+
+    if(uOldWidth == uOldHeight)
+        return;
+
+    uint32_t uTargetResolution = pl_max(uOldWidth, uOldHeight);
+    ptData->uWidth = uTargetResolution;
+    ptData->uHeight = uTargetResolution;
+
+    ptData->uDataSize = ptData->uWidth * ptData->uHeight * ptData->uStride;
+    ptData->puData = PL_ALLOC(ptData->uDataSize);
+    memset(ptData->puData, 0, ptData->uDataSize);
+
+    const uint8_t uChannelStrideIn = ptData->uStride / ptData->uChannels;
+
+    for(uint32_t uRow = 0; uRow < uOldHeight; uRow++)
+    {
+        for(uint32_t uCol = 0; uCol < uOldWidth; uCol++)
+        {
+            const uint32_t uSourceIndex = uRow * uOldWidth + uCol;
+            uint8_t auChannels[4] = {0};
+            for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
+            {
+                auChannels[uChannel] = puOldData[uSourceIndex * ptData->uStride + uChannel * uChannelStrideIn];
+            }
+
+            const uint32_t uDestinationIndex = uRow * ptData->uWidth + uCol;
+            for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
+            {
+                ptData->puData[uDestinationIndex * ptData->uStride + uChannel * ptData->uChannelStride] = auChannels[uChannel];
+            }
+        }
+    }
+
+    PL_FREE(puOldData);
+}
+
+void
 pl_image_op_extract(plImageOpData* ptDataIn, uint32_t uXOffset, uint32_t uYOffset, uint32_t uWidth, uint32_t uHeight, plImageOpData* ptDataOut)
 {
     plImageOpInfo tInfo = {
@@ -204,21 +250,6 @@ pl_image_op_extract(plImageOpData* ptDataIn, uint32_t uXOffset, uint32_t uYOffse
             {
                 ptDataOut->puData[uDestinationIndex * ptDataOut->uStride + uChannel * ptDataOut->uChannelStride] = auChannels[uChannel];
             }
-
-
-            // const uint32_t uSourceIndex = uRow * tInfo.uWidth + uCol;
-            // uint8_t auChannels[4] = {0};
-            // for(uint32_t uChannel = 0; uChannel < tInfo.uChannels; uChannel++)
-            // {
-            //     auChannels[uChannel] = tInfo.puData[uSourceIndex * tInfo.uStride + uChannel * uChannelStrideIn];
-            // }
-
-            // const uint32_t uDestinationIndex = (uYOffset + uRow) * ptData->uWidth + uCol + uXOffset;
-            // for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
-            // {
-            //     ptData->puData[uDestinationIndex * ptData->uStride + uChannel * ptData->uChannelStride] = auChannels[uChannel];
-            // }
-
         }
     }
 }
@@ -262,6 +293,7 @@ pl_load_image_ops_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .upsample     = pl_image_op_upsample,
         .downsample   = pl_image_op_downsample,
         .extract      = pl_image_op_extract,
+        .square       = pl_image_op_square
     };
     pl_set_api(ptApiRegistry, plImageOpsI, &tApi);
 
