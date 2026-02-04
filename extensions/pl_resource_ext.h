@@ -30,6 +30,7 @@ Index of this file:
         * plImageI         (v1.x)
         * plDxtI           (v1.x)
         * plDdsI           (v1.x)
+        * plPakI           (v1.x)
 */
 
 //-----------------------------------------------------------------------------
@@ -43,7 +44,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plResourceI_version {1, 2, 0}
+#define plResourceI_version {1, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -62,6 +63,7 @@ typedef struct _plResourceManagerInit plResourceManagerInit;
 
 // enums/falgs
 typedef int plResourceLoadFlags; // -> enum _plResourceLoadFlags // Flag: resource load flags (PL_RESOURCE_LOAD_FLAG_XXXX)
+typedef int plResourceEvictFlags; // -> enum _plResourceEvictFlags // Flag: resource load flags (PL_RESOURCE_LOAD_FLAG_XXXX)
 
 // external
 typedef struct _plDevice       plDevice;        // pl_graphics_ext.h
@@ -99,6 +101,12 @@ typedef struct _plResourceI
     bool (*is_valid) (plResourceHandle);
     bool (*is_loaded)(const char* file);
 
+    // residency control
+    void (*make_resident)(plResourceHandle);
+    void (*evict)        (plResourceHandle);
+    void (*evict_ex)     (plResourceHandle, plResourceEvictFlags);
+    bool (*is_resident)  (plResourceHandle);
+
     // resource retrieval
     plTextureHandle (*get_texture)(plResourceHandle);
 
@@ -117,6 +125,14 @@ enum _plResourceLoadFlags
     PL_RESOURCE_LOAD_FLAG_RETAIN_FILE_DATA = 1 << 0,
     PL_RESOURCE_LOAD_FLAG_BLOCK_COMPRESSED = 1 << 1, // if possible
     PL_RESOURCE_LOAD_FLAG_NO_CACHING       = 1 << 2
+};
+
+enum _plResourceEvictFlags
+{
+    PL_RESOURCE_EVICT_FLAG_NONE          = 0,
+    PL_RESOURCE_EVICT_FLAG_DROP_GPU      = 1 << 0, // default
+    // PL_RESOURCE_EVICT_FLAG_DROP_FILEDATA = 1 << 1, // if RETAIN_FILE_DATA was used
+    // PL_RESOURCE_EVICT_FLAG_DROP_ALL      = PL_RESOURCE_EVICT_FLAG_DROP_GPU | PL_RESOURCE_EVICT_FLAG_DROP_FILEDATA
 };
 
 //-----------------------------------------------------------------------------

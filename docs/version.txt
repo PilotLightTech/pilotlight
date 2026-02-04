@@ -34,7 +34,7 @@ the API is complete. It just means we won't break what currently exists.
 * PL Build           v1.2.1
 * API Registry       v1.0.0 (pl.h)
 * Data Registry      v1.0.0 (pl.h)
-* Memory             v1.0.2 (pl.h)
+* Memory             v1.1.3 (pl.h)
 * Extension Registry v1.1.0 (pl.h)
 * IO                 v1.1.1 (pl.h)
 * Window             v1.0.0 (pl.h)
@@ -82,7 +82,7 @@ the API is complete. It just means we won't break what currently exists.
 * Virtual File System v1.0.0 (pl_vfs_ext.h)
 * ECS                 v1.0.0 (pl_ecs_ext.h)
 * DDS                 v1.0.0 (pl_dds_ext.h)
-* Resource            v1.2.0 (pl_resource_ext.h)
+* Resource            v1.3.0 (pl_resource_ext.h)
 
 ## Nearly Stable Extensions
 
