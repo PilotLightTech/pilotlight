@@ -399,7 +399,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
             uint8_t* puFinalBytes = NULL;
 
             // prep texture for GPU if not done already
-            if(!gptVfs->does_file_exist(sbtNameConcat))
+            if((tFlags & PL_RESOURCE_LOAD_FLAG_NO_CACHING) || !gptVfs->does_file_exist(sbtNameConcat))
             {
 
                 bool bResizeNeeded = false;
