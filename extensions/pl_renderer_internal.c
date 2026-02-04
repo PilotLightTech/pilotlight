@@ -2345,6 +2345,7 @@ pl__renderer_get_bindless_texture_index(plScene* ptScene, plTextureHandle tTextu
 
         // TODO: handle when greater than 4096
     }
+    pl_hm_insert(&ptScene->tTextureIndexHashmap, tTexture.uData, ulValue);
     
     const plBindGroupUpdateTextureData tGlobalTextureData[] = {
         {
@@ -2380,6 +2381,7 @@ pl__renderer_get_bindless_cube_texture_index(plScene* ptScene, plTextureHandle t
 
         // TODO: handle when greater than 4096
     }
+    pl_hm_insert(&ptScene->tCubeTextureIndexHashmap, tTexture.uData, ulValue);
     
     const plBindGroupUpdateTextureData tGlobalTextureData[] = {
         {

@@ -82,7 +82,7 @@ the API is complete. It just means we won't break what currently exists.
 * Virtual File System v1.0.0 (pl_vfs_ext.h)
 * ECS                 v1.0.0 (pl_ecs_ext.h)
 * DDS                 v1.0.0 (pl_dds_ext.h)
-* Resource            v1.1.0 (pl_resource_ext.h)
+* Resource            v1.2.0 (pl_resource_ext.h)
 
 ## Nearly Stable Extensions
 
