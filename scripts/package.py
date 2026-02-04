@@ -69,6 +69,7 @@ extension_headers = [
     "pl_terrain_ext.h",
     "pl_terrain_processor_ext.h",
     "pl_freelist_ext.h",
+    "pl_image_ops_ext.h",
 ]
 
 # extension binaries
@@ -114,6 +115,7 @@ extensions = [
     "pl_terrain_ext",
     "pl_terrain_processor_ext",
     "pl_freelist_ext",
+    "pl_image_ops_ext",
     "pl_ui_ext"
 ]
 

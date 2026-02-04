@@ -106,3 +106,4 @@ the API is complete. It just means we won't break what currently exists.
 * Terrain             v0.1.0 (pl_terrain_ext.h)
 * Terrain Processor   v0.1.0 (pl_terrain_processor_ext.h)
 * Free List           v0.1.0 (pl_freelist_ext.h)
+* Image Ops           v0.1.0 (pl_image_ops_ext.h)

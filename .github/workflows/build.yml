@@ -194,6 +194,7 @@ jobs:
         if not exist ../out/pl_terrain_ext.dll exit 1
         if not exist ../out/pl_terrain_processor_ext.dll exit 1
         if not exist ../out/pl_freelist_ext.dll exit 1
+        if not exist ../out/pl_image_ops_ext.dll exit 1
         cd ..
 
     - name: Package Pilot Light
@@ -405,6 +406,7 @@ jobs:
         test -f ./out/pl_terrain_ext.dylib || exit 1
         test -f ./out/pl_terrain_processor_ext.dylib || exit 1
         test -f ./out/pl_freelist_ext.dylib || exit 1
+        test -f ./out/pl_image_ops_ext.dylib || exit 1
 
     - name: Package Pilot Light
       run: |
@@ -627,6 +629,7 @@ jobs:
         test -f ./out/pl_terrain_ext.so || exit 1
         test -f ./out/pl_terrain_processor_ext.so || exit 1
         test -f ./out/pl_freelist_ext.so || exit 1
+        test -f ./out/pl_image_ops_ext.so || exit 1
 
     - name: Package Pilot Light
       run: |
