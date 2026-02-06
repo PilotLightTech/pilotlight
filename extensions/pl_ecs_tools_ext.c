@@ -346,7 +346,7 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                 plHierarchyComponent*         ptHierarchyComp     = gptECS->get_component(ptLibrary, tHierarchyComponentType, *ptSelectedEntity);
                 plMaterialComponent*          ptMaterialComp      = gptECS->get_component(ptLibrary, tMaterialComponentType, *ptSelectedEntity);
                 plSkinComponent*              ptSkinComp          = gptECS->get_component(ptLibrary, tSkinComponentType, *ptSelectedEntity);
-                plCamera*            ptCameraComp        = gptECS->get_component(ptLibrary, tCameraComponentType, *ptSelectedEntity);
+                plCamera*                     ptCameraComp        = gptECS->get_component(ptLibrary, tCameraComponentType, *ptSelectedEntity);
                 plAnimationComponent*         ptAnimationComp     = gptECS->get_component(ptLibrary, tAnimationComponentType, *ptSelectedEntity);
                 plInverseKinematicsComponent* ptIKComp            = gptECS->get_component(ptLibrary, tInverseKinematicsComponentType, *ptSelectedEntity);
                 plLightComponent*             ptLightComp         = gptECS->get_component(ptLibrary, tLightComponentType, *ptSelectedEntity);

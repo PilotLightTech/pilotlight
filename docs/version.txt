@@ -96,7 +96,7 @@ the API is complete. It just means we won't break what currently exists.
 ## Unstable Extensions
 
 * ECS Tools           v0.1.0 (pl_ecs_tools_ext.h)
-* Camera              v0.2.0 (pl_camera_ext.h)
+* Camera              v0.3.0 (pl_camera_ext.h)
 * Gizmo               v0.1.0 (pl_gizmo_ext.h)
 * Model Loader        v0.2.1 (pl_model_loader_ext.h)
 * Renderer            v0.2.1 (pl_renderer_ext.h)

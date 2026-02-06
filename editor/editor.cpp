@@ -1290,19 +1290,19 @@ pl__create_scene(plAppData* ptAppData)
 
     // create main camera
     plCamera* ptMainCamera = nullptr;
-    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptCompLibrary, "main camera", pl_create_vec3(-4.7f, 4.2f, -3.256f), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
+    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptCompLibrary, "main camera", pl_create_vec3_d(-4.7, 4.2, -3.256), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
     gptCamera->update(ptMainCamera);
 
     // create cull camera
     plCamera* ptCullCamera = nullptr;
-    ptAppData->tCullCamera = gptCamera->create_perspective(ptAppData->ptCompLibrary, "cull camera", pl_create_vec3(0, 0, 5.0f), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
+    ptAppData->tCullCamera = gptCamera->create_perspective(ptAppData->ptCompLibrary, "cull camera", pl_create_vec3_d(0, 0, 5.0), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
     gptCamera->set_pitch_yaw(ptCullCamera, 0.0f, PL_PI);
     gptCamera->update(ptCullCamera);
 
     // create secondary camera
     plCamera* ptSecondaryCamera = nullptr;
-    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptCompLibrary, "secondary camera", pl_create_vec3(-4.7f, 4.2f, -3.256f), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
+    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptCompLibrary, "secondary camera", pl_create_vec3_d(-4.7, 4.2, -3.256), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
     gptCamera->set_pitch_yaw(ptSecondaryCamera, -0.1f, 0.911f);
     gptCamera->update(ptSecondaryCamera);
     plTransformComponent* ptSecondaryCameraTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptCompLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSecondaryCamera);

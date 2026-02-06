@@ -40,7 +40,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plCameraI_version {0, 2, 0}
+#define plCameraI_version {0, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -75,18 +75,18 @@ typedef struct _plCameraI
     void (*set_fov)        (plCamera*, float fYFov);
     void (*set_clip_planes)(plCamera*, float fNearZ, float fFarZ);
     void (*set_aspect)     (plCamera*, float fAspect);
-    void (*set_pos)        (plCamera*, float fX, float fY, float fZ);
+    void (*set_pos)        (plCamera*, double x, double y, double z);
     void (*set_pitch_yaw)  (plCamera*, float fPitch, float fYaw);
-    void (*translate)      (plCamera*, float fDx, float fDy, float fDz);
+    void (*translate)      (plCamera*, double dX, double dY, double dZ);
     void (*rotate)         (plCamera*, float fDPitch, float fDYaw);
-    void (*look_at)        (plCamera*, plVec3 tEye, plVec3 tTarget);
+    void (*look_at)        (plCamera*, plDVec3 tEye, plDVec3 tTarget);
     void (*update)         (plCamera*);
 
     //----------------------------ECS INTEGRATION----------------------------------
 
     // entity helpers
-    plEntity (*create_perspective) (plComponentLibrary*, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera**);
-    plEntity (*create_orthographic)(plComponentLibrary*, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera**);
+    plEntity (*create_perspective) (plComponentLibrary*, const char* pcName, plDVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera**);
+    plEntity (*create_orthographic)(plComponentLibrary*, const char* pcName, plDVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera**);
 
     // system setup/shutdown/etc
     void         (*register_ecs_system)(void);
@@ -103,20 +103,23 @@ typedef struct _plCamera
 {
     plCameraType tType;
     plVec3       tPos;
+    plDVec3      tPosDouble;
     float        fNearZ;
     float        fFarZ;
     float        fFieldOfView;
-    float        fAspectRatio;  // width/height
-    float        fWidth;        // for orthographic
-    float        fHeight;       // for orthographic
-    plMat4       tViewMat;      // cached
-    plMat4       tProjMat;      // cached
-    plMat4       tTransformMat; // cached
+    float        fAspectRatio;        // width/height
+    float        fWidth;              // for orthographic
+    float        fHeight;             // for orthographic
+    plMat4       tViewMat;            // cached
+    plMat4       tProjMat;            // cached
+    plMat4       tTransformMat;       // cached
+    plMat4       tViewMatDouble;      // cached
+    plMat4       tTransformMatDouble; // cached
 
     // rotations
-    float        fPitch; // rotation about right vector
-    float        fYaw;   // rotation about up vector
-    float        fRoll;  // rotation about forward vector
+    float fPitch; // rotation about right vector
+    float fYaw;   // rotation about up vector
+    float fRoll;  // rotation about forward vector
 
     // [INTERNAL]
     

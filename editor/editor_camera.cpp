@@ -85,8 +85,8 @@ pl__camera_update_imgui(plCamera* ptCamera)
         {
             const ImVec2 tMouseDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 1.0f);
             gptCamera->rotate(ptCamera,  0.0f,  -tMouseDelta.x * fCameraRotationSpeed);
-            ptCamera->tPos.x += -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * sinf(ptCamera->fYaw);
-            ptCamera->tPos.z += -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * cosf(ptCamera->fYaw);
+            ptCamera->tPosDouble.x += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * sinf(ptCamera->fYaw));
+            ptCamera->tPosDouble.z += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * cosf(ptCamera->fYaw));
             ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
         }
     }

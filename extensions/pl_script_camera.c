@@ -139,8 +139,8 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
         {
             const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
             gptCamera->rotate(ptCamera,  0.0f,  -tMouseDelta.x * fCameraRotationSpeed);
-            ptCamera->tPos.x += -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * sinf(ptCamera->fYaw);
-            ptCamera->tPos.z += -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * cosf(ptCamera->fYaw);
+            ptCamera->tPosDouble.x += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * sinf(ptCamera->fYaw));
+            ptCamera->tPosDouble.z += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * cosf(ptCamera->fYaw));
             gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }
     }

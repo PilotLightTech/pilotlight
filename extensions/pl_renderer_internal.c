@@ -21,6 +21,12 @@ Index of this file:
 // [SECTION] job system tasks
 //-----------------------------------------------------------------------------
 
+static inline plDVec3
+pl__to_double_vec(plVec3 tVec)
+{
+    return (plDVec3){(double)tVec.x, (double)tVec.y, (double)tVec.z};
+}
+
 static void
 pl__renderer_cull_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
 {
@@ -888,7 +894,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
             };
 
             plVec3 tDirection = pl_norm_vec3(ptLight->tDirection);
-            gptCamera->look_at(&tShadowCamera, ptLight->tPosition, pl_add_vec3(ptLight->tPosition, tDirection));
+            gptCamera->look_at(&tShadowCamera, pl__to_double_vec(ptLight->tPosition), pl__to_double_vec(pl_add_vec3(ptLight->tPosition, tDirection)));
             gptCamera->update(&tShadowCamera);
             tCamViewProjs = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
             ptShadowData->viewProjMat[0] = tCamViewProjs;
@@ -1502,7 +1508,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             plCamera tShadowCamera = {
                 .tType = PL_CAMERA_TYPE_ORTHOGRAPHIC
             };
-            gptCamera->look_at(&tShadowCamera, (plVec3){0}, tDirection);
+            gptCamera->look_at(&tShadowCamera, (plDVec3){0}, pl__to_double_vec(tDirection));
             tShadowCamera.fWidth  = fD;
             tShadowCamera.fHeight = fD;
             tShadowCamera.fNearZ  = fD * 2.0f;
@@ -1542,7 +1548,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             const plMat4 tLightInversion = pl_mat4_invert(&tShadowCamera.tViewMat);
             const plVec4 tLightPos = pl_mul_mat4_vec4(&tLightInversion, (plVec4){.xyz = tLightPosLightSpace.xyz, .w = 1.0f});
 
-            gptCamera->look_at(&tShadowCamera, tLightPos.xyz, pl_add_vec3(tLightPos.xyz, tDirection));
+            gptCamera->look_at(&tShadowCamera, pl__to_double_vec(tLightPos.xyz), pl__to_double_vec(pl_add_vec3(tLightPos.xyz, tDirection)));
             gptCamera->update(&tShadowCamera);
 
             atCamViewProjs[uCascade] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);

@@ -71,6 +71,10 @@ pl__wrap_angle(float tTheta)
 void
 pl_camera_update(plCamera* ptCamera)
 {
+    ptCamera->tPos.x = (float)ptCamera->tPosDouble.x;
+    ptCamera->tPos.y = (float)ptCamera->tPosDouble.y;
+    ptCamera->tPos.z = (float)ptCamera->tPosDouble.z;
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // world space
@@ -78,10 +82,11 @@ pl_camera_update(plCamera* ptCamera)
     static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, 1.0f, 0.0f};
     static const plVec4 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f, 0.0f};
 
-    const plMat4 tXRotMat   = pl_mat4_rotate_vec3(ptCamera->fPitch, tOriginalRightVec.xyz);
-    const plMat4 tYRotMat   = pl_mat4_rotate_vec3(ptCamera->fYaw, tOriginalUpVec.xyz);
-    const plMat4 tZRotMat   = pl_mat4_rotate_vec3(ptCamera->fRoll, tOriginalForwardVec.xyz);
-    const plMat4 tTranslate = pl_mat4_translate_vec3((plVec3){ptCamera->tPos.x, ptCamera->tPos.y, ptCamera->tPos.z});
+    const plMat4 tXRotMat         = pl_mat4_rotate_vec3(ptCamera->fPitch, tOriginalRightVec.xyz);
+    const plMat4 tYRotMat         = pl_mat4_rotate_vec3(ptCamera->fYaw, tOriginalUpVec.xyz);
+    const plMat4 tZRotMat         = pl_mat4_rotate_vec3(ptCamera->fRoll, tOriginalForwardVec.xyz);
+    const plMat4 tTranslate       = pl_mat4_translate_vec3(ptCamera->tPos);
+    const plMat4 tTranslateDouble = pl_identity_mat4();
 
     // rotations: rotY * rotX * rotZ
     plMat4 tRotations = pl_mul_mat4t(&tXRotMat, &tZRotMat);
@@ -93,14 +98,17 @@ pl_camera_update(plCamera* ptCamera)
     ptCamera->_tForwardVec = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalForwardVec)).xyz;
 
     // update camera transform: translate * rotate
-    ptCamera->tTransformMat = pl_mul_mat4t(&tTranslate, &tRotations);
+    ptCamera->tTransformMat       = pl_mul_mat4t(&tTranslate, &tRotations);
+    ptCamera->tTransformMatDouble = pl_mul_mat4t(&tTranslateDouble, &tRotations);
 
     // update camera view matrix
-    ptCamera->tViewMat   = pl_mat4t_invert(&ptCamera->tTransformMat);
+    ptCamera->tViewMat       = pl_mat4t_invert(&ptCamera->tTransformMat);
+    ptCamera->tViewMatDouble = pl_mat4t_invert(&ptCamera->tTransformMatDouble);
 
     // flip x & y so camera looks down +z and remains right handed (+x to the right)
     const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
-    ptCamera->tViewMat   = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
+    ptCamera->tViewMat       = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
+    ptCamera->tViewMatDouble = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMatDouble);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     switch(ptCamera->tType)
@@ -147,7 +155,7 @@ pl_camera_update(plCamera* ptCamera)
 }
 
 plEntity
-pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera** pptCompOut)
+pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plDVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
@@ -155,7 +163,8 @@ pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* p
 
     const plCamera tCamera = {
         .tType        = bReverseZ ? PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z : PL_CAMERA_TYPE_PERSPECTIVE,
-        .tPos         = tPos,
+        .tPos         = {(float)tPos.x, (float)tPos.y, (float)tPos.z},
+        .tPosDouble   = tPos,
         .fNearZ       = fNearZ,
         .fFarZ        = fFarZ,
         .fFieldOfView = fYFov,
@@ -173,19 +182,20 @@ pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* p
 }
 
 plEntity
-pl_camera_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera** pptCompOut)
+pl_camera_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plDVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     const plCamera tCamera = {
-        .tType   = PL_CAMERA_TYPE_ORTHOGRAPHIC,
-        .tPos    = tPos,
-        .fNearZ  = fNearZ,
-        .fFarZ   = fFarZ,
-        .fWidth  = fWidth,
-        .fHeight = fHeight
+        .tType      = PL_CAMERA_TYPE_ORTHOGRAPHIC,
+        .tPos       = {(float)tPos.x, (float)tPos.y, (float)tPos.z},
+        .tPosDouble = tPos,
+        .fNearZ     = fNearZ,
+        .fFarZ      = fFarZ,
+        .fWidth     = fWidth,
+        .fHeight    = fHeight
     };
 
     plCamera* ptCamera = gptECS->add_component(ptLibrary, gptCameraCtx->uManagerIndex, tNewEntity);
@@ -216,7 +226,9 @@ pl_run_camera_update_system(plComponentLibrary* ptLibrary)
         {
             plCamera* ptCamera = &ptComponents[i];
             plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, tTransformComponentType, tEntity);
-            ptCamera->tPos = ptTransform->tWorld.col[3].xyz;
+            ptCamera->tPosDouble.x = (double)ptTransform->tWorld.col[3].x;
+            ptCamera->tPosDouble.y = (double)ptTransform->tWorld.col[3].y;
+            ptCamera->tPosDouble.z = (double)ptTransform->tWorld.col[3].z;
 
             pl_camera_update(ptCamera);
         }
@@ -244,11 +256,14 @@ pl_camera_set_aspect(plCamera* ptCamera, float fAspect)
 }
 
 void
-pl_camera_set_pos(plCamera* ptCamera, float fX, float fY, float fZ)
+pl_camera_set_pos(plCamera* ptCamera, double dX, double dY, double dZ)
 {
-    ptCamera->tPos.x = fX;
-    ptCamera->tPos.y = fY;
-    ptCamera->tPos.z = fZ;
+    ptCamera->tPosDouble.x = dX;
+    ptCamera->tPosDouble.y = dY;
+    ptCamera->tPosDouble.z = dZ;
+    ptCamera->tPos.x = (float)ptCamera->tPosDouble.x;
+    ptCamera->tPos.y = (float)ptCamera->tPosDouble.y;
+    ptCamera->tPos.z = (float)ptCamera->tPosDouble.z;
 }
 
 void
@@ -259,11 +274,17 @@ pl_camera_set_pitch_yaw(plCamera* ptCamera, float fPitch, float fYaw)
 }
 
 void
-pl_camera_translate(plCamera* ptCamera, float fDx, float fDy, float fDz)
+pl_camera_translate(plCamera* ptCamera, double dDx, double dDy, double dDz)
 {
-    ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tRightVec, fDx));
-    ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tForwardVec, fDz));
-    ptCamera->tPos.y += fDy;
+    plVec3 tRightChange = pl_mul_vec3_scalarf(ptCamera->_tRightVec, (float)dDx);
+    plVec3 tForwardChange = pl_mul_vec3_scalarf(ptCamera->_tForwardVec, (float)dDz);
+    ptCamera->tPosDouble = pl_add_vec3_d(ptCamera->tPosDouble, (plDVec3){.x = (double)tRightChange.x,   .y = (double)tRightChange.y,   .z = (double)tRightChange.z});
+    ptCamera->tPosDouble = pl_add_vec3_d(ptCamera->tPosDouble, (plDVec3){.x = (double)tForwardChange.x, .y = (double)tForwardChange.y, .z = (double)tForwardChange.z});
+    ptCamera->tPosDouble.y += dDy;
+
+    ptCamera->tPos.x = (float)ptCamera->tPosDouble.x;
+    ptCamera->tPos.y = (float)ptCamera->tPosDouble.y;
+    ptCamera->tPos.z = (float)ptCamera->tPosDouble.z;
 }
 
 void
@@ -277,12 +298,16 @@ pl_camera_rotate(plCamera* ptCamera, float fDPitch, float fDYaw)
 }
 
 void
-pl_camera_look_at(plCamera* ptCamera, plVec3 tEye, plVec3 tTarget)
+pl_camera_look_at(plCamera* ptCamera, plDVec3 tEye, plDVec3 tTarget)
 {
-    const plVec3 tDirection = pl_norm_vec3(pl_sub_vec3(tTarget, tEye));
-    ptCamera->fYaw = atan2f(tDirection.x, tDirection.z);
-    ptCamera->fPitch = asinf(tDirection.y);
-    ptCamera->tPos = tEye;
+    const plDVec3 tDirection = pl_norm_vec3_d(pl_sub_vec3_d(tTarget, tEye));
+    ptCamera->fYaw = (float)atan2(tDirection.x, tDirection.z);
+    ptCamera->fPitch = (float)asin(tDirection.y);
+    ptCamera->tPosDouble = tEye;
+
+    ptCamera->tPos.x = (float)ptCamera->tPosDouble.x;
+    ptCamera->tPos.y = (float)ptCamera->tPosDouble.y;
+    ptCamera->tPos.z = (float)ptCamera->tPosDouble.z;
 }
 
 void
