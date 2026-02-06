@@ -29,7 +29,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plImageI_version {1, 0, 0}
+#define plImageI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -46,16 +46,20 @@ typedef struct _plImageWriteInfo plImageWriteInfo;
 typedef struct _plImageI
 {
     // query image info
-    bool (*get_info)(const unsigned char* buffer, int length, plImageInfo* infoOut);
+    bool (*get_info)          (const unsigned char* buffer, int length, plImageInfo* infoOut);
+    bool (*get_info_from_file)(const char* path, plImageInfo* infoOut);
 
     // reading LDR (HDR will be remapped through this interface)
-    unsigned char*  (*load)      (const unsigned char* buffer, int length, int* x, int* y, int* channels, int desiredChannels);
-    unsigned short* (*load_16bit)(const unsigned char* buffer, int length, int* x, int* y, int* channels, int desiredChannels);
+    unsigned char*  (*load)                (const unsigned char* buffer, int length, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
+    unsigned char*  (*load_from_file)      (const char* path, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
+    unsigned short* (*load_16bit)          (const unsigned char* buffer, int length, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
+    unsigned short* (*load_16bit_from_file)(const char* path, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
     void            (*set_hdr_to_ldr_gamma)  (float); // default 2.2f
     void            (*set_hdr_to_ldr_scale)  (float); // default 1.0f
     
     // reading HDR (LDR will be promoted to floating point values)
-    float* (*load_hdr)            (const unsigned char* buffer, int length, int* x, int* y, int* channels, int desiredChannels);
+    float* (*load_hdr)            (const unsigned char* buffer, int length, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
+    float* (*load_hdr_from_file)  (const char* path, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels);
     void   (*set_ldr_to_hdr_gamma)(float); // default 2.2f
     void   (*set_ldr_to_hdr_scale)(float); // default 1.0f
     
