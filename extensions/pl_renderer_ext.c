@@ -1958,13 +1958,7 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
     int iPanoramaHeight = 0;
     int iUnused = 0;
     pl_begin_cpu_sample(gptProfile, 0, "load image");
-    size_t szImageFileSize = gptVfs->get_file_size_str(pcPath);
-    unsigned char* pucBuffer = PL_ALLOC(szImageFileSize);
-    plVfsFileHandle tEnvMapHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
-    gptVfs->read_file(tEnvMapHandle, pucBuffer, &szImageFileSize);
-    gptVfs->close_file(tEnvMapHandle);
-    float* pfPanoramaData = gptImage->load_hdr(pucBuffer, (int)szImageFileSize, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
-    PL_FREE(pucBuffer);
+    float* pfPanoramaData = gptImage->load_hdr_from_file(pcPath, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
     pl_end_cpu_sample(gptProfile, 0);
     PL_ASSERT(pfPanoramaData);
 

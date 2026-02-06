@@ -100,7 +100,6 @@ typedef struct _plResource
 {
     char                acName[PL_MAX_NAME_LENGTH];
     char                acContainerFileName[PL_MAX_NAME_LENGTH];
-    plPakFile*          ptParentPakFile;
     plResourceLoadFlags tFlags;
     plResourceDataType  tType;
     uint8_t*            puFileData;
@@ -193,13 +192,6 @@ pl_resource_initialize(plResourceManagerInit tDesc)
 void
 pl_resource_cleanup(void)
 {
-    for(uint32_t i = 0; i < pl_sb_size(gptResourceManager->sbtResources); i++)
-    {
-        if(gptResourceManager->sbtResources[i].ptParentPakFile)
-        {
-            gptPak->unload(&gptResourceManager->sbtResources[i].ptParentPakFile);
-        }
-    }
     pl_sb_free(gptResourceManager->sbtResourceGenerations);
     pl_sb_free(gptResourceManager->sbtResources);
     pl_sb_free(gptResourceManager->sbtTextureUploadJobs);
@@ -359,10 +351,11 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
         {
             plPakInfo tPakInfo = {0};
             gptPak->load(pcContainerFileName, &tPakInfo, &ptParentPakFile);
-            gptPak->get_file(ptParentPakFile, pcName, NULL, &szFileByteSize);
+            gptPak->read_file(ptParentPakFile, pcName, NULL, &szFileByteSize);
             puFileData = PL_ALLOC(szFileByteSize);
             memset(puFileData, 0, szFileByteSize);
-            gptPak->get_file(ptParentPakFile, pcName, puFileData, &szFileByteSize);
+            gptPak->read_file(ptParentPakFile, pcName, puFileData, &szFileByteSize);
+            gptPak->unload(&ptParentPakFile);
         }
         else
         {
@@ -380,7 +373,6 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
         .tFlags                = tFlags,
         .szFileDataSize        = 0,
         .puFileData            = NULL,
-        .ptParentPakFile       = ptParentPakFile,
         .szContainerFileOffset = szFileBytesOffset
     };
 
@@ -427,7 +419,7 @@ pl_resource_load_ex(const char* pcName, plResourceLoadFlags tFlags, uint8_t* puO
             {
                 if(gptVfs->does_file_exist(sbtNameConcat))
                 {
-                    plVfsFileHandle tFileHandle = gptVfs->register_file(sbtNameConcat);
+                    plVfsFileHandle tFileHandle = gptVfs->register_file(sbtNameConcat, true);
                     gptVfs->delete_file(tFileHandle);
                 }
             }
