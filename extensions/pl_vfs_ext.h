@@ -41,7 +41,6 @@ Index of this file:
         * file searching
         * missing file ops (i.e. move, rename, copy)
         * additional error codes
-        * coarser file reading/writing
 */
 
 //-----------------------------------------------------------------------------
@@ -55,7 +54,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plVfsI_version {1, 0, 0}
+#define plVfsI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -91,15 +90,23 @@ typedef struct _plVfsI
     // basic file usage
     bool            (*does_file_exist)  (const char* file);
     size_t          (*get_file_size_str)(const char* file);
-    plVfsFileHandle (*register_file)    (const char* file); // file must exist
+    plVfsFileHandle (*register_file)    (const char* file, bool mustExist);
     plVfsFileHandle (*open_file)        (const char* file, plVfsFileMode);
     void            (*close_file)       (plVfsFileHandle);
-    size_t          (*write_file)       (plVfsFileHandle, const void*, size_t);
-    plVfsResult     (*read_file)        (plVfsFileHandle, void*, size_t*);
     plVfsResult     (*delete_file)      (plVfsFileHandle);
     bool            (*is_file_open)     (plVfsFileHandle);
     const char*     (*get_real_path)    (plVfsFileHandle);
     bool            (*is_file_valid)    (plVfsFileHandle);
+    plVfsResult     (*read_file)        (plVfsFileHandle, void*, size_t*);
+    size_t          (*write_file)       (plVfsFileHandle, const void*, size_t);
+
+    // stream usage
+    size_t (*get_file_stream_position)      (plVfsFileHandle);
+    void   (*reset_file_stream_position)    (plVfsFileHandle);
+    void   (*set_file_stream_position)      (plVfsFileHandle, size_t);
+    void   (*increment_file_stream_position)(plVfsFileHandle, size_t);
+    size_t (*read_file_stream)              (plVfsFileHandle, size_t elementSize, size_t elementCount, void*);
+    size_t (*write_file_stream)             (plVfsFileHandle, size_t elementSize, size_t elementCount, void*);
 } plVfsI;
 
 //-----------------------------------------------------------------------------

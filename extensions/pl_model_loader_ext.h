@@ -26,6 +26,7 @@ Index of this file:
         * plResourceI (v1.x)
         * plEcsI      (v1.x)
         * plFileI     (v1.x)
+        * plVfsI      (v2.x)
 */
 
 //-----------------------------------------------------------------------------

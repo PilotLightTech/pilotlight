@@ -24,7 +24,7 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plVfsI       (v1.x)
+        * plVfsI       (v2.x)
         * plLogI       (v1.x)
         * plScreenLogI (v2.x)
 */

@@ -26,7 +26,7 @@ Index of this file:
 
         * plGraphicsI      (v1.x)
         * plGPUAllocatorsI (v1.x)
-        * plVfsI           (v1.x)
+        * plVfsI           (v2.x)
         * plImageI         (v1.x)
         * plDxtI           (v1.x)
         * plDdsI           (v1.x)

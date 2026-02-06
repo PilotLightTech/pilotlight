@@ -30,7 +30,7 @@ Index of this file:
         * plJobI           (v2.x)
         * plDrawI          (v2.x)
         * plShaderI        (v1.x)
-        * plVfsI           (v1.x)
+        * plVfsI           (v2.x)
         * plLogI           (v1.x)
         * plRectPackI      (v1.x)
         * plConsoleI       (v1.x)
