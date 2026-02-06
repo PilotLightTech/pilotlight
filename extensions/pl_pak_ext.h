@@ -24,7 +24,7 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plVfsI      (v1.x)
+        * plVfsI      (v2.x)
         * plCompressI (v1.x)
 */
 
@@ -39,7 +39,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plPakI_version {1, 0, 0}
+#define plPakI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -57,6 +57,7 @@ Index of this file:
 typedef struct _plPakFile      plPakFile;
 typedef struct _plPakInfo      plPakInfo;
 typedef struct _plPakEntryInfo plPakEntryInfo;
+typedef struct _plPakChildFile plPakChildFile;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -71,10 +72,26 @@ typedef struct _plPakI
     void (*end_packing)    (plPakFile**);
 
     // unpacking
-    bool (*load)    (const char* file, plPakInfo*, plPakFile**);
-    void (*unload)  (plPakFile**);
-    bool (*get_file)(plPakFile*, const char* file, uint8_t* bufferOut, size_t* fileByteSizeOut);
+    bool   (*load)                          (const char* file, plPakInfo*, plPakFile**);
+    void   (*unload)                        (plPakFile**);
+    bool   (*read_file)                     (plPakFile*, const char* file, uint8_t* bufferOut, size_t* fileByteSizeOut);
 
+    // streaming usage
+    plPakChildFile* (*open_file)                     (plPakFile*, const char* file);
+    void            (*close_file)                    (plPakChildFile*);
+    size_t          (*read_file_stream)              (plPakChildFile*, size_t elementSize, size_t elementCount, void* bufferOut);
+    size_t          (*get_file_stream_position)      (plPakChildFile*);
+    void            (*reset_file_stream_position)    (plPakChildFile*);
+    void            (*set_file_stream_position)      (plPakChildFile*, size_t);
+    void            (*increment_file_stream_position)(plPakChildFile*, size_t);
+
+    //-----------------------------DEPRECATED--------------------------------------
+
+    #ifndef PL_DISABLE_OBSOLETE
+
+    bool (*get_file)(plPakFile*, const char* file, uint8_t* bufferOut, size_t* fileByteSizeOut);
+    
+    #endif // PL_DISABLE_OBSOLETE
 } plPakI;
 
 //-----------------------------------------------------------------------------
