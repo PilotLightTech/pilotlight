@@ -67,17 +67,17 @@ SAMPLING
             Ends a CPU profiling frame.
 
     pl_begin_profile_sample:
-        void pl_begin_profile_sample(pcName);
+        void pl_begin_profile_sample(uint32_t uThreadIndex, pcName);
             Begins a CPU sample. Must have begun a profiling frame.
 
     pl_end_profile_sample:
-        void pl_end_profile_sample();
+        void pl_end_profile_sample(uint32_t uThreadIndex);
             Ends a CPU sample.
 
 RETRIEVING RESULTS
 
     pl_get_last_frame_samples:
-        plProfileSample* pl_get_last_frame_samples(uint32_t* puSizeOut);
+        plProfileSample* pl_get_last_frame_samples(uint32_t uThreadIndex, uint32_t* puSizeOut);
             Returns samples from last frame. Call after "pl_end_profile_frame".
 
 
