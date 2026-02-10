@@ -224,8 +224,19 @@ pl_image_op_square(plImageOpData* ptData)
 }
 
 void
-pl_image_op_extract(plImageOpData* ptDataIn, uint32_t uXOffset, uint32_t uYOffset, uint32_t uWidth, uint32_t uHeight, plImageOpData* ptDataOut)
+pl_image_op_extract(plImageOpData* ptDataIn, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, plImageOpData* ptDataOut)
 {
+
+    uint32_t uStartRow = 0;
+    uint32_t uStartCol = 0;
+
+    if(iXOffset < 0) uStartCol = (uint32_t)-iXOffset;
+    if(iYOffset < 0) uStartRow = (uint32_t)-iYOffset;
+
+
+    uint32_t uActiveWidth  = pl_min(uWidth, ptDataIn->uWidth - uStartCol - iXOffset);
+    uint32_t uActiveHeight = pl_min(uHeight, ptDataIn->uHeight - uStartRow - iYOffset);
+
     plImageOpInfo tInfo = {
         .uWidth    = uWidth,
         .uHeight   = uHeight,
@@ -234,11 +245,11 @@ pl_image_op_extract(plImageOpData* ptDataIn, uint32_t uXOffset, uint32_t uYOffse
     };
     pl_initialize_image_op_data(&tInfo, ptDataOut);
 
-    for(uint32_t uRow = 0; uRow < uHeight; uRow++)
+    for(uint32_t uRow = uStartRow; uRow < uActiveHeight; uRow++)
     {
-        for(uint32_t uCol = 0; uCol < uWidth; uCol++)
+        for(uint32_t uCol = uStartCol; uCol < uActiveWidth; uCol++)
         {
-            const uint32_t uSourceIndex = (uRow + uYOffset) * ptDataIn->uWidth + uCol + uXOffset;
+            const uint32_t uSourceIndex = (uRow + iYOffset) * ptDataIn->uWidth + uCol + iXOffset;
             uint8_t auChannels[4] = {0};
             for(uint32_t uChannel = 0; uChannel < ptDataIn->uChannels; uChannel++)
             {
@@ -255,14 +266,24 @@ pl_image_op_extract(plImageOpData* ptDataIn, uint32_t uXOffset, uint32_t uYOffse
 }
 
 void
-pl_add_image_op(plImageOpData* ptData, plImageOpInfo tInfo, uint32_t uXOffset, uint32_t uYOffset)
+pl_add_image_op(plImageOpData* ptData, plImageOpInfo tInfo, int iXOffset, int iYOffset)
 {
     const uint8_t uChannelStrideIn = tInfo.uStride / tInfo.uChannels;
 
-    for(uint32_t uRow = 0; uRow < tInfo.uHeight; uRow++)
+    uint32_t uStartRow = 0;
+    uint32_t uStartCol = 0;
+
+    if(iXOffset < 0) uStartCol = (uint32_t)-iXOffset;
+    if(iYOffset < 0) uStartRow = (uint32_t)-iYOffset;
+
+    uint32_t uActiveWidth  = pl_min(tInfo.uWidth, ptData->uWidth - uStartCol - iXOffset);
+    uint32_t uActiveHeight = pl_min(tInfo.uHeight, ptData->uHeight - uStartRow - iYOffset);
+
+    for(uint32_t uRow = uStartRow; uRow < uActiveHeight; uRow++)
     {
-        for(uint32_t uCol = 0; uCol < tInfo.uWidth; uCol++)
+        for(uint32_t uCol = uStartCol; uCol < uActiveWidth; uCol++)
         {
+
             const uint32_t uSourceIndex = uRow * tInfo.uWidth + uCol;
             uint8_t auChannels[4] = {0};
             for(uint32_t uChannel = 0; uChannel < tInfo.uChannels; uChannel++)
@@ -270,7 +291,7 @@ pl_add_image_op(plImageOpData* ptData, plImageOpInfo tInfo, uint32_t uXOffset, u
                 auChannels[uChannel] = tInfo.puData[uSourceIndex * tInfo.uStride + uChannel * uChannelStrideIn];
             }
 
-            const uint32_t uDestinationIndex = (uYOffset + uRow) * ptData->uWidth + uCol + uXOffset;
+            const uint32_t uDestinationIndex = (iYOffset + uRow) * ptData->uWidth + uCol + iXOffset;
             for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
             {
                 ptData->puData[uDestinationIndex * ptData->uStride + uChannel * ptData->uChannelStride] = auChannels[uChannel];
