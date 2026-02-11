@@ -63,6 +63,7 @@ static const struct _plTerrainI*           gptTerrain          = 0;
 static const struct _plFreeListI*          gptFreeList         = 0;
 static const struct _plTerrainProcessorI*  gptTerrainProcessor = 0;
 static const struct _plImageOpsI*          gptImageOps         = 0;
+static const struct _plPathI*              gptPath             = 0;
 
 // context
 static struct _plIO* gptIO = 0;

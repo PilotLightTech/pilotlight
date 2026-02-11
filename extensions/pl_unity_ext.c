@@ -59,6 +59,7 @@ Index of this file:
 #include "pl_terrain_processor_ext.c"
 #include "pl_freelist_ext.c"
 #include "pl_image_ops_ext.c"
+#include "pl_path_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
@@ -116,6 +117,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptFreeList          = pl_get_api_latest(ptApiRegistry, plFreeListI);
     gptTerrainProcessor  = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
     gptImageOps          = pl_get_api_latest(ptApiRegistry, plImageOpsI);
+    gptPath              = pl_get_api_latest(ptApiRegistry, plPathI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -162,6 +164,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_terrain_processor_ext(ptApiRegistry, bReload);
     pl_load_freelist_ext(ptApiRegistry, bReload);
     pl_load_image_ops_ext(ptApiRegistry, bReload);
+    pl_load_path_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -209,6 +212,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_terrain_processor_ext(ptApiRegistry, bReload);
     pl_unload_freelist_ext(ptApiRegistry, bReload);
     pl_unload_image_ops_ext(ptApiRegistry, bReload);
+    pl_unload_path_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------

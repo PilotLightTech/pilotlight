@@ -139,6 +139,7 @@ with pl.project("pilotlight deploy"):
         "pl_terrain_processor_ext",
         "pl_freelist_ext",
         "pl_image_ops_ext",
+        "pl_path_ext",
     ]
 
     for extension in extensions:
