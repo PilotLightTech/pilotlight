@@ -21,6 +21,17 @@ Index of this file:
 #include "pl_path_ext.h"
 #include "pl.h"
 
+#ifdef PL_UNITY_BUILD
+    #include "pl_unity_ext.inc"
+#else
+    static const plMemoryI*  gptMemory = NULL;
+    #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+    #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+    #define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
+
+    const plDataRegistryI* gptDataRegistry = NULL;
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal structures
 //-----------------------------------------------------------------------------
@@ -57,10 +68,10 @@ typedef struct _plClosedSet
 
 // voxel grid helpers
 static uint32_t pl_voxel_index(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ);
-static bool     pl_is_voxel_occupied_impl(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ);
-static bool     pl_is_valid_voxel_impl(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ);
-static void     pl_world_to_voxel_impl(const plPathFindingVoxelGrid* ptGrid, plVec3 tWorldPos, uint32_t* puOutX, uint32_t* puOutY, uint32_t* puOutZ);
-static plVec3   pl_voxel_to_world_impl(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ);
+static bool     pl_is_voxel_occupied(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ);
+static bool     pl_is_valid_voxel(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ);
+static void     pl_world_to_voxel(const plPathFindingVoxelGrid* ptGrid, plVec3 tWorldPos, uint32_t* puOutX, uint32_t* puOutY, uint32_t* puOutZ);
+static plVec3   pl_voxel_to_world(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ);
 
 // pathfinding helpers
 static float pl_heuristic(uint32_t uFromX, uint32_t uFromY, uint32_t uFromZ, uint32_t uToX, uint32_t uToY, uint32_t uToZ);
@@ -102,13 +113,13 @@ pl_heuristic(uint32_t uFromX, uint32_t uFromY, uint32_t uFromZ, uint32_t uToX, u
     int32_t iDeltaZ = (int32_t)uToZ - (int32_t)uFromZ;
     
     // euclidean distance: sqrt(deltaX² + deltaY² + deltaZ²)
-    return sqrtf((float)(iDeltaX*iDeltaX + iDeltaY*iDeltaY + iDeltaZ*iDeltaZ));
+    return sqrtf((float)(iDeltaX * iDeltaX + iDeltaY * iDeltaY + iDeltaZ * iDeltaZ));
 }
 
 static float
 pl_movement_cost(int32_t iDeltaX, int32_t iDeltaY, int32_t iDeltaZ)
 {
-    // count how many axes we're moving on
+    // number of axis moved changes cost of that movement
     int32_t iAxisCount = (iDeltaX == 0 ? 0 : 1) + (iDeltaY == 0 ? 0 : 1) + (iDeltaZ == 0 ? 0 : 1);
     
     if(iAxisCount == 1)
@@ -134,8 +145,7 @@ pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, 
         {
             for(int32_t iDeltaZ = -1; iDeltaZ <= 1; iDeltaZ++)
             {
-                // don't include current as neighbor
-                if(iDeltaX == 0 && iDeltaY == 0 && iDeltaZ == 0)
+                if(iDeltaX == 0 && iDeltaY == 0 && iDeltaZ == 0) // don't include current
                     continue;
 
                 if(!bGenDiag) // skip diagonals if disabled
@@ -155,7 +165,7 @@ pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, 
                    iNeighborZ < 0 || iNeighborZ >= (int32_t)ptGrid->uDimZ)
                     continue;
                 
-                if(pl_is_voxel_occupied_impl(ptGrid, (uint32_t)iNeighborX, (uint32_t)iNeighborY, (uint32_t)iNeighborZ))
+                if(pl_is_voxel_occupied(ptGrid, (uint32_t)iNeighborX, (uint32_t)iNeighborY, (uint32_t)iNeighborZ))
                     continue;
                 
                 // valid neighbor - add to output array
@@ -171,14 +181,14 @@ pl_generate_neighbors(const plPathFindingVoxelGrid* ptGrid, uint32_t uCurrentX, 
 static plPriorityQueue*
 pl_create_priority_queue(uint32_t uInitialCapacity)
 {
-    plPriorityQueue* ptQueue = malloc(sizeof(plPriorityQueue));
+    plPriorityQueue* ptQueue = PL_ALLOC(sizeof(plPriorityQueue));
     if(!ptQueue)
         return NULL;
     
-    ptQueue->atNodes = malloc(sizeof(plPathNode) * uInitialCapacity);
+    ptQueue->atNodes = PL_ALLOC(sizeof(plPathNode) * uInitialCapacity);
     if(!ptQueue->atNodes)
     {
-        free(ptQueue);
+        PL_FREE(ptQueue);
         return NULL;
     }
     
@@ -195,9 +205,9 @@ pl_destroy_priority_queue(plPriorityQueue* ptQueue)
         return;
     
     if(ptQueue->atNodes)
-        free(ptQueue->atNodes);
+        PL_FREE(ptQueue->atNodes);
     
-    free(ptQueue);
+    PL_FREE(ptQueue);
 }
 
 static bool
@@ -213,7 +223,7 @@ pl_pq_push(plPriorityQueue* ptQueue, plPathNode tNode)
     if(ptQueue->uCount >= ptQueue->uCapacity)
     {
         uint32_t uNewCapacity = ptQueue->uCapacity * 2;
-        plPathNode* atNewNodes = realloc(ptQueue->atNodes, sizeof(plPathNode) * uNewCapacity);
+        plPathNode* atNewNodes = PL_REALLOC(ptQueue->atNodes, sizeof(plPathNode) * uNewCapacity);
         
         if(!atNewNodes)
             return; // allocation failed
@@ -277,16 +287,14 @@ pl_pq_pop(plPriorityQueue* ptQueue)
             uSmallest = uRightChild;
         }
         
-        // if current is smallest, done
         if(uSmallest == uCurrentIndex)
             break;
         
-        // swap with smallest child
         plPathNode temp = ptQueue->atNodes[uCurrentIndex];
         ptQueue->atNodes[uCurrentIndex] = ptQueue->atNodes[uSmallest];
         ptQueue->atNodes[uSmallest] = temp;
         
-        uCurrentIndex = uSmallest;  // move down
+        uCurrentIndex = uSmallest;
     }
     
     return tResult;
@@ -309,21 +317,20 @@ pl_pq_find(plPriorityQueue* ptQueue, uint32_t uX, uint32_t uY, uint32_t uZ)
 static plClosedSet*
 pl_create_closed_set(uint32_t uTotalVoxels)
 {
-    plClosedSet* ptSet = malloc(sizeof(plClosedSet));
+    plClosedSet* ptSet = PL_ALLOC(sizeof(plClosedSet));
     if(!ptSet)
         return NULL;
     
     uint32_t uBitArraySize = (uTotalVoxels + 31) / 32;  // round up to always have capacity
     
-    ptSet->auBits = malloc(sizeof(uint32_t) * uBitArraySize);
+    ptSet->auBits = PL_ALLOC(sizeof(uint32_t) * uBitArraySize);
     if(!ptSet->auBits)
     {
-        free(ptSet);
+        PL_FREE(ptSet);
         return NULL;
     }
     
-    // initialize all to 0 (unoccupied)
-    memset(ptSet->auBits, 0, sizeof(uint32_t) * uBitArraySize);
+    memset(ptSet->auBits, 0, sizeof(uint32_t) * uBitArraySize); // 0 (unoccupied)
     ptSet->uBitArraySize = uBitArraySize;
     
     return ptSet;
@@ -336,9 +343,9 @@ pl_destroy_closed_set(plClosedSet* ptSet)
         return;
     
     if(ptSet->auBits)
-        free(ptSet->auBits);
+        PL_FREE(ptSet->auBits);
     
-    free(ptSet);
+    PL_FREE(ptSet);
 }
 
 static void
@@ -367,7 +374,7 @@ pl_reconstruct_path(const plPathFindingVoxelGrid* ptGrid, plPathNode tGoalNode, 
 {
     plPathFindingResult tResult = {0};
     // allocate temporary path array
-    plPathNode* atPath = malloc(sizeof(plPathNode) * uExploredCount);
+    plPathNode* atPath = PL_ALLOC(sizeof(plPathNode) * uExploredCount);
     if(!atPath)
     {
         // allocation failed
@@ -405,10 +412,10 @@ pl_reconstruct_path(const plPathFindingVoxelGrid* ptGrid, plPathNode tGoalNode, 
         atPath[uPathCount - 1 - i] = temp;
     }
 
-    tResult.atWaypoints = malloc(sizeof(plVec3) * uPathCount);
+    tResult.atWaypoints = PL_ALLOC(sizeof(plVec3) * uPathCount);
     if(!tResult.atWaypoints)
     {
-        free(atPath);
+        PL_FREE(atPath);
         tResult.bSuccess = false;
         return tResult;
     }
@@ -416,12 +423,12 @@ pl_reconstruct_path(const plPathFindingVoxelGrid* ptGrid, plPathNode tGoalNode, 
     // convert voxel coords to world positions
     for(uint32_t i = 0; i < uPathCount; i++)
     {
-        tResult.atWaypoints[i] = pl_voxel_to_world_impl(ptGrid, atPath[i].uX, atPath[i].uY, atPath[i].uZ);
+        tResult.atWaypoints[i] = pl_voxel_to_world(ptGrid, atPath[i].uX, atPath[i].uY, atPath[i].uZ);
     }
     tResult.uWaypointCount = uPathCount;
     tResult.bSuccess = true;
 
-    free(atPath);
+    PL_FREE(atPath);
     return tResult;
 }
 
@@ -457,7 +464,6 @@ edge_intersects_box(plVec3 v0, plVec3 v1, plVec3 tVoxelMin, plVec3 tVoxelMax)
     plVec3 dir = {v1.x - v0.x, v1.y - v0.y, v1.z - v0.z};
     
     // test all 6 faces
-    // +X face
     if(fabsf(dir.x) > 0.0001f) 
     {
         float t = (tVoxelMax.x - v0.x) / dir.x;
@@ -469,8 +475,8 @@ edge_intersects_box(plVec3 v0, plVec3 v1, plVec3 tVoxelMin, plVec3 tVoxelMax)
                 return true;
         }
     }
-    // -X face
-    if(fabsf(dir.x) > 0.0001f) 
+    
+    if(fabsf(dir.x) > 0.0001f) // -X face
     {
         float t = (tVoxelMin.x - v0.x) / dir.x;
         if(t >= 0.0f && t <= 1.0f) 
@@ -481,8 +487,8 @@ edge_intersects_box(plVec3 v0, plVec3 v1, plVec3 tVoxelMin, plVec3 tVoxelMax)
                 return true;
         }
     }
-    // +Y face
-    if(fabsf(dir.y) > 0.0001f) 
+    
+    if(fabsf(dir.y) > 0.0001f) // +Y face
     {
         float t = (tVoxelMax.y - v0.y) / dir.y;
         if(t >= 0.0f && t <= 1.0f) 
@@ -493,8 +499,8 @@ edge_intersects_box(plVec3 v0, plVec3 v1, plVec3 tVoxelMin, plVec3 tVoxelMax)
                 return true;
         }
     }
-    // -Y face
-    if(fabsf(dir.y) > 0.0001f) 
+    
+    if(fabsf(dir.y) > 0.0001f) // -Y face
     {
         float t = (tVoxelMin.y - v0.y) / dir.y;
         if(t >= 0.0f && t <= 1.0f) 
@@ -505,8 +511,8 @@ edge_intersects_box(plVec3 v0, plVec3 v1, plVec3 tVoxelMin, plVec3 tVoxelMax)
                 return true;
         }
     }
-    // +Z face
-    if(fabsf(dir.z) > 0.0001f) 
+    
+    if(fabsf(dir.z) > 0.0001f) // +Z face
     {
         float t = (tVoxelMax.z - v0.z) / dir.z;
         if(t >= 0.0f && t <= 1.0f) 
@@ -517,8 +523,8 @@ edge_intersects_box(plVec3 v0, plVec3 v1, plVec3 tVoxelMin, plVec3 tVoxelMax)
                 return true;
         }
     }
-    // -Z face
-    if(fabsf(dir.z) > 0.0001f) 
+    
+    if(fabsf(dir.z) > 0.0001f) // -Z face
     {
         float t = (tVoxelMin.z - v0.z) / dir.z;
         if(t >= 0.0f && t <= 1.0f) 
@@ -540,7 +546,6 @@ triangle_intersects_box(plVec3 v0, plVec3 v1, plVec3 v2, plVec3 boxMin, plVec3 b
     // credit to: tomas akenine-möller's algorithm
     // https://fileadmin.cs.lth.se/cs/Personal/Tomas_Akenine-Moller/code/tribox2.txt
     
-    // compute box center and half-extents
     plVec3 boxCenter = {
         (boxMin.x + boxMax.x) * 0.5f,
         (boxMin.y + boxMax.y) * 0.5f,
@@ -552,7 +557,7 @@ triangle_intersects_box(plVec3 v0, plVec3 v1, plVec3 v2, plVec3 boxMin, plVec3 b
         (boxMax.z - boxMin.z) * 0.5f
     };
     
-    // translate triangle to box-centered coordinates & compute triangle edges
+    // translate triangle to box-centered coordinates
     plVec3 t0 = {v0.x - boxCenter.x, v0.y - boxCenter.y, v0.z - boxCenter.z};
     plVec3 t1 = {v1.x - boxCenter.x, v1.y - boxCenter.y, v1.z - boxCenter.z};
     plVec3 t2 = {v2.x - boxCenter.x, v2.y - boxCenter.y, v2.z - boxCenter.z};
@@ -560,8 +565,7 @@ triangle_intersects_box(plVec3 v0, plVec3 v1, plVec3 v2, plVec3 boxMin, plVec3 b
     plVec3 e1 = {t2.x - t1.x, t2.y - t1.y, t2.z - t1.z};
     plVec3 e2 = {t0.x - t2.x, t0.y - t2.y, t0.z - t2.z};
     
-    // test axes from cross products of triangle edges with box axes
-    // axis test macros
+    // sat: test cross products of triangle edges with box axes (9 tests)
     #define AXISTEST_X01(a, b, fa, fb) \
         p0 = a * t0.y - b * t0.z; \
         p2 = a * t2.y - b * t2.z; \
@@ -606,7 +610,6 @@ triangle_intersects_box(plVec3 v0, plVec3 v1, plVec3 v2, plVec3 boxMin, plVec3 b
     
     float min, max, p0, p1, p2, rad, fex, fey, fez;
     
-    // test edge 0
     fex = fabsf(e0.x);
     fey = fabsf(e0.y);
     fez = fabsf(e0.z);
@@ -614,7 +617,6 @@ triangle_intersects_box(plVec3 v0, plVec3 v1, plVec3 v2, plVec3 boxMin, plVec3 b
     AXISTEST_Y02(e0.z, e0.x, fez, fex);
     AXISTEST_Z12(e0.y, e0.x, fey, fex);
     
-    // test edge 1
     fex = fabsf(e1.x);
     fey = fabsf(e1.y);
     fez = fabsf(e1.z);
@@ -622,7 +624,6 @@ triangle_intersects_box(plVec3 v0, plVec3 v1, plVec3 v2, plVec3 boxMin, plVec3 b
     AXISTEST_Y02(e1.z, e1.x, fez, fex);
     AXISTEST_Z0(e1.y, e1.x, fey, fex);
     
-    // test edge 2
     fex = fabsf(e2.x);
     fey = fabsf(e2.y);
     fez = fabsf(e2.z);
@@ -637,31 +638,26 @@ triangle_intersects_box(plVec3 v0, plVec3 v1, plVec3 v2, plVec3 boxMin, plVec3 b
     #undef AXISTEST_Z12
     #undef AXISTEST_Z0
     
-    // test overlap in x, y, z axes (box faces)
-    // x axis
+    // sat: test triangle aabb against box axes (3 tests)
     min = t0.x < t1.x ? (t0.x < t2.x ? t0.x : t2.x) : (t1.x < t2.x ? t1.x : t2.x);
     max = t0.x > t1.x ? (t0.x > t2.x ? t0.x : t2.x) : (t1.x > t2.x ? t1.x : t2.x);
     if(min > boxHalfSize.x || max < -boxHalfSize.x) return false;
     
-    // y axis
     min = t0.y < t1.y ? (t0.y < t2.y ? t0.y : t2.y) : (t1.y < t2.y ? t1.y : t2.y);
     max = t0.y > t1.y ? (t0.y > t2.y ? t0.y : t2.y) : (t1.y > t2.y ? t1.y : t2.y);
     if(min > boxHalfSize.y || max < -boxHalfSize.y) return false;
     
-    // z axis
     min = t0.z < t1.z ? (t0.z < t2.z ? t0.z : t2.z) : (t1.z < t2.z ? t1.z : t2.z);
     max = t0.z > t1.z ? (t0.z > t2.z ? t0.z : t2.z) : (t1.z > t2.z ? t1.z : t2.z);
     if(min > boxHalfSize.z || max < -boxHalfSize.z) return false;
     
-    // test triangle plane
+    // sat: test triangle plane (1 test)
     plVec3 normal = {
         e0.y * e1.z - e0.z * e1.y,
         e0.z * e1.x - e0.x * e1.z,
         e0.x * e1.y - e0.y * e1.x
     };
     float d = -(normal.x * t0.x + normal.y * t0.y + normal.z * t0.z);
-    
-    // project box onto triangle normal
     float r = boxHalfSize.x * fabsf(normal.x) + 
               boxHalfSize.y * fabsf(normal.y) + 
               boxHalfSize.z * fabsf(normal.z);
@@ -680,16 +676,16 @@ triangle_intersects_box(plVec3 v0, plVec3 v1, plVec3 v2, plVec3 boxMin, plVec3 b
 //-----------------------------------------------------------------------------
 
 static plPathFindingVoxelGrid*
-pl_create_voxel_grid_impl(uint32_t uDimX, uint32_t uDimY, uint32_t uDimZ, float fVoxelSize, plVec3 tOrigin)
+pl_create_voxel_grid(uint32_t uDimX, uint32_t uDimY, uint32_t uDimZ, float fVoxelSize, plVec3 tOrigin)
 {
-    plPathFindingVoxelGrid* tVoxelGrid = malloc(sizeof(plPathFindingVoxelGrid));
+    plPathFindingVoxelGrid* tVoxelGrid = PL_ALLOC(sizeof(plPathFindingVoxelGrid));
     if(tVoxelGrid == NULL)
         return NULL; // allocation failed
 
     uint32_t uTotalVoxels = uDimX * uDimY * uDimZ;
     uint32_t uBitArraySize = (uTotalVoxels + 31) / 32; // round up to always have space 
 
-    tVoxelGrid->apOccupancyBits = malloc(sizeof(uint32_t) * uBitArraySize);
+    tVoxelGrid->apOccupancyBits = PL_ALLOC(sizeof(uint32_t) * uBitArraySize);
     if(tVoxelGrid->apOccupancyBits == NULL)
         return NULL; // allocation failed 
 
@@ -707,20 +703,20 @@ pl_create_voxel_grid_impl(uint32_t uDimX, uint32_t uDimY, uint32_t uDimZ, float 
 }
 
 static void
-pl_destroy_voxel_grid_impl(plPathFindingVoxelGrid* ptGrid)
+pl_destroy_voxel_grid(plPathFindingVoxelGrid* ptGrid)
 {
     if(ptGrid)
     {
         // free occupancy bits first 
         if(ptGrid->apOccupancyBits != NULL)
-            free(ptGrid->apOccupancyBits);
+            PL_FREE(ptGrid->apOccupancyBits);
         if(ptGrid != NULL)
-            free(ptGrid);
+            PL_FREE(ptGrid);
     }
 }
 
 static void
-pl_set_voxel_impl(plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ, bool bOccupied)
+pl_set_voxel(plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ, bool bOccupied)
 {
     if(uX >= ptGrid->uDimX || uY >= ptGrid->uDimY || uZ >= ptGrid->uDimZ)
         return; // out of bounds
@@ -728,8 +724,7 @@ pl_set_voxel_impl(plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint
     uint32_t uArrayIndex = uVoxelIndex / 32;                   // which uint32_t
     uint32_t uBitOffset = uVoxelIndex % 32;                    // which bit
 
-    // set bit
-    if(bOccupied)
+    if(bOccupied) // set bit
     {
         ptGrid->apOccupancyBits[uArrayIndex] |= (1 << uBitOffset);
     }
@@ -740,7 +735,7 @@ pl_set_voxel_impl(plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint
 }
 
 static bool
-pl_is_voxel_occupied_impl(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ)
+pl_is_voxel_occupied(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ)
 {
     // bounds check
     if(uX >= ptGrid->uDimX || uY >= ptGrid->uDimY || uZ >= ptGrid->uDimZ)
@@ -755,7 +750,7 @@ pl_is_voxel_occupied_impl(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uin
 }
 
 static void
-pl_clear_grid_impl(plPathFindingVoxelGrid* ptGrid)
+pl_clear_grid(plPathFindingVoxelGrid* ptGrid)
 {
     if(ptGrid == NULL || ptGrid->apOccupancyBits == NULL)
         return;
@@ -768,7 +763,7 @@ pl_clear_grid_impl(plPathFindingVoxelGrid* ptGrid)
 //-----------------------------------------------------------------------------
 
 static void
-pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, uint32_t uVertexCount, const uint32_t* puIndices, uint32_t uIndexCount)
+pl_voxelize_mesh(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, uint32_t uVertexCount, const uint32_t* puIndices, uint32_t uIndexCount)
 {
     for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
@@ -861,7 +856,7 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
                     // set if occupied
                     if(bVertexInside || bEdgeIntersects || bTriangleIntersects)
                     {
-                        pl_set_voxel_impl(ptGrid, iX, iY, iZ, true);
+                        pl_set_voxel(ptGrid, iX, iY, iZ, true);
                     }
                 }
             }
@@ -874,7 +869,7 @@ pl_voxelize_mesh_impl(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, u
 //-----------------------------------------------------------------------------
 
 static plPathFindingResult
-pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQuery, bool bSearchDiagonal)
+pl_find_path(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQuery, bool bSearchDiagonal)
 {
     plPathFindingResult tResult = {0};
 
@@ -885,16 +880,16 @@ pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery
     uint32_t uGoalY;
     uint32_t uGoalZ;
 
-    pl_world_to_voxel_impl(ptGrid, ptQuery->tStart, &uStartX, &uStartY, &uStartZ);
-    pl_world_to_voxel_impl(ptGrid, ptQuery->tGoal, &uGoalX, &uGoalY, &uGoalZ);
+    pl_world_to_voxel(ptGrid, ptQuery->tStart, &uStartX, &uStartY, &uStartZ);
+    pl_world_to_voxel(ptGrid, ptQuery->tGoal, &uGoalX, &uGoalY, &uGoalZ);
     
     // validation checks
-    if(!pl_is_valid_voxel_impl(ptGrid, uStartX, uStartY, uStartZ) || !pl_is_valid_voxel_impl(ptGrid, uGoalX, uGoalY, uGoalZ))
+    if(!pl_is_valid_voxel(ptGrid, uStartX, uStartY, uStartZ) || !pl_is_valid_voxel(ptGrid, uGoalX, uGoalY, uGoalZ))
     {
         tResult.bSuccess = false;
         return tResult;
     } 
-    if(pl_is_voxel_occupied_impl(ptGrid, uStartX, uStartY, uStartZ) || pl_is_voxel_occupied_impl(ptGrid, uGoalX, uGoalY, uGoalZ))
+    if(pl_is_voxel_occupied(ptGrid, uStartX, uStartY, uStartZ) || pl_is_voxel_occupied(ptGrid, uGoalX, uGoalY, uGoalZ))
     {
         tResult.bSuccess = false;
         return tResult;
@@ -907,7 +902,7 @@ pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery
     plClosedSet* ptClosedSet = pl_create_closed_set(uTotalVoxels);
 
     // for path reconstruction
-    plPathNode* atExploredNodes = malloc(sizeof(plPathNode) * uTotalVoxels);
+    plPathNode* atExploredNodes = PL_ALLOC(sizeof(plPathNode) * uTotalVoxels);
     uint32_t uExploredCount = 0;
     if(!atExploredNodes)
     {
@@ -942,7 +937,7 @@ pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery
         if(tCurrentNode.uX == uGoalX && tCurrentNode.uY == uGoalY && tCurrentNode.uZ == uGoalZ)
         {
             tResult = pl_reconstruct_path(ptGrid, tCurrentNode, atExploredNodes, uExploredCount, uStartX, uStartY, uStartZ);
-            free(atExploredNodes);
+            PL_FREE(atExploredNodes);
             pl_destroy_priority_queue(ptOpenSet);
             pl_destroy_closed_set(ptClosedSet);
             return tResult;
@@ -1002,7 +997,7 @@ pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery
     }
 
     // if we get here, open set is empty and we never reached goal
-    free(atExploredNodes);
+    PL_FREE(atExploredNodes);
     pl_destroy_closed_set(ptClosedSet);
     pl_destroy_priority_queue(ptOpenSet);
     tResult.bSuccess = false;
@@ -1010,13 +1005,13 @@ pl_find_path_impl(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery
 }
 
 static void
-pl_free_result_impl(plPathFindingResult* ptResult)
+pl_free_result(plPathFindingResult* ptResult)
 {
     if(!ptResult)
         return;
     
     if(ptResult->atWaypoints)
-        free(ptResult->atWaypoints);
+        PL_FREE(ptResult->atWaypoints);
     
     ptResult->atWaypoints = NULL;
     ptResult->uWaypointCount = 0;
@@ -1027,7 +1022,7 @@ pl_free_result_impl(plPathFindingResult* ptResult)
 //-----------------------------------------------------------------------------
 
 static void
-pl_world_to_voxel_impl(const plPathFindingVoxelGrid* ptGrid, plVec3 tWorldPos, uint32_t* puOutX, uint32_t* puOutY, uint32_t* puOutZ)
+pl_world_to_voxel(const plPathFindingVoxelGrid* ptGrid, plVec3 tWorldPos, uint32_t* puOutX, uint32_t* puOutY, uint32_t* puOutZ)
 {
     // calculate relative position from origin
     float uRelativeX = tWorldPos.x - ptGrid->tOrigin.x;
@@ -1041,7 +1036,7 @@ pl_world_to_voxel_impl(const plPathFindingVoxelGrid* ptGrid, plVec3 tWorldPos, u
 }
 
 static plVec3
-pl_voxel_to_world_impl(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ)
+pl_voxel_to_world(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ)
 {
     // get center of voxel from world position coordinates
     plVec3 tResult = {0};
@@ -1052,7 +1047,7 @@ pl_voxel_to_world_impl(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32
 }
 
 static bool
-pl_is_valid_voxel_impl(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ)
+pl_is_valid_voxel(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ)
 {
     // check if any coordinate is out of bounds
     if(uX >= ptGrid->uDimX)
@@ -1073,17 +1068,17 @@ PL_EXPORT void
 pl_load_path_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plPathI tApi = {
-        .create_voxel_grid  = pl_create_voxel_grid_impl,
-        .destroy_voxel_grid = pl_destroy_voxel_grid_impl,
-        .set_voxel          = pl_set_voxel_impl,
-        .is_voxel_occupied  = pl_is_voxel_occupied_impl,
-        .clear_grid         = pl_clear_grid_impl,
-        .voxelize_mesh      = pl_voxelize_mesh_impl,
-        .find_path          = pl_find_path_impl,
-        .free_result        = pl_free_result_impl,
-        .world_to_voxel     = pl_world_to_voxel_impl,
-        .voxel_to_world     = pl_voxel_to_world_impl,
-        .is_valid_voxel     = pl_is_valid_voxel_impl
+        .create_voxel_grid  = pl_create_voxel_grid,
+        .destroy_voxel_grid = pl_destroy_voxel_grid,
+        .set_voxel          = pl_set_voxel,
+        .is_voxel_occupied  = pl_is_voxel_occupied,
+        .clear_grid         = pl_clear_grid,
+        .voxelize_mesh      = pl_voxelize_mesh,
+        .find_path          = pl_find_path,
+        .free_result        = pl_free_result,
+        .world_to_voxel     = pl_world_to_voxel,
+        .voxel_to_world     = pl_voxel_to_world,
+        .is_valid_voxel     = pl_is_valid_voxel
     };
     pl_set_api(ptApiRegistry, plPathI, &tApi);
 }
