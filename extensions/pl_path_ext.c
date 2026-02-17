@@ -102,17 +102,20 @@ static plPathFindingResult pl_reconstruct_path(const plPathFindingVoxelGrid* ptG
 static uint32_t
 pl_voxel_index(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ)
 {
-    return uX + uY * ptGrid->uDimX + uZ * ptGrid->uDimX * ptGrid->uDimY;
+    return uX + (uY * ptGrid->uDimX) + (uZ * ptGrid->uDimX * ptGrid->uDimY);
 }
 
 static float
 pl_heuristic(uint32_t uFromX, uint32_t uFromY, uint32_t uFromZ, uint32_t uToX, uint32_t uToY, uint32_t uToZ)
 {
+    // euclidean distance: sqrt(deltaX² + deltaY² + deltaZ²)
+    // used to estimate distance to goal in a straight line
+    // it is important that it never over estimates to ensure 
+    // we find the shortest distance in the end
     int32_t iDeltaX = (int32_t)uToX - (int32_t)uFromX;
     int32_t iDeltaY = (int32_t)uToY - (int32_t)uFromY;
     int32_t iDeltaZ = (int32_t)uToZ - (int32_t)uFromZ;
     
-    // euclidean distance: sqrt(deltaX² + deltaY² + deltaZ²)
     return sqrtf((float)(iDeltaX * iDeltaX + iDeltaY * iDeltaY + iDeltaZ * iDeltaZ));
 }
 
@@ -255,15 +258,17 @@ pl_pq_push(plPriorityQueue* ptQueue, plPathNode tNode)
             break;  // heap property satisfied
         }
     }
-
     ptQueue->uCount++;
 }
 
 static plPathNode
 pl_pq_pop(plPriorityQueue* ptQueue)
 {
-    // root is minimum
-    plPathNode tResult = ptQueue->atNodes[0];
+    // index accessing for flat array storage on min heap
+    // parent = (i - 1) / 2
+    // left   = (i * 2) + 1
+    // right  = (i * 2) + 2
+    plPathNode tResult = ptQueue->atNodes[0]; // root is minimum
     
     // move last element to root
     ptQueue->uCount--;
@@ -351,8 +356,8 @@ pl_destroy_closed_set(plClosedSet* ptSet)
 static void
 pl_closed_set_add(plClosedSet* ptSet, uint32_t uVoxelIndex)
 {
-    uint32_t uArrayIndex = uVoxelIndex / 32;
-    uint32_t uBitOffset = uVoxelIndex % 32;
+    uint32_t uArrayIndex = uVoxelIndex / 32; // which uint
+    uint32_t uBitOffset = uVoxelIndex % 32;  // which bit
     
     // set bit to 1
     ptSet->auBits[uArrayIndex] |= (1 << uBitOffset);
@@ -361,8 +366,8 @@ pl_closed_set_add(plClosedSet* ptSet, uint32_t uVoxelIndex)
 static bool
 pl_closed_set_contains(plClosedSet* ptSet, uint32_t uVoxelIndex)
 {
-    uint32_t uArrayIndex = uVoxelIndex / 32;
-    uint32_t uBitOffset = uVoxelIndex % 32;
+    uint32_t uArrayIndex = uVoxelIndex / 32; // which uint
+    uint32_t uBitOffset = uVoxelIndex % 32;  // which bit
     
     // check if bit is 1
     return (ptSet->auBits[uArrayIndex] & (1 << uBitOffset)) != 0;
@@ -372,12 +377,15 @@ static plPathFindingResult
 pl_reconstruct_path(const plPathFindingVoxelGrid* ptGrid, plPathNode tGoalNode, plPathNode* atExploredNodes, uint32_t uExploredCount, 
         uint32_t uStartX, uint32_t uStartY, uint32_t uStartZ)
 {
+    // start at goal node and check parts until we find the start node
+    // once we have the path stored in teme path array we have to reverse 
+    // the order to get the correct start to finish order, we swap by 
+    // uPathSize / 2 since we are swapping i with pathsize - 1 - i
+    // once list is in correct order we can covert to world coordinates
     plPathFindingResult tResult = {0};
-    // allocate temporary path array
     plPathNode* atPath = PL_ALLOC(sizeof(plPathNode) * uExploredCount);
     if(!atPath)
     {
-        // allocation failed
         tResult.bSuccess = false;
         return tResult;
     }
@@ -385,26 +393,25 @@ pl_reconstruct_path(const plPathFindingVoxelGrid* ptGrid, plPathNode tGoalNode, 
     uint32_t uPathCount = 0;
     plPathNode tCurrent = tGoalNode;
 
-    // check explored and retrieve path
     while(tCurrent.uX != uStartX || tCurrent.uY != uStartY || tCurrent.uZ != uStartZ)
     {
-        // add current to path
         atPath[uPathCount] = tCurrent;
         uPathCount++;
 
         for(uint32_t i = 0; i < uExploredCount; i++)
         {
-            if(atExploredNodes[i].uX == tCurrent.uParentX && atExploredNodes[i].uY == tCurrent.uParentY && atExploredNodes[i].uZ == tCurrent.uParentZ)
+            if(atExploredNodes[i].uX == tCurrent.uParentX && 
+               atExploredNodes[i].uY == tCurrent.uParentY && 
+               atExploredNodes[i].uZ == tCurrent.uParentZ)
             {
                 tCurrent = atExploredNodes[i];
                 break;
             }
         }
     }
-    atPath[uPathCount] = tCurrent;  // tCurrent is the start node, add to list
+    atPath[uPathCount] = tCurrent;
     uPathCount++;
 
-    // reverse the path
     for(uint32_t i = 0; i < uPathCount / 2; i++)
     {
         plPathNode temp = atPath[i];
@@ -464,7 +471,7 @@ edge_intersects_box(plVec3 v0, plVec3 v1, plVec3 tVoxelMin, plVec3 tVoxelMax)
     plVec3 dir = {v1.x - v0.x, v1.y - v0.y, v1.z - v0.z};
     
     // test all 6 faces
-    if(fabsf(dir.x) > 0.0001f) 
+    if(fabsf(dir.x) > 0.0001f) // +x face
     {
         float t = (tVoxelMax.x - v0.x) / dir.x;
         if(t >= 0.0f && t <= 1.0f) 
@@ -680,14 +687,14 @@ pl_create_voxel_grid(uint32_t uDimX, uint32_t uDimY, uint32_t uDimZ, float fVoxe
 {
     plPathFindingVoxelGrid* tVoxelGrid = PL_ALLOC(sizeof(plPathFindingVoxelGrid));
     if(tVoxelGrid == NULL)
-        return NULL; // allocation failed
+        return NULL;
 
     uint32_t uTotalVoxels = uDimX * uDimY * uDimZ;
     uint32_t uBitArraySize = (uTotalVoxels + 31) / 32; // round up to always have space 
 
     tVoxelGrid->apOccupancyBits = PL_ALLOC(sizeof(uint32_t) * uBitArraySize);
     if(tVoxelGrid->apOccupancyBits == NULL)
-        return NULL; // allocation failed 
+        return NULL;
 
     memset(tVoxelGrid->apOccupancyBits, 0, sizeof(uint32_t) * uBitArraySize); // set all to unoccupied by default 
 
@@ -707,7 +714,6 @@ pl_destroy_voxel_grid(plPathFindingVoxelGrid* ptGrid)
 {
     if(ptGrid)
     {
-        // free occupancy bits first 
         if(ptGrid->apOccupancyBits != NULL)
             PL_FREE(ptGrid->apOccupancyBits);
         if(ptGrid != NULL)
@@ -724,7 +730,7 @@ pl_set_voxel(plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t 
     uint32_t uArrayIndex = uVoxelIndex / 32;                   // which uint32_t
     uint32_t uBitOffset = uVoxelIndex % 32;                    // which bit
 
-    if(bOccupied) // set bit
+    if(bOccupied)
     {
         ptGrid->apOccupancyBits[uArrayIndex] |= (1 << uBitOffset);
     }
@@ -765,6 +771,8 @@ pl_clear_grid(plPathFindingVoxelGrid* ptGrid)
 static void
 pl_voxelize_mesh(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, uint32_t uVertexCount, const uint32_t* puIndices, uint32_t uIndexCount)
 {
+    // TODO: this needs to be tested with more complex meshes, have only done very simple geomerty so far
+    // TODO: does the name make sense here? we are setting mesh voxels to occupied if inside voxel grid
     for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
         uint32_t uIndex0 = puIndices[i];
@@ -871,6 +879,12 @@ pl_voxelize_mesh(plPathFindingVoxelGrid* ptGrid, const float* pfVertices, uint32
 static plPathFindingResult
 pl_find_path(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQuery, bool bSearchDiagonal)
 {
+    // converts world space start/goal positions to voxel coordinates and validates both are within
+    // grid bounds and unoccupied. the open set is a min-heap priority queue sorted by f-cost, the
+    // closed set is a bitset of already evaluated voxels, and atExploredNodes stores evaluated nodes
+    // for path reconstruction. each iteration pops the lowest f-cost node and evaluates its neighbors,
+    // adding new ones to the open set or updating existing ones if a cheaper g-cost path is found.
+    // parent pointers are set on each node so the path can be reconstructed once the goal is reached
     plPathFindingResult tResult = {0};
 
     uint32_t uStartX;
@@ -883,7 +897,6 @@ pl_find_path(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQ
     pl_world_to_voxel(ptGrid, ptQuery->tStart, &uStartX, &uStartY, &uStartZ);
     pl_world_to_voxel(ptGrid, ptQuery->tGoal, &uGoalX, &uGoalY, &uGoalZ);
     
-    // validation checks
     if(!pl_is_valid_voxel(ptGrid, uStartX, uStartY, uStartZ) || !pl_is_valid_voxel(ptGrid, uGoalX, uGoalY, uGoalZ))
     {
         tResult.bSuccess = false;
@@ -895,13 +908,11 @@ pl_find_path(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQ
         return tResult;
     }
 
-    // create data structures
     uint32_t uTotalVoxels = ptGrid->uDimX * ptGrid->uDimY * ptGrid->uDimZ;
-    uint32_t uInitCapacity =  (uint32_t)(uTotalVoxels * 0.3f); // TODO: test for ideal starting capacity
+    uint32_t uInitCapacity = (uint32_t)(uTotalVoxels * 0.3f); // TODO: test for ideal starting capacity
     plPriorityQueue* ptOpenSet = pl_create_priority_queue(uInitCapacity);
     plClosedSet* ptClosedSet = pl_create_closed_set(uTotalVoxels);
 
-    // for path reconstruction
     plPathNode* atExploredNodes = PL_ALLOC(sizeof(plPathNode) * uTotalVoxels);
     uint32_t uExploredCount = 0;
     if(!atExploredNodes)
@@ -912,7 +923,6 @@ pl_find_path(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQ
         return tResult;
     }
     
-    // create start node and add to open set
     plPathNode tStartNode = {0};
     tStartNode.uX = uStartX;
     tStartNode.uY = uStartY;
@@ -920,7 +930,6 @@ pl_find_path(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQ
     tStartNode.fGCost = 0;
     tStartNode.fHCost = pl_heuristic(uStartX, uStartY, uStartZ, uGoalX, uGoalY, uGoalZ);
     tStartNode.fFCost = tStartNode.fGCost + tStartNode.fHCost;
-    // setting to self (first node no parent)
     tStartNode.uParentX = uStartX;
     tStartNode.uParentY = uStartY;
     tStartNode.uParentZ = uStartZ;
@@ -929,11 +938,10 @@ pl_find_path(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQ
     
     while(!pl_pq_is_empty(ptOpenSet))
     {
-        plPathNode tCurrentNode = pl_pq_pop(ptOpenSet); // this is the node we're exploring (lowest f cost)
-        atExploredNodes[uExploredCount] = tCurrentNode; // store for path recreation 
+        plPathNode tCurrentNode = pl_pq_pop(ptOpenSet);
+        atExploredNodes[uExploredCount] = tCurrentNode;
         uExploredCount++;  
         
-        // check if we reached the goal
         if(tCurrentNode.uX == uGoalX && tCurrentNode.uY == uGoalY && tCurrentNode.uZ == uGoalZ)
         {
             tResult = pl_reconstruct_path(ptGrid, tCurrentNode, atExploredNodes, uExploredCount, uStartX, uStartY, uStartZ);
@@ -946,20 +954,16 @@ pl_find_path(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQ
         uint32_t uCurrentVoxelIndex = pl_voxel_index(ptGrid, tCurrentNode.uX, tCurrentNode.uY, tCurrentNode.uZ);
         pl_closed_set_add(ptClosedSet, uCurrentVoxelIndex);
         
-        // get all neighbors of current
-        plPathNode tNeighbors[26] = {0}; // 26 is max possible for 3D
+        plPathNode tNeighbors[26] = {0};
         uint32_t uNeighborCount = 0;
         pl_generate_neighbors(ptGrid, tCurrentNode.uX, tCurrentNode.uY, tCurrentNode.uZ, tNeighbors, &uNeighborCount, bSearchDiagonal, ptQuery);
  
-        // process each neighbor
         for(uint32_t uNeighborToCheck = 0; uNeighborToCheck < uNeighborCount; uNeighborToCheck++)
         {   
-            // skip if already explored
             uint32_t uIndexForNeighbor = pl_voxel_index(ptGrid, tNeighbors[uNeighborToCheck].uX, tNeighbors[uNeighborToCheck].uY, tNeighbors[uNeighborToCheck].uZ);
             if(pl_closed_set_contains(ptClosedSet, uIndexForNeighbor))
                 continue;
             
-            // calculate cost to reach this neighbor
             int32_t iDeltaX = (int32_t)tNeighbors[uNeighborToCheck].uX - (int32_t)tCurrentNode.uX;
             int32_t iDeltaY = (int32_t)tNeighbors[uNeighborToCheck].uY - (int32_t)tCurrentNode.uY;
             int32_t iDeltaZ = (int32_t)tNeighbors[uNeighborToCheck].uZ - (int32_t)tCurrentNode.uZ;
@@ -967,12 +971,10 @@ pl_find_path(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQ
             float fMovementCost = pl_movement_cost(iDeltaX, iDeltaY, iDeltaZ);
             float fTentativeGCost = tCurrentNode.fGCost + fMovementCost; 
 
-            // check if this neighbor is already in open set - returns NULL if not in openset 
             plPathNode* ptExistingNode = pl_pq_find(ptOpenSet, tNeighbors[uNeighborToCheck].uX, tNeighbors[uNeighborToCheck].uY, tNeighbors[uNeighborToCheck].uZ);
              
             if(ptExistingNode == NULL)
             {
-                // new node - add to open set
                 tNeighbors[uNeighborToCheck].fGCost = fTentativeGCost;
                 tNeighbors[uNeighborToCheck].fHCost = pl_heuristic(tNeighbors[uNeighborToCheck].uX, 
                                                                    tNeighbors[uNeighborToCheck].uY, 
@@ -996,7 +998,6 @@ pl_find_path(const plPathFindingVoxelGrid* ptGrid, const plPathFindingQuery* ptQ
         }
     }
 
-    // if we get here, open set is empty and we never reached goal
     PL_FREE(atExploredNodes);
     pl_destroy_closed_set(ptClosedSet);
     pl_destroy_priority_queue(ptOpenSet);
@@ -1030,7 +1031,7 @@ pl_world_to_voxel(const plPathFindingVoxelGrid* ptGrid, plVec3 tWorldPos, uint32
     float uRelativeZ = tWorldPos.z - ptGrid->tOrigin.z;
     
     // divide by voxel size and floor
-    *puOutX = (uint32_t)floor(uRelativeX / ptGrid->fVoxelSize); // TODO: should the "floor" function be replaced
+    *puOutX = (uint32_t)floor(uRelativeX / ptGrid->fVoxelSize);
     *puOutY = (uint32_t)floor(uRelativeY / ptGrid->fVoxelSize);
     *puOutZ = (uint32_t)floor(uRelativeZ / ptGrid->fVoxelSize);
 }
@@ -1038,7 +1039,6 @@ pl_world_to_voxel(const plPathFindingVoxelGrid* ptGrid, plVec3 tWorldPos, uint32
 static plVec3
 pl_voxel_to_world(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ)
 {
-    // get center of voxel from world position coordinates
     plVec3 tResult = {0};
     tResult.x = ptGrid->tOrigin.x + ((float)uX + 0.5f) * ptGrid->fVoxelSize;
     tResult.y = ptGrid->tOrigin.y + ((float)uY + 0.5f) * ptGrid->fVoxelSize;
@@ -1049,7 +1049,6 @@ pl_voxel_to_world(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY
 static bool
 pl_is_valid_voxel(const plPathFindingVoxelGrid* ptGrid, uint32_t uX, uint32_t uY, uint32_t uZ)
 {
-    // check if any coordinate is out of bounds
     if(uX >= ptGrid->uDimX)
         return false;
     if(uY >= ptGrid->uDimY)
