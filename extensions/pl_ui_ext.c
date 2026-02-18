@@ -116,7 +116,7 @@ pl_wants_text_input(void)
 }
 
 void
-pl_new_frame(void)
+pl_ui_new_frame(void)
 {
 
     pl_sb_reset(gptCtx->sbtBeginPopupStack);
@@ -666,14 +666,14 @@ pl_end_tooltip(void)
 }
 
 plVec2
-pl_get_window_pos(void)
+pl_ui_get_window_pos(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     return ptWindow->tPos;
 }
 
 plVec2
-pl_get_window_size(void)
+pl_ui_get_window_size(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     return ptWindow->tSize;
@@ -729,9 +729,9 @@ pl_step_clipper(plUiClipper* ptClipper)
     else if (ptClipper->_fItemHeight == 0.0f)
     {
         ptClipper->_fItemHeight = pl__get_cursor_pos().y - ptClipper->_fStartPosY;
-        if(ptClipper->_fStartPosY < pl_get_window_pos().y)
-            ptClipper->uDisplayStart = (uint32_t)((pl_get_window_pos().y - ptClipper->_fStartPosY) / ptClipper->_fItemHeight);
-        ptClipper->uDisplayEnd = ptClipper->uDisplayStart + (uint32_t)(pl_get_window_size().y / ptClipper->_fItemHeight) + 1;
+        if(ptClipper->_fStartPosY < pl_ui_get_window_pos().y)
+            ptClipper->uDisplayStart = (uint32_t)((pl_ui_get_window_pos().y - ptClipper->_fStartPosY) / ptClipper->_fItemHeight);
+        ptClipper->uDisplayEnd = ptClipper->uDisplayStart + (uint32_t)(pl_ui_get_window_size().y / ptClipper->_fItemHeight) + 1;
         ptClipper->uDisplayEnd = pl_minu(ptClipper->uDisplayEnd, ptClipper->uItemCount) + 1;
         if(ptClipper->uDisplayStart > 0)
             ptClipper->uDisplayStart--;
@@ -2656,7 +2656,7 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .cleanup                       = pl_ui_cleanup,
         .get_draw_list                 = pl_get_draw_list,
         .get_debug_draw_list           = pl_get_debug_draw_list,
-        .new_frame                     = pl_new_frame,
+        .new_frame                     = pl_ui_new_frame,
         .end_frame                     = pl_end_frame,
         .wants_keyboard_capture        = pl_wants_keyboard_capture,
         .wants_text_input              = pl_wants_text_input,
@@ -2682,8 +2682,8 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .end_popup                     = pl_end_popup,
         .begin_tooltip                 = pl_begin_tooltip,
         .end_tooltip                   = pl_end_tooltip,
-        .get_window_pos                = pl_get_window_pos,
-        .get_window_size               = pl_get_window_size,
+        .get_window_pos                = pl_ui_get_window_pos,
+        .get_window_size               = pl_ui_get_window_size,
         .get_window_scroll             = pl_get_window_scroll,
         .get_window_scroll_max         = pl_get_window_scroll_max,
         .set_window_scroll             = pl_set_window_scroll,

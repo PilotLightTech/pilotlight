@@ -741,7 +741,7 @@ pl_yield_thread(void)
 }
 
 plThreadResult
-pl_create_mutex(plMutex** pptMutexOut)
+pl_platform_create_mutex(plMutex** pptMutexOut)
 {
     *pptMutexOut = malloc(sizeof(plMutex));
     if(pthread_mutex_init(&(*pptMutexOut)->tHandle, NULL)) //-V522
@@ -753,19 +753,19 @@ pl_create_mutex(plMutex** pptMutexOut)
 }
 
 void
-pl_lock_mutex(plMutex* ptMutex)
+pl_platform_lock_mutex(plMutex* ptMutex)
 {
     pthread_mutex_lock(&ptMutex->tHandle);
 }
 
 void
-pl_unlock_mutex(plMutex* ptMutex)
+pl_platform_unlock_mutex(plMutex* ptMutex)
 {
     pthread_mutex_unlock(&ptMutex->tHandle);
 }
 
 void
-pl_destroy_mutex(plMutex** pptMutex)
+pl_platform_destroy_mutex(plMutex** pptMutex)
 {
     pthread_mutex_destroy(&(*pptMutex)->tHandle);
     free((*pptMutex));
@@ -813,7 +813,7 @@ pl_get_hardware_thread_count(void)
 }
 
 plThreadResult
-pl_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
+pl_platform_create_semaphor(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
 {
     *pptSemaphoreOut = PL_ALLOC(sizeof(plSemaphore));
     memset((*pptSemaphoreOut), 0, sizeof(plSemaphore));
@@ -999,7 +999,11 @@ pl_virtual_uncommit(void* pAddress, size_t szSize)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
+#ifdef PL_PYTHON_BUILD
+pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+#else
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+#endif
 {
     const plFileI tFileApi = {
         .copy                   = pl_copy_file,
@@ -1041,11 +1045,11 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .sleep_thread                = pl_sleep,
         .get_thread_id               = pl_get_thread_id,
         .get_current_thread_id       = pl_get_current_thread_id,
-        .create_mutex                = pl_create_mutex,
-        .destroy_mutex               = pl_destroy_mutex,
-        .lock_mutex                  = pl_lock_mutex,
-        .unlock_mutex                = pl_unlock_mutex,
-        .create_semaphore            = pl_create_semaphore,
+        .create_mutex                = pl_platform_create_mutex,
+        .destroy_mutex               = pl_platform_destroy_mutex,
+        .lock_mutex                  = pl_platform_lock_mutex,
+        .unlock_mutex                = pl_platform_unlock_mutex,
+        .create_semaphore            = pl_platform_create_semaphor,
         .destroy_semaphore           = pl_destroy_semaphore,
         .wait_on_semaphore           = pl_wait_on_semaphore,
         .try_wait_on_semaphore       = pl_try_wait_on_semaphore,
@@ -1098,7 +1102,11 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
+#ifdef PL_PYTHON_BUILD
+pl_unload_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+#else
 pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+#endif
 {
 
     if(bReload)

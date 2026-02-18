@@ -1826,16 +1826,20 @@ pl__unload_core_apis(void)
 // [SECTION] unity build
 //-----------------------------------------------------------------------------
 
-#ifdef PL_USE_STB_SPRINTF
-    #define STB_SPRINTF_IMPLEMENTATION
-    #include "stb_sprintf.h"
-    #undef STB_SPRINTF_IMPLEMENTATION
+#ifndef PL_PYTHON_BUILD
+
+    #ifdef PL_USE_STB_SPRINTF
+        #define STB_SPRINTF_IMPLEMENTATION
+        #include "stb_sprintf.h"
+        #undef STB_SPRINTF_IMPLEMENTATION
+    #endif
+
+    #define PL_MEMORY_IMPLEMENTATION
+    #include "pl_memory.h"
+    #undef PL_MEMORY_IMPLEMENTATION
+
+    #define PL_STRING_IMPLEMENTATION
+    #include "pl_string.h"
+    #undef PL_STRING_IMPLEMENTATION
+
 #endif
-
-#define PL_MEMORY_IMPLEMENTATION
-#include "pl_memory.h"
-#undef PL_MEMORY_IMPLEMENTATION
-
-#define PL_STRING_IMPLEMENTATION
-#include "pl_string.h"
-#undef PL_STRING_IMPLEMENTATION
