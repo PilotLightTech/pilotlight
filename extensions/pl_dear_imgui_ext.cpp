@@ -69,8 +69,10 @@ pl_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, plRenderPassHandle 
     tImguiVulkanInfo.DescriptorPoolSize = 100000;
     tImguiVulkanInfo.MinImageCount = 2;
     tImguiVulkanInfo.Allocator = gptGfx->get_vulkan_allocation_callbacks();
-    tImguiVulkanInfo.MSAASamples = (VkSampleCountFlagBits)gptGfx->get_swapchain_info(ptSwap).tSampleCount;
-    tImguiVulkanInfo.RenderPass = gptGfx->get_vulkan_render_pass(ptDevice, tMainRenderPass);
+    tImguiVulkanInfo.PipelineInfoMain.MSAASamples = (VkSampleCountFlagBits)gptGfx->get_swapchain_info(ptSwap).tSampleCount;
+    tImguiVulkanInfo.PipelineInfoMain.RenderPass = gptGfx->get_vulkan_render_pass(ptDevice, tMainRenderPass);
+    tImguiVulkanInfo.PipelineInfoForViewports.MSAASamples = (VkSampleCountFlagBits)gptGfx->get_swapchain_info(ptSwap).tSampleCount;
+    tImguiVulkanInfo.PipelineInfoForViewports.RenderPass = gptGfx->get_vulkan_render_pass(ptDevice, tMainRenderPass);
     gptGfx->get_swapchain_images(ptSwap, &tImguiVulkanInfo.ImageCount);
     ImGui_ImplVulkan_Init(&tImguiVulkanInfo);
 #elif defined(PL_METAL_BACKEND)

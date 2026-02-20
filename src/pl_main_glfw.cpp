@@ -52,6 +52,7 @@ Index of this file:
     #include <time.h> // clock_gettime, clock_getres
     #include <unistd.h> // usleep()
     #include <pthread.h>
+    #include <X11/Xatom.h>
     #define GLFW_EXPOSE_NATIVE_X11
 #endif
 
@@ -656,10 +657,10 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
 
     #ifdef PL_METAL_BACKEND
     if(pl_sb_size(gsbtWindows) == 0)
-        ImGui_ImplGlfw_InitForOther(ptGlfwWindow);
+        ImGui_ImplGlfw_InitForOther(ptGlfwWindow, true);
     #else
     if(pl_sb_size(gsbtWindows) == 0)
-        ImGui_ImplGlfw_InitForVulkan(ptGlfwWindow);
+        ImGui_ImplGlfw_InitForVulkan(ptGlfwWindow, true);
     #endif
 
     #ifdef _WIN32

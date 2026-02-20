@@ -36,7 +36,7 @@ pl__camera_update_imgui(plCamera* ptCamera)
             ptCamera->fFieldOfView = gfOriginalFOV;
         }
 
-        if(ImGui::IsKeyDown(ImGuiKey_ModShift))
+        if(ImGui::IsKeyDown(ImGuiMod_Shift))
             fCameraTravelSpeed *= 3.0f;
 
 

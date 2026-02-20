@@ -673,7 +673,7 @@ pl_app_update(plAppData* ptAppData)
 
             plVec2 tUvScale = gptRenderer->get_view_color_texture_max_uv(ptAppData->ptView);
 
-            ImTextureID tTexture = gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, gptRenderer->get_view_color_texture(ptAppData->ptView));
+            ImTextureRef tTexture = ImTextureRef(gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, gptRenderer->get_view_color_texture(ptAppData->ptView)));
             ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUvScale.x, tUvScale.y));
 
         }
@@ -689,7 +689,7 @@ pl_app_update(plAppData* ptAppData)
             ImVec2 tContextSize = ImGui::GetContentRegionAvail();
             gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCamera->get_ecs_type_key(), ptAppData->tSecondaryCamera), tContextSize.x / tContextSize.y);
 
-            ImTextureID tTexture = gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, gptRenderer->get_view_color_texture(ptAppData->ptSecondaryView));
+            ImTextureRef tTexture = ImTextureRef(gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, gptRenderer->get_view_color_texture(ptAppData->ptSecondaryView)));
             ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUvScale.x, tUvScale.y));
         }
         ImGui::End();
