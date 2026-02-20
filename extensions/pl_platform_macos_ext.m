@@ -1054,7 +1054,7 @@ pl_virtual_uncommit(void* pAddress, size_t szSize)
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-#ifdef PL_PYTHON_BUILD
+#ifdef Py_PYTHON_H
 pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 #else
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
@@ -1157,7 +1157,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-#ifdef PL_PYTHON_BUILD
+#ifdef Py_PYTHON_H
 pl_unload_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 #else
 pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)

@@ -53,7 +53,7 @@ plKeyCallback         gtKeyCallback         = NULL;
 plCharCallback        gtCharCallback        = NULL;
 
 // apis
-#ifndef PL_PYTHON_BUILD
+#ifndef Py_PYTHON_H
 const plDataRegistryI*      gptDataRegistry      = NULL;
 const plApiRegistryI*       gptApiRegistry       = NULL;
 const plExtensionRegistryI* gptExtensionRegistry = NULL;
@@ -134,7 +134,7 @@ bool pl__check_apis(void);
 // [SECTION] helpers
 //-----------------------------------------------------------------------------
 
-#ifndef PL_PYTHON_BUILD
+#ifndef Py_PYTHON_H
 
 // memory helpers
 #define PL_ALLOC(x) gptMemory->tracked_realloc(NULL, x, __FILE__, __LINE__)

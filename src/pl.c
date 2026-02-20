@@ -1630,6 +1630,16 @@ void
 pl__load_core_apis(void)
 {
 
+    static plMemoryI tMemoryApi = PL_ZERO_INIT;
+    tMemoryApi.realloc              = pl_realloc;
+    tMemoryApi.tracked_realloc      = pl_tracked_realloc;
+    tMemoryApi.get_allocation_count = pl_get_allocation_count;
+    tMemoryApi.get_memory_usage     = pl_get_memory_usage;
+    tMemoryApi.get_free_count       = pl_get_free_count;
+    tMemoryApi.get_allocations      = pl_get_allocations;
+
+    gptMemory = &tMemoryApi;
+
     for(int i = 0; i < PL_ARRAYSIZE(gtIO._abMouseDown); i++)
     {
         gtIO._afMouseDownDuration[i] = -1.0f;
@@ -1700,16 +1710,6 @@ pl__load_core_apis(void)
     tExtensionRegistryApi.load     = pl_load_extension;
     tExtensionRegistryApi.unload   = pl_unload_extension;
     tExtensionRegistryApi.add_path = pl_add_extension_path;
-
-    static plMemoryI tMemoryApi = PL_ZERO_INIT;
-    tMemoryApi.realloc              = pl_realloc;
-    tMemoryApi.tracked_realloc      = pl_tracked_realloc;
-    tMemoryApi.get_allocation_count = pl_get_allocation_count;
-    tMemoryApi.get_memory_usage     = pl_get_memory_usage;
-    tMemoryApi.get_free_count       = pl_get_free_count;
-    tMemoryApi.get_allocations      = pl_get_allocations;
-
-    gptMemory = &tMemoryApi;
 
     // core apis
     pl_set_api(ptApiRegistry, plIOI, &tIOApi);
@@ -1826,7 +1826,7 @@ pl__unload_core_apis(void)
 // [SECTION] unity build
 //-----------------------------------------------------------------------------
 
-#ifndef PL_PYTHON_BUILD
+#ifndef Py_PYTHON_H
 
     #ifdef PL_USE_STB_SPRINTF
         #define STB_SPRINTF_IMPLEMENTATION
