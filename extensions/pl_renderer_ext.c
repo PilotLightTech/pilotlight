@@ -2848,7 +2848,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
 
             atEnvironmentCamera[uFace] = (plCamera){
                 .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-                .tPos         = ptProbeTransform->tTranslation,
+                .tPosDouble   = {(double)ptProbeTransform->tTranslation.x, (double)ptProbeTransform->tTranslation.y, (double)ptProbeTransform->tTranslation.z},
                 .fNearZ       = 0.26f,
                 .fFarZ        = ptProbeComp->fRange,
                 .fFieldOfView = PL_PI_2,

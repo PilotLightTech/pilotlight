@@ -842,7 +842,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
 
             plCamera tShadowCamera = {
                 .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-                .tPos         = ptLight->tPosition,
+                .tPosDouble   = {(double)ptLight->tPosition.x, (double)ptLight->tPosition.y, (double)ptLight->tPosition.z},
                 .fNearZ       = ptLight->fRadius,
                 .fFarZ        = ptLight->fRange,
                 .fFieldOfView = PL_PI_2,
@@ -886,7 +886,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
 
             plCamera tShadowCamera = {
                 .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-                .tPos         = ptLight->tPosition,
+                .tPosDouble   = {(double)ptLight->tPosition.x, (double)ptLight->tPosition.y, (double)ptLight->tPosition.z},
                 .fNearZ       = ptLight->fRadius,
                 .fFarZ        = ptLight->fRange,
                 .fFieldOfView = ptLight->fOuterConeAngle * 2.0f,
@@ -2850,7 +2850,7 @@ pl__renderer_update_probes(plScene* ptScene)
 
             atEnvironmentCamera[uFace] = (plCamera){
                 .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-                .tPos         = ptProbeTransform->tTranslation,
+                .tPosDouble   = {(double)ptProbeTransform->tTranslation.x, (double)ptProbeTransform->tTranslation.y, (double)ptProbeTransform->tTranslation.z},
                 .fNearZ       = 0.26f,
                 .fFarZ        = ptProbeComp->fRange,
                 .fFieldOfView = PL_PI_2,
