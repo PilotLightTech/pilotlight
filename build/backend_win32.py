@@ -462,4 +462,5 @@ def generate_build(name, user_options = None):
     #     helper.add_spacing()
     helper.add_comment("return CWD to previous CWD")
     helper.add_line('@popd')
+    helper.add_line('exit /b %PL_BUILD_STATUS%')
     helper.write_file(name)

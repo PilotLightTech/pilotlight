@@ -186,6 +186,9 @@ def generate_build(name, user_options = None):
             helper.add_line('echo LOCKING > "' + settings.output_directory + '/' + lock_file + '"')
         helper.add_spacing()
 
+        helper.add_line('PL_BUILD_STATUS=0')
+        helper.add_spacing()
+
         if hot_reload:
             helper.add_comment('check if this is a reload')
             helper.add_line('PL_HOT_RELOAD_STATUS=0')
@@ -193,7 +196,6 @@ def generate_build(name, user_options = None):
 
             helper.add_comment("# let user know if hot reloading")
             for reload_target in data.reload_target_names:
-                helper.add_comment("# let user know if hot reloading")
                 helper.add_line('running_count=$(ps aux | grep -v grep | grep -ci "' + PurePath(reload_target).stem + '")')
                 if reload_target == data.reload_target_names[0]:
                     helper.add_line('if [ $running_count -gt 0 ]')
@@ -317,10 +319,21 @@ def generate_build(name, user_options = None):
                 for source in settings.source_files:
                     source_as_path = PurePath(source)
                     helper.add_line( 'clang -c $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS ' + source + ' -o "./' + settings.output_directory + '/' + source_as_path.stem + '.o"')
-                helper.add_spacing()
-                helper.add_comment('combine object files into a static lib')
-                helper.add_line('ar rcs ./' + settings.output_directory + '/lib' + settings.output_binary + '.a ./' + settings.output_directory + '/*.o')
-                helper.add_line('rm ./' + settings.output_directory + '/*.o')
+                    helper.add_spacing()
+
+                    # check build status
+                    helper.add_comment("check build status")
+                    helper.add_line("if [ $? -ne 0 ]")
+                    helper.add_line("then")
+                    helper.add_line("    PL_RESULT=${BOLD}${RED}Failed.${NC}")
+                    helper.add_line("    PL_BUILD_STATUS=1")
+                    helper.print_line("${CYAN}Results: ${NC} ${PL_RESULT}")
+                    helper.print_line("${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}")
+                    helper.add_line('rm ./' + settings.output_directory + '/*.o')
+                    helper.add_line('popd >/dev/null')
+                    helper.add_line("exit 1")
+                    helper.add_line("fi")
+
                 helper.add_spacing()
 
             elif settings.target_type == pl.TargetType.DYNAMIC_LIBRARY:
@@ -332,6 +345,18 @@ def generate_build(name, user_options = None):
                 helper.add_line('clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./' + settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension +'"')
                 helper.add_spacing()
 
+                # check build status
+                helper.add_comment("check build status")
+                helper.add_line("if [ $? -ne 0 ]")
+                helper.add_line("then")
+                helper.add_line("    PL_RESULT=${BOLD}${RED}Failed.${NC}")
+                helper.add_line("    PL_BUILD_STATUS=1")
+                helper.print_line("${CYAN}Results: ${NC} ${PL_RESULT}")
+                helper.print_line("${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}")
+                helper.add_line('popd >/dev/null')
+                helper.add_line("exit 1")
+                helper.add_line("fi")
+
             elif settings.target_type == pl.TargetType.EXECUTABLE:
                 helper.add_comment('run compiler (and linker)')
                 helper.print_space()
@@ -341,12 +366,26 @@ def generate_build(name, user_options = None):
                 helper.add_line('clang $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./' + settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension +'"')
                 helper.add_spacing()
 
-            # check build status
-            helper.add_comment("check build status")
-            helper.add_line("if [ $? -ne 0 ]")
-            helper.add_line("then")
-            helper.add_line("    PL_RESULT=${BOLD}${RED}Failed.${NC}")
-            helper.add_line("fi")
+
+                # check build status
+                helper.add_comment("check build status")
+                helper.add_line("if [ $? -ne 0 ]")
+                helper.add_line("then")
+                helper.add_line("    PL_RESULT=${BOLD}${RED}Failed.${NC}")
+                helper.add_line("    PL_BUILD_STATUS=1")
+                helper.print_line("${CYAN}Results: ${NC} ${PL_RESULT}")
+                helper.print_line("${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}")
+                helper.add_line('popd >/dev/null')
+                helper.add_line("exit 1")
+                helper.add_spacing()
+                helper.add_line("fi")
+
+            if settings.target_type == pl.TargetType.STATIC_LIBRARY:
+                helper.add_spacing()
+                helper.add_comment('combine object files into a static lib')
+                helper.add_line('ar rcs ./' + settings.output_directory + '/lib' + settings.output_binary + '.a ./' + settings.output_directory + '/*.o')
+                helper.add_line('rm ./' + settings.output_directory + '/*.o')
+                helper.add_spacing()
             helper.add_spacing()
 
             # print results
@@ -385,5 +424,6 @@ def generate_build(name, user_options = None):
     #     helper.add_spacing()
     helper.add_comment('return CWD to previous CWD')
     helper.add_line('popd >/dev/null')
+    helper.add_line('exit ${PL_BUILD_STATUS}')
 
     helper.write_file(name)
