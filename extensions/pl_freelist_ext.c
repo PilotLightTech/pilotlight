@@ -101,7 +101,7 @@ pl_freelist_get_node(plFreeList* ptFreeList, uint64_t uSize)
 
     // find best block
     uint64_t szSmallestDiff = ~(uint64_t)0;
-    plFreeListNode* ptCurrentBlock = &ptFreeList->_tFreeList;
+    plFreeListNode* ptCurrentBlock = ptFreeList->_tFreeList._ptNext;
     while(ptCurrentBlock)
     {
 
@@ -151,96 +151,75 @@ pl_freelist_return_node(plFreeList* ptFreeList, plFreeListNode* ptNode)
 {
     ptFreeList->uUsedSpace -= ptNode->uSize;
 
-    // if the free list is not empty
-    if(ptFreeList->_tFreeList._ptNext != NULL)
+
+    // If free list is empty, add as first node
+    if (ptFreeList->_tFreeList._ptNext == NULL)
     {
-        // Add node to free list
-        plFreeListNode* ptFreeBlock = ptFreeList->_tFreeList._ptNext;   
-        while(ptFreeBlock)
-        {
-            // Insert new node to middle
-            if(ptFreeBlock > ptNode)
-            {
-                plFreeListNode *_ptNext = ptFreeBlock;
-                plFreeListNode *_ptPrev = ptFreeBlock->_ptPrev;
-
-                _ptNext->_ptPrev = ptNode;
-                ptNode->_ptNext = _ptNext;
-                ptNode->_ptPrev = _ptPrev;
-                _ptPrev->_ptNext = ptNode;
-                break;
-                
-            }
-
-            // There isn't a next block so Insert new node to the end
-            if(ptFreeBlock->_ptNext == NULL)
-            {                
-                ptNode->_ptNext = NULL;
-                ptNode->_ptPrev = ptFreeBlock;
-                ptFreeBlock->_ptNext = ptNode;
-                break;
-            }
-
-            ptFreeBlock = ptFreeBlock->_ptNext;
-        } 
-
-        // Defrag
-        plFreeListNode* _ptPrevBlock = ptNode->_ptPrev;
-        plFreeListNode* _ptNextBlock = ptNode->_ptNext;
-
-        if(_ptPrevBlock != &ptFreeList->_tFreeList)
-        {
-            // if prev block and block are adjacent
-            if((_ptPrevBlock->uOffset + _ptPrevBlock->uSize) == ptNode->uOffset)
-            {
-                _ptPrevBlock->uSize += ptNode->uSize;
-                pl_sb_push(ptFreeList->_sbuFreeNodeHoleSlot, ptNode->_uIndex);
-                
-                // delete node
-                if(_ptNextBlock != NULL) {_ptNextBlock->_ptPrev = _ptPrevBlock; }
-                _ptPrevBlock->_ptNext = _ptNextBlock;
-                ptNode->_ptNext = NULL;
-                ptNode->_ptPrev = NULL;
-                ptNode->uOffset = 0;
-                ptNode->uSize = 0;
-
-                // Allows us to defrag with the next block without checking if we defragged with this one
-                ptNode = _ptPrevBlock; 
-            }
-        }
-
-        if(_ptNextBlock != NULL)
-        {
-
-            plFreeListNode* _ptNextNextBlock = _ptNextBlock->_ptNext;
-
-            // if block and next block are adjacent
-            if((ptNode->uOffset + ptNode->uSize) == _ptNextBlock->uOffset)
-            {
-                ptNode->uSize += _ptNextBlock->uSize;
-                pl_sb_push(ptFreeList->_sbuFreeNodeHoleSlot, _ptNextBlock->_uIndex);
-                
-                // delete next node
-                if(_ptNextNextBlock != NULL)
-                {
-                    _ptNextNextBlock->_ptPrev = ptNode;
-                }
-                ptNode->_ptNext = _ptNextNextBlock;
-                _ptNextBlock->_ptNext = NULL;
-                _ptNextBlock->_ptPrev = NULL;
-                _ptNextBlock->uOffset = 0;
-                _ptNextBlock->uSize = 0;
-
-            }
-        }
-    }
-    else 
-    {
-        // Add node to the front of the free list if list is empty
-        ptNode->_ptNext = NULL;
         ptNode->_ptPrev = &ptFreeList->_tFreeList;
+        ptNode->_ptNext = NULL;
         ptFreeList->_tFreeList._ptNext = ptNode;
+        return;
     }
+
+    // 1) Insert by uOffset order (not by pointer!)
+    plFreeListNode* it = ptFreeList->_tFreeList._ptNext;
+    plFreeListNode* insert_after = &ptFreeList->_tFreeList;
+
+    while (it && it->uOffset < ptNode->uOffset)
+    {
+        insert_after = it;
+        it = it->_ptNext;
+    }
+
+    ptNode->_ptPrev = insert_after;
+    ptNode->_ptNext = it;
+    insert_after->_ptNext = ptNode;
+    if (it) it->_ptPrev = ptNode;
+
+    // 2) Coalesce with previous if adjacent
+    if (ptNode->_ptPrev != &ptFreeList->_tFreeList)
+    {
+        plFreeListNode* prev = ptNode->_ptPrev;
+        if (prev->uOffset + prev->uSize == ptNode->uOffset)
+        {
+            prev->uSize += ptNode->uSize;
+
+            // Recycle this node descriptor
+            pl_sb_push(ptFreeList->_sbuFreeNodeHoleSlot, ptNode->_uIndex);
+
+            // Remove ptNode from the list
+            if (ptNode->_ptNext) ptNode->_ptNext->_ptPrev = prev;
+            prev->_ptNext = ptNode->_ptNext;
+
+            // Clean up metadata
+            ptNode->_ptPrev = ptNode->_ptNext = NULL;
+            ptNode->uOffset = 0;
+            ptNode->uSize   = 0;
+
+            // Continue coalescing using the merged 'prev' block
+            ptNode = prev;
+        }
+    }
+
+    // 3) Coalesce forward as long as next is adjacent
+    while (ptNode->_ptNext &&
+           (ptNode->uOffset + ptNode->uSize) == ptNode->_ptNext->uOffset)
+    {
+        plFreeListNode* next = ptNode->_ptNext;
+        plFreeListNode* nn   = next->_ptNext;
+
+        ptNode->uSize += next->uSize;
+        pl_sb_push(ptFreeList->_sbuFreeNodeHoleSlot, next->_uIndex);
+
+        // unlink next
+        ptNode->_ptNext = nn;
+        if (nn) nn->_ptPrev = ptNode;
+
+        next->_ptPrev = next->_ptNext = NULL;
+        next->uOffset = 0;
+        next->uSize   = 0;
+    }
+
 }
 
 //-----------------------------------------------------------------------------
