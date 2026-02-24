@@ -5072,7 +5072,6 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_image_quad_ex             = pl_add_image_quad_ex,
         .add_bezier_quad               = pl_add_bezier_quad,
         .add_bezier_cubic              = pl_add_bezier_cubic,
-        .build_font_atlas              = pl_build_font_atlas_backend,
         .submit_2d_drawlist            = pl_submit_2d_drawlist,
         .submit_3d_drawlist            = pl_submit_3d_drawlist,
         .create_bind_group_for_texture = pl_create_bind_group_for_texture,

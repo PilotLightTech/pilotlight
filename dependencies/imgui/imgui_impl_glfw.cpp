@@ -1002,25 +1002,28 @@ static void ImGui_ImplGlfw_UpdateMouseCursor()
         GLFWwindow* window = (GLFWwindow*)platform_io.Viewports[n]->PlatformHandle;
         if (imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor)
         {
-            if (bd->LastMouseCursor != nullptr)
-            {
-                // Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
-                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-                bd->LastMouseCursor = nullptr;
-            }
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+            // if (bd->LastMouseCursor != nullptr)
+            // {
+            //     // Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
+            //     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+            //     bd->LastMouseCursor = nullptr;
+            // }
         }
         else
         {
             // Show OS mouse cursor
             // FIXME-PLATFORM: Unfocused windows seems to fail changing the mouse cursor with GLFW 3.2, but 3.3 works here.
-#if GLFW_HAS_CREATECURSOR
-            GLFWcursor* cursor = bd->MouseCursors[imgui_cursor] ? bd->MouseCursors[imgui_cursor] : bd->MouseCursors[ImGuiMouseCursor_Arrow];
-            if (bd->LastMouseCursor != cursor)
-            {
-                glfwSetCursor(window, cursor);
-                bd->LastMouseCursor = cursor;
-            }
-#endif
+            glfwSetCursor(window, bd->MouseCursors[imgui_cursor] ? bd->MouseCursors[imgui_cursor] : bd->MouseCursors[ImGuiMouseCursor_Arrow]);
+
+// #if GLFW_HAS_CREATECURSOR
+//             GLFWcursor* cursor = bd->MouseCursors[imgui_cursor] ? bd->MouseCursors[imgui_cursor] : bd->MouseCursors[ImGuiMouseCursor_Arrow];
+//             if (bd->LastMouseCursor != cursor)
+//             {
+//                 glfwSetCursor(window, cursor);
+//                 bd->LastMouseCursor = cursor;
+//             }
+// #endif
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
     }

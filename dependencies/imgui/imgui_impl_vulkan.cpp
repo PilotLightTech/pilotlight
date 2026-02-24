@@ -292,7 +292,8 @@ struct ImGui_ImplVulkan_Data
     VkDeviceSize                BufferMemoryAlignment;
     VkDeviceSize                NonCoherentAtomSize;
     VkPipelineCreateFlags       PipelineCreateFlags;
-    VkDescriptorSetLayout       DescriptorSetLayout;
+    VkDescriptorSetLayout       SamplerDescriptorSetLayout;
+    VkDescriptorSetLayout       TextureDescriptorSetLayout;
     VkPipelineLayout            PipelineLayout;
     VkPipeline                  Pipeline;               // pipeline for main render pass (created by app)
     VkPipeline                  PipelineForViewports;   // pipeline for secondary viewports (created by backend)
@@ -305,6 +306,8 @@ struct ImGui_ImplVulkan_Data
     VkSampler                   TexSamplerLinear;
     VkCommandPool               TexCommandPool;
     VkCommandBuffer             TexCommandBuffer;
+    VkDescriptorSet             tFontTextureDescriptorSet;
+    VkDescriptorSet             tFontSamplerDescriptorSet;
 
     // Render buffers for main window
     ImGui_ImplVulkan_WindowRenderBuffers MainWindowRenderBuffers;
@@ -324,6 +327,8 @@ struct ImGui_ImplVulkan_Data
 // Forward Declarations
 static void ImGui_ImplVulkan_InitMultiViewportSupport();
 static void ImGui_ImplVulkan_ShutdownMultiViewportSupport();
+
+// Forward Declarations
 
 // backends/vulkan/glsl_shader.vert, compiled with:
 // # glslangValidator -V -x -o glsl_shader.vert.u32 glsl_shader.vert
@@ -394,40 +399,45 @@ static uint32_t __glsl_shader_vert_spv[] =
 /*
 #version 450 core
 layout(location = 0) out vec4 fColor;
-layout(set=0, binding=0) uniform sampler2D sTexture;
+layout(set = 0, binding = 0)  uniform sampler tFontSampler;
+layout(set = 1, binding = 0)  uniform texture2D tFontAtlas;
 layout(location = 0) in struct { vec4 Color; vec2 UV; } In;
 void main()
 {
-    fColor = In.Color * texture(sTexture, In.UV.st);
+    fColor = In.Color * texture(sampler2D(tFontAtlas, tFontSampler), In.UV.st);
 }
 */
 static uint32_t __glsl_shader_frag_spv[] =
 {
-    0x07230203,0x00010000,0x00080001,0x0000001e,0x00000000,0x00020011,0x00000001,0x0006000b,
-    0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
-    0x0007000f,0x00000004,0x00000004,0x6e69616d,0x00000000,0x00000009,0x0000000d,0x00030010,
-    0x00000004,0x00000007,0x00030003,0x00000002,0x000001c2,0x00040005,0x00000004,0x6e69616d,
-    0x00000000,0x00040005,0x00000009,0x6c6f4366,0x0000726f,0x00030005,0x0000000b,0x00000000,
-    0x00050006,0x0000000b,0x00000000,0x6f6c6f43,0x00000072,0x00040006,0x0000000b,0x00000001,
-    0x00005655,0x00030005,0x0000000d,0x00006e49,0x00050005,0x00000016,0x78655473,0x65727574,
-    0x00000000,0x00040047,0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000d,0x0000001e,
-    0x00000000,0x00040047,0x00000016,0x00000022,0x00000000,0x00040047,0x00000016,0x00000021,
-    0x00000000,0x00020013,0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,
-    0x00000020,0x00040017,0x00000007,0x00000006,0x00000004,0x00040020,0x00000008,0x00000003,
-    0x00000007,0x0004003b,0x00000008,0x00000009,0x00000003,0x00040017,0x0000000a,0x00000006,
-    0x00000002,0x0004001e,0x0000000b,0x00000007,0x0000000a,0x00040020,0x0000000c,0x00000001,
-    0x0000000b,0x0004003b,0x0000000c,0x0000000d,0x00000001,0x00040015,0x0000000e,0x00000020,
-    0x00000001,0x0004002b,0x0000000e,0x0000000f,0x00000000,0x00040020,0x00000010,0x00000001,
-    0x00000007,0x00090019,0x00000013,0x00000006,0x00000001,0x00000000,0x00000000,0x00000000,
-    0x00000001,0x00000000,0x0003001b,0x00000014,0x00000013,0x00040020,0x00000015,0x00000000,
-    0x00000014,0x0004003b,0x00000015,0x00000016,0x00000000,0x0004002b,0x0000000e,0x00000018,
-    0x00000001,0x00040020,0x00000019,0x00000001,0x0000000a,0x00050036,0x00000002,0x00000004,
-    0x00000000,0x00000003,0x000200f8,0x00000005,0x00050041,0x00000010,0x00000011,0x0000000d,
-    0x0000000f,0x0004003d,0x00000007,0x00000012,0x00000011,0x0004003d,0x00000014,0x00000017,
-    0x00000016,0x00050041,0x00000019,0x0000001a,0x0000000d,0x00000018,0x0004003d,0x0000000a,
-    0x0000001b,0x0000001a,0x00050057,0x00000007,0x0000001c,0x00000017,0x0000001b,0x00050085,
-    0x00000007,0x0000001d,0x00000012,0x0000001c,0x0003003e,0x00000009,0x0000001d,0x000100fd,
-    0x00010038
+	0x07230203,0x00010000,0x0008000b,0x00000023,0x00000000,0x00020011,0x00000001,0x0006000b,
+	0x00000001,0x4c534c47,0x6474732e,0x3035342e,0x00000000,0x0003000e,0x00000000,0x00000001,
+	0x0007000f,0x00000004,0x00000004,0x6e69616d,0x00000000,0x00000009,0x0000000d,0x00030010,
+	0x00000004,0x00000007,0x00030003,0x00000002,0x000001c2,0x00040005,0x00000004,0x6e69616d,
+	0x00000000,0x00040005,0x00000009,0x6c6f4366,0x0000726f,0x00030005,0x0000000b,0x00000000,
+	0x00050006,0x0000000b,0x00000000,0x6f6c6f43,0x00000072,0x00040006,0x0000000b,0x00000001,
+	0x00005655,0x00030005,0x0000000d,0x00006e49,0x00050005,0x00000015,0x6e6f4674,0x6c744174,
+	0x00007361,0x00060005,0x00000019,0x6e6f4674,0x6d615374,0x72656c70,0x00000000,0x00040047,
+	0x00000009,0x0000001e,0x00000000,0x00040047,0x0000000d,0x0000001e,0x00000000,0x00040047,
+	0x00000015,0x00000022,0x00000001,0x00040047,0x00000015,0x00000021,0x00000000,0x00040047,
+	0x00000019,0x00000022,0x00000000,0x00040047,0x00000019,0x00000021,0x00000000,0x00020013,
+	0x00000002,0x00030021,0x00000003,0x00000002,0x00030016,0x00000006,0x00000020,0x00040017,
+	0x00000007,0x00000006,0x00000004,0x00040020,0x00000008,0x00000003,0x00000007,0x0004003b,
+	0x00000008,0x00000009,0x00000003,0x00040017,0x0000000a,0x00000006,0x00000002,0x0004001e,
+	0x0000000b,0x00000007,0x0000000a,0x00040020,0x0000000c,0x00000001,0x0000000b,0x0004003b,
+	0x0000000c,0x0000000d,0x00000001,0x00040015,0x0000000e,0x00000020,0x00000001,0x0004002b,
+	0x0000000e,0x0000000f,0x00000000,0x00040020,0x00000010,0x00000001,0x00000007,0x00090019,
+	0x00000013,0x00000006,0x00000001,0x00000000,0x00000000,0x00000000,0x00000001,0x00000000,
+	0x00040020,0x00000014,0x00000000,0x00000013,0x0004003b,0x00000014,0x00000015,0x00000000,
+	0x0002001a,0x00000017,0x00040020,0x00000018,0x00000000,0x00000017,0x0004003b,0x00000018,
+	0x00000019,0x00000000,0x0003001b,0x0000001b,0x00000013,0x0004002b,0x0000000e,0x0000001d,
+	0x00000001,0x00040020,0x0000001e,0x00000001,0x0000000a,0x00050036,0x00000002,0x00000004,
+	0x00000000,0x00000003,0x000200f8,0x00000005,0x00050041,0x00000010,0x00000011,0x0000000d,
+	0x0000000f,0x0004003d,0x00000007,0x00000012,0x00000011,0x0004003d,0x00000013,0x00000016,
+	0x00000015,0x0004003d,0x00000017,0x0000001a,0x00000019,0x00050056,0x0000001b,0x0000001c,
+	0x00000016,0x0000001a,0x00050041,0x0000001e,0x0000001f,0x0000000d,0x0000001d,0x0004003d,
+	0x0000000a,0x00000020,0x0000001f,0x00050057,0x00000007,0x00000021,0x0000001c,0x00000020,
+	0x00050085,0x00000007,0x00000022,0x00000012,0x00000021,0x0003003e,0x00000009,0x00000022,
+	0x000100fd,0x00010038
 };
 
 //-----------------------------------------------------------------------------
@@ -681,7 +691,10 @@ void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer comm
                 // Bind DescriptorSet with font or user texture
                 VkDescriptorSet desc_set = (VkDescriptorSet)pcmd->GetTexID();
                 if (desc_set != last_desc_set)
-                    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bd->PipelineLayout, 0, 1, &desc_set, 0, nullptr);
+                {
+                    VkDescriptorSet atSets[2] = {bd->tFontSamplerDescriptorSet, (VkDescriptorSet)pcmd->GetTexID()};
+                    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bd->PipelineLayout, 0, 2, atSets, 0, nullptr);
+                }
                 last_desc_set = desc_set;
 
                 // Draw
@@ -711,7 +724,7 @@ static void ImGui_ImplVulkan_DestroyTexture(ImTextureData* tex)
         IM_ASSERT(backend_tex->DescriptorSet == (VkDescriptorSet)tex->TexID);
         ImGui_ImplVulkan_Data* bd = ImGui_ImplVulkan_GetBackendData();
         ImGui_ImplVulkan_InitInfo* v = &bd->VulkanInitInfo;
-        ImGui_ImplVulkan_RemoveTexture(backend_tex->DescriptorSet);
+        // ImGui_ImplVulkan_RemoveTexture(backend_tex->DescriptorSet);
         vkDestroyImageView(v->Device, backend_tex->ImageView, v->Allocator);
         vkDestroyImage(v->Device, backend_tex->Image, v->Allocator);
         vkFreeMemory(v->Device, backend_tex->Memory, v->Allocator);
@@ -731,6 +744,32 @@ void ImGui_ImplVulkan_UpdateTexture(ImTextureData* tex)
     ImGui_ImplVulkan_Data* bd = ImGui_ImplVulkan_GetBackendData();
     ImGui_ImplVulkan_InitInfo* v = &bd->VulkanInitInfo;
     VkResult err;
+
+    static bool bFirstRun = true;
+
+    if(bFirstRun)
+    {
+        bFirstRun = false;
+        VkDescriptorSetAllocateInfo alloc_info = {};
+        alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        alloc_info.descriptorPool = bd->DescriptorPool;
+        alloc_info.descriptorSetCount = 1;
+        alloc_info.pSetLayouts = &bd->SamplerDescriptorSetLayout;
+        VkResult err = vkAllocateDescriptorSets(v->Device, &alloc_info, &bd->tFontSamplerDescriptorSet);
+        check_vk_result(err);  
+
+        VkDescriptorImageInfo desc_image = {};
+        desc_image.sampler = bd->TexSamplerLinear;
+
+        VkWriteDescriptorSet write_desc = {};
+        write_desc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_desc.dstSet = bd->tFontSamplerDescriptorSet;
+        write_desc.dstBinding = 0;
+        write_desc.descriptorCount = 1;
+        write_desc.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+        write_desc.pImageInfo = &desc_image;
+        vkUpdateDescriptorSets(v->Device, 1, &write_desc, 0, nullptr);
+    }
 
     if (tex->Status == ImTextureStatus_WantCreate)
     {
@@ -786,6 +825,7 @@ void ImGui_ImplVulkan_UpdateTexture(ImTextureData* tex)
 
         // Create the Descriptor Set
         backend_tex->DescriptorSet = ImGui_ImplVulkan_AddTexture(bd->TexSamplerLinear, backend_tex->ImageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        // backend_tex->DescriptorSet = bd->tFontTextureDescriptorSet;
 
         // Store identifiers
         tex->SetTexID((ImTextureID)backend_tex->DescriptorSet);
@@ -1102,30 +1142,48 @@ bool ImGui_ImplVulkan_CreateDeviceObjects()
         check_vk_result(err);
     }
 
-    if (!bd->DescriptorSetLayout)
+    if (!bd->TextureDescriptorSetLayout)
     {
-        VkDescriptorSetLayoutBinding binding[1] = {};
-        binding[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        binding[0].descriptorCount = 1;
-        binding[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        VkDescriptorSetLayoutBinding binding = {};
+        binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        binding.descriptorCount = 1;
+        binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         VkDescriptorSetLayoutCreateInfo info = {};
         info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         info.bindingCount = 1;
-        info.pBindings = binding;
-        err = vkCreateDescriptorSetLayout(v->Device, &info, v->Allocator, &bd->DescriptorSetLayout);
+        info.pBindings = &binding;
+        info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+        err = vkCreateDescriptorSetLayout(v->Device, &info, v->Allocator, &bd->TextureDescriptorSetLayout);
+        check_vk_result(err);
+    }
+
+    if (!bd->SamplerDescriptorSetLayout)
+    {
+        VkDescriptorSetLayoutBinding binding = {};
+        binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+        binding.descriptorCount = 1;
+        binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        VkDescriptorSetLayoutCreateInfo info = {};
+        info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        info.bindingCount = 1;
+        info.pBindings = &binding;
+        info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+        err = vkCreateDescriptorSetLayout(v->Device, &info, v->Allocator, &bd->SamplerDescriptorSetLayout);
         check_vk_result(err);
     }
 
     if (v->DescriptorPoolSize != 0)
     {
         IM_ASSERT(v->DescriptorPoolSize >= IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE);
-        VkDescriptorPoolSize pool_size = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, v->DescriptorPoolSize };
+        VkDescriptorPoolSize pool_sizes[2] = {};
+        pool_sizes[0] = { VK_DESCRIPTOR_TYPE_SAMPLER, 1 };
+        pool_sizes[1] = { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1 };
         VkDescriptorPoolCreateInfo pool_info = {};
         pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-        pool_info.maxSets = v->DescriptorPoolSize;
-        pool_info.poolSizeCount = 1;
-        pool_info.pPoolSizes = &pool_size;
+        pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+        pool_info.maxSets = 2;
+        pool_info.poolSizeCount = 2;
+        pool_info.pPoolSizes = pool_sizes;
 
         err = vkCreateDescriptorPool(v->Device, &pool_info, v->Allocator, &bd->DescriptorPool);
         check_vk_result(err);
@@ -1138,10 +1196,10 @@ bool ImGui_ImplVulkan_CreateDeviceObjects()
         push_constants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         push_constants[0].offset = sizeof(float) * 0;
         push_constants[0].size = sizeof(float) * 4;
-        VkDescriptorSetLayout set_layout[1] = { bd->DescriptorSetLayout };
+        VkDescriptorSetLayout set_layout[2] = { bd->SamplerDescriptorSetLayout, bd->TextureDescriptorSetLayout };
         VkPipelineLayoutCreateInfo layout_info = {};
         layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        layout_info.setLayoutCount = 1;
+        layout_info.setLayoutCount = 2;
         layout_info.pSetLayouts = set_layout;
         layout_info.pushConstantRangeCount = 1;
         layout_info.pPushConstantRanges = push_constants;
@@ -1224,7 +1282,8 @@ void    ImGui_ImplVulkan_DestroyDeviceObjects()
     if (bd->TexSamplerLinear)     { vkDestroySampler(v->Device, bd->TexSamplerLinear, v->Allocator); bd->TexSamplerLinear = VK_NULL_HANDLE; }
     if (bd->ShaderModuleVert)     { vkDestroyShaderModule(v->Device, bd->ShaderModuleVert, v->Allocator); bd->ShaderModuleVert = VK_NULL_HANDLE; }
     if (bd->ShaderModuleFrag)     { vkDestroyShaderModule(v->Device, bd->ShaderModuleFrag, v->Allocator); bd->ShaderModuleFrag = VK_NULL_HANDLE; }
-    if (bd->DescriptorSetLayout)  { vkDestroyDescriptorSetLayout(v->Device, bd->DescriptorSetLayout, v->Allocator); bd->DescriptorSetLayout = VK_NULL_HANDLE; }
+    if (bd->TextureDescriptorSetLayout)  { vkDestroyDescriptorSetLayout(v->Device, bd->TextureDescriptorSetLayout, v->Allocator); bd->TextureDescriptorSetLayout = VK_NULL_HANDLE; }
+    if (bd->SamplerDescriptorSetLayout)  { vkDestroyDescriptorSetLayout(v->Device, bd->SamplerDescriptorSetLayout, v->Allocator); bd->SamplerDescriptorSetLayout = VK_NULL_HANDLE; }
     if (bd->PipelineLayout)       { vkDestroyPipelineLayout(v->Device, bd->PipelineLayout, v->Allocator); bd->PipelineLayout = VK_NULL_HANDLE; }
     if (bd->Pipeline)             { vkDestroyPipeline(v->Device, bd->Pipeline, v->Allocator); bd->Pipeline = VK_NULL_HANDLE; }
     if (bd->PipelineForViewports) { vkDestroyPipeline(v->Device, bd->PipelineForViewports, v->Allocator); bd->PipelineForViewports = VK_NULL_HANDLE; }
@@ -1411,33 +1470,44 @@ VkDescriptorSet ImGui_ImplVulkan_AddTexture(VkSampler sampler, VkImageView image
     ImGui_ImplVulkan_InitInfo* v = &bd->VulkanInitInfo;
     VkDescriptorPool pool = bd->DescriptorPool ? bd->DescriptorPool : v->DescriptorPool;
 
-    // Create Descriptor Set:
-    VkDescriptorSet descriptor_set;
+    // if(bd->tFontTextureDescriptorSet)
+    // {
+    //     vkFreeDescriptorSets(v->Device, pool, 1, &bd->tFontTextureDescriptorSet);
+    //     // vkResetDescriptorPool(v->Device, pool, 0);
+    //     bd->tFontTextureDescriptorSet = NULL;
+    // }
+
+    if(bd->tFontTextureDescriptorSet == NULL)
     {
         VkDescriptorSetAllocateInfo alloc_info = {};
         alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         alloc_info.descriptorPool = pool;
         alloc_info.descriptorSetCount = 1;
-        alloc_info.pSetLayouts = &bd->DescriptorSetLayout;
-        VkResult err = vkAllocateDescriptorSets(v->Device, &alloc_info, &descriptor_set);
+        alloc_info.pSetLayouts = &bd->TextureDescriptorSetLayout;
+        VkResult err = vkAllocateDescriptorSets(v->Device, &alloc_info, &bd->tFontTextureDescriptorSet);
         check_vk_result(err);
     }
 
+
+    // Create Descriptor Set:
+
+
     // Update the Descriptor Set:
     {
-        VkDescriptorImageInfo desc_image[1] = {};
-        desc_image[0].sampler = sampler;
-        desc_image[0].imageView = image_view;
-        desc_image[0].imageLayout = image_layout;
-        VkWriteDescriptorSet write_desc[1] = {};
-        write_desc[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_desc[0].dstSet = descriptor_set;
-        write_desc[0].descriptorCount = 1;
-        write_desc[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write_desc[0].pImageInfo = desc_image;
-        vkUpdateDescriptorSets(v->Device, 1, write_desc, 0, nullptr);
+        VkDescriptorImageInfo desc_image = {};
+        desc_image.imageView = image_view;
+        desc_image.imageLayout = image_layout;
+
+        VkWriteDescriptorSet write_desc = {};
+        write_desc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_desc.dstSet = bd->tFontTextureDescriptorSet;
+        write_desc.dstBinding = 0;
+        write_desc.descriptorCount = 1;
+        write_desc.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        write_desc.pImageInfo = &desc_image;
+        vkUpdateDescriptorSets(v->Device, 1, &write_desc, 0, nullptr);
     }
-    return descriptor_set;
+    return bd->tFontTextureDescriptorSet;
 }
 
 void ImGui_ImplVulkan_RemoveTexture(VkDescriptorSet descriptor_set)
