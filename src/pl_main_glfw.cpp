@@ -608,7 +608,8 @@ int main(int argc, char *argv[])
     pl__check_for_leaks();
 
     // shutdown imgui
-    ImGui_ImplGlfw_Shutdown();
+    if(ptGlfwWindow)
+        ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
     glfwTerminate();
