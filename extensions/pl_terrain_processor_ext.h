@@ -1,5 +1,5 @@
 /*
-   pl_terrain_ext.h
+   pl_terrain_processor_ext.h
 */
 
 /*
@@ -38,9 +38,10 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plTerrainHeightMapInfo plTerrainHeightMapInfo;
-typedef struct _plTerrainChunkFile plTerrainChunkFile;
-typedef struct _plTerrainChunk plTerrainChunk;
+typedef struct _plTerrainChunkFile       plTerrainChunkFile;
+typedef struct _plTerrainChunk           plTerrainChunk;
+typedef struct _plTerrainProcessTileInfo plTerrainProcessTileInfo;
+typedef struct _plTerrainProcessInfo     plTerrainProcessInfo;
 
 // external
 typedef struct _plFreeListNode plFreeListNode; // pl_freelist_ext.h
@@ -51,38 +52,34 @@ typedef struct _plFreeListNode plFreeListNode; // pl_freelist_ext.h
 
 typedef struct _plTerrainProcessorI
 {
-    void (*process_heightmap)(plTerrainHeightMapInfo);
-    bool (*load_chunk_file)  (const char* path, plTerrainChunkFile* fileOut, uint32_t fileID);
+    void (*process)         (plTerrainProcessInfo*);
+    bool (*load_chunk_file) (const char* path, plTerrainChunkFile* fileOut, uint32_t fileID);
 } plTerrainProcessorI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plTerrainTileInfo
+typedef struct _plTerrainProcessTileInfo
 {
-    uint32_t    uXOffset; // pixels
-    uint32_t    uYOffset; // pixels
-    float       fMaxHeight;
-    float       fMinHeight;
-    char        acHeightMapFile[256];
-} plTerrainTileInfo;
-
-typedef struct _plTerrainHeightMapInfo
-{
-    uint32_t    uSize;
     float       fMaxBaseError;
-    float       fMetersPerPixel;
     float       fMaxHeight;
     float       fMinHeight;
     int         iTreeDepth;
     plVec3      tCenter;
-    const char* pcOutputFile;
+    char        acHeightMapFile[256];
+    char        acOutputFile[256];
+} plTerrainProcessTileInfo;
 
-    uint32_t uTileCount;
-    plTerrainTileInfo* atTiles;
-    plTerrainTileInfo atHaloTiles[7]; // north, northeast, east, southeast, south, southwest, west
-} plTerrainHeightMapInfo;
+typedef struct _plTerrainProcessInfo
+{
+    float                     fMetersPerPixel;
+    uint32_t                  uSize;
+    uint32_t                  uTileCount;
+    plTerrainProcessTileInfo* atTiles;
+    uint32_t                  uHorizontalTiles;
+    uint32_t                  uVerticalTiles;
+} plTerrainProcessInfo;
 
 typedef struct _plTerrainChunk
 {
@@ -104,13 +101,16 @@ typedef struct _plTerrainChunk
     plFreeListNode* ptVertexHole;
     plFreeListNode* ptIndexHole;
     
-
     size_t szFileLocation;
     uint32_t uFileID;
 
-    uint64_t        uLastFrameUsed;
+    uint64_t       uLastFrameUsed;
     plTerrainChunk* ptNext;
     plTerrainChunk* ptPrev;
+
+    bool bInReplacementList;
+    plVec2 tUVOffset;
+    plVec2 tUVScale;
 } plTerrainChunk;
 
 typedef struct _plTerrainChunkFile
@@ -126,6 +126,7 @@ typedef struct _plTerrainVertex
 {
     plVec3 tPosition;
     plVec2 tNormal;
+    plVec2 tUV;
 } plTerrainVertex;
 
 #endif // PL_TERRAIN_PROCESSOR_EXT_H

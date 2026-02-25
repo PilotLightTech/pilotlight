@@ -19,12 +19,14 @@ Decode( vec2 f )
 // input
 layout(location = 0) in vec3 inPos;
 layout(location = 1) in vec2 inNormal;
+layout(location = 2) in vec2 inUV;
 
 // output
 layout(location = 0) out struct plShaderOut {
     vec4 tColor;
     vec3 tWorldPosition;
     vec3 tWorldNormal;
+    vec2 tUV;
 } tShaderOut;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
@@ -35,12 +37,10 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 void main() 
 {
     gl_Position = tDynamicData.tData.tMvp * vec4(inPos, 1.0);
-    // gl_Position = tDynamicData.mvp * vec4(inPos.x, 0.0, inPos.z, 1.0);
-    // float fScale = max((inPos.y + 40.0) / 552.0, 0.2);
 
-    // tShaderOut.tColor = vec4(fScale.xxx, 1.0);
     tShaderOut.tWorldPosition = inPos;
     tShaderOut.tWorldNormal = Decode(inNormal);
+    tShaderOut.tUV = inUV;
 
     vec3 atColors[8];
     float fColorStrength = 0.1;
@@ -53,7 +53,8 @@ void main()
     atColors[6] = vec3(fColorStrength, fColorStrength, fColorStrength);
     atColors[7] = vec3(fColorStrength * 4, fColorStrength, fColorStrength);
 
-    tShaderOut.tColor.rgb = atColors[tDynamicData.tData.iLevel];
+    tShaderOut.tColor.rgb = atColors[tDynamicData.tData.iLevel % 8];
+    tShaderOut.tColor.a = 1.0;
 
     if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_WIREFRAME))
     {
