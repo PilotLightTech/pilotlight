@@ -483,36 +483,118 @@ pl_resource_is_loaded(const char* pcName)
     return pl_hm_has_key_str(&gptResourceManager->tNameHashmap, pcName);
 }
 
+void
+pl_resource_unload(plResourceHandle tHandle)
+{
+    if(!pl_resource_is_valid(tHandle))
+        return;
+
+    plResource* ptResource = &gptResourceManager->sbtResources[tHandle.uIndex];
+
+    if(gptGfx->is_texture_valid(gptResourceManager->tDesc.ptDevice, ptResource->tTexture))
+    {
+        gptGfx->queue_texture_for_deletion(gptResourceManager->tDesc.ptDevice, ptResource->tTexture);
+    }
+
+    // free file data if we retained it
+    if(ptResource->tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_FILE_DATA)
+    {
+        if(ptResource->puFileData)
+        {
+            PL_FREE(ptResource->puFileData);
+        }
+        ptResource->puFileData = NULL;
+        ptResource->szFileDataSize = 0;
+    }
+
+    pl_hm_remove_str(&gptResourceManager->tNameHashmap, ptResource->acName);
+}
+
 bool
-pl_resource_is_resident(plResourceHandle tHandle)
+pl_resource_is_resident(plResourceHandle tHandle, plResourceEvictFlags tFlags)
 {
     if(!pl_resource_is_valid(tHandle))
         return false;
     
-    plTextureHandle tTexture = pl_resource_get_texture_handle(tHandle);
-    return gptGfx->is_texture_valid(gptResourceManager->tDesc.ptDevice, tTexture);
+    if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_GPU)
+    {
+        plTextureHandle tTexture = pl_resource_get_texture_handle(tHandle);
+        if(!gptGfx->is_texture_valid(gptResourceManager->tDesc.ptDevice, tTexture))
+            return false;
+    }
+
+    if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_CACHE)
+    {
+        char acFinalFile[512] = {0};
+        char acFileNameOnly[256] = {0};
+        pl_str_get_file_name_only(gptResourceManager->sbtResources[tHandle.uIndex].acName, acFileNameOnly, 256);
+        pl_sprintf(acFinalFile, "/cache/%s.dds", acFileNameOnly);
+
+        // prep texture for GPU if not done already
+        if(!gptVfs->does_file_exist(acFinalFile))
+            return false;
+    }
+
+    if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_FILE_DATA)
+    {
+        if(gptResourceManager->sbtResources[tHandle.uIndex].tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_FILE_DATA)
+        {
+            if(gptResourceManager->sbtResources[tHandle.uIndex].szFileDataSize == 0)
+                return false;
+
+        }
+    }
+    return true;
 }
 
 void
 pl_resource_evict_ex(plResourceHandle tHandle, plResourceEvictFlags tFlags)
 {
-    if(!pl_resource_is_resident(tHandle))
+    if(!pl_resource_is_resident(tHandle, tFlags))
         return;
     
-    plTextureHandle tTexture = pl_resource_get_texture_handle(tHandle);
-    gptGfx->queue_texture_for_deletion(gptResourceManager->tDesc.ptDevice, tTexture);
+    if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_GPU)
+    {
+        plTextureHandle tTexture = pl_resource_get_texture_handle(tHandle);
+        gptGfx->queue_texture_for_deletion(gptResourceManager->tDesc.ptDevice, tTexture);
+    }
+
+    if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_CACHE)
+    {
+        char acFinalFile[512] = {0};
+        char acFileNameOnly[256] = {0};
+        pl_str_get_file_name_only(gptResourceManager->sbtResources[tHandle.uIndex].acName, acFileNameOnly, 256);
+        pl_sprintf(acFinalFile, "/cache/%s.dds", acFileNameOnly);
+
+        // prep texture for GPU if not done already
+        if(gptVfs->does_file_exist(acFinalFile))
+        {
+            plVfsFileHandle tFileHandle = gptVfs->register_file(acFinalFile, true);
+            gptVfs->delete_file(tFileHandle);
+        }
+    }
+
+    if(tFlags & PL_RESOURCE_EVICT_FLAG_DROP_FILE_DATA)
+    {
+        if(gptResourceManager->sbtResources[tHandle.uIndex].tFlags & PL_RESOURCE_LOAD_FLAG_RETAIN_FILE_DATA)
+        {
+            // PL_FREE(gptResourceManager->sbtResources[tHandle.uIndex].puFileData);
+            // gptResourceManager->sbtResources[tHandle.uIndex].puFileData = NULL;
+            // gptResourceManager->sbtResources[tHandle.uIndex].szFileDataSize = 0;
+        }
+    }
 }
 
 void
 pl_resource_evict(plResourceHandle tHandle)
 {
-    pl_resource_evict_ex(tHandle, PL_RESOURCE_EVICT_FLAG_DROP_GPU);
+    pl_resource_evict_ex(tHandle, PL_RESOURCE_EVICT_FLAG_DROP_ALL);
 }
 
 void
 pl_resource_make_resident(plResourceHandle tHandle)
 {
-    if(pl_resource_is_resident(tHandle))
+    if(pl_resource_is_resident(tHandle, PL_RESOURCE_EVICT_FLAG_DROP_ALL))
         return;
 
     plResource* ptResource = &gptResourceManager->sbtResources[tHandle.uIndex];
@@ -1079,6 +1161,7 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_texture   = pl_resource_get_texture_handle,
         .is_valid      = pl_resource_is_valid,
         .is_loaded     = pl_resource_is_loaded,
+        .unload        = pl_resource_unload,
         .clear         = pl_resource_clear_all,
         .is_resident   = pl_resource_is_resident,
         .evict         = pl_resource_evict,

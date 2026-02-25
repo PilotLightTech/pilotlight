@@ -44,7 +44,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plResourceI_version {1, 3, 0}
+#define plResourceI_version {1, 4, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -98,6 +98,7 @@ typedef struct _plResourceI
     plResourceHandle (*load_ex)(const char* file, plResourceLoadFlags, uint8_t* fileData, size_t fileByteSize, const char* containerFileName, size_t fileBytesOffset);
     
     // resource query
+    void (*unload)   (plResourceHandle);
     bool (*is_valid) (plResourceHandle);
     bool (*is_loaded)(const char* file);
 
@@ -105,7 +106,7 @@ typedef struct _plResourceI
     void (*make_resident)(plResourceHandle);
     void (*evict)        (plResourceHandle);
     void (*evict_ex)     (plResourceHandle, plResourceEvictFlags);
-    bool (*is_resident)  (plResourceHandle);
+    bool (*is_resident)  (plResourceHandle, plResourceEvictFlags);
 
     // resource retrieval
     plTextureHandle (*get_texture)(plResourceHandle);
@@ -129,10 +130,12 @@ enum _plResourceLoadFlags
 
 enum _plResourceEvictFlags
 {
-    PL_RESOURCE_EVICT_FLAG_NONE          = 0,
-    PL_RESOURCE_EVICT_FLAG_DROP_GPU      = 1 << 0, // default
-    // PL_RESOURCE_EVICT_FLAG_DROP_FILEDATA = 1 << 1, // if RETAIN_FILE_DATA was used
-    // PL_RESOURCE_EVICT_FLAG_DROP_ALL      = PL_RESOURCE_EVICT_FLAG_DROP_GPU | PL_RESOURCE_EVICT_FLAG_DROP_FILEDATA
+    PL_RESOURCE_EVICT_FLAG_NONE           = 0,
+    PL_RESOURCE_EVICT_FLAG_DROP_GPU       = 1 << 0, // default
+    PL_RESOURCE_EVICT_FLAG_DROP_CACHE     = 1 << 1,
+    PL_RESOURCE_EVICT_FLAG_DROP_FILE_DATA = 1 << 2,
+    PL_RESOURCE_EVICT_FLAG_DROP_ALL       = PL_RESOURCE_EVICT_FLAG_DROP_GPU | PL_RESOURCE_EVICT_FLAG_DROP_CACHE | PL_RESOURCE_EVICT_FLAG_DROP_FILE_DATA
+
 };
 
 //-----------------------------------------------------------------------------
