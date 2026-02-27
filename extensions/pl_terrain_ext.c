@@ -580,9 +580,9 @@ pl_terrain_set_texture(plTerrain* ptTerrain, plTerrainTexture* ptTexture)
         uint32_t uHorizontalExtent = uBottomRightXIndex - uTopLeftXIndex + 1;
         uint32_t uVerticalExtent = uBottomRightYIndex - uTopLeftYIndex + 1;
 
-        plImageOpInfo tFullInfo = {
-            .uWidth =  (uint32_t)((tBottomRightLocal.x - tTopLeftLocal.x) / ptTexture->fMetersPerPixel),
-            .uHeight = (uint32_t)((tBottomRightLocal.y - tTopLeftLocal.y) / ptTexture->fMetersPerPixel),
+        plImageOpInit tFullInfo = {
+            .uVirtualWidth =  (uint32_t)((tBottomRightLocal.x - tTopLeftLocal.x) / ptTexture->fMetersPerPixel),
+            .uVirtualHeight = (uint32_t)((tBottomRightLocal.y - tTopLeftLocal.y) / ptTexture->fMetersPerPixel),
             .uChannels = 4,
             .uStride = 4
         };
@@ -593,49 +593,39 @@ pl_terrain_set_texture(plTerrain* ptTerrain, plTerrainTexture* ptTexture)
 
         plImageOpData tOriginalDataMod = {0};
         {
-            plImageOpInfo tOriginalInfo = {
-                .uWidth = (uint32_t)iImageWidth,
-                .uHeight = (uint32_t)iImageHeight,
+            plImageOpInit tOriginalInfo = {
+                .uVirtualWidth = (uint32_t)iImageWidth,
+                .uVirtualHeight = (uint32_t)iImageHeight,
                 .uChannels = 4,
                 .uStride = 4
             };
 
             gptImageOps->initialize(&tOriginalInfo, &tOriginalDataMod); 
-            tOriginalInfo.puData = pucImageData;
-            gptImageOps->add(&tOriginalDataMod, tOriginalInfo, 0, 0);
+            gptImageOps->add(&tOriginalDataMod, 0, 0, (uint32_t)iImageWidth, (uint32_t)iImageHeight, pucImageData);
             gptImage->free(pucImageData);
         }
         
         float fDistanceX = tTopLeft.x - tTopLeftLocal.x;
         float fDistanceY = tTopLeft.y - tTopLeftLocal.y;
 
-        float fEffectiveMetersPerPixelX = (tBottomRightLocal.x - tTopLeftLocal.x) / tFullInfo.uWidth;
-        float fEffectiveMetersPerPixelY = (tBottomRightLocal.y - tTopLeftLocal.y) / tFullInfo.uHeight;
+        float fEffectiveMetersPerPixelX = (tBottomRightLocal.x - tTopLeftLocal.x) / tFullInfo.uVirtualWidth;
+        float fEffectiveMetersPerPixelY = (tBottomRightLocal.y - tTopLeftLocal.y) / tFullInfo.uVirtualHeight;
 
         uint32_t uXOffsetIndex = (uint32_t)(fDistanceX / fEffectiveMetersPerPixelX);
         uint32_t uYOffsetIndex = (uint32_t)(fDistanceY / fEffectiveMetersPerPixelY);
 
-        uint32_t uXInc = tFullInfo.uWidth / uHorizontalExtent;
-        uint32_t uYInc = tFullInfo.uHeight / uVerticalExtent;
+        uint32_t uXInc = tFullInfo.uVirtualWidth / uHorizontalExtent;
+        uint32_t uYInc = tFullInfo.uVirtualHeight / uVerticalExtent;
 
-
-        plImageOpInfo tOriginalInfo2 = {
-            .uWidth = tOriginalDataMod.uWidth,
-            .uHeight = tOriginalDataMod.uHeight,
-            .uChannels = 4,
-            .uStride = 4,
-            .puData = tOriginalDataMod.puData
-        };
-        gptImageOps->add(&tFullData, tOriginalInfo2, uXOffsetIndex, uYOffsetIndex);
+        gptImageOps->add(&tFullData,
+            uXOffsetIndex, uYOffsetIndex,
+            tOriginalDataMod.uVirtualWidth, tOriginalDataMod.uVirtualHeight,
+            gptImageOps->extract(&tOriginalDataMod, 0, 0, tOriginalDataMod.uVirtualWidth, tOriginalDataMod.uVirtualHeight, NULL));
 
         for(uint32_t i = 0; i < uHorizontalExtent; i++)
         {
             for(uint32_t j = 0; j < uVerticalExtent; j++)
             {
-                plImageOpData tImageData = {0};
-                gptImageOps->extract(&tFullData, i * uXInc, j * uYInc, uXInc, uYInc, &tImageData);
-
-                
 
                 plImageWriteInfo tWriteInfo = {
                     .iWidth = (int)uXInc,
@@ -649,8 +639,9 @@ pl_terrain_set_texture(plTerrain* ptTerrain, plTerrainTexture* ptTexture)
 
                 abActiveTextureTiles[i + uTopLeftXIndex + (j + uTopLeftYIndex) * ptTerrain->tInfo.uHorizontalTiles] = true;
 
-                gptImage->write(acNameBuffer, tImageData.puData, &tWriteInfo);
-                gptImageOps->cleanup(&tImageData);
+                uint8_t* puImageData = gptImageOps->extract(&tFullData, i * uXInc, j * uYInc, uXInc, uYInc, NULL);
+                gptImage->write(acNameBuffer, puImageData, &tWriteInfo);
+                // gptImageOps->cleanup(&tImageData);
             }
         }
         gptImageOps->cleanup(&tOriginalDataMod);
@@ -691,25 +682,17 @@ pl__chlod_update_chunk_file(plTerrain* ptTerrain, uint32_t uIndex, const char* p
         int _unused;
         unsigned char* pucImageData = gptImage->load_from_file(pcTexture,  &iImageWidth, &iImageHeight, &_unused, 4);
 
-        plImageOpInfo tImageOpInfo = {
+        plImageOpInit tImageOpInfo = {
             .uChannels = 4,
             .uStride = 4,
-            .uWidth = (uint32_t)iImageWidth,
-            .uHeight = (uint32_t)iImageHeight
+            .uVirtualWidth = (uint32_t)iImageWidth,
+            .uVirtualHeight = (uint32_t)iImageHeight
         };
     
         gptImageOps->initialize(&tImageOpInfo, &tImageOpData);
-
-        plImageOpInfo tImageOpInfo0 = {
-            .uChannels = 4,
-            .uStride = 4,
-            .uWidth = (uint32_t)iImageWidth,
-            .uHeight = (uint32_t)iImageHeight,
-            .puData = pucImageData
-        };
-        gptImageOps->add(&tImageOpData, tImageOpInfo0, 0, 0);
+        gptImageOps->add(&tImageOpData, 0, 0, (uint32_t)iImageWidth, (uint32_t)iImageHeight, pucImageData);
         gptImage->free(pucImageData);
-        gptImageOps->square(&tImageOpData);
+        // gptImageOps->square(&tImageOpData);
     }
 
     if(pcTexture)
@@ -731,24 +714,24 @@ pl__chlod_update_chunk_file(plTerrain* ptTerrain, uint32_t uIndex, const char* p
             uint32_t uTopDownLevel = ptTerrain->sbtChunkFiles[uIndex].tFile.iTreeDepth - ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].uLevel - 1;
 
             // plImageOpData tImageOpDataMod = {0};
-            uint32_t uWidth = (uint32_t)((float)tImageOpData.uWidth / powf(2.0f, (float)uTopDownLevel));
-            uint32_t uHeight = (uint32_t)((float)tImageOpData.uHeight / powf(2.0f, (float)uTopDownLevel));
+            uint32_t uWidth = (uint32_t)((float)tImageOpData.uVirtualWidth / powf(2.0f, (float)uTopDownLevel));
+            uint32_t uHeight = (uint32_t)((float)tImageOpData.uVirtualHeight / powf(2.0f, (float)uTopDownLevel));
 
             float fXRatio = (float)ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].uX / 4096.0f; // UV on original heightmap
             float fYRatio = (float)ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].uY / 4096.0f; // UV on original heightmap
 
-            uint32_t uXOffset = (uint32_t)((float)tImageOpData.uWidth * fXRatio);  // pixels on texture map
-            uint32_t uYOffset = (uint32_t)((float)tImageOpData.uHeight * fYRatio); // pixels on texture map
+            uint32_t uXOffset = (uint32_t)((float)tImageOpData.uVirtualWidth * fXRatio);  // pixels on texture map
+            uint32_t uYOffset = (uint32_t)((float)tImageOpData.uVirtualHeight * fYRatio); // pixels on texture map
 
 
-            if (uXOffset + uWidth > tImageOpData.uWidth)    uWidth = tImageOpData.uWidth  - uXOffset;
-            if (uYOffset + uHeight > tImageOpData.uHeight)  uHeight = tImageOpData.uHeight - uYOffset;
+            if (uXOffset + uWidth > tImageOpData.uVirtualWidth)    uWidth = tImageOpData.uVirtualWidth  - uXOffset;
+            if (uYOffset + uHeight > tImageOpData.uVirtualHeight)  uHeight = tImageOpData.uVirtualHeight - uYOffset;
 
-            ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].tUVOffset.x = (float)uXOffset / (float)tImageOpData.uWidth;
-            ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].tUVOffset.y = (float)uYOffset / (float)tImageOpData.uHeight;
+            ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].tUVOffset.x = (float)uXOffset / (float)tImageOpData.uVirtualWidth;
+            ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].tUVOffset.y = (float)uYOffset / (float)tImageOpData.uVirtualHeight;
 
-            ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].tUVScale.x = (float)uWidth / (float)tImageOpData.uWidth;
-            ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].tUVScale.y = (float)uHeight / (float)tImageOpData.uHeight;
+            ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].tUVScale.x = (float)uWidth / (float)tImageOpData.uVirtualWidth;
+            ptTerrain->sbtChunkFiles[uIndex].tFile.atChunks[i].tUVScale.y = (float)uHeight / (float)tImageOpData.uVirtualHeight;
         }
         else
         {

@@ -5,6 +5,8 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] internal structs
+// [SECTION] internal api
 // [SECTION] public api implementation
 // [SECTION] extension loading
 */
@@ -38,266 +40,236 @@ Index of this file:
 #include "pl_ds.h"
 
 //-----------------------------------------------------------------------------
+// [SECTION] internal structs
+//-----------------------------------------------------------------------------
+
+typedef struct _plImageOpRegion
+{
+    int32_t x;
+    int32_t y;
+    uint32_t w;
+    uint32_t h;
+    uint64_t uDataSize;
+    uint8_t* puData;
+} plImageOpRegion;
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal api
+//-----------------------------------------------------------------------------
+
+static inline void
+pl__region_union(plImageOpRegion* out, const plImageOpRegion* a, const plImageOpRegion* b)
+{
+    const int32_t x0 = (a->x < b->x) ? a->x : b->x;
+    const int32_t y0 = (a->y < b->y) ? a->y : b->y;
+    const int32_t x1 = (a->x + a->w > b->x + b->w) ? (a->x + a->w) : (b->x + b->w);
+    const int32_t y1 = (a->y + a->h > b->y + b->h) ? (a->y + a->h) : (b->y + b->h);
+    out->x = x0; out->y = y0; out->w = x1 - x0; out->h = y1 - y0;
+}
+
+static inline bool
+pl__region_intersect(plImageOpRegion* out, const plImageOpRegion* a, const plImageOpRegion* b)
+{
+    int32_t x0 = (int32_t)((a->x > b->x) ? a->x : b->x);
+    int32_t y0 = (int32_t)((a->y > b->y) ? a->y : b->y);
+    int32_t x1 = (int32_t)((a->x + a->w < b->x + b->w) ? (a->x + a->w) : (b->x + b->w));
+    int32_t y1 = (int32_t)((a->y + a->h < b->y + b->h) ? (a->y + a->h) : (b->y + b->h));
+    if (x1 <= x0 || y1 <= y0)
+        return false;
+    out->x = (int32_t)x0; out->y = (int32_t)y0; out->w = (uint32_t)(x1 - x0); out->h = (uint32_t)(y1 - y0);
+    return true;
+}
+
+static void
+pl__update_active_from_regions(plImageOpData* p)
+{
+    if (p->_uRegionCount == 0)
+        return;
+
+    plImageOpRegion uni = p->_atRegions[0];
+    for (uint32_t i = 1; i < p->_uRegionCount; i++)
+        pl__region_union(&uni, &uni, &p->_atRegions[i]);
+
+    p->uActiveXOffset = uni.x;
+    p->uActiveYOffset = uni.y;
+    p->uActiveWidth   = uni.w;
+    p->uActiveHeight  = uni.h;
+}
+
+static void
+pl__maybe_grow_image_op_data(plImageOpData* ptData)
+{
+    if(ptData->_uRegionCount + 1 >= ptData->_uRegionCapacity)
+    {
+        // first run
+        if(ptData->_uRegionCount == 0)
+        {
+            ptData->_uRegionCapacity = 4;
+            ptData->_atRegions = PL_ALLOC(sizeof(plImageOpRegion) * ptData->_uRegionCapacity);
+            memset(ptData->_atRegions, 0, sizeof(plImageOpRegion) * ptData->_uRegionCapacity);
+        }
+        else // capacity reached
+        {
+            plImageOpRegion* atOldRegions = ptData->_atRegions;
+            ptData->_atRegions = PL_ALLOC(sizeof(plImageOpRegion) * ptData->_uRegionCapacity * 2);
+            memset(&ptData->_atRegions[ptData->_uRegionCapacity], 0, sizeof(plImageOpRegion) * ptData->_uRegionCapacity);
+            memcpy(ptData->_atRegions, atOldRegions, sizeof(plImageOpRegion) * ptData->_uRegionCapacity);
+            PL_FREE(atOldRegions);
+            ptData->_uRegionCapacity *= 2;
+        }
+        
+    }
+}
+
+//-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
 void
-pl_initialize_image_op_data(plImageOpInfo* ptInfo, plImageOpData* ptDataOut)
+pl_image_op_initialize_data(plImageOpInit* ptInfo, plImageOpData* ptDataOut)
 {
-    ptDataOut->uDataSize = ptInfo->uWidth * ptInfo->uHeight * ptInfo->uStride;
-    ptDataOut->puData = PL_ALLOC(ptDataOut->uDataSize);
-    memset(ptDataOut->puData, 0, ptDataOut->uDataSize);
-    ptDataOut->uWidth = ptInfo->uWidth;
-    ptDataOut->uHeight = ptInfo->uHeight;
-    ptDataOut->uChannels = ptInfo->uChannels;
-    ptDataOut->uStride = ptInfo->uStride;
-    ptDataOut->uChannelStride = ptInfo->uStride / ptInfo->uChannels;
+    ptDataOut->uVirtualWidth   = ptInfo->uVirtualWidth;
+    ptDataOut->uVirtualHeight  = ptInfo->uVirtualHeight;
+    ptDataOut->_uChannels = ptInfo->uChannels;
+    ptDataOut->_uStride = ptInfo->uStride;
+    ptDataOut->_uChannelStride = ptInfo->uStride / ptInfo->uChannels;
 }
 
 void
-pl_cleanup_image_op_data(plImageOpData* ptData)
+pl_image_op_cleanup_data(plImageOpData* ptData)
 {
-    PL_FREE(ptData->puData);
+    if(ptData->_atRegions)
+    {
+        for (uint32_t i = 0; i < ptData->_uRegionCount; i++)
+        {
+            PL_FREE(ptData->_atRegions[i].puData);
+        }
+        PL_FREE(ptData->_atRegions);
+    }
     memset(ptData, 0, sizeof(plImageOpData));
 }
 
 void
-pl_image_op_upsample(plImageOpData* ptData, uint32_t uFactor)
+pl_image_op_cleanup_extract(uint8_t* puData)
+{
+    PL_FREE(puData);
+}
+
+uint8_t*
+pl_image_op_extract(plImageOpData* ptDataIn, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, uint64_t* puSizeOut)
 {
 
-    uint64_t uOldDataSize = ptData->uDataSize;
-    uint8_t* puOldData = ptData->puData;
-    uint32_t uOldWidth = ptData->uWidth;
-    uint32_t uOldHeight = ptData->uHeight;
+    const size_t row_bytes = (size_t)uWidth * (size_t)ptDataIn->_uStride;
+    const size_t total_bytes = row_bytes * (size_t)uHeight;
 
-    ptData->uWidth *= uFactor;
-    ptData->uHeight *= uFactor;
-    ptData->uDataSize = ptData->uWidth * ptData->uHeight * ptData->uStride;
-    ptData->puData = PL_ALLOC(ptData->uDataSize);
-    memset(ptData->puData, 0, ptData->uDataSize);
+    plImageOpRegion tNewRegion = {
+        .x = iXOffset,
+        .y = iYOffset,
+        .w = uWidth,
+        .h = uHeight,
+        .uDataSize = total_bytes,
+        .puData = PL_ALLOC(total_bytes)
+    };
+    memset(tNewRegion.puData, 0, tNewRegion.uDataSize);
 
-    for(uint32_t uRow = 0; uRow < uOldHeight; uRow++)
+    const uint8_t uChannelStrideIn = ptDataIn->_uStride / ptDataIn->_uChannels;
+
+    for (uint32_t i = 0; i < ptDataIn->_uRegionCount; i++)
     {
-        for(uint32_t uCol = 0; uCol < uOldWidth; uCol++)
+        plImageOpRegion tIntersectRegion = {0};
+        const plImageOpRegion* ptCurrentRegion = &ptDataIn->_atRegions[i];
+        if(pl__region_intersect(&tIntersectRegion, &tNewRegion, ptCurrentRegion))
         {
-            const uint32_t uSourceIndex = uRow * uOldWidth + uCol;
-            uint8_t auChannels[4] = {0};
-            for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
-            {
-                auChannels[uChannel] = puOldData[uSourceIndex * ptData->uStride + uChannel * ptData->uChannelStride];
-            }
+            // intersection in world coords
+            const int ix0 = tIntersectRegion.x;
+            const int iy0 = tIntersectRegion.y;
+            const uint32_t iw = tIntersectRegion.w;
+            const uint32_t ih = tIntersectRegion.h;
 
-            for(uint32_t uTapRow = 0; uTapRow < uFactor; uTapRow++)
-            {
-                for(uint32_t uTapCol = 0; uTapCol < uFactor; uTapCol++)
-                {
-                    const uint32_t uDestinationIndex = (uTapRow + uRow * uFactor) * ptData->uWidth + uCol * uFactor + uTapCol;
-                    for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
-                    {
-                        ptData->puData[uDestinationIndex * ptData->uStride + uChannel * ptData->uChannelStride] = auChannels[uChannel];
-                    }
-                }
-            }
+            // src start in source-local pixels
+            const uint32_t src_x0 = (uint32_t)(ix0 - ptCurrentRegion->x);
+            const uint32_t src_y0 = (uint32_t)(iy0 - ptCurrentRegion->y);
 
+            // dst start in newregion-local pixels
+            const uint32_t dst_x0 = (uint32_t)(ix0 - tNewRegion.x);
+            const uint32_t dst_y0 = (uint32_t)(iy0 - tNewRegion.y);
+
+            const size_t src_row_bytes = (size_t)ptCurrentRegion->w * (size_t)ptDataIn->_uStride;
+            const size_t dst_row_bytes = (size_t)tNewRegion.w        * (size_t)ptDataIn->_uStride;
+            const size_t copy_bytes    = (size_t)iw                  * (size_t)ptDataIn->_uStride;
+
+            for (uint32_t r = 0; r < ih; r++)
+            {
+                const uint8_t* src = ptCurrentRegion->puData
+                    + (size_t)(src_y0 + r) * src_row_bytes
+                    + (size_t)src_x0 * (size_t)ptDataIn->_uStride;
+
+                uint8_t* dst = tNewRegion.puData
+                    + (size_t)(dst_y0 + r) * dst_row_bytes
+                    + (size_t)dst_x0 * (size_t)ptDataIn->_uStride;
+
+                memcpy(dst, src, copy_bytes);
+            }
         }
     }
 
-    PL_FREE(puOldData);
+    if(puSizeOut)
+        *puSizeOut = tNewRegion.uDataSize;
+    return tNewRegion.puData;
 }
 
 void
-pl_image_op_downsample(plImageOpData* ptData, uint32_t uFactor)
+pl_image_op_add(plImageOpData* ptData, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, uint8_t* puData)
 {
 
-    uFactor = (uint32_t)pow(2.0, (double)uFactor);
+    plImageOpRegion tNewRegion = {
+        .x = iXOffset,
+        .y = iYOffset,
+        .w = uWidth,
+        .h = uHeight,
+        .uDataSize = uWidth * uHeight * ptData->_uStride,
+        .puData = PL_ALLOC(uWidth * uHeight * ptData->_uStride)
+    };
+    memcpy(tNewRegion.puData, puData, tNewRegion.uDataSize);
 
-    uint64_t uOldDataSize = ptData->uDataSize;
-    uint8_t* puOldData = ptData->puData;
-    uint32_t uOldWidth = ptData->uWidth;
-    uint32_t uOldHeight = ptData->uHeight;
+    pl__maybe_grow_image_op_data(ptData);
+    ptData->_atRegions[ptData->_uRegionCount++] = tNewRegion;
+    pl__update_active_from_regions(ptData);
+}
 
-    ptData->uWidth /= uFactor;
-    ptData->uHeight /= uFactor;
-    ptData->uDataSize = ptData->uWidth * ptData->uHeight * ptData->uStride;
-    ptData->puData = PL_ALLOC(ptData->uDataSize);
-    memset(ptData->puData, 0, ptData->uDataSize);
+void
+pl_image_op_add_region(plImageOpData* ptData, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, plImageOpColor tColor)
+{
 
-    float fUvxInc = 1.0f / (float)uOldWidth;
-    float fUvyInc = 1.0f / (float)uOldHeight;
-    for(uint32_t uRow = 0; uRow < ptData->uHeight; uRow++)
-    {
-        float fUvy = (0.5f / (float)(ptData->uHeight)) + (float)(uRow - 0) / (float)ptData->uHeight;
-        for(uint32_t uCol = 0; uCol < ptData->uWidth; uCol++)
-        {
-            float fUvx = (0.5f / (float)(ptData->uWidth)) + (float)(uCol - 0) / (float)ptData->uWidth;
+    plImageOpRegion tNewRegion = {
+        .x = iXOffset,
+        .y = iYOffset,
+        .w = uWidth,
+        .h = uHeight,
+        .uDataSize = uWidth * uHeight * ptData->_uStride,
+        .puData = PL_ALLOC(uWidth * uHeight * ptData->_uStride)
+    };
 
-            
-            uint8_t auChannels[4] = {0};
-            uint32_t auChannelsLarge[4] = {0};
+    if(tColor == PL_IMAGE_OP_COLOR_WHITE)
+        memset(tNewRegion.puData, 255, tNewRegion.uDataSize);
+    else
+        memset(tNewRegion.puData, 0, tNewRegion.uDataSize);
 
-            uint32_t uSumCount = 0;
-
-            for(int x = 0; x < 4; x++)
-            {
-                for(int y = 0; y < 4; y++)
-                {
-                    float fUvxTap = fUvx + x * fUvxInc - fUvxInc * (4 - 1);
-                    float fUvyTap = fUvy + y * fUvyInc - fUvyInc * (4 - 1);
-                    if(fUvxTap < 0.0f || fUvxTap >= 1.0f || fUvyTap < 0.0f || fUvyTap >= 1.0f)
-                    {
-                    }
-                    else
-                    {
-                        uint32_t uSrcRow = (uint32_t)(fUvyTap * (float)uOldHeight);
-                        uint32_t uSrcCol = (uint32_t)(fUvxTap * (float)uOldWidth);
-                        const uint32_t uSourceIndex = uSrcRow * uOldWidth + uSrcCol;
-                        for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
-                        {
-                            auChannelsLarge[uChannel] += (uint32_t)puOldData[uSourceIndex * ptData->uStride + uChannel * ptData->uChannelStride];
-                        }
-                        uSumCount++;
-                    }
-                }
-            }
-
-            if(uSumCount > 0)
-            {
-                for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
-                {
-                    auChannels[uChannel] = (uint8_t)(auChannelsLarge[uChannel] / uSumCount);
-                }
-                // auChannels[3] = UINT8_MAX;
-            }
-            const uint32_t uDestinationIndex = uRow * ptData->uWidth + uCol;
-            for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
-            {
-                ptData->puData[uDestinationIndex * ptData->uStride + uChannel * ptData->uChannelStride] = auChannels[uChannel];
-            }
-
-        }
-    }
-    PL_FREE(puOldData);
+    pl__maybe_grow_image_op_data(ptData);
+    ptData->_atRegions[ptData->_uRegionCount++] = tNewRegion;
+    pl__update_active_from_regions(ptData);
 }
 
 void
 pl_image_op_square(plImageOpData* ptData)
 {
+    uint32_t uTarget = pl_max(ptData->uVirtualWidth, ptData->uVirtualHeight);
+    ptData->uVirtualWidth = uTarget;
+    ptData->uVirtualHeight = uTarget;
 
-    uint64_t uOldDataSize = ptData->uDataSize;
-    uint8_t* puOldData = ptData->puData;
-    uint32_t uOldWidth = ptData->uWidth;
-    uint32_t uOldHeight = ptData->uHeight;
-
-    if(uOldWidth == uOldHeight)
-        return;
-
-    uint32_t uTargetResolution = pl_max(uOldWidth, uOldHeight);
-    ptData->uWidth = uTargetResolution;
-    ptData->uHeight = uTargetResolution;
-
-    ptData->uDataSize = ptData->uWidth * ptData->uHeight * ptData->uStride;
-    ptData->puData = PL_ALLOC(ptData->uDataSize);
-    memset(ptData->puData, 0, ptData->uDataSize);
-
-    const uint8_t uChannelStrideIn = ptData->uStride / ptData->uChannels;
-
-    for(uint32_t uRow = 0; uRow < uOldHeight; uRow++)
-    {
-        for(uint32_t uCol = 0; uCol < uOldWidth; uCol++)
-        {
-            const uint32_t uSourceIndex = uRow * uOldWidth + uCol;
-            uint8_t auChannels[4] = {0};
-            for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
-            {
-                auChannels[uChannel] = puOldData[uSourceIndex * ptData->uStride + uChannel * uChannelStrideIn];
-            }
-
-            const uint32_t uDestinationIndex = uRow * ptData->uWidth + uCol;
-            for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
-            {
-                ptData->puData[uDestinationIndex * ptData->uStride + uChannel * ptData->uChannelStride] = auChannels[uChannel];
-            }
-        }
-    }
-
-    PL_FREE(puOldData);
-}
-
-void
-pl_image_op_extract(plImageOpData* ptDataIn, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, plImageOpData* ptDataOut)
-{
-
-    uint32_t uStartRow = 0;
-    uint32_t uStartCol = 0;
-
-    if(iXOffset < 0) uStartCol = (uint32_t)-iXOffset;
-    if(iYOffset < 0) uStartRow = (uint32_t)-iYOffset;
-
-
-    uint32_t uActiveWidth  = pl_min(uWidth, ptDataIn->uWidth - uStartCol - iXOffset);
-    uint32_t uActiveHeight = pl_min(uHeight, ptDataIn->uHeight - uStartRow - iYOffset);
-
-    plImageOpInfo tInfo = {
-        .uWidth    = uWidth,
-        .uHeight   = uHeight,
-        .uChannels = ptDataIn->uChannels,
-        .uStride   = ptDataIn->uStride
-    };
-    pl_initialize_image_op_data(&tInfo, ptDataOut);
-
-    for(uint32_t uRow = uStartRow; uRow < uActiveHeight; uRow++)
-    {
-        for(uint32_t uCol = uStartCol; uCol < uActiveWidth; uCol++)
-        {
-            const uint32_t uSourceIndex = (uRow + iYOffset) * ptDataIn->uWidth + uCol + iXOffset;
-            uint8_t auChannels[4] = {0};
-            for(uint32_t uChannel = 0; uChannel < ptDataIn->uChannels; uChannel++)
-            {
-                auChannels[uChannel] = ptDataIn->puData[uSourceIndex * ptDataIn->uStride + uChannel * ptDataIn->uChannelStride];
-            }
-
-            const uint32_t uDestinationIndex = uRow * uWidth + uCol;
-            for(uint32_t uChannel = 0; uChannel < ptDataOut->uChannels; uChannel++)
-            {
-                ptDataOut->puData[uDestinationIndex * ptDataOut->uStride + uChannel * ptDataOut->uChannelStride] = auChannels[uChannel];
-            }
-        }
-    }
-}
-
-void
-pl_add_image_op(plImageOpData* ptData, plImageOpInfo tInfo, int iXOffset, int iYOffset)
-{
-    const uint8_t uChannelStrideIn = tInfo.uStride / tInfo.uChannels;
-
-    uint32_t uStartRow = 0;
-    uint32_t uStartCol = 0;
-
-    if(iXOffset < 0) uStartCol = (uint32_t)-iXOffset;
-    if(iYOffset < 0) uStartRow = (uint32_t)-iYOffset;
-
-    uint32_t uActiveWidth  = pl_min(tInfo.uWidth, ptData->uWidth - uStartCol - iXOffset);
-    uint32_t uActiveHeight = pl_min(tInfo.uHeight, ptData->uHeight - uStartRow - iYOffset);
-
-    for(uint32_t uRow = uStartRow; uRow < uActiveHeight; uRow++)
-    {
-        for(uint32_t uCol = uStartCol; uCol < uActiveWidth; uCol++)
-        {
-
-            const uint32_t uSourceIndex = uRow * tInfo.uWidth + uCol;
-            uint8_t auChannels[4] = {0};
-            for(uint32_t uChannel = 0; uChannel < tInfo.uChannels; uChannel++)
-            {
-                auChannels[uChannel] = tInfo.puData[uSourceIndex * tInfo.uStride + uChannel * uChannelStrideIn];
-            }
-
-            const uint32_t uDestinationIndex = (iYOffset + uRow) * ptData->uWidth + uCol + iXOffset;
-            for(uint32_t uChannel = 0; uChannel < ptData->uChannels; uChannel++)
-            {
-                ptData->puData[uDestinationIndex * ptData->uStride + uChannel * ptData->uChannelStride] = auChannels[uChannel];
-            }
-        }
-    }
+    uTarget = pl_max(ptData->uActiveWidth, ptData->uActiveHeight);
+    ptData->uActiveWidth = uTarget;
+    ptData->uActiveHeight = uTarget;
 }
 
 //-----------------------------------------------------------------------------
@@ -308,13 +280,13 @@ PL_EXPORT void
 pl_load_image_ops_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plImageOpsI tApi = {
-        .initialize   = pl_initialize_image_op_data,
-        .cleanup      = pl_cleanup_image_op_data,
-        .add          = pl_add_image_op,
-        .upsample     = pl_image_op_upsample,
-        .downsample   = pl_image_op_downsample,
-        .extract      = pl_image_op_extract,
-        .square       = pl_image_op_square
+        .initialize      = pl_image_op_initialize_data,
+        .cleanup         = pl_image_op_cleanup_data,
+        .add             = pl_image_op_add,
+        .extract         = pl_image_op_extract,
+        .square          = pl_image_op_square,
+        .add_region      = pl_image_op_add_region,
+        .cleanup_extract = pl_image_op_cleanup_extract,
     };
     pl_set_api(ptApiRegistry, plImageOpsI, &tApi);
 

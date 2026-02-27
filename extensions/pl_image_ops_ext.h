@@ -10,6 +10,7 @@ Index of this file:
 // [SECTION] forward declarations & basic types
 // [SECTION] public api struct
 // [SECTION] structs
+// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------
@@ -36,8 +37,13 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plImageOpData plImageOpData;
-typedef struct _plImageOpInfo plImageOpInfo;
+typedef struct _plImageOpData   plImageOpData;
+typedef struct _plImageOpInit   plImageOpInit;
+typedef struct _plImageOpRegion plImageOpRegion; // internal
+
+// enums
+typedef int plImageOpFlags;
+typedef int plImageOpColor;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -45,45 +51,67 @@ typedef struct _plImageOpInfo plImageOpInfo;
 
 typedef struct _plImageOpsI
 {
-    void (*initialize)(plImageOpInfo*, plImageOpData* dataOut);
-    void (*cleanup)(plImageOpData*);
+    void (*initialize)(plImageOpInit*, plImageOpData* dataOut);
+    void (*cleanup)   (plImageOpData*);
 
     // building operations
-    void (*add)(plImageOpData*, plImageOpInfo, int xOffset, int yOffset);
+    void (*add)       (plImageOpData*, int x, int y, uint32_t w, uint32_t h, uint8_t*);
+    void (*add_region)(plImageOpData*, int x, int y, uint32_t w, uint32_t h, plImageOpColor);
 
     // in-place place operations
-    void (*upsample)  (plImageOpData* dataIn, uint32_t factor); // factor is how many times to double resolution
-    void (*downsample)(plImageOpData* dataIn, uint32_t factor); // factor is how many times to half resolution
-    void (*square)    (plImageOpData* dataIn);
-    
-    // misc.
-    void (*extract)(plImageOpData* dataIn, int xOffset, int yOffset, uint32_t width, uint32_t height, plImageOpData* dataOut);
+    void (*square)(plImageOpData*);
 
+    // misc.
+    uint8_t* (*extract)        (plImageOpData* dataIn, int x, int y, uint32_t w, uint32_t h, uint64_t* sizeOut);
+    void     (*cleanup_extract)(uint8_t*);
 } plImageOpsI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plImageOpInfo
+typedef struct _plImageOpInit
 {
-    uint32_t uWidth;
-    uint32_t uHeight;
+    uint32_t uVirtualWidth;
+    uint32_t uVirtualHeight;
     uint8_t  uChannels;
     uint8_t  uStride; // bytes
-    uint8_t* puData;
-} plImageOpInfo;
+} plImageOpInit;
 
 typedef struct _plImageOpData
 {
-    uint64_t uDataSize;
-    uint8_t* puData;
+    // virtual region
+    uint32_t uVirtualWidth;
+    uint32_t uVirtualHeight;
 
-    uint32_t uWidth;
-    uint32_t uHeight;
-    uint8_t  uChannels;
-    uint8_t  uStride; // bytes
-    uint8_t  uChannelStride; // bytes
+    // active region
+    uint32_t uActiveXOffset;
+    uint32_t uActiveYOffset;
+    uint32_t uActiveWidth;
+    uint32_t uActiveHeight;
+
+    // [INTERNAL]
+    plImageOpRegion* _atRegions;
+    uint32_t         _uRegionCount;
+    uint32_t         _uRegionCapacity;
+    uint8_t          _uChannels;
+    uint8_t          _uStride; // bytes
+    uint8_t          _uChannelStride; // bytes
 } plImageOpData;
+
+//-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+enum _plImageOpFlags
+{
+    PL_IMAGE_OP_FLAGS_NONE = 0
+};
+
+enum _plImageOpColor
+{
+    PL_IMAGE_OP_COLOR_TRANSPARENT = 0,
+    PL_IMAGE_OP_COLOR_WHITE,
+};
 
 #endif // PL_IMAGE_OPS_EXT_H
