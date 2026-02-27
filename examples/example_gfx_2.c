@@ -281,7 +281,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     int iImageWidth = 0;
     int iImageHeight = 0;
     int _unused;
-    unsigned char* pucImageData = gptImage->load_from_file("/assets/textures/SpriteMapExample.png", &iImageWidth, &iImageHeight, &_unused, 4);
+    unsigned char* pucImageData = gptImage->load_from_file("../data/pilotlight-assets-master/textures/SpriteMapExample.png", &iImageWidth, &iImageHeight, &_unused, 4);
 
     // create texture
     const plTextureDesc tTextureDesc = {
