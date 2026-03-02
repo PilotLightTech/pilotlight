@@ -342,6 +342,11 @@ pl_terrain_process(plTerrainProcessInfo* ptInfo)
 
         FILE* ptDataFile = fopen(pcPath, "wb");
 
+        plVersion tExtensionVersion = plTerrainProcessorI_version;
+        fwrite(&tExtensionVersion.uMajor, 1, sizeof(int), ptDataFile);
+        fwrite(&tExtensionVersion.uMinor, 1, sizeof(int), ptDataFile);
+        fwrite(&tExtensionVersion.uPatch, 1, sizeof(int), ptDataFile);
+
         fwrite(&ptInfo->atTiles[i].iTreeDepth, 1, sizeof(int), ptDataFile);
         fwrite(&tHeightMap.fMaxBaseError, 1, sizeof(float), ptDataFile);
 
@@ -376,6 +381,26 @@ pl_terrain_load_chunk_file(const char* pcPath, plTerrainChunkFile* ptFile, uint3
     {
         return false;
     }
+
+    plVersion tFileVersion = {0};
+    fread(&tFileVersion.uMajor, 1, sizeof(int), ptDataFile);
+    fread(&tFileVersion.uMinor, 1, sizeof(int), ptDataFile);
+    fread(&tFileVersion.uPatch, 1, sizeof(int), ptDataFile);
+
+    plVersion tExtensionVersion = plTerrainProcessorI_version;
+    if(tFileVersion.uMajor > tExtensionVersion.uMajor)
+    {
+        printf("Chunk major version not supported");
+        fclose(ptDataFile);
+        return false;
+    }
+
+    if(tFileVersion.uMinor > tExtensionVersion.uMinor)
+    {
+        printf("Chunk minor version not supported");
+        fclose(ptDataFile);
+        return false;
+    }
     
     fread(&ptFile->iTreeDepth, 1, sizeof(int), ptDataFile);
     fread(&ptFile->fMaxBaseError, 1, sizeof(float), ptDataFile);
@@ -402,14 +427,10 @@ pl__chlod_read_chunk(plTerrainChunkFile* ptFileOut, int iRecurseCount, FILE* ptD
     fread(&iChunkLabel, 1, sizeof(int), ptDataFile);
 
     int iLevel = 0;
-    int iX = 0;
-    int iY = 0;
     fread(&iLevel, 1, sizeof(int), ptDataFile);
-    fread(&iX, 1, sizeof(int), ptDataFile);
-    fread(&iY, 1, sizeof(int), ptDataFile);
+    fread(&ptChunk->fX, 1, sizeof(float), ptDataFile);
+    fread(&ptChunk->fY, 1, sizeof(float), ptDataFile);
     ptChunk->uLevel = (uint8_t)iLevel;
-    ptChunk->uX = (uint16_t)iX;
-    ptChunk->uY = (uint16_t)iY;
 
     fread(&ptChunk->tMinBound, 1, sizeof(plVec3), ptDataFile);
     fread(&ptChunk->tMaxBound, 1, sizeof(plVec3), ptDataFile);
@@ -935,8 +956,12 @@ pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX
     int iChunkLabel = pl__node_index(ptHeightMap, iCx, iCz);
     fwrite(&iChunkLabel, 1, sizeof(int), ptFile);
     fwrite(&iLevel,      1, sizeof(int), ptFile);
-    fwrite(&iStartIndexX, 1, sizeof(int), ptFile);
-    fwrite(&iStartIndexY, 1, sizeof(int), ptFile);
+
+    float fXWrite = (float)iStartIndexX / ptHeightMap->iSize;
+    float fYWrite = (float)iStartIndexY / ptHeightMap->iSize;
+
+    fwrite(&fXWrite, 1, sizeof(float), ptFile);
+    fwrite(&fYWrite, 1, sizeof(float), ptFile);
 
     // activate the 4 corners
     pl__activate_height_map_element(pl__get_elem(ptHeightMap, iStartIndexX, iStartIndexY), iLevel);
