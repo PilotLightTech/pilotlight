@@ -22,7 +22,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plStringInternI_version {1, 0, 1}
+#define plStringInternI_version {1, 0, 2}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations

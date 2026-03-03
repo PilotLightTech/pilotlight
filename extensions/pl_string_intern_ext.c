@@ -194,6 +194,10 @@ pl_intern(plStringRepository* ptRepo, const char* pcString)
 void
 pl_remove_intern(plStringRepository* ptRepo, const char* pcString)
 {
+
+    if(pcString == NULL)
+        return;
+
     // do hash once
     uint64_t uHash = pl_hm_hash_str(pcString, 0);
     uint64_t uKey = pl_hm_lookup(&ptRepo->tEntryLookup, uHash);

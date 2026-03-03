@@ -24,9 +24,10 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plVfsI       (v2.x)
-        * plLogI       (v1.x)
-        * plScreenLogI (v2.x)
+        * plVfsI          (v2.x)
+        * plLogI          (v1.x)
+        * plScreenLogI    (v2.x)
+        * plStringInternI (v1.x)
 */
 
 //-----------------------------------------------------------------------------
@@ -46,6 +47,10 @@ Index of this file:
     #define PL_MAX_SHADER_DIRECTORIES 16
 #endif
 
+#ifndef PL_MAX_SHADER_MACRO_DEFINITIONS
+    #define PL_MAX_SHADER_MACRO_DEFINITIONS 16
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -57,7 +62,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plShaderI_version {1, 2, 1}
+#define plShaderI_version {1, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -106,24 +111,22 @@ typedef struct _plShaderI
 typedef struct _plShaderMacroDefinition
 {
     const char* pcName;
-    size_t      szNameLength; // do NOT count null termination character
     const char* pcValue;
-    size_t      szValueLength; // do NOT count null termination character
 } plShaderMacroDefinition;
 
 typedef struct _plShaderOptions
 {
-    plShaderFlags                  tFlags;
-    plShaderOptimizationLevel      tOptimizationLevel;
-    const plShaderMacroDefinition* ptMacroDefinitions;
-    uint32_t                       uMacroDefinitionCount;
-    const char*                    apcIncludeDirectories[PL_MAX_SHADER_INCLUDE_DIRECTORIES + 1];
-    const char*                    apcDirectories[PL_MAX_SHADER_DIRECTORIES + 1];
-    const char*                    pcCacheOutputDirectory;
+    plShaderFlags             tFlags;
+    plShaderOptimizationLevel tOptimizationLevel;
+    plShaderMacroDefinition   atMacroDefinitions[PL_MAX_SHADER_MACRO_DEFINITIONS];
+    const char*               apcIncludeDirectories[PL_MAX_SHADER_INCLUDE_DIRECTORIES + 1];
+    const char*               apcDirectories[PL_MAX_SHADER_DIRECTORIES + 1];
+    const char*               pcCacheOutputDirectory;
 
     // [INTERNAL]
     uint32_t _uDirectoriesCount;
     uint32_t _uIncludeDirectoriesCount;
+    uint32_t _uMacroDefinitionCount;
 } plShaderOptions;
 
 //-----------------------------------------------------------------------------
