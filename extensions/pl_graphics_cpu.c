@@ -442,7 +442,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer **ptBu
     // if (ptBufferOut)
     //    *ptBufferOut = &ptDevice->sbtBuffersCold[tHandle.uIndex];
 
-    // return tHandle;
+    return tHandle;
 
 }
 
