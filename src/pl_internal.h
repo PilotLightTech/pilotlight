@@ -53,13 +53,11 @@ plKeyCallback         gtKeyCallback         = NULL;
 plCharCallback        gtCharCallback        = NULL;
 
 // apis
-#ifndef Py_PYTHON_H
 const plDataRegistryI*      gptDataRegistry      = NULL;
 const plApiRegistryI*       gptApiRegistry       = NULL;
 const plExtensionRegistryI* gptExtensionRegistry = NULL;
 const plIOI*                gptIOI               = NULL;
 const plMemoryI*            gptMemory            = NULL;
-#endif
 bool                        gbApisDirty          = false;
 
 // app function pointers
@@ -134,12 +132,9 @@ bool pl__check_apis(void);
 // [SECTION] helpers
 //-----------------------------------------------------------------------------
 
-#ifndef Py_PYTHON_H
-
 // memory helpers
 #define PL_ALLOC(x) gptMemory->tracked_realloc(NULL, x, __FILE__, __LINE__)
 #define PL_FREE(x)  gptMemory->tracked_realloc(x, 0, __FILE__, __LINE__)
 
-#endif
 
 #endif // PL_INTERNAL_H

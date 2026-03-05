@@ -48,8 +48,4 @@
 // #define PL_USE_ALLOCATOR
 // #define PL_ALLOCATOR_FIXED_SIZE 2147483648 
 
-#ifdef Py_PYTHON_H
-    #undef PL_MEMORY_TRACKING_ON
-#endif
-
 #endif // PL_CONFIG_H

@@ -1118,6 +1118,13 @@ pl__show_device_memory(bool* bValue)
                 else
                     gptUI->text("Host Cached");
 
+                if(gptUI->was_last_item_hovered())
+                {
+                    gptUI->begin_tooltip();
+                    gptUI->text(sbtAllocations[i].pcName);
+                    gptUI->end_tooltip();
+                }
+
                 gptUI->layout_row_end();
         
                 pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);

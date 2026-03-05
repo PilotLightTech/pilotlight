@@ -171,7 +171,11 @@ pl_starter_initialize(plStarterInit tInit)
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
     {
         plGraphicsInit tGraphicsDesc = {
+            #ifdef PL_CONFIG_DEBUG
             .tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED
+            #else
+            .tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED
+            #endif
         };
         gptGfx->initialize(&tGraphicsDesc);
     }

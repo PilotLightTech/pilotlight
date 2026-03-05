@@ -597,6 +597,7 @@ typedef struct _plDeviceMemoryAllocation
     uint64_t                  ulSize;       // actual size of allocation
     char*                     pHostMapped;  // host mapped memory if host visible
     plDeviceMemoryAllocatorI* ptAllocator;  // if allocated from user allocator, this should be set so cleanup can delegate
+    const char*               pcName;
 
         // [INTERNAL]
     uint64_t _uFrameBoundaryValueForDeletion;

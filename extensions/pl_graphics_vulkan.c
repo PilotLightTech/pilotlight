@@ -2783,6 +2783,7 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags
         gptGraphics->szHostMemoryInUse += tBlock.ulSize;
     }
 
+    tBlock.pcName = pcName;
     pl_sb_push(ptDevice->sbtMemoryBlocks, tBlock);
 
     return tBlock;

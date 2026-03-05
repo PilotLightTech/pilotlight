@@ -755,7 +755,7 @@ void ImGui_ImplVulkan_UpdateTexture(ImTextureData* tex)
         alloc_info.descriptorPool = bd->DescriptorPool;
         alloc_info.descriptorSetCount = 1;
         alloc_info.pSetLayouts = &bd->SamplerDescriptorSetLayout;
-        VkResult err = vkAllocateDescriptorSets(v->Device, &alloc_info, &bd->tFontSamplerDescriptorSet);
+        err = vkAllocateDescriptorSets(v->Device, &alloc_info, &bd->tFontSamplerDescriptorSet);
         check_vk_result(err);  
 
         VkDescriptorImageInfo desc_image = {};
