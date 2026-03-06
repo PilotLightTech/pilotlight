@@ -5,8 +5,22 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-- v0.8.0 (2026-xx-xx) (graphics) expose color write mask for stencil buffer
-                      (draw)     re-combined draw & draw extensions (v2.0.0)
+- v0.8.0 (2026-03-06) (graphics   v1.7.2) -expose color write mask for stencil buffer
+                                          -fix copy buffer issues in vulkan backend
+                      (draw       v2.0.0) -re-combined draw & draw extensions
+                      (resource   v1.4.0) -expose cache directory
+                                          -fix staging flags
+                                          -add no cache flag
+                                          -add eviction & residency support
+                      (freelist   v0.1.0) -new freelist extension
+                      (terrain    v0.1.0) -new terrain extension
+                      (image ops  v0.1.0) -new image ops extension
+                      (pak        v1.1.0) -add streaming file support
+                      (vfs        v2.0.0) -add streaming file support
+                      (image      v1.1.0) -add vfs file support
+                      (imgui     v1.92.6) -update to new version
+                      (build)             -move to spirv-cross static libraries
+                      (platform)          -change load functions to "pl_load_platform_ext" & "pl_unload_platform_ext"
 - v0.7.0 (2026-01-02) (dds)      version 1.0
                       (dxt)      version 1.0
                       (resource) version 1.0
