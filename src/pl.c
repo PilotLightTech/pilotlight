@@ -1826,7 +1826,7 @@ pl__unload_core_apis(void)
 // [SECTION] unity build
 //-----------------------------------------------------------------------------
 
-#ifndef Py_PYTHON_H
+#ifndef PL_SINGLE_UNIT_BUILD
 
     #ifdef PL_USE_STB_SPRINTF
         #define STB_SPRINTF_IMPLEMENTATION

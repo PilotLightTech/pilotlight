@@ -172,7 +172,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_vfs_ext", "pl_load_vfs_ext", "pl_unload_vfs_ext", false);
     ptExtensionRegistry->load("pl_pak_ext", "pl_load_pak_ext", "pl_unload_pak_ext", false);
     ptExtensionRegistry->load("pl_string_intern_ext", "pl_load_string_intern_ext", "pl_unload_string_intern_ext", false);
-    ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false);
 
     // retrieve the IO API required to use plIO for "talking" with runtime)
     gptIO        = pl_get_api_latest(ptApiRegistry, plIOI);

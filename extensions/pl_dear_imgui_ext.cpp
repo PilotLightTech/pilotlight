@@ -149,7 +149,7 @@ pl_imgui_get_texture_id_from_bindgroup(plDevice *ptDevice, plBindGroupHandle tHa
 //-----------------------------------------------------------------------------
 
 PL_EXPORT void
-pl_load_ext(plApiRegistryI *ptApiRegistry, bool bReload)
+pl_load_dear_imgui_ext(const plApiRegistryI *ptApiRegistry, bool bReload)
 {
     plDearImGuiI tApi = PL_ZERO_INIT;
     tApi.initialize = pl_imgui_initialize;
@@ -178,7 +178,7 @@ pl_load_ext(plApiRegistryI *ptApiRegistry, bool bReload)
 }
 
 PL_EXPORT void
-pl_unload_ext(plApiRegistryI *ptApiRegistry, bool bReload)
+pl_unload_dear_imgui_ext(const plApiRegistryI *ptApiRegistry, bool bReload)
 {
 
     if (bReload)

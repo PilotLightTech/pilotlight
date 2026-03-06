@@ -106,7 +106,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //     "pl_unload_ext")
     //   * fourth argument indicates if the extension is reloadable (should we check for changes and reload if changed)
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
-    ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false); // provides the file API used by the drawing ext
+    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false); // provides the file API used by the drawing ext
     
     // load required apis
     gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);

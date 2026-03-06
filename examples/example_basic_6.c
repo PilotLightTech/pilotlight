@@ -148,7 +148,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // load extensions (makes their APIs available)
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
-    ptExtensionRegistry->load("pl_platform_ext", NULL, NULL, false);
+    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false);
     
     // load required apis
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);

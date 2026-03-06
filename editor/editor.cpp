@@ -105,8 +105,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // load extensions
     ptExtensionRegistry->load("pl_unity_ext", nullptr, nullptr, true);
-    ptExtensionRegistry->load("pl_platform_ext", nullptr, nullptr, false);
-    ptExtensionRegistry->load("pl_dear_imgui_ext", nullptr, nullptr, false);
+    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false);
+    ptExtensionRegistry->load("pl_dear_imgui_ext", "pl_load_dear_imgui_ext", "pl_unload_dear_imgui_ext", false);
 
     // load apis
     gptWindows       = pl_get_api_latest(ptApiRegistry, plWindowI);
