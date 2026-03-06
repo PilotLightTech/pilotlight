@@ -151,6 +151,7 @@ with pl.project("pilotlight"):
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
 
         def add_release_unity_ext():
             
@@ -182,6 +183,7 @@ with pl.project("pilotlight"):
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
+                    pl.add_linker_flags("-lstdc++")
 
         with pl.configuration("debug"):                add_debug_unity_ext()
         with pl.configuration("release"):              add_release_unity_ext()
@@ -192,13 +194,15 @@ with pl.project("pilotlight"):
         with pl.configuration("moltenvk"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_linker_flags("-lstdc++")
                     pl.add_dynamic_link_libraries("pthread", "vulkan")
-                    pl.add_static_link_libraries("libshaderc_combined", "libspirv-cross-c", "libspirv-cross-core", "libspirv-cross-cpp",
-                        "libspirv-cross-glsl", "libspirv-cross-hlsl", "libspirv-cross-msl", "libspirv-cross-reflect", "libspirv-cross-util")
-
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
+                        "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+                    
         with pl.configuration("moltenvk_experimental"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_linker_flags("-lstdc++")
                     pl.add_dynamic_link_libraries("pthread", "vulkan")
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
@@ -240,14 +244,14 @@ with pl.project("pilotlight"):
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
-                    pl.add_static_link_libraries("libshaderc_combined")
+                    pass
 
         with pl.configuration("moltenvk_experimental"):
 
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
-                    pl.add_static_link_libraries("shaderc_combined")
+                    pass
 
     #-----------------------------------------------------------------------------
     # [SECTION] platform extension

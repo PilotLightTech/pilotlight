@@ -97,7 +97,7 @@
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no -nodefaultlib:MSVCRT 
-@set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib spirv-cross-c-shared.lib vulkan-1.lib 
+@set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
 @set PL_SOURCES="../extensions/pl_unity_ext.c" 
 
 :: run compiler (and linker)
@@ -330,7 +330,7 @@ goto ExitLabel
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib spirv-cross-c-shared.lib vulkan-1.lib 
+@set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
 @set PL_SOURCES="../extensions/pl_unity_ext.c" 
 
 :: run compiler (and linker)
@@ -567,7 +567,7 @@ goto ExitLabel
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi -std:c11 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no -nodefaultlib:MSVCRT 
-@set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib spirv-cross-c-shared.lib vulkan-1.lib 
+@set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
 @set PL_SOURCES="../extensions/pl_unity_ext.c" 
 
 :: run compiler (and linker)
@@ -969,7 +969,7 @@ goto ExitLabel
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD -std:c11 
 @set PL_LINKER_FLAGS=-noimplib -noexp -incremental:no 
-@set PL_STATIC_LINK_LIBRARIES=shaderc_combined.lib spirv-cross-c-shared.lib vulkan-1.lib 
+@set PL_STATIC_LINK_LIBRARIES=vulkan-1.lib shaderc_combined.lib spirv-cross-c.lib spirv-cross-core.lib spirv-cross-cpp.lib spirv-cross-glsl.lib spirv-cross-hlsl.lib spirv-cross-msl.lib spirv-cross-reflect.lib spirv-cross-util.lib 
 @set PL_SOURCES="../extensions/pl_unity_ext.c" 
 
 :: run compiler (and linker)

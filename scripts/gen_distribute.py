@@ -287,6 +287,7 @@ with pl.project("pilotlight deploy"):
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_linker_flags("-lstdc++")
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
 
@@ -315,6 +316,7 @@ with pl.project("pilotlight deploy"):
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_linker_flags("-lstdc++")
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
 

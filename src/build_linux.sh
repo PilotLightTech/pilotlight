@@ -94,8 +94,8 @@ PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensi
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
+PL_STATIC_LINK_LIBRARIES="-l:libshaderc_combined.a -l:libspirv-cross-c.a -l:libspirv-cross-core.a -l:libspirv-cross-cpp.a -l:libspirv-cross-glsl.a -l:libspirv-cross-hlsl.a -l:libspirv-cross-msl.a -l:libspirv-cross-reflect.a -l:libspirv-cross-util.a "
+PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
 PL_SOURCES="../extensions/pl_unity_ext.c "
 
 # run compiler (and linker)
@@ -323,8 +323,8 @@ PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensi
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
+PL_STATIC_LINK_LIBRARIES="-l:libshaderc_combined.a -l:libspirv-cross-c.a -l:libspirv-cross-core.a -l:libspirv-cross-cpp.a -l:libspirv-cross-glsl.a -l:libspirv-cross-hlsl.a -l:libspirv-cross-msl.a -l:libspirv-cross-reflect.a -l:libspirv-cross-util.a "
+PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
 PL_SOURCES="../extensions/pl_unity_ext.c "
 
 # run compiler (and linker)
@@ -556,8 +556,8 @@ PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensi
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
+PL_STATIC_LINK_LIBRARIES="-l:libshaderc_combined.a -l:libspirv-cross-c.a -l:libspirv-cross-core.a -l:libspirv-cross-cpp.a -l:libspirv-cross-glsl.a -l:libspirv-cross-hlsl.a -l:libspirv-cross-msl.a -l:libspirv-cross-reflect.a -l:libspirv-cross-util.a "
+PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
 PL_SOURCES="../extensions/pl_unity_ext.c "
 
 # run compiler (and linker)
@@ -997,8 +997,8 @@ PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensi
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lspirv-cross-c-shared -lshaderc_shared -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
+PL_STATIC_LINK_LIBRARIES="-l:libshaderc_combined.a -l:libspirv-cross-c.a -l:libspirv-cross-core.a -l:libspirv-cross-cpp.a -l:libspirv-cross-glsl.a -l:libspirv-cross-hlsl.a -l:libspirv-cross-msl.a -l:libspirv-cross-reflect.a -l:libspirv-cross-util.a "
+PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread -lvulkan "
 PL_SOURCES="../extensions/pl_unity_ext.c "
 
 # run compiler (and linker)
