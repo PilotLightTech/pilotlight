@@ -57,7 +57,6 @@ typedef struct _plCpuDynamicBuffer
 typedef struct _plCpuBuffer
 {
     char*         pcData;
-    plBufferUsage tUsage;
 } plCpuBuffer;
 
 typedef struct _plCpuTexture
@@ -167,7 +166,7 @@ typedef struct _plTimelineSemaphore
 
 typedef struct _plTimelineEvent
 {
-    plDevice* ptDevice; // for convience
+    plDevice*        ptDevice; // for convience
     plTimelineEvent* ptNext; // for linked list
 } plTimelineEvent;
 
@@ -220,8 +219,8 @@ typedef struct _plDevice
 
     // buffer generation pool
     plCpuBuffer* sbtBuffersHot;
-    plBuffer*       sbtBuffersCold;
-    uint16_t*       sbtBufferFreeIndices;
+    plBuffer*    sbtBuffersCold;
+    uint16_t*    sbtBufferFreeIndices;
 
     // texture generation pool
     // VkImageView*     sbtTextureViewsHot;
@@ -230,19 +229,19 @@ typedef struct _plDevice
     uint16_t*     sbtTextureFreeIndices;
 
     // sampler generation pool
-    int* sbtSamplersHot;
+    int*       sbtSamplersHot;
     plSampler* sbtSamplersCold;
     uint16_t*  sbtSamplerFreeIndices;
 
     // bind group generation pool
     plCpuBindGroup* sbtBindGroupsHot;
-    plBindGroup*       sbtBindGroupsCold;
-    uint16_t*          sbtBindGroupFreeIndices;
+    plBindGroup*    sbtBindGroupsCold;
+    uint16_t*       sbtBindGroupFreeIndices;
 
     // bind group layout generation pool
     plCpuBindGroupLayout* sbtBindGroupLayoutsHot;
-    plBindGroupLayout*       sbtBindGroupLayoutsCold;
-    uint16_t*                sbtBindGroupLayoutFreeIndices;
+    plBindGroupLayout*    sbtBindGroupLayoutsCold;
+    uint16_t*             sbtBindGroupLayoutFreeIndices;
     // VkDescriptorSetLayout    tDynamicDescriptorSetLayout;
 
     // vulkan specifics
@@ -369,86 +368,39 @@ plBufferHandle
 pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer **ptBufferOut)
 {
     plBufferHandle tHandle = pl__get_new_buffer_handle(ptDevice);
+    plBuffer* ptBuffer = pl__get_buffer(ptDevice, tHandle);
+    ptBuffer->tDesc = *ptDesc;
 
-    // from research - cold buffer is meta data (size, etc)
-    //               - hot buffer is buffer data
+    if(ptDesc->pcDebugName == NULL)
+    {
+        ptBuffer->tDesc.pcDebugName = "unnamed buffer";
+    }
 
-    // get the cold buffer from the pool and copy the descriptor into it,
-    // matching vulkan backend behavior. default debug name if none provided.
+    plCpuBuffer tCPUBuffer = {0};
+    // what does a cpu buffer NEED to have
+    // since vulkan gets hardware requirements from driver should we make 
+    // this configurable or pick a minimum spec to create a virtual 
+    // requirement
 
-    // populate tMemoryRequirements on the cold buffer. vulkan queries these
-    // from the driver, cpu backend derives them from ptDesc directly: size
-    // from ptDesc->szByteSize, alignment based on ptDesc->tUsage flags.
-    // TODO: talk about memory alignment and to handle it 
+    // TODO: figure how to handle padding/ memory alignment
+    // also memory types may need a virtual way to constrain (to match other apis)
+    ptBuffer->tMemoryRequirements.ulSize = ptDesc->szByteSize;
 
-    // populate the hot buffer with the usage flag from ptDesc. pcData stays
-    // null until pl_bind_buffer_to_memory is called, matching the two-step
-    // create/bind pattern of the vulkan backend.
+    ptDevice->sbtBuffersHot[tHandle.uIndex] = tCPUBuffer;
 
-    // store the hot buffer back into sbtBuffersHot at tHandle.uIndex,
-    // same as vulkan backend does with tVulkanBuffer.
-
-    // write cold buffer pointer to ptBufferOut if provided.
-
-    // TODO: questions: need to learn about the generation/index stuff with buffers 
-
-
-    // ============================================================================================
-    // VULKAN BACKEND FOR REFERENCE
-    // ============================================================================================
-
-    // plBufferHandle tHandle = pl__get_new_buffer_handle(ptDevice);
-    // plBuffer* ptBuffer = pl__get_buffer(ptDevice, tHandle);
-    // ptBuffer->tDesc = *ptDesc;
-
-    // if (ptDesc->pcDebugName == NULL)
-    // {
-    //     ptBuffer->tDesc.pcDebugName = "unnamed buffer";
-    // }
-
-    // VkBufferCreateInfo tBufferInfo = {
-    //     .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-    //     .size        = ptDesc->szByteSize,
-    //     .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-    // };
-
-    // VkBufferUsageFlagBits tBufferUsageFlags = 0;
-    // if (ptDesc->tUsage & PL_BUFFER_USAGE_VERTEX)
-    //     tBufferInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    // if (ptDesc->tUsage & PL_BUFFER_USAGE_INDEX)
-    //     tBufferInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    // if (ptDesc->tUsage & PL_BUFFER_USAGE_STORAGE)
-    //     tBufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    // if (ptDesc->tUsage & PL_BUFFER_USAGE_UNIFORM)
-    //     tBufferInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    // if (ptDesc->tUsage & PL_BUFFER_USAGE_TRANSFER_SOURCE)
-    //     tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    // if (ptDesc->tUsage & PL_BUFFER_USAGE_TRANSFER_DESTINATION)
-    //     tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-    // VkMemoryRequirements tMemRequirements = {0};
-
-    // plVulkanBuffer tVulkanBuffer = {0};
-    // PL_VULKAN(vkCreateBuffer(ptDevice->tLogicalDevice, &tBufferInfo, gptGraphics->ptAllocationCallbacks, &tVulkanBuffer.tBuffer));
-    // pl__set_vulkan_object_name(ptDevice, (uint64_t)tVulkanBuffer.tBuffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, ptBuffer->tDesc.pcDebugName);
-    // vkGetBufferMemoryRequirements(ptDevice->tLogicalDevice, tVulkanBuffer.tBuffer, &tMemRequirements);
-
-    // ptBuffer->tMemoryRequirements.ulAlignment     = tMemRequirements.alignment;
-    // ptBuffer->tMemoryRequirements.ulSize          = tMemRequirements.size;
-    // ptBuffer->tMemoryRequirements.uMemoryTypeBits = tMemRequirements.memoryTypeBits;
-
-    // ptDevice->sbtBuffersHot[tHandle.uIndex] = tVulkanBuffer;
-
-    // if (ptBufferOut)
-    //    *ptBufferOut = &ptDevice->sbtBuffersCold[tHandle.uIndex];
+    if(ptBuffer)
+    {
+        *ptBufferOut = &ptDevice->sbtBuffersCold[tHandle.uIndex];
+    }
 
     return tHandle;
-
 }
 
 void
 pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
-{
+{   
+    ptDevice->sbtBuffersHot[tHandle.uIndex].pcData = PL_ALLOC(sizeof(ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryRequirements.ulSize));
+    memset(ptDevice->sbtBuffersHot[tHandle.uIndex].pcData, 0, sizeof(ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryRequirements.ulSize));
 }
 
 static plDynamicDataBlock
@@ -967,6 +919,11 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
 void
 pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy buffer %u immediately", tHandle.uIndex);
+    ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
+    pl_sb_push(ptDevice->sbtBufferFreeIndices, tHandle.uIndex);
+
+    PL_FREE(ptDevice->sbtBuffersHot[tHandle.uIndex].pcData);
 }
 
 void
