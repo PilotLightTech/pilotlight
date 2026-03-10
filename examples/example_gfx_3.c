@@ -160,6 +160,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // we want the starter extension to include a depth buffer
     // when setting up the render pass
     tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
+    tStarterInit.tFlags |= PL_STARTER_FLAGS_MSAA;
 
     // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
     // etc. which we will get to in later examples

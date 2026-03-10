@@ -433,10 +433,7 @@ pl_starter_resize(void)
             gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
             const plTextureDesc tDepthTextureDesc = {
-                .tDimensions   = {
-                    (float)tInfo.uWidth,
-                    (float)tInfo.uHeight,
-                    1},
+                .tDimensions   = tNewDimensions,
                 .tFormat       = tInfo.tFormat,
                 .uLayers       = 1,
                 .uMips         = 1,
