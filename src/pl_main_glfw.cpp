@@ -630,7 +630,7 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     glfwWindowHint(GLFW_DECORATED, (tDesc.tFlags & PL_WINDOW_FLAG_UNDECORATED) ? GLFW_FALSE : GLFW_TRUE);
     glfwWindowHint(GLFW_FLOATING,  (tDesc.tFlags & PL_WINDOW_FLAG_TOP_MOST) ? GLFW_TRUE : GLFW_FALSE);
     glfwWindowHint(GLFW_POSITION_X,  tDesc.iXPos);
-    glfwWindowHint(GLFW_POSITION_Y,  tDesc.iXPos);
+    glfwWindowHint(GLFW_POSITION_Y,  tDesc.iYPos);
 
     ptGlfwWindow = glfwCreateWindow((int)tDesc.uWidth, (int)tDesc.uHeight, tDesc.pcTitle, NULL, NULL);
 
