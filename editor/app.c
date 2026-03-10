@@ -798,12 +798,13 @@ pl_app_update(plAppData* ptAppData)
         {
             plVec2 tStartPos = {0};
             plVec2 tEndPos = ptIO->tMainViewportSize;
+            plVec2 tUV = gptRenderer->get_view_color_texture_max_uv(ptAppData->ptView);
             gptDraw->add_image_ex(ptAppData->ptDrawLayer,
                 gptRenderer->get_view_color_texture(ptAppData->ptView).uData,
                 tStartPos,
                 tEndPos,
                 (plVec2){0},
-                gptRenderer->get_view_color_texture_max_uv(ptAppData->ptView),
+                tUV,
                 PL_COLOR_32_WHITE);
         }
 

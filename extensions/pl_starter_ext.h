@@ -60,7 +60,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plStarterI_version {1, 3, 3}
+#define plStarterI_version {1, 3, 4}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes

@@ -32,6 +32,7 @@ Index of this file:
 #include "pl_screen_log_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_tools_ext.h"
+#include "pl_gpu_allocators_ext.h"
 
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
@@ -52,6 +53,7 @@ Index of this file:
     static const plProfileI*       gptProfile       = NULL;
     static const plConsoleI*       gptConsole       = NULL;
     static const plToolsI*         gptTools         = NULL;
+    static const plGPUAllocatorsI* gptGpuAllocators = NULL;
     
 #endif
 
@@ -134,6 +136,9 @@ typedef struct _plStarterContext
     // current frame
     plRenderEncoder* ptCurrentEncoder;
 
+    // gpu allocators
+    plDeviceMemoryAllocatorI* ptLocalDedicatedAllocator;
+    plDeviceMemoryAllocatorI* ptLocalBuddyAllocator;
 } plStarterContext;
 
 //-----------------------------------------------------------------------------
@@ -213,7 +218,7 @@ pl_starter_initialize(plStarterInit tInit)
     {
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {gptIOI->get_io()->tMainViewportSize.x, gptIOI->get_io()->tMainViewportSize.y, 1},
+            .tDimensions   = {gptIOI->get_io()->tMainViewportSize.x + 400.0f, gptIOI->get_io()->tMainViewportSize.y + 400.0f, 1},
             .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
             .uMips         = 1,
@@ -243,7 +248,7 @@ pl_starter_initialize(plStarterInit tInit)
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
         const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
+            .tDimensions   = {(float)tInfo.uWidth + 400.0f, (float)tInfo.uHeight + 400.0f, 1},
             .tFormat       = tInfo.tFormat,
             .uLayers       = 1,
             .uMips         = 1,
@@ -292,6 +297,9 @@ pl_starter_initialize(plStarterInit tInit)
         gptDraw->set_font_atlas(ptAtlas);
         gptStarterCtx->ptDefaultFont = gptDraw->add_default_font(ptAtlas);
     }
+
+    gptStarterCtx->ptLocalBuddyAllocator = gptGpuAllocators->get_local_buddy_allocator(ptDevice);
+    gptStarterCtx->ptLocalDedicatedAllocator = gptGpuAllocators->get_local_dedicated_allocator(ptDevice);
 }
 
 void
@@ -377,6 +385,8 @@ pl_starter_resize(void)
         {
             gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
 
+            tNewDimensions.x += 400.0f;
+            tNewDimensions.y += 400.0f;
             const plTextureDesc tDepthTextureDesc = {
                 .tDimensions   = tNewDimensions,
                 .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
@@ -391,10 +401,14 @@ pl_starter_resize(void)
             plTexture* ptDepthTexture = NULL;
             gptStarterCtx->tDepthTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptDepthTexture);
 
-            const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
+            plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
+            if(ptDepthTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
+                ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
+
+            const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
+                ptDepthTexture->tMemoryRequirements.uMemoryTypeBits, 
                 ptDepthTexture->tMemoryRequirements.ulSize,
-                PL_MEMORY_FLAGS_DEVICE_LOCAL,
-                ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
+                ptDepthTexture->tMemoryRequirements.ulAlignment,
                 "depth texture memory");
 
             gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
@@ -414,7 +428,8 @@ pl_starter_resize(void)
 
         if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.tSampleCount != tInfo.tSampleCount)
         {
-
+            tNewDimensions.x += 400.0f;
+            tNewDimensions.y += 400.0f;
             gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
             const plTextureDesc tDepthTextureDesc = {
@@ -434,10 +449,14 @@ pl_starter_resize(void)
             plTexture* ptResolveTexture = NULL;
             gptStarterCtx->tResolveTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptResolveTexture);
 
-            const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
+            plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
+            if(ptResolveTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
+                ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
+
+            const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
+                ptResolveTexture->tMemoryRequirements.uMemoryTypeBits, 
                 ptResolveTexture->tMemoryRequirements.ulSize,
-                PL_MEMORY_FLAGS_DEVICE_LOCAL,
-                ptResolveTexture->tMemoryRequirements.uMemoryTypeBits,
+                ptResolveTexture->tMemoryRequirements.ulAlignment,
                 "msaa texture memory");
 
             gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
@@ -497,11 +516,12 @@ pl_starter_cleanup(void)
 {
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(gptStarterCtx->ptDevice);
+    gptGpuAllocators->cleanup(gptStarterCtx->ptDevice);
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
-        gptGfx->destroy_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
-        gptGfx->destroy_texture(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
+    // if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    //     gptGfx->destroy_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
+    // if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
+    //     gptGfx->destroy_texture(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -1066,7 +1086,7 @@ pl__starter_activate_msaa(void)
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
         const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
+            .tDimensions   = {(float)tInfo.uWidth + 400.0f, (float)tInfo.uHeight + 400.0f, 1},
             .tFormat       = tInfo.tFormat,
             .uLayers       = 1,
             .uMips         = 1,
@@ -1079,10 +1099,14 @@ pl__starter_activate_msaa(void)
         plTexture* ptResolveTexture = NULL;
         gptStarterCtx->tResolveTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptResolveTexture);
 
-        const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
+        plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
+        if(ptResolveTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
+            ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
+
+        const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
+            ptResolveTexture->tMemoryRequirements.uMemoryTypeBits, 
             ptResolveTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_FLAGS_DEVICE_LOCAL,
-            ptResolveTexture->tMemoryRequirements.uMemoryTypeBits,
+            ptResolveTexture->tMemoryRequirements.ulAlignment,
             "msaa texture memory");
 
         gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
@@ -1097,8 +1121,8 @@ pl__starter_activate_msaa(void)
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {
-                gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x,
-                gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y,
+                gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x + 400.0f,
+                gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y + 400.0f,
                 1},
             .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
@@ -1112,10 +1136,14 @@ pl__starter_activate_msaa(void)
         plTexture* ptDepthTexture = NULL;
         gptStarterCtx->tDepthTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptDepthTexture);
 
-        const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
+        plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
+        if(ptDepthTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
+            ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
+
+        const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
+            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits, 
             ptDepthTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_FLAGS_DEVICE_LOCAL,
-            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
+            ptDepthTexture->tMemoryRequirements.ulAlignment,
             "depth texture memory");
 
         gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
@@ -1155,8 +1183,8 @@ pl__starter_deactivate_msaa(void)
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {
-                gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x,
-                gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y,
+                gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x + 400.0f,
+                gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y + 400.0f,
                 1},
             .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
@@ -1170,10 +1198,14 @@ pl__starter_deactivate_msaa(void)
         plTexture* ptDepthTexture = NULL;
         gptStarterCtx->tDepthTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptDepthTexture);
 
-        const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
+        plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
+        if(ptDepthTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
+            ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
+
+        const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
+            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits, 
             ptDepthTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_FLAGS_DEVICE_LOCAL,
-            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
+            ptDepthTexture->tMemoryRequirements.ulAlignment,
             "depth texture memory");
 
         gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
@@ -1202,8 +1234,8 @@ pl__starter_activate_depth_buffer(void)
     plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
     const plTextureDesc tDepthTextureDesc = {
         .tDimensions   = {
-            gptIOI->get_io()->tMainViewportSize.x * gptIOI->get_io()->tMainFramebufferScale.x,
-            gptIOI->get_io()->tMainViewportSize.y * gptIOI->get_io()->tMainFramebufferScale.y,
+            gptIOI->get_io()->tMainViewportSize.x * gptIOI->get_io()->tMainFramebufferScale.x + 400.0f,
+            gptIOI->get_io()->tMainViewportSize.y * gptIOI->get_io()->tMainFramebufferScale.y + 400.0f,
             1},
         .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
         .uLayers       = 1,
@@ -1217,10 +1249,14 @@ pl__starter_activate_depth_buffer(void)
     plTexture* ptDepthTexture = NULL;
     gptStarterCtx->tDepthTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptDepthTexture);
 
-    const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(gptStarterCtx->ptDevice, 
+    plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
+    if(ptDepthTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
+        ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
+
+    const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
+        ptDepthTexture->tMemoryRequirements.uMemoryTypeBits, 
         ptDepthTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
+        ptDepthTexture->tMemoryRequirements.ulAlignment,
         "depth texture memory");
 
     gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
@@ -1623,19 +1659,20 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     };
     pl_set_api(ptApiRegistry, plStarterI, &tApi);
 
-    gptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-    gptMemory       = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptGfx          = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-    gptScreenLog    = pl_get_api_latest(ptApiRegistry, plScreenLogI);
-    gptUI           = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptDraw         = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptIOI          = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptShader       = pl_get_api_latest(ptApiRegistry, plShaderI);
-    gptStats        = pl_get_api_latest(ptApiRegistry, plStatsI);
-    gptConsole      = pl_get_api_latest(ptApiRegistry, plConsoleI);
-    gptProfile      = pl_get_api_latest(ptApiRegistry, plProfileI);
-    gptShader       = pl_get_api_latest(ptApiRegistry, plShaderI);
-    gptTools        = pl_get_api_latest(ptApiRegistry, plToolsI);
+    gptDataRegistry  = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+    gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptScreenLog     = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+    gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptIOI           = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
+    gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
+    gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptTools         = pl_get_api_latest(ptApiRegistry, plToolsI);
+    gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
 
     if(bReload)
     {
