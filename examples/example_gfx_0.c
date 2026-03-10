@@ -82,8 +82,6 @@ Index of this file:
 
 // extensions
 #include "pl_graphics_ext.h"
-#include "pl_shader_ext.h"
-#include "pl_starter_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -92,10 +90,9 @@ Index of this file:
 typedef struct _plAppData
 {
     // window
-    plWindow* ptWindow;
-
-    // shaders
-    plShaderHandle tShader;
+    plWindow*  ptWindow;
+    plSurface* ptSurface;
+    plDevice*  ptDevice;
 
     // buffers
     plBufferHandle tVertexBuffer;
@@ -108,8 +105,6 @@ typedef struct _plAppData
 const plIOI*       gptIO      = NULL;
 const plWindowI*   gptWindows = NULL;
 const plGraphicsI* gptGfx     = NULL;
-const plShaderI*   gptShader  = NULL;
-const plStarterI*  gptStarter = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -118,24 +113,14 @@ const plStarterI*  gptStarter = NULL;
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    // NOTE: on first load, "pAppData" will be NULL but on reloads
-    //       it will be the value returned from this function
-
-    // retrieve the data registry API, this is the API used for sharing data
-    // between extensions & the runtime
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
-    // if "ptAppData" is a valid pointer, then this function is being called
-    // during a hot reload.
     if(ptAppData)
     {
-        // re-retrieve the apis since we are now in
-        // a different dll/so
+
         gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
         gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
         gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-        gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
-        gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
 
         return ptAppData;
     }
@@ -158,8 +143,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // load required apis (these are provided though extensions)
     gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-    gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
-    gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -172,110 +156,28 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
     gptWindows->show(ptAppData->ptWindow);
 
-    plStarterInit tStarterInit = {
-        .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
-        .ptWindow = ptAppData->ptWindow
+
+    plSurface* ptSurface = gptGfx->create_surface(ptAppData->ptWindow);
+    ptAppData->ptSurface = ptSurface;
+
+    const plDeviceInit tDeviceInit = {
+        .uDeviceIdx = 0,
+        .szDynamicBufferBlockSize = 65536,
+        .szDynamicDataMaxSize = 65536,
+        .ptSurface = ptSurface
     };
+    ptAppData->ptDevice = gptGfx->create_device(&tDeviceInit);
 
-    // we will remove this flag so we can handle
-    // management of the shader extension
-    tStarterInit.tFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
-
-    // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
-    // etc. which we will get to in later examples
-    gptStarter->initialize(tStarterInit);
-    
-    // initialize shader extension (we are doing this ourselves so we can add additional shader directories)
-    static const plShaderOptions tDefaultShaderOptions = {
-        .apcIncludeDirectories = {
-            "../examples/shaders/"
-        },
-        .apcDirectories = {
-            "../shaders/",
-            "../examples/shaders/"
-        },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
-    };
-    gptShader->initialize(&tDefaultShaderOptions);
-
-    // give starter extension chance to do its work now that we
-    // setup the shader extension
-    gptStarter->finalize();
-
-    // for convience
-    plDevice* ptDevice = gptStarter->get_device();
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // vertex buffer data
-    const float atVertexData[] = { // x, y, r, g, b, a
-        -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f,
-         0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
-         0.0f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f
-    };
-
-    // create vertex buffer
     const plBufferDesc tBufferDesc = {
-        .tUsage       = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
-        .szByteSize   = sizeof(float) * PL_ARRAYSIZE(atVertexData),
-        .pcDebugName  = "vertex buffer"
+        .pcDebugName = "test buffer",
+        .szByteSize = sizeof(float) * 4,
+        .tUsage = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION
     };
-    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tBufferDesc, NULL);
 
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);
+    gptGfx->create_buffer(ptAppData->ptDevice, &tBufferDesc, NULL);
+    
+    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptAppData->ptDevice, ptAppData->tVertexBuffer);
 
-    // allocate memory for the vertex buffer
-    // NOTE: for this example we are using host visible memory for simplicity (PL_MEMORY_GPU_CPU)
-    //       which is persistently mapped. For rarely updated memory, device local memory should
-    //       be used, with uploads transfered from staging buffers (see later examples)
-    const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
-        ptVertexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
-        ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "vertex buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tVertexBuffer, &tAllocation);
-
-    // copy vertex data to newly allocated memory
-    // NOTE: you can't access the mapped memory until it's bound (metal backend reasons)
-    memcpy(ptVertexBuffer->tMemoryAllocation.pHostMapped, atVertexData, sizeof(float) * PL_ARRAYSIZE(atVertexData));
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    const plShaderDesc tShaderDesc = {
-        .tVertexShader    = gptShader->load_glsl("example_gfx_0.vert", "main", NULL, NULL),
-        .tFragmentShader  = gptShader->load_glsl("example_gfx_0.frag", "main", NULL, NULL),
-        .tGraphicsState = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulWireframe          = 0,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-        },
-        .atVertexBufferLayouts = {
-            {
-                .atAttributes = {
-                    {.tFormat = PL_VERTEX_FORMAT_FLOAT2 },
-                    {.tFormat = PL_VERTEX_FORMAT_FLOAT4 },
-                }
-            }
-        },
-        .atBlendStates = {
-            {
-                .bBlendEnabled   = false,
-                .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
-            }
-        },
-        .tRenderPassLayout = gptStarter->get_render_pass_layout(),
-    };
-    ptAppData->tShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
 
     // return app memory
     return ptAppData;
@@ -288,17 +190,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
-    plDevice* ptDevice = gptStarter->get_device();
-
-    // ensure the GPU is done with our resources
-    gptGfx->flush_device(ptDevice);
-
-    // cleanup our resources
-    gptGfx->destroy_buffer(ptDevice, ptAppData->tVertexBuffer);
-
-    gptShader->cleanup();
-    gptStarter->cleanup();
-    gptWindows->destroy(ptAppData->ptWindow);
     free(ptAppData);
 }
 
@@ -309,7 +200,7 @@ pl_app_shutdown(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
-    gptStarter->resize();
+
 }
 
 //-----------------------------------------------------------------------------
@@ -319,25 +210,5 @@ pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
-    if(!gptStarter->begin_frame())
-        return;
 
-    // start main pass & return the encoder being used
-    plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
-
-    // submit nonindexed draw using basic API
-    gptGfx->bind_shader(ptEncoder, ptAppData->tShader);
-    gptGfx->bind_vertex_buffer(ptEncoder, ptAppData->tVertexBuffer);
-
-    plDraw tDraw = {
-        .uInstanceCount = 1,
-        .uVertexCount   = 3
-    };
-    gptGfx->draw(ptEncoder, 1, &tDraw);
-
-    // allows the starter extension to handle some things then ends the main pass
-    gptStarter->end_main_pass();
-
-    // must be the last function called when using the starter extension
-    gptStarter->end_frame(); 
 }
