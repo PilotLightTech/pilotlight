@@ -807,7 +807,7 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                     if(ptLightComp->tType == PL_LIGHT_TYPE_DIRECTIONAL)
                     {
                         gptUI->slider_uint("Cascades", &ptLightComp->uCascadeCount, 1, 4, 0);
-                        gptUI->input_float4("Cascade Splits", ptLightComp->afCascadeSplits, NULL, 0);
+                        gptUI->input_float4("Cascade Splits", ptLightComp->afCascadeSplits, "%0.6f", 0);
                     }
                     gptUI->end_collapsing_header();
                 }

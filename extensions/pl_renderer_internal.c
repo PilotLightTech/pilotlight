@@ -1508,7 +1508,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             plCamera tShadowCamera = {
                 .tType = PL_CAMERA_TYPE_ORTHOGRAPHIC
             };
-            gptCamera->look_at(&tShadowCamera, (plDVec3){0}, pl__to_double_vec(tDirection));
+            gptCamera->look_at(&tShadowCamera, ptSceneCamera->tPosDouble, pl__to_double_vec(pl_add_vec3(ptSceneCamera->tPos, tDirection)));
             tShadowCamera.fWidth  = fD;
             tShadowCamera.fHeight = fD;
             tShadowCamera.fNearZ  = fD * 2.0f;
@@ -1541,12 +1541,14 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             const plVec4 tLightPosLightSpace = { 
                 fUnitPerTexel * floorf((fXMax + fXMin) / (fUnitPerTexel * 2.0f)), // texel snapping
                 fUnitPerTexel * floorf((fYMax + fYMin) / (fUnitPerTexel * 2.0f)), // texel snapping
+                // fUnitPerTexel * floorf((fZMax + fZMin) / (fUnitPerTexel * 2.0f)), // texel snapping
                 fD * 2.0f,
                 1.0f
             };
 
             const plMat4 tLightInversion = pl_mat4_invert(&tShadowCamera.tViewMat);
             const plVec4 tLightPos = pl_mul_mat4_vec4(&tLightInversion, (plVec4){.xyz = tLightPosLightSpace.xyz, .w = 1.0f});
+            // tLightPos.xyz = pl_add_vec3(tLightPos.xyz, ptSceneCamera->tPos);
 
             gptCamera->look_at(&tShadowCamera, pl__to_double_vec(tLightPos.xyz), pl__to_double_vec(pl_add_vec3(tLightPos.xyz, tDirection)));
             gptCamera->update(&tShadowCamera);

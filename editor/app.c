@@ -77,6 +77,8 @@ Index of this file:
 #include "pl_vfs_ext.h"
 #include "pl_compress_ext.h"
 #include "pl_script_ext.h"
+#include "pl_terrain_ext.h"
+#include "pl_terrain_processor_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
@@ -85,43 +87,45 @@ Index of this file:
 // [SECTION] global apis
 //-----------------------------------------------------------------------------
 
-const plWindowI*            gptWindows       = NULL;
-const plStatsI*             gptStats         = NULL;
-const plGraphicsI*          gptGfx           = NULL;
-const plToolsI*             gptTools         = NULL;
-const plEcsI*               gptEcs           = NULL;
-const plCameraI*            gptCamera        = NULL;
-const plRendererI*          gptRenderer      = NULL;
-const plModelLoaderI*       gptModelLoader   = NULL;
-const plJobI*               gptJobs          = NULL;
-const plDrawI*              gptDraw          = NULL;
-const plUiI*                gptUI            = NULL;
-const plIOI*                gptIO            = NULL;
-const plShaderI*            gptShader        = NULL;
-const plMemoryI*            gptMemory        = NULL;
-const plNetworkI*           gptNetwork       = NULL;
-const plStringInternI*      gptString        = NULL;
-const plProfileI*           gptProfile       = NULL;
-const plFileI*              gptFile          = NULL;
-const plEcsToolsI*          gptEcsTools      = NULL;
-const plGizmoI*             gptGizmo         = NULL;
-const plConsoleI*           gptConsole       = NULL;
-const plScreenLogI*         gptScreenLog     = NULL;
-const plPhysicsI *          gptPhysics       = NULL;
-const plCollisionI*         gptCollision     = NULL;
-const plBVHI*               gptBvh           = NULL;
-const plConfigI*            gptConfig        = NULL;
-const plResourceI*          gptResource      = NULL;
-const plStarterI*           gptStarter       = NULL;
-const plAnimationI*         gptAnimation     = NULL;
-const plMeshI*              gptMesh          = NULL;
-const plShaderVariantI*     gptShaderVariant = NULL;
-const plVfsI*               gptVfs           = NULL;
-const plPakI*               gptPak           = NULL;
-const plDateTimeI*          gptDateTime      = NULL;
-const plCompressI*          gptCompress      = NULL;
-const plMaterialI*          gptMaterial      = NULL;
-const plScriptI*            gptScript        = NULL;
+const plWindowI*            gptWindows          = NULL;
+const plStatsI*             gptStats            = NULL;
+const plGraphicsI*          gptGfx              = NULL;
+const plToolsI*             gptTools            = NULL;
+const plEcsI*               gptEcs              = NULL;
+const plCameraI*            gptCamera           = NULL;
+const plRendererI*          gptRenderer         = NULL;
+const plModelLoaderI*       gptModelLoader      = NULL;
+const plJobI*               gptJobs             = NULL;
+const plDrawI*              gptDraw             = NULL;
+const plUiI*                gptUI               = NULL;
+const plIOI*                gptIO               = NULL;
+const plShaderI*            gptShader           = NULL;
+const plMemoryI*            gptMemory           = NULL;
+const plNetworkI*           gptNetwork          = NULL;
+const plStringInternI*      gptString           = NULL;
+const plProfileI*           gptProfile          = NULL;
+const plFileI*              gptFile             = NULL;
+const plEcsToolsI*          gptEcsTools         = NULL;
+const plGizmoI*             gptGizmo            = NULL;
+const plConsoleI*           gptConsole          = NULL;
+const plScreenLogI*         gptScreenLog        = NULL;
+const plPhysicsI *          gptPhysics          = NULL;
+const plCollisionI*         gptCollision        = NULL;
+const plBVHI*               gptBvh              = NULL;
+const plConfigI*            gptConfig           = NULL;
+const plResourceI*          gptResource         = NULL;
+const plStarterI*           gptStarter          = NULL;
+const plAnimationI*         gptAnimation        = NULL;
+const plMeshI*              gptMesh             = NULL;
+const plShaderVariantI*     gptShaderVariant    = NULL;
+const plVfsI*               gptVfs              = NULL;
+const plPakI*               gptPak              = NULL;
+const plDateTimeI*          gptDateTime         = NULL;
+const plCompressI*          gptCompress         = NULL;
+const plMaterialI*          gptMaterial         = NULL;
+const plScriptI*            gptScript           = NULL;
+const plTerrainI*           gptTerrain          = NULL;
+const plTerrainProcessorI*  gptTerrainProcessor = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -249,7 +253,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptVfs->mount_directory("/environments", "../data/pilotlight-assets-master/environments", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/shaders", "../shaders", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/shader-temp", "../shader-temp", PL_VFS_MOUNT_FLAGS_NONE);
+
+    gptVfs->mount_directory("/assets", "../data", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/cache", "../cache", PL_VFS_MOUNT_FLAGS_NONE);
     
+    gptFile->create_directory("../cache");
     gptFile->create_directory("../shader-temp");
     
 
@@ -321,6 +329,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptShader->initialize(&tDefaultShaderOptions);
 
     ptAppData->ptDevice = gptStarter->get_device();
+
+    // plTerrainExtInit tTerrainExtInit = {
+    //     .ptDevice = ptAppData->ptDevice
+    // };
+    // gptTerrain->initialize(tTerrainExtInit);
 
     // initialize job system
     gptJobs->initialize((plJobSystemInit){0});
@@ -412,18 +425,18 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create main camera
     plCamera* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3_d(-4.012, 2.984, -1.109), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 30.0f, true, &ptMainCamera);
+    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3_d(-4.012, 202.984, -1.109), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 30.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, -0.465f, 1.341f);
     gptCamera->update(ptMainCamera);
     gptScript->attach(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
 
     // create secondary camera
     plCamera* ptSecondaryCamera = NULL;
-    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "secondary camera", pl_create_vec3_d(-4.012f, 2.984f, -1.109f), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
+    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "secondary camera", pl_create_vec3_d(-4.012f, 202.984f, -1.109f), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
     gptCamera->set_pitch_yaw(ptSecondaryCamera, -0.465f, 1.341f);
     gptCamera->update(ptSecondaryCamera);
     plTransformComponent* ptSecondaryCameraTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSecondaryCamera);
-    ptSecondaryCameraTransform->tTranslation = pl_create_vec3(-4.012f, 2.984f, -1.109f);
+    ptSecondaryCameraTransform->tTranslation = pl_create_vec3(-4.012f, 202.984f, -1.109f);
 
     // create lights
     plLightComponent* ptLight = NULL;
@@ -442,7 +455,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptLight->tColor = (plVec3){0.0f, 1.0f, 0.0f};
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
     plTransformComponent* ptPLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tPointLight);
-    ptPLightTransform->tTranslation = pl_create_vec3(9.316f, 1.497f, -1.042f);
+    ptPLightTransform->tTranslation = pl_create_vec3(9.316f, 201.497f, -1.042f);
 
     plEntity tSpotLight = gptRenderer->create_spot_light(ptAppData->ptComponentLibrary, "spot light", pl_create_vec3(0.0f, 4.0f, -1.18f), pl_create_vec3(0.0, -0.390f, 0.368f), &ptLight);
     ptLight->uShadowResolution = 512;
@@ -452,11 +465,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptLight->fIntensity = 20.0f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
     plTransformComponent* ptSLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tSpotLight);
-    ptSLightTransform->tTranslation = pl_create_vec3(0.0f, 4.0f, -1.18f);
+    ptSLightTransform->tTranslation = pl_create_vec3(0.0f, 204.0f, -1.18f);
 
     plEnvironmentProbeComponent* ptProbe = NULL;
     plVec3 atProbeLocations[] = {
-        pl_create_vec3(0.0f, 3.0f, 0.0f),
+        pl_create_vec3(0.0f, 203.0f, 0.0f),
         // pl_create_vec3(-8.7f, 1.5f, 0.0f),
         // pl_create_vec3(8.8f, 1.5f, 0.0f),
     };
@@ -474,20 +487,21 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/sky.hdr", 1024);
 
     plModelLoaderData tLoaderData0 = {0};
-    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", NULL, &tLoaderData0);
-    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/sort.gltf", NULL, &tLoaderData0);
+    plMat4 tModelTranslation = pl_mat4_translate_xyz(0.0f, 200.0f, 0.0f);
+    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", &tModelTranslation, &tLoaderData0);
+    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/sort.gltf", &tModelTranslation, &tLoaderData0);
     // plMat4 tRotation = pl_mat4_rotate_xyz(-PL_PI_2, 0.0f, 1.0f, 0.0f);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/CarConcept/glTF/CarConcept.gltf", &tRotation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/EnvironmentTest/glTF/EnvironmentTest.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/ClearCoatCarPaint/glTF/ClearCoatCarPaint.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/SheenChair/glTF/SheenChair.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformTest/glTF/TextureTransformTest.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformMultiTest/glTF/TextureTransformMultiTest.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TransmissionTest/glTF/TransmissionTest.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", NULL, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/BoxTextured/glTF/BoxTextured.gltf", NULL, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/EnvironmentTest/glTF/EnvironmentTest.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/ClearCoatCarPaint/glTF/ClearCoatCarPaint.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/SheenChair/glTF/SheenChair.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformTest/glTF/TextureTransformTest.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformMultiTest/glTF/TextureTransformMultiTest.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TransmissionTest/glTF/TransmissionTest.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/BoxTextured/glTF/BoxTextured.gltf", &tModelTranslation, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "C:/Users/Jonathan Hoffstadt/Documents/Models/BistroExteriorGltf/bistro_exterior.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
     gptModelLoader->free_data(&tLoaderData0);
@@ -514,6 +528,7 @@ pl_app_shutdown(plAppData* ptAppData)
 
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
+    // gptTerrain->cleanup();
 
     // plPakFile* ptPak = NULL;
     // gptPak->begin_packing("../data/shaders.pak", 4, &ptPak);
@@ -1149,43 +1164,45 @@ pl__show_editor_window(plAppData* ptAppData)
 void
 pl__load_apis(plApiRegistryI* ptApiRegistry)
 {
-    gptWindows       = pl_get_api_latest(ptApiRegistry, plWindowI);
-    gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
-    gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-    gptTools         = pl_get_api_latest(ptApiRegistry, plToolsI);
-    gptEcs           = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
-    gptRenderer      = pl_get_api_latest(ptApiRegistry, plRendererI);
-    gptJobs          = pl_get_api_latest(ptApiRegistry, plJobI);
-    gptModelLoader   = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
-    gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptUI            = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptIO            = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
-    gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptNetwork       = pl_get_api_latest(ptApiRegistry, plNetworkI);
-    gptString        = pl_get_api_latest(ptApiRegistry, plStringInternI);
-    gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
-    gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
-    gptEcsTools      = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
-    gptGizmo         = pl_get_api_latest(ptApiRegistry, plGizmoI);
-    gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
-    gptScreenLog     = pl_get_api_latest(ptApiRegistry, plScreenLogI);
-    gptPhysics       = pl_get_api_latest(ptApiRegistry, plPhysicsI);
-    gptCollision     = pl_get_api_latest(ptApiRegistry, plCollisionI);
-    gptBvh           = pl_get_api_latest(ptApiRegistry, plBVHI);
-    gptConfig        = pl_get_api_latest(ptApiRegistry, plConfigI);
-    gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
-    gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
-    gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
-    gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
-    gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
-    gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
-    gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
-    gptDateTime      = pl_get_api_latest(ptApiRegistry, plDateTimeI);
-    gptCompress      = pl_get_api_latest(ptApiRegistry, plCompressI);
-    gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
-    gptScript        = pl_get_api_latest(ptApiRegistry, plScriptI);
+    gptWindows          = pl_get_api_latest(ptApiRegistry, plWindowI);
+    gptStats            = pl_get_api_latest(ptApiRegistry, plStatsI);
+    gptGfx              = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptTools            = pl_get_api_latest(ptApiRegistry, plToolsI);
+    gptEcs              = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptCamera           = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptRenderer         = pl_get_api_latest(ptApiRegistry, plRendererI);
+    gptJobs             = pl_get_api_latest(ptApiRegistry, plJobI);
+    gptModelLoader      = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
+    gptDraw             = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptUI               = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptIO               = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptShader           = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptMemory           = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptNetwork          = pl_get_api_latest(ptApiRegistry, plNetworkI);
+    gptString           = pl_get_api_latest(ptApiRegistry, plStringInternI);
+    gptProfile          = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptFile             = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptEcsTools         = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
+    gptGizmo            = pl_get_api_latest(ptApiRegistry, plGizmoI);
+    gptConsole          = pl_get_api_latest(ptApiRegistry, plConsoleI);
+    gptScreenLog        = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+    gptPhysics          = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+    gptCollision        = pl_get_api_latest(ptApiRegistry, plCollisionI);
+    gptBvh              = pl_get_api_latest(ptApiRegistry, plBVHI);
+    gptConfig           = pl_get_api_latest(ptApiRegistry, plConfigI);
+    gptResource         = pl_get_api_latest(ptApiRegistry, plResourceI);
+    gptStarter          = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptAnimation        = pl_get_api_latest(ptApiRegistry, plAnimationI);
+    gptMesh             = pl_get_api_latest(ptApiRegistry, plMeshI);
+    gptShaderVariant    = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+    gptVfs              = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptPak              = pl_get_api_latest(ptApiRegistry, plPakI);
+    gptDateTime         = pl_get_api_latest(ptApiRegistry, plDateTimeI);
+    gptCompress         = pl_get_api_latest(ptApiRegistry, plCompressI);
+    gptMaterial         = pl_get_api_latest(ptApiRegistry, plMaterialI);
+    gptScript           = pl_get_api_latest(ptApiRegistry, plScriptI);
+    gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);
+    gptTerrainProcessor = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
 }
 
 

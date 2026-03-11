@@ -885,6 +885,7 @@ pl_terrain_load_shaders(plTerrain* ptTerrain)
             }
         },
         .tRenderPassLayout = ptTerrain->tRenderPassLayoutHandle,
+        .pcDebugName = "terrain shader"
     };
     plDevice* ptDevice = gptTerrainCtx->ptDevice;
     ptTerrain->tShader = gptGfx->create_shader(ptDevice, &tShaderDesc);

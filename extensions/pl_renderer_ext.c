@@ -964,6 +964,35 @@ pl_renderer_create_scene(plSceneInit tInit)
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
     gptGfx->return_command_buffer(ptCommandBuffer);
 
+    // plTerrainProcessTileInfo tTile = {
+    //     .iTreeDepth    = 6,
+    //     .fMaxHeight    = 512.0f,
+    //     .fMinHeight    = -40.0f,
+    //     .fMaxBaseError = 1.0f,
+    //     .tCenter = {0}
+    // };
+    // plTerrainProcessInfo tTerrainInfo = {
+    //     .fMetersPerPixel = 5.0f,
+    //     .uHorizontalTiles = 1,
+    //     .uVerticalTiles = 1,
+    //     .uSize = 4096,
+    //     .uTileCount = 1,
+    //     .atTiles = &tTile
+    // };
+
+    // sprintf(tTile.acOutputFile, "/assets/mountains.chu");
+    // sprintf(tTile.acHeightMapFile, "/assets/mountains.png");
+
+    // gptTerrainProcessor->process(&tTerrainInfo);
+    
+    // plTerrainInit tTerrainInit = {
+    //     .ptRenderPassLayoutHandle = &gptData->tRenderPassLayout
+    // };
+    // plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
+
+    // ptScene->ptTerrain = gptTerrain->create_terrain(ptCmdBuffer, tTerrainInit, &tTerrainInfo);
+
+    // gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
     return ptScene;
 }
 
@@ -1110,6 +1139,7 @@ pl_renderer_cleanup_scene(plScene* ptScene)
         }
 
     }
+    // gptTerrain->cleanup_terrain(ptScene->ptTerrain);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tShadowTexture);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tShadowRenderPass);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tFirstShadowRenderPass);
@@ -2657,6 +2687,12 @@ pl_renderer_prepare_scene(plScene* ptScene)
 
     memcpy(ptSceneBuffer->tMemoryAllocation.pHostMapped, &ptScene->tSceneData, sizeof(plGpuSceneData));
 
+    // plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
+    // pl_begin_cpu_sample(gptProfile, 0, "prepare terrain");
+    // gptTerrain->prepare(ptScene->ptTerrain,  ptCmdBuffer);
+    // pl_end_cpu_sample(gptProfile, 0);
+    // gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
+
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plBeginCommandInfo tSkinningBeginInfo = {
@@ -3424,6 +3460,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->pop_render_debug_group(ptSceneEncoder);
 
     gptGfx->next_subpass(ptSceneEncoder, NULL);
+
+    // gptTerrain->render(ptSceneEncoder, ptView->ptParentScene->ptTerrain, ptCamera, &gptData->tCurrentDynamicDataBlock);
 
     if(ptScene->tSkyboxTexture.uIndex != 0 && ptView->bShowSkybox)
     {
@@ -5171,33 +5209,35 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     // core apis
     #ifndef PL_UNITY_BUILD
-        gptDataRegistry  = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-        gptIOI           = pl_get_api_latest(ptApiRegistry, plIOI);
-        gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
-        gptMemory        = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
-        gptIO            = gptIOI->get_io();
-        gptStats         = pl_get_api_latest(ptApiRegistry, plStatsI);
-        gptImage         = pl_get_api_latest(ptApiRegistry, plImageI);
-        gptJob           = pl_get_api_latest(ptApiRegistry, plJobI);
-        gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
-        gptLog           = pl_get_api_latest(ptApiRegistry, plLogI);
-        gptRect          = pl_get_api_latest(ptApiRegistry, plRectPackI);
-        gptECS           = pl_get_api_latest(ptApiRegistry, plEcsI);
-        gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
-        gptDraw          = pl_get_api_latest(ptApiRegistry, plDrawI);
-        gptGfx           = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-        gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
-        gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
-        gptConsole       = pl_get_api_latest(ptApiRegistry, plConsoleI);
-        gptScreenLog     = pl_get_api_latest(ptApiRegistry, plScreenLogI);
-        gptBvh           = pl_get_api_latest(ptApiRegistry, plBVHI);
-        gptAnimation     = pl_get_api_latest(ptApiRegistry, plAnimationI);
-        gptMesh          = pl_get_api_latest(ptApiRegistry, plMeshI);
-        gptShaderVariant = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
-        gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
-        gptStarter       = pl_get_api_latest(ptApiRegistry, plStarterI);
-        gptMaterial      = pl_get_api_latest(ptApiRegistry, plMaterialI);
+        gptDataRegistry     = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+        gptIOI              = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptImage            = pl_get_api_latest(ptApiRegistry, plImageI);
+        gptMemory           = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptGpuAllocators    = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
+        gptIO               = gptIOI->get_io();
+        gptStats            = pl_get_api_latest(ptApiRegistry, plStatsI);
+        gptImage            = pl_get_api_latest(ptApiRegistry, plImageI);
+        gptJob              = pl_get_api_latest(ptApiRegistry, plJobI);
+        gptProfile          = pl_get_api_latest(ptApiRegistry, plProfileI);
+        gptLog              = pl_get_api_latest(ptApiRegistry, plLogI);
+        gptRect             = pl_get_api_latest(ptApiRegistry, plRectPackI);
+        gptECS              = pl_get_api_latest(ptApiRegistry, plEcsI);
+        gptCamera           = pl_get_api_latest(ptApiRegistry, plCameraI);
+        gptDraw             = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptGfx              = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptResource         = pl_get_api_latest(ptApiRegistry, plResourceI);
+        gptShader           = pl_get_api_latest(ptApiRegistry, plShaderI);
+        gptConsole          = pl_get_api_latest(ptApiRegistry, plConsoleI);
+        gptScreenLog        = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+        gptBvh              = pl_get_api_latest(ptApiRegistry, plBVHI);
+        gptAnimation        = pl_get_api_latest(ptApiRegistry, plAnimationI);
+        gptMesh             = pl_get_api_latest(ptApiRegistry, plMeshI);
+        gptShaderVariant    = pl_get_api_latest(ptApiRegistry, plShaderVariantI);
+        gptVfs              = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptStarter          = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptMaterial         = pl_get_api_latest(ptApiRegistry, plMaterialI);
+        gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);
+        gptTerrainProcessor = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
     #endif
 
     if(bReload)

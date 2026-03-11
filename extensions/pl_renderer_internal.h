@@ -59,6 +59,8 @@ Index of this file:
 #include "pl_vfs_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_material_ext.h"
+#include "pl_terrain_ext.h"
+#include "pl_terrain_processor_ext.h"
 
 // shader interop
 #include "pl_shader_interop_renderer.h"
@@ -104,15 +106,17 @@ Index of this file:
     static const plStarterI*       gptStarter       = NULL;
 
     // experimental
-    static const plScreenLogI*     gptScreenLog     = NULL;
-    static const plCameraI*        gptCamera        = NULL;
-    static const plResourceI*      gptResource      = NULL;
-    static const plEcsI*           gptECS           = NULL;
-    static const plBVHI*           gptBvh           = NULL;
-    static const plAnimationI*     gptAnimation     = NULL;
-    static const plMeshI*          gptMesh          = NULL;
-    static const plShaderVariantI* gptShaderVariant = NULL;
-    static const plMaterialI*      gptMaterial      = NULL;
+    static const plScreenLogI*        gptScreenLog        = NULL;
+    static const plCameraI*           gptCamera           = NULL;
+    static const plResourceI*         gptResource         = NULL;
+    static const plEcsI*              gptECS              = NULL;
+    static const plBVHI*              gptBvh              = NULL;
+    static const plAnimationI*        gptAnimation        = NULL;
+    static const plMeshI*             gptMesh             = NULL;
+    static const plShaderVariantI*    gptShaderVariant    = NULL;
+    static const plMaterialI*         gptMaterial         = NULL;
+    static const plTerrainI*          gptTerrain          = NULL;
+    static const plTerrainProcessorI* gptTerrainProcessor = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
@@ -460,6 +464,9 @@ typedef struct _plScene
     // light volumes
     plDrawable tUnitSphereDrawable;
     plEntity   tUnitSphereMesh;
+
+    // terrain
+    // plTerrain* ptTerrain;
 } plScene;
 
 typedef struct _plRefRendererData
@@ -530,7 +537,7 @@ typedef struct _plRefRendererData
     // stats
     double* pdDrawCalls;
 
-    // ecs
+    // ecs key cache
     plEcsTypeKey tSkinComponentType;
     plEcsTypeKey tLightComponentType;
     plEcsTypeKey tEnvironmentProbeComponentType;
