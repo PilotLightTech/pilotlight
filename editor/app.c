@@ -888,6 +888,19 @@ pl__show_editor_window(plAppData* ptAppData)
         }
         if(gptUI->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
         {
+            plScreenLogFlags tScreenLogFlags = gptScreenLog->get_flags();
+
+            bool bHideScreenLog = tScreenLogFlags & PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES;
+            if(gptUI->checkbox("Hide Screen Log", &bHideScreenLog))
+            {
+                if(bHideScreenLog)
+                    tScreenLogFlags |= PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES;
+                else
+                    tScreenLogFlags &= ~PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES;
+                gptScreenLog->set_flags(tScreenLogFlags);
+            }
+
+
             gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
             gptUI->checkbox("Show Debug Lights", &ptAppData->bShowDebugLights);
             gptUI->checkbox("Show Bounding Boxes", &ptAppData->bDrawAllBoundingBoxes);

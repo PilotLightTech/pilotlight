@@ -37,7 +37,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plScreenLogI_version {2, 0, 0}
+#define plScreenLogI_version {2, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -52,6 +52,9 @@ Index of this file:
 
 // basic types
 typedef struct _plScreenLogSettings plScreenLogSettings;
+
+// enums
+typedef int plScreenLogFlags; // -> enum _plScreenLogFlags // Flag:
 
 // external
 typedef struct _plFont       plFont;       // pl_draw_ext.h
@@ -81,6 +84,10 @@ typedef struct _plScreenLogI
     
     // clear all messages
     void (*clear)(void);
+
+    // flags
+    void             (*set_flags)(plScreenLogFlags);
+    plScreenLogFlags (*get_flags)(void);
     
     // drawing
     plDrawList2D* (*get_drawlist)(float xPos, float yPos, float width, float height); // call once per frame
@@ -94,5 +101,15 @@ typedef struct _plScreenLogSettings
 {
     plFont* ptFont;
 } plScreenLogSettings;
+
+//-----------------------------------------------------------------------------
+// [SECTION] enums
+//-----------------------------------------------------------------------------
+
+enum _plScreenLogFlags
+{
+    PL_SCREEN_LOG_FLAGS_NONE           = 0,
+    PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES  = 1 << 0,
+};
 
 #endif // PL_SCREEN_LOG_EXT_H

@@ -57,6 +57,7 @@ typedef struct _plScreenLogContext
 
     double dLastActiveTime;
     uint64_t uLastFrameRemoved;
+    plScreenLogFlags tFlags;
 } plScreenLogContext;
 
 //-----------------------------------------------------------------------------
@@ -111,6 +112,9 @@ pl_screen_log_cleanup(void)
 void
 pl_screen_log_add_message_va(uint64_t uKey, double dTimeToDisplay, uint32_t uColor, float fTextScale, const char* pcFormat, va_list args)
 {
+
+     if(gptScreenLogCtx->tFlags & PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES)
+        return;
 
     if(dTimeToDisplay == 0.0)
         dTimeToDisplay = 2.0;
@@ -194,6 +198,22 @@ void
 pl_screen_log_clear(void)
 {
     pl_sb_reset(gptScreenLogCtx->sbtMessages);
+}
+
+void
+pl_screen_log_set_flags(plScreenLogFlags tFlags)
+{
+    gptScreenLogCtx->tFlags = tFlags;
+
+    if(tFlags & PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES)
+        pl_screen_log_clear();
+    
+}
+    
+plScreenLogFlags
+pl_screen_log_get_flags(void)
+{
+    return gptScreenLogCtx->tFlags;
 }
 
 void
@@ -298,6 +318,8 @@ pl_load_screen_log_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .add_message_ex = pl_screen_log_add_message_ex,
         .add_message_va = pl_screen_log_add_message_va,
         .clear          = pl_screen_log_clear,
+        .set_flags      = pl_screen_log_set_flags,
+        .get_flags      = pl_screen_log_get_flags,
         .get_drawlist   = pl_screen_log_get_drawlist
     };
     pl_set_api(ptApiRegistry, plScreenLogI, &tApi);
