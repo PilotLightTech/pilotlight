@@ -144,6 +144,7 @@ with pl.project("pilotlight"):
                         "libspirv-cross-glsl", "libspirv-cross-hlsl", "libspirv-cross-msl", "libspirv-cross-reflect", "libspirv-cross-util")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_linker_flags("-lc++")
 
             # macos
             with pl.platform("Darwin"):
@@ -176,6 +177,7 @@ with pl.project("pilotlight"):
                         "libspirv-cross-glsl", "libspirv-cross-hlsl", "libspirv-cross-msl", "libspirv-cross-reflect", "libspirv-cross-util")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_linker_flags("-lc++")
 
             # macos
             with pl.platform("Darwin"):
