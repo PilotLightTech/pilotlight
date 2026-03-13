@@ -248,13 +248,19 @@ PL_BEGIN_STRUCT(plGpuViewData)
     mat4 tCameraView;
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
+    mat4 tCameraViewInv;
+    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+
     mat4 tCameraProjection;
+    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+
+    mat4 tCameraProjectionInv;
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
     mat4 tCameraViewProjection;
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~224 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~xxx bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuViewData)
 
 //-----------------------------------------------------------------------------

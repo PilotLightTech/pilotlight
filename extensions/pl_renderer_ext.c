@@ -3162,7 +3162,9 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .tViewportSize         = {.xy = ptView->tTargetSize, .ignored0_ = 1.0f, .ignored1_ = 1.0f},
         .tCameraPos            = ptCamera->tPos,
         .tCameraProjection     = ptCamera->tProjMat,
+        .tCameraProjectionInv  = pl_mat4_invert(&ptCamera->tProjMat),
         .tCameraView           = ptCamera->tViewMat,
+        .tCameraViewInv        = pl_mat4_invert(&ptCamera->tViewMat),
         .tCameraViewProjection = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat)
     };
     memcpy(gptGfx->get_buffer(ptDevice, ptView->atView2Buffers[uFrameIdx])->tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(plGpuViewData));
