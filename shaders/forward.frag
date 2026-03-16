@@ -39,7 +39,7 @@ layout(location = 0) out vec4 outColor;
 layout(location = 0) in struct plShaderIn {
     vec3 tWorldPosition;
     vec3 tViewPosition;
-    vec2 tUV[8];
+    vec2 tUV[2];
     vec4 tColor;
     vec3 tWorldNormal;
     mat3 tTBN;
@@ -398,7 +398,7 @@ void main()
         float summing = computeProbeWeights(tShaderIn.tWorldPosition.xyz, R, 2.0, K, aiActiveProbes, weights);
         int iClosestProbeIndex = aiActiveProbes[iClosestIndex];
 
-        int iMips2 = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iClosestProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
+        int iMips2 = tProbeData.atData[iClosestProbeIndex].iMips;
         if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
         {
             f_specular_metal = getIBLRadianceAnisotropy(n, v, materialInfo.perceptualRoughness, materialInfo.anisotropyStrength, materialInfo.anisotropicB, iMips2, tShaderIn.tWorldPosition.xyz, iClosestProbeIndex);
@@ -417,7 +417,7 @@ void main()
 
             f_diffuse = getDiffuseLight(n, iProbeIndex) * tBaseColor.rgb;
 
-            int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
+            int iMips = tProbeData.atData[iClosestProbeIndex].iMips;
 
 
             if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))

@@ -2136,9 +2136,6 @@ pl__renderer_add_drawable_skin_data_to_global_buffers(plScene* ptScene, uint32_t
     if(ptMesh->ptVertexColors[0])             { uDestStride += 1; }
     if(ptMesh->ptVertexColors[1])             { uDestStride += 1; }
     if(ptMesh->ptVertexTextureCoordinates[0]) { uDestStride += 1; }
-    if(ptMesh->ptVertexTextureCoordinates[2]) { uDestStride += 1; }
-    if(ptMesh->ptVertexTextureCoordinates[4]) { uDestStride += 1; }
-    if(ptMesh->ptVertexTextureCoordinates[6]) { uDestStride += 1; }
 
     plSkinData tSkinData = {
         .tEntity = ptMesh->tSkinComponent,
@@ -2224,9 +2221,6 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
     if(ptMesh->ptVertexColors[0])             { uStride += 1; }
     if(ptMesh->ptVertexColors[1])             { uStride += 1; }
     if(ptMesh->ptVertexTextureCoordinates[0]) { uStride += 1; }
-    if(ptMesh->ptVertexTextureCoordinates[2]) { uStride += 1; }
-    if(ptMesh->ptVertexTextureCoordinates[4]) { uStride += 1; }
-    if(ptMesh->ptVertexTextureCoordinates[6]) { uStride += 1; }
 
     ptMesh->ulVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_JOINTS_0;
     ptMesh->ulVertexStreamMask &= ~PL_MESH_FORMAT_FLAG_HAS_JOINTS_1;
@@ -2268,7 +2262,7 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
         uOffset += 1;
 
     // texture coordinates 0
-    for(uint32_t i = 0; i < 8; i+=2)
+    for(uint32_t i = 0; i < 2; i+=2)
     {
         const uint32_t uVertexTexCount0 = ptMesh->ptVertexTextureCoordinates[i] ? uVertexCount : 0;
         const uint32_t uVertexTexCount1 = ptMesh->ptVertexTextureCoordinates[i + 1] ? uVertexCount : 0;
@@ -2733,6 +2727,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
 
     tProbeData.uLambertianEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tLambertianEnvTexture);
     tProbeData.uGGXEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tGGXEnvTexture);
+    tProbeData.iMips = (int)tTextureDesc.uMips;
     
     pl_sb_push(ptScene->sbtProbeData, tProbeData);
 
@@ -2994,7 +2989,6 @@ pl__renderer_update_probes(plScene* ptScene)
                 plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
                 ptLightingDynamicData->uGlobalIndex = uFace;
                 ptLightingDynamicData->iLightIndex = (int)uLightIndex;
-                ptLightingDynamicData->iProbeIndex = -1;
 
                 if(ptScene->sbtLightData[uLightIndex].iType == PL_LIGHT_TYPE_DIRECTIONAL)
                 {
@@ -3948,9 +3942,6 @@ pl__renderer_unstage_drawables(plScene* ptScene)
         if(ptMesh->ptVertexColors[0])             { uStride += 1; }
         if(ptMesh->ptVertexColors[1])             { uStride += 1; }
         if(ptMesh->ptVertexTextureCoordinates[0]) { uStride += 1; }
-        if(ptMesh->ptVertexTextureCoordinates[2]) { uStride += 1; }
-        if(ptMesh->ptVertexTextureCoordinates[4]) { uStride += 1; }
-        if(ptMesh->ptVertexTextureCoordinates[6]) { uStride += 1; }
     
         uAdditonalVertexDataCount += uStride * (uint32_t)ptMesh->szVertexCount;
     }

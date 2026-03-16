@@ -50,32 +50,26 @@ const int iMaterialFlags = 0;
 void main() 
 {
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
+    float depth = subpassLoad(tDepthSampler).r;
+    vec2 tEncodedN = subpassLoad(tNormalTexture).xy;
+    vec4 tBaseColor = subpassLoad(tAlbedoSampler);
     
     vec3 color = vec3(0);
     
-    float depth = subpassLoad(tDepthSampler).r;
     vec3 ndcSpace = vec3(gl_FragCoord.x / tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.x, gl_FragCoord.y / tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.y, depth);
 
     vec3 clipSpace = ndcSpace;
     clipSpace.xy = clipSpace.xy * 2.0 - 1.0;
 
-    vec4 tViewPosition = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraProjectionInv * vec4(clipSpace, 1.0); // homo location
+    vec4 homoLocation = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraProjectionInv * vec4(clipSpace, 1.0);
+    vec4 tViewPosition = homoLocation; // homo location
     tViewPosition.xyz = tViewPosition.xyz / tViewPosition.w;
-    tViewPosition.x = tViewPosition.x;
-    tViewPosition.y = tViewPosition.y;
-    tViewPosition.z = tViewPosition.z;
     tViewPosition.w = 1.0;
     vec4 tWorldPosition = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraViewInv * tViewPosition;
-    vec3 n = Decode(subpassLoad(tNormalTexture).xy);
+
+    
 
     MaterialInfo materialInfo;
-
-    float fBaseColorAlpha = 0.0;
-    {
-        vec4 tBaseColor = subpassLoad(tAlbedoSampler);
-        materialInfo.baseColor = tBaseColor.rgb;
-        fBaseColorAlpha = tBaseColor.a;
-    }
 
     // The default index of refraction of 1.5 yields a dielectric normal incidence reflectance of 0.04.
     materialInfo.f0_dielectric = vec3(0.04);
@@ -95,93 +89,13 @@ void main()
     // LIGHTING
     vec3 v = normalize(tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
 
-    // Calculate lighting contribution from image based lighting source (IBL)
-    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
+    float fBaseColorAlpha = 0.0;
     {
-
-        int aiActiveProbes[3];
-        aiActiveProbes[0] = -1;
-        aiActiveProbes[1] = -1;
-        aiActiveProbes[2] = -1;
-
-        float weights[3];
-        weights[0] = 0.0;
-        weights[1] = 0.0;
-        weights[2] = 0.0;
-
-        float distances[3];
-        distances[0] = 10000.0;
-        distances[1] = 10000.0;
-        distances[2] = 10000.0;
-
-        int K = 0;
-
-        for(int i = 0; i < iProbeCount; i++)
-        {
-            vec3 tDist = tProbeData.atData[i].tPosition - tWorldPosition.xyz;
-            tDist = tDist * tDist;
-            float fDistSqr = tDist.x + tDist.y + tDist.z;
-            
-            if(fDistSqr <= tProbeData.atData[i].fRangeSqr)
-            {
-                
-                int iFurthest = 0;
-                for(int j = 0; j < 3; j++)
-                {
-                    if(distances[j] > distances[iFurthest])
-                    {
-                        iFurthest = j;
-                    }
-                }
-
-                if(distances[iFurthest] > fDistSqr)
-                {
-                    K++;
-                    aiActiveProbes[iFurthest] = i;
-                    distances[iFurthest] = fDistSqr;
-                }
-            }
-        }
-
-        int iClosestIndex = 0;
-        float maxDis = distances[0];
-        for(int j = 0; j < 3; j++)
-        {
-            if(distances[j] < distances[iClosestIndex])
-            {
-                iClosestIndex = j;
-            }
-        }
-
-
-        K = min(K, 3);
-        vec3 R = reflect(-v, n);
-        float summing = computeProbeWeights(tWorldPosition.xyz, R, 2.0, K, aiActiveProbes, weights);
-
-        int iClosestProbeIndex = aiActiveProbes[iClosestIndex];
-        int iMips2 = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iClosestProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
-
-        vec3 f_specular_metal = getIBLRadianceGGX(n, v, materialInfo.perceptualRoughness, iMips2, tWorldPosition.xyz, iClosestProbeIndex);
-        // vec3 f_specular_dielectric = f_specular_metal;
-
-        for(int i = 0; i < K; i++)
-        {
-            int iProbeIndex = aiActiveProbes[i];
-            vec3 f_diffuse = getDiffuseLight(n, iProbeIndex) * materialInfo.baseColor;
-
-            // int iMips = textureQueryLevels(samplerCube(atCubeTextures[nonuniformEXT(tProbeData.atData[iProbeIndex].uGGXEnvSampler)], tSamplerNearestRepeat));
-
-            // Calculate fresnel mix for IBL  
-
-            vec3 f_metal_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.baseColor, 1.0, iProbeIndex);
-            vec3 f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
-        
-            vec3 f_dielectric_fresnel_ibl = getIBLGGXFresnel(n, v, materialInfo.perceptualRoughness, materialInfo.f0_dielectric, materialInfo.specularWeight, iProbeIndex);
-            vec3 f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_metal,  f_dielectric_fresnel_ibl);
-
-            color += weights[i] * mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, materialInfo.metallic);
-        }
+        materialInfo.baseColor = tBaseColor.rgb;
+        fBaseColorAlpha = tBaseColor.a;
     }
+
+    vec3 n = Decode(tEncodedN);
 
     const float ao = AORoughnessMetalnessData.r;
     if(ao != 1.0)
@@ -208,14 +122,13 @@ void main()
 
             if(bShadows && tLightData.iCastShadow > 0)
             {
-                plGpuLightShadow tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
-                
+
                 // Depth compare for shadowing
                 mat4 abiasMat = biasMat;
-                abiasMat[0][0] *= tShadowData.fFactor;
-                abiasMat[1][1] *= tShadowData.fFactor;
-                abiasMat[3][0] *= tShadowData.fFactor;
-                abiasMat[3][1] *= tShadowData.fFactor;
+                abiasMat[0][0] *= tDShadowData.atData[tLightData.iShadowIndex].fFactor;
+                abiasMat[1][1] *= tDShadowData.atData[tLightData.iShadowIndex].fFactor;
+                abiasMat[3][0] *= tDShadowData.atData[tLightData.iShadowIndex].fFactor;
+                abiasMat[3][1] *= tDShadowData.atData[tLightData.iShadowIndex].fFactor;
                 shadow = 0;
 
                 // Get cascade index for the current fragment's view position
@@ -226,20 +139,20 @@ void main()
                 {
                     
 
-                    vec4 rawshadowCoord = biasMat * tShadowData.viewProjMat[j] * tWorldPos2;
+                    vec4 rawshadowCoord = biasMat * tDShadowData.atData[tLightData.iShadowIndex].viewProjMat[j] * tWorldPos2;
 
                     if(abs(rawshadowCoord.x - pl_saturate(rawshadowCoord.x)) < 0.00001 && abs(rawshadowCoord.y - pl_saturate(rawshadowCoord.y)) < 0.00001)
                     {
-                        vec4 shadowCoord = (abiasMat * tShadowData.viewProjMat[j]) * tWorldPos2;
+                        vec4 shadowCoord = (abiasMat * tDShadowData.atData[tLightData.iShadowIndex].viewProjMat[j]) * tWorldPos2;
                         // cascadeIndex = j;
                     
                         if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
                         {
-                            shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(j * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                            shadow = filterPCF(shadowCoord, vec2(tDShadowData.atData[tLightData.iShadowIndex].fXOffset, tDShadowData.atData[tLightData.iShadowIndex].fYOffset) + vec2(j * tDShadowData.atData[tLightData.iShadowIndex].fFactor, 0), tDShadowData.atData[tLightData.iShadowIndex].iShadowMapTexIdx);
                         }
                         else
                         {
-                            shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(j * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                            shadow = textureProj(shadowCoord, vec2(tDShadowData.atData[tLightData.iShadowIndex].fXOffset, tDShadowData.atData[tLightData.iShadowIndex].fYOffset) + vec2(j * tDShadowData.atData[tLightData.iShadowIndex].fFactor, 0), tDShadowData.atData[tLightData.iShadowIndex].iShadowMapTexIdx);
                         }
 
                         const vec3 shadow_box = vec3(rawshadowCoord.xy * 2.0 - 1.0, rawshadowCoord.z * 2.0 - 1.0);
@@ -249,8 +162,8 @@ void main()
                         if(cascade_fade > 0 && j < (tLightData.iCascadeCount - 1))
                         {
 
-                            shadowCoord = (abiasMat * tShadowData.viewProjMat[j + 1]) * tWorldPos2;
-                            float shadowfallback = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2((j + 1.0) * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                            shadowCoord = (abiasMat * tDShadowData.atData[tLightData.iShadowIndex].viewProjMat[j + 1]) * tWorldPos2;
+                            float shadowfallback = filterPCF(shadowCoord, vec2(tDShadowData.atData[tLightData.iShadowIndex].fXOffset, tDShadowData.atData[tLightData.iShadowIndex].fYOffset) + vec2((j + 1.0) * tDShadowData.atData[tLightData.iShadowIndex].fFactor, 0), tDShadowData.atData[tLightData.iShadowIndex].iShadowMapTexIdx);
 
                             shadow = mix(shadow, shadowfallback, cascade_fade);
                             // shadow = 100.0;
@@ -268,10 +181,8 @@ void main()
 
             if(bShadows && tLightData.iCastShadow > 0)
             {
-                plGpuLightShadow tShadowData = tShadowData.atData[tLightData.iShadowIndex];
-
                 vec3 result = sampleCube(-normalize(pointToLight));
-                vec4 shadowCoord = tShadowData.viewProjMat[int(result.z)] * vec4(tWorldPosition.xyz, 1.0);
+                vec4 shadowCoord = tShadowData.atData[tLightData.iShadowIndex].viewProjMat[int(result.z)] * vec4(tWorldPosition.xyz, 1.0);
                 if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
                 {
                     shadow = 1.0;
@@ -285,15 +196,15 @@ void main()
                     };
 
                     shadowCoord.xyz /= shadowCoord.w;
-                    result.xy *= tShadowData.fFactor;
+                    result.xy *= tShadowData.atData[tLightData.iShadowIndex].fFactor;
                     shadowCoord.xy = result.xy;
                     if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
                     {
-                        shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                        shadow = filterPCF(shadowCoord, vec2(tShadowData.atData[tLightData.iShadowIndex].fXOffset, tShadowData.atData[tLightData.iShadowIndex].fYOffset) + faceoffsets[int(result.z)] * tShadowData.atData[tLightData.iShadowIndex].fFactor, tShadowData.atData[tLightData.iShadowIndex].iShadowMapTexIdx);
                     }
                     else
                     {
-                        shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                        shadow = textureProj(shadowCoord, vec2(tShadowData.atData[tLightData.iShadowIndex].fXOffset, tShadowData.atData[tLightData.iShadowIndex].fYOffset) + faceoffsets[int(result.z)] * tShadowData.atData[tLightData.iShadowIndex].fFactor, tShadowData.atData[tLightData.iShadowIndex].iShadowMapTexIdx);
                     }
                 }
             }
@@ -305,24 +216,22 @@ void main()
             pointToLight = tLightData.tPosition - tWorldPosition.xyz;
             if(bShadows && tLightData.iCastShadow > 0)
             {
-                plGpuLightShadow tShadowData = tShadowData.atData[tLightData.iShadowIndex];
-
-                vec4 shadowCoord = tShadowData.viewProjMat[0] * vec4(tWorldPosition.xyz, 1.0);
+                vec4 shadowCoord = tShadowData.atData[tLightData.iShadowIndex].viewProjMat[0] * vec4(tWorldPosition.xyz, 1.0);
                 if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
                 {
                     shadowCoord.xyz /= shadowCoord.w;
                     shadow = 0.0;
                     shadowCoord.x = shadowCoord.x/2 + 0.5;
                     shadowCoord.y = shadowCoord.y/2 + 0.5;
-                    shadowCoord.xy *= tShadowData.fFactor;
+                    shadowCoord.xy *= tShadowData.atData[tLightData.iShadowIndex].fFactor;
 
                     if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
                     {
-                        shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                        shadow = filterPCF(shadowCoord, vec2(tShadowData.atData[tLightData.iShadowIndex].fXOffset, tShadowData.atData[tLightData.iShadowIndex].fYOffset), tShadowData.atData[tLightData.iShadowIndex].iShadowMapTexIdx);
                     }
                     else
                     {
-                        shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                        shadow = textureProj(shadowCoord, vec2(tShadowData.atData[tLightData.iShadowIndex].fXOffset, tShadowData.atData[tLightData.iShadowIndex].fYOffset), tShadowData.atData[tLightData.iShadowIndex].iShadowMapTexIdx);
                     }
                 }
             }

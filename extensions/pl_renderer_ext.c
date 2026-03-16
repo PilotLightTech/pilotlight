@@ -2366,7 +2366,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tDeferredLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[2] = pl_sb_size(ptScene->sbtProbeData);
-    ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting_probe", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
     aiLightingConstantData[2] = 0;
     ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
@@ -2929,6 +2929,8 @@ pl_renderer_prepare_scene(plScene* ptScene)
                 .tCameraPos            = atEnvironmentCamera[uFace].tPos,
                 .tCameraProjection     = atEnvironmentCamera[uFace].tProjMat,
                 .tCameraView           = atEnvironmentCamera[uFace].tViewMat,
+                .tCameraProjectionInv  = pl_mat4_invert(&atEnvironmentCamera[uFace].tProjMat),
+                .tCameraViewInv        = pl_mat4_invert(&atEnvironmentCamera[uFace].tViewMat),
                 .tCameraViewProjection = pl_mul_mat4(&atEnvironmentCamera[uFace].tProjMat, &atEnvironmentCamera[uFace].tViewMat)
             };
 
@@ -2962,6 +2964,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
             .uCharlieEnvSampler     = ptScene->sbtProbeData[i].uSheenEnvSampler,
             .tMin.xyz               = ptObject->tAABB.tMin,
             .tMax.xyz               = ptObject->tAABB.tMax,
+            .iMips                  = ptScene->sbtProbeData[i].iMips,
             .iParallaxCorrection    = (int)(ptProbe->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX)
         };
         pl_sb_push(ptScene->sbtGPUProbeData, tProbeData);
@@ -3163,8 +3166,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .tCameraPos            = ptCamera->tPos,
         .tCameraProjection     = ptCamera->tProjMat,
         .tCameraProjectionInv  = pl_mat4_invert(&ptCamera->tProjMat),
-        .tCameraView           = ptCamera->tViewMat,
         .tCameraViewInv        = pl_mat4_invert(&ptCamera->tViewMat),
+        .tCameraView           = ptCamera->tViewMat,
         .tCameraViewProjection = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat)
     };
     memcpy(gptGfx->get_buffer(ptDevice, ptView->atView2Buffers[uFrameIdx])->tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(plGpuViewData));
@@ -3331,6 +3334,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     if(gptData->tRuntimeOptions.tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
     {
         
+        gptGfx->push_render_debug_group(ptSceneEncoder, "Lights", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
         const uint32_t uLightCount = pl_sb_size(ptScene->sbtLightData);
 
         gptGfx->reset_draw_stream(ptStream, uLightCount);
@@ -3340,7 +3344,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
             ptLightingDynamicData->uGlobalIndex = 0;
             ptLightingDynamicData->iLightIndex = (int)uLightIndex;
-            ptLightingDynamicData->iProbeIndex = -1;
 
             if(ptScene->sbtLightData[uLightIndex].iType == PL_LIGHT_TYPE_DIRECTIONAL)
             {
@@ -3393,17 +3396,18 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             }
         }
         gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
+        gptGfx->pop_render_debug_group(ptSceneEncoder);
 
         const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
 
         if(uProbeCount > 0)
         {
+            gptGfx->push_render_debug_group(ptSceneEncoder, "Probes", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
             gptGfx->reset_draw_stream(ptStream, 1);
             plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
             plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
             ptLightingDynamicData->uGlobalIndex = 0;
             ptLightingDynamicData->iLightIndex = -1;
-            ptLightingDynamicData->iProbeIndex = -1;
 
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
@@ -3425,6 +3429,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
                 .uInstanceCount  = 1
             });
             gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
+            gptGfx->pop_render_debug_group(ptSceneEncoder);
         }
     }
     else
@@ -3434,7 +3439,6 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
         ptLightingDynamicData->uGlobalIndex = 0;
         ptLightingDynamicData->iLightIndex = -1;
-        ptLightingDynamicData->iProbeIndex = -1;
 
         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
         {
@@ -3460,6 +3464,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     
     gptGfx->pop_render_debug_group(ptSceneEncoder);
+    gptGfx->push_render_debug_group(ptSceneEncoder, "Forward Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
 
     gptGfx->next_subpass(ptSceneEncoder, NULL);
 
@@ -3548,6 +3553,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     }
     gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
 
+    gptGfx->pop_render_debug_group(ptSceneEncoder);
     gptGfx->end_render_pass(ptSceneEncoder);
 
 

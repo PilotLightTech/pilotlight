@@ -274,6 +274,7 @@ typedef struct _plEnvironmentProbeData
 
     // intervals
     uint32_t uCurrentFace;
+    int iMips;
 } plEnvironmentProbeData;
 
 typedef struct _plView

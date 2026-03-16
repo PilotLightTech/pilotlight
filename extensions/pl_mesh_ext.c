@@ -207,9 +207,6 @@ pl_allocate_vertex_data(plMeshComponent* ptMesh, size_t szVertexCount, uint64_t 
     if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_NORMAL)  szBytesPerVertex += sizeof(plVec3);
     if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TANGENT) szBytesPerVertex += sizeof(plVec4);
     if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0) szBytesPerVertex += sizeof(plVec4);
-    if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1) szBytesPerVertex += sizeof(plVec4);
-    if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2) szBytesPerVertex += sizeof(plVec4);
-    if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3) szBytesPerVertex += sizeof(plVec4);
     if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_0) szBytesPerVertex += sizeof(plVec4);
     if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_COLOR_1) szBytesPerVertex += sizeof(plVec4);
     if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_JOINTS_0) szBytesPerVertex += sizeof(plVec4);
@@ -242,33 +239,6 @@ pl_allocate_vertex_data(plMeshComponent* ptMesh, size_t szVertexCount, uint64_t 
         szBufferOffset += szVertexCount * sizeof(plVec2);
 
         ptMesh->ptVertexTextureCoordinates[1] = (plVec2*)&ptMesh->puRawData[szBufferOffset];
-        szBufferOffset += szVertexCount * sizeof(plVec2);
-    }
-
-    if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1)
-    {
-        ptMesh->ptVertexTextureCoordinates[2] = (plVec2*)&ptMesh->puRawData[szBufferOffset];
-        szBufferOffset += szVertexCount * sizeof(plVec2);
-
-        ptMesh->ptVertexTextureCoordinates[3] = (plVec2*)&ptMesh->puRawData[szBufferOffset];
-        szBufferOffset += szVertexCount * sizeof(plVec2);
-    }
-
-    if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2)
-    {
-        ptMesh->ptVertexTextureCoordinates[4] = (plVec2*)&ptMesh->puRawData[szBufferOffset];
-        szBufferOffset += szVertexCount * sizeof(plVec2);
-
-        ptMesh->ptVertexTextureCoordinates[5] = (plVec2*)&ptMesh->puRawData[szBufferOffset];
-        szBufferOffset += szVertexCount * sizeof(plVec2);
-    }
-
-    if(uVertexStreamMask & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3)
-    {
-        ptMesh->ptVertexTextureCoordinates[6] = (plVec2*)&ptMesh->puRawData[szBufferOffset];
-        szBufferOffset += szVertexCount * sizeof(plVec2);
-
-        ptMesh->ptVertexTextureCoordinates[7] = (plVec2*)&ptMesh->puRawData[szBufferOffset];
         szBufferOffset += szVertexCount * sizeof(plVec2);
     }
 

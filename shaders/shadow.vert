@@ -44,7 +44,7 @@ layout(location = 0) in vec3 inPos;
 
 // output
 layout(location = 0) out struct plShaderOut {
-    vec2 tUV[8];
+    vec2 tUV;
 } tShaderIn;
 
 //-----------------------------------------------------------------------------
@@ -57,17 +57,9 @@ void main()
     vec4 inPosition  = vec4(inPos, 1.0);
     vec2 inTexCoord0 = vec2(0.0, 0.0);
     vec2 inTexCoord1 = vec2(0.0, 0.0);
-    vec2 inTexCoord2 = vec2(0.0, 0.0);
-    vec2 inTexCoord3 = vec2(0.0, 0.0);
-    vec2 inTexCoord4 = vec2(0.0, 0.0);
-    vec2 inTexCoord5 = vec2(0.0, 0.0);
-    vec2 inTexCoord6 = vec2(0.0, 0.0);
-    vec2 inTexCoord7 = vec2(0.0, 0.0);
 
     uint uTransformIndex = plInstanceInfo.atData[gl_InstanceIndex].uTransformIndex;
     int uViewportIndex = plInstanceInfo.atData[gl_InstanceIndex].iViewportIndex;
-
-    const mat4 tTransform = tTransformBuffer.atTransform[uTransformIndex];
 
     int iCurrentAttribute = 0;
     
@@ -80,30 +72,21 @@ void main()
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)){
         inTexCoord0 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
         inTexCoord1 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
-        iCurrentAttribute++;
-    }
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1)){
-        inTexCoord2 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
-        inTexCoord3 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
-        iCurrentAttribute++;
-    }
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2)){
-        inTexCoord4 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
-        inTexCoord5 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
-        iCurrentAttribute++;
-    }
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3)){
-        inTexCoord6 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
-        inTexCoord7 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
-        iCurrentAttribute++;
-    }
 
-    vec4 pos = tTransform * inPosition;
+        int iUVSet = tMaterialInfo.atMaterials[tObjectInfo.tData.iMaterialIndex].aiTextureUVSet[PL_TEXTURE_BASE_COLOR];
+
+        tShaderIn.tUV = inTexCoord0;
+        if(iUVSet == 1)
+        {
+            tShaderIn.tUV = inTexCoord1;
+        }
+        iCurrentAttribute++;
+    }
 
     // gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + gl_InstanceIndex] * pos;
     // gl_ViewportIndex = gl_InstanceIndex;
 
-    gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex] * pos;
+    gl_Position = tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex] * tTransformBuffer.atTransform[uTransformIndex] * inPosition;
     gl_ViewportIndex = uViewportIndex;
 
     // if(tCameraInfo.atCameraProjs[tObjectInfo.tData.iIndex + uViewportIndex][3][3] == 1.0) // orthographic
@@ -114,13 +97,4 @@ void main()
     //         gl_Position.z = 0.0;
     //     }
     // }
-
-    tShaderIn.tUV[0] = inTexCoord0;
-    tShaderIn.tUV[1] = inTexCoord1;
-    tShaderIn.tUV[2] = inTexCoord2;
-    tShaderIn.tUV[3] = inTexCoord3;
-    tShaderIn.tUV[4] = inTexCoord4;
-    tShaderIn.tUV[5] = inTexCoord5;
-    tShaderIn.tUV[6] = inTexCoord6;
-    tShaderIn.tUV[7] = inTexCoord7;
 }

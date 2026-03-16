@@ -649,12 +649,6 @@ pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimi
             case cgltf_attribute_type_texcoord:
                 if(ptAttribute->index == 0 || ptAttribute->index == 1)
                     ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0;
-                else if(ptAttribute->index == 2 || ptAttribute->index == 3)
-                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1;
-                else if(ptAttribute->index == 4 || ptAttribute->index == 5)
-                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2;
-                else if(ptAttribute->index == 6 || ptAttribute->index == 7)
-                    ptMesh->ulVertexStreamMask |= PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3;
                 break;
             case cgltf_attribute_type_color:
                 if(ptAttribute->index == 0)

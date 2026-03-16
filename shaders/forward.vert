@@ -32,7 +32,7 @@ layout(location = 0) in vec3 inPos;
 layout(location = 0) out struct plShaderOut {
     vec3 tWorldPosition;
     vec3 tViewPosition;
-    vec2 tUV[8];
+    vec2 tUV[2];
     vec4 tColor;
     vec3 tWorldNormal;
     mat3 tTBN;
@@ -51,12 +51,6 @@ void main()
     vec4 inTangent   = vec4(0.0, 0.0, 0.0, 0.0);
     vec2 inTexCoord0 = vec2(0.0, 0.0);
     vec2 inTexCoord1 = vec2(0.0, 0.0);
-    vec2 inTexCoord2 = vec2(0.0, 0.0);
-    vec2 inTexCoord3 = vec2(0.0, 0.0);
-    vec2 inTexCoord4 = vec2(0.0, 0.0);
-    vec2 inTexCoord5 = vec2(0.0, 0.0);
-    vec2 inTexCoord6 = vec2(0.0, 0.0);
-    vec2 inTexCoord7 = vec2(0.0, 0.0);
     vec4 inColor0    = vec4(1.0, 1.0, 1.0, 1.0);
     vec4 inColor1    = vec4(0.0, 0.0, 0.0, 0.0);
     int iCurrentAttribute = 0;
@@ -71,21 +65,6 @@ void main()
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0)){
         inTexCoord0 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
         inTexCoord1 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
-        iCurrentAttribute++;
-    }
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1)){
-        inTexCoord2 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
-        inTexCoord3 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
-        iCurrentAttribute++;
-    }
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2)){
-        inTexCoord4 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
-        inTexCoord5 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
-        iCurrentAttribute++;
-    }
-    if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3)){
-        inTexCoord6 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].xy;
-        inTexCoord7 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute].zw;
         iCurrentAttribute++;
     }
     if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_COLOR_0))   { inColor0 = tVertexBuffer.atVertexData[iVertexDataOffset + iCurrentAttribute];     iCurrentAttribute++;}
@@ -111,12 +90,6 @@ void main()
     gl_Position = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraViewProjection * pos;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
-    tShaderIn.tUV[2] = inTexCoord2;
-    tShaderIn.tUV[3] = inTexCoord3;
-    tShaderIn.tUV[4] = inTexCoord4;
-    tShaderIn.tUV[5] = inTexCoord5;
-    tShaderIn.tUV[6] = inTexCoord6;
-    tShaderIn.tUV[7] = inTexCoord7;
     tShaderIn.tColor = inColor0;
     tShaderIn.tModel = tTransform;
     tShaderIn.tViewPosition = (pos * tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraView).xyz;

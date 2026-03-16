@@ -85,15 +85,12 @@ PL_BEGIN_ENUM(plMeshFormatFlags)
     PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_NORMAL,     1 <<  1) 
     PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TANGENT,    1 <<  2) 
     PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0, 1 <<  3) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_1, 1 <<  4) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_2, 1 <<  5) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_3, 1 <<  6) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_COLOR_0,    1 <<  7) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_COLOR_1,    1 <<  8) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_JOINTS_0,   1 <<  9) 
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_JOINTS_1,   1 << 10)
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0,  1 << 11)
-    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1,  1 << 12)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_COLOR_0,    1 <<  4) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_COLOR_1,    1 <<  5) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_JOINTS_0,   1 <<  6) 
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_JOINTS_1,   1 <<  7)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_0,  1 <<  8)
+    PL_ENUM_ITEM(PL_MESH_FORMAT_FLAG_HAS_WEIGHTS_1,  1 <<  9)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plTonemapMode)
@@ -484,7 +481,7 @@ PL_BEGIN_STRUCT(plGpuProbe)
     vec4 tMax;
     // ~~~~~~~~~~~~~~~~32 bytes~~~~~~~~~~~~~~~~
 
-    int _unused0;
+    int iMips;
     int _unused1;
     int _unused2;
     int _unused3;
@@ -511,8 +508,8 @@ PL_BEGIN_STRUCT(plGpuDynDeferredLighting)
     
     uint uGlobalIndex;
     int  iLightIndex;
-    int  iProbeIndex;
     uint _uUnused0;
+    uint _uUnused1;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynDeferredLighting)
 

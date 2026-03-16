@@ -132,7 +132,7 @@ typedef struct _plMeshComponent
     plVec4*   ptVertexColors[2];
     plVec4*   ptVertexWeights[2];
     plVec4*   ptVertexJoints[2];
-    plVec2*   ptVertexTextureCoordinates[8];
+    plVec2*   ptVertexTextureCoordinates[2];
     uint32_t* puIndices;
     plAABB    tAABB;
 } plMeshComponent;
