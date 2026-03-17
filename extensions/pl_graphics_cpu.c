@@ -56,7 +56,7 @@ typedef struct _plCpuDynamicBuffer
 
 typedef struct _plCpuBuffer
 {
-    char* pcData;
+    char*         pcData;
 } plCpuBuffer;
 
 typedef struct _plCpuTexture
@@ -166,7 +166,7 @@ typedef struct _plTimelineSemaphore
 
 typedef struct _plTimelineEvent
 {
-    plDevice* ptDevice; // for convience
+    plDevice*        ptDevice; // for convience
     plTimelineEvent* ptNext; // for linked list
 } plTimelineEvent;
 
@@ -194,7 +194,7 @@ typedef struct _plDevice
     // timeline semaphore free list
     plTimelineSemaphore* ptSemaphoreFreeList;
 
-    // timeline evene free list
+    // timeline event free list
     plTimelineEvent* ptEventFreeList;
 
     // render pass layout generation pool
@@ -219,8 +219,8 @@ typedef struct _plDevice
 
     // buffer generation pool
     plCpuBuffer* sbtBuffersHot;
-    plBuffer*       sbtBuffersCold;
-    uint16_t*       sbtBufferFreeIndices;
+    plBuffer*    sbtBuffersCold;
+    uint16_t*    sbtBufferFreeIndices;
 
     // texture generation pool
     // VkImageView*     sbtTextureViewsHot;
@@ -229,19 +229,19 @@ typedef struct _plDevice
     uint16_t*     sbtTextureFreeIndices;
 
     // sampler generation pool
-    int* sbtSamplersHot;
+    int*       sbtSamplersHot;
     plSampler* sbtSamplersCold;
     uint16_t*  sbtSamplerFreeIndices;
 
     // bind group generation pool
     plCpuBindGroup* sbtBindGroupsHot;
-    plBindGroup*       sbtBindGroupsCold;
-    uint16_t*          sbtBindGroupFreeIndices;
+    plBindGroup*    sbtBindGroupsCold;
+    uint16_t*       sbtBindGroupFreeIndices;
 
     // bind group layout generation pool
     plCpuBindGroupLayout* sbtBindGroupLayoutsHot;
-    plBindGroupLayout*       sbtBindGroupLayoutsCold;
-    uint16_t*                sbtBindGroupLayoutFreeIndices;
+    plBindGroupLayout*    sbtBindGroupLayoutsCold;
+    uint16_t*             sbtBindGroupLayoutFreeIndices;
     // VkDescriptorSetLayout    tDynamicDescriptorSetLayout;
 
     // vulkan specifics
@@ -368,12 +368,42 @@ plBufferHandle
 pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer **ptBufferOut)
 {
     plBufferHandle tHandle = pl__get_new_buffer_handle(ptDevice);
+    plBuffer* ptBuffer = pl__get_buffer(ptDevice, tHandle);
+    ptBuffer->tDesc = *ptDesc;
+
+    if(ptDesc->pcDebugName == NULL)
+    {
+        ptBuffer->tDesc.pcDebugName = "unnamed buffer";
+    }
+
+    plCpuBuffer tCPUBuffer = {0};
+
+    ptBuffer->tMemoryRequirements.ulSize = ptDesc->szByteSize;
+    ptBuffer->tMemoryRequirements.ulAlignment = 0;
+    ptBuffer->tMemoryRequirements.uMemoryTypeBits = 0;
+
+    ptDevice->sbtBuffersHot[tHandle.uIndex] = tCPUBuffer;
+
+    if(ptBufferOut)
+    {
+        *ptBufferOut = &ptDevice->sbtBuffersCold[tHandle.uIndex];
+    }
+
     return tHandle;
 }
 
 void
 pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
-{
+{   
+    plBuffer* ptBuffer = &ptDevice->sbtBuffersCold[tHandle.uIndex];
+    ptBuffer->tMemoryAllocation = *ptAllocation;
+    plCpuBuffer* ptCPUBuffer = &ptDevice->sbtBuffersHot[tHandle.uIndex];
+
+    ptDevice->sbtBuffersHot[tHandle.uIndex].pcData = PL_ALLOC(sizeof(ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryRequirements.ulSize));
+    memset(ptDevice->sbtBuffersHot[tHandle.uIndex].pcData, 0, sizeof(ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryRequirements.ulSize));
+
+    ptCPUBuffer->pcData = ptAllocation->pHostMapped;
+
 }
 
 static plDynamicDataBlock
@@ -657,6 +687,38 @@ pl_create_device(const plDeviceInit* ptInit)
 
     plDevice* ptDevice = PL_ALLOC(sizeof(plDevice));
     memset(ptDevice, 0, sizeof(plDevice));
+    ptDevice->tInit = *ptInit;
+
+    pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
+    pl_sb_add(ptDevice->sbtRenderPassesHot);
+    pl_sb_add(ptDevice->sbtShadersHot);
+    pl_sb_add(ptDevice->sbtComputeShadersHot);
+    pl_sb_add(ptDevice->sbtBuffersHot);
+    // pl_sb_add(ptDevice->sbtTextureViewsHot);
+    pl_sb_add(ptDevice->sbtTexturesHot);
+    pl_sb_add(ptDevice->sbtSamplersHot);
+    pl_sb_add(ptDevice->sbtBindGroupsHot);
+    pl_sb_add(ptDevice->sbtBindGroupLayoutsHot);
+    
+    pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
+    pl_sb_add(ptDevice->sbtShadersCold);
+    pl_sb_add(ptDevice->sbtComputeShadersCold);
+    pl_sb_add(ptDevice->sbtBuffersCold);
+    pl_sb_add(ptDevice->sbtTexturesCold);
+    pl_sb_add(ptDevice->sbtSamplersCold);
+    pl_sb_add(ptDevice->sbtBindGroupsCold);
+    pl_sb_add(ptDevice->sbtBindGroupLayoutsCold);
+
+    pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtComputeShadersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBuffersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtTexturesCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtSamplersCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBindGroupsCold)._uGeneration = 1;
+    pl_sb_back(ptDevice->sbtBindGroupLayoutsCold)._uGeneration = 1;
+
+    
     return ptDevice;
 }
 
@@ -892,6 +954,11 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
 void
 pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
+    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy buffer %u immediately", tHandle.uIndex);
+    ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
+    pl_sb_push(ptDevice->sbtBufferFreeIndices, tHandle.uIndex);
+
+    PL_FREE(ptDevice->sbtBuffersHot[tHandle.uIndex].pcData);
 }
 
 void
