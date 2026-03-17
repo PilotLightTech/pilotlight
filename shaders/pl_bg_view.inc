@@ -2,7 +2,7 @@
 #define BG_VIEW_INC
 
 #include "pl_shader_interop_renderer.h"
-#include "lights.glsl"
+#include "pl_lights.glsl"
 
 #ifndef PL_VIEW_SET_LOCATION
 #define PL_VIEW_SET_LOCATION 1

@@ -1,7 +1,7 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-#include "math.glsl"
+#include "pl_math.glsl"
 #include "pl_shader_interop_renderer.h"
 
 //simple fit from: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/

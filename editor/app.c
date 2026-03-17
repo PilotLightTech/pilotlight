@@ -425,28 +425,28 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create main camera
     plCamera* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3_d(-4.012, 202.984, -1.109), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 30.0f, true, &ptMainCamera);
+    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3_d(-4.012, 2.984, -1.109), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 30.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, -0.465f, 1.341f);
     gptCamera->update(ptMainCamera);
     gptScript->attach(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
 
     // create secondary camera
     plCamera* ptSecondaryCamera = NULL;
-    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "secondary camera", pl_create_vec3_d(-4.012f, 202.984f, -1.109f), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
+    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "secondary camera", pl_create_vec3_d(-4.012f, 2.984f, -1.109f), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
     gptCamera->set_pitch_yaw(ptSecondaryCamera, -0.465f, 1.341f);
     gptCamera->update(ptSecondaryCamera);
     plTransformComponent* ptSecondaryCameraTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSecondaryCamera);
-    ptSecondaryCameraTransform->tTranslation = pl_create_vec3(-4.012f, 202.984f, -1.109f);
+    ptSecondaryCameraTransform->tTranslation = pl_create_vec3(-4.012f, 2.984f, -1.109f);
 
     // create lights
     plLightComponent* ptLight = NULL;
-    gptRenderer->create_directional_light(ptAppData->ptComponentLibrary, "direction light", pl_create_vec3(0.0f, -1.0f, -0.085f), &ptLight);
+    gptRenderer->create_directional_light(ptAppData->ptComponentLibrary, "direction light", pl_create_vec3(0.425f, -1.0f, -0.384f), &ptLight);
     ptLight->uCascadeCount = 4;
-    ptLight->fIntensity = 1.0f;
+    ptLight->fIntensity = 20.0f;
     ptLight->uShadowResolution = 1024 * 2;
-    ptLight->afCascadeSplits[0] = 0.10f;
-    ptLight->afCascadeSplits[1] = 0.25f;
-    ptLight->afCascadeSplits[2] = 0.50f;
+    ptLight->afCascadeSplits[0] = 0.05f;
+    ptLight->afCascadeSplits[1] = 0.15f;
+    ptLight->afCascadeSplits[2] = 0.25f;
     ptLight->afCascadeSplits[3] = 1.00f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
@@ -455,7 +455,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptLight->tColor = (plVec3){0.0f, 1.0f, 0.0f};
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
     plTransformComponent* ptPLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tPointLight);
-    ptPLightTransform->tTranslation = pl_create_vec3(9.316f, 201.497f, -1.042f);
+    ptPLightTransform->tTranslation = pl_create_vec3(9.316f, 1.497f, -1.042f);
 
     plEntity tSpotLight = gptRenderer->create_spot_light(ptAppData->ptComponentLibrary, "spot light", pl_create_vec3(0.0f, 4.0f, -1.18f), pl_create_vec3(0.0, -0.390f, 0.368f), &ptLight);
     ptLight->uShadowResolution = 512;
@@ -465,11 +465,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptLight->fIntensity = 20.0f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
     plTransformComponent* ptSLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tSpotLight);
-    ptSLightTransform->tTranslation = pl_create_vec3(0.0f, 204.0f, -1.18f);
+    ptSLightTransform->tTranslation = pl_create_vec3(0.0f, 3.27f, -1.5f);
 
     plEnvironmentProbeComponent* ptProbe = NULL;
     plVec3 atProbeLocations[] = {
-        pl_create_vec3(0.0f, 203.0f, 0.0f),
+        pl_create_vec3(0.0f, 3.0f, 0.0f),
         // pl_create_vec3(-8.7f, 1.5f, 0.0f),
         // pl_create_vec3(8.8f, 1.5f, 0.0f),
     };
@@ -487,7 +487,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/sky.hdr", 1024);
 
     plModelLoaderData tLoaderData0 = {0};
-    plMat4 tModelTranslation = pl_mat4_translate_xyz(0.0f, 200.0f, 0.0f);
+    plMat4 tModelTranslation = pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f);
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", &tModelTranslation, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", &tModelTranslation, &tLoaderData0);
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", &tModelTranslation, &tLoaderData0);
@@ -530,35 +530,6 @@ pl_app_shutdown(plAppData* ptAppData)
     gptGfx->flush_device(ptAppData->ptDevice);
     // gptTerrain->cleanup();
 
-    // plPakFile* ptPak = NULL;
-    // gptPak->begin_packing("../data/shaders.pak", 4, &ptPak);
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "deferred_lighting.frag.spv", "../out-temp/deferred_lighting.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "deferred_lighting.vert.spv", "../out-temp/deferred_lighting.vert.spv",false));
-    // // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_2d_sdf.frag.spv", "../out-temp/draw_2d_sdf.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_2d.frag.spv", "../out-temp/draw_2d.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_2d.vert.spv", "../out-temp/draw_2d.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_3d_line.vert.spv", "../out-temp/draw_3d_line.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_3d.frag.spv", "../out-temp/draw_3d.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "draw_3d.vert.spv", "../out-temp/draw_3d.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "filter_environment.comp.spv", "../out-temp/filter_environment.comp.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "forward.frag.spv", "../out-temp/forward.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "forward.vert.spv", "../out-temp/forward.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "full_screen.vert.spv", "../out-temp/full_screen.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "gbuffer_fill.frag.spv", "../out-temp/gbuffer_fill.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "gbuffer_fill.vert.spv", "../out-temp/gbuffer_fill.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "jumpfloodalgo.comp.spv", "../out-temp/jumpfloodalgo.comp.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "panorama_to_cubemap.comp.spv", "../out-temp/panorama_to_cubemap.comp.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "picking.frag.spv", "../out-temp/picking.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "picking.vert.spv", "../out-temp/picking.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "shadow.frag.spv", "../out-temp/shadow.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "shadow.vert.spv", "../out-temp/shadow.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "skinning.comp.spv", "../out-temp/skinning.comp.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "skybox.frag.spv", "../out-temp/skybox.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "skybox.vert.spv", "../out-temp/skybox.vert.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "tonemap.frag.spv", "../out-temp/tonemap.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "uvmap.frag.spv", "../out-temp/uvmap.frag.spv",false));
-    // PL_ASSERT(gptPak->add_from_disk(ptPak, "uvmap.vert.spv", "../out-temp/uvmap.vert.spv",false));
-    // gptPak->end_packing(&ptPak);
 
     gptConfig->set_bool("bEditorAttached", ptAppData->bEditorAttached);
     gptConfig->set_bool("bShowEntityWindow", ptAppData->bShowEntityWindow);

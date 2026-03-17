@@ -2,10 +2,10 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "bg_scene.inc"
-#include "bg_view.inc"
-#include "brdf.glsl"
-#include "math.glsl"
+#include "pl_bg_scene.inc"
+#include "pl_bg_view.inc"
+#include "pl_brdf.glsl"
+#include "pl_math.glsl"
 
 
 //-----------------------------------------------------------------------------
@@ -46,12 +46,12 @@ layout(location = 0) in struct plShaderIn {
     mat4 tModel; 
 } tShaderIn;
 
-#include "math.glsl"
-#include "lighting.glsl"
-#include "fog.glsl"
+#include "pl_math.glsl"
+#include "pl_lighting.glsl"
+#include "pl_fog.glsl"
 
 #define PL_INCLUDE_MATERIAL_FUNCTIONS
-#include "material_info.glsl"
+#include "pl_material_info.glsl"
 
 vec3
 getPunctualRadianceClearCoat(vec3 clearcoatNormal, vec3 v, vec3 l, vec3 h, float VdotH, vec3 f0, vec3 f90, float clearcoatRoughness)

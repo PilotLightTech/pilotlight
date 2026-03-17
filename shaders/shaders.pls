@@ -62,7 +62,7 @@
     "compute shaders": [
         {
             "pcName": "panorama_to_cubemap",
-            "tShader": { "file": "panorama_to_cubemap.comp"},
+            "tShader": { "file": "pl_panorama_to_cubemap.comp"},
             "atConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
@@ -84,7 +84,7 @@
         },
         {
             "pcName": "jumpfloodalgo",
-            "tShader": { "file": "jumpfloodalgo.comp"},
+            "tShader": { "file": "pl_jumpfloodalgo.comp"},
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
@@ -96,7 +96,7 @@
         },
         {
             "pcName": "gaussian_blur",
-            "tShader": { "file": "gaussian_blur.comp"},
+            "tShader": { "file": "pl_gaussian_blur.comp"},
             "atConstants": [
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
@@ -110,7 +110,7 @@
         },
         {
             "pcName": "bloom_apply",
-            "tShader": { "file": "bloom_apply.comp"},
+            "tShader": { "file": "pl_bloom_apply.comp"},
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
@@ -125,7 +125,7 @@
         },
         {
             "pcName": "bloom_downsample",
-            "tShader": { "file": "bloom_downsample.comp"},
+            "tShader": { "file": "pl_bloom_downsample.comp"},
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
@@ -140,7 +140,7 @@
         },
         {
             "pcName": "bloom_upsample",
-            "tShader": { "file": "bloom_upsample.comp"},
+            "tShader": { "file": "pl_bloom_upsample.comp"},
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
@@ -156,7 +156,7 @@
         },
         {
             "pcName": "brdf_lut",
-            "tShader": { "file": "brdf_lut.comp"},
+            "tShader": { "file": "pl_brdf_lut.comp"},
             "atBindGroupLayouts": [
                 {
                     "atBufferBindings": [
@@ -167,7 +167,7 @@
         },
         {
             "pcName": "cube_filter_specular",
-            "tShader": { "file": "cube_filter_specular.comp"},
+            "tShader": { "file": "pl_cube_filter_specular.comp"},
             "atBindGroupLayouts": [
                 { "pcName": "cube_filter_set_0" },
                 { "pcName": "cube_filter_set_1" }
@@ -175,7 +175,7 @@
         },
         {
             "pcName": "cube_filter_diffuse",
-            "tShader": { "file": "cube_filter_diffuse.comp"},
+            "tShader": { "file": "pl_cube_filter_diffuse.comp"},
             "atBindGroupLayouts": [
                 { "pcName": "cube_filter_set_0" },
                 { "pcName": "cube_filter_set_1" }
@@ -183,7 +183,7 @@
         },
         {
             "pcName": "cube_filter_sheen",
-            "tShader": { "file": "cube_filter_sheen.comp"},
+            "tShader": { "file": "pl_cube_filter_sheen.comp"},
             "atBindGroupLayouts": [
                 { "pcName": "cube_filter_set_0" },
                 { "pcName": "cube_filter_set_1" }
@@ -191,7 +191,7 @@
         },
         {
             "pcName": "skinning",
-            "tShader": { "file": "skinning.comp"},
+            "tShader": { "file": "pl_skinning.comp"},
             "atConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
@@ -218,7 +218,7 @@
         },
         {
             "pcName": "tonemap",
-            "tShader": { "file": "tonemap.comp"},
+            "tShader": { "file": "pl_tonemap.comp"},
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
@@ -232,8 +232,8 @@
     "graphics shaders": [
         {
             "pcName": "jumpfloodalgo2",
-            "tVertexShader":    { "file": "full_screen.vert"},
-            "tFragmentShader":  { "file": "jumpfloodalgo.frag"},
+            "tVertexShader":    { "file": "pl_full_screen.vert"},
+            "tFragmentShader":  { "file": "pl_jumpfloodalgo.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled": false,
                 "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
@@ -264,8 +264,8 @@
         },
         {
             "pcName": "skybox",
-            "tVertexShader":    { "file": "skybox.vert"},
-            "tFragmentShader":  { "file": "skybox.frag"},
+            "tVertexShader":    { "file": "pl_skybox.vert"},
+            "tFragmentShader":  { "file": "pl_skybox.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
                 "ulDepthMode":          "PL_COMPARE_MODE_EQUAL",
@@ -303,8 +303,8 @@
         },
         {
             "pcName": "gbuffer_fill",
-            "tVertexShader":    { "file": "gbuffer_fill.vert"},
-            "tFragmentShader":  { "file": "gbuffer_fill.frag"},
+            "tVertexShader":    { "file": "pl_gbuffer_fill.vert"},
+            "tFragmentShader":  { "file": "pl_gbuffer_fill.frag"},
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
@@ -341,8 +341,8 @@
         },
         {
             "pcName": "forward",
-            "tVertexShader":    { "file": "forward.vert"},
-            "tFragmentShader":  { "file": "forward.frag"},
+            "tVertexShader":    { "file": "pl_forward.vert"},
+            "tFragmentShader":  { "file": "pl_forward.frag"},
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
@@ -383,8 +383,8 @@
         },
         {
             "pcName": "transmission",
-            "tVertexShader":    { "file": "forward.vert"},
-            "tFragmentShader":  { "file": "forward.frag"},
+            "tVertexShader":    { "file": "pl_forward.vert"},
+            "tFragmentShader":  { "file": "pl_forward.frag"},
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
@@ -416,8 +416,8 @@
         },
         {
             "pcName": "uvmap",
-            "tVertexShader":    { "file": "full_screen.vert"},
-            "tFragmentShader":  { "file": "uvmap.frag"},
+            "tVertexShader":    { "file": "pl_full_screen.vert"},
+            "tFragmentShader":  { "file": "pl_uvmap.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
                 "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
@@ -438,8 +438,8 @@
         },
         {
             "pcName": "picking",
-            "tVertexShader":    { "file": "picking.vert"},
-            "tFragmentShader":  { "file": "picking.frag"},
+            "tVertexShader":    { "file": "pl_picking.vert"},
+            "tFragmentShader":  { "file": "pl_picking.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
                 "ulDepthMode":          "PL_COMPARE_MODE_EQUAL",
@@ -475,7 +475,7 @@
         },
         {
             "pcName": "shadow",
-            "tVertexShader": { "file": "shadow.vert"},
+            "tVertexShader": { "file": "pl_shadow.vert"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  true,
                 "ulDepthMode":          "PL_COMPARE_MODE_GREATER_OR_EQUAL",
@@ -515,8 +515,8 @@
         },
         {
             "pcName": "alphashadow",
-            "tVertexShader":    { "file": "shadow.vert"},
-            "tFragmentShader":  { "file": "shadow.frag"},
+            "tVertexShader":    { "file": "pl_shadow.vert"},
+            "tFragmentShader":  { "file": "pl_shadow.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  true,
                 "ulDepthMode":          "PL_COMPARE_MODE_GREATER_OR_EQUAL",
@@ -564,8 +564,8 @@
         },
         {
             "pcName": "deferred_lighting",
-            "tVertexShader":    { "file": "full_screen.vert"},
-            "tFragmentShader":  { "file": "deferred_lighting.frag"},
+            "tVertexShader":    { "file": "pl_full_screen.vert"},
+            "tFragmentShader":  { "file": "pl_deferred_lighting.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
                 "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
@@ -613,8 +613,99 @@
             ]
         },
         {
+            "pcName": "deferred_lighting_directional",
+            "tVertexShader":    { "file": "pl_full_screen.vert"},
+            "tFragmentShader":  { "file": "pl_deferred_lighting_directional.frag"},
+            "tGraphicsState": {
+                "ulDepthWriteEnabled":  false,
+                "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "ulCullMode":           "PL_CULL_MODE_NONE",
+                "ulWireframe":          false,
+                "ulDepthClampEnabled":  false,
+                "ulStencilTestEnabled": false,
+                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "ulStencilRef":         255,
+                "ulStencilMask":        255,
+                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+            },
+            "uSubpassIndex": 1,
+            "atBlendStates": [
+                {
+                    "bBlendEnabled":   true,
+                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE",
+                    "tColorOp":        "PL_BLEND_OP_ADD",
+                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
+                    "tAlphaOp":        "PL_BLEND_OP_ADD"
+                }
+            ],
+            "atFragmentConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atBindGroupLayouts": [ 
+                { "pcName": "scene" },
+                { "pcName": "view" },
+                { "pcName": "deferred lighting 1" }
+                
+            ]
+        },
+        {
+            "pcName": "deferred_lighting_spot",
+            "tVertexShader":    { "file": "pl_deferred_lighting.vert"},
+            "tFragmentShader":  { "file": "pl_deferred_lighting_spot.frag"},
+            "tGraphicsState": {
+                "ulDepthWriteEnabled":  false,
+                "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "ulCullMode":           "PL_CULL_MODE_CULL_FRONT",
+                "ulWireframe":          false,
+                "ulDepthClampEnabled":  true,
+                "ulStencilTestEnabled": false,
+                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "ulStencilRef":         255,
+                "ulStencilMask":        255,
+                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+            },
+            "uSubpassIndex": 1,
+            "atVertexBufferLayouts": [
+                {
+                    "atAttributes": [
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                    ]
+                }
+            ],
+            "atBlendStates": [
+                {
+                    "bBlendEnabled":   true,
+                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE",
+                    "tColorOp":        "PL_BLEND_OP_ADD",
+                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
+                    "tAlphaOp":        "PL_BLEND_OP_ADD"
+                }
+            ],
+            "atFragmentConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atBindGroupLayouts": [ 
+                { "pcName": "scene" },
+                { "pcName": "view" },
+                { "pcName": "deferred lighting 1" }
+                
+            ]
+        },
+        {
             "pcName": "deferred_lighting_probe",
-            "tVertexShader":    { "file": "full_screen.vert"},
+            "tVertexShader":    { "file": "pl_full_screen.vert"},
             "tFragmentShader":  { "file": "pl_deferred_lighting_probe.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
@@ -655,9 +746,9 @@
             ]
         },
         {
-            "pcName": "deferred_lighting_volume",
-            "tVertexShader":    { "file": "deferred_lighting.vert"},
-            "tFragmentShader":  { "file": "deferred_lighting.frag"},
+            "pcName": "deferred_lighting_point",
+            "tVertexShader":    { "file": "pl_deferred_lighting.vert"},
+            "tFragmentShader":  { "file": "pl_deferred_lighting_point.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
                 "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
@@ -705,8 +796,8 @@
         },
         {
             "pcName": "grid",
-            "tVertexShader":    { "file": "grid.vert"},
-            "tFragmentShader":  { "file": "grid.frag"},
+            "tVertexShader":    { "file": "pl_grid.vert"},
+            "tFragmentShader":  { "file": "pl_grid.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
                 "ulDepthMode":          "PL_COMPARE_MODE_GREATER",

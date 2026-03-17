@@ -2,7 +2,7 @@
 #define BG_SCENE_INC
 
 #include "pl_shader_interop_renderer.h"
-#include "lights.glsl"
+#include "pl_lights.glsl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0

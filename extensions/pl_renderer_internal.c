@@ -1508,6 +1508,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             plCamera tShadowCamera = {
                 .tType = PL_CAMERA_TYPE_ORTHOGRAPHIC
             };
+            // gptCamera->look_at(&tShadowCamera, (plDVec3){0}, pl__to_double_vec(tDirection));
             gptCamera->look_at(&tShadowCamera, ptSceneCamera->tPosDouble, pl__to_double_vec(pl_add_vec3(ptSceneCamera->tPos, tDirection)));
             tShadowCamera.fWidth  = fD;
             tShadowCamera.fHeight = fD;
@@ -1547,7 +1548,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             };
 
             const plMat4 tLightInversion = pl_mat4_invert(&tShadowCamera.tViewMat);
-            const plVec4 tLightPos = pl_mul_mat4_vec4(&tLightInversion, (plVec4){.xyz = tLightPosLightSpace.xyz, .w = 1.0f});
+            plVec4 tLightPos = pl_mul_mat4_vec4(&tLightInversion, (plVec4){.xyz = tLightPosLightSpace.xyz, .w = 1.0f});
             // tLightPos.xyz = pl_add_vec3(tLightPos.xyz, ptSceneCamera->tPos);
 
             gptCamera->look_at(&tShadowCamera, pl__to_double_vec(tLightPos.xyz), pl__to_double_vec(pl_add_vec3(tLightPos.xyz, tDirection)));
@@ -2994,7 +2995,7 @@ pl__renderer_update_probes(plScene* ptScene)
                 {
                     pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                     {
-                        .tShader = ptScene->tEnvLightingShader,
+                        .tShader = ptScene->tEnvDirectionalLightingShader,
                         .auDynamicBuffers = {
                             tLightingDynamicData.uBufferHandle
                         },
@@ -3012,11 +3013,38 @@ pl__renderer_update_probes(plScene* ptScene)
                         .uInstanceCount  = 1
                     });
                 }
-                else
+                else if(ptScene->sbtLightData[uLightIndex].iType == PL_LIGHT_TYPE_SPOT)
                 {
                     pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                     {
-                        .tShader = ptScene->tEnvLightingVolumeShader,
+                        .tShader = ptScene->tEnvSpotLightingShader,
+                        .auDynamicBuffers = {
+                            tLightingDynamicData.uBufferHandle
+                        },
+                        .atVertexBuffers = {
+                            ptScene->tVertexBuffer,
+                        },
+                        .tIndexBuffer   = ptScene->tIndexBuffer,
+                        .uIndexOffset   = ptScene->tUnitSphereDrawable.uIndexOffset,
+                        .uTriangleCount = ptScene->tUnitSphereDrawable.uTriangleCount,
+                        .uVertexOffset  = ptScene->tUnitSphereDrawable.uVertexOffset,
+                        .atBindGroups = {
+                            ptScene->atBindGroups[uFrameIdx],
+                            tViewBG,
+                            ptProbe->atLightingBindGroup[uFace]
+                        },
+                        .auDynamicBufferOffsets = {
+                            tLightingDynamicData.uByteOffset
+                        },
+                        .uInstanceOffset = 0,
+                        .uInstanceCount  = 1
+                    });
+                }
+                else if(ptScene->sbtLightData[uLightIndex].iType == PL_LIGHT_TYPE_POINT)
+                {
+                    pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                    {
+                        .tShader = ptScene->tEnvPointLightingShader,
                         .auDynamicBuffers = {
                             tLightingDynamicData.uBufferHandle
                         },

@@ -1,9 +1,9 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-#include "math.glsl"
-#include "brdf.glsl"
-#include "sampling.inc"
+#include "pl_math.glsl"
+#include "pl_brdf.glsl"
+#include "pl_sampling.inc"
 #include "pl_shader_interop.h"
 #include "pl_shader_interop_renderer.h"
 

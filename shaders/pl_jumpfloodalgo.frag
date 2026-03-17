@@ -2,7 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 #include "pl_shader_interop_renderer.h"
-#include "bg_scene.inc"
+#include "pl_bg_scene.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 0

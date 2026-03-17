@@ -1,9 +1,10 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-#include "math.glsl"
-#include "sampling.inc"
-#include "cube.inc"
+#include "pl_math.glsl"
+#include "pl_brdf.glsl"
+#include "pl_sampling.inc"
+#include "pl_cube.inc"
 #include "pl_shader_interop.h"
 #include "pl_shader_interop_renderer.h"
 
@@ -41,21 +42,39 @@ main()
 
     vec2 tNewUV = tInUV * (1 << tDynamicData.tData.iCurrentMipLevel);
     tNewUV = tNewUV * 2.0 - 1.0;
+    // tNewUV = clamp(tNewUV, -0.999999, 0.999999);
 
     const vec3 tScan = pl_uv_to_xyz(iFace, tNewUV);
 
-    vec3 tN = normalize(tScan);
+    vec3 tDirection = normalize(tScan);
+    // tDirection.z = -tDirection.z;
+    // tDirection.x = -tDirection.x;
 
     vec3 tColor = vec3(0.0);
+    float fWeight = 0.0;
+
+    const float fAlpha = tDynamicData.tData.fRoughness * tDynamicData.tData.fRoughness;
+
     for(int i = 0; i < tDynamicData.tData.iSampleCount; ++i)
     {
 
+        // generate a quasi monte carlo point in the unit square [0.1)^2
         vec2 tXi = pl_hammersley_2d(i, tDynamicData.tData.iSampleCount);
-        vec3 tSampleDirection = pl_get_importance_sample_cosine(tXi, tN);
+        vec3 tSampleDirection = pl_get_importance_sample_ggx(tXi, tDirection, tDynamicData.tData.fRoughness);
 
-        float NoL = dot(tN, tSampleDirection);
-        // float fPdf = NoL / PL_PI;
-        float fPdf = NoL;
+        float NoL = dot(tDirection, tSampleDirection);
+
+        // NDF
+        const float fA = NoL * fAlpha;
+        const float fK = fAlpha / (1.0 - NoL * NoL + fA * fA);
+        float fPdf = fK * fK * (1.0 / PL_PI);
+
+        // Apply the Jacobian to obtain a pdf that is parameterized by l
+        // see https://bruop.github.io/ibl/
+        // Typically you'd have the following:
+        // float pdf = pl_distribution_ggx(NoH, roughness) * NoH / (4.0 * VoH);
+        // but since V = N => VoH == NoH
+        // fPdf /= 4.0;
 
         // mipmap filtered samples (GPU Gems 3, 20.4)
         float fLod = 0.5 * log2( 6.0 * float(tDynamicData.tData.iResolution) * float(tDynamicData.tData.iResolution) / (float(tDynamicData.tData.iSampleCount) * fPdf));
@@ -63,19 +82,33 @@ main()
         // apply the bias to the lod
         fLod += tDynamicData.tData.fLodBias;
 
-        // sample lambertian at a lower giResolution to avoid fireflies
-        const vec3 tSampleColor = textureLod(samplerCube(uCubeMap, tDefaultSampler), tSampleDirection, fLod).rgb;
+        // Note: reflect takes incident vector.
+        const vec3 tV = tDirection;
+        const vec3 tL = normalize(reflect(-tV, tSampleDirection));
+        const float fNdotL = dot(tDirection, tL);
 
-        //// the below operations cancel each other out
-        // lambertian *= NdotH; // lamberts law
-        // lambertian /= pdf; // invert bias from importance sampling
-        // lambertian /= PL_PI; // convert irradiance to radiance https://seblagarde.wordpress.com/2012/01/08/pi-or-not-to-pi-in-game-lighting-equation/
-
-        tColor += tSampleColor;
+        if (fNdotL > 0.0)
+        {
+            if(tDynamicData.tData.fRoughness == 0.0)
+            {
+                // without this the roughness=0 lod is too high
+                fLod = tDynamicData.tData.fLodBias;
+            }
+            vec3 sampleColor = textureLod(samplerCube(uCubeMap, tDefaultSampler), tL, fLod).rgb;
+            tColor += sampleColor * fNdotL;
+            fWeight += fNdotL;
+        }
     }
 
-    tColor /= float(tDynamicData.tData.iSampleCount);
-    // tColor *= PL_PI;
+    if(fWeight != 0.0)
+    {
+        tColor /= fWeight;
+    }
+    else
+    {
+        tColor /= float(tDynamicData.tData.iSampleCount);
+    }
+
 
     const vec4 tColorOut = vec4(tColor.rgb, 1.0);
 

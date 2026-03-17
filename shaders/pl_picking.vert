@@ -3,7 +3,7 @@
 
 #include "pl_shader_interop_renderer.h"
 #define PL_VIEW_SET_LOCATION 0
-#include "bg_view.inc"
+#include "pl_bg_view.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group

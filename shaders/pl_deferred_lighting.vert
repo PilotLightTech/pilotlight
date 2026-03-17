@@ -21,8 +21,8 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "bg_scene.inc"
-#include "bg_view.inc"
+#include "pl_bg_scene.inc"
+#include "pl_bg_view.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group

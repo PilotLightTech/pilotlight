@@ -375,8 +375,8 @@ pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit, plTerrainPr
     ptTerrain->tRuntimeOptions.fTau = 1.0f;
     ptTerrain->tRuntimeOptions.tLightDirection = (plVec3){-1.0f, -1.0f, -1.0f};
 
-    if(tInit.pcVertexShader == NULL) tInit.pcVertexShader = "terrain.vert";
-    if(tInit.pcFragmentShader == NULL) tInit.pcFragmentShader = "terrain.frag";
+    if(tInit.pcVertexShader == NULL) tInit.pcVertexShader = "pl_terrain.vert";
+    if(tInit.pcFragmentShader == NULL) tInit.pcFragmentShader = "pl_terrain.frag";
 
     ptTerrain->pcVertexShader = tInit.pcVertexShader;
     ptTerrain->pcFragmentShader = tInit.pcFragmentShader;

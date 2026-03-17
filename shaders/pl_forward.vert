@@ -2,8 +2,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "bg_scene.inc"
-#include "bg_view.inc"
+#include "pl_bg_scene.inc"
+#include "pl_bg_view.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants

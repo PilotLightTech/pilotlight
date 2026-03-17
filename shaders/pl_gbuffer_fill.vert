@@ -21,7 +21,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "bg_scene.inc"
+#include "pl_bg_scene.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants

@@ -1,6 +1,6 @@
 #version 450
 
-#include "math.glsl"
+#include "pl_math.glsl"
 
 layout(std140, set = 0, binding = 0) readonly buffer _tBufferIn
 {

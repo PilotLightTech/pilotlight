@@ -353,10 +353,14 @@ typedef struct _plScene
     bool           bTransmissionRequired;
     bool           bSheenRequired;
     plShaderHandle tLightingShader;
+    plShaderHandle tDirectionalLightingShader;
+    plShaderHandle tSpotLightingShader;
     plShaderHandle tProbeLightingShader;
-    plShaderHandle tDeferredLightingVolumeShader;
+    plShaderHandle tPointLightingShader;
     plShaderHandle tEnvLightingShader;
-    plShaderHandle tEnvLightingVolumeShader;
+    plShaderHandle tEnvDirectionalLightingShader;
+    plShaderHandle tEnvSpotLightingShader;
+    plShaderHandle tEnvPointLightingShader;
     uint64_t uLastSemValueForShadow;
 
     // brdf luts

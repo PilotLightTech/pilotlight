@@ -214,6 +214,9 @@ pl_starter_initialize(plStarterInit tInit)
     plSwapchain* ptSwapchain = gptGfx->create_swapchain(ptDevice, gptStarterCtx->ptSurface, &tSwapInit);
     gptStarterCtx->ptSwapchain = ptSwapchain;
 
+    gptStarterCtx->ptLocalBuddyAllocator = gptGpuAllocators->get_local_buddy_allocator(ptDevice);
+    gptStarterCtx->ptLocalDedicatedAllocator = gptGpuAllocators->get_local_dedicated_allocator(ptDevice);
+
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
@@ -231,10 +234,14 @@ pl_starter_initialize(plStarterInit tInit)
         plTexture* ptDepthTexture = NULL;
         gptStarterCtx->tDepthTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptDepthTexture);
 
-        const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(ptDevice, 
+        plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
+        if(ptDepthTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
+            ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
+
+        const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
+            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits, 
             ptDepthTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_FLAGS_DEVICE_LOCAL,
-            ptDepthTexture->tMemoryRequirements.uMemoryTypeBits,
+            ptDepthTexture->tMemoryRequirements.ulAlignment,
             "depth texture memory");
 
         gptGfx->bind_texture_to_memory(ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
@@ -261,10 +268,15 @@ pl_starter_initialize(plStarterInit tInit)
         plTexture* ptResolveTexture = NULL;
         gptStarterCtx->tResolveTexture = gptGfx->create_texture(gptStarterCtx->ptDevice, &tDepthTextureDesc, &ptResolveTexture);
 
-        const plDeviceMemoryAllocation tDepthAllocation = gptGfx->allocate_memory(ptDevice, 
+
+        plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
+        if(ptResolveTexture->tMemoryRequirements.ulSize * 2 > gptGpuAllocators->get_buddy_block_size())
+            ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
+
+        const plDeviceMemoryAllocation tDepthAllocation = ptAllocator->allocate(ptAllocator->ptInst,
+            ptResolveTexture->tMemoryRequirements.uMemoryTypeBits, 
             ptResolveTexture->tMemoryRequirements.ulSize,
-            PL_MEMORY_FLAGS_DEVICE_LOCAL,
-            ptResolveTexture->tMemoryRequirements.uMemoryTypeBits,
+            ptResolveTexture->tMemoryRequirements.ulAlignment,
             "msaa texture memory");
 
         gptGfx->bind_texture_to_memory(ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
@@ -297,9 +309,6 @@ pl_starter_initialize(plStarterInit tInit)
         gptDraw->set_font_atlas(ptAtlas);
         gptStarterCtx->ptDefaultFont = gptDraw->add_default_font(ptAtlas);
     }
-
-    gptStarterCtx->ptLocalBuddyAllocator = gptGpuAllocators->get_local_buddy_allocator(ptDevice);
-    gptStarterCtx->ptLocalDedicatedAllocator = gptGpuAllocators->get_local_dedicated_allocator(ptDevice);
 }
 
 void

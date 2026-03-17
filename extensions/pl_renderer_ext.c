@@ -2364,13 +2364,17 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    ptScene->tDeferredLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[2] = pl_sb_size(ptScene->sbtProbeData);
     ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting_probe", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
     aiLightingConstantData[2] = 0;
     ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    ptScene->tEnvLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tEnvDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tEnvSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tEnvPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
 
     plMeshComponent* ptMesh = gptECS->get_component(ptScene->ptComponentLibrary, gptMesh->get_ecs_type_key_mesh(), ptScene->tUnitSphereMesh);
 
@@ -2484,13 +2488,17 @@ pl_renderer_finalize_scene(plScene* ptScene)
     // create lighting shader
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
     ptScene->tLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    ptScene->tDeferredLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[2] = pl_sb_size(ptScene->sbtProbeData);
     ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
     aiLightingConstantData[2] = 0;
     ptScene->tEnvLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    ptScene->tEnvLightingVolumeShader = gptShaderVariant->get_shader("deferred_lighting_volume", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tEnvDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tEnvSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tEnvPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
 
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -3349,7 +3357,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             {
                 pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                 {
-                    .tShader = ptScene->tLightingShader,
+                    .tShader = ptScene->tDirectionalLightingShader,
                     .auDynamicBuffers = {
                         tLightingDynamicData.uBufferHandle
                     },
@@ -3367,11 +3375,38 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
                     .uInstanceCount  = 1
                 });
             }
-            else
+            else if(ptScene->sbtLightData[uLightIndex].iType == PL_LIGHT_TYPE_SPOT)
             {
                 pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                 {
-                    .tShader = ptScene->tDeferredLightingVolumeShader,
+                    .tShader = ptScene->tSpotLightingShader,
+                    .auDynamicBuffers = {
+                        tLightingDynamicData.uBufferHandle
+                    },
+                    .atVertexBuffers = {
+                        ptScene->tVertexBuffer,
+                    },
+                    .tIndexBuffer   = ptScene->tIndexBuffer,
+                    .uIndexOffset   = ptScene->tUnitSphereDrawable.uIndexOffset,
+                    .uTriangleCount = ptScene->tUnitSphereDrawable.uTriangleCount,
+                    .uVertexOffset  = ptScene->tUnitSphereDrawable.uVertexOffset,
+                    .atBindGroups = {
+                        ptScene->atBindGroups[uFrameIdx],
+                        tViewBG,
+                        ptView->tLightingBindGroup
+                    },
+                    .auDynamicBufferOffsets = {
+                        tLightingDynamicData.uByteOffset
+                    },
+                    .uInstanceOffset = 0,
+                    .uInstanceCount  = 1
+                });
+            }
+            else if(ptScene->sbtLightData[uLightIndex].iType == PL_LIGHT_TYPE_POINT)
+            {
+                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                {
+                    .tShader = ptScene->tPointLightingShader,
                     .auDynamicBuffers = {
                         tLightingDynamicData.uBufferHandle
                     },

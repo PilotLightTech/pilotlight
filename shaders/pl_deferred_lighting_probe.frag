@@ -3,10 +3,10 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "pl_shader_interop_renderer.h"
-#include "bg_scene.inc"
-#include "bg_view.inc"
-#include "math.glsl"
-#include "brdf.glsl"
+#include "pl_bg_scene.inc"
+#include "pl_bg_view.inc"
+#include "pl_math.glsl"
+#include "pl_brdf.glsl"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -43,9 +43,9 @@ layout(location = 0) out vec4 outColor;
 // layout(location = 0) in vec2 tUV;
 
 const int iMaterialFlags = 0;
-#include "lighting.glsl"
-#include "material_info.glsl"
-#include "fog.glsl"
+#include "pl_lighting.glsl"
+#include "pl_material_info.glsl"
+#include "pl_fog.glsl"
 
 void main() 
 {

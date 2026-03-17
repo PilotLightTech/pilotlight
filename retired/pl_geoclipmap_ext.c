@@ -2702,8 +2702,8 @@ static void
 pl__terrain_create_shaders(void)
 {
     plShaderDesc tTerrainShaderDesc = {
-        .tVertexShader     = gptShader->load_glsl("terrain.vert", "main", NULL, NULL),
-        .tPixelShader      = gptShader->load_glsl("terrain.frag", "main", NULL, NULL),
+        .tVertexShader     = gptShader->load_glsl("pl_terrain.vert", "main", NULL, NULL),
+        .tPixelShader      = gptShader->load_glsl("pl_terrain.frag", "main", NULL, NULL),
         .tRenderPassLayout = gptGeoClipCtx->tRenderPassLayoutHandle,
         .uSubpassIndex = gptGeoClipCtx->uSubpassIndex,
         .tMSAASampleCount  = PL_SAMPLE_COUNT_1,

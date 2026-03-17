@@ -2,10 +2,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 #include "pl_shader_interop_renderer.h"
-#include "bg_scene.inc"
-#include "bg_view.inc"
-#include "math.glsl"
-#include "fog.glsl"
+#include "pl_bg_scene.inc"
+#include "pl_bg_view.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 2
@@ -14,18 +12,26 @@
 layout(set = 2, binding = 0) uniform textureCube samplerCubeMap;
 
 //-----------------------------------------------------------------------------
+// [SECTION] dynamic bind group
+//-----------------------------------------------------------------------------
+
+layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA {
+    plGpuDynSkybox tData;
+} tObjectInfo;
+
+//-----------------------------------------------------------------------------
 // [SECTION] input
 //-----------------------------------------------------------------------------
 
-layout(location = 0) in struct plShaderOut {
-    vec3 tWorldPosition;
-} tShaderIn;
+layout(location = 0) in vec3 inPos;
 
 //-----------------------------------------------------------------------------
 // [SECTION] output
 //-----------------------------------------------------------------------------
 
-layout(location = 0) out vec4 outColor;
+layout(location = 0) out struct plShaderOut {
+    vec3 tWorldPosition;
+} tShaderOut;
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry
@@ -34,13 +40,9 @@ layout(location = 0) out vec4 outColor;
 void
 main() 
 {
-    vec3 tVectorOut = normalize(tShaderIn.tWorldPosition);
-    outColor = vec4(texture(samplerCube(samplerCubeMap, tSamplerLinearRepeat), tVectorOut).rgb, 1.0);
-    
-    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_HEIGHT_FOG) || bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_LINEAR_FOG))
-    {
-        tVectorOut.y *= -1.0;
-        outColor = fog(outColor, tVectorOut * tViewInfo.tData.fFogCutOffDistance * 0.75);
-    }
-    // outColor.rgb = outColor.rgb * (1.0 - tViewInfo.tData.fFogMaxOpacity) + tViewInfo.tData.fFogMaxOpacity * tViewInfo.tData.tFogColor;
+    gl_Position = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraProjection * tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraView * tObjectInfo.tData.tModel * vec4(inPos, 1.0);
+    gl_Position.z = 0.0;
+    // gl_Position.w = gl_Position.z; uncomment if not reverse z
+    tShaderOut.tWorldPosition = inPos;
+    tShaderOut.tWorldPosition.z = -inPos.z;
 }

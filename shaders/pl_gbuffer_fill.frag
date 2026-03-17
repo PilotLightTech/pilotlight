@@ -22,8 +22,8 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "bg_scene.inc"
-#include "bg_view.inc"
+#include "pl_bg_scene.inc"
+#include "pl_bg_view.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] specialication constants
@@ -62,9 +62,9 @@ layout(location = 0) in struct plShaderIn {
     mat3 tTBN;
 } tShaderIn;
 
-#include "math.glsl"
+#include "pl_math.glsl"
 #define PL_INCLUDE_MATERIAL_FUNCTIONS
-#include "material_info.glsl"
+#include "pl_material_info.glsl"
 
 
 //-----------------------------------------------------------------------------

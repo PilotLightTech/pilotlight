@@ -114,8 +114,8 @@ typedef struct _plTerrainInit
     uint32_t uIndexBufferSize;   // default: 268435456 bytes
 
     // shaders
-    const char* pcVertexShader;   // default: "terrain.vert"
-    const char* pcFragmentShader; // default: "terrain.frag"
+    const char* pcVertexShader;   // default: "pl_terrain.vert"
+    const char* pcFragmentShader; // default: "pl_terrain.frag"
 } plTerrainInit;
 
 typedef struct _plTerrainRuntimeOptions

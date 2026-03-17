@@ -1,10 +1,10 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-#include "math.glsl"
-#include "brdf.glsl"
-#include "sampling.inc"
-#include "cube.inc"
+#include "pl_math.glsl"
+#include "pl_brdf.glsl"
+#include "pl_sampling.inc"
+#include "pl_cube.inc"
 #include "pl_shader_interop.h"
 #include "pl_shader_interop_renderer.h"
 
@@ -53,28 +53,29 @@ main()
     vec3 tColor = vec3(0.0);
     float fWeight = 0.0;
 
-    const float fAlpha = tDynamicData.tData.fRoughness * tDynamicData.tData.fRoughness;
+    float fAlpha = tDynamicData.tData.fRoughness * tDynamicData.tData.fRoughness;
+    // fAlpha = max(fAlpha, 0.000001);
 
     for(int i = 0; i < tDynamicData.tData.iSampleCount; ++i)
     {
 
         // generate a quasi monte carlo point in the unit square [0.1)^2
         vec2 tXi = pl_hammersley_2d(i, tDynamicData.tData.iSampleCount);
-        vec3 tSampleDirection = pl_get_importance_sample_ggx(tXi, tDirection, tDynamicData.tData.fRoughness);
+        vec3 tSampleDirection = pl_get_importance_sample_charlie(tXi, tDirection, tDynamicData.tData.fRoughness);
 
         float NoL = dot(tDirection, tSampleDirection);
 
-        // NDF
-        const float fA = NoL * fAlpha;
-        const float fK = fAlpha / (1.0 - NoL * NoL + fA * fA);
-        float fPdf = fK * fK * (1.0 / PL_PI);
+        float fSinTheta = pow(tXi.y, fAlpha / (2.0*fAlpha + 1.0));
+        float fCosTheta = sqrt(1.0 - fSinTheta * fSinTheta);
+
+        float fPdf = D_Charlie2(fAlpha, fCosTheta);
 
         // Apply the Jacobian to obtain a pdf that is parameterized by l
         // see https://bruop.github.io/ibl/
         // Typically you'd have the following:
         // float pdf = pl_distribution_ggx(NoH, roughness) * NoH / (4.0 * VoH);
         // but since V = N => VoH == NoH
-        // fPdf /= 4.0;
+        fPdf /= 4.0;
 
         // mipmap filtered samples (GPU Gems 3, 20.4)
         float fLod = 0.5 * log2( 6.0 * float(tDynamicData.tData.iResolution) * float(tDynamicData.tData.iResolution) / (float(tDynamicData.tData.iSampleCount) * fPdf));
