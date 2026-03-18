@@ -134,7 +134,8 @@ typedef struct _plRendererI
     void     (*cleanup_scene)(plScene*);
     void     (*load_skybox_from_panorama)(plScene*, const char* pcPath, int iResolution);
     void     (*add_drawable_objects_to_scene)(plScene*, uint32_t uCount, const plEntity* atObjects);
-    void     (*finalize_scene)(plScene*);
+    void     (*add_probe_to_scene)(plScene*, plEntity);
+    void     (*finalize_scene)(plScene*); // in the process of removing this
 
     // scenes - runtime
     void (*reload_scene_shaders)(plScene*);

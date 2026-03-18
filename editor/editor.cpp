@@ -1096,6 +1096,12 @@ pl__show_editor_window(plAppData* ptAppData)
                     gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
                     gptModelLoader->free_data(&tLoaderData0);
 
+                    plMaterialComponent* ptMaterials = NULL;
+                    const plEntity* ptMaterialEntities = NULL;
+                    const uint32_t uMaterialCount = gptEcs->get_components(ptAppData->ptCompLibrary, gptMaterial->get_ecs_type_key(), (void**)&ptMaterials, &ptMaterialEntities);
+                    gptRenderer->add_materials_to_scene(ptAppData->ptScene, uMaterialCount, ptMaterialEntities);
+    
+
                     gptRenderer->finalize_scene(ptAppData->ptScene);
                 }
 
@@ -1337,10 +1343,12 @@ pl__create_scene(plAppData* ptAppData)
     ptSLightTransform->tTranslation = pl_create_vec3(0.0f, 4.0f, -1.18f);
 
     plEnvironmentProbeComponent* ptProbe = nullptr;
-    gptRenderer->create_environment_probe(ptAppData->ptCompLibrary, "Main Probe", pl_create_vec3(0.0f, 3.0f, 0.0f), &ptProbe);
+    plEntity tProbeEntity = gptRenderer->create_environment_probe(ptAppData->ptCompLibrary, "Main Probe", pl_create_vec3(0.0f, 3.0f, 0.0f), &ptProbe);
     ptProbe->fRange = 30.0f;
     ptProbe->uResolution = 128;
     ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+
+    gptRenderer->add_probe_to_scene(ptAppData->ptScene, tProbeEntity);
 
 }
 

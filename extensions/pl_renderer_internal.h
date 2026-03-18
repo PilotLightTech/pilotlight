@@ -347,6 +347,13 @@ typedef struct _plView
 
 typedef struct _plScene
 {
+    plEntity*   sbtStagedEntities;          // unprocessed entities (entities with object component)
+    plDrawable* sbtDrawables;               // staged entities
+    plHashMap64 tDrawableHashmap;           // entity to drawable hashmap
+    uint32_t*   sbuShadowDeferredDrawables; // shadow rendering (index into regular drawables)
+    uint32_t*   sbuShadowForwardDrawables;  // shadow rendering (index into regular drawables)
+
+
     const char* pcName;
     plGpuSceneData tSceneData;
     bool           bActive;
@@ -410,23 +417,13 @@ typedef struct _plScene
     // ECS component library
     plComponentLibrary* ptComponentLibrary;
 
-    // drawables (per scene, will be culled by views)
-
-    plEntity* sbtStagedEntities; // unprocessed
-
-    plDrawable* sbtDrawables; // regular rendering
-
     uint32_t* sbuProbeDrawables;
-
-    uint32_t* sbuShadowDeferredDrawables; // shadow rendering (index into regular drawables)
-    uint32_t* sbuShadowForwardDrawables;  // shadow rendering (index into regular drawables)
 
     plEntity*       sbtOutlinedEntities;
     plShaderHandle* sbtOutlineDrawablesOldShaders;
     plShaderHandle* sbtOutlineDrawablesOldEnvShaders;
 
-    // entity to drawable hashmaps
-    plHashMap64 tDrawableHashmap;
+
 
     // bindless texture system
     uint32_t          uTextureIndexCount;
@@ -591,13 +588,11 @@ static void pl__renderer_perform_skinning(plCommandBuffer*, plScene*);
 static bool pl__renderer_pack_shadow_atlas(plScene*);
 static void pl__renderer_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, plScene*, uint32_t, uint32_t, int, plDirectionLightShadowData*, plCamera*);
 static void pl__renderer_generate_shadow_maps(plRenderEncoder*, plCommandBuffer*, plScene*);
-static void pl__renderer_post_process_scene(plCommandBuffer*, plView*, const plMat4*);
 
 // misc
 static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock);}
 static void                    pl__renderer_add_drawable_skin_data_to_global_buffers(plScene*, uint32_t uDrawableIndex);
 static void                    pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex);
-static plBlendState            pl__renderer_get_blend_state(plBlendMode tBlendMode);
 static uint32_t                pl__renderer_get_bindless_texture_index(plScene*, plTextureHandle);
 static uint32_t                pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);
 

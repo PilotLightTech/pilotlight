@@ -476,12 +476,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     for(uint32_t i = 0; i < PL_ARRAYSIZE(atProbeLocations); i++)
     {
-        gptRenderer->create_environment_probe(ptAppData->ptComponentLibrary, "Probe", atProbeLocations[i], &ptProbe);
+        plEntity tProbeEntity = gptRenderer->create_environment_probe(ptAppData->ptComponentLibrary, "Probe", atProbeLocations[i], &ptProbe);
         ptProbe->fRange = 30.0f;
         ptProbe->uResolution = 128;
         ptProbe->uSamples = 1024;
         ptProbe->uInterval = 6;
         ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+        gptRenderer->add_probe_to_scene(ptAppData->ptScene, tProbeEntity);
     }
 
     gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/sky.hdr", 1024);
@@ -504,6 +505,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/BoxTextured/glTF/BoxTextured.gltf", &tModelTranslation, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "C:/Users/Jonathan Hoffstadt/Documents/Models/BistroExteriorGltf/bistro_exterior.gltf", NULL, &tLoaderData0);
     gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
+    
+    plMaterialComponent* ptMaterials = NULL;
+    const plEntity* ptMaterialEntities = NULL;
+    const uint32_t uMaterialCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptMaterial->get_ecs_type_key(), (void**)&ptMaterials, &ptMaterialEntities);
+    gptRenderer->add_materials_to_scene(ptAppData->ptScene, uMaterialCount, ptMaterialEntities);
+    
     gptModelLoader->free_data(&tLoaderData0);
     gptRenderer->finalize_scene(ptAppData->ptScene);
 

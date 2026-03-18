@@ -16,6 +16,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl_renderer_internal.h"
+#include "pl_renderer_internal.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -2351,14 +2352,10 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     pl_sb_reset(ptScene->sbtOutlineDrawablesOldEnvShaders);
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
-    if(gptData->tRuntimeOptions.bPunctualLighting)
-        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
-    if(gptData->tRuntimeOptions.bImageBasedLighting)
-        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
-    if(gptData->tRuntimeOptions.bNormalMapping)
-        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
-    if(gptData->tRuntimeOptions.bPcfShadows)
-        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
+    if(gptData->tRuntimeOptions.bPunctualLighting)   iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
+    if(gptData->tRuntimeOptions.bImageBasedLighting) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+    if(gptData->tRuntimeOptions.bNormalMapping)      iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
+    if(gptData->tRuntimeOptions.bPcfShadows)         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
         
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
@@ -2406,25 +2403,18 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
 }
 
 void
+pl_renderer_add_probe_to_scene(plScene* ptScene, plEntity tProbe)
+{
+    pl__renderer_create_probe_data(ptScene, tProbe);
+}
+
+void
 pl_renderer_finalize_scene(plScene* ptScene)
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
 
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
-
-    const plEntity* ptProbes = NULL;
-    const uint32_t uProbeCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, NULL, &ptProbes);
-
-    for(uint32_t i = 0; i < uProbeCount; i++)
-        pl__renderer_create_probe_data(ptScene, ptProbes[i]);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    plMaterialComponent* ptMaterials = NULL;
-    const plEntity* ptMaterialEntities = NULL;
-    const uint32_t uMaterialCount = gptECS->get_components(ptScene->ptComponentLibrary, tMaterialComponentType, (void**)&ptMaterials, &ptMaterialEntities);
-    pl_renderer_add_materials_to_scene(ptScene, uMaterialCount, ptMaterialEntities);
 
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
@@ -2474,14 +2464,10 @@ pl_renderer_finalize_scene(plScene* ptScene)
     }
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
-    if(gptData->tRuntimeOptions.bPunctualLighting)
-        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
-    if(gptData->tRuntimeOptions.bImageBasedLighting)
-        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
-    if(gptData->tRuntimeOptions.bNormalMapping)
-        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
-    if(gptData->tRuntimeOptions.bPcfShadows)
-        iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
+    if(gptData->tRuntimeOptions.bPunctualLighting)   iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
+    if(gptData->tRuntimeOptions.bImageBasedLighting) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+    if(gptData->tRuntimeOptions.bNormalMapping)      iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
+    if(gptData->tRuntimeOptions.bPcfShadows)         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
 
     // create lighting shader
     int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
@@ -2551,6 +2537,8 @@ pl_renderer_prepare_scene(plScene* ptScene)
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
 
+    // if transmission is required, ensure we have the backing textures needed
+    // for the calculations
     if(ptScene->bTransmissionRequired)
     {
         for(uint32_t i = 0; i < pl_sb_size(ptScene->sbptViews); i++)
@@ -2569,13 +2557,12 @@ pl_renderer_prepare_scene(plScene* ptScene)
                     .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
                     .pcDebugName   = "offscreen transmission"
                 };
-                ptView->tTransmissionTexture     = pl__renderer_create_texture(&tRawOutput2TextureDesc,  "transmission offscreen", 0, PL_TEXTURE_USAGE_SAMPLED);
+                ptView->tTransmissionTexture                = pl__renderer_create_texture(&tRawOutput2TextureDesc,  "transmission offscreen", 0, PL_TEXTURE_USAGE_SAMPLED);
                 ptView->tData.iTransmissionFrameBufferIndex = pl__renderer_get_bindless_texture_index(ptScene, ptView->tTransmissionTexture);
-                
             }
         }
     }
-    else
+    else // transmission not required, free resources no longer needed
     {
         for(uint32_t i = 0; i < pl_sb_size(ptScene->sbptViews); i++)
         {
@@ -2593,7 +2580,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
 
     // update transform & instance buffers since we are now using indices
     plBuffer* ptTransformBuffer = gptGfx->get_buffer(ptDevice, ptScene->atTransformBuffer[uFrameIdx]);
-    plBuffer* ptInstanceBuffer = gptGfx->get_buffer(ptDevice, ptScene->atInstanceBuffer[uFrameIdx]);
+    plBuffer* ptInstanceBuffer  = gptGfx->get_buffer(ptDevice, ptScene->atInstanceBuffer[uFrameIdx]);
 
     uint32_t uInstanceOffset = 0;
     const uint32_t uObjectCount = pl_sb_size(ptScene->sbtDrawables);
@@ -2633,7 +2620,6 @@ pl_renderer_prepare_scene(plScene* ptScene)
                     }
                 }
             }
-
         }
     }
     else
@@ -3123,16 +3109,11 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plDevice*      ptDevice  = gptData->ptDevice;
-    plDrawStream*  ptStream  = &gptData->tDrawStream;
     plScene*       ptScene   = ptView->ptParentScene;
 
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
-
-    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-
-    pl_begin_cpu_sample(gptProfile, 0, "Scene Prep");
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~culling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    pl_begin_cpu_sample(gptProfile, 0, "culling");
     
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
 
@@ -3162,8 +3143,9 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
                 ptView->sbtVisibleDrawables[i] = i;
         }
     }
+    pl_end_cpu_sample(gptProfile, 0); // culling
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plGpuViewData tBindGroupBuffer = {
         .tViewportSize         = {.xy = ptView->tTargetSize, .ignored0_ = 1.0f, .ignored1_ = 1.0f},
@@ -3176,10 +3158,37 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     };
     memcpy(gptGfx->get_buffer(ptDevice, ptView->atView2Buffers[uFrameIdx])->tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(plGpuViewData));
     
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~render scene~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    const plBindGroupUpdateBufferData atViewBGBufferData[] = 
+    {
+        { .uSlot = 0, .tBuffer = ptView->atViewBuffers[uFrameIdx], .szBufferRange = sizeof(plGpuViewData) },
+        { .uSlot = 1, .tBuffer = ptView->atView2Buffers[uFrameIdx], .szBufferRange = sizeof(plGpuViewData) },
+        { .uSlot = 2, .tBuffer = ptScene->atLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLight) * pl_sb_size(ptScene->sbtLightData)},
+        { .uSlot = 3, .tBuffer = ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptView->tDirectionLightShadowData.sbtDLightShadowData)},
+        { .uSlot = 4, .tBuffer = ptScene->atLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptScene->sbtLightShadowData)},
+        { .uSlot = 5, .tBuffer = ptScene->atGPUProbeDataBuffers[uFrameIdx], .szBufferRange = sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData)},
+    };
+
+    const plBindGroupUpdateData tViewBGData = {
+        .uBufferCount      = 6,
+        .atBufferBindings  = atViewBGBufferData,
+    };
+
+    const plBindGroupDesc tViewBGDesc = {
+        .ptPool      = gptData->aptTempGroupPools[uFrameIdx],
+        .tLayout     = gptData->tViewBGLayout,
+        .pcDebugName = "light bind group 2"
+    };
+
+    plBindGroupHandle tViewBG = gptGfx->create_bind_group(ptDevice, &tViewBGDesc);
+    gptGfx->update_bind_group(gptData->ptDevice, tViewBG, &tViewBGData);
+    gptGfx->queue_bind_group_for_deletion(ptDevice, tViewBG);
 
     gptJob->wait_for_counter(ptCullCounter);
-    pl_end_cpu_sample(gptProfile, 0); // prep scene
+    
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~binning based on pass type~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    pl_begin_cpu_sample(gptProfile, 0, "binning");
+
     if(ptCullCamera)
     {
         pl_sb_reset(ptView->sbuVisibleDeferredEntities);
@@ -3219,13 +3228,25 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             }
         }
     }
+    pl_end_cpu_sample(gptProfile, 0); // binning
 
-    *gptData->pdDrawCalls += (double)(pl_sb_size(ptView->sbuVisibleDeferredEntities) + pl_sb_size(ptView->sbuVisibleForwardEntities) + pl_sb_size(ptView->sbuVisibleTransmissionEntities) + 1);
+    const plBeginCommandInfo tSceneBeginInfo = {
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+    };
+
+    plCommandBuffer* ptSceneCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "main scene");
+    gptGfx->begin_command_recording(ptSceneCmdBuffer, &tSceneBeginInfo);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~main render pass work~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    plRenderEncoder* ptMainEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tRenderPass, NULL);
 
     const plVec2 tDimensions = ptView->tTargetSize;
 
     plDrawArea tArea = {
-        .ptDrawStream = ptStream,
+        .ptDrawStream = &gptData->tDrawStream,
         .atScissors = 
         {
             {
@@ -3242,356 +3263,57 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             }
         }
     };
-    
-    const plBeginCommandInfo tSceneBeginInfo = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+
+    plGbufferFillPassInfo tGbufferFillPassInfo = {
+        .sbuVisibleDeferredEntities = ptView->sbuVisibleDeferredEntities,
+        .uGlobalIndex = 0,
+        .tBG2 = ptView->atDeferredBG1[uFrameIdx],
+        .ptArea = &tArea
     };
+    pl__render_view_gbuffer_fill_pass(ptScene, ptMainEncoder, &tGbufferFillPassInfo);
 
-    plCommandBuffer* ptSceneCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "main scene");
-    gptGfx->begin_command_recording(ptSceneCmdBuffer, &tSceneBeginInfo);
+    gptGfx->next_subpass(ptMainEncoder, NULL);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    plRenderEncoder* ptSceneEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tRenderPass, NULL);
-    gptGfx->push_render_debug_group(ptSceneEncoder, "G-Buffer Fill", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
-    gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
-
-    const uint32_t uVisibleDeferredDrawCount = pl_sb_size(ptView->sbuVisibleDeferredEntities);
-    gptGfx->reset_draw_stream(ptStream, uVisibleDeferredDrawCount);
-    for(uint32_t i = 0; i < uVisibleDeferredDrawCount; i++)
-    {
-        const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbuVisibleDeferredEntities[i]];
-
-        if(tDrawable.uInstanceCount != 0)
-        {
-            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
-            plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
-            
-            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-            plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
-            ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-            ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-            ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-            ptDynamicData->uGlobalIndex = 0;
-
-            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
-            {
-                .tShader        = tDrawable.tShader,
-                .auDynamicBuffers = {
-                    tDynamicBinding.uBufferHandle
-                },
-                .atVertexBuffers = {
-                    ptScene->tVertexBuffer,
-                },
-                .tIndexBuffer         = tDrawable.tIndexBuffer,
-                .uIndexOffset         = tDrawable.uIndexOffset,
-                .uTriangleCount       = tDrawable.uTriangleCount,
-                .uVertexOffset        = tDrawable.uStaticVertexOffset,
-                .atBindGroups = {
-                    ptScene->atBindGroups[uFrameIdx],
-                    ptView->atDeferredBG1[uFrameIdx]
-                },
-                .auDynamicBufferOffsets = {
-                    tDynamicBinding.uByteOffset
-                },
-                .uInstanceOffset = tDrawable.uTransformIndex,
-                .uInstanceCount  = tDrawable.uInstanceCount
-            });
-        }
-    }
-
-    gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
-
-    const plBindGroupUpdateBufferData atViewBGBufferData[] = 
-    {
-        { .uSlot = 0, .tBuffer = ptView->atViewBuffers[uFrameIdx], .szBufferRange = sizeof(plGpuViewData) },
-        { .uSlot = 1, .tBuffer = ptView->atView2Buffers[uFrameIdx], .szBufferRange = sizeof(plGpuViewData) },
-        { .uSlot = 2, .tBuffer = ptScene->atLightBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLight) * pl_sb_size(ptScene->sbtLightData)},
-        { .uSlot = 3, .tBuffer = ptView->tDirectionLightShadowData.atDLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptView->tDirectionLightShadowData.sbtDLightShadowData)},
-        { .uSlot = 4, .tBuffer = ptScene->atLightShadowDataBuffer[uFrameIdx], .szBufferRange = sizeof(plGpuLightShadow) * pl_sb_size(ptScene->sbtLightShadowData)},
-        { .uSlot = 5, .tBuffer = ptScene->atGPUProbeDataBuffers[uFrameIdx], .szBufferRange = sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData)},
+    plDeferredLightingPassInfo tDeferredLightingPassInfo = {
+        .tBG2 = ptView->tLightingBindGroup,
+        .ptArea = &tArea
     };
-
-    const plBindGroupUpdateData tViewBGData = {
-        .uBufferCount      = 6,
-        .atBufferBindings  = atViewBGBufferData,
-    };
-
-    const plBindGroupDesc tViewBGDesc = {
-        .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-        .tLayout     = gptData->tViewBGLayout,
-        .pcDebugName = "light bind group 2"
-    };
-
-    plBindGroupHandle tViewBG = gptGfx->create_bind_group(ptDevice, &tViewBGDesc);
-    gptGfx->update_bind_group(gptData->ptDevice, tViewBG, &tViewBGData);
-    gptGfx->queue_bind_group_for_deletion(ptDevice, tViewBG);
-    
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 1 - lighting~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    gptGfx->pop_render_debug_group(ptSceneEncoder);
-    gptGfx->next_subpass(ptSceneEncoder, NULL);
-    gptGfx->push_render_debug_group(ptSceneEncoder, "Deferred Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
 
     if(gptData->tRuntimeOptions.tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
-    {
-        
-        gptGfx->push_render_debug_group(ptSceneEncoder, "Lights", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
-        const uint32_t uLightCount = pl_sb_size(ptScene->sbtLightData);
-
-        gptGfx->reset_draw_stream(ptStream, uLightCount);
-        for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
-        {
-            plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
-            plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
-            ptLightingDynamicData->uGlobalIndex = 0;
-            ptLightingDynamicData->iLightIndex = (int)uLightIndex;
-
-            if(ptScene->sbtLightData[uLightIndex].iType == PL_LIGHT_TYPE_DIRECTIONAL)
-            {
-                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
-                {
-                    .tShader = ptScene->tDirectionalLightingShader,
-                    .auDynamicBuffers = {
-                        tLightingDynamicData.uBufferHandle
-                    },
-                    .uIndexOffset   = 0,
-                    .uTriangleCount = 1,
-                    .atBindGroups = {
-                        ptScene->atBindGroups[uFrameIdx],
-                        tViewBG,
-                        ptView->tLightingBindGroup
-                    },
-                    .auDynamicBufferOffsets = {
-                        tLightingDynamicData.uByteOffset
-                    },
-                    .uInstanceOffset = 0,
-                    .uInstanceCount  = 1
-                });
-            }
-            else if(ptScene->sbtLightData[uLightIndex].iType == PL_LIGHT_TYPE_SPOT)
-            {
-                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
-                {
-                    .tShader = ptScene->tSpotLightingShader,
-                    .auDynamicBuffers = {
-                        tLightingDynamicData.uBufferHandle
-                    },
-                    .atVertexBuffers = {
-                        ptScene->tVertexBuffer,
-                    },
-                    .tIndexBuffer   = ptScene->tIndexBuffer,
-                    .uIndexOffset   = ptScene->tUnitSphereDrawable.uIndexOffset,
-                    .uTriangleCount = ptScene->tUnitSphereDrawable.uTriangleCount,
-                    .uVertexOffset  = ptScene->tUnitSphereDrawable.uVertexOffset,
-                    .atBindGroups = {
-                        ptScene->atBindGroups[uFrameIdx],
-                        tViewBG,
-                        ptView->tLightingBindGroup
-                    },
-                    .auDynamicBufferOffsets = {
-                        tLightingDynamicData.uByteOffset
-                    },
-                    .uInstanceOffset = 0,
-                    .uInstanceCount  = 1
-                });
-            }
-            else if(ptScene->sbtLightData[uLightIndex].iType == PL_LIGHT_TYPE_POINT)
-            {
-                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
-                {
-                    .tShader = ptScene->tPointLightingShader,
-                    .auDynamicBuffers = {
-                        tLightingDynamicData.uBufferHandle
-                    },
-                    .atVertexBuffers = {
-                        ptScene->tVertexBuffer,
-                    },
-                    .tIndexBuffer   = ptScene->tIndexBuffer,
-                    .uIndexOffset   = ptScene->tUnitSphereDrawable.uIndexOffset,
-                    .uTriangleCount = ptScene->tUnitSphereDrawable.uTriangleCount,
-                    .uVertexOffset  = ptScene->tUnitSphereDrawable.uVertexOffset,
-                    .atBindGroups = {
-                        ptScene->atBindGroups[uFrameIdx],
-                        tViewBG,
-                        ptView->tLightingBindGroup
-                    },
-                    .auDynamicBufferOffsets = {
-                        tLightingDynamicData.uByteOffset
-                    },
-                    .uInstanceOffset = 0,
-                    .uInstanceCount  = 1
-                });
-            }
-        }
-        gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
-        gptGfx->pop_render_debug_group(ptSceneEncoder);
-
-        const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
-
-        if(uProbeCount > 0)
-        {
-            gptGfx->push_render_debug_group(ptSceneEncoder, "Probes", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
-            gptGfx->reset_draw_stream(ptStream, 1);
-            plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
-            plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
-            ptLightingDynamicData->uGlobalIndex = 0;
-            ptLightingDynamicData->iLightIndex = -1;
-
-            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
-            {
-                .tShader = ptScene->tProbeLightingShader,
-                .auDynamicBuffers = {
-                    tLightingDynamicData.uBufferHandle
-                },
-                .uIndexOffset   = 0,
-                .uTriangleCount = 1,
-                .atBindGroups = {
-                    ptScene->atBindGroups[uFrameIdx],
-                    tViewBG,
-                    ptView->tLightingBindGroup
-                },
-                .auDynamicBufferOffsets = {
-                    tLightingDynamicData.uByteOffset
-                },
-                .uInstanceOffset = 0,
-                .uInstanceCount  = 1
-            });
-            gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
-            gptGfx->pop_render_debug_group(ptSceneEncoder);
-        }
-    }
+        pl__render_view_deferred_lighting_pass(ptScene, ptMainEncoder, tViewBG, &tDeferredLightingPassInfo);
     else
-    {
-        gptGfx->reset_draw_stream(ptStream, 1);
-        plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice);
-        plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
-        ptLightingDynamicData->uGlobalIndex = 0;
-        ptLightingDynamicData->iLightIndex = -1;
+        pl__render_view_deferred_lighting_debug_pass(ptView, ptMainEncoder, tViewBG);
 
-        pl_add_to_draw_stream(ptStream, (plDrawStreamData)
-        {
-            .tShader = ptScene->tDirectionalLightingShader,
-            .auDynamicBuffers = {
-                tLightingDynamicData.uBufferHandle
-            },
-            .uIndexOffset   = 0,
-            .uTriangleCount = 1,
-            .atBindGroups = {
-                ptScene->atBindGroups[uFrameIdx],
-                tViewBG,
-                ptView->tLightingBindGroup
-            },
-            .auDynamicBufferOffsets = {
-                tLightingDynamicData.uByteOffset
-            },
-            .uInstanceOffset = 0,
-            .uInstanceCount  = 1
-        });
-        gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
-    }
+    gptGfx->next_subpass(ptMainEncoder, NULL);
 
-    
-    gptGfx->pop_render_debug_group(ptSceneEncoder);
-    gptGfx->push_render_debug_group(ptSceneEncoder, "Forward Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
-
-    gptGfx->next_subpass(ptSceneEncoder, NULL);
-
-    // gptTerrain->render(ptSceneEncoder, ptView->ptParentScene->ptTerrain, ptCamera, &gptData->tCurrentDynamicDataBlock);
+    gptGfx->push_render_debug_group(ptMainEncoder, "Forward Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
 
     if(ptScene->tSkyboxTexture.uIndex != 0 && ptView->bShowSkybox)
     {
         ptView->bShowSkybox = false;
-
-        plDynamicBinding tSkyboxDynamicData = pl__allocate_dynamic_data(ptDevice);
-        plGpuDynSkybox* ptSkyboxDynamicData = (plGpuDynSkybox*)tSkyboxDynamicData.pcData;
-        ptSkyboxDynamicData->tModel = pl_mat4_translate_vec3(ptCamera->tPos);
-        ptSkyboxDynamicData->uGlobalIndex = 0;
-
-        gptGfx->reset_draw_stream(ptStream, 1);
-        pl_add_to_draw_stream(ptStream, (plDrawStreamData)
-        {
-            .tShader        = gptShaderVariant->get_shader("skybox", NULL, NULL, NULL, &gptData->tRenderPassLayout),
-            .auDynamicBuffers = {
-                tSkyboxDynamicData.uBufferHandle
-            },
-            .atVertexBuffers = {
-                ptScene->tVertexBuffer,
-            },
-            .tIndexBuffer   = ptScene->tIndexBuffer,
-            .uIndexOffset   = ptScene->tSkyboxDrawable.uIndexOffset,
-            .uTriangleCount = ptScene->tSkyboxDrawable.uIndexCount / 3,
-            .atBindGroups = {
-                ptScene->atBindGroups[uFrameIdx],
-                tViewBG,
-                ptScene->tSkyboxBindGroup
-            },
-            .auDynamicBufferOffsets = {
-                tSkyboxDynamicData.uByteOffset
-            },
-            .uInstanceOffset = 0,
-            .uInstanceCount  = 1
-        });
-        gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
+        plMat4 tTransformMat = pl_mat4_translate_vec3(ptCamera->tPos);
+        pl__render_view_skybox_pass(ptScene, ptMainEncoder, tViewBG, &tTransformMat, &tArea, 0);
     }
     
+    plForwardPassInfo tForwardPassInfo = {
+        .sbuVisibleEntities = ptView->sbuVisibleForwardEntities,
+        .ptArea = &tArea,
+        .uGlobalIndex = 0,
+        .bProbe = false
+    };
+    pl__render_view_forward_pass(ptScene, ptMainEncoder, tViewBG, &tForwardPassInfo);
 
-    const uint32_t uVisibleForwardDrawCount = pl_sb_size(ptView->sbuVisibleForwardEntities);
-    gptGfx->reset_draw_stream(ptStream, uVisibleForwardDrawCount);
-    for(uint32_t i = 0; i < uVisibleForwardDrawCount; i++)
-    {
-        const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbuVisibleForwardEntities[i]];
+    gptGfx->pop_render_debug_group(ptMainEncoder);
 
-        if(tDrawable.uInstanceCount != 0)
-        {
-            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
-            plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
-            
-            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+    // end main render pass
+    gptGfx->end_render_pass(ptMainEncoder);
 
-            plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
-            ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-            ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-            ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-            ptDynamicData->uGlobalIndex = 0;
-
-            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
-            {
-                .tShader        = tDrawable.tShader,
-                .auDynamicBuffers = {
-                    tDynamicBinding.uBufferHandle
-                },
-                .atVertexBuffers = {
-                    ptScene->tVertexBuffer,
-                },
-                .tIndexBuffer   = tDrawable.tIndexBuffer,
-                .uIndexOffset   = tDrawable.uIndexOffset,
-                .uTriangleCount = tDrawable.uTriangleCount,
-                .uVertexOffset  = tDrawable.uStaticVertexOffset,
-                .atBindGroups = {
-                    ptScene->atBindGroups[uFrameIdx],
-                    tViewBG
-                },
-                .auDynamicBufferOffsets = {
-                    tDynamicBinding.uByteOffset
-                },
-                .uInstanceOffset = tDrawable.uTransformIndex,
-                .uInstanceCount = tDrawable.uInstanceCount
-            });
-        }
-    }
-    gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
-
-    gptGfx->pop_render_debug_group(ptSceneEncoder);
-    gptGfx->end_render_pass(ptSceneEncoder);
-
-
-
+    // if transmission is required, we will blit whole screen to
+    // offscreen texture used for transmission calculations.
+    // The separation of the command buffers is just for sync
+    // purposes & should probably be reworked soon.
     if(ptView->ptParentScene->bTransmissionRequired)
     {
-
         gptGfx->end_command_recording(ptSceneCmdBuffer);
 
         const plSubmitInfo tScenePreSubmitInfo = {
@@ -3602,232 +3324,28 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         gptGfx->submit_command_buffer(ptSceneCmdBuffer, &tScenePreSubmitInfo);
         gptGfx->return_command_buffer(ptSceneCmdBuffer);
 
-        const plBeginCommandInfo tSceneBlitBeginInfo = {
-            .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-        };
-
-        ptSceneCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "main scene blit");
-        gptGfx->begin_command_recording(ptSceneCmdBuffer, &tSceneBeginInfo);
-
-        plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptSceneCmdBuffer);
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-
-        plImageCopy tFrameCopy = {
-
-            .uSourceExtentX = (uint32_t)ptView->tTargetSize.x,
-            .uSourceExtentY = (uint32_t)ptView->tTargetSize.y,
-            .uSourceExtentZ = 1,
-            .uSourceLayerCount = 1,
-            .tSourceImageUsage = PL_TEXTURE_USAGE_SAMPLED,
-            .tDestinationImageUsage = PL_TEXTURE_USAGE_SAMPLED,
-            .uDestinationLayerCount = 1,
-        };
-        gptGfx->copy_texture(ptBlitEncoder, ptView->tRawOutputTexture, ptView->tTransmissionTexture, 1, &tFrameCopy);
-        gptGfx->generate_mipmaps(ptBlitEncoder, ptView->tTransmissionTexture);
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-        gptGfx->end_blit_pass(ptBlitEncoder);
+        ptSceneCmdBuffer = pl__render_view_full_screen_blit(ptView, &tSceneBeginInfo);
     }
 
-    ptSceneEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tTransparentRenderPass, NULL);
-    gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
+    //~~~~~~~~~~~~~~~~~~~~~~~~~secondary render pass work~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    plRenderEncoder* ptTransparentEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tTransparentRenderPass, NULL);
+    gptGfx->set_depth_bias(ptTransparentEncoder, 0.0f, 0.0f, 0.0f);
     
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 2 - forward~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    gptGfx->push_render_debug_group(ptSceneEncoder, "Forward Pass", (plVec4){0.33f, 0.20f, 0.10f, 1.0f});
-
-    const uint32_t uVisibleTransmissionDrawCount = pl_sb_size(ptView->sbuVisibleTransmissionEntities);
-    gptGfx->reset_draw_stream(ptStream, uVisibleTransmissionDrawCount);
-    for(uint32_t i = 0; i < uVisibleTransmissionDrawCount; i++)
-    {
-        const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbuVisibleTransmissionEntities[i]];
-
-        if(tDrawable.uInstanceCount != 0)
-        {
-            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
-            plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
-            
-            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-
-            plGpuDynData* ptDynamicData = (plGpuDynData*)tDynamicBinding.pcData;
-            ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-            ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-            ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-            ptDynamicData->uGlobalIndex = 0;
-
-            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
-            {
-                .tShader        = tDrawable.tShader,
-                .auDynamicBuffers = {
-                    tDynamicBinding.uBufferHandle
-                },
-                .atVertexBuffers = {
-                    ptScene->tVertexBuffer,
-                },
-                .tIndexBuffer   = tDrawable.tIndexBuffer,
-                .uIndexOffset   = tDrawable.uIndexOffset,
-                .uTriangleCount = tDrawable.uTriangleCount,
-                .uVertexOffset  = tDrawable.uStaticVertexOffset,
-                .atBindGroups = {
-                    ptScene->atBindGroups[uFrameIdx],
-                    tViewBG
-                },
-                .auDynamicBufferOffsets = {
-                    tDynamicBinding.uByteOffset
-                },
-                .uInstanceOffset = tDrawable.uTransformIndex,
-                .uInstanceCount = tDrawable.uInstanceCount
-            });
-        }
-    }
-    gptGfx->draw_stream(ptSceneEncoder, 1, &tArea);
+    if(pl_sb_size(ptView->sbuVisibleTransmissionEntities) > 0)
+        pl__render_view_transmission_pass(ptView, ptTransparentEncoder, tViewBG);
 
     if(ptView->bShowGrid)
-    {
-        ptView->bShowGrid = false;
+        pl__render_view_grid_pass(ptView, ptTransparentEncoder, ptCamera);
 
-        gptGfx->insert_debug_label(ptSceneCmdBuffer, "Grid Stuff", (plVec4){1.0f, 1.0f, 1.0f, 1.0f});
-        
-        plShaderHandle tGridShader = gptShaderVariant->get_shader("grid", NULL, NULL, NULL, &gptData->tTransparentRenderPassLayout);
-        gptGfx->bind_shader(ptSceneEncoder, tGridShader);
-
-        plDynamicBinding tGridDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-        plGpuDynGrid* ptGridDynamicData = (plGpuDynGrid*)tGridDynamicBinding.pcData;
-        const float fGridFactor = pl_squaref(ptCamera->fFarZ) - pl_squaref(ptCamera->tPos.y);
-        ptGridDynamicData->fGridSize = fGridFactor > 0.0f ? sqrtf(fGridFactor) : 100.0f;
-        ptGridDynamicData->fGridCellSize = gptData->tRuntimeOptions.fGridCellSize;
-        ptGridDynamicData->fGridMinPixelsBetweenCells = gptData->tRuntimeOptions.fGridMinPixelsBetweenCells;
-        ptGridDynamicData->tGridColorThin = gptData->tRuntimeOptions.tGridColorThin;
-        ptGridDynamicData->tGridColorThick = gptData->tRuntimeOptions.tGridColorThick;
-        ptGridDynamicData->tViewDirection.xyz = ptCamera->_tForwardVec;
-        ptGridDynamicData->fCameraXPos = ptCamera->tPos.x;
-        ptGridDynamicData->fCameraZPos = ptCamera->tPos.z;
-        ptGridDynamicData->tCameraViewProjection = tMVP;
-        
-        gptGfx->bind_graphics_bind_groups(ptSceneEncoder, tGridShader, 0, 0, NULL, 1, &tGridDynamicBinding);
-
-        gptGfx->set_scissor_region(ptSceneEncoder, tArea.atScissors);
-        gptGfx->set_viewport(ptSceneEncoder, tArea.atViewports);
-
-        plDraw tGridDraw = {
-            .uVertexCount   = 6,
-            .uInstanceCount = 1,
-        };
-        *gptData->pdDrawCalls += 1.0;
-        gptGfx->draw(ptSceneEncoder, 1, &tGridDraw);
-    }
-    gptGfx->pop_render_debug_group(ptSceneEncoder);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~debug drawing~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // bounding boxes
-    const uint32_t uOutlineDrawableCount = pl_sb_size(ptScene->sbtOutlinedEntities);
-    if(uOutlineDrawableCount > 0 && gptData->tRuntimeOptions.bShowSelectedBoundingBox)
-    {
-        const plVec4 tOutlineColor = (plVec4){0.0f, (float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 1.0f};
-        for(uint32_t i = 0; i < uOutlineDrawableCount; i++)
-        {
-            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtOutlinedEntities[i]);
-            gptDraw->add_3d_aabb(ptView->pt3DSelectionDrawList, ptObject->tAABB.tMin, ptObject->tAABB.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tOutlineColor), .fThickness = 0.01f});
-            
-        }
-    }
-
-    if(gptData->tRuntimeOptions.bShowOrigin)
-    {
-        const plMat4 tTransform = pl_identity_mat4();
-        gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, (plDrawLineOptions){.fThickness = 0.02f});
-    }
-
-    if(ptCullCamera && ptCullCamera != ptCamera)
-    {
-        const plDrawFrustumDesc tFrustumDesc = {
-            .fAspectRatio = ptCullCamera->fAspectRatio,
-            .fFarZ        = ptCullCamera->fFarZ,
-            .fNearZ       = ptCullCamera->fNearZ,
-            .fYFov        = ptCullCamera->fFieldOfView
-        };
-        gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tTransformMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
-    }
-
-    gptGfx->end_render_pass(ptSceneEncoder);
+    gptGfx->end_render_pass(ptTransparentEncoder);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~entity selection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     if(ptView->bRequestHoverCheck)
-    {
-        pl_begin_cpu_sample(gptProfile, 0, "Picking Submission");
+        pl__render_view_pick_pass(ptView, tViewBG, ptSceneCmdBuffer);
 
-        plShaderHandle tPickShader = gptShaderVariant->get_shader("picking", NULL, NULL, NULL, &gptData->tPickRenderPassLayout);
-
-        plBuffer* ptPickBuffer = gptGfx->get_buffer(ptDevice, ptView->atPickBuffer[uFrameIdx]);
-        // memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
-
-        ptView->auHoverResultProcessing[uFrameIdx] = true;
-        ptView->auHoverResultReady[uFrameIdx] = false;
-        ptView->bRequestHoverCheck = false;
-
-        plRenderEncoder* ptPickEncoder = gptGfx->begin_render_pass(ptSceneCmdBuffer, ptView->tPickRenderPass, NULL);
-        gptGfx->set_depth_bias(ptPickEncoder, 0.0f, 0.0f, 0.0f);
-        gptGfx->bind_shader(ptPickEncoder, tPickShader);
-        gptGfx->bind_vertex_buffer(ptPickEncoder, ptScene->tVertexBuffer);
-
-        gptGfx->set_scissor_region(ptPickEncoder, tArea.atScissors);
-        gptGfx->set_viewport(ptPickEncoder, tArea.atViewports);
-
-        plBindGroupHandle atBindGroups[2] = {tViewBG, ptView->atPickBindGroup[uFrameIdx]};
-        gptGfx->bind_graphics_bind_groups(ptPickEncoder, tPickShader, 0, 2, atBindGroups, 0, NULL);
-
-        const uint32_t uVisibleDrawCount = pl_sb_size(ptView->sbtVisibleDrawables);
-        *gptData->pdDrawCalls += (double)uVisibleDrawCount;
-
-        plVec2 tMousePos = gptIOI->get_mouse_pos();
-        tMousePos = pl_sub_vec2(tMousePos, ptView->tHoverOffset);
-        tMousePos = pl_div_vec2(tMousePos, ptView->tHoverWindowRatio);
-        
-        for(uint32_t i = 0; i < uVisibleDrawCount; i++)
-        {
-            const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbtVisibleDrawables[i]];
-
-            uint32_t uId = tDrawable.tEntity.uIndex;
-            
-            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
-            plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
-            
-            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-            plGpuDynPick* ptDynamicData = (plGpuDynPick*)tDynamicBinding.pcData;
-            
-            ptDynamicData->uID = uId;
-            ptDynamicData->tModel = ptTransform->tWorld;
-            ptDynamicData->tMousePos.xy = tMousePos;
-            
-            gptGfx->bind_graphics_bind_groups(ptPickEncoder, tPickShader, 0, 0, NULL, 1, &tDynamicBinding);
-
-            if(tDrawable.uIndexCount > 0)
-            {
-                plDrawIndex tDraw = {
-                    .tIndexBuffer   = ptScene->tIndexBuffer,
-                    .uIndexCount    = tDrawable.uIndexCount,
-                    .uIndexStart    = tDrawable.uIndexOffset,
-                    .uInstanceCount = 1
-                };
-                gptGfx->draw_indexed(ptPickEncoder, 1, &tDraw);
-            }
-            else
-            {
-                plDraw tDraw = {
-                    .uVertexStart   = tDrawable.uVertexOffset,
-                    .uInstanceCount = 1,
-                    .uVertexCount   = tDrawable.uVertexCount
-                };
-                gptGfx->draw(ptPickEncoder, 1, &tDraw);
-            }
-        }
-        gptGfx->end_render_pass(ptPickEncoder);
-
-        pl_end_cpu_sample(gptProfile, 0);
-    }
-
+    // finished core rendering work (mostly separating command buffers for sync purposes)
     gptGfx->end_command_recording(ptSceneCmdBuffer);
 
     const plSubmitInfo tSceneSubmitInfo = {
@@ -3838,608 +3356,30 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->submit_command_buffer(ptSceneCmdBuffer, &tSceneSubmitInfo);
     gptGfx->return_command_buffer(ptSceneCmdBuffer);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~uv map pass for JFA~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~jump flood outline work~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plBeginCommandInfo tUVBeginInfo = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-    };
+    pl__render_view_uv_pass(ptView);
+    pl__render_view_jfa_pass(ptView);
+    pl__render_view_outline_pass(ptView, ptCamera);
 
-    plCommandBuffer* ptUVCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "uv");
-    gptGfx->begin_command_recording(ptUVCmdBuffer, &tUVBeginInfo);
-
-    plRenderEncoder* ptUVEncoder = gptGfx->begin_render_pass(ptUVCmdBuffer, ptView->tUVRenderPass, NULL);
-    gptGfx->push_render_debug_group(ptUVEncoder, "UV Map", (plVec4){0.33f, 0.72f, 0.10f, 1.0f});
-
-    // submit nonindexed draw using basic API
-    plShaderHandle tUVShader = gptShaderVariant->get_shader("uvmap", NULL, NULL, NULL, &gptData->tUVRenderPassLayout);
-    gptGfx->bind_shader(ptUVEncoder, tUVShader);
-
-    plTexture* ptTargetTexture = gptGfx->get_texture(ptDevice, ptView->tFinalTexture);
-
-        // .atScissors = 
-        // {
-        //     {
-        //         .uWidth  = (uint32_t)tDimensions.x,
-        //         .uHeight = (uint32_t)tDimensions.y,
-        //     }
-        // },
-        // .atViewports =
-        // {
-        //     {
-        //         .fWidth  = tDimensions.x,
-        //         .fHeight = tDimensions.y,
-        //         .fMaxDepth = 1.0f
-        //     }
-        // }
-
-    plScissor tUVScissor = {
-        .uWidth  = (uint32_t)ptTargetTexture->tDesc.tDimensions.x,
-        .uHeight = (uint32_t)ptTargetTexture->tDesc.tDimensions.y
-    };
-
-    plRenderViewport tUVViewport = {
-        .fWidth = ptTargetTexture->tDesc.tDimensions.x,
-        .fHeight = ptTargetTexture->tDesc.tDimensions.y,
-        .fMaxDepth = 1.0f
-    };
-
-    gptGfx->set_scissor_region(ptUVEncoder, &tUVScissor);
-    gptGfx->set_viewport(ptUVEncoder, &tUVViewport);
-
-    plDraw tDraw = {
-        .uVertexCount   = 3,
-        .uInstanceCount = 1,
-    };
-    *gptData->pdDrawCalls += 1.0;
-    gptGfx->draw(ptUVEncoder, 1, &tDraw);
-
-    // end render pass
-    gptGfx->pop_render_debug_group(ptUVEncoder);
-    gptGfx->end_render_pass(ptUVEncoder);
-
-    gptGfx->end_command_recording(ptUVCmdBuffer);
-
-    const plSubmitInfo tUVSubmitInfo = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-    };
-    gptGfx->submit_command_buffer(ptUVCmdBuffer, &tUVSubmitInfo);
-    gptGfx->return_command_buffer(ptUVCmdBuffer);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~jump flood~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // find next power of 2
-    uint32_t uJumpDistance = 1;
-    uint32_t uHalfWidth = gptData->tRuntimeOptions.uOutlineWidth / 2;
-    if (uHalfWidth && !(uHalfWidth & (uHalfWidth - 1))) 
-        uJumpDistance = uHalfWidth;
-    while(uJumpDistance < uHalfWidth)
-        uJumpDistance <<= 1;
-
-    // calculate number of jumps necessary
-    uint32_t uJumpSteps = 0;
-    while(uJumpDistance)
-    {
-        uJumpSteps++;
-        uJumpDistance >>= 1;
-    }
-
-    float fJumpDistance = (float)uHalfWidth;
-    if(uOutlineDrawableCount == 0)
-        uJumpSteps = 1;
-
-    const plDispatch tDispach = {
-        .uGroupCountX     = (uint32_t)ceilf(tDimensions.x / 32.0f),
-        .uGroupCountY     = (uint32_t)ceilf(tDimensions.y / 32.0f),
-        .uGroupCountZ     = 1,
-        .uThreadPerGroupX = 32,
-        .uThreadPerGroupY = 32,
-        .uThreadPerGroupZ = 1
-    };
-
-    plComputeShaderHandle tJFAShader = gptShaderVariant->get_compute_shader("jumpfloodalgo", NULL);
-    for(uint32_t i = 0; i < uJumpSteps; i++)
-    {
-        const plBeginCommandInfo tJumpBeginInfo = {
-            .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-        };
-
-        plCommandBuffer* ptJumpCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "JFA");
-        gptGfx->begin_command_recording(ptJumpCmdBuffer, &tJumpBeginInfo);
-
-        // begin main renderpass (directly to swapchain)
-        plComputeEncoder* ptJumpEncoder = gptGfx->begin_compute_pass(ptJumpCmdBuffer, NULL);
-        gptGfx->push_compute_debug_group(ptJumpEncoder, "JFA", (plVec4){0.73f, 0.02f, 0.80f, 1.0f});
-        gptGfx->pipeline_barrier_compute(ptJumpEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
-
-        ptView->tLastUVMask = (i % 2 == 0) ? ptView->atUVMaskTexture1 : ptView->atUVMaskTexture0;
-
-        // submit nonindexed draw using basic API
-        gptGfx->bind_compute_shader(ptJumpEncoder, tJFAShader);
-
-        plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-        plVec4* ptJumpDistance = (plVec4*)tDynamicBinding.pcData;
-        ptJumpDistance->x = tDimensions.x;
-        ptJumpDistance->y = tDimensions.y;
-        ptJumpDistance->z = fJumpDistance;
-
-        gptGfx->bind_compute_bind_groups(ptJumpEncoder, tJFAShader, 0, 1, &ptView->atJFABindGroups[i % 2], 1, &tDynamicBinding);
-        gptGfx->dispatch(ptJumpEncoder, 1, &tDispach);
-
-        // end render pass
-        gptGfx->pipeline_barrier_compute(ptJumpEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
-        gptGfx->pop_compute_debug_group(ptJumpEncoder);
-        gptGfx->end_compute_pass(ptJumpEncoder);
-
-        // end recording
-        gptGfx->end_command_recording(ptJumpCmdBuffer);
-
-        const plSubmitInfo tJumpSubmitInfo = {
-            .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()},
-        };
-        gptGfx->submit_command_buffer(ptJumpCmdBuffer, &tJumpSubmitInfo);
-        gptGfx->return_command_buffer(ptJumpCmdBuffer);
-
-        fJumpDistance = fJumpDistance / 2.0f;
-        if(fJumpDistance < 1.0f)
-            fJumpDistance = 1.0f;
-    }
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~outline~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    const plBeginCommandInfo tOutlineBeginInfo = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-    };
-
-    plCommandBuffer* ptOutlineCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "Outline");
-    gptGfx->begin_command_recording(ptOutlineCmdBuffer, &tOutlineBeginInfo);
-
-    pl__renderer_post_process_scene(ptOutlineCmdBuffer, ptView, &tMVP);
-    gptGfx->end_command_recording(ptOutlineCmdBuffer);
-
-    const plSubmitInfo tOutlineSubmitInfo = {
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-    };
-    gptGfx->submit_command_buffer(ptOutlineCmdBuffer, &tOutlineSubmitInfo);
-    gptGfx->return_command_buffer(ptOutlineCmdBuffer);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~post process~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~post processing work~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     if(gptData->tRuntimeOptions.bBloomActive && pl_sb_size(ptView->sbtBloomDownChain) >= gptData->tRuntimeOptions.uBloomChainLength)
-    {
-        pl_begin_cpu_sample(gptProfile, 0, "bloom");
+        pl__render_view_bloom_pass(ptView);
 
-        for(uint32_t i = 0; i < gptData->tRuntimeOptions.uBloomChainLength - 1; i++)
-        {
+    pl__render_view_tonemap_pass(ptView);
 
-            const int sourceMip = i;
-            const int targetMip = i + 1;
-
-            const plBindGroupDesc tTonemapBGDesc = {
-                .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-                .tLayout     = gptShaderVariant->get_compute_bind_group_layout("bloom_downsample", 0),
-                .pcDebugName = "temp bind group c0"
-            };
-            plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
-
-            const plBindGroupUpdateTextureData tTonemapTextureData[] = 
-            {
-                { // target
-                    .tTexture      = ptView->sbtBloomDownChain[targetMip],
-                    .uSlot         = 0,
-                    .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
-                    .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
-                },
-                { // source
-                    .tTexture      = i == 0 ? ptView->tFinalTexture : ptView->sbtBloomDownChain[sourceMip],
-                    .uSlot         = 1,
-                    .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
-                    .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                }
-            };
-
-            plBindGroupUpdateSamplerData tGlobalSamplerData[] = {
-                { .uSlot = 2, .tSampler = gptData->tSamplerLinearClamp }
-            };
-
-            const plBindGroupUpdateData tTonemapBGData = {
-                .uTextureCount = 2,
-                .atTextureBindings = tTonemapTextureData,
-                .uSamplerCount = 1,
-                .atSamplerBindings = tGlobalSamplerData
-            };
-            gptGfx->update_bind_group(gptData->ptDevice, tTonemapBG, &tTonemapBGData);
-            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tTonemapBG);
-
-            const plBeginCommandInfo tPostBeginInfo = {
-                .uWaitSemaphoreCount   = 1,
-                .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-            };
-
-            plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "bloom_downsample");
-            gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
-
-            plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
-            gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
-
-            plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
-            gptGfx->push_compute_debug_group(ptPostEncoder, "bloom_downsample", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
-            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
-
-            plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-            plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
-            ptTonemapData->iMipLevel = i;
-
-            plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_downsample", NULL);
-            gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
-            gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
-
-            plDispatch tTonemapDispatch = {
-                .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 8.0f)),
-                .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 8.0f)),
-                .uGroupCountZ     = 1,
-                .uThreadPerGroupX = 8,
-                .uThreadPerGroupY = 8,
-                .uThreadPerGroupZ = 1
-            };
-            gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
-
-            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
-            gptGfx->pop_compute_debug_group(ptPostEncoder);
-            gptGfx->end_compute_pass(ptPostEncoder);
-
-            plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-            gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
-
-            gptGfx->end_command_recording(ptPostCmdBuffer);
-
-            const plSubmitInfo tPostSubmitInfo = {
-                .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-            };
-            ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
-            gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
-            gptGfx->return_command_buffer(ptPostCmdBuffer);
-        }
-
-        for(uint32_t i = 0; i < gptData->tRuntimeOptions.uBloomChainLength - 1; i++)
-        {
-
-            const int targetMip = gptData->tRuntimeOptions.uBloomChainLength - 2 - i;
-            const int sourceMip = targetMip + 1;
-
-            const plBindGroupDesc tTonemapBGDesc = {
-                .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-                .tLayout     = gptShaderVariant->get_compute_bind_group_layout("bloom_upsample", 0),
-                .pcDebugName = "temp bind group c0"
-            };
-            plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
-
-            const plBindGroupUpdateTextureData tTonemapTextureData[] = 
-            {
-                { // target
-                    .tTexture      = ptView->sbtBloomUpChain[targetMip],
-                    .uSlot         = 0,
-                    .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
-                    .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
-                },
-                { // target previous mip
-                    .tTexture      = ptView->sbtBloomUpChain[sourceMip],
-                    .uSlot         = 1,
-                    .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
-                    .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                },
-                { // source
-                    .tTexture      = ptView->sbtBloomDownChain[sourceMip],
-                    .uSlot         = 2,
-                    .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
-                    .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                }
-            };
-
-            plBindGroupUpdateSamplerData tGlobalSamplerData[] = {
-                { .uSlot = 3, .tSampler = gptData->tSamplerLinearClamp }
-            };
-
-            const plBindGroupUpdateData tTonemapBGData = {
-                .uTextureCount = 3,
-                .atTextureBindings = tTonemapTextureData,
-                .uSamplerCount = 1,
-                .atSamplerBindings = tGlobalSamplerData
-            };
-            gptGfx->update_bind_group(gptData->ptDevice, tTonemapBG, &tTonemapBGData);
-            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tTonemapBG);
-
-            const plBeginCommandInfo tPostBeginInfo = {
-                .uWaitSemaphoreCount   = 1,
-                .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-            };
-
-            plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "bloom_upsample");
-            gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
-
-            plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-
-            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
-            
-            gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
-
-            plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
-            gptGfx->push_compute_debug_group(ptPostEncoder, "upscale", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
-            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
-
-            plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-            plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
-            ptTonemapData->bloomStrength = gptData->tRuntimeOptions.fBloomStrength;
-            ptTonemapData->blurRadius = gptData->tRuntimeOptions.fBloomRadius;
-            ptTonemapData->isLowestMip = i == 0 ? 1 : 0;
-
-            plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_upsample", NULL);
-            gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
-            gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
-
-            plDispatch tTonemapDispatch = {
-                .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 8.0f)),
-                .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 8.0f)),
-                .uGroupCountZ     = 1,
-                .uThreadPerGroupX = 8,
-                .uThreadPerGroupY = 8,
-                .uThreadPerGroupZ = 1
-            };
-            gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
-
-            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
-            gptGfx->pop_compute_debug_group(ptPostEncoder);
-            gptGfx->end_compute_pass(ptPostEncoder);
-
-            plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-            // gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[1].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-            gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
-
-            gptGfx->end_command_recording(ptPostCmdBuffer);
-
-            const plSubmitInfo tPostSubmitInfo = {
-                .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-            };
-            ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
-            gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
-            gptGfx->return_command_buffer(ptPostCmdBuffer);
-        }
-
-        {
-            const plBindGroupDesc tTonemapBGDesc = {
-                .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-                .tLayout     = gptShaderVariant->get_compute_bind_group_layout("bloom_apply", 0),
-                .pcDebugName = "temp bind group c0"
-            };
-            plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
-
-            const plBindGroupUpdateTextureData tTonemapTextureData[] = 
-            {
-                { // target
-                    .tTexture      = ptView->tFinalTexture,
-                    .uSlot         = 0,
-                    .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
-                    .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
-                },
-                { // target previous mip
-                    .tTexture      = ptView->sbtBloomUpChain[0],
-                    .uSlot         = 1,
-                    .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
-                    .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                }
-            };
-
-            plBindGroupUpdateSamplerData tGlobalSamplerData[] = {
-                { .uSlot = 2, .tSampler = gptData->tSamplerLinearClamp }
-            };
-
-            const plBindGroupUpdateData tTonemapBGData = {
-                .uTextureCount = 2,
-                .atTextureBindings = tTonemapTextureData,
-                .uSamplerCount = 1,
-                .atSamplerBindings = tGlobalSamplerData
-            };
-            gptGfx->update_bind_group(gptData->ptDevice, tTonemapBG, &tTonemapBGData);
-            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tTonemapBG);
-
-            const plBeginCommandInfo tPostBeginInfo = {
-                .uWaitSemaphoreCount   = 1,
-                .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-            };
-
-            plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "bloom_apply");
-            gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
-
-            plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-
-            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
-            
-            // if(i > 0)
-                
-            gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
-
-            plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
-            gptGfx->push_compute_debug_group(ptPostEncoder, "bloom_apply", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
-            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
-
-            plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-            plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
-            ptTonemapData->bloomStrength = gptData->tRuntimeOptions.fBloomStrength;
-            ptTonemapData->blurRadius = gptData->tRuntimeOptions.fBloomRadius;
-
-            plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_apply", NULL);
-            gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
-            gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
-
-            plDispatch tTonemapDispatch = {
-                .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 8.0f)),
-                .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 8.0f)),
-                .uGroupCountZ     = 1,
-                .uThreadPerGroupX = 8,
-                .uThreadPerGroupY = 8,
-                .uThreadPerGroupZ = 1
-            };
-            gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
-
-            gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
-            gptGfx->pop_compute_debug_group(ptPostEncoder);
-            gptGfx->end_compute_pass(ptPostEncoder);
-
-            plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-            // gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[1].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-            gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-            gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
-
-            gptGfx->end_command_recording(ptPostCmdBuffer);
-
-            const plSubmitInfo tPostSubmitInfo = {
-                .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-            };
-            ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
-            gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
-            gptGfx->return_command_buffer(ptPostCmdBuffer);
-        }
-
-        pl_end_cpu_sample(gptProfile, 0);
-    }
-
-    {
-        const plBindGroupDesc tTonemapBGDesc = {
-            .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
-            .tLayout     = gptShaderVariant->get_compute_bind_group_layout("tonemap", 0),
-            .pcDebugName = "temp bind group c0"
-        };
-        plBindGroupHandle tTonemapBG = gptGfx->create_bind_group(gptData->ptDevice, &tTonemapBGDesc);
-
-        const plBindGroupUpdateTextureData tTonemapTextureData[] = 
-        {
-            { // target
-                .tTexture      = ptView->tFinalTexture,
-                .uSlot         = 0,
-                .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
-            }
-        };
-
-        const plBindGroupUpdateData tTonemapBGData = {
-            .uTextureCount = 1,
-            .atTextureBindings = tTonemapTextureData
-        };
-        gptGfx->update_bind_group(gptData->ptDevice, tTonemapBG, &tTonemapBGData);
-        gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, tTonemapBG);
-
-        const plBeginCommandInfo tPostBeginInfo = {
-            .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-        };
-
-        plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
-        gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
-
-        plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-        gptGfx->set_texture_usage(ptTonemapPrepEncoder0, ptView->tFinalTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
-        gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
-
-        plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
-        gptGfx->push_compute_debug_group(ptPostEncoder, "Tonemap Compute", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
-        gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
-
-        plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
-        plGpuDynTonemap* ptTonemapData = (plGpuDynTonemap*)tTonemapDynamicBinding.pcData;
-        ptTonemapData->iMode = gptData->tRuntimeOptions.tTonemapMode;
-        ptTonemapData->fExposure = gptData->tRuntimeOptions.fExposure;
-        ptTonemapData->fBrightness = gptData->tRuntimeOptions.fBrightness;
-        ptTonemapData->fContrast = gptData->tRuntimeOptions.fContrast;
-        ptTonemapData->fSaturation = gptData->tRuntimeOptions.fSaturation;
-
-        plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("tonemap", NULL);
-        gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
-        gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &tTonemapBG, 1, &tTonemapDynamicBinding);
-
-        plDispatch tTonemapDispatch = {
-            .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 32.0f)),
-            .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 32.0f)),
-            .uGroupCountZ     = 1,
-            .uThreadPerGroupX = 32,
-            .uThreadPerGroupY = 32,
-            .uThreadPerGroupZ = 1
-        };
-        gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
-
-        gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
-        gptGfx->pop_compute_debug_group(ptPostEncoder);
-        gptGfx->end_compute_pass(ptPostEncoder);
-
-        plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-        gptGfx->set_texture_usage(ptTonemapPrepEncoder1, ptView->tFinalTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-        gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
-
-        gptGfx->end_command_recording(ptPostCmdBuffer);
-
-        const plSubmitInfo tPostSubmitInfo = {
-            .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-        };
-        ptScene->uLastSemValueForShadow = gptStarter->get_current_timeline_value();
-        gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
-        gptGfx->return_command_buffer(ptPostCmdBuffer);
-    }
-
-    {
-        const plBeginCommandInfo tPostBeginInfo = {
-            .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-            .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-        };
-
-        plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
-        gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
-
-        ptSceneEncoder = gptGfx->begin_render_pass(ptPostCmdBuffer, ptView->tFinalRenderPass, NULL);
-        gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
-        gptDraw->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
-        gptDraw->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
-        gptGfx->end_render_pass(ptSceneEncoder);
-
-        gptGfx->end_command_recording(ptPostCmdBuffer);
-
-        const plSubmitInfo tPostSubmitInfo = {
-            .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-        };
-        gptGfx->submit_command_buffer(ptPostCmdBuffer, &tPostSubmitInfo);
-        gptGfx->return_command_buffer(ptPostCmdBuffer);
-    }
+    // add debug stuff after post processing so things like bloom & color don't get
+    // affected
+    pl__render_view_debug_pass(ptView, ptCamera, ptCullCamera);
 
     // update stats
     static double* pdVisibleOpaqueObjects = NULL;
     static double* pdVisibleTransparentObjects = NULL;
+
+    // recording draw call stats
+    *gptData->pdDrawCalls += (double)(pl_sb_size(ptView->sbuVisibleDeferredEntities) + pl_sb_size(ptView->sbuVisibleForwardEntities) + pl_sb_size(ptView->sbuVisibleTransmissionEntities) + 1);
+    
     if(!pdVisibleOpaqueObjects)
     {
         pdVisibleOpaqueObjects = gptStats->get_counter("visible deferred objects");
@@ -5098,10 +4038,10 @@ pl_renderer_register_system(void)
     gptData->tObjectComponentType = gptECS->register_type(tObjectDesc, &tObjectComponentDefault);
 
     const plComponentDesc tSkinDesc = {
-        .pcName = "Skin",
-        .szSize = sizeof(plSkinComponent),
+        .pcName  = "Skin",
+        .szSize  = sizeof(plSkinComponent),
         .cleanup = pl__renderer_skin_cleanup,
-        .reset = pl__renderer_skin_cleanup,
+        .reset   = pl__renderer_skin_cleanup,
     };
 
     gptData->tSkinComponentType = gptECS->register_type(tSkinDesc, NULL);
@@ -5172,6 +4112,8 @@ pl_run_probe_update_system(plComponentLibrary* ptLibrary)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
+    // not used yet
+
     // plEnvironmentProbeComponent* sbtComponents = ptLibrary->tEnvironmentProbeCompManager.pComponents;
 
     // const uint32_t uComponentCount = pl_sb_size(sbtComponents);
@@ -5195,55 +4137,56 @@ PL_EXPORT void
 pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     plRendererI tApi = {0};
-    tApi.initialize                    = pl_renderer_initialize;
-    tApi.cleanup                       = pl_renderer_cleanup;
-    tApi.create_scene                  = pl_renderer_create_scene;
-    tApi.cleanup_scene                 = pl_renderer_cleanup_scene;
-    tApi.add_drawable_objects_to_scene = pl_renderer_add_drawable_objects_to_scene;
-    tApi.add_materials_to_scene        = pl_renderer_add_materials_to_scene;
-    tApi.remove_objects_from_scene     = pl_renderer_remove_objects_from_scene;
-    tApi.update_scene_objects          = pl_renderer_update_scene_objects;
-    tApi.update_scene_materials        = pl_renderer_update_scene_materials;
-    tApi.create_view                   = pl_renderer_create_view;
-    tApi.cleanup_view                  = pl_renderer_cleanup_view;
-    tApi.begin_frame                   = pl_renderer_begin_frame;
-    tApi.load_skybox_from_panorama     = pl_renderer_load_skybox_from_panorama;
-    tApi.finalize_scene                = pl_renderer_finalize_scene;
-    tApi.reload_scene_shaders          = pl_renderer_reload_scene_shaders;
-    tApi.outline_entities              = pl_renderer_outline_entities;
-    tApi.prepare_scene                 = pl_renderer_prepare_scene;
-    tApi.prepare_view                  = pl_renderer_prepare_view;
-    tApi.render_view                   = pl_renderer_render_view;
-    tApi.get_view_color_texture        = pl_renderer_get_view_color_texture;
-    tApi.get_view_color_texture_max_uv = pl_renderer_get_view_color_texture_max_uv;
-    tApi.resize_view                   = pl_renderer_resize_view;
-    tApi.get_debug_drawlist            = pl_renderer_get_debug_drawlist;
-    tApi.get_gizmo_drawlist            = pl_renderer_get_gizmo_drawlist;
-    tApi.update_hovered_entity         = pl_renderer_update_hovered_entity;
-    tApi.get_hovered_entity            = pl_renderer_get_hovered_entity;
-    tApi.get_runtime_options           = pl_renderer_get_runtime_options;
-    tApi.rebuild_scene_bvh             = pl_renderer_rebuild_bvh;
-    tApi.debug_draw_lights             = pl_renderer_debug_draw_lights;
-    tApi.debug_draw_all_bound_boxes    = pl_renderer_debug_draw_all_bound_boxes;
-    tApi.debug_draw_bvh                = pl_renderer_debug_draw_bvh;
-    tApi.show_skybox                   = pl_renderer_show_skybox;
-    tApi.show_grid                     = pl_renderer_show_grid;
-    tApi.register_ecs_system                = pl_renderer_register_system;
-    tApi.create_skin                        = pl_renderer_create_skin;
-    tApi.create_directional_light           = pl_renderer_create_directional_light;
-    tApi.create_point_light                 = pl_renderer_create_point_light;
-    tApi.create_spot_light                  = pl_renderer_create_spot_light;
-    tApi.create_environment_probe           = pl_renderer_create_environment_probe;
-    tApi.create_object                      = pl_renderer_create_object;
-    tApi.copy_object                        = pl_renderer_copy_object;
-    tApi.get_ecs_type_key_skin              = pl_renderer_get_ecs_type_key_skin;
-    tApi.get_ecs_type_key_light             = pl_renderer_get_ecs_type_key_light;
-    tApi.get_ecs_type_key_environment_probe = pl_renderer_get_ecs_type_key_environment_probe;
-    tApi.run_light_update_system               = pl_run_light_update_system;
-    tApi.run_environment_probe_update_system   = pl_run_probe_update_system;
+    tApi.initialize                          = pl_renderer_initialize;
+    tApi.cleanup                             = pl_renderer_cleanup;
+    tApi.create_scene                        = pl_renderer_create_scene;
+    tApi.cleanup_scene                       = pl_renderer_cleanup_scene;
+    tApi.add_drawable_objects_to_scene       = pl_renderer_add_drawable_objects_to_scene;
+    tApi.add_probe_to_scene                  = pl_renderer_add_probe_to_scene;
+    tApi.add_materials_to_scene              = pl_renderer_add_materials_to_scene;
+    tApi.remove_objects_from_scene           = pl_renderer_remove_objects_from_scene;
+    tApi.update_scene_objects                = pl_renderer_update_scene_objects;
+    tApi.update_scene_materials              = pl_renderer_update_scene_materials;
+    tApi.create_view                         = pl_renderer_create_view;
+    tApi.cleanup_view                        = pl_renderer_cleanup_view;
+    tApi.begin_frame                         = pl_renderer_begin_frame;
+    tApi.load_skybox_from_panorama           = pl_renderer_load_skybox_from_panorama;
+    tApi.finalize_scene                      = pl_renderer_finalize_scene;
+    tApi.reload_scene_shaders                = pl_renderer_reload_scene_shaders;
+    tApi.outline_entities                    = pl_renderer_outline_entities;
+    tApi.prepare_scene                       = pl_renderer_prepare_scene;
+    tApi.prepare_view                        = pl_renderer_prepare_view;
+    tApi.render_view                         = pl_renderer_render_view;
+    tApi.get_view_color_texture              = pl_renderer_get_view_color_texture;
+    tApi.get_view_color_texture_max_uv       = pl_renderer_get_view_color_texture_max_uv;
+    tApi.resize_view                         = pl_renderer_resize_view;
+    tApi.get_debug_drawlist                  = pl_renderer_get_debug_drawlist;
+    tApi.get_gizmo_drawlist                  = pl_renderer_get_gizmo_drawlist;
+    tApi.update_hovered_entity               = pl_renderer_update_hovered_entity;
+    tApi.get_hovered_entity                  = pl_renderer_get_hovered_entity;
+    tApi.get_runtime_options                 = pl_renderer_get_runtime_options;
+    tApi.rebuild_scene_bvh                   = pl_renderer_rebuild_bvh;
+    tApi.debug_draw_lights                   = pl_renderer_debug_draw_lights;
+    tApi.debug_draw_all_bound_boxes          = pl_renderer_debug_draw_all_bound_boxes;
+    tApi.debug_draw_bvh                      = pl_renderer_debug_draw_bvh;
+    tApi.show_skybox                         = pl_renderer_show_skybox;
+    tApi.show_grid                           = pl_renderer_show_grid;
+    tApi.register_ecs_system                 = pl_renderer_register_system;
+    tApi.create_skin                         = pl_renderer_create_skin;
+    tApi.create_directional_light            = pl_renderer_create_directional_light;
+    tApi.create_point_light                  = pl_renderer_create_point_light;
+    tApi.create_spot_light                   = pl_renderer_create_spot_light;
+    tApi.create_environment_probe            = pl_renderer_create_environment_probe;
+    tApi.create_object                       = pl_renderer_create_object;
+    tApi.copy_object                         = pl_renderer_copy_object;
+    tApi.get_ecs_type_key_skin               = pl_renderer_get_ecs_type_key_skin;
+    tApi.get_ecs_type_key_light              = pl_renderer_get_ecs_type_key_light;
+    tApi.get_ecs_type_key_environment_probe  = pl_renderer_get_ecs_type_key_environment_probe;
+    tApi.run_light_update_system             = pl_run_light_update_system;
+    tApi.run_environment_probe_update_system = pl_run_probe_update_system;
     tApi.get_ecs_type_key_object             = pl_renderer_get_ecs_type_key_object;
-    tApi.run_skin_update_system                = pl_run_skin_update_system;
-    tApi.run_object_update_system              = pl_run_object_update_system;
+    tApi.run_skin_update_system              = pl_run_skin_update_system;
+    tApi.run_object_update_system            = pl_run_object_update_system;
     pl_set_api(ptApiRegistry, plRendererI, &tApi);
 
     // core apis
@@ -5298,8 +4241,6 @@ pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 //-----------------------------------------------------------------------------
 // [SECTION] unity
 //-----------------------------------------------------------------------------
-
-#include "pl_renderer_internal.c"
 
 #ifndef PL_UNITY_BUILD
 
