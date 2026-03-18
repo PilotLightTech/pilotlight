@@ -352,12 +352,10 @@ typedef struct _plScene
     bool           bActive;
     bool           bTransmissionRequired;
     bool           bSheenRequired;
-    plShaderHandle tLightingShader;
     plShaderHandle tDirectionalLightingShader;
     plShaderHandle tSpotLightingShader;
     plShaderHandle tProbeLightingShader;
     plShaderHandle tPointLightingShader;
-    plShaderHandle tEnvLightingShader;
     plShaderHandle tEnvDirectionalLightingShader;
     plShaderHandle tEnvSpotLightingShader;
     plShaderHandle tEnvPointLightingShader;

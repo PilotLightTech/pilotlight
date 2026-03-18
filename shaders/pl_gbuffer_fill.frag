@@ -103,12 +103,11 @@ void main()
     materialInfo.f90_dielectric = materialInfo.f90;
 
     // ambient occlusion
+    float ao = 1.0;
     if(bool(iTextureMappingFlags & PL_HAS_OCCLUSION_MAP))
     {
-        float ao = 1.0;
         ao = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_OCCLUSION])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_OCCLUSION)).r;
         ao = (1.0 + material.fOcclusionStrength * (ao - 1.0)); 
-        outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
     }
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
@@ -130,6 +129,7 @@ void main()
         NormalInfo tNormalInfo = pl_get_normal_info();
         outNormal = Encode(tNormalInfo.n);
     }
+    outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
     
 
     if(tShaderDebugMode != PL_SHADER_DEBUG_MODE_NONE)

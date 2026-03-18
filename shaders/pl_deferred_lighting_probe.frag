@@ -49,6 +49,7 @@ const int iMaterialFlags = 0;
 
 void main() 
 {
+    outColor = vec4(0);
     vec4 AORoughnessMetalnessData = subpassLoad(tAOMetalRoughnessTexture);
     float depth = subpassLoad(tDepthSampler).r;
     vec2 tEncodedN = subpassLoad(tNormalTexture).xy;
@@ -66,6 +67,7 @@ void main()
     
 
     MaterialInfo materialInfo;
+    materialInfo.baseColor = tBaseColor.rgb;
 
     // The default index of refraction of 1.5 yields a dielectric normal incidence reflectance of 0.04.
     materialInfo.f0_dielectric = vec3(0.04);
