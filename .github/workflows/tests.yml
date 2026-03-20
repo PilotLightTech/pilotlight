@@ -113,7 +113,7 @@ jobs:
 
   MacOS:
     
-    runs-on: MacOS-latest
+    runs-on: macos-26
 
     steps:
 
