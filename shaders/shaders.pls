@@ -593,8 +593,6 @@
                 }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 

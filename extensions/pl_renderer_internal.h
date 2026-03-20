@@ -353,6 +353,9 @@ typedef struct _plScene
     uint32_t*   sbuShadowDeferredDrawables; // shadow rendering (index into regular drawables)
     uint32_t*   sbuShadowForwardDrawables;  // shadow rendering (index into regular drawables)
 
+    // needs to be flags
+    bool bProbeCountDirty;
+
 
     const char* pcName;
     plGpuSceneData tSceneData;

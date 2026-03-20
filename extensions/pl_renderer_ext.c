@@ -670,6 +670,7 @@ pl_renderer_create_scene(plSceneInit tInit)
     ptScene->tStorageBuffer             = (plBufferHandle){.uData = UINT32_MAX};
     ptScene->tSkinStorageBuffer         = (plBufferHandle){.uData = UINT32_MAX};
     ptScene->uGPUMaterialBufferCapacity = 512;
+    ptScene->bProbeCountDirty = true;
 
     // create global bindgroup
     ptScene->uTextureIndexCount = 0;
@@ -994,6 +995,79 @@ pl_renderer_create_scene(plSceneInit tInit)
     // ptScene->ptTerrain = gptTerrain->create_terrain(ptCmdBuffer, tTerrainInit, &tTerrainInfo);
 
     // gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~GPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    const plBufferDesc tLightBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_UNIFORM,
+        .szByteSize = sizeof(plGpuLight) * PL_MAX_LIGHTS,
+        .pcDebugName = "light buffer"
+    };
+
+    const plBufferDesc tTransformBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_STORAGE,
+        .szByteSize = sizeof(plMat4) * 10000,
+        .pcDebugName = "transform buffer"
+    };
+
+    const plBufferDesc tInstanceBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_STORAGE,
+        .szByteSize = sizeof(plShadowInstanceBufferData) * 10000,
+        .pcDebugName = "instance buffer"
+    };
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        ptScene->atLightBuffer[i]     = pl__renderer_create_staging_buffer(&tLightBufferDesc, "light", i);
+        ptScene->atTransformBuffer[i] = pl__renderer_create_staging_buffer(&tTransformBufferDesc, "transform", i);
+        ptScene->atInstanceBuffer[i]  = pl__renderer_create_staging_buffer(&tInstanceBufferDesc, "instance", i);
+    }
+
+    int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
+    if(gptData->tRuntimeOptions.bPunctualLighting)   iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
+    if(gptData->tRuntimeOptions.bImageBasedLighting) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
+    if(gptData->tRuntimeOptions.bNormalMapping)      iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
+    if(gptData->tRuntimeOptions.bPcfShadows)         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
+
+    // create lighting shader
+    int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
+    ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
+    aiLightingConstantData[2] = 0;
+    ptScene->tEnvDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tEnvSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    ptScene->tEnvPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+
+
+    pl_sb_reserve(ptScene->sbtVertexDataBuffer, 40000000);
+    pl_sb_reserve(ptScene->sbtVertexPosBuffer, 15000000);
+
+    // for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    // {
+    //     const plBindGroupUpdateBufferData atGlobalBufferData[] = 
+    //     {
+    //         {
+    //             .tBuffer       = ptScene->atTransformBuffer[i],
+    //             .uSlot         = 2,
+    //             .szBufferRange = sizeof(plMat4) * 10000
+    //         },
+    //         {
+    //             .tBuffer       = ptScene->atMaterialDataBuffer[i],
+    //             .uSlot         = 3,
+    //             .szBufferRange = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity
+    //         },
+    //     };
+
+    //     plBindGroupUpdateData tGlobalBindGroupData = {
+    //         .uBufferCount = 2,
+    //         .atBufferBindings = atGlobalBufferData,
+    //     };
+
+    //     gptGfx->update_bind_group(gptData->ptDevice, ptScene->atBindGroups[i], &tGlobalBindGroupData);
+    // }
+
     return ptScene;
 }
 
@@ -2363,8 +2437,8 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    aiLightingConstantData[2] = pl_sb_size(ptScene->sbtProbeData);
-    ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
+    int iProbeCount = (int)pl_sb_size(ptScene->sbtProbeData);
+    ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, &iProbeCount, &gptData->tRenderPassLayout);
     aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
     aiLightingConstantData[2] = 0;
     ptScene->tEnvDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
@@ -2406,21 +2480,16 @@ void
 pl_renderer_add_probe_to_scene(plScene* ptScene, plEntity tProbe)
 {
     pl__renderer_create_probe_data(ptScene, tProbe);
+    ptScene->bProbeCountDirty = true;
 }
 
 void
 pl_renderer_finalize_scene(plScene* ptScene)
 {
-    // for convience
-    plDevice* ptDevice = gptData->ptDevice;
-
-    const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
-
     plLightComponent* ptLights = NULL;
     const uint32_t uLightCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tLightComponentType, (void**)&ptLights, NULL);
 
-    pl_sb_reserve(ptScene->sbtVertexDataBuffer, 40000000);
-    pl_sb_reserve(ptScene->sbtVertexPosBuffer, 15000000);
+
     int iLightCount = (int)uLightCount;
 
     pl_sb_reserve(ptScene->sbtLightData, iLightCount);
@@ -2429,59 +2498,16 @@ pl_renderer_finalize_scene(plScene* ptScene)
     pl__renderer_set_drawable_shaders(ptScene);
     pl__renderer_sort_drawables(ptScene);
 
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~GPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
     const plBufferDesc tMaterialDataBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
         .szByteSize = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity,
         .pcDebugName = "material buffer"
     };
-    
-    const plBufferDesc tLightBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_UNIFORM,
-        .szByteSize = sizeof(plGpuLight) * PL_MAX_LIGHTS,
-        .pcDebugName = "light buffer"
-    };
-
-    const plBufferDesc tTransformBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = sizeof(plMat4) * 10000,
-        .pcDebugName = "transform buffer"
-    };
-
-    const plBufferDesc tInstanceBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = sizeof(plShadowInstanceBufferData) * 10000,
-        .pcDebugName = "instance buffer"
-    };
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        ptScene->atLightBuffer[i]        = pl__renderer_create_staging_buffer(&tLightBufferDesc, "light", i);
-        ptScene->atTransformBuffer[i]    = pl__renderer_create_staging_buffer(&tTransformBufferDesc, "transform", i);
-        ptScene->atInstanceBuffer[i]     = pl__renderer_create_staging_buffer(&tInstanceBufferDesc, "instance", i);
         ptScene->atMaterialDataBuffer[i] = pl__renderer_create_local_buffer(&tMaterialDataBufferDesc,  "material buffer", 0, ptScene->sbtMaterialBuffer, pl_sb_size(ptScene->sbtMaterialBuffer) * sizeof(plGpuMaterial));
     }
-
-    int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
-    if(gptData->tRuntimeOptions.bPunctualLighting)   iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_PUNCTUAL;
-    if(gptData->tRuntimeOptions.bImageBasedLighting) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
-    if(gptData->tRuntimeOptions.bNormalMapping)      iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_NORMAL_MAPS;
-    if(gptData->tRuntimeOptions.bPcfShadows)         iSceneWideRenderingFlags |= PL_RENDERING_FLAG_PCF_SHADOWS;
-
-    // create lighting shader
-    int aiLightingConstantData[] = {iSceneWideRenderingFlags, gptData->tRuntimeOptions.tShaderDebugMode, 0};
-    ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    ptScene->tSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    ptScene->tPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    aiLightingConstantData[2] = pl_sb_size(ptScene->sbtProbeData);
-    ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    aiLightingConstantData[0] = gptData->tRuntimeOptions.bPunctualLighting ? (PL_RENDERING_FLAG_USE_PUNCTUAL | PL_RENDERING_FLAG_SHADOWS) : 0;
-    aiLightingConstantData[2] = 0;
-    ptScene->tEnvDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    ptScene->tEnvSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-    ptScene->tEnvPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
-
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -2506,7 +2532,6 @@ pl_renderer_finalize_scene(plScene* ptScene)
 
         gptGfx->update_bind_group(gptData->ptDevice, ptScene->atBindGroups[i], &tGlobalBindGroupData);
     }
-    
 }
 
 void
@@ -3519,6 +3544,13 @@ pl_renderer_begin_frame(void)
         if(!ptScene->bActive)
             continue;
 
+        if(ptScene->bProbeCountDirty)
+        {
+            ptScene->bProbeCountDirty = false;
+            int iProbeCount = (int)pl_sb_size(ptScene->sbtProbeData);
+            ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, &iProbeCount, &gptData->tRenderPassLayout);
+        }
+
         if(ptScene->uGPUMaterialDirty)
         {
 
@@ -3539,14 +3571,14 @@ pl_renderer_begin_frame(void)
             }
             gptData->atStagingBufferHandle[uFrameIdx].dLastTimeActive = gptIO->dTime;
 
-            const plBeginCommandInfo tSkinUpdateBeginInfo = {
+            const plBeginCommandInfo tMaterialUpdateBeginInfo = {
                 .uWaitSemaphoreCount   = 1,
                 .atWaitSempahores      = {tSemHandle},
                 .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
             };
         
             plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "material upload");
-            gptGfx->begin_command_recording(ptCommandBuffer, &tSkinUpdateBeginInfo);
+            gptGfx->begin_command_recording(ptCommandBuffer, &tMaterialUpdateBeginInfo);
 
             plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
             gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
@@ -3560,12 +3592,12 @@ pl_renderer_begin_frame(void)
             gptGfx->end_blit_pass(ptBlitEncoder);
             gptGfx->end_command_recording(ptCommandBuffer);
 
-            const plSubmitInfo tSkinUpdateSubmitInfo = {
+            const plSubmitInfo tMaterialUpdateSubmitInfo = {
                 .uSignalSemaphoreCount   = 1,
                 .atSignalSempahores      = {tSemHandle},
                 .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
             };
-            gptGfx->submit_command_buffer(ptCommandBuffer, &tSkinUpdateSubmitInfo);
+            gptGfx->submit_command_buffer(ptCommandBuffer, &tMaterialUpdateSubmitInfo);
             
             gptGfx->return_command_buffer(ptCommandBuffer);
             ptScene->uGPUMaterialDirty--;

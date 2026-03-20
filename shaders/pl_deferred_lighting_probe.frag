@@ -12,9 +12,7 @@
 // [SECTION] specialication constants
 //-----------------------------------------------------------------------------
 
-layout(constant_id = 0) const int iRenderingFlags = 0;
-layout(constant_id = 1) const int tShaderDebugMode = 0;
-layout(constant_id = 2) const int iProbeCount = 0;
+layout(constant_id = 0) const int iProbeCount = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 2
