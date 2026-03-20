@@ -16,6 +16,7 @@ Index of this file:
 
 #include "pl.h"
 
+#include "pl_stage_ext.c"
 #include "pl_shader_ext.c"
 #include "pl_image_ext.c"
 #include "pl_rect_pack_ext.c"
@@ -122,6 +123,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptPath              = pl_get_api_latest(ptApiRegistry, plPathI);
     gptVoxel             = pl_get_api_latest(ptApiRegistry, plVoxelI);
     gptAudio             = pl_get_api_latest(ptApiRegistry, plAudioI);
+    gptStage             = pl_get_api_latest(ptApiRegistry, plStageI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -171,6 +173,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_voxel_ext(ptApiRegistry, bReload);
     pl_load_path_ext(ptApiRegistry, bReload);
     pl_load_audio_ext(ptApiRegistry, bReload);
+    pl_load_stage_ext(ptApiRegistry, bReload);
 }
 
 PL_EXPORT void
@@ -221,6 +224,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_path_ext(ptApiRegistry, bReload);
     pl_unload_voxel_ext(ptApiRegistry, bReload);
     pl_unload_audio_ext(ptApiRegistry, bReload);
+    pl_unload_stage_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------

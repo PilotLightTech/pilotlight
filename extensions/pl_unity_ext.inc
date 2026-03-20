@@ -66,6 +66,7 @@ static const struct _plImageOpsI*          gptImageOps         = 0;
 static const struct _plPathI*              gptPath             = 0;
 static const struct _plVoxelI*             gptVoxel            = 0;
 static const struct _plAudioI*             gptAudio            = 0;
+static const struct _plStageI*             gptStage            = 0;
 
 // context
 static struct _plIO* gptIO = 0;

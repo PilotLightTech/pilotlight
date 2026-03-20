@@ -207,6 +207,8 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tDeviceInfo = *gptGfx->get_device_info(gptData->ptDevice);
     gptData->ptSwap = tSettings.ptSwap;
 
+    gptStage->initialize((plStageInit){.ptDevice = gptData->ptDevice});
+
     // register data with registry (for reloads)
     gptDataRegistry->set_data("ref renderer data", gptData);
 
@@ -671,6 +673,9 @@ pl_renderer_create_scene(plSceneInit tInit)
     ptScene->tSkinStorageBuffer         = (plBufferHandle){.uData = UINT32_MAX};
     ptScene->uGPUMaterialBufferCapacity = 512;
     ptScene->bProbeCountDirty = true;
+    ptScene->atMaterialBuffer = PL_ALLOC(ptScene->uGPUMaterialBufferCapacity * sizeof(plGpuMaterial));
+    memset(ptScene->atMaterialBuffer, 0, ptScene->uGPUMaterialBufferCapacity * sizeof(plGpuMaterial));
+    gptFreeList->create(ptScene->uGPUMaterialBufferCapacity, 1, &ptScene->tMaterialFreeList);
 
     // create global bindgroup
     ptScene->uTextureIndexCount = 0;
@@ -1040,33 +1045,8 @@ pl_renderer_create_scene(plSceneInit tInit)
     ptScene->tEnvSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tEnvPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
 
-
     pl_sb_reserve(ptScene->sbtVertexDataBuffer, 40000000);
     pl_sb_reserve(ptScene->sbtVertexPosBuffer, 15000000);
-
-    // for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    // {
-    //     const plBindGroupUpdateBufferData atGlobalBufferData[] = 
-    //     {
-    //         {
-    //             .tBuffer       = ptScene->atTransformBuffer[i],
-    //             .uSlot         = 2,
-    //             .szBufferRange = sizeof(plMat4) * 10000
-    //         },
-    //         {
-    //             .tBuffer       = ptScene->atMaterialDataBuffer[i],
-    //             .uSlot         = 3,
-    //             .szBufferRange = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity
-    //         },
-    //     };
-
-    //     plBindGroupUpdateData tGlobalBindGroupData = {
-    //         .uBufferCount = 2,
-    //         .atBufferBindings = atGlobalBufferData,
-    //     };
-
-    //     gptGfx->update_bind_group(gptData->ptDevice, ptScene->atBindGroups[i], &tGlobalBindGroupData);
-    // }
 
     return ptScene;
 }
@@ -1192,9 +1172,9 @@ pl_renderer_cleanup_scene(plScene* ptScene)
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atLightShadowDataBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atGPUProbeDataBuffers[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptScene->atBindGroups[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atMaterialDataBuffer[i]);
     }
-
+    gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tMaterialDataBuffer);
+    
     for(uint32_t i = 0; i < 7; i++)
     {
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atFilterWorkingBuffers[i]);
@@ -1240,7 +1220,7 @@ pl_renderer_cleanup_scene(plScene* ptScene)
     pl_sb_free(ptScene->sbtVertexPosBuffer);
     pl_sb_free(ptScene->sbtVertexDataBuffer);
     pl_sb_free(ptScene->sbuIndexBuffer);
-    pl_sb_free(ptScene->sbtMaterialBuffer);
+    pl_sb_free(ptScene->sbtMaterialNodes)
     pl_sb_free(ptScene->sbtDrawables);
     pl_sb_free(ptScene->sbtStagedEntities);
     pl_sb_free(ptScene->sbtSkinData);
@@ -1252,6 +1232,10 @@ pl_renderer_cleanup_scene(plScene* ptScene)
     pl_hm_free(&ptScene->tMaterialHashmap);
     pl_hm_free(&ptScene->tTextureIndexHashmap);
     pl_hm_free(&ptScene->tCubeTextureIndexHashmap);
+
+
+    gptFreeList->cleanup(&ptScene->tMaterialFreeList);
+    PL_FREE(ptScene->atMaterialBuffer);
 
     pl_sb_free(ptScene->sbptViews);
 
@@ -2041,6 +2025,7 @@ pl_renderer_cleanup(void)
     pl_sb_free(gptData->sbptScenes);
     gptShaderVariant->unload_manifest("/shaders/shaders.pls");
     gptResource->cleanup();
+    gptStage->cleanup();
     gptGfx->flush_device(gptData->ptDevice);
 
     gptGfx->cleanup_semaphore(gptData->ptClickSemaphore);
@@ -2504,10 +2489,8 @@ pl_renderer_finalize_scene(plScene* ptScene)
         .pcDebugName = "material buffer"
     };
 
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-        ptScene->atMaterialDataBuffer[i] = pl__renderer_create_local_buffer(&tMaterialDataBufferDesc,  "material buffer", 0, ptScene->sbtMaterialBuffer, pl_sb_size(ptScene->sbtMaterialBuffer) * sizeof(plGpuMaterial));
-    }
+
+    ptScene->tMaterialDataBuffer = pl__renderer_create_local_buffer(&tMaterialDataBufferDesc,  "material buffer", 0, ptScene->atMaterialBuffer, sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -2519,7 +2502,7 @@ pl_renderer_finalize_scene(plScene* ptScene)
                 .szBufferRange = sizeof(plMat4) * 10000
             },
             {
-                .tBuffer       = ptScene->atMaterialDataBuffer[i],
+                .tBuffer       = ptScene->tMaterialDataBuffer,
                 .uSlot         = 3,
                 .szBufferRange = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity
             },
@@ -3529,6 +3512,7 @@ pl_renderer_begin_frame(void)
 
     plDevice* ptDevice = gptData->ptDevice;
 
+    gptStage->new_frame();
     gptGfx->reset_bind_group_pool(gptData->aptTempGroupPools[gptGfx->get_current_frame_index()]);
     gptData->tCurrentDynamicDataBlock = gptGfx->allocate_dynamic_data_block(gptData->ptDevice);
 
@@ -3551,62 +3535,22 @@ pl_renderer_begin_frame(void)
             ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, &iProbeCount, &gptData->tRenderPassLayout);
         }
 
-        if(ptScene->uGPUMaterialDirty)
+        if(ptScene->uMaterialDirtyValue > 0)
         {
-
-            plBufferHandle tStagingBuffer = gptData->atStagingBufferHandle[uFrameIdx].tStagingBufferHandle;
-
-            if(!gptGfx->is_buffer_valid(ptDevice, tStagingBuffer))
+            if(gptStage->completed(ptScene->uMaterialDirtyValue))
             {
-                const plBufferDesc tStagingBufferDesc = {
-                    .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
-                    .szByteSize  = 268435456,
-                    .pcDebugName = "Renderer Staging Buffer"
-                };
-    
-                gptData->atStagingBufferHandle[uFrameIdx].tStagingBufferHandle = pl__renderer_create_staging_buffer(&tStagingBufferDesc, "staging", uFrameIdx);
-                tStagingBuffer = gptData->atStagingBufferHandle[uFrameIdx].tStagingBufferHandle;
-                gptData->atStagingBufferHandle[uFrameIdx].szOffset = 0;
-                gptData->atStagingBufferHandle[uFrameIdx].szSize = tStagingBufferDesc.szByteSize;
-            }
-            gptData->atStagingBufferHandle[uFrameIdx].dLastTimeActive = gptIO->dTime;
+                const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
 
-            const plBeginCommandInfo tMaterialUpdateBeginInfo = {
-                .uWaitSemaphoreCount   = 1,
-                .atWaitSempahores      = {tSemHandle},
-                .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
-            };
-        
-            plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "material upload");
-            gptGfx->begin_command_recording(ptCommandBuffer, &tMaterialUpdateBeginInfo);
+                const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
+                for(uint32_t i = 0; i < uDrawableCount; i++)
+                {
+                    plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawables[i].tEntity);
+                    plMeshComponent* ptMesh = gptECS->get_component(ptScene->ptComponentLibrary, tMeshComponentType, ptObject->tMesh);
 
-            plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-        
-            plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
-            memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[gptData->atStagingBufferHandle[uFrameIdx].szOffset], ptScene->sbtMaterialBuffer, sizeof(plGpuMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
-            gptGfx->copy_buffer(ptBlitEncoder, tStagingBuffer, ptScene->atMaterialDataBuffer[uFrameIdx], (uint32_t)gptData->atStagingBufferHandle[uFrameIdx].szOffset, 0, sizeof(plGpuMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer));
-            gptData->atStagingBufferHandle[uFrameIdx].szOffset += sizeof(plGpuMaterial) * pl_sb_size(ptScene->sbtMaterialBuffer);
-
-            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-            gptGfx->end_blit_pass(ptBlitEncoder);
-            gptGfx->end_command_recording(ptCommandBuffer);
-
-            const plSubmitInfo tMaterialUpdateSubmitInfo = {
-                .uSignalSemaphoreCount   = 1,
-                .atSignalSempahores      = {tSemHandle},
-                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-            };
-            gptGfx->submit_command_buffer(ptCommandBuffer, &tMaterialUpdateSubmitInfo);
-            
-            gptGfx->return_command_buffer(ptCommandBuffer);
-            ptScene->uGPUMaterialDirty--;
-        }
-        else if(gptGfx->is_buffer_valid(ptDevice, gptData->atStagingBufferHandle[uFrameIdx].tStagingBufferHandle))
-        {
-            if(gptIO->dTime - gptData->atStagingBufferHandle[uFrameIdx].dLastTimeActive > 30.0)
-            {
-                gptGfx->queue_buffer_for_deletion(ptDevice, gptData->atStagingBufferHandle[uFrameIdx].tStagingBufferHandle);
+                    uint32_t uMaterialIndex = (uint32_t)pl_hm_lookup(&ptScene->tMaterialHashmap, ptMesh->tMaterial.uData);
+                    ptScene->sbtDrawables[i].uMaterialIndex = (uint32_t)ptScene->sbtMaterialNodes[uMaterialIndex]->uOffset;
+                }
+                ptScene->uMaterialDirtyValue = 0;
             }
         }
 
@@ -3700,71 +3644,76 @@ pl_renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCoun
 }
 
 void
-pl_renderer_update_scene_materials(plScene* ptScene, uint32_t uMaterialCount, const plEntity* atMaterials)
+pl_renderer_update_scene_material(plScene* ptScene, plEntity tMaterialComp)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
 
-    for(uint32_t i = 0; i < uMaterialCount; i++)
+    plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, tMaterialComp);
+
+    uint32_t uMaterialIndex = (uint32_t)pl_hm_lookup(&ptScene->tMaterialHashmap, tMaterialComp.uData);
+    uint32_t uOldMaterialIndex = 0;
+    uint32_t uNewMaterialIndex = 0;
+    plFreeListNode* ptOldNode = NULL;
+    plFreeListNode* ptNewNode = NULL;
+    if(uMaterialIndex == UINT32_MAX)
     {
-        const plEntity tMaterialComp = atMaterials[i];
-        plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, tMaterialComp);
-
-        uint32_t uMaterialIndex = (uint32_t)pl_hm_lookup(&ptScene->tMaterialHashmap, tMaterialComp.uData);
-        if(uMaterialIndex == UINT32_MAX)
-        {
-            PL_ASSERT(false && "material isn't in scene");
-        }
-        else
-        {
-            plGpuMaterial* ptGPUMaterial = &ptScene->sbtMaterialBuffer[uMaterialIndex];
-
-            ptGPUMaterial->fMetallicFactor           = ptMaterial->fMetalness;
-            ptGPUMaterial->fRoughnessFactor          = ptMaterial->fRoughness;
-            ptGPUMaterial->tBaseColorFactor          = ptMaterial->tBaseColor;
-            ptGPUMaterial->tEmissiveFactor           = ptMaterial->tEmissiveColor.rgb;
-            ptGPUMaterial->fAlphaCutoff              = ptMaterial->fAlphaCutoff;
-            ptGPUMaterial->fClearcoatFactor          = ptMaterial->fClearcoat;
-            ptGPUMaterial->fClearcoatRoughnessFactor = ptMaterial->fClearcoatRoughness;
-            ptGPUMaterial->fSheenRoughnessFactor     = ptMaterial->fSheenRoughness;
-            ptGPUMaterial->fNormalMapStrength        = ptMaterial->fNormalMapStrength;
-            ptGPUMaterial->fEmissiveStrength         = ptMaterial->fEmissiveStrength;
-            ptGPUMaterial->tSheenColorFactor         = ptMaterial->tSheenColor;
-            ptGPUMaterial->fIridescenceFactor        = ptMaterial->fIridescenceFactor;
-            ptGPUMaterial->fIridescenceIor           = ptMaterial->fIridescenceIor;
-            ptGPUMaterial->fIridescenceThicknessMin  = ptMaterial->fIridescenceThicknessMin;
-            ptGPUMaterial->fIridescenceThicknessMax  = ptMaterial->fIridescenceThicknessMax;
-            ptGPUMaterial->tAnisotropy.x             = cosf(ptMaterial->fAnisotropyRotation);
-            ptGPUMaterial->tAnisotropy.y             = sinf(ptMaterial->fAnisotropyRotation);
-            ptGPUMaterial->tAnisotropy.z             = ptMaterial->fAnisotropyStrength;
-            ptGPUMaterial->fOcclusionStrength        = ptMaterial->fOcclusionStrength;
-            ptGPUMaterial->tAlphaMode                = ptMaterial->tAlphaMode;
-            ptGPUMaterial->fTransmissionFactor       = ptMaterial->fTransmissionFactor;
-            ptGPUMaterial->fThickness                = ptMaterial->fThickness;
-            ptGPUMaterial->fAttenuationDistance      = ptMaterial->fAttenuationDistance;
-            ptGPUMaterial->tAttenuationColor         = ptMaterial->tAttenuationColor;
-            ptGPUMaterial->fDispersion               = ptMaterial->fDispersion;
-            ptGPUMaterial->fIor                      = ptMaterial->fIor;
-            ptGPUMaterial->fDiffuseTransmission      = ptMaterial->fDiffuseTransmission;
-            ptGPUMaterial->tDiffuseTransmissionColor = ptMaterial->tDiffuseTransmissionColor;
-
-            const int iDummyIndex = (int)pl__renderer_get_bindless_texture_index(ptScene, gptData->tDummyTexture);
-            for(uint32_t uTextureIndex = 0; uTextureIndex < PL_TEXTURE_SLOT_COUNT; uTextureIndex++)
-            {
-                ptGPUMaterial->aiTextureUVSet[uTextureIndex] = (int)ptMaterial->atTextureMaps[uTextureIndex].uUVSet;
-                ptGPUMaterial->atTextureTransforms[uTextureIndex] = ptMaterial->atTextureMaps[uTextureIndex].tTransform;
-                if(gptResource->is_valid(ptMaterial->atTextureMaps[uTextureIndex].tResource))
-                {
-                    plTextureHandle tValidTexture = gptResource->get_texture(ptMaterial->atTextureMaps[uTextureIndex].tResource);
-                    ptGPUMaterial->aiTextureIndices[uTextureIndex] = (int)pl__renderer_get_bindless_texture_index(ptScene, tValidTexture);
-                }
-                else
-                    ptGPUMaterial->aiTextureIndices[uTextureIndex] = iDummyIndex;
-            }
-        }
+        PL_ASSERT(false && "material isn't in scene");
+        pl_end_cpu_sample(gptProfile, 0);
+        return;
     }
-    ptScene->uGPUMaterialDirty = gptGfx->get_frames_in_flight();
+    else
+    {
+        ptOldNode = ptScene->sbtMaterialNodes[uMaterialIndex];
+        ptNewNode = gptFreeList->get_node(&ptScene->tMaterialFreeList, 1);
+        
+        gptFreeList->return_node(&ptScene->tMaterialFreeList, ptOldNode);
+
+        ptScene->sbtMaterialNodes[uMaterialIndex] = ptNewNode;
+
+        uOldMaterialIndex = (uint32_t)ptOldNode->uOffset;
+        uNewMaterialIndex = (uint32_t)ptNewNode->uOffset;
+
+        plGpuMaterial* ptOldGPUMaterial = &ptScene->atMaterialBuffer[uOldMaterialIndex];
+        plGpuMaterial* ptGPUMaterial = &ptScene->atMaterialBuffer[uNewMaterialIndex];
+        *ptGPUMaterial = *ptOldGPUMaterial;
+
+        ptGPUMaterial->fMetallicFactor           = ptMaterial->fMetalness;
+        ptGPUMaterial->fRoughnessFactor          = ptMaterial->fRoughness;
+        ptGPUMaterial->tBaseColorFactor          = ptMaterial->tBaseColor;
+        ptGPUMaterial->tEmissiveFactor           = ptMaterial->tEmissiveColor.rgb;
+        ptGPUMaterial->fAlphaCutoff              = ptMaterial->fAlphaCutoff;
+        ptGPUMaterial->fClearcoatFactor          = ptMaterial->fClearcoat;
+        ptGPUMaterial->fClearcoatRoughnessFactor = ptMaterial->fClearcoatRoughness;
+        ptGPUMaterial->fSheenRoughnessFactor     = ptMaterial->fSheenRoughness;
+        ptGPUMaterial->fNormalMapStrength        = ptMaterial->fNormalMapStrength;
+        ptGPUMaterial->fEmissiveStrength         = ptMaterial->fEmissiveStrength;
+        ptGPUMaterial->tSheenColorFactor         = ptMaterial->tSheenColor;
+        ptGPUMaterial->fIridescenceFactor        = ptMaterial->fIridescenceFactor;
+        ptGPUMaterial->fIridescenceIor           = ptMaterial->fIridescenceIor;
+        ptGPUMaterial->fIridescenceThicknessMin  = ptMaterial->fIridescenceThicknessMin;
+        ptGPUMaterial->fIridescenceThicknessMax  = ptMaterial->fIridescenceThicknessMax;
+        ptGPUMaterial->tAnisotropy.x             = cosf(ptMaterial->fAnisotropyRotation);
+        ptGPUMaterial->tAnisotropy.y             = sinf(ptMaterial->fAnisotropyRotation);
+        ptGPUMaterial->tAnisotropy.z             = ptMaterial->fAnisotropyStrength;
+        ptGPUMaterial->fOcclusionStrength        = ptMaterial->fOcclusionStrength;
+        ptGPUMaterial->tAlphaMode                = ptMaterial->tAlphaMode;
+        ptGPUMaterial->fTransmissionFactor       = ptMaterial->fTransmissionFactor;
+        ptGPUMaterial->fThickness                = ptMaterial->fThickness;
+        ptGPUMaterial->fAttenuationDistance      = ptMaterial->fAttenuationDistance;
+        ptGPUMaterial->tAttenuationColor         = ptMaterial->tAttenuationColor;
+        ptGPUMaterial->fDispersion               = ptMaterial->fDispersion;
+        ptGPUMaterial->fIor                      = ptMaterial->fIor;
+        ptGPUMaterial->fDiffuseTransmission      = ptMaterial->fDiffuseTransmission;
+        ptGPUMaterial->tDiffuseTransmissionColor = ptMaterial->tDiffuseTransmissionColor;
+    }
+
+    ptScene->uMaterialDirtyValue = gptStage->queue_buffer_upload(ptScene->tMaterialDataBuffer,
+        ptNewNode->uOffset * sizeof(plGpuMaterial),
+        &ptScene->atMaterialBuffer[ptNewNode->uOffset],
+        sizeof(plGpuMaterial));
+
     pl_end_cpu_sample(gptProfile, 0);
 }
 
@@ -3811,7 +3760,6 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
 
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
 
-    pl_sb_reset(ptScene->sbtMaterialBuffer);
     for(uint32_t i = 0; i < uMaterialCount; i++)
     {
         const plEntity tMaterialComp = atMaterials[i];
@@ -3825,13 +3773,14 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
             uint64_t ulValue = pl_hm_get_free_index(&ptScene->tMaterialHashmap);
             if(ulValue == PL_DS_HASH_INVALID)
             {
-                ulValue = pl_sb_size(ptScene->sbtMaterialBuffer);
-                pl_sb_add(ptScene->sbtMaterialBuffer);
+                ulValue = pl_sb_size(ptScene->sbtMaterialNodes);
+                pl_sb_add(ptScene->sbtMaterialNodes);
             }
+            ptScene->sbtMaterialNodes[ulValue] = gptFreeList->get_node(&ptScene->tMaterialFreeList, 1);
 
-            uMaterialIndex = ulValue;
+            uMaterialIndex = ptScene->sbtMaterialNodes[ulValue]->uOffset;
 
-            plGpuMaterial* ptGPUMaterial = &ptScene->sbtMaterialBuffer[uMaterialIndex];
+            plGpuMaterial* ptGPUMaterial = &ptScene->atMaterialBuffer[uMaterialIndex];
 
             ptGPUMaterial->fMetallicFactor           = ptMaterial->fMetalness;
             ptGPUMaterial->fRoughnessFactor          = ptMaterial->fRoughness;
@@ -4178,7 +4127,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi.add_materials_to_scene              = pl_renderer_add_materials_to_scene;
     tApi.remove_objects_from_scene           = pl_renderer_remove_objects_from_scene;
     tApi.update_scene_objects                = pl_renderer_update_scene_objects;
-    tApi.update_scene_materials              = pl_renderer_update_scene_materials;
+    tApi.update_scene_material               = pl_renderer_update_scene_material;
     tApi.create_view                         = pl_renderer_create_view;
     tApi.cleanup_view                        = pl_renderer_cleanup_view;
     tApi.begin_frame                         = pl_renderer_begin_frame;
@@ -4252,6 +4201,8 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptMaterial         = pl_get_api_latest(ptApiRegistry, plMaterialI);
         gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);
         gptTerrainProcessor = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
+        gptStage            = pl_get_api_latest(ptApiRegistry, plStageI);
+        gptFreeList         = pl_get_api_latest(ptApiRegistry, plFreeListI);
     #endif
 
     if(bReload)

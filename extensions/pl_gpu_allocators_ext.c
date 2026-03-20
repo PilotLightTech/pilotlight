@@ -441,7 +441,7 @@ pl_free_dedicated(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocat
         {
             uNodeIndex = i;
             uBlockIndex = (uint32_t)ptNode->ulBlockIndex;
-            ptBlock->ulSize = 0;
+            // ptBlock->ulSize = 0;
             break;
         }
     }
@@ -606,7 +606,7 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
         {
             uNodeIndex = i;
             uBlockIndex = (uint32_t)ptNode->ulBlockIndex;
-            ptBlock->ulSize = 0;
+            // ptBlock->ulSize = 0; // handled by gptGfx
             break;
         }
     }
@@ -719,7 +719,7 @@ pl_free_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAl
         {
             uNodeIndex = i;
             uBlockIndex = (uint32_t)ptNode->ulBlockIndex;
-            ptBlock->ulSize = 0;
+            // ptBlock->ulSize = 0;
             break;
         }
     }

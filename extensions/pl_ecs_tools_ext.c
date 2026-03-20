@@ -877,8 +877,8 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                         else                     ptMaterialComp->tFlags &= ~PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION;
                     }
 
-                    if(bMaterialModified)
-                        gptRenderer->update_scene_materials(ptScene, 1, ptSelectedEntity);
+                    if(gptUI->button("Update Material"))
+                        gptRenderer->update_scene_material(ptScene, *ptSelectedEntity);
 
                     if(bShadersModified)
                         gptRenderer->reload_scene_shaders(ptScene);

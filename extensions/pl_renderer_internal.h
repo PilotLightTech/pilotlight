@@ -61,6 +61,8 @@ Index of this file:
 #include "pl_material_ext.h"
 #include "pl_terrain_ext.h"
 #include "pl_terrain_processor_ext.h"
+#include "pl_stage_ext.h"
+#include "pl_freelist_ext.h"
 
 // shader interop
 #include "pl_shader_interop_renderer.h"
@@ -117,6 +119,8 @@ Index of this file:
     static const plMaterialI*         gptMaterial         = NULL;
     static const plTerrainI*          gptTerrain          = NULL;
     static const plTerrainProcessorI* gptTerrainProcessor = NULL;
+    static const plStageI*            gptStage            = NULL;
+    static const plFreeListI*         gptFreeList         = NULL;
 
     static struct _plIO* gptIO = 0;
 #endif
@@ -386,7 +390,7 @@ typedef struct _plScene
     plVec3*        sbtVertexPosBuffer;
     plVec4*        sbtVertexDataBuffer;
     uint32_t*      sbuIndexBuffer;
-    plGpuMaterial* sbtMaterialBuffer;
+    plGpuMaterial* atMaterialBuffer;
     plVec4*        sbtSkinVertexDataBuffer;
     plGpuLight*    sbtLightData;
 
@@ -401,9 +405,10 @@ typedef struct _plScene
     plBufferHandle atInstanceBuffer[PL_MAX_FRAMES_IN_FLIGHT];
 
     // GPU materials
-    uint32_t       uGPUMaterialDirty;
+    plFreeList     tMaterialFreeList;
     uint32_t       uGPUMaterialBufferCapacity;
-    plBufferHandle atMaterialDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle tMaterialDataBuffer;
+    uint64_t       uMaterialDirtyValue;
 
     // views
     plView**    sbptViews;
@@ -438,6 +443,7 @@ typedef struct _plScene
     // material hashmaps (material component <-> GPU material)
     plMaterialComponent* sbtMaterials;
     plHashMap64 tMaterialHashmap;
+    plFreeListNode** sbtMaterialNodes;
 
     // shadows
     plBufferHandle    atShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
@@ -521,12 +527,7 @@ typedef struct _plRefRendererData
 
     // draw stream data
     plDrawStream tDrawStream;
-
-    // staging (more robust system should replace this)
-    plRendererStagingBuffer atStagingBufferHandle[PL_MAX_FRAMES_IN_FLIGHT];
-    // plBufferHandle tStagingBufferHandle[PL_MAX_FRAMES_IN_FLIGHT];
-    // uint32_t uStagingOffset;
-
+    
     // sync
     plTimelineSemaphore* ptClickSemaphore;
     uint64_t ulSemClickNextValue;

@@ -181,31 +181,18 @@ pl__renderer_create_texture_with_data(const plTextureDesc* ptDesc, const char* p
     gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     gptGfx->set_texture_usage(ptBlitEncoder, tHandle, PL_TEXTURE_USAGE_SAMPLED, 0);
 
+    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
+    gptGfx->end_blit_pass(ptBlitEncoder);
+    gptGfx->end_command_recording(ptCommandBuffer);
+    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
+    gptGfx->wait_on_command_buffer(ptCommandBuffer);
+    gptGfx->return_command_buffer(ptCommandBuffer);
 
     // if data is presented, upload using staging buffer
     if(pData)
     {
         PL_ASSERT(ptDesc->uLayers == 1); // this is for simple textures right now
 
-        // create staging buffer
-        const plBufferDesc tStagingBufferDesc = {
-            .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
-            .szByteSize  = szSize,
-            .pcDebugName = "temp staging buffer"
-        };
-        plBuffer* ptBuffer = NULL;
-        plBufferHandle tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, &ptBuffer);
-
-        // allocate memory for the vertex buffer
-        const plDeviceMemoryAllocation tStagingBufferAllocation = gptGfx->allocate_memory(ptDevice,
-            ptBuffer->tMemoryRequirements.ulSize,
-            PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
-            ptBuffer->tMemoryRequirements.uMemoryTypeBits,
-            "temp staging memory");
-
-        gptGfx->bind_buffer_to_memory(ptDevice, tStagingBuffer, &tStagingBufferAllocation);
-        memcpy(ptBuffer->tMemoryAllocation.pHostMapped, pData, szSize);
-        
         const plBufferImageCopy tBufferImageCopy = {
             .uImageWidth = (uint32_t)ptDesc->tDimensions.x,
             .uImageHeight = (uint32_t)ptDesc->tDimensions.y,
@@ -213,17 +200,9 @@ pl__renderer_create_texture_with_data(const plTextureDesc* ptDesc, const char* p
             .uLayerCount = 1
         };
 
-        gptGfx->copy_buffer_to_texture(ptBlitEncoder, tStagingBuffer, tHandle, 1, &tBufferImageCopy);
-        gptGfx->generate_mipmaps(ptBlitEncoder, tHandle);
-        gptGfx->queue_buffer_for_deletion(ptDevice, tStagingBuffer);
+        gptStage->stage_texture_upload(tHandle, &tBufferImageCopy, pData, (uint64_t)szSize, true);
+        gptStage->flush();
     }
-
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-    gptGfx->end_blit_pass(ptBlitEncoder);
-    gptGfx->end_command_recording(ptCommandBuffer);
-    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
 
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created texture %s %u", pcName, uIdentifier);
     pl_log_info_f(gptLog, gptData->uLogChannel, "created texture %s %u", pcName, uIdentifier);
@@ -324,65 +303,8 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
     // if data is presented, upload using staging buffer
     if(pData)
     {
-
-        plBufferHandle tStagingBuffer = gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle;
-
-        if(!gptGfx->is_buffer_valid(ptDevice, tStagingBuffer))
-        {
-            const plBufferDesc tStagingBufferDesc = {
-                .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
-                .szByteSize  = pl_max(268435456, szSize),
-                .pcDebugName = "Renderer Staging Buffer"
-            };
-
-            gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle = pl__renderer_create_staging_buffer(&tStagingBufferDesc, "staging", gptGfx->get_current_frame_index());
-            tStagingBuffer = gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle;
-            gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].szOffset = 0;
-            gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].szSize = tStagingBufferDesc.szByteSize;
-        }
-        else
-        {
-            plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
-            if(ptStagingBuffer->tDesc.szByteSize < szSize)
-            {
-                gptGfx->queue_buffer_for_deletion(ptDevice, tStagingBuffer);
-                const plBufferDesc tStagingBufferDesc = {
-                    .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
-                    .szByteSize  = szSize,
-                    .pcDebugName = "Renderer Staging Buffer"
-                };
-
-                gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle = pl__renderer_create_staging_buffer(&tStagingBufferDesc, "staging", gptGfx->get_current_frame_index());
-                tStagingBuffer = gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].tStagingBufferHandle;
-                gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].szOffset = 0;
-                gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].szSize = tStagingBufferDesc.szByteSize;
-            }
-        }
-        gptData->atStagingBufferHandle[gptGfx->get_current_frame_index()].dLastTimeActive = gptIO->dTime;
-
-        // copy data to staging buffer
-        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
-        memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, pData, szSize);
-
-        // begin recording
-        plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "create buffer");
-        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-        
-        // begin blit pass, copy buffer, end pass
-        plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-        gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-
-        gptGfx->copy_buffer(ptEncoder, tStagingBuffer, tHandle, 0, 0, szSize);
-        gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-        gptGfx->end_blit_pass(ptEncoder);
-
-        // finish recording
-        gptGfx->end_command_recording(ptCommandBuffer);
-
-        // submit command buffer
-        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-        gptGfx->wait_on_command_buffer(ptCommandBuffer);
-        gptGfx->return_command_buffer(ptCommandBuffer);
+        gptStage->stage_buffer_upload(tHandle, 0, pData, (uint64_t)szSize);
+        gptStage->flush();
     }
 
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created local buffer %s %u", pcName, uIdentifier);
@@ -3092,7 +3014,7 @@ pl__renderer_set_drawable_shaders(plScene* ptScene)
             PL_ASSERT(false && "material not added to scene");
         }
 
-        ptScene->sbtDrawables[i].uMaterialIndex = (uint32_t)uMaterialIndex;
+        ptScene->sbtDrawables[i].uMaterialIndex = (uint32_t)ptScene->sbtMaterialNodes[uMaterialIndex]->uOffset;
 
         int iDataStride = 0;
         int iFlagCopy0 = (int)ptMesh->ulVertexStreamMask;

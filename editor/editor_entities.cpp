@@ -484,7 +484,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
 
 
                 if(bMaterialModified)
-                    gptRenderer->update_scene_materials(ptScene, 1, &tEntity);
+                    gptRenderer->update_scene_material(ptScene, tEntity);
 
                 static const char* apcBlendModeNames[] = 
                 {

@@ -140,7 +140,7 @@ typedef struct _plRendererI
     // scenes - runtime
     void (*reload_scene_shaders)(plScene*);
     void (*remove_objects_from_scene)(plScene*, uint32_t objectCount, const plEntity* objects);
-    void (*update_scene_materials)(plScene*, uint32_t materialCount, const plEntity* materials);
+    void (*update_scene_material)(plScene*, plEntity material);
     void (*update_scene_objects)(plScene*, uint32_t objectCount, const plEntity* objects); // call if you change flags for objects
 
     // scenes - not ready

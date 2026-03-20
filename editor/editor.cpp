@@ -1067,7 +1067,7 @@ pl__show_editor_window(plAppData* ptAppData)
                     {
                         char* sbcData = nullptr;
                         pl_sb_sprintf(sbcData, "/environments/%s.hdr", apcEnvMaps[uComboSelect]);
-                        gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, sbcData, 1024 * 4);
+                        gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, sbcData, 1024);
                         pl_sb_free(sbcData);
                     }
                     plIO* ptIO = gptIO->get_io();
