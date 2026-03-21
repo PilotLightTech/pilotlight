@@ -402,7 +402,10 @@ pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDev
     ptDevice->sbtBuffersHot[tHandle.uIndex].pcData = PL_ALLOC(sizeof(ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryRequirements.ulSize));
     memset(ptDevice->sbtBuffersHot[tHandle.uIndex].pcData, 0, sizeof(ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryRequirements.ulSize));
 
-    ptCPUBuffer->pcData = ptAllocation->pHostMapped;
+    if(ptAllocation->tMemoryFlags & PL_MEMORY_FLAGS_HOST_VISIBLE)
+    {
+        ptCPUBuffer->pcData = ptAllocation->pHostMapped;
+    }
 
 }
 
