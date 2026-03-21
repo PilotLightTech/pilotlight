@@ -490,8 +490,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plModelLoaderData tLoaderData0 = {0};
     plMat4 tModelTranslation = pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f);
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", &tModelTranslation, &tLoaderData0);
-    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", &tModelTranslation, &tLoaderData0);
+    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", &tModelTranslation, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/sort.gltf", &tModelTranslation, &tLoaderData0);
     // plMat4 tRotation = pl_mat4_rotate_xyz(-PL_PI_2, 0.0f, 1.0f, 0.0f);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/CarConcept/glTF/CarConcept.gltf", &tRotation, &tLoaderData0);
@@ -600,6 +600,19 @@ pl_app_update(plAppData* ptAppData)
     plIO* ptIO = gptIO->get_io();
 
     gptRenderer->begin_frame();
+
+    // static bool bFirstFrame = true;
+    // if(bFirstFrame)
+    // {
+    //     plMaterialComponent* ptMaterials = NULL;
+    //     const plEntity* ptMaterialEntities = NULL;
+    //     const uint32_t uMaterialCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptMaterial->get_ecs_type_key(), (void**)&ptMaterials, &ptMaterialEntities);
+    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[0]);
+    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[1]);
+    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[2]);
+    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[3]);
+    //     bFirstFrame = false;
+    // }
 
     if(ptAppData->bResize)
     {

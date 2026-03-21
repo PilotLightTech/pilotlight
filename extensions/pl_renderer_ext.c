@@ -1003,6 +1003,13 @@ pl_renderer_create_scene(plSceneInit tInit)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~GPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    const plBufferDesc tMaterialDataBufferDesc = {
+        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
+        .szByteSize = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity,
+        .pcDebugName = "material buffer"
+    };
+    ptScene->tMaterialDataBuffer = pl__renderer_create_local_buffer(&tMaterialDataBufferDesc,  "material buffer", 0, NULL, 0);
+
     const plBufferDesc tLightBufferDesc = {
         .tUsage    = PL_BUFFER_USAGE_UNIFORM,
         .szByteSize = sizeof(plGpuLight) * PL_MAX_LIGHTS,
@@ -1047,6 +1054,30 @@ pl_renderer_create_scene(plSceneInit tInit)
 
     pl_sb_reserve(ptScene->sbtVertexDataBuffer, 40000000);
     pl_sb_reserve(ptScene->sbtVertexPosBuffer, 15000000);
+
+    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    {
+        const plBindGroupUpdateBufferData atGlobalBufferData[] = 
+        {
+            {
+                .tBuffer       = ptScene->atTransformBuffer[i],
+                .uSlot         = 2,
+                .szBufferRange = sizeof(plMat4) * 10000
+            },
+            {
+                .tBuffer       = ptScene->tMaterialDataBuffer,
+                .uSlot         = 3,
+                .szBufferRange = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity
+            },
+        };
+
+        plBindGroupUpdateData tGlobalBindGroupData = {
+            .uBufferCount = 2,
+            .atBufferBindings = atGlobalBufferData,
+        };
+
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atBindGroups[i], &tGlobalBindGroupData);
+    }
 
     return ptScene;
 }
@@ -2482,39 +2513,6 @@ pl_renderer_finalize_scene(plScene* ptScene)
     pl__renderer_unstage_drawables(ptScene);
     pl__renderer_set_drawable_shaders(ptScene);
     pl__renderer_sort_drawables(ptScene);
-
-    const plBufferDesc tMaterialDataBufferDesc = {
-        .tUsage    = PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
-        .szByteSize = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity,
-        .pcDebugName = "material buffer"
-    };
-
-
-    ptScene->tMaterialDataBuffer = pl__renderer_create_local_buffer(&tMaterialDataBufferDesc,  "material buffer", 0, ptScene->atMaterialBuffer, sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity);
-
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-        const plBindGroupUpdateBufferData atGlobalBufferData[] = 
-        {
-            {
-                .tBuffer       = ptScene->atTransformBuffer[i],
-                .uSlot         = 2,
-                .szBufferRange = sizeof(plMat4) * 10000
-            },
-            {
-                .tBuffer       = ptScene->tMaterialDataBuffer,
-                .uSlot         = 3,
-                .szBufferRange = sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity
-            },
-        };
-
-        plBindGroupUpdateData tGlobalBindGroupData = {
-            .uBufferCount = 2,
-            .atBufferBindings = atGlobalBufferData,
-        };
-
-        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atBindGroups[i], &tGlobalBindGroupData);
-    }
 }
 
 void
@@ -3765,22 +3763,20 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
         const plEntity tMaterialComp = atMaterials[i];
         plMaterialComponent* ptMaterial = gptECS->get_component(ptScene->ptComponentLibrary, tMaterialComponentType, tMaterialComp);
 
-        uint64_t uMaterialIndex = UINT64_MAX;
-
         // see if material already exists
-        if(!pl_hm_has_key_ex(&ptScene->tMaterialHashmap, tMaterialComp.uData, &uMaterialIndex))
+        if(!pl_hm_has_key(&ptScene->tMaterialHashmap, tMaterialComp.uData))
         {
-            uint64_t ulValue = pl_hm_get_free_index(&ptScene->tMaterialHashmap);
-            if(ulValue == PL_DS_HASH_INVALID)
+            uint64_t uMaterialIndex = pl_hm_get_free_index(&ptScene->tMaterialHashmap);
+            if(uMaterialIndex == PL_DS_HASH_INVALID)
             {
-                ulValue = pl_sb_size(ptScene->sbtMaterialNodes);
+                uMaterialIndex = pl_sb_size(ptScene->sbtMaterialNodes);
                 pl_sb_add(ptScene->sbtMaterialNodes);
             }
-            ptScene->sbtMaterialNodes[ulValue] = gptFreeList->get_node(&ptScene->tMaterialFreeList, 1);
+            ptScene->sbtMaterialNodes[uMaterialIndex] = gptFreeList->get_node(&ptScene->tMaterialFreeList, 1);
 
-            uMaterialIndex = ptScene->sbtMaterialNodes[ulValue]->uOffset;
+            uint32_t uNewMaterialIndex = (uint32_t)ptScene->sbtMaterialNodes[uMaterialIndex]->uOffset;
 
-            plGpuMaterial* ptGPUMaterial = &ptScene->atMaterialBuffer[uMaterialIndex];
+            plGpuMaterial* ptGPUMaterial = &ptScene->atMaterialBuffer[uNewMaterialIndex];
 
             ptGPUMaterial->fMetallicFactor           = ptMaterial->fMetalness;
             ptGPUMaterial->fRoughnessFactor          = ptMaterial->fRoughness;
@@ -3830,9 +3826,17 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
 
             if(ptMaterial->tFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->tFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->tFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
                 ptScene->bTransmissionRequired = true;
-            pl_hm_insert(&ptScene->tMaterialHashmap, tMaterialComp.uData, ulValue);
+            pl_hm_insert(&ptScene->tMaterialHashmap, tMaterialComp.uData, uMaterialIndex);
         }
     }
+            // uNewMaterialIndex * sizeof(plGpuMaterial),
+            // &ptScene->atMaterialBuffer[uNewMaterialIndex],
+
+    ptScene->uMaterialDirtyValue = gptStage->queue_buffer_upload(ptScene->tMaterialDataBuffer,
+            0,
+            ptScene->atMaterialBuffer,
+            sizeof(plGpuMaterial) * ptScene->uGPUMaterialBufferCapacity);
+
     pl_end_cpu_sample(gptProfile, 0);
 }
 

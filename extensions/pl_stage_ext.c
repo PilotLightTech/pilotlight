@@ -91,6 +91,7 @@ typedef struct _plStageContext
 
     // blocks
     plStageBlock* sbtBlocks;
+    plStageBlock* sbtStageBlocks;
 
     // gpu allocators
     plDeviceMemoryAllocatorI* ptAllocator;
@@ -130,6 +131,7 @@ pl_stage_cleanup(void)
     gptGfx->cleanup_command_pool(gptStageCtx->ptCmdPool);
     gptGfx->cleanup_semaphore(gptStageCtx->ptSemaphore);
     pl_sb_free(gptStageCtx->sbtBlocks);
+    pl_sb_free(gptStageCtx->sbtStageBlocks);
     pl_sb_free(gptStageCtx->sbtBufferUploadRequests);
     pl_sb_free(gptStageCtx->sbtTextureUploadRequests);
 }
@@ -150,13 +152,13 @@ pl_stage_stage_buffer_upload(plBufferHandle tDestination, uint64_t uOffset, cons
     gptStageCtx->uLastUsedFrame = gptIOI->get_io()->ulFrameCount;
 
 
-    const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtBlocks);
+    const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtStageBlocks);
 
     bool bBlockFound = false;
 
     for(uint32_t i = 0; i < uBlockCount; i++)
     {
-        plStageBlock* ptBlock = &gptStageCtx->sbtBlocks[i];
+        plStageBlock* ptBlock = &gptStageCtx->sbtStageBlocks[i];
 
         if(ptBlock->uSize - ptBlock->uCurrentOffset >= uSize)
         {
@@ -188,17 +190,17 @@ pl_stage_stage_buffer_upload(plBufferHandle tDestination, uint64_t uOffset, cons
         // bind memory
         gptGfx->bind_buffer_to_memory(gptStageCtx->ptDevice, tBuffer, &tAllocation);
 
-        tRequest.uBufferIndex = pl_sb_size(gptStageCtx->sbtBlocks);
+        tRequest.uBufferIndex = pl_sb_size(gptStageCtx->sbtStageBlocks);
 
         plStageBlock tBlock = {
             .tBuffer = tBuffer,
             .uSize = tStagingBufferDesc.szByteSize
         };
-        pl_sb_push(gptStageCtx->sbtBlocks, tBlock);
+        pl_sb_push(gptStageCtx->sbtStageBlocks, tBlock);
     }
-    gptStageCtx->sbtBlocks[tRequest.uBufferIndex].uCurrentOffset += uSize;
+    gptStageCtx->sbtStageBlocks[tRequest.uBufferIndex].uCurrentOffset += uSize;
 
-    plBuffer* ptBuffer = gptGfx->get_buffer(gptStageCtx->ptDevice, gptStageCtx->sbtBlocks[tRequest.uBufferIndex].tBuffer);
+    plBuffer* ptBuffer = gptGfx->get_buffer(gptStageCtx->ptDevice, gptStageCtx->sbtStageBlocks[tRequest.uBufferIndex].tBuffer);
     uint8_t* pucData = (uint8_t*)&ptBuffer->tMemoryAllocation.pHostMapped[tRequest.uOffset];
     memcpy(pucData, pData, uSize);
 
@@ -222,13 +224,13 @@ pl_stage_stage_texture_upload(plTextureHandle tDestination, const plBufferImageC
     };
 
 
-    const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtBlocks);
+    const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtStageBlocks);
 
     bool bBlockFound = false;
 
     for(uint32_t i = 0; i < uBlockCount; i++)
     {
-        plStageBlock* ptBlock = &gptStageCtx->sbtBlocks[i];
+        plStageBlock* ptBlock = &gptStageCtx->sbtStageBlocks[i];
 
         if(ptBlock->uSize - ptBlock->uCurrentOffset >= uSize)
         {
@@ -260,17 +262,17 @@ pl_stage_stage_texture_upload(plTextureHandle tDestination, const plBufferImageC
         // bind memory
         gptGfx->bind_buffer_to_memory(gptStageCtx->ptDevice, tBuffer, &tAllocation);
 
-        tRequest.uBufferIndex = pl_sb_size(gptStageCtx->sbtBlocks);
+        tRequest.uBufferIndex = pl_sb_size(gptStageCtx->sbtStageBlocks);
 
         plStageBlock tBlock = {
             .tBuffer = tBuffer,
             .uSize = tStagingBufferDesc.szByteSize
         };
-        pl_sb_push(gptStageCtx->sbtBlocks, tBlock);
+        pl_sb_push(gptStageCtx->sbtStageBlocks, tBlock);
     }
-    gptStageCtx->sbtBlocks[tRequest.uBufferIndex].uCurrentOffset += uSize;
+    gptStageCtx->sbtStageBlocks[tRequest.uBufferIndex].uCurrentOffset += uSize;
 
-    plBuffer* ptBuffer = gptGfx->get_buffer(gptStageCtx->ptDevice, gptStageCtx->sbtBlocks[tRequest.uBufferIndex].tBuffer);
+    plBuffer* ptBuffer = gptGfx->get_buffer(gptStageCtx->ptDevice, gptStageCtx->sbtStageBlocks[tRequest.uBufferIndex].tBuffer);
     uint8_t* pucData = (uint8_t*)&ptBuffer->tMemoryAllocation.pHostMapped[tRequest.uOffset];
     memcpy(pucData, pData, uSize);
 
@@ -290,7 +292,7 @@ pl_stage_flush(void)
     for(uint32_t i = 0; i < uRequestCount; i++)
     {
         gptGfx->copy_buffer(ptEncoder,
-            gptStageCtx->sbtBlocks[gptStageCtx->sbtBufferUploadRequests[i].uBufferIndex].tBuffer,
+            gptStageCtx->sbtStageBlocks[gptStageCtx->sbtBufferUploadRequests[i].uBufferIndex].tBuffer,
             gptStageCtx->sbtBufferUploadRequests[i].uDestinationBuffer,
             gptStageCtx->sbtBufferUploadRequests[i].uOffset,
             gptStageCtx->sbtBufferUploadRequests[i].uDestinationOffset,
@@ -302,7 +304,7 @@ pl_stage_flush(void)
     for(uint32_t i = 0; i < uRequestCount; i++)
     {
         gptGfx->copy_buffer_to_texture(ptEncoder,
-            gptStageCtx->sbtBlocks[gptStageCtx->sbtTextureUploadRequests[i].uBufferIndex].tBuffer,
+            gptStageCtx->sbtStageBlocks[gptStageCtx->sbtTextureUploadRequests[i].uBufferIndex].tBuffer,
             gptStageCtx->sbtTextureUploadRequests[i].uDestinationTexture,
             1,
             &gptStageCtx->sbtTextureUploadRequests[i].tBufferImageCopy);
@@ -322,11 +324,19 @@ pl_stage_flush(void)
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
     gptGfx->return_command_buffer(ptCommandBuffer);
 
-    const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtBlocks);
+    // const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtStageBlocks);
+    // for(uint32_t i = 0; i < uBlockCount; i++)
+    // {
+    //     gptStageCtx->sbtStageBlocks[i].uCurrentOffset = 0;
+    // }
+    
+
+    const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtStageBlocks);
     for(uint32_t i = 0; i < uBlockCount; i++)
     {
-        gptStageCtx->sbtBlocks[i].uCurrentOffset = 0;
+        gptGfx->queue_buffer_for_deletion(gptStageCtx->ptDevice, gptStageCtx->sbtStageBlocks[i].tBuffer);
     }
+    pl_sb_reset(gptStageCtx->sbtStageBlocks);
 }
 
 uint64_t
@@ -368,7 +378,7 @@ pl_stage_queue_buffer_upload(plBufferHandle tDestination, uint64_t uOffset, cons
     {
         plStageBlock* ptBlock = &gptStageCtx->sbtBlocks[i];
 
-        if(ptBlock->uSize - ptBlock->uCurrentOffset >= uSize)
+        if(ptBlock->uSize - ptBlock->uCurrentOffset > uSize)
         {
             tRequest.uBufferIndex = i;
             tRequest.uOffset = ptBlock->uCurrentOffset;
