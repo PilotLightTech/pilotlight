@@ -1005,7 +1005,7 @@ pl_json_member_by_name(plJsonObject* ptJson, const char* pcName)
 
     for(uint32_t i = 0; i < ptJson->uChildCount; i++)
     {
-        if(strncmp(pcName, ptJson->sbtChildren[i].acName, strlen(ptJson->sbtChildren[i].acName)) == 0)
+        if(strncmp(pcName, ptJson->sbtChildren[i].acName, PL_JSON_MAX_NAME_LENGTH) == 0)
             return &ptJson->sbtChildren[i];
     }
 
