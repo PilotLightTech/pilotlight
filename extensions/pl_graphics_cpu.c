@@ -918,12 +918,12 @@ pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
     // TODO: sort out max command pool stuff once virtual memory limits exist (virtual GPU)
     // hard coding 100 buffers for now
     size_t szBufferSize = 0;
-    pl_pool_allocator_init(&ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &szBufferSize, NULL); 
+    pl_pool_allocator_init(ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &szBufferSize, NULL); 
 
     ptPool->ptCommandPool = PL_ALLOC(sizeof(szBufferSize));
     memset(ptPool->ptCommandPool, 0, sizeof(szBufferSize));
 
-    pl_pool_allocator_init(&ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &szBufferSize, ptPool->ptCommandPool);
+    pl_pool_allocator_init(ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &szBufferSize, ptPool->ptCommandPool);
 
     return ptPool;
 }
