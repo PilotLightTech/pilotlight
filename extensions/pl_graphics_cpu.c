@@ -150,6 +150,9 @@ typedef struct _plCommandPool
     // VkCommandBuffer* sbtReadyCommandBuffers;   // completed command buffers
     // VkCommandBuffer* sbtPendingCommandBuffers; // recently submitted command buffers
     plCommandBuffer* ptCommandBufferFreeList;  // free list of command buffers
+    plPoolAllocator* tAllocator;
+
+    void*            ptCommandPool; // TODO: does this need to be a void pointer?  
 } plCommandPool;
 
 typedef struct _plBindGroupPool
@@ -909,12 +912,26 @@ pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
 {
     plCommandPool* ptPool = PL_ALLOC(sizeof(plCommandPool));
     memset(ptPool, 0, sizeof(plCommandPool));
+
+    ptPool->ptDevice = ptDevice;
+
+    // TODO: sort out max command pool stuff once virtual memory limits exist (virtual GPU)
+    // hard coding 100 buffers for now
+    size_t szBufferSize = 0;
+    pl_pool_allocator_init(&ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &szBufferSize, NULL); 
+
+    ptPool->ptCommandPool = PL_ALLOC(sizeof(szBufferSize));
+    memset(ptPool->ptCommandPool, 0, sizeof(szBufferSize));
+
+    pl_pool_allocator_init(&ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &szBufferSize, ptPool->ptCommandPool);
+
     return ptPool;
 }
 
 void
 pl_cleanup_command_pool(plCommandPool* ptPool)
 {
+    PL_FREE(ptPool->ptCommandPool);
     PL_FREE(ptPool);
 }
 
