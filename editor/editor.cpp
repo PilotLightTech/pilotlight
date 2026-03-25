@@ -1067,7 +1067,7 @@ pl__show_editor_window(plAppData* ptAppData)
                     {
                         char* sbcData = nullptr;
                         pl_sb_sprintf(sbcData, "/environments/%s.hdr", apcEnvMaps[uComboSelect]);
-                        gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, sbcData, 1024 * 4);
+                        gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, sbcData, 1024);
                         pl_sb_free(sbcData);
                     }
                     plIO* ptIO = gptIO->get_io();
@@ -1095,14 +1095,6 @@ pl__show_editor_window(plAppData* ptAppData)
 
                     gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
                     gptModelLoader->free_data(&tLoaderData0);
-
-                    plMaterialComponent* ptMaterials = NULL;
-                    const plEntity* ptMaterialEntities = NULL;
-                    const uint32_t uMaterialCount = gptEcs->get_components(ptAppData->ptCompLibrary, gptMaterial->get_ecs_type_key(), (void**)&ptMaterials, &ptMaterialEntities);
-                    gptRenderer->add_materials_to_scene(ptAppData->ptScene, uMaterialCount, ptMaterialEntities);
-    
-
-                    gptRenderer->finalize_scene(ptAppData->ptScene);
                 }
 
             }
@@ -1316,7 +1308,7 @@ pl__create_scene(plAppData* ptAppData)
 
     // create lights
     plLightComponent* ptLight = nullptr;
-    gptRenderer->create_directional_light(ptAppData->ptCompLibrary, "direction light", pl_create_vec3(-0.375f, -1.0f, -0.085f), &ptLight);
+    plEntity tDirectionLight = gptRenderer->create_directional_light(ptAppData->ptCompLibrary, "direction light", pl_create_vec3(-0.375f, -1.0f, -0.085f), &ptLight);
     ptLight->uCascadeCount = 4;
     ptLight->fIntensity = 1.0f;
     ptLight->fRange = 1.0f;
@@ -1349,6 +1341,10 @@ pl__create_scene(plAppData* ptAppData)
     ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
 
     gptRenderer->add_probe_to_scene(ptAppData->ptScene, tProbeEntity);
+
+    gptRenderer->add_light_to_scene(ptAppData->ptScene, tPointLight);
+    gptRenderer->add_light_to_scene(ptAppData->ptScene, tSpotLight);
+    gptRenderer->add_light_to_scene(ptAppData->ptScene, tDirectionLight);
 
 }
 

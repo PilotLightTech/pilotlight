@@ -80,6 +80,7 @@ typedef struct _plSceneInit              plSceneInit;
 typedef struct _plRendererRuntimeOptions plRendererRuntimeOptions;
 typedef struct _plScene                  plScene;
 typedef struct _plView                   plView;
+typedef struct _plSceneBufferSizes    plSceneBufferSizes;
 
 // ecs components
 typedef struct _plObjectComponent           plObjectComponent;
@@ -133,15 +134,13 @@ typedef struct _plRendererI
     plScene* (*create_scene)(plSceneInit);
     void     (*cleanup_scene)(plScene*);
     void     (*load_skybox_from_panorama)(plScene*, const char* pcPath, int iResolution);
-    void     (*add_drawable_objects_to_scene)(plScene*, uint32_t uCount, const plEntity* atObjects);
+    bool     (*add_drawable_objects_to_scene)(plScene*, uint32_t uCount, const plEntity* atObjects);
     void     (*add_probe_to_scene)(plScene*, plEntity);
-    void     (*finalize_scene)(plScene*); // in the process of removing this
+    void     (*add_light_to_scene)(plScene*, plEntity);
 
     // scenes - runtime
     void (*reload_scene_shaders)(plScene*);
-    void (*remove_objects_from_scene)(plScene*, uint32_t objectCount, const plEntity* objects);
-    void (*update_scene_materials)(plScene*, uint32_t materialCount, const plEntity* materials);
-    void (*update_scene_objects)(plScene*, uint32_t objectCount, const plEntity* objects); // call if you change flags for objects
+    void (*update_scene_material)(plScene*, plEntity material);
 
     // scenes - not ready
     void (*add_materials_to_scene)(plScene*, uint32_t materialCount, const plEntity* materials);
@@ -215,6 +214,10 @@ typedef struct _plRendererI
 typedef struct _plSceneInit
 {
     plComponentLibrary* ptComponentLibrary;
+    size_t              szIndexBufferSize;    // default: 64000000
+    size_t              szVertexBufferSize;   // default: 64000000
+    size_t              szDataBufferSize;     // default: 64000000
+    size_t              szMaterialBufferSize; // default:  8000000
 } plSceneInit;
 
 typedef struct _plRendererSettings

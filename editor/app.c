@@ -440,9 +440,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create lights
     plLightComponent* ptLight = NULL;
-    gptRenderer->create_directional_light(ptAppData->ptComponentLibrary, "direction light", pl_create_vec3(0.425f, -1.0f, -0.384f), &ptLight);
+    plEntity tDirectionLight = gptRenderer->create_directional_light(ptAppData->ptComponentLibrary, "direction light", pl_create_vec3(0.425f, -1.0f, -0.384f), &ptLight);
     ptLight->uCascadeCount = 4;
-    ptLight->fIntensity = 20.0f;
+    ptLight->fIntensity = 18.0f;
     ptLight->uShadowResolution = 1024 * 2;
     ptLight->afCascadeSplits[0] = 0.05f;
     ptLight->afCascadeSplits[1] = 0.15f;
@@ -450,14 +450,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptLight->afCascadeSplits[3] = 1.00f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
-    plEntity tPointLight = gptRenderer->create_point_light(ptAppData->ptComponentLibrary, "point light", pl_create_vec3(0.0f, 2.0f, 2.0f), &ptLight);
+    plEntity tPointLight = gptRenderer->create_point_light(ptAppData->ptComponentLibrary, "point light", pl_create_vec3(9.316f, 1.497f, -1.042f), &ptLight);
     ptLight->uShadowResolution = 512;
     ptLight->tColor = (plVec3){0.0f, 1.0f, 0.0f};
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
     plTransformComponent* ptPLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tPointLight);
     ptPLightTransform->tTranslation = pl_create_vec3(9.316f, 1.497f, -1.042f);
 
-    plEntity tSpotLight = gptRenderer->create_spot_light(ptAppData->ptComponentLibrary, "spot light", pl_create_vec3(0.0f, 4.0f, -1.18f), pl_create_vec3(0.0, -0.390f, 0.368f), &ptLight);
+    plEntity tSpotLight = gptRenderer->create_spot_light(ptAppData->ptComponentLibrary, "spot light", pl_create_vec3(0.0f, 3.27f, -1.5f), pl_create_vec3(0.0, -0.390f, 0.368f), &ptLight);
     ptLight->uShadowResolution = 512;
     ptLight->tColor = (plVec3){1.0f, 0.0f, 1.0f};
     ptLight->fRange = 10.0f;
@@ -466,6 +466,43 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
     plTransformComponent* ptSLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tSpotLight);
     ptSLightTransform->tTranslation = pl_create_vec3(0.0f, 3.27f, -1.5f);
+
+    plEntity tPointLight2 = gptRenderer->create_point_light(ptAppData->ptComponentLibrary, "point light2", pl_create_vec3(-6.316f, 1.497f, -1.042f), &ptLight);
+    ptLight->tColor = (plVec3){1.0f, 1.0f, 1.0f};
+    ptLight->tFlags |= PL_LIGHT_FLAG_VISUALIZER;
+    
+    gptRenderer->add_light_to_scene(ptAppData->ptScene, tPointLight);
+    gptRenderer->add_light_to_scene(ptAppData->ptScene, tSpotLight);
+    gptRenderer->add_light_to_scene(ptAppData->ptScene, tPointLight2);
+    gptRenderer->add_light_to_scene(ptAppData->ptScene, tDirectionLight);
+
+    gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/sky.hdr", 1024);
+
+    plModelLoaderData tLoaderData0 = {0};
+    plModelLoaderData tLoaderData1 = {0};
+    plMat4 tModelTranslation = pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f);
+    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", &tModelTranslation, &tLoaderData1);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", &tModelTranslation, &tLoaderData1);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", &tModelTranslation, &tLoaderData0);
+    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/sort.gltf", &tModelTranslation, &tLoaderData0);
+    // plMat4 tRotation = pl_mat4_rotate_xyz(-PL_PI_2, 0.0f, 1.0f, 0.0f);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/CarConcept/glTF/CarConcept.gltf", &tRotation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/EnvironmentTest/glTF/EnvironmentTest.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/ClearCoatCarPaint/glTF/ClearCoatCarPaint.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/SheenChair/glTF/SheenChair.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformTest/glTF/TextureTransformTest.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformMultiTest/glTF/TextureTransformMultiTest.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TransmissionTest/glTF/TransmissionTest.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/BoxTextured/glTF/BoxTextured.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "C:/Users/Jonathan Hoffstadt/Documents/Models/BistroExteriorGltf/bistro_exterior.gltf", NULL, &tLoaderData0);
+    
+    // plMaterialComponent* ptMaterials = NULL;
+    // const plEntity* ptMaterialEntities = NULL;
+    // const uint32_t uMaterialCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptMaterial->get_ecs_type_key(), (void**)&ptMaterials, &ptMaterialEntities);
+    // gptRenderer->add_materials_to_scene(ptAppData->ptScene, uMaterialCount, ptMaterialEntities);
+    
 
     plEnvironmentProbeComponent* ptProbe = NULL;
     plVec3 atProbeLocations[] = {
@@ -485,34 +522,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptRenderer->add_probe_to_scene(ptAppData->ptScene, tProbeEntity);
     }
 
-    gptRenderer->load_skybox_from_panorama(ptAppData->ptScene, "/environments/sky.hdr", 1024);
+    bool bResult0 = gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
+    bool bResult1 = gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData1.uObjectCount, tLoaderData1.atObjects);
 
-    plModelLoaderData tLoaderData0 = {0};
-    plMat4 tModelTranslation = pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f);
-    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", &tModelTranslation, &tLoaderData0);
-    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/sort.gltf", &tModelTranslation, &tLoaderData0);
-    // plMat4 tRotation = pl_mat4_rotate_xyz(-PL_PI_2, 0.0f, 1.0f, 0.0f);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/CarConcept/glTF/CarConcept.gltf", &tRotation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/EnvironmentTest/glTF/EnvironmentTest.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/ClearCoatCarPaint/glTF/ClearCoatCarPaint.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/SheenChair/glTF/SheenChair.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformTest/glTF/TextureTransformTest.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TextureTransformMultiTest/glTF/TextureTransformMultiTest.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/TransmissionTest/glTF/TransmissionTest.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/BoxTextured/glTF/BoxTextured.gltf", &tModelTranslation, &tLoaderData0);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "C:/Users/Jonathan Hoffstadt/Documents/Models/BistroExteriorGltf/bistro_exterior.gltf", NULL, &tLoaderData0);
-    gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
-    
-    plMaterialComponent* ptMaterials = NULL;
-    const plEntity* ptMaterialEntities = NULL;
-    const uint32_t uMaterialCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptMaterial->get_ecs_type_key(), (void**)&ptMaterials, &ptMaterialEntities);
-    gptRenderer->add_materials_to_scene(ptAppData->ptScene, uMaterialCount, ptMaterialEntities);
     
     gptModelLoader->free_data(&tLoaderData0);
-    gptRenderer->finalize_scene(ptAppData->ptScene);
+    gptModelLoader->free_data(&tLoaderData1);
 
     // give starter extension chance to do its work now
     gptStarter->finalize();
@@ -600,6 +615,19 @@ pl_app_update(plAppData* ptAppData)
     plIO* ptIO = gptIO->get_io();
 
     gptRenderer->begin_frame();
+
+    // static bool bFirstFrame = true;
+    // if(bFirstFrame)
+    // {
+    //     plMaterialComponent* ptMaterials = NULL;
+    //     const plEntity* ptMaterialEntities = NULL;
+    //     const uint32_t uMaterialCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptMaterial->get_ecs_type_key(), (void**)&ptMaterials, &ptMaterialEntities);
+    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[0]);
+    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[1]);
+    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[2]);
+    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[3]);
+    //     bFirstFrame = false;
+    // }
 
     if(ptAppData->bResize)
     {
@@ -882,6 +910,21 @@ pl__show_editor_window(plAppData* ptAppData)
         if(gptUI->begin_collapsing_header(ICON_FA_SLIDERS " App Options", 0))
         {
             plScreenLogFlags tScreenLogFlags = gptScreenLog->get_flags();
+
+            // if(gptUI->button("Add Model 0"))
+            // {
+            //     plModelLoaderData tLoaderData = {0};
+            //     plMat4 tModelTranslation = pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f);
+            //     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", &tModelTranslation, &tLoaderData);
+
+            //     plMaterialComponent* ptMaterials = NULL;
+            //     const plEntity* ptMaterialEntities = NULL;
+            //     const uint32_t uMaterialCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptMaterial->get_ecs_type_key(), (void**)&ptMaterials, &ptMaterialEntities);
+            //     gptRenderer->add_materials_to_scene(ptAppData->ptScene, uMaterialCount, ptMaterialEntities);
+
+            //     bool bResult = gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData.uObjectCount, tLoaderData.atObjects);
+            //     gptModelLoader->free_data(&tLoaderData);
+            // }
 
             bool bHideScreenLog = tScreenLogFlags & PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES;
             if(gptUI->checkbox("Hide Screen Log", &bHideScreenLog))

@@ -355,8 +355,6 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                     else
                         ptObjectComp->tFlags &= ~PL_OBJECT_FLAGS_FOREGROUND;
                 }
-                if(bObjectUpdateRequired)
-                    gptRenderer->update_scene_objects(ptScene, 1, &tEntity);
             }
 
             if(ptHierarchyComp && ImGui::CollapsingHeader(PL_ICON_FA_SITEMAP " Hierarchy"))
@@ -484,7 +482,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
 
 
                 if(bMaterialModified)
-                    gptRenderer->update_scene_materials(ptScene, 1, &tEntity);
+                    gptRenderer->update_scene_material(ptScene, tEntity);
 
                 static const char* apcBlendModeNames[] = 
                 {

@@ -360,12 +360,12 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                 {
                     gptUI->layout_dynamic(0.0f, 2);
                     gptUI->text("Entity: %u, %u", ptSelectedEntity->uIndex, ptSelectedEntity->uGeneration);
-                    if(gptUI->button("Delete"))
-                    {
-                        gptRenderer->outline_entities(ptScene, 0, NULL);
-                        gptRenderer->remove_objects_from_scene(ptScene, 1, ptSelectedEntity);
-                        ptSelectedEntity->uData = UINT64_MAX;
-                    }
+                    // if(gptUI->button("Delete"))
+                    // {
+                    //     gptRenderer->outline_entities(ptScene, 0, NULL);
+                    //     gptRenderer->remove_objects_from_scene(ptScene, 1, ptSelectedEntity);
+                    //     ptSelectedEntity->uData = UINT64_MAX;
+                    // }
                     
                 }
                 else
@@ -706,8 +706,8 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                         else
                             ptObjectComp->tFlags &= ~PL_OBJECT_FLAGS_FOREGROUND;
                     }
-                    if(bObjectUpdateRequired)
-                        gptRenderer->update_scene_objects(ptScene, 1, ptSelectedEntity);
+                    // if(bObjectUpdateRequired)
+                    //     gptRenderer->update_scene_objects(ptScene, 1, ptSelectedEntity);
                     gptUI->end_collapsing_header();
                 }
 
@@ -877,8 +877,8 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                         else                     ptMaterialComp->tFlags &= ~PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION;
                     }
 
-                    if(bMaterialModified)
-                        gptRenderer->update_scene_materials(ptScene, 1, ptSelectedEntity);
+                    if(gptUI->button("Update Material"))
+                        gptRenderer->update_scene_material(ptScene, *ptSelectedEntity);
 
                     if(bShadersModified)
                         gptRenderer->reload_scene_shaders(ptScene);
