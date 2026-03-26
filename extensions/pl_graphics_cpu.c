@@ -152,6 +152,7 @@ typedef struct _plCommandPool
     plCommandBuffer* ptCommandBufferFreeList;  // free list of command buffers
     plPoolAllocator* tAllocator;
 
+    size_t           szBufferSize;
     void*            ptCommandPool; // TODO: does this need to be a void pointer?  
 } plCommandPool;
 
@@ -886,6 +887,14 @@ pl_wait_on_command_buffer(plCommandBuffer* ptCmdBuffer)
 void
 pl_return_command_buffer(plCommandBuffer* ptCmdBuffer)
 {
+    if(ptCmdBuffer == NULL)
+    {
+        printf("invalid buffer returned");
+        return;
+    }
+
+    memset(ptCmdBuffer, 0, sizeof(plCommandBuffer));
+    pl_pool_allocator_free(ptCmdBuffer->ptPool->tAllocator, ptCmdBuffer);
 }
 
 plBindGroupPool*
@@ -924,6 +933,7 @@ pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
     memset(ptPool->ptCommandPool, 0, sizeof(szBufferSize));
 
     pl_pool_allocator_init(ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &szBufferSize, ptPool->ptCommandPool);
+    ptPool->szBufferSize = szBufferSize;
 
     return ptPool;
 }
@@ -938,27 +948,55 @@ pl_cleanup_command_pool(plCommandPool* ptPool)
 void
 pl_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags tFlags)
 {
+    if(ptPool == NULL)
+    {
+        // TODO: learn PL error handling patterns 
+        printf("failed to reset buffer");
+        return;
+    }
+
+    pl_pool_allocator_init(ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &ptPool->szBufferSize, ptPool->ptCommandPool);
+    memset(ptPool->ptCommandPool, 0, ptPool->szBufferSize);
+
 }
 
 void
 pl_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
 {
+    if(ptCommandBuffer == NULL)
+    {
+        // TODO: learn PL error handling patterns 
+        printf("failed to reset buffer");
+        return;
+    }
+
+    memset(ptCommandBuffer, 0, sizeof(plCommandBuffer));
 }
 
 plCommandBuffer*
 pl_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
 {
-    plCommandBuffer* ptCommandBuffer = ptPool->ptCommandBufferFreeList;
-    if (ptCommandBuffer)
+    plCommandBuffer* ptCommandBuffer = pl_pool_allocator_alloc(ptPool->tAllocator);
+
+    if(ptCommandBuffer == NULL)
     {
-        ptPool->ptCommandBufferFreeList = ptCommandBuffer->ptNext;
+        printf("failed to allocate buffer");
+        return NULL;
     }
-    else
-    {
-        ptCommandBuffer = PL_ALLOC(sizeof(plCommandBuffer));
-        memset(ptCommandBuffer, 0, sizeof(plCommandBuffer));
-    }
+
     return ptCommandBuffer;
+
+    // TODO: question for Johnny was there a plan for this? 
+    // plCommandBuffer* ptCommandBuffer = ptPool->ptCommandBufferFreeList;
+    // if (ptCommandBuffer)
+    // {
+    //     ptPool->ptCommandBufferFreeList = ptCommandBuffer->ptNext;
+    // }
+    // else
+    // {
+    //     ptCommandBuffer = PL_ALLOC(sizeof(plCommandBuffer));
+    //     memset(ptCommandBuffer, 0, sizeof(plCommandBuffer));
+    // }
 }
 
 void
