@@ -25,9 +25,12 @@
                 { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
                 { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
                 { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 3, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 4, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 5, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                { "uSlot": 3, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 4, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 5, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 6, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 7, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 8, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ]
         },
         {
@@ -326,8 +329,45 @@
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atBindGroupLayouts": [
+                { "pcName": "scene" },
+                {
+                    "atBufferBindings": [
+                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                    ]
+                }
+            ]
+        },
+        {
+            "pcName": "gbuffer_fill_debug",
+            "tVertexShader":    { "file": "pl_gbuffer_fill.vert"},
+            "tFragmentShader":  { "file": "pl_gbuffer_fill_debug.frag"},
+            "atVertexBufferLayouts": [
+                {
+                    "atAttributes": [
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                    ]
+                }
+            ],
+            "uSubpassIndex": 0,
+            "atBlendStates": [
+                { "bBlendEnabled": false },
+                { "bBlendEnabled": false },
+                { "bBlendEnabled": false },
+                { "bBlendEnabled": false },
+                { "bBlendEnabled": false }
+            ],
+            "atVertexConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atFragmentConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
             ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
@@ -370,6 +410,43 @@
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atBindGroupLayouts": [
+                { "pcName": "scene" },
+                { "pcName": "view"  }
+            ]
+        },
+        {
+            "pcName": "forward_debug",
+            "tVertexShader":    { "file": "pl_forward.vert"},
+            "tFragmentShader":  { "file": "pl_forward_debug.frag"},
+            "atVertexBufferLayouts": [
+                {
+                    "atAttributes": [
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                    ]
+                }
+            ],
+            "uSubpassIndex": 2,
+            "atBlendStates": [
+                {
+                    "bBlendEnabled":   true,
+                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
+                    "tColorOp":        "PL_BLEND_OP_ADD",
+                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
+                    "tAlphaOp":        "PL_BLEND_OP_ADD"
+                }
+            ],
+            "atVertexConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" },
+                { "tType": "PL_DATA_TYPE_INT" }
+            ],
+            "atFragmentConstants": [
+                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
@@ -400,7 +477,6 @@
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" },
@@ -591,9 +667,6 @@
                     "tAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ],
-            "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" }
-            ],
             "atBindGroupLayouts": [ 
                 { "pcName": "scene" },
                 { "pcName": "view" },
@@ -641,7 +714,6 @@
             ],
             "atFragmentConstants": [
                 { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
@@ -653,7 +725,7 @@
         },
         {
             "pcName": "deferred_lighting_spot",
-            "tVertexShader":    { "file": "pl_deferred_lighting.vert"},
+            "tVertexShader":    { "file": "pl_deferred_lighting_spot.vert"},
             "tFragmentShader":  { "file": "pl_deferred_lighting_spot.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
@@ -689,8 +761,6 @@
                 }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
@@ -702,7 +772,7 @@
         },
         {
             "pcName": "deferred_lighting_point",
-            "tVertexShader":    { "file": "pl_deferred_lighting.vert"},
+            "tVertexShader":    { "file": "pl_deferred_lighting_point.vert"},
             "tFragmentShader":  { "file": "pl_deferred_lighting_point.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
@@ -738,8 +808,6 @@
                 }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
                 { "tType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 

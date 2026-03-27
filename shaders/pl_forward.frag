@@ -16,9 +16,6 @@ layout(constant_id = 0) const int iMeshVariantFlags = 0;
 layout(constant_id = 1) const int iTextureMappingFlags = 0;
 layout(constant_id = 2) const int iMaterialFlags = 0;
 layout(constant_id = 3) const int iRenderingFlags = 0;
-layout(constant_id = 4) const int iLightCount = 0;
-layout(constant_id = 5) const int iProbeCount = 0;
-layout(constant_id = 6) const int tShaderDebugMode = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -26,7 +23,7 @@ layout(constant_id = 6) const int tShaderDebugMode = 0;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {
-    plGpuDynData tData;
+    plGpuDynForwardData tData;
 } tObjectInfo;
 
 //-----------------------------------------------------------------------------
@@ -176,8 +173,6 @@ vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFi
     // Since out of gamut colors might be produced, negative color values are clamped to 0.
     return max(I, vec3(0.0));
 }
-
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry
@@ -336,7 +331,7 @@ void main()
 
 
     // Calculate lighting contribution from image based lighting source (IBL)
-    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
+    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && tObjectInfo.tData.iProbeCount > 0)
     {
 
         int aiActiveProbes[3];
@@ -356,7 +351,7 @@ void main()
 
         int K = 0;
 
-        for(int i = 0; i < iProbeCount; i++)
+        for(int i = 0; i < tObjectInfo.tData.iProbeCount; i++)
         {
             vec3 tDist = tProbeData.atData[i].tPosition - tShaderIn.tWorldPosition.xyz;
             tDist = tDist * tDist;
@@ -487,148 +482,45 @@ void main()
 
     uint cascadeIndex = 0;
     const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
-    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL))
     {
-
-        // point & spot lights
-        for(int i = 0; i < iLightCount; i++)
+        // point lights
+        for(int i = 0; i < tObjectInfo.tData.iPointLightCount; i++)
         {
 
-            plGpuLight tLightData = tLightInfo.atData[i];
+            plGpuPointLight tLightData = tPointLightInfo.atData[i];
 
-            vec3 pointToLight;
             float shadow = 1.0;
 
-            if(tLightData.iType == PL_LIGHT_TYPE_DIRECTIONAL)
+            vec3 pointToLight = tLightData.tPosition - tShaderIn.tWorldPosition.xyz;
+
+            if(bShadows && tLightData.iCastShadow > 0)
             {
+                plGpuPointLightShadow tShadowData = tPointShadowData.atData[tLightData.iShadowIndex];
 
-                pointToLight = -tLightData.tDirection;
-
-                if(bShadows && tLightData.iCastShadow > 0)
+                vec3 result = sampleCube(-normalize(pointToLight));
+                vec4 shadowCoord = tShadowData.viewProjMat[int(result.z)] * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
+                if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
                 {
-                    plGpuLightShadow tShadowData = tDShadowData.atData[tLightData.iShadowIndex];
+                    shadow = 1.0;
+                    const vec2 faceoffsets[6] = {
+                        vec2(0, 0),
+                        vec2(1, 0),
+                        vec2(0, 1),
+                        vec2(1, 1),
+                        vec2(0, 2),
+                        vec2(1, 2),
+                    };
 
-                    // Depth compare for shadowing
-                    mat4 abiasMat = biasMat;
-                    abiasMat[0][0] *= tShadowData.fFactor;
-                    abiasMat[1][1] *= tShadowData.fFactor;
-                    abiasMat[3][0] *= tShadowData.fFactor;
-                    abiasMat[3][1] *= tShadowData.fFactor;
-                    shadow = 0;
-
-                    // Get cascade index for the current fragment's view position
-                    
-                    vec4 inViewPos = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraView * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
-
-                    for(int j = 0; j < tLightData.iCascadeCount; ++j)
+                    shadowCoord.xyz /= shadowCoord.w;
+                    result.xy *= tShadowData.fFactor;
+                    shadowCoord.xy = result.xy;
+                    if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
                     {
-                        vec4 rawshadowCoord = biasMat * tShadowData.viewProjMat[j] * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
-
-                        // if(rawshadowCoord.xy == pl_saturate(rawshadowCoord.xy))
-                        if(abs(rawshadowCoord.x - pl_saturate(rawshadowCoord.x)) < 0.00001 && abs(rawshadowCoord.y - pl_saturate(rawshadowCoord.y)) < 0.00001)
-                        {
-                            vec4 shadowCoord = (abiasMat * tShadowData.viewProjMat[j]) * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
-                            cascadeIndex = j;
-                        
-                            if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
-                            {
-                                shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(j * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-                            }
-                            else
-                            {
-                                shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(j * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-                            }
-                            const vec3 shadow_box = vec3(rawshadowCoord.xy * 2.0 - 1.0, rawshadowCoord.z * 2.0 - 1.0);
-                            const vec3 cascade_edgefactor = clamp(clamp(abs(shadow_box), 0.0, 1.0) - 0.8, 0.0, 1.0) * 5.0; // fade will be on edge and inwards 10%
-                            const float cascade_fade = pl_max3(cascade_edgefactor);
-
-                            if(cascade_fade > 0 && j < (tLightData.iCascadeCount - 1))
-                            {
-
-                                shadowCoord = (abiasMat * tShadowData.viewProjMat[j + 1]) * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
-                                float shadowfallback = 0.0;
-                                if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
-                                {
-                                    shadowfallback = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2((j + 1.0) * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-                                }
-                                else
-                                {
-                                    shadowfallback = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2((j + 1.0) * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
-                                }
-
-                                shadow = mix(shadow, shadowfallback, cascade_fade);
-                            }
-
-                            break;
-                        }
+                        shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
                     }
-                }
-            }
-
-            if(tLightData.iType == PL_LIGHT_TYPE_POINT)
-            {
-                pointToLight = tLightData.tPosition - tShaderIn.tWorldPosition.xyz;
-
-                if(bShadows && tLightData.iCastShadow > 0)
-                {
-                    plGpuLightShadow tShadowData = tShadowData.atData[tLightData.iShadowIndex];
-
-                    vec3 result = sampleCube(-normalize(pointToLight));
-                    vec4 shadowCoord = tShadowData.viewProjMat[int(result.z)] * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
-                    if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
+                    else
                     {
-                        shadow = 1.0;
-                        const vec2 faceoffsets[6] = {
-                            vec2(0, 0),
-                            vec2(1, 0),
-                            vec2(0, 1),
-                            vec2(1, 1),
-                            vec2(0, 2),
-                            vec2(1, 2),
-                        };
-
-                        shadowCoord.xyz /= shadowCoord.w;
-                        result.xy *= tShadowData.fFactor;
-                        shadowCoord.xy = result.xy;
-                        if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
-                        {
-                            shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
-                        }
-                        else
-                        {
-                            shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
-                        }
-                    }
-                }
-
-            }
-
-            if(tLightData.iType == PL_LIGHT_TYPE_SPOT)
-            {
-                pointToLight = tLightData.tPosition - tShaderIn.tWorldPosition.xyz;
-
-                if(bShadows && tLightData.iCastShadow > 0)
-                {
-                    plGpuLightShadow tShadowData = tShadowData.atData[tLightData.iShadowIndex];
-
-                    vec4 shadowCoord = tShadowData.viewProjMat[0] * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
-                    if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
-                    {
-                        shadowCoord.xyz /= shadowCoord.w;
-                        shadow = 1.0;
-                        shadowCoord.x = shadowCoord.x/2 + 0.5;
-                        shadowCoord.y = shadowCoord.y/2 + 0.5;
-                        shadowCoord.xy *= tShadowData.fFactor;
-                        // shadow = (shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
-
-                        if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
-                        {
-                            shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
-                        }
-                        else
-                        {
-                            shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
-                        }
+                        shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
                     }
                 }
             }
@@ -647,8 +539,9 @@ void main()
 
             if (NdotL > 0.0 || NdotV > 0.0)
             {
-
+                
                 vec3 intensity = getLightIntensity(tLightData, pointToLight);
+
 
                 vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
                 vec3 l_specular_dielectric = vec3(0.0);
@@ -708,7 +601,7 @@ void main()
 
                 l_metal_brdf = metal_fresnel * l_specular_metal;
                 l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
-        
+
                 if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
                 {
                     l_metal_brdf = mix(l_metal_brdf, l_specular_metal * iridescenceFresnel_metallic, materialInfo.iridescenceFactor);
@@ -733,8 +626,315 @@ void main()
                 l_color = mix(l_color, l_clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
                 color += l_color;
             }
+        }
+
+        // spot lights
+        for(int i = 0; i < tObjectInfo.tData.iSpotLightCount; i++)
+        {
+
+            plGpuSpotLight tLightData = tSpotLightInfo.atData[i];
+
+            float shadow = 1.0;
+
+            vec3 pointToLight = tLightData.tPosition - tShaderIn.tWorldPosition.xyz;
+
+            if(bShadows && tLightData.iCastShadow > 0)
+            {
+                plGpuSpotLightShadow tShadowData = tSpotShadowData.atData[tLightData.iShadowIndex];
+
+                vec4 shadowCoord = tShadowData.viewProjMat * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
+                if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
+                {
+                    shadowCoord.xyz /= shadowCoord.w;
+                    shadow = 1.0;
+                    shadowCoord.x = shadowCoord.x/2 + 0.5;
+                    shadowCoord.y = shadowCoord.y/2 + 0.5;
+                    shadowCoord.xy *= tShadowData.fFactor;
+                    // shadow = (shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+
+                    if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                    {
+                        shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    }
+                    else
+                    {
+                        shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                    }
+                }
+            }
+            // BSTF
+            vec3 l = normalize(pointToLight);   // Direction from surface point to light
+            vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
+            float NdotL = clampedDot(n, l);
+            float NdotH = clampedDot(n, h);
+            float LdotH = clampedDot(l, h);
+            float VdotH = clampedDot(v, h);
+
+            vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
+            vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
 
 
+            if (NdotL > 0.0 || NdotV > 0.0)
+            {
+                
+                vec3 intensity = getLightIntensity(tLightData, pointToLight);
+
+
+                vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
+                vec3 l_specular_dielectric = vec3(0.0);
+                vec3 l_specular_metal = vec3(0.0);
+                vec3 l_dielectric_brdf = vec3(0.0);
+                vec3 l_metal_brdf = vec3(0.0);
+                vec3 l_clearcoat_brdf = vec3(0.0);
+                vec3 l_sheen = vec3(0.0);
+                float l_albedoSheenScaling = 1.0;
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+                {
+                    l_diffuse = l_diffuse * (1.0 - materialInfo.diffuseTransmissionFactor);
+                    if (dot(n, l) < 0.0)
+                    {
+                        float diffuseNdotL = clampedDot(-n, l);
+                        vec3 diffuse_btdf = shadow * intensity * diffuseNdotL * pl_brdf_diffuse(materialInfo.diffuseTransmissionColorFactor);
+
+                        vec3 l_mirror = normalize(l + 2.0 * n * dot(-l, n)); // Mirror light reflection vector on surface
+                        float diffuseVdotH = clampedDot(v, normalize(l_mirror + v));
+                        dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(diffuseVdotH));
+                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        {
+                            diffuse_btdf = applyVolumeAttenuation(diffuse_btdf, diffuseTransmissionThickness, materialInfo.attenuationColor, materialInfo.attenuationDistance);
+                        }
+                        l_diffuse += diffuse_btdf * materialInfo.diffuseTransmissionFactor;
+                    }
+                }
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+                {
+                        // If the light ray travels through the geometry, use the point it exits the geometry again.
+                        // That will change the angle to the light source, if the material refracts the light ray.
+                        vec3 transmissionRay = getVolumeTransmissionRay(n, v, materialInfo.thickness, materialInfo.ior, u_ModelMatrix);
+                        pointToLight -= transmissionRay;
+                        l = normalize(pointToLight);
+
+                        vec3 transmittedLight = shadow * intensity * getPunctualRadianceTransmission(n, v, l, materialInfo.alphaRoughness, tBaseColor.rgb, materialInfo.ior);
+
+                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        {
+                            transmittedLight = applyVolumeAttenuation(transmittedLight, length(transmissionRay), materialInfo.attenuationColor, materialInfo.attenuationDistance);
+                        }
+                        l_diffuse = mix(l_diffuse, transmittedLight, materialInfo.transmissionFactor);
+                }
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+                {
+                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGXAnisotropy(materialInfo.alphaRoughness, materialInfo.anisotropyStrength, n, v, l, h, materialInfo.anisotropicT, materialInfo.anisotropicB);
+                    l_specular_dielectric = l_specular_metal;
+                }
+                else
+                {
+                    l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_dielectric = l_specular_metal;
+                }
+
+                l_metal_brdf = metal_fresnel * l_specular_metal;
+                l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+                {
+                    l_metal_brdf = mix(l_metal_brdf, l_specular_metal * iridescenceFresnel_metallic, materialInfo.iridescenceFactor);
+                    l_dielectric_brdf = mix(l_dielectric_brdf, pl_rgb_mix(l_diffuse, l_specular_dielectric, iridescenceFresnel_dielectric), materialInfo.iridescenceFactor);
+                }
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+                {
+                    l_clearcoat_brdf = intensity * getPunctualRadianceClearCoat(materialInfo.clearcoatNormal, v, l, h, VdotH,
+                        materialInfo.clearcoatF0, materialInfo.clearcoatF90, materialInfo.clearcoatRoughness);
+                }
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+                {
+                    l_sheen = intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
+                    l_albedoSheenScaling = min(1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor),
+                        1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotL, materialInfo.sheenRoughnessFactor));
+                }
+
+                vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
+                l_color = l_sheen + l_color * l_albedoSheenScaling;
+                l_color = mix(l_color, l_clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
+                color += l_color;
+            }
+        }
+
+        // direction lights
+        for(int i = 0; i < tObjectInfo.tData.iDirectionLightCount; i++)
+        {
+
+            plGpuDirectionLight tLightData = tDirectionLightInfo.atData[i];
+
+            float shadow = 1.0;
+
+            vec3 pointToLight = -tLightData.tDirection;
+
+            if(bShadows && tLightData.iCastShadow > 0)
+            {
+                plGpuDirectionLightShadow tShadowData = tDirectionShadowData.atData[tLightData.iShadowIndex];
+
+                // Depth compare for shadowing
+                mat4 abiasMat = biasMat;
+                abiasMat[0][0] *= tShadowData.fFactor;
+                abiasMat[1][1] *= tShadowData.fFactor;
+                abiasMat[3][0] *= tShadowData.fFactor;
+                abiasMat[3][1] *= tShadowData.fFactor;
+                shadow = 0;
+
+                // Get cascade index for the current fragment's view position
+                
+                vec4 inViewPos = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraView * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
+
+                for(int j = 0; j < tLightData.iCascadeCount; ++j)
+                {
+                    vec4 rawshadowCoord = biasMat * tShadowData.viewProjMat[j] * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
+
+                    // if(rawshadowCoord.xy == pl_saturate(rawshadowCoord.xy))
+                    if(abs(rawshadowCoord.x - pl_saturate(rawshadowCoord.x)) < 0.00001 && abs(rawshadowCoord.y - pl_saturate(rawshadowCoord.y)) < 0.00001)
+                    {
+                        vec4 shadowCoord = (abiasMat * tShadowData.viewProjMat[j]) * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
+                        cascadeIndex = j;
+                    
+                        if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                        {
+                            shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(j * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                        }
+                        else
+                        {
+                            shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2(j * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                        }
+                        const vec3 shadow_box = vec3(rawshadowCoord.xy * 2.0 - 1.0, rawshadowCoord.z * 2.0 - 1.0);
+                        const vec3 cascade_edgefactor = clamp(clamp(abs(shadow_box), 0.0, 1.0) - 0.8, 0.0, 1.0) * 5.0; // fade will be on edge and inwards 10%
+                        const float cascade_fade = pl_max3(cascade_edgefactor);
+
+                        if(cascade_fade > 0 && j < (tLightData.iCascadeCount - 1))
+                        {
+
+                            shadowCoord = (abiasMat * tShadowData.viewProjMat[j + 1]) * vec4(tShaderIn.tWorldPosition.xyz, 1.0);
+                            float shadowfallback = 0.0;
+                            if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                            {
+                                shadowfallback = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2((j + 1.0) * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                            }
+                            else
+                            {
+                                shadowfallback = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + vec2((j + 1.0) * tShadowData.fFactor, 0), tShadowData.iShadowMapTexIdx);
+                            }
+
+                            shadow = mix(shadow, shadowfallback, cascade_fade);
+                        }
+
+                        break;
+                    }
+                }
+            }
+            // BSTF
+            vec3 l = normalize(pointToLight);   // Direction from surface point to light
+            vec3 h = normalize(l + v);          // Direction of the vector between l and v, called halfway vector
+            float NdotL = clampedDot(n, l);
+            float NdotH = clampedDot(n, h);
+            float LdotH = clampedDot(l, h);
+            float VdotH = clampedDot(v, h);
+
+            vec3 dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(VdotH));
+            vec3 metal_fresnel = pl_fresnel_schlick(tBaseColor.rgb, vec3(1.0), abs(VdotH));
+
+
+            if (NdotL > 0.0 || NdotV > 0.0)
+            {
+                
+                vec3 intensity = getLightIntensity(tLightData, pointToLight);
+
+
+                vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(tBaseColor.rgb);
+                vec3 l_specular_dielectric = vec3(0.0);
+                vec3 l_specular_metal = vec3(0.0);
+                vec3 l_dielectric_brdf = vec3(0.0);
+                vec3 l_metal_brdf = vec3(0.0);
+                vec3 l_clearcoat_brdf = vec3(0.0);
+                vec3 l_sheen = vec3(0.0);
+                float l_albedoSheenScaling = 1.0;
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
+                {
+                    l_diffuse = l_diffuse * (1.0 - materialInfo.diffuseTransmissionFactor);
+                    if (dot(n, l) < 0.0)
+                    {
+                        float diffuseNdotL = clampedDot(-n, l);
+                        vec3 diffuse_btdf = shadow * intensity * diffuseNdotL * pl_brdf_diffuse(materialInfo.diffuseTransmissionColorFactor);
+
+                        vec3 l_mirror = normalize(l + 2.0 * n * dot(-l, n)); // Mirror light reflection vector on surface
+                        float diffuseVdotH = clampedDot(v, normalize(l_mirror + v));
+                        dielectric_fresnel = pl_fresnel_schlick(materialInfo.f0_dielectric * materialInfo.specularWeight, materialInfo.f90_dielectric, abs(diffuseVdotH));
+                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        {
+                            diffuse_btdf = applyVolumeAttenuation(diffuse_btdf, diffuseTransmissionThickness, materialInfo.attenuationColor, materialInfo.attenuationDistance);
+                        }
+                        l_diffuse += diffuse_btdf * materialInfo.diffuseTransmissionFactor;
+                    }
+                }
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
+                {
+                        // If the light ray travels through the geometry, use the point it exits the geometry again.
+                        // That will change the angle to the light source, if the material refracts the light ray.
+                        vec3 transmissionRay = getVolumeTransmissionRay(n, v, materialInfo.thickness, materialInfo.ior, u_ModelMatrix);
+                        pointToLight -= transmissionRay;
+                        l = normalize(pointToLight);
+
+                        vec3 transmittedLight = shadow * intensity * getPunctualRadianceTransmission(n, v, l, materialInfo.alphaRoughness, tBaseColor.rgb, materialInfo.ior);
+
+                        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
+                        {
+                            transmittedLight = applyVolumeAttenuation(transmittedLight, length(transmissionRay), materialInfo.attenuationColor, materialInfo.attenuationDistance);
+                        }
+                        l_diffuse = mix(l_diffuse, transmittedLight, materialInfo.transmissionFactor);
+                }
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
+                {
+                    l_specular_metal = shadow * intensity * NdotL * BRDF_specularGGXAnisotropy(materialInfo.alphaRoughness, materialInfo.anisotropyStrength, n, v, l, h, materialInfo.anisotropicT, materialInfo.anisotropicB);
+                    l_specular_dielectric = l_specular_metal;
+                }
+                else
+                {
+                    l_specular_metal = shadow * intensity * NdotL * pl_brdf_specular(materialInfo.alphaRoughness, NdotL, NdotV, NdotH);
+                    l_specular_dielectric = l_specular_metal;
+                }
+
+                l_metal_brdf = metal_fresnel * l_specular_metal;
+                l_dielectric_brdf = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel); // Do we need to handle vec3 fresnel here?
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_IRIDESCENCE))
+                {
+                    l_metal_brdf = mix(l_metal_brdf, l_specular_metal * iridescenceFresnel_metallic, materialInfo.iridescenceFactor);
+                    l_dielectric_brdf = mix(l_dielectric_brdf, pl_rgb_mix(l_diffuse, l_specular_dielectric, iridescenceFresnel_dielectric), materialInfo.iridescenceFactor);
+                }
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
+                {
+                    l_clearcoat_brdf = intensity * getPunctualRadianceClearCoat(materialInfo.clearcoatNormal, v, l, h, VdotH,
+                        materialInfo.clearcoatF0, materialInfo.clearcoatF90, materialInfo.clearcoatRoughness);
+                }
+
+                if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
+                {
+                    l_sheen = intensity * getPunctualRadianceSheen(materialInfo.sheenColorFactor, materialInfo.sheenRoughnessFactor, NdotL, NdotV, NdotH);
+                    l_albedoSheenScaling = min(1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotV, materialInfo.sheenRoughnessFactor),
+                        1.0 - pl_max3(materialInfo.sheenColorFactor) * albedoSheenScalingLUT(NdotL, materialInfo.sheenRoughnessFactor));
+                }
+
+                vec3 l_color = mix(l_dielectric_brdf, l_metal_brdf, materialInfo.metallic);
+                l_color = l_sheen + l_color * l_albedoSheenScaling;
+                l_color = mix(l_color, l_clearcoat_brdf, clearcoatFactor * clearcoatFresnel);
+                color += l_color;
+            }
         }
 
     }
@@ -746,201 +946,28 @@ void main()
         f_emissive *= pl_srgb_to_linear(texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_EMISSIVE])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_EMISSIVE)).rgb);
     }
 
-    if(tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
+    if(material.tAlphaMode == PL_SHADER_ALPHA_MODE_MASK)
     {
-
-        if(material.tAlphaMode == PL_SHADER_ALPHA_MODE_MASK)
+        if(tBaseColor.a <  material.fAlphaCutoff)
         {
-            if(tBaseColor.a <  material.fAlphaCutoff)
-            {
-                discard;
-            }
-            tBaseColor.a = 1.0;
+            discard;
         }
-
-        color = f_emissive * (1.0 - clearcoatFactor * clearcoatFresnel) + color;
-        outColor.rgb = color.rgb;
-        outColor.a = tBaseColor.a;
-
-        if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_HEIGHT_FOG))
-        {
-            outColor = fog(outColor, vraw);
-        }
-        else if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_LINEAR_FOG))
-        {
-            outColor = fogLinear(outColor, vraw);
-        }
+        tBaseColor.a = 1.0;
     }
-    else
+
+    color = f_emissive * (1.0 - clearcoatFactor * clearcoatFresnel) + color;
+    outColor.rgb = color.rgb;
+    outColor.a = tBaseColor.a;
+
+    if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_HEIGHT_FOG))
     {
-        // In case of missing data for a debug view, render a checkerboard.
-        outColor = vec4(1.0);
-        {
-            float frequency = 0.02;
-            float gray = 0.9;
-
-            vec2 v1 = step(0.5, fract(frequency * gl_FragCoord.xy));
-            vec2 v2 = step(0.5, vec2(1.0) - fract(frequency * gl_FragCoord.xy));
-            outColor.rgb *= gray + v1.x * v1.y + v2.x * v2.y;
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_BASE_COLOR)
-        {
-            outColor = tBaseColor;
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_SHADING_NORMAL)
-        {
-            outColor = vec4((n + 1.0) / 2.0, tBaseColor.a);
-            // outColor = vec4(vec3(albedoSheenScaling), tBaseColor.a);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_NORMAL)
-        {
-            outColor = vec4((tNormalInfo.ng + 1.0) / 2.0, tBaseColor.a);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_TANGENT)
-        {
-            outColor = vec4((tNormalInfo.t + 1.0) / 2.0, tBaseColor.a);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_BITANGENT)
-        {
-            outColor.rgb = (tNormalInfo.b + 1.0) / 2.0;
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_TEXTURE_NORMAL)
-        {
-            if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP))
-            {
-                outColor = vec4((tNormalInfo.ntex + 1.0) / 2.0, tBaseColor.a);
-            }
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_METALLIC)
-        {
-            outColor.rgb = vec3(materialInfo.metallic);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_ROUGHNESS)
-        {
-            outColor.rgb = vec3(materialInfo.perceptualRoughness);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_UV0)
-        {
-            if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0))
-            {
-                outColor.rgb = vec3(tShaderIn.tUV[0], 0.0);
-            }
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_ALPHA)
-        {
-            outColor.rgb = vec3(tBaseColor.a);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_EMMISSIVE)
-        {
-            outColor.rgb = pl_linear_to_srgb(f_emissive);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_OCCLUSION)
-        {
-            outColor.rgb = vec3(ao);
-        }
-
-        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))
-        {
-
-            if(tShaderDebugMode == PL_SHADER_DEBUG_CLEARCOAT)
-            {
-                outColor.rgb = vec3(materialInfo.clearcoatFactor);
-            }
-
-            if(tShaderDebugMode == PL_SHADER_DEBUG_CLEARCOAT_ROUGHNESS)
-            {
-                outColor.rgb = vec3(materialInfo.clearcoatRoughness);
-            }
-
-            if(tShaderDebugMode == PL_SHADER_DEBUG_CLEARCOAT_NORMAL)
-            {
-                outColor.rgb = (materialInfo.clearcoatNormal + vec3(1)) / 2.0;
-            }
-        }
-
-        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_SHEEN))
-        {
-            if(tShaderDebugMode == PL_SHADER_DEBUG_SHEEN_COLOR)
-            {
-                outColor.rgb = materialInfo.sheenColorFactor;
-            }
-            if(tShaderDebugMode == PL_SHADER_DEBUG_SHEEN_ROUGHNESS)
-            {
-                outColor.rgb = vec3(materialInfo.sheenRoughnessFactor);
-            }
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_IRIDESCENCE_FACTOR)
-        {
-            outColor.rgb = vec3(materialInfo.iridescenceFactor);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_IRIDESCENCE_THICKNESS)
-        {
-            outColor.rgb = vec3(materialInfo.iridescenceThickness / 1200.0);
-        }
-
-        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_ANISOTROPY))
-        {
-            if(tShaderDebugMode == PL_SHADER_DEBUG_ANISOTROPY_STRENGTH)
-            {
-                outColor.rgb = vec3(materialInfo.anisotropyStrength);
-            }
-            if(tShaderDebugMode == PL_SHADER_DEBUG_ANISOTROPY_DIRECTION)
-            {
-                vec2 direction = vec2(1.0, 0.0);
-                if(bool(iTextureMappingFlags & PL_HAS_ANISOTROPY_MAP))
-                {
-                    direction = texture(sampler2D(at2DTextures[nonuniformEXT(material.aiTextureIndices[PL_TEXTURE_ANISOTROPY])], tSamplerLinearRepeat), pl_get_uv(PL_TEXTURE_ANISOTROPY)).xy;
-                    direction = direction * 2.0 - vec2(1.0); // [0, 1] -> [-1, 1]
-                }
-                vec2 directionRotation = material.tAnisotropy.xy; // cos(theta), sin(theta)
-                mat2 rotationMatrix = mat2(directionRotation.x, directionRotation.y, -directionRotation.y, directionRotation.x);
-                direction = (direction + vec2(1.0)) * 0.5; // [-1, 1] -> [0, 1]
-                outColor.rgb = vec3(direction, 0.0);
-            }
-        }
-
-        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_TRANSMISSION))
-        {
-            if(tShaderDebugMode == PL_SHADER_DEBUG_TRANSMISSION_STRENGTH)
-            {
-                outColor.rgb = vec3(materialInfo.transmissionFactor);
-            }
-        }
-
-        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_VOLUME))
-        {
-            if(tShaderDebugMode == PL_SHADER_DEBUG_VOLUME_THICKNESS)
-            {
-                outColor.rgb = vec3(materialInfo.thickness / material.fThickness);
-            }
-        }
-
-        if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_DIFFUSE_TRANSMISSION))
-        {
-            if(tShaderDebugMode == PL_SHADER_DEBUG_DIFFUSE_TRANSMISSION_STRENGTH)
-            {
-                outColor.rgb = pl_linear_to_srgb(vec3(materialInfo.diffuseTransmissionFactor));
-            }
-            if(tShaderDebugMode == PL_SHADER_DEBUG_DIFFUSE_TRANSMISSION_COLOR)
-            {
-                outColor.rgb = pl_linear_to_srgb(vec3(materialInfo.diffuseTransmissionColorFactor));
-            }
-        }
+        outColor = fog(outColor, vraw);
     }
+    else if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_LINEAR_FOG))
+    {
+        outColor = fogLinear(outColor, vraw);
+    }
+
 
     // if(gl_FragCoord.x < 600.0)
     // {

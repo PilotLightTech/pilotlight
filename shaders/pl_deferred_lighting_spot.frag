@@ -13,8 +13,6 @@
 //-----------------------------------------------------------------------------
 
 layout(constant_id = 0) const int iRenderingFlags = 0;
-layout(constant_id = 1) const int tShaderDebugMode = 0;
-layout(constant_id = 2) const int iProbeCount = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 2
@@ -110,31 +108,31 @@ void main()
     // punctual stuff
     // uint cascadeIndex = 4;
     const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
-    if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL) && tObjectInfo.tData.iLightIndex != -1)
     {
-        plGpuLight tLightData = tLightInfo.atData[tObjectInfo.tData.iLightIndex];
+        plGpuSpotLight tLightData = tSpotLightInfo.atData[tObjectInfo.tData.iLightIndex];
         float shadow = 1.0;
 
         vec3 pointToLight = tLightData.tPosition - tWorldPosition.xyz;
         
         if(bShadows && tLightData.iCastShadow > 0)
         {
-            vec4 shadowCoord = tShadowData.atData[tLightData.iShadowIndex].viewProjMat[0] * vec4(tWorldPosition.xyz, 1.0);
+            plGpuSpotLightShadow tShadowData = tSpotShadowData.atData[tLightData.iShadowIndex];
+            vec4 shadowCoord = tShadowData.viewProjMat * vec4(tWorldPosition.xyz, 1.0);
             if(shadowCoord.z > -1.0 && shadowCoord.z < 1.0)
             {
                 shadowCoord.xyz /= shadowCoord.w;
                 shadow = 0.0;
                 shadowCoord.x = shadowCoord.x/2 + 0.5;
                 shadowCoord.y = shadowCoord.y/2 + 0.5;
-                shadowCoord.xy *= tShadowData.atData[tLightData.iShadowIndex].fFactor;
+                shadowCoord.xy *= tShadowData.fFactor;
 
                 if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
                 {
-                    shadow = filterPCF(shadowCoord, vec2(tShadowData.atData[tLightData.iShadowIndex].fXOffset, tShadowData.atData[tLightData.iShadowIndex].fYOffset), tShadowData.atData[tLightData.iShadowIndex].iShadowMapTexIdx);
+                    shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
                 }
                 else
                 {
-                    shadow = textureProj(shadowCoord, vec2(tShadowData.atData[tLightData.iShadowIndex].fXOffset, tShadowData.atData[tLightData.iShadowIndex].fYOffset), tShadowData.atData[tLightData.iShadowIndex].iShadowMapTexIdx);
+                    shadow = textureProj(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
                 }
             }
         }
@@ -175,98 +173,5 @@ void main()
     // Layer blending
 
     outColor.a = fBaseColorAlpha;
-
-    if(tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
-    {
-        
-        outColor.rgb = color.rgb;
-
-        if(iProbeCount > 0)
-        {
-            if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_HEIGHT_FOG))
-            {
-                outColor = fog(outColor, tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
-            }
-            else if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_LINEAR_FOG))
-            {
-                outColor = fogLinear(outColor, tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
-            }
-        }
-    }
-    else
-    {
-
-        outColor = vec4(1.0);
-        {
-            float frequency = 0.02;
-            float gray = 0.9;
-
-            vec2 v1 = step(0.5, fract(frequency * gl_FragCoord.xy));
-            vec2 v2 = step(0.5, vec2(1.0) - fract(frequency * gl_FragCoord.xy));
-            outColor.rgb *= gray + v1.x * v1.y + v2.x * v2.y;
-        }
-    
-        if(tShaderDebugMode == PL_SHADER_DEBUG_BASE_COLOR)
-        {
-            outColor.rgb = materialInfo.baseColor;
-            outColor.a = fBaseColorAlpha;
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_SHADING_NORMAL)
-        {
-            outColor = vec4((n + 1.0) / 2.0, fBaseColorAlpha);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_METALLIC)
-        {
-            outColor.rgb = vec3(materialInfo.metallic);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_ROUGHNESS)
-        {
-            outColor.rgb = vec3(materialInfo.perceptualRoughness);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_ALPHA)
-        {
-            outColor.rgb = vec3(fBaseColorAlpha);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_OCCLUSION)
-        {
-            outColor.rgb = vec3(ao);
-        }
-
-        if(tShaderDebugMode > PL_SHADER_DEBUG_SHADING_NORMAL)
-        {
-            outColor.rgb = vec3(n);
-        }
-    }
-
-    // if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_PUNCTUAL) && tObjectInfo.tData.iLightIndex != -1)
-    // {
-    //     plGpuLight tLightData = tLightInfo.atData[tObjectInfo.tData.iLightIndex];
-
-    //     if(tLightData.iType == PL_LIGHT_TYPE_DIRECTIONAL)
-    //     {
-    //         if(gl_FragCoord.x < 1400.0)
-    //         {
-    //             switch(cascadeIndex) {
-    //                 case 0 : 
-    //                     outColor.rgb *= vec3(1.0f, 0.25f, 0.25f);
-    //                     break;
-    //                 case 1 : 
-    //                     outColor.rgb *= vec3(0.25f, 1.0f, 0.25f);
-    //                     break;
-    //                 case 2 : 
-    //                     outColor.rgb *= vec3(0.25f, 0.25f, 1.0f);
-    //                     break;
-    //                 case 3 : 
-    //                     outColor.rgb *= vec3(1.0f, 1.0f, 0.25f);
-    //                     break;
-    //             }
-    //         }
-    //     }
-    // }
-
+    outColor.rgb = color.rgb;
 }

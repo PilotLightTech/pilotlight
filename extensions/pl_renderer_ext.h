@@ -41,6 +41,12 @@ Index of this file:
         * plResourceI
         * plEcsI
         * plBVHI
+        * plAnimationI
+        * plMeshI
+        * plMaterialI
+        * plTerrainProcessorI
+        * plStageI
+        * plFreeListI
 */
 
 //-----------------------------------------------------------------------------
@@ -54,7 +60,7 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plRendererI_version {0, 2, 1}
+#define plRendererI_version {0, 3, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -78,9 +84,8 @@ Index of this file:
 typedef struct _plRendererSettings       plRendererSettings;
 typedef struct _plSceneInit              plSceneInit;
 typedef struct _plRendererRuntimeOptions plRendererRuntimeOptions;
-typedef struct _plScene                  plScene;
-typedef struct _plView                   plView;
-typedef struct _plSceneBufferSizes    plSceneBufferSizes;
+typedef struct _plScene                  plScene; // opaque type
+typedef struct _plView                   plView;  // opaque type
 
 // ecs components
 typedef struct _plObjectComponent           plObjectComponent;
@@ -95,7 +100,7 @@ typedef int plObjectFlags;
 typedef int plTonemapMode;
 
 // external 
-typedef struct _plWindow           plWindow;           // pl_os.h
+typedef struct _plWindow           plWindow;           // pl_platform_ext.h
 typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
 typedef struct _plDevice           plDevice;           // pl_graphics_ext.h
 typedef struct _plDeviceInfo       plDeviceInfo;       // pl_graphics_ext.h
@@ -107,15 +112,11 @@ typedef union  plTextureHandle     plTextureHandle;    // pl_graphics_ext.h
 typedef struct _plRenderEncoder    plRenderEncoder;    // pl_graphics_ext.h
 typedef union  plRenderPassHandle  plRenderPassHandle; // pl_graphics_ext.h
 typedef union  plBindGroupHandle   plBindGroupHandle;  // pl_graphics_ext.h
-typedef void* plTextureId;                             // pl_ui.h
+typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
+typedef struct _plCamera           plCamera;           // pl_camera_ext.h
+typedef void* plTextureId;                             // pl_ui_ext.h
 
-
-// external (pl_ecs_ext.h)
-typedef struct _plComponentLibrary plComponentLibrary;
-typedef struct _plCamera           plCamera;
-typedef struct _plLightComponent   plLightComponent;
-
-// external
+// external enums & flags
 typedef int plShaderDebugMode; // pl_shader_interop_renderer.h
 typedef int plLightType;       // pl_shader_interop_renderer.h
 typedef int plDrawFlags;       // pl_draw_ext.h
@@ -131,32 +132,31 @@ typedef struct _plRendererI
     void (*cleanup)   (void);
 
     // scenes
-    plScene* (*create_scene)(plSceneInit);
+    plScene* (*create_scene) (plSceneInit);
     void     (*cleanup_scene)(plScene*);
-    void     (*load_skybox_from_panorama)(plScene*, const char* pcPath, int iResolution);
-    bool     (*add_drawable_objects_to_scene)(plScene*, uint32_t uCount, const plEntity* atObjects);
-    void     (*add_probe_to_scene)(plScene*, plEntity);
-    void     (*add_light_to_scene)(plScene*, plEntity);
 
-    // scenes - runtime
+    // scene composition
+    void (*load_skybox_from_panorama)    (plScene*, const char* path, int resolution);
+    bool (*add_drawable_objects_to_scene)(plScene*, uint32_t count, const plEntity* objects);
+    void (*add_probe_to_scene)           (plScene*, plEntity);
+    void (*add_light_to_scene)           (plScene*, plEntity);
+    void (*add_materials_to_scene)       (plScene*, uint32_t count, const plEntity* materials);
+
+    // scene - runtime
     void (*reload_scene_shaders)(plScene*);
     void (*update_scene_material)(plScene*, plEntity material);
 
-    // scenes - not ready
-    void (*add_materials_to_scene)(plScene*, uint32_t materialCount, const plEntity* materials);
-
     // views
-    plView*           (*create_view)(plScene*, plVec2 tDimensions);
-    void              (*cleanup_view)(plView*);
-    plBindGroupHandle (*get_view_color_texture)(plView*);
-    plVec2            (*get_view_color_texture_max_uv)(plView*);
-    void              (*resize_view)(plView*, plVec2 tDimensions);
+    plView*           (*create_view)     (plScene*, plVec2 dims);
+    void              (*cleanup_view)    (plView*);
+    plBindGroupHandle (*get_view_texture)(plView*, plVec2* maxUVOut);
+    void              (*resize_view)     (plView*, plVec2 dims);
 
     // per frame
+    bool (*begin_frame)  (void);
     void (*prepare_scene)(plScene*);
     void (*prepare_view) (plView*, plCamera*);
-    void (*render_view) (plView*, plCamera*, plCamera* cullCamera);
-    bool (*begin_frame)     (void);
+    void (*render_view)  (plView*, plCamera* mainCamera, plCamera* cullCamera);
     
     // per frame options
     void (*show_skybox)               (plView*);
@@ -166,15 +166,15 @@ typedef struct _plRendererI
     void (*debug_draw_bvh)            (plView*);
 
     // selection & highlighting
-    void (*update_hovered_entity)(plView*, plVec2 tOffset, plVec2 tWindowScale);
+    void (*update_hovered_entity)(plView*, plVec2 offset, plVec2 windowScale);
     bool (*get_hovered_entity)   (plView*, plEntity*);
-    void (*outline_entities)     (plScene*, uint32_t uCount, plEntity*);
+    void (*outline_entities)     (plScene*, uint32_t count, plEntity*);
 
     // misc
-    plDrawList3D*       (*get_debug_drawlist)(plView*);
-    plDrawList3D*       (*get_gizmo_drawlist)(plView*);
+    plDrawList3D*             (*get_debug_drawlist) (plView*);
+    plDrawList3D*             (*get_gizmo_drawlist) (plView*);
     plRendererRuntimeOptions* (*get_runtime_options)(void);
-    void (*rebuild_scene_bvh)(plScene*);
+    void                      (*rebuild_scene_bvh)  (plScene*);
 
     //----------------------------ECS INTEGRATION----------------------------------
 
@@ -183,26 +183,26 @@ typedef struct _plRendererI
 
     // entity helpers (creates entity and necessary components)
     //   - do NOT store out parameter; use it immediately
-    plEntity (*create_object)             (plComponentLibrary*, const char* pcName, plObjectComponent**);
-    plEntity (*create_skin)               (plComponentLibrary*, const char* pcName, plSkinComponent**);
-    plEntity (*create_directional_light)  (plComponentLibrary*, const char* pcName, plVec3 tDirection, plLightComponent**);
-    plEntity (*create_point_light)        (plComponentLibrary*, const char* pcName, plVec3 tPosition, plLightComponent**);
-    plEntity (*create_spot_light)         (plComponentLibrary*, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent**);
-    plEntity (*create_environment_probe)  (plComponentLibrary*, const char* pcName, plVec3 tPosition, plEnvironmentProbeComponent**);
+    plEntity (*create_object)             (plComponentLibrary*, const char* name, plObjectComponent**);
+    plEntity (*create_skin)               (plComponentLibrary*, const char* name, plSkinComponent**);
+    plEntity (*create_directional_light)  (plComponentLibrary*, const char* name, plVec3 dir, plLightComponent**);
+    plEntity (*create_point_light)        (plComponentLibrary*, const char* name, plVec3 pos, plLightComponent**);
+    plEntity (*create_spot_light)         (plComponentLibrary*, const char* name, plVec3 pos, plVec3 dir, plLightComponent**);
+    plEntity (*create_environment_probe)  (plComponentLibrary*, const char* name, plVec3 pos, plEnvironmentProbeComponent**);
 
     // object helpers
-    plEntity (*copy_object) (plComponentLibrary*, const char* pcName, plEntity tOriginalObject, plObjectComponent**);
+    plEntity (*copy_object) (plComponentLibrary*, const char* name, plEntity originalObject, plObjectComponent**);
 
     // systems
-    void (*run_object_update_system)            (plComponentLibrary*);
-    void (*run_skin_update_system)              (plComponentLibrary*);
-    void (*run_light_update_system)             (plComponentLibrary*);
-    void (*run_environment_probe_update_system) (plComponentLibrary*);
+    void (*run_object_update_system)           (plComponentLibrary*);
+    void (*run_skin_update_system)             (plComponentLibrary*);
+    void (*run_light_update_system)            (plComponentLibrary*);
+    void (*run_environment_probe_update_system)(plComponentLibrary*);
 
     // ecs types
-    plEcsTypeKey (*get_ecs_type_key_object)(void);
-    plEcsTypeKey (*get_ecs_type_key_skin)(void);
-    plEcsTypeKey (*get_ecs_type_key_light)(void);
+    plEcsTypeKey (*get_ecs_type_key_object)           (void);
+    plEcsTypeKey (*get_ecs_type_key_skin)             (void);
+    plEcsTypeKey (*get_ecs_type_key_light)            (void);
     plEcsTypeKey (*get_ecs_type_key_environment_probe)(void);
 
 } plRendererI;
@@ -218,13 +218,14 @@ typedef struct _plSceneInit
     size_t              szVertexBufferSize;   // default: 64000000
     size_t              szDataBufferSize;     // default: 64000000
     size_t              szMaterialBufferSize; // default:  8000000
+    size_t              szSkinBufferSize;     // default:  8000000
 } plSceneInit;
 
 typedef struct _plRendererSettings
 {
-    plDevice* ptDevice;
+    plDevice*    ptDevice;
     plSwapchain* ptSwap;
-    uint32_t  uMaxTextureResolution; // default 1024 (should be factor of 2)
+    uint32_t     uMaxTextureResolution; // default 1024 (should be factor of 2)
 } plRendererSettings;
 
 typedef struct _plRendererRuntimeOptions
@@ -244,33 +245,33 @@ typedef struct _plRendererRuntimeOptions
     plShaderDebugMode tShaderDebugMode;
 
     // tonemapping
-    plTonemapMode   tTonemapMode;
-    float           fExposure;
-    float           fBrightness;
-    float           fContrast;
-    float           fSaturation;
+    plTonemapMode tTonemapMode;
+    float         fExposure;
+    float         fBrightness;
+    float         fContrast;
+    float         fSaturation;
 
     // bloom
-    bool bBloomActive;
-    float fBloomStrength;
-    float fBloomRadius;
+    bool     bBloomActive;
+    float    fBloomStrength;
+    float    fBloomRadius;
     uint32_t uBloomChainLength;
 
     // grid
-    float fGridCellSize;
-    float fGridMinPixelsBetweenCells;
+    float  fGridCellSize;
+    float  fGridMinPixelsBetweenCells;
     plVec4 tGridColorThin;
     plVec4 tGridColorThick;
 
     // fog
-    bool  bFog;
-    bool  bLinearFog;
-    float fFogDensity;
-    float fFogHeight;
-    float fFogStart;
-    float fFogCutOffDistance;
-    float fFogMaxOpacity;
-    float fFogHeightFalloff;
+    bool   bFog;
+    bool   bLinearFog;
+    float  fFogDensity;
+    float  fFogHeight;
+    float  fFogStart;
+    float  fFogCutOffDistance;
+    float  fFogMaxOpacity;
+    float  fFogHeightFalloff;
     plVec3 tFogColor;
 
 } plRendererRuntimeOptions;

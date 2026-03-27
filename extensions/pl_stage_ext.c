@@ -128,12 +128,15 @@ pl_stage_initialize(plStageInit tInit)
 void
 pl_stage_cleanup(void)
 {
+    if(gptStageCtx->ptCmdPool == NULL) // already initialized
+        return;
     gptGfx->cleanup_command_pool(gptStageCtx->ptCmdPool);
     gptGfx->cleanup_semaphore(gptStageCtx->ptSemaphore);
     pl_sb_free(gptStageCtx->sbtBlocks);
     pl_sb_free(gptStageCtx->sbtStageBlocks);
     pl_sb_free(gptStageCtx->sbtBufferUploadRequests);
     pl_sb_free(gptStageCtx->sbtTextureUploadRequests);
+    gptStageCtx->ptCmdPool = NULL;
 }
 
 void

@@ -9,12 +9,6 @@
 #include "pl_brdf.glsl"
 
 //-----------------------------------------------------------------------------
-// [SECTION] specialication constants
-//-----------------------------------------------------------------------------
-
-layout(constant_id = 0) const int iProbeCount = 0;
-
-//-----------------------------------------------------------------------------
 // [SECTION] bind group 2
 //-----------------------------------------------------------------------------
 
@@ -94,7 +88,6 @@ void main()
     vec3 n = Decode(tEncodedN);
 
     // Calculate lighting contribution from image based lighting source (IBL)
-    // if(bool(iRenderingFlags & PL_RENDERING_FLAG_USE_IBL) && iProbeCount > 0)
     {
 
         int aiActiveProbes[3];
@@ -114,7 +107,7 @@ void main()
 
         int K = 0;
 
-        for(int i = 0; i < iProbeCount; i++)
+        for(int i = 0; i < tObjectInfo.tData.iProbeCount; i++)
         {
             vec3 tDist = tProbeData.atData[i].tPosition - tWorldPosition.xyz;
             tDist = tDist * tDist;

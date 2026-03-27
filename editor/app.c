@@ -306,6 +306,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // initial flags
     tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
+    // tStarterInit.tFlags |= PL_STARTER_FLAGS_VSYNC_OFF;
 
     // we handle these
     // tStarterInit.tFlags |= PL_STARTER_FLAGS_SHADER_EXT;
@@ -438,6 +439,24 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plTransformComponent* ptSecondaryCameraTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSecondaryCamera);
     ptSecondaryCameraTransform->tTranslation = pl_create_vec3(-4.012f, 2.984f, -1.109f);
 
+    plEnvironmentProbeComponent* ptProbe = NULL;
+    plVec3 atProbeLocations[] = {
+        pl_create_vec3(0.0f, 3.0f, 0.0f),
+        // pl_create_vec3(-8.7f, 1.5f, 0.0f),
+        // pl_create_vec3(8.8f, 1.5f, 0.0f),
+    };
+
+    for(uint32_t i = 0; i < PL_ARRAYSIZE(atProbeLocations); i++)
+    {
+        plEntity tProbeEntity = gptRenderer->create_environment_probe(ptAppData->ptComponentLibrary, "Probe", atProbeLocations[i], &ptProbe);
+        ptProbe->fRange = 30.0f;
+        ptProbe->uResolution = 128;
+        ptProbe->uSamples = 1024;
+        ptProbe->uInterval = 6;
+        ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+        gptRenderer->add_probe_to_scene(ptAppData->ptScene, tProbeEntity);
+    }
+
     // create lights
     plLightComponent* ptLight = NULL;
     plEntity tDirectionLight = gptRenderer->create_directional_light(ptAppData->ptComponentLibrary, "direction light", pl_create_vec3(0.425f, -1.0f, -0.384f), &ptLight);
@@ -483,7 +502,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plMat4 tModelTranslation = pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f);
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", &tModelTranslation, &tLoaderData1);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", &tModelTranslation, &tLoaderData1);
-    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", &tModelTranslation, &tLoaderData0);
+    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", &tModelTranslation, &tLoaderData0);
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", &tModelTranslation, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/sort.gltf", &tModelTranslation, &tLoaderData0);
     // plMat4 tRotation = pl_mat4_rotate_xyz(-PL_PI_2, 0.0f, 1.0f, 0.0f);
@@ -504,23 +523,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // gptRenderer->add_materials_to_scene(ptAppData->ptScene, uMaterialCount, ptMaterialEntities);
     
 
-    plEnvironmentProbeComponent* ptProbe = NULL;
-    plVec3 atProbeLocations[] = {
-        pl_create_vec3(0.0f, 3.0f, 0.0f),
-        // pl_create_vec3(-8.7f, 1.5f, 0.0f),
-        // pl_create_vec3(8.8f, 1.5f, 0.0f),
-    };
 
-    for(uint32_t i = 0; i < PL_ARRAYSIZE(atProbeLocations); i++)
-    {
-        plEntity tProbeEntity = gptRenderer->create_environment_probe(ptAppData->ptComponentLibrary, "Probe", atProbeLocations[i], &ptProbe);
-        ptProbe->fRange = 30.0f;
-        ptProbe->uResolution = 128;
-        ptProbe->uSamples = 1024;
-        ptProbe->uInterval = 6;
-        ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
-        gptRenderer->add_probe_to_scene(ptAppData->ptScene, tProbeEntity);
-    }
 
     bool bResult0 = gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
     bool bResult1 = gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData1.uObjectCount, tLoaderData1.atObjects);
@@ -819,9 +822,10 @@ pl_app_update(plAppData* ptAppData)
         {
             plVec2 tStartPos = {0};
             plVec2 tEndPos = ptIO->tMainViewportSize;
-            plVec2 tUV = gptRenderer->get_view_color_texture_max_uv(ptAppData->ptView);
+            plVec2 tUV = {0};
+            plBindGroupHandle tTexture = gptRenderer->get_view_texture(ptAppData->ptView, &tUV);
             gptDraw->add_image_ex(ptAppData->ptDrawLayer,
-                gptRenderer->get_view_color_texture(ptAppData->ptView).uData,
+                tTexture.uData,
                 tStartPos,
                 tEndPos,
                 (plVec2){0},
@@ -833,12 +837,14 @@ pl_app_update(plAppData* ptAppData)
         {
             plVec2 tStartPos = { 0.75f * ptIO->tMainViewportSize.x, 0.0f};
             plVec2 tEndPos = {ptIO->tMainViewportSize.x, 0.25f * ptIO->tMainViewportSize.y};
+            plVec2 tUV = {0};
+            plBindGroupHandle tTexture = gptRenderer->get_view_texture(ptAppData->ptSecondaryView, &tUV);
             gptDraw->add_image_ex(ptAppData->ptDrawLayer,
-                gptRenderer->get_view_color_texture(ptAppData->ptSecondaryView).uData,
+                tTexture.uData,
                 tStartPos,
                 tEndPos,
                 (plVec2){0},
-                gptRenderer->get_view_color_texture_max_uv(ptAppData->ptSecondaryView),
+                tUV,
                 PL_COLOR_32_WHITE);
             gptCamera->set_aspect(ptSecondaryCamera, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
         }

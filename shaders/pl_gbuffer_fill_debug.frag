@@ -32,7 +32,8 @@ Index of this file:
 layout(constant_id = 0) const int iMeshVariantFlags = 0;
 layout(constant_id = 1) const int iTextureMappingFlags = 0;
 layout(constant_id = 2) const int iMaterialFlags = 0;
-layout(constant_id = 3) const int iRenderingFlags = 0;
+layout(constant_id = 3) const int tShaderDebugMode = 0;
+layout(constant_id = 4) const int iRenderingFlags = 0;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -109,15 +110,6 @@ void main()
         ao = (1.0 + material.fOcclusionStrength * (ao - 1.0)); 
     }
 
-    if(material.tAlphaMode == PL_SHADER_ALPHA_MODE_MASK)
-    {
-        if(tBaseColor.a <  material.fAlphaCutoff)
-        {
-            discard;
-        }
-        tBaseColor.a = 1.0;
-    }
-
     // fill g-buffer
     outAlbedo = tBaseColor;
     {
@@ -126,4 +118,51 @@ void main()
     }
     outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
     
+
+    // In case of missing data for a debug view, render a checkerboard.
+    if(tShaderDebugMode != PL_SHADER_DEBUG_BASE_COLOR)
+    {
+        outAlbedo = vec4(1.0);
+        {
+            float frequency = 0.02;
+            float gray = 0.9;
+
+            vec2 v1 = step(0.5, fract(frequency * gl_FragCoord.xy));
+            vec2 v2 = step(0.5, vec2(1.0) - fract(frequency * gl_FragCoord.xy));
+            outAlbedo.rgb *= gray + v1.x * v1.y + v2.x * v2.y;
+        }
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_UV0)
+    {
+        if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0))
+            outAlbedo.rgb = vec3(tShaderIn.tUV[0], 0.0);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_NORMAL)
+    {
+        NormalInfo tNormalInfo = pl_get_normal_info();
+        outAlbedo.rgb = vec3((1.0 + tNormalInfo.ng) / 2.0);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_TANGENT)
+    {
+        NormalInfo tNormalInfo = pl_get_normal_info();
+        outAlbedo.rgb = vec3((1.0 + tNormalInfo.t) / 2.0);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_BITANGENT)
+    {
+        NormalInfo tNormalInfo = pl_get_normal_info();
+        outAlbedo.rgb = vec3((1.0 + tNormalInfo.b) / 2.0);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_TEXTURE_NORMAL)
+    {
+        if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP))
+        {
+            NormalInfo tNormalInfo = pl_get_normal_info();
+            outAlbedo.rgb = tNormalInfo.ntex;
+        }
+    }
 }

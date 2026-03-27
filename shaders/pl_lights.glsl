@@ -32,21 +32,24 @@ getSpotAttenuation(vec3 pointToLight, vec3 spotDirection, float outerConeCos, fl
 }
 
 vec3
-getLightIntensity(plGpuLight light, vec3 pointToLight)
+getLightIntensity(plGpuPointLight light, vec3 pointToLight)
 {
-    float rangeAttenuation = 1.0;
-    float spotAttenuation = 1.0;
+    float rangeAttenuation = getRangeAttenuation(light.fRange, length(pointToLight));
+    return rangeAttenuation * light.fIntensity * light.tColor;
+}
 
-    if (light.iType != PL_LIGHT_TYPE_DIRECTIONAL)
-    {
-        rangeAttenuation = getRangeAttenuation(light.fRange, length(pointToLight));
-    }
-    if (light.iType == PL_LIGHT_TYPE_SPOT)
-    {
-        spotAttenuation = getSpotAttenuation(pointToLight, light.tDirection, light.fOuterConeCos, light.fInnerConeCos);
-    }
-
+vec3
+getLightIntensity(plGpuSpotLight light, vec3 pointToLight)
+{
+    float rangeAttenuation = getRangeAttenuation(light.fRange, length(pointToLight));
+    float spotAttenuation = getSpotAttenuation(pointToLight, light.tDirection, light.fOuterConeCos, light.fInnerConeCos);
     return rangeAttenuation * spotAttenuation * light.fIntensity * light.tColor;
+}
+
+vec3
+getLightIntensity(plGpuDirectionLight light, vec3 pointToLight)
+{
+    return light.fIntensity * light.tColor;
 }
 
 #endif // PL_LIGHTS_GLSL

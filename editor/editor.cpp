@@ -671,10 +671,10 @@ pl_app_update(plAppData* ptAppData)
                 tContextSize.y / ImGui::GetWindowViewport()->Size.y,
             };
 
-            plVec2 tUvScale = gptRenderer->get_view_color_texture_max_uv(ptAppData->ptView);
-
-            ImTextureRef tTexture = ImTextureRef(gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, gptRenderer->get_view_color_texture(ptAppData->ptView)));
-            ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUvScale.x, tUvScale.y));
+            plVec2 tUV = {};
+            plBindGroupHandle tTextureHandle = gptRenderer->get_view_texture(ptAppData->ptView, &tUV);
+            ImTextureRef tTexture = ImTextureRef(gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, tTextureHandle));
+            ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUV.x, tUV.y));
 
         }
     }
@@ -682,15 +682,16 @@ pl_app_update(plAppData* ptAppData)
 
     if(ptAppData->bSecondaryViewActive)
     {
-        plVec2 tUvScale = gptRenderer->get_view_color_texture_max_uv(ptAppData->ptSecondaryView);
+        plVec2 tUV = {};
+        plBindGroupHandle tTextureHandle = gptRenderer->get_view_texture(ptAppData->ptSecondaryView, &tUV);
         ImGui::SetNextWindowSizeConstraints(ImVec2(200.0f, 200.0f), ImVec2(10000.0f, 10000.0f));
         if(ImGui::Begin("Secondary View", &ptAppData->bSecondaryViewActive, ImGuiWindowFlags_NoDocking))
         {
             ImVec2 tContextSize = ImGui::GetContentRegionAvail();
             gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCamera->get_ecs_type_key(), ptAppData->tSecondaryCamera), tContextSize.x / tContextSize.y);
 
-            ImTextureRef tTexture = ImTextureRef(gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, gptRenderer->get_view_color_texture(ptAppData->ptSecondaryView)));
-            ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUvScale.x, tUvScale.y));
+            ImTextureRef tTexture = ImTextureRef(gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, tTextureHandle));
+            ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUV.x, tUV.y));
         }
         ImGui::End();
     }

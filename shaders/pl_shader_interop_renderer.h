@@ -72,7 +72,6 @@ PL_BEGIN_ENUM(plSceneFlags)
 PL_END_ENUM
 
 PL_BEGIN_ENUM(plRenderingFlags)
-    PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_PUNCTUAL,    1 << 0)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_IBL,         1 << 1)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_SHADOWS,         1 << 2)
     PL_ENUM_ITEM(PL_RENDERING_FLAG_USE_NORMAL_MAPS, 1 << 3)
@@ -194,6 +193,18 @@ PL_BEGIN_STRUCT(plGpuDynData)
     int  iMaterialIndex;
     uint uGlobalIndex;
 PL_END_STRUCT(plGpuDynData)
+
+PL_BEGIN_STRUCT(plGpuDynForwardData)
+    int  iDataOffset;
+    int  iVertexOffset;
+    int  iMaterialIndex;
+    uint uGlobalIndex;
+
+    int  iProbeCount;
+    int  iPointLightCount;
+    int  iSpotLightCount;
+    int  iDirectionLightCount;
+PL_END_STRUCT(plGpuDynForwardData)
 
 //-----------------------------------------------------------------------------
 // [SECTION] scene
@@ -372,7 +383,13 @@ PL_BEGIN_STRUCT(plGpuDynSkinData)
     mat4 tInverseWorld;
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~80 bytes~~~~~~~~~~~~~~~~
+    uint uMatrixOffset;
+    int  _iUnused0;
+    int  _iUnused1;
+    int  _iUnused2;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~96 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynSkinData)
 
 //-----------------------------------------------------------------------------
@@ -436,7 +453,26 @@ PL_END_STRUCT(plGpuDynPick)
 // [SECTION] lights
 //-----------------------------------------------------------------------------
 
-PL_BEGIN_STRUCT(plGpuLight)
+PL_BEGIN_STRUCT(plGpuPointLight)
+
+    vec3  tPosition;
+    float fIntensity;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec3  tColor;
+    float fRange;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    int iShadowIndex;
+    int _unused0;
+    int _unused1;
+    int iCastShadow;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~48 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuPointLight)
+
+PL_BEGIN_STRUCT(plGpuSpotLight)
 
     vec3  tPosition;
     float fIntensity;
@@ -451,19 +487,32 @@ PL_BEGIN_STRUCT(plGpuLight)
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     int iShadowIndex;
-    int iCascadeCount;
     int iCastShadow;
     float fOuterConeCos;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-
-    int iType;
     int _unused0;
-    int _unused1;
-    int _unused2;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~80 bytes~~~~~~~~~~~~~~~~
-PL_END_STRUCT(plGpuLight)
+    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuSpotLight)
+
+PL_BEGIN_STRUCT(plGpuDirectionLight)
+
+    int iShadowIndex;
+    int iCascadeCount;
+    int iCastShadow;
+    float fIntensity;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec3 tDirection;
+    int _unused0;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec3 tColor;
+    int _unused1;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~48 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuDirectionLight)
 
 PL_BEGIN_STRUCT(plGpuProbe)
 
@@ -490,7 +539,7 @@ PL_BEGIN_STRUCT(plGpuProbe)
     // ~~~~~~~~~~~~~~~~80 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuProbe)
 
-PL_BEGIN_STRUCT(plGpuLightShadow)
+PL_BEGIN_STRUCT(plGpuPointLightShadow)
     
     mat4 viewProjMat[6];
     // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
@@ -502,13 +551,41 @@ PL_BEGIN_STRUCT(plGpuLightShadow)
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
     
     // ~~~~~~~~~~~~~~~~400 bytes~~~~~~~~~~~~~~~~
-PL_END_STRUCT(plGpuLightShadow)
+PL_END_STRUCT(plGpuPointLightShadow)
+
+PL_BEGIN_STRUCT(plGpuSpotLightShadow)
+    
+    mat4 viewProjMat;
+    // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
+
+    int iShadowMapTexIdx;
+    float fFactor;
+    float fXOffset;
+    float fYOffset;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    
+    // ~~~~~~~~~~~~~~~~400 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuSpotLightShadow)
+
+PL_BEGIN_STRUCT(plGpuDirectionLightShadow)
+    
+    mat4 viewProjMat[4];
+    // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
+
+    int iShadowMapTexIdx;
+    float fFactor;
+    float fXOffset;
+    float fYOffset;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+    
+    // ~~~~~~~~~~~~~~~~400 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuDirectionLightShadow)
 
 PL_BEGIN_STRUCT(plGpuDynDeferredLighting)
     
     uint uGlobalIndex;
     int  iLightIndex;
-    uint _uUnused0;
+    int iProbeCount;
     uint _uUnused1;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynDeferredLighting)
