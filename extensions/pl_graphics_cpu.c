@@ -150,10 +150,10 @@ typedef struct _plCommandPool
     // VkCommandBuffer* sbtReadyCommandBuffers;   // completed command buffers
     // VkCommandBuffer* sbtPendingCommandBuffers; // recently submitted command buffers
     plCommandBuffer* ptCommandBufferFreeList;  // free list of command buffers
-    plPoolAllocator* tAllocator;
+    plPoolAllocator* ptCommandPoolList;
 
     size_t           szBufferSize;
-    void*            ptCommandPool; // TODO: does this need to be a void pointer?  
+    void*            ptCommandPoolBuffer; // TODO: does this need to be a void pointer?  
 } plCommandPool;
 
 typedef struct _plBindGroupPool
@@ -894,7 +894,7 @@ pl_return_command_buffer(plCommandBuffer* ptCmdBuffer)
     }
 
     memset(ptCmdBuffer, 0, sizeof(plCommandBuffer));
-    pl_pool_allocator_free(ptCmdBuffer->ptPool->tAllocator, ptCmdBuffer);
+    pl_pool_allocator_free(ptCmdBuffer->ptPool->ptCommandPoolList, ptCmdBuffer);
 }
 
 plBindGroupPool*
@@ -922,17 +922,21 @@ pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
     plCommandPool* ptPool = PL_ALLOC(sizeof(plCommandPool));
     memset(ptPool, 0, sizeof(plCommandPool));
 
+    plPoolAllocator* tAllocator = PL_ALLOC(sizeof(plPoolAllocator));
+    memset(tAllocator, 0, sizeof(plPoolAllocator));
+
     ptPool->ptDevice = ptDevice;
+    ptPool->ptCommandPoolList = tAllocator;
 
     // TODO: sort out max command pool stuff once virtual memory limits exist (virtual GPU)
     // hard coding 100 buffers for now
     size_t szBufferSize = 0;
-    pl_pool_allocator_init(ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &szBufferSize, NULL); 
+    pl_pool_allocator_init(ptPool->ptCommandPoolList, 100, sizeof(plCommandBuffer), 0, &szBufferSize, NULL); 
 
-    ptPool->ptCommandPool = PL_ALLOC(sizeof(szBufferSize));
-    memset(ptPool->ptCommandPool, 0, sizeof(szBufferSize));
+    ptPool->ptCommandPoolBuffer = PL_ALLOC(sizeof(szBufferSize));
+    memset(ptPool->ptCommandPoolBuffer, 0, sizeof(szBufferSize));
 
-    pl_pool_allocator_init(ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &szBufferSize, ptPool->ptCommandPool);
+    pl_pool_allocator_init(ptPool->ptCommandPoolList, 100, sizeof(plCommandBuffer), 0, &szBufferSize, ptPool->ptCommandPoolBuffer);
     ptPool->szBufferSize = szBufferSize;
 
     return ptPool;
@@ -941,7 +945,8 @@ pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
 void
 pl_cleanup_command_pool(plCommandPool* ptPool)
 {
-    PL_FREE(ptPool->ptCommandPool);
+    PL_FREE(ptPool->ptCommandPoolList);
+    PL_FREE(ptPool->ptCommandPoolBuffer);
     PL_FREE(ptPool);
 }
 
@@ -955,8 +960,8 @@ pl_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags tFlags)
         return;
     }
 
-    pl_pool_allocator_init(ptPool->tAllocator, 100, sizeof(plCommandBuffer), 0, &ptPool->szBufferSize, ptPool->ptCommandPool);
-    memset(ptPool->ptCommandPool, 0, ptPool->szBufferSize);
+    pl_pool_allocator_init(ptPool->ptCommandPoolList, 100, sizeof(plCommandBuffer), 0, &ptPool->szBufferSize, ptPool->ptCommandPoolBuffer);
+    memset(ptPool->ptCommandPoolBuffer, 0, ptPool->szBufferSize);
 
 }
 
@@ -976,7 +981,7 @@ pl_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
 plCommandBuffer*
 pl_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
 {
-    plCommandBuffer* ptCommandBuffer = pl_pool_allocator_alloc(ptPool->tAllocator);
+    plCommandBuffer* ptCommandBuffer = pl_pool_allocator_alloc(ptPool->ptCommandPoolList);
 
     if(ptCommandBuffer == NULL)
     {
