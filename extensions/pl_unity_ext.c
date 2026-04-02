@@ -42,6 +42,7 @@ Index of this file:
 #include "pl_screen_log_ext.c"
 #include "pl_physics_ext.c"
 #include "pl_collision_ext.c"
+#include "pl_gjk_ext.c"
 #include "pl_bvh_ext.c"
 #include "pl_config_ext.c"
 #include "pl_starter_ext.c"
@@ -154,6 +155,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_profile_ext(ptApiRegistry, bReload);
     pl_load_physics_ext(ptApiRegistry, bReload);
     pl_load_collision_ext(ptApiRegistry, bReload);
+    pl_load_gjk_ext(ptApiRegistry, bReload);
     pl_load_bvh_ext(ptApiRegistry, bReload);
     pl_load_mesh_ext(ptApiRegistry, bReload);
     pl_load_config_ext(ptApiRegistry, bReload);
@@ -205,6 +207,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_log_ext(ptApiRegistry, bReload);
     pl_unload_physics_ext(ptApiRegistry, bReload);
     pl_unload_collision_ext(ptApiRegistry, bReload);
+    pl_unload_gjk_ext(ptApiRegistry, bReload);
     pl_unload_bvh_ext(ptApiRegistry, bReload);
     pl_unload_starter_ext(ptApiRegistry, bReload);
     pl_unload_config_ext(ptApiRegistry, bReload);

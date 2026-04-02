@@ -3595,6 +3595,23 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         .atDrawables  = ptScene->sbtDrawables
     };
 
+    // precompute frustum corners from inverse VP matrix
+    if(ptCullCamera)
+    {
+        plMat4 tVP    = pl_mul_mat4(&ptCullCamera->tProjMat, &ptCullCamera->tViewMat);
+        plMat4 tInvVP = pl_mat4_invert(&tVP);
+
+        static const plVec3 atNDC[] = {
+            {-1, -1, 0}, { 1, -1, 0}, {-1,  1, 0}, { 1,  1, 0},
+            {-1, -1, 1}, { 1, -1, 1}, {-1,  1, 1}, { 1,  1, 1}
+        };
+        for(int ii = 0; ii < 8; ii++)
+        {
+            plVec4 tClip = pl_mul_mat4_vec4(&tInvVP, (plVec4){atNDC[ii].x, atNDC[ii].y, atNDC[ii].z, 1.0f});
+            tCullData.atFrustumCorners[ii] = (plVec3){tClip.x / tClip.w, tClip.y / tClip.w, tClip.z / tClip.w};
+        }
+    }
+
     if(ptCullCamera)
     {
         plJobDesc tJobDesc = {
@@ -4866,6 +4883,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptTerrainProcessor = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
         gptStage            = pl_get_api_latest(ptApiRegistry, plStageI);
         gptFreeList         = pl_get_api_latest(ptApiRegistry, plFreeListI);
+        gptGjk              = pl_get_api_latest(ptApiRegistry, plGjkI);
     #endif
 
     if(bReload)

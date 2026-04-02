@@ -63,6 +63,7 @@ Index of this file:
 #include "pl_terrain_processor_ext.h"
 #include "pl_stage_ext.h"
 #include "pl_freelist_ext.h"
+#include "pl_gjk_ext.h"
 
 // shader interop
 #include "pl_shader_interop_renderer.h"
@@ -123,7 +124,8 @@ Index of this file:
     static const plTerrainProcessorI* gptTerrainProcessor = NULL;
     static const plStageI*            gptStage            = NULL;
     static const plFreeListI*         gptFreeList         = NULL;
-    
+    static const plGjkI*              gptGjk              = NULL;
+
 #endif
 
 #include "pl_ds.h"
@@ -580,9 +582,10 @@ typedef struct _plRefRendererData
 
 typedef struct _plCullData
 {
-    plScene* ptScene;
-    plCamera* ptCullCamera;
+    plScene*    ptScene;
+    plCamera*   ptCullCamera;
     plDrawable* atDrawables;
+    plVec3      atFrustumCorners[8];
 } plCullData;
 
 typedef struct _plMemCpyJobData
@@ -613,9 +616,6 @@ static plTextureHandle pl__renderer_create_texture_with_data    (const plTexture
 static plBufferHandle  pl__renderer_create_staging_buffer       (const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
 static plBufferHandle  pl__renderer_create_cached_staging_buffer(const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
 static plBufferHandle  pl__renderer_create_local_buffer         (const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
-
-// culling
-static bool pl__renderer_sat_visibility_test(plCamera*, const plAABB*);
 
 typedef struct _plCSMInfo
 {

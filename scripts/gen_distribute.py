@@ -123,6 +123,7 @@ with pl.project("pilotlight deploy"):
         "pl_starter_ext",
         "pl_physics_ext",
         "pl_collision_ext",
+        "pl_gjk_ext",
         "pl_bvh_ext",
         "pl_config_ext",
         "pl_mesh_ext",

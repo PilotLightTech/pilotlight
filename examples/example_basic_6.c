@@ -47,6 +47,7 @@ Index of this file:
 #include "pl_draw_ext.h"
 #include "pl_starter_ext.h"
 #include "pl_collision_ext.h"
+#include "pl_gjk_ext.h"
 #include "pl_screen_log_ext.h"
 
 //-----------------------------------------------------------------------------
@@ -95,6 +96,7 @@ const plGraphicsI*    gptGfx         = NULL;
 const plDrawI*        gptDraw        = NULL;
 const plStarterI*     gptStarter     = NULL;
 const plCollisionI*   gptCollision   = NULL;
+const plGjkI*         gptGjk         = NULL;
 const plScreenLogI*   gptScreenLog   = NULL;
 
 //-----------------------------------------------------------------------------
@@ -133,6 +135,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
+        gptGjk         = pl_get_api_latest(ptApiRegistry, plGjkI);
         gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
 
         return ptAppData;
@@ -159,6 +162,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
     gptCollision   = pl_get_api_latest(ptApiRegistry, plCollisionI);
+    gptGjk         = pl_get_api_latest(ptApiRegistry, plGjkI);
     gptScreenLog   = pl_get_api_latest(ptApiRegistry, plScreenLogI);
 
     // use window API to create a window
@@ -275,13 +279,19 @@ pl_app_update(plAppData* ptAppData)
 
     // simple variation setting to check things (until gizmo extension is stable)
     static uint32_t uVariation = 0;
-    if(gptIO->is_key_pressed(PL_KEY_V, false))
+    if(gptIO->is_key_pressed(PL_KEY_V, false) && uVariation < 3)
         uVariation++;
-    if(gptIO->is_key_pressed(PL_KEY_B, false))
+    if(gptIO->is_key_pressed(PL_KEY_B, false) && uVariation > 0)
         uVariation--;
 
-    // use screen log extension to display variation
+    // toggle GJK mode
+    static bool bUseGjk = false;
+    if(gptIO->is_key_pressed(PL_KEY_G, false))
+        bUseGjk = !bUseGjk;
+
+    // use screen log extension to display variation and mode
     gptScreenLog->add_message_ex(117, 0, PL_COLOR_32_WHITE, 2.0, "Variation: %u", uVariation);
+    gptScreenLog->add_message_ex(118, 0, PL_COLOR_32_WHITE, 2.0, "Mode: %s (G to toggle)", bUseGjk ? "GJK" : "Collision Ext");
 
     // sphere <-> sphere collision
     {
@@ -303,19 +313,33 @@ pl_app_update(plAppData* ptAppData)
         uint32_t uColor0 = PL_COLOR_32_RED;
         uint32_t uColor1 = PL_COLOR_32_RED;
 
-        if(gptCollision->sphere_sphere(&tSphere0, &tSphere1))
-            uColor0 = PL_COLOR_32_GREEN;
-
-        plCollisionInfo tInfo = {0};
-        if(gptCollision->pen_sphere_sphere(&tSphere0, &tSphere1, &tInfo))
+        if(bUseGjk)
         {
-            uColor1 = PL_COLOR_32_GREEN;
-            gptDraw->add_3d_cross(ptAppData->pt3dDrawlist, tInfo.tPoint, 0.1f, (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_RED});
-            gptDraw->add_3d_line(ptAppData->pt3dDrawlist, tInfo.tPoint, pl_add_vec3(tInfo.tPoint, pl_mul_vec3_scalarf(tInfo.tNormal, tInfo.fPenetration)), (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_GREEN});
+            plGjkCollisionInfo tInfo = {0};
+            if(gptGjk->pen(pl_gjk_support_sphere, &tSphere0, pl_gjk_support_sphere, &tSphere1, &tInfo))
+            {
+                uColor0 = PL_COLOR_32_GREEN;
+                uColor1 = PL_COLOR_32_GREEN;
+                gptDraw->add_3d_cross(ptAppData->pt3dDrawlist, tInfo.tPoint, 0.1f, (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_RED});
+                gptDraw->add_3d_line(ptAppData->pt3dDrawlist, tInfo.tPoint, pl_add_vec3(tInfo.tPoint, pl_mul_vec3_scalarf(tInfo.tNormal, tInfo.fPenetration)), (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_GREEN});
+            }
+        }
+        else
+        {
+            if(gptCollision->sphere_sphere(&tSphere0, &tSphere1))
+                uColor0 = PL_COLOR_32_GREEN;
+
+            plCollisionInfo tInfo = {0};
+            if(gptCollision->pen_sphere_sphere(&tSphere0, &tSphere1, &tInfo))
+            {
+                uColor1 = PL_COLOR_32_GREEN;
+                gptDraw->add_3d_cross(ptAppData->pt3dDrawlist, tInfo.tPoint, 0.1f, (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_RED});
+                gptDraw->add_3d_line(ptAppData->pt3dDrawlist, tInfo.tPoint, pl_add_vec3(tInfo.tPoint, pl_mul_vec3_scalarf(tInfo.tNormal, tInfo.fPenetration)), (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_GREEN});
+            }
         }
 
         gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){2.0f, 4.0f, 0.0f}, 0.05f, 0.25f, 0, (plDrawSolidOptions){.uColor = uColor0});
-        gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){2.0f, 4.5f, 0.0f}, 0.05f, 0.25f, 0, (plDrawSolidOptions){.uColor = uColor1});  
+        gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){2.0f, 4.5f, 0.0f}, 0.05f, 0.25f, 0, (plDrawSolidOptions){.uColor = uColor1});
     }
 
     // box <-> sphere collision
@@ -334,25 +358,96 @@ pl_app_update(plAppData* ptAppData)
         if(uVariation == 2) tSphere1.tCenter = (plVec3){5.2f, 2.9f, 0.0f};
         if(uVariation == 3) tSphere1.tCenter = (plVec3){4.3f, 2.0f, 0.0f};
         gptDraw->add_3d_sphere(ptAppData->pt3dDrawlist, tSphere1, 0, 0, (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_CYAN});
-        
+
         uint32_t uColor0 = PL_COLOR_32_RED;
         uint32_t uColor1 = PL_COLOR_32_RED;
 
-        if(gptCollision->box_sphere(&tBox0, &tSphere1))
-            uColor0 = PL_COLOR_32_GREEN;
-
-        plCollisionInfo tInfo = {0};
-        if(gptCollision->pen_box_sphere(&tBox0, &tSphere1, &tInfo))
+        if(bUseGjk)
         {
+            plGjkCollisionInfo tInfo = {0};
+            if(gptGjk->pen(pl_gjk_support_box, &tBox0, pl_gjk_support_sphere, &tSphere1, &tInfo))
+            {
+                uColor0 = PL_COLOR_32_GREEN;
+                uColor1 = PL_COLOR_32_GREEN;
+                gptDraw->add_3d_cross(ptAppData->pt3dDrawlist, tInfo.tPoint, 0.1f, (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_RED});
+                gptDraw->add_3d_line(ptAppData->pt3dDrawlist, tInfo.tPoint, pl_add_vec3(tInfo.tPoint, pl_mul_vec3_scalarf(tInfo.tNormal, tInfo.fPenetration)), (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_GREEN});
+            }
+        }
+        else
+        {
+            if(gptCollision->box_sphere(&tBox0, &tSphere1))
+                uColor0 = PL_COLOR_32_GREEN;
+
+            plCollisionInfo tInfo = {0};
+            if(gptCollision->pen_box_sphere(&tBox0, &tSphere1, &tInfo))
+            {
+                uColor1 = PL_COLOR_32_GREEN;
+                gptDraw->add_3d_cross(ptAppData->pt3dDrawlist, tInfo.tPoint, 0.1f, (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_RED});
+                gptDraw->add_3d_line(ptAppData->pt3dDrawlist, tInfo.tPoint, pl_add_vec3(tInfo.tPoint, pl_mul_vec3_scalarf(tInfo.tNormal, tInfo.fPenetration)), (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_GREEN});
+            }
+        }
+
+        gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){5.0f, 4.0f, 0.0f}, 0.05f, 0.25f, 0, (plDrawSolidOptions){.uColor = uColor0});
+        gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){5.0f, 4.5f, 0.0f}, 0.05f, 0.25f, 0, (plDrawSolidOptions){.uColor = uColor1});
+    }
+
+    // convex poly (icosahedron) <-> sphere collision (GJK only)
+    {
+        static const float fPhi = 1.618033988f; // golden ratio
+        static const plVec3 tPolyCenter = {9.0f, 2.0f, 0.0f};
+        static const float fScale = 0.5f;
+
+        // icosahedron vertices (centered at origin, then offset)
+        plVec3 atIcoVerts[12] = {
+            {-1,  fPhi, 0}, { 1,  fPhi, 0}, {-1, -fPhi, 0}, { 1, -fPhi, 0},
+            { 0, -1,  fPhi}, { 0,  1,  fPhi}, { 0, -1, -fPhi}, { 0,  1, -fPhi},
+            { fPhi, 0, -1}, { fPhi, 0,  1}, {-fPhi, 0, -1}, {-fPhi, 0,  1}
+        };
+        for (int ii = 0; ii < 12; ii++) {
+            atIcoVerts[ii].x = atIcoVerts[ii].x * fScale + tPolyCenter.x;
+            atIcoVerts[ii].y = atIcoVerts[ii].y * fScale + tPolyCenter.y;
+            atIcoVerts[ii].z = atIcoVerts[ii].z * fScale + tPolyCenter.z;
+        }
+
+        plConvexPoly tPoly = {
+            .pVertices    = atIcoVerts,
+            .iVertexCount = 12
+        };
+
+        // draw icosahedron edges
+        static const int aiEdges[][2] = {
+            {0,1},{0,5},{0,7},{0,10},{0,11},{1,5},{1,7},{1,8},{1,9},
+            {2,3},{2,4},{2,6},{2,10},{2,11},{3,4},{3,6},{3,8},{3,9},
+            {4,5},{4,9},{4,11},{5,9},{5,11},{6,7},{6,8},{6,10},{7,8},
+            {7,10},{8,9},{10,11}
+        };
+        for (int ii = 0; ii < 30; ii++)
+            gptDraw->add_3d_line(ptAppData->pt3dDrawlist, atIcoVerts[aiEdges[ii][0]], atIcoVerts[aiEdges[ii][1]], (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_WHITE});
+
+        plSphere tSphere1 = {
+            .fRadius = 0.5f,
+            .tCenter = {8.1f, 2.0f, 0.0f}
+        };
+        if(uVariation == 1) tSphere1.tCenter = (plVec3){8.5f, 2.0f, 0.0f};
+        if(uVariation == 2) tSphere1.tCenter = (plVec3){9.0f, 2.8f, 0.0f};
+        if(uVariation == 3) tSphere1.tCenter = (plVec3){7.5f, 2.0f, 0.0f};
+        gptDraw->add_3d_sphere(ptAppData->pt3dDrawlist, tSphere1, 0, 0, (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_CYAN});
+
+        uint32_t uColor0 = PL_COLOR_32_RED;
+        uint32_t uColor1 = PL_COLOR_32_RED;
+
+        plGjkCollisionInfo tInfo = {0};
+        if(gptGjk->pen(pl_gjk_support_convex_poly, &tPoly, pl_gjk_support_sphere, &tSphere1, &tInfo))
+        {
+            uColor0 = PL_COLOR_32_GREEN;
             uColor1 = PL_COLOR_32_GREEN;
             gptDraw->add_3d_cross(ptAppData->pt3dDrawlist, tInfo.tPoint, 0.1f, (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_RED});
             gptDraw->add_3d_line(ptAppData->pt3dDrawlist, tInfo.tPoint, pl_add_vec3(tInfo.tPoint, pl_mul_vec3_scalarf(tInfo.tNormal, tInfo.fPenetration)), (plDrawLineOptions){.fThickness = 0.01f, .uColor = PL_COLOR_32_GREEN});
         }
 
-        gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){5.0f, 4.0f, 0.0f}, 0.05f, 0.25f, 0, (plDrawSolidOptions){.uColor = uColor0});
-        gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){5.0f, 4.5f, 0.0f}, 0.05f, 0.25f, 0, (plDrawSolidOptions){.uColor = uColor1});  
+        gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){8.0f, 4.0f, 0.0f}, 0.05f, 0.25f, 0, (plDrawSolidOptions){.uColor = uColor0});
+        gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){8.0f, 4.5f, 0.0f}, 0.05f, 0.25f, 0, (plDrawSolidOptions){.uColor = uColor1});
     }
-
 
     // start main pass & return the encoder being used
     plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
