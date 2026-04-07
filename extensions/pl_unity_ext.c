@@ -56,11 +56,10 @@ Index of this file:
 #include "pl_dxt_ext.c"
 #include "pl_material_ext.c"
 #include "pl_script_ext.c"
-#include "pl_terrain_ext.c"
 #include "pl_voxel_ext.c"
 #include "pl_path_ext.c"
 #include "pl_audio_ext.c"
-#include "pl_terrain_processor_ext.c"
+#include "pl_terrain_ext.c"
 #include "pl_freelist_ext.c"
 #include "pl_image_ops_ext.c"
 
@@ -116,9 +115,8 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptDxt               = pl_get_api_latest(ptApiRegistry, plDxtI);
     gptMaterial          = pl_get_api_latest(ptApiRegistry, plMaterialI);
     gptScript            = pl_get_api_latest(ptApiRegistry, plScriptI);
-    gptTerrain           = pl_get_api_latest(ptApiRegistry, plTerrainI);
     gptFreeList          = pl_get_api_latest(ptApiRegistry, plFreeListI);
-    gptTerrainProcessor  = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
+    gptTerrain           = pl_get_api_latest(ptApiRegistry, plTerrainI);
     gptImageOps          = pl_get_api_latest(ptApiRegistry, plImageOpsI);
     gptPath              = pl_get_api_latest(ptApiRegistry, plPathI);
     gptVoxel             = pl_get_api_latest(ptApiRegistry, plVoxelI);
@@ -167,7 +165,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_material_ext(ptApiRegistry, bReload);
     pl_load_script_ext(ptApiRegistry, bReload);
     pl_load_terrain_ext(ptApiRegistry, bReload);
-    pl_load_terrain_processor_ext(ptApiRegistry, bReload);
     pl_load_freelist_ext(ptApiRegistry, bReload);
     pl_load_image_ops_ext(ptApiRegistry, bReload);
     pl_load_voxel_ext(ptApiRegistry, bReload);
@@ -218,7 +215,6 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_material_ext(ptApiRegistry, bReload);
     pl_unload_script_ext(ptApiRegistry, bReload);
     pl_unload_terrain_ext(ptApiRegistry, bReload);
-    pl_unload_terrain_processor_ext(ptApiRegistry, bReload);
     pl_unload_freelist_ext(ptApiRegistry, bReload);
     pl_unload_image_ops_ext(ptApiRegistry, bReload);
     pl_unload_path_ext(ptApiRegistry, bReload);

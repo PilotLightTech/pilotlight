@@ -71,7 +71,6 @@ extension_headers = [
     "pl_path_ext.h",
     "pl_voxel_ext.h",
     "pl_audio_ext.h",
-    "pl_terrain_processor_ext.h",
     "pl_freelist_ext.h",
     "pl_image_ops_ext.h",
 ]
@@ -121,7 +120,6 @@ extensions = [
     "pl_voxel_ext",
     "pl_path_ext",
     "pl_audio_ext",
-    "pl_terrain_processor_ext",
     "pl_freelist_ext",
     "pl_image_ops_ext",
     "pl_ui_ext"

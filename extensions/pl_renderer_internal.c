@@ -1321,7 +1321,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
 }
 
 static void
-pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, plScene* ptScene, uint32_t uViewHandle, uint32_t uProbeIndex, plCamera* ptSceneCamera, plCSMInfo tInfo)
+pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, plScene* ptScene, uint32_t uViewHandle, uint32_t uProbeIndex, plCamera* ptSceneCamera, plCSMInfo tInfo, plDrawList3D* ptDrawlist)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
@@ -1377,7 +1377,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
         ptShadowData->fYOffset         = (float)ptRect->iY / (float)ptScene->uShadowAtlasResolution;
 
         plMat4 atCamViewProjs[PL_MAX_SHADOW_CASCADES] = {0};
-        float fLastSplitDist = 0.0f;
+        float fLastSplitDist = ptSceneCamera->fNearZ;
         const plVec3 tDirection = pl_norm_vec3(ptLight->tDirection);
         const uint32_t uCascadeCount = tInfo.bAltMode ? 1 : ptLight->uCascadeCount; // probe only needs single cascade
 
@@ -1388,11 +1388,67 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             ptLight->afCascadeSplits[3]
         };
 
+        //-------------------------------------------------------------------------
+        // stable light basis from direction only
+        //-------------------------------------------------------------------------
+        plVec3 tLightForward = tDirection;
+        plVec3 tWorldUp = {0.0f, 1.0f, 0.0f};
+
+        if(fabsf(pl_dot_vec3(tLightForward, tWorldUp)) > 0.99f)
+            tWorldUp = (plVec3){1.0f, 0.0f, 0.0f};
+
+        plVec3 tLightRight = pl_norm_vec3(pl_cross_vec3(tWorldUp, tLightForward));
+        plVec3 tLightUp    = pl_cross_vec3(tLightForward, tLightRight);
+
+        // world -> light rotation only
+        plMat4 tStableLightView = pl_identity_mat4();
+        tStableLightView.col[0].x = tLightRight.x;
+        tStableLightView.col[1].x = tLightRight.y;
+        tStableLightView.col[2].x = tLightRight.z;
+        tStableLightView.col[3].x = 0.0f;
+
+        tStableLightView.col[0].y = tLightUp.x;
+        tStableLightView.col[1].y = tLightUp.y;
+        tStableLightView.col[2].y = tLightUp.z;
+        tStableLightView.col[3].y = 0.0f;
+
+        tStableLightView.col[0].z = tLightForward.x;
+        tStableLightView.col[1].z = tLightForward.y;
+        tStableLightView.col[2].z = tLightForward.z;
+        tStableLightView.col[3].z = 0.0f;
+
+        tStableLightView.col[0].w = 0.0f;
+        tStableLightView.col[1].w = 0.0f;
+        tStableLightView.col[2].w = 0.0f;
+        tStableLightView.col[3].w = 1.0f;
+
+        // inverse of rotation-only matrix = transpose for orthonormal basis
+        plMat4 tStableLightViewInv = pl_identity_mat4();
+        tStableLightViewInv.col[0].x = tLightRight.x;
+        tStableLightViewInv.col[0].y = tLightRight.y;
+        tStableLightViewInv.col[0].z = tLightRight.z;
+        tStableLightViewInv.col[0].w = 0.0f;
+
+        tStableLightViewInv.col[1].x = tLightUp.x;
+        tStableLightViewInv.col[1].y = tLightUp.y;
+        tStableLightViewInv.col[1].z = tLightUp.z;
+        tStableLightViewInv.col[1].w = 0.0f;
+
+        tStableLightViewInv.col[2].x = tLightForward.x;
+        tStableLightViewInv.col[2].y = tLightForward.y;
+        tStableLightViewInv.col[2].z = tLightForward.z;
+        tStableLightViewInv.col[2].w = 0.0f;
+
+        tStableLightViewInv.col[3].x = 0.0f;
+        tStableLightViewInv.col[3].y = 0.0f;
+        tStableLightViewInv.col[3].z = 0.0f;
+        tStableLightViewInv.col[3].w = 1.0f;
+
         for(uint32_t uCascade = 0; uCascade < uCascadeCount; uCascade++)
         {
-            float fSplitDist = afCascadeSplits[uCascade] * ptSceneCamera->fFarZ;
+            float fSplitDist = ptSceneCamera->fNearZ + afCascadeSplits[uCascade] * (ptSceneCamera->fFarZ - ptSceneCamera->fNearZ);
 
-            // camera space
+            // scene camera space
             plVec3 atCameraCorners2[] = {
                 { -fLastSplitDist * s / g,  fLastSplitDist / g, fLastSplitDist },
                 { -fLastSplitDist * s / g, -fLastSplitDist / g, fLastSplitDist },
@@ -1404,85 +1460,162 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                 {  fSplitDist * s / g,  fSplitDist / g, fSplitDist },
             };
 
-            // find max diagonal in camera space
-            float fD0 = ceilf(pl_length_vec3(pl_sub_vec3(atCameraCorners2[0], atCameraCorners2[6])));
-            float fD1 = ceilf(pl_length_vec3(pl_sub_vec3(atCameraCorners2[6], atCameraCorners2[4])));
-            float fD = pl_max(fD0, fD1) * 1.0f;
-            const float fUnitPerTexel = fD / (float)ptLight->uShadowResolution;
-
             // convert to world space
+            plVec3 atWorldSpaceCorners[8] = {0};
             const plMat4 tCameraInversion = pl_mat4_invert(&ptSceneCamera->tViewMat);
             for(uint32_t i = 0; i < 8; i++)
             {
-                plVec4 tInvCorner = pl_mul_mat4_vec4(&tCameraInversion, (plVec4){.xyz = atCameraCorners2[i], .w = 1.0f});
-                atCameraCorners2[i] = tInvCorner.xyz;
+                plVec4 tInvCorner = pl_mul_mat4_vec4(&tCameraInversion, (plVec4){ .xyz = atCameraCorners2[i], .w = 1.0f });
+                atWorldSpaceCorners[i] = tInvCorner.xyz;
             }
 
-            // convert to light space
-            plCamera tShadowCamera = {
-                .tType = PL_CAMERA_TYPE_ORTHOGRAPHIC
-            };
-            // gptCamera->look_at(&tShadowCamera, (plDVec3){0}, pl__to_double_vec(tDirection));
-            gptCamera->look_at(&tShadowCamera, ptSceneCamera->tPosDouble, pl__to_double_vec(pl_add_vec3(ptSceneCamera->tPos, tDirection)));
-            tShadowCamera.fWidth  = fD;
-            tShadowCamera.fHeight = fD;
-            tShadowCamera.fNearZ  = fD * 2.0f;
-            tShadowCamera.fFarZ   = -fD * 2.0f;
-            gptCamera->update(&tShadowCamera);
-
+            // find frustum slice center in world space
+            plVec3 tFrustumCenter = {0};
             for(uint32_t i = 0; i < 8; i++)
-            {
-                plVec4 tInvCorner = pl_mul_mat4_vec4(&tShadowCamera.tViewMat, (plVec4){.xyz = atCameraCorners2[i], .w = 1.0f});
-                atCameraCorners2[i] = tInvCorner.xyz;
-            }
+                tFrustumCenter = pl_add_vec3(tFrustumCenter, atWorldSpaceCorners[i]);
+            tFrustumCenter = pl_mul_vec3_scalarf(tFrustumCenter, 1.0f / 8.0f);
 
-            // find center
-            float fXMin = FLT_MAX;
-            float fXMax = -FLT_MAX;
-            float fYMin = FLT_MAX;
-            float fYMax = -FLT_MAX;
-            float fZMin = FLT_MAX;
+            // transform frustum center into stable light space
+            plVec4 tFrustumCenterLS4 = pl_mul_mat4_vec4(&tStableLightView, (plVec4){ .xyz = tFrustumCenter, .w = 1.0f });
+            plVec3 tFrustumCenterLS = tFrustumCenterLS4.xyz;
+
+            // transform slice corners into stable light space
+            float fZMin =  FLT_MAX;
             float fZMax = -FLT_MAX;
             for(uint32_t i = 0; i < 8; i++)
             {
-                fXMin = pl_min(atCameraCorners2[i].x, fXMin);
-                fYMin = pl_min(atCameraCorners2[i].y, fYMin);
-                fZMin = pl_min(atCameraCorners2[i].z, fZMin);
-                fXMax = pl_max(atCameraCorners2[i].x, fXMax);
-                fYMax = pl_max(atCameraCorners2[i].y, fYMax);
-                fZMax = pl_max(atCameraCorners2[i].z, fZMax);
+                plVec4 tCornerLS = pl_mul_mat4_vec4(&tStableLightView, (plVec4){ .xyz = atWorldSpaceCorners[i], .w = 1.0f });
+                atCameraCorners2[i] = tCornerLS.xyz;
+
+                fZMin = pl_min(fZMin, atCameraCorners2[i].z);
+                fZMax = pl_max(fZMax, atCameraCorners2[i].z);
             }
 
-            const plVec4 tLightPosLightSpace = { 
-                fUnitPerTexel * floorf((fXMax + fXMin) / (fUnitPerTexel * 2.0f)), // texel snapping
-                fUnitPerTexel * floorf((fYMax + fYMin) / (fUnitPerTexel * 2.0f)), // texel snapping
-                // fUnitPerTexel * floorf((fZMax + fZMin) / (fUnitPerTexel * 2.0f)), // texel snapping
-                fD * 2.0f,
-                1.0f
+            // stable radius from world-space slice sphere
+            float fRadius = 0.0f;
+            for(uint32_t i = 0; i < 8; i++)
+            {
+                plVec3 tDiff = pl_sub_vec3(atWorldSpaceCorners[i], tFrustumCenter);
+                float fDist = pl_length_vec3(tDiff);
+                fRadius = pl_max(fRadius, fDist);
+            }
+
+            // quantize radius a bit to reduce tiny fluctuations
+            fRadius = ceilf(fRadius * 16.0f) / 16.0f;
+
+            // final stable ortho dimension
+            const float fDim = fRadius * 2.0f;
+
+            // texel snapping in stable light space
+            const float fUnitPerTexel = fDim / (float)ptLight->uShadowResolution;
+            const float fCenterX = fUnitPerTexel * roundf(tFrustumCenterLS.x / fUnitPerTexel);
+            const float fCenterY = fUnitPerTexel * roundf(tFrustumCenterLS.y / fUnitPerTexel);
+            const float fCenterZ = 0.5f * (fZMin + fZMax);
+
+            // optional z padding for off-frustum casters
+            const float fDepthPadding = 200.0f; // TODO: make option
+            const float fNearZ = fZMax + fDepthPadding;
+            const float fFarZ  = fZMin - fDepthPadding;
+
+            // reconstruct snapped world-space center from stable light space
+            plVec3 tSnappedCenterLS = {
+                fCenterX,
+                fCenterY,
+                fCenterZ
             };
 
-            const plMat4 tLightInversion = pl_mat4_invert(&tShadowCamera.tViewMat);
-            plVec4 tLightPos = pl_mul_mat4_vec4(&tLightInversion, (plVec4){.xyz = tLightPosLightSpace.xyz, .w = 1.0f});
-            // tLightPos.xyz = pl_add_vec3(tLightPos.xyz, ptSceneCamera->tPos);
+            plVec4 tSnappedCenterWS4 = pl_mul_mat4_vec4(&tStableLightViewInv, (plVec4){ .xyz = tSnappedCenterLS, .w = 1.0f });
+            plVec3 tSnappedCenterWS = tSnappedCenterWS4.xyz;
 
-            gptCamera->look_at(&tShadowCamera, pl__to_double_vec(tLightPos.xyz), pl__to_double_vec(pl_add_vec3(tLightPos.xyz, tDirection)));
+            // final shadow camera
+            plCamera tShadowCamera = {
+                .tType = PL_CAMERA_TYPE_ORTHOGRAPHIC_REVERSE_Z
+            };
+
+            tShadowCamera.tPosDouble = pl__to_double_vec(tSnappedCenterWS);
+            tShadowCamera.tPos = tSnappedCenterWS;
+            tShadowCamera.fWidth  = fDim;
+            tShadowCamera.fHeight = fDim;
+            tShadowCamera.fNearZ  = fNearZ;
+            tShadowCamera.fFarZ   = fFarZ;
+
             gptCamera->update(&tShadowCamera);
+
+            // direct stable view matrix construction (no look_at)
+            tShadowCamera.tViewMat = tStableLightView;
+            tShadowCamera.tViewMat.col[3].x = -pl_dot_vec3(tLightRight,   tSnappedCenterWS);
+            tShadowCamera.tViewMat.col[3].y = -pl_dot_vec3(tLightUp,      tSnappedCenterWS);
+            tShadowCamera.tViewMat.col[3].z = -pl_dot_vec3(tLightForward, tSnappedCenterWS);
+
+            
+
+            // if update() overwrites tViewMat in your camera system, move the
+            // tViewMat assignment to after update() and then rebuild viewProj here.
 
             atCamViewProjs[uCascade] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
             ptShadowData->viewProjMat[uCascade] = atCamViewProjs[uCascade];
             fLastSplitDist = fSplitDist;
+
+            // copy data to GPU buffer
+            char* pcBufferStart = gptGfx->get_buffer(ptDevice, tInfo.tDShadowCameraBuffer)->tMemoryAllocation.pHostMapped;
+            memcpy(&pcBufferStart[iShadowIndex * sizeof(plMat4) * PL_MAX_SHADOW_CASCADES + uCascade * sizeof(plMat4)], &atCamViewProjs[uCascade], sizeof(plMat4));
+
+            if(ptScene->ptTerrain)
+            {
+                const plMat4 tMVP = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
+
+                plScissor tScissor = {
+                        .iOffsetX = (int)(ptRect->iX + uCascade * ptLight->uShadowResolution),
+                        .iOffsetY = ptRect->iY,
+                        .uWidth  = ptLight->uShadowResolution,
+                        .uHeight = ptLight->uShadowResolution,
+                    };
+                
+                plRenderViewport tViewport = {
+                    .fX = (float)(ptRect->iX + uCascade * ptLight->uShadowResolution),
+                    .fY = (float)ptRect->iY,
+                    .fWidth  = (float)ptLight->uShadowResolution,
+                    .fHeight = (float)ptLight->uShadowResolution,
+                    .fMaxDepth = 1.0f
+                };
+                gptGfx->set_viewport(ptEncoder, &tViewport);
+                gptGfx->set_scissor_region(ptEncoder, &tScissor);
+                gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
+                gptGfx->bind_shader(ptEncoder, ptScene->tTerrainShadowShader);
+                gptGfx->bind_vertex_buffer(ptEncoder, ptScene->ptTerrain->tVertexBuffer);
+                plBindGroupHandle atBindGroups[] = {ptScene->atSceneBindGroups[uFrameIdx], tInfo.tBindGroup};
+
+                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice);
+
+                plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
+                // ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                // ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                // ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                ptDynamicData->iIndex = (int)uCascade + iShadowIndex;
+
+                gptGfx->bind_graphics_bind_groups(
+                    ptEncoder,
+                    ptScene->tTerrainShadowShader,
+                    0, 2,
+                    atBindGroups,
+                    1, &tDynamicBinding
+                );
+
+
+                for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
+                    pl__render_chunk_shadow(ptScene, ptScene->ptTerrain, &tShadowCamera, ptEncoder, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &tMVP, 0);
+            }
         }
 
         // TODO: rework to not waste so much space (don't use max cascades as stride)
 
-        // copy data to GPU buffer
-        char* pcBufferStart = gptGfx->get_buffer(ptDevice, tInfo.tDShadowCameraBuffer)->tMemoryAllocation.pHostMapped;
-        memcpy(&pcBufferStart[iShadowIndex * sizeof(plMat4) * PL_MAX_SHADOW_CASCADES], atCamViewProjs, sizeof(plMat4) * PL_MAX_SHADOW_CASCADES);
+        // // copy data to GPU buffer
+        // char* pcBufferStart = gptGfx->get_buffer(ptDevice, tInfo.tDShadowCameraBuffer)->tMemoryAllocation.pHostMapped;
+        // memcpy(&pcBufferStart[iShadowIndex * sizeof(plMat4) * PL_MAX_SHADOW_CASCADES], atCamViewProjs, sizeof(plMat4) * PL_MAX_SHADOW_CASCADES);
 
         plBuffer* ptDShadowDataBuffer = gptGfx->get_buffer(ptDevice, tInfo.tDLightShadowDataBuffer);
         memcpy(&ptDShadowDataBuffer->tMemoryAllocation.pHostMapped[iShadowIndex * sizeof(plGpuDirectionLightShadow)], ptShadowData, sizeof(plGpuDirectionLightShadow));
     }
-
 
     // const uint32_t uIndexingOffset = uInitialOffset / (sizeof(plMat4) * PL_MAX_SHADOW_CASCADES);
 
@@ -1785,7 +1918,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                     }
                 };
 
-                gptGfx->draw_stream(ptEncoder, 1, &tArea);   
+                gptGfx->draw_stream(ptEncoder, 1, &tArea);
             } 
         }
     }
@@ -2280,6 +2413,26 @@ pl__renderer_get_bindless_cube_texture_index(plScene* ptScene, plTextureHandle t
         gptGfx->update_bind_group(gptData->ptDevice, ptScene->atSceneBindGroups[i], &tGlobalBindGroupData);
 
     return (uint32_t)ulValue;
+}
+
+static void
+pl__renderer_return_bindless_texture_index(plScene* ptScene, plTextureHandle tTexture)
+{
+    uint64_t uIndex = 0;
+    if(pl_hm_has_key_ex(&ptScene->tTextureIndexHashmap, tTexture.uData, &uIndex))
+    {
+        pl_hm_remove(&ptScene->tTextureIndexHashmap, tTexture.uData);
+    }
+}
+
+static void
+pl__renderer_return_bindless_cube_texture_index(plScene* ptScene, plTextureHandle tTexture)
+{
+    uint64_t uIndex = 0;
+    if(pl_hm_has_key_ex(&ptScene->tCubeTextureIndexHashmap, tTexture.uData, &uIndex))
+    {
+        pl_hm_remove(&ptScene->tCubeTextureIndexHashmap, tTexture.uData);
+    }
 }
 
 static void
@@ -3354,6 +3507,7 @@ pl__render_view_deferred_lighting_pass(plScene* ptScene, plRenderEncoder* ptScen
             plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
             ptLightingDynamicData->uGlobalIndex = ptInfo->uGlobalIndex;
             ptLightingDynamicData->iLightIndex = (int)uLightIndex;
+            ptLightingDynamicData->iProbe = (int)ptInfo->bProbe;
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
                 .tShader = ptScene->tDirectionalLightingShader,
@@ -3522,6 +3676,7 @@ typedef struct _plForwardPassInfo
     uint32_t uGlobalIndex;
     plShaderHandle* sbtShaders;
     plDrawArea* ptArea;
+    bool bProbe;
 } plForwardPassInfo;
 
 static void
@@ -3556,6 +3711,7 @@ pl__render_view_forward_pass(plScene* ptScene, plRenderEncoder* ptSceneEncoder, 
             ptDynamicData->iSpotLightCount = pl_sb_size(ptScene->sbtSpotLights);
             ptDynamicData->iDirectionLightCount = pl_sb_size(ptScene->sbtDirectionLights);
             ptDynamicData->iProbeCount = pl_sb_size(ptScene->sbtProbeData);
+            ptDynamicData->iProbe = (int)ptInfo->bProbe;
 
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
@@ -4733,6 +4889,7 @@ pl__renderer_update_probes(plScene* ptScene)
                 .sbuVisibleEntities = ptProbe->sbuVisibleForwardEntities[uFace],
                 .ptArea = &tArea,
                 .uGlobalIndex = uFace,
+                .bProbe = true,
                 .sbtShaders = ptScene->sbtProbeShaders
             };
             pl__render_view_forward_pass(ptScene, ptProbeEncoder, ptProbe->tViewBG, &tForwardPassInfo);
@@ -4741,6 +4898,7 @@ pl__renderer_update_probes(plScene* ptScene)
                 .sbuVisibleEntities = ptProbe->sbuVisibleTransmissionEntities[uFace],
                 .ptArea = &tArea,
                 .uGlobalIndex = uFace,
+                .bProbe = true,
                 .sbtShaders = ptScene->sbtProbeShaders
             };
             pl__render_view_forward_pass(ptScene, ptProbeEncoder, ptProbe->tViewBG, &tForwardPassInfo2);

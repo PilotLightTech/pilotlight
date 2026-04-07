@@ -2,6 +2,12 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 #include "pl_shader_interop_terrain.h"
+#include "pl_bg_scene.inc"
+
+layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
+{
+    plGpuViewData data[];
+} tViewInfo2;
 
 vec3
 Decode( vec2 f )
@@ -36,7 +42,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 
 void main() 
 {
-    gl_Position = tDynamicData.tData.tMvp * vec4(inPos, 1.0);
+    gl_Position = tViewInfo2.data[tDynamicData.tData.uGlobalIndex].tCameraViewProjection * vec4(inPos, 1.0);
 
     tShaderOut.tWorldPosition = inPos;
     tShaderOut.tWorldNormal = Decode(inNormal);

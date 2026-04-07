@@ -16,7 +16,9 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl_renderer_internal.h"
+#include "pl_renderer_terrain.c"
 #include "pl_renderer_internal.c"
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -320,10 +322,10 @@ pl_renderer_initialize(plRendererSettings tSettings)
     };
 
     const float afDummyTextureData[] = {
-        1.0f, 0.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f, 1.0f,
-        1.0f, 0.0f, 1.0f, 1.0f
+        0.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
     };
     gptData->tDummyTexture = pl__renderer_create_texture_with_data(&tDummyTextureDesc, "dummy", 0, afDummyTextureData, sizeof(afDummyTextureData));
 
@@ -346,7 +348,7 @@ pl_renderer_initialize(plRendererSettings tSettings)
         .fMaxMip         = 64.0f,
         .tVAddressMode   = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
         .tUAddressMode   = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .tMipmapMode     = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
         .pcDebugName     = "linear clamp"
     };
     gptData->tSamplerLinearClamp = gptGfx->create_sampler(gptData->ptDevice, &tSamplerLinearClampDesc);
@@ -1129,6 +1131,8 @@ pl_renderer_create_scene(plSceneInit tInit)
     ptScene->tSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, NULL, &gptData->tRenderPassLayout);
+    ptScene->tTerrainShader = gptShaderVariant->get_shader("terrain", NULL, NULL, NULL, &gptData->tRenderPassLayout);
+    ptScene->tTerrainShadowShader = gptShaderVariant->get_shader("terrain_shadow", NULL, NULL, NULL, &gptData->tDepthRenderPassLayout);
     
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -1181,6 +1185,42 @@ pl_renderer_create_scene(plSceneInit tInit)
 
         gptGfx->update_bind_group(gptData->ptDevice, ptScene->atShadowBG[i], &tShadowBGData);
     }
+
+
+#if 0
+    plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
+
+    plTerrainProcessTileInfo tTile = {
+        .iTreeDepth    = 6,
+        .fMaxHeight    = 500.0f,
+        .fMinHeight    = 0.0f,
+        .fMaxBaseError = 0.1f,
+        .tCenter = {0}
+    };
+    plTerrainProcessInfo tTerrainInfo = {
+        .fMetersPerPixel = 5.0f,
+        .uHorizontalTiles = 1,
+        .uVerticalTiles = 1,
+        .uSize = 1024,
+        .uTileCount = 1,
+        .atTiles = &tTile
+    };
+
+    sprintf(tTile.acOutputFile, "/assets/terrain.chu");
+    sprintf(tTile.acHeightMapFile, "/assets/terrain.png");
+
+    gptTerrain->process(&tTerrainInfo);
+    ptScene->ptTerrain = pl_renderer_create_terrain(ptCmdBuffer, &tTerrainInfo);
+        
+    gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
+
+    plTerrainTexture tTerrainTexture = {
+        .pcPath = "/textures/grass.png",
+        .fMetersPerPixel = 0.01f,
+        .tCenter = {0.0f, 0.0f}
+    };
+    pl_terrain_set_texture(ptScene, ptScene->ptTerrain, &tTerrainTexture);
+#endif
 
     return ptScene;
 }
@@ -1326,7 +1366,8 @@ pl_renderer_cleanup_scene(plScene* ptScene)
     gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tIndexBuffer);
     gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tStorageBuffer);
 
-    // gptTerrain->cleanup_terrain(ptScene->ptTerrain);
+    if(ptScene->ptTerrain)
+        pl_renderer_cleanup_terrain(ptScene->ptTerrain);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tShadowTexture);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tShadowRenderPass);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tFirstShadowRenderPass);
@@ -2663,6 +2704,9 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     ptScene->tSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tRenderPassLayout);
     ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, NULL, &gptData->tRenderPassLayout);
+    ptScene->tTerrainShader = gptShaderVariant->get_shader("terrain", NULL, NULL, NULL, &gptData->tRenderPassLayout);
+    ptScene->tTerrainShadowShader = gptShaderVariant->get_shader("terrain_shadow", NULL, NULL, NULL, &gptData->tDepthRenderPassLayout);
+    
     gptShader->set_options(&tOriginalOptions);
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
@@ -2975,6 +3019,9 @@ pl_renderer_prepare_scene(plScene* ptScene)
 {
     pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
 
+    if(ptScene->ptTerrain)
+        pl_prepare_terrain(ptScene->ptTerrain);
+
     // for convience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
@@ -3057,7 +3104,13 @@ pl_renderer_prepare_scene(plScene* ptScene)
                 .tColor        = ptLight->tColor,
                 .iShadowIndex  = (int)ptScene->uDOffset++,
                 .iCastShadow   = 1,
-                .iCascadeCount = (int)ptLight->uCascadeCount
+                .iCascadeCount = (int)ptLight->uCascadeCount,
+                .afCascadeSplits = {
+                    ptLight->afCascadeSplits[0],
+                    ptLight->afCascadeSplits[1],
+                    ptLight->afCascadeSplits[2],
+                    ptLight->afCascadeSplits[3]
+                }
             };
             pl_sb_push(ptScene->sbtDirectionLightData, tLight);
 
@@ -3079,7 +3132,13 @@ pl_renderer_prepare_scene(plScene* ptScene)
                 .tColor        = ptLight->tColor,
                 .iShadowIndex  = 0,
                 .iCastShadow   = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW,
-                .iCascadeCount = (int)ptLight->uCascadeCount
+                .iCascadeCount = (int)ptLight->uCascadeCount,
+                .afCascadeSplits = {
+                    ptLight->afCascadeSplits[0],
+                    ptLight->afCascadeSplits[1],
+                    ptLight->afCascadeSplits[2],
+                    ptLight->afCascadeSplits[3]
+                }
             };
             pl_sb_push(ptScene->sbtDirectionLightData, tLight);
         }
@@ -3252,6 +3311,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
     }
 
     pl__renderer_perform_skinning(ptSkinningCmdBuffer, ptScene);
+
     gptGfx->end_command_recording(ptSkinningCmdBuffer);
 
     const plSubmitInfo tSkinningSubmitInfo = {
@@ -3298,7 +3358,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
     ptShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSpotLightShadowDataBuffer[uFrameIdx]);
     memcpy(ptShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtSpotLightShadowData, sizeof(plGpuSpotLightShadow) * pl_sb_size(ptScene->sbtSpotLightShadowData));
     
-    if(uFrameIdx == 0 && gptIO->ulFrameCount > 1) // multiple frames in flight may fight
+    if(uFrameIdx == 0 && gptIO->ulFrameCount > 3) // multiple frames in flight may fight
     {
         const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
         for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
@@ -3380,7 +3440,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
                     .tDLightShadowDataBuffer = ptProbe->tDLightShadowDataBuffer,
                     .sbtDLightShadowData = ptProbe->sbtDLightShadowData
                 };
-                pl__renderer_generate_cascaded_shadow_map(ptCSMEncoder, ptCSMCommandBuffer, ptScene, uFace, uProbeIndex, &atEnvironmentCamera[uFace], tCSMInfo);
+                pl__renderer_generate_cascaded_shadow_map(ptCSMEncoder, ptCSMCommandBuffer, ptScene, uFace, uProbeIndex, &atEnvironmentCamera[uFace], tCSMInfo, NULL);
 
                 gptGfx->pop_render_debug_group(ptCSMEncoder);
                 gptGfx->end_render_pass(ptCSMEncoder);
@@ -3397,6 +3457,8 @@ pl_renderer_prepare_scene(plScene* ptScene)
                 const plGpuViewData tProbeBindGroupBuffer = {
                     .tViewportSize         = {.x = ptProbe->tTargetSize.x, .y = ptProbe->tTargetSize.y, .z = 1.0f, .w = 1.0f},
                     .tCameraPos            = atEnvironmentCamera[uFace].tPos,
+                    .fCameraRange          = atEnvironmentCamera[uFace].fFarZ - atEnvironmentCamera[uFace].fNearZ,
+                    .fCameraNearZ          = atEnvironmentCamera[uFace].fNearZ,
                     .tCameraProjection     = atEnvironmentCamera[uFace].tProjMat,
                     .tCameraView           = atEnvironmentCamera[uFace].tViewMat,
                     .tCameraProjectionInv  = pl_mat4_invert(&atEnvironmentCamera[uFace].tProjMat),
@@ -3466,6 +3528,7 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
     ptView->tData.tFogColor = gptData->tRuntimeOptions.tFogColor;
     ptView->tData.fFogLinearParam0 = 1.0f / (ptView->tData.fFogCutOffDistance - ptView->tData.fFogStart);
     ptView->tData.fFogLinearParam1 = -ptView->tData.fFogStart / (ptView->tData.fFogCutOffDistance - ptView->tData.fFogStart);
+    ptView->tData.tCameraPos.xyz = ptCamera->tPos;
     
     const float fFogDensity = -(float)(ptView->tData.fFogHeightFalloff * (ptCamera->tPos.y - ptView->tData.fFogHeight));
     ptView->tData.tFogDensity = (plVec3){gptData->tRuntimeOptions.fFogDensity, fFogDensity, gptData->tRuntimeOptions.fFogDensity * expf(fFogDensity)};
@@ -3492,7 +3555,7 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
         .tDLightShadowDataBuffer = ptView->atDLightShadowDataBuffer[uFrameIdx],
         .sbtDLightShadowData = ptView->sbtDLightShadowData
     };
-    pl__renderer_generate_cascaded_shadow_map(ptCSMEncoder, ptCSMCmdBuffer, ptScene, ptView->uIndex, 0, ptCamera, tCSMInfo);
+    pl__renderer_generate_cascaded_shadow_map(ptCSMEncoder, ptCSMCmdBuffer, ptScene, ptView->uIndex, 0, ptCamera, tCSMInfo, ptView->pt3DDrawList);
 
     gptGfx->pop_render_debug_group(ptCSMEncoder);
     gptGfx->end_render_pass(ptCSMEncoder);
@@ -3620,6 +3683,8 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     const plGpuViewData tBindGroupBuffer = {
         .tViewportSize         = {.xy = ptView->tTargetSize, .ignored0_ = 1.0f, .ignored1_ = 1.0f},
         .tCameraPos            = ptCamera->tPos,
+        .fCameraRange          = ptCamera->fFarZ - ptCamera->fNearZ,
+        .fCameraNearZ          = ptCamera->fNearZ,
         .tCameraProjection     = ptCamera->tProjMat,
         .tCameraProjectionInv  = pl_mat4_invert(&ptCamera->tProjMat),
         .tCameraViewInv        = pl_mat4_invert(&ptCamera->tViewMat),
@@ -3718,6 +3783,30 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     };
     pl__render_view_gbuffer_fill_pass(ptScene, ptMainEncoder, &tGbufferFillPassInfo);
 
+    gptGfx->push_render_debug_group(ptMainEncoder, "Terrain", (plVec4){0.33f, 0.42f, 0.20f, 1.0f});
+    
+    if(ptScene->ptTerrain)
+    {
+        const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
+
+        gptGfx->set_depth_bias(ptMainEncoder, 0.0f, 0.0f, 0.0f);
+        gptGfx->bind_shader(ptMainEncoder, ptScene->tTerrainShader);
+        gptGfx->bind_vertex_buffer(ptMainEncoder, ptScene->ptTerrain->tVertexBuffer);
+        plBindGroupHandle atBindGroups[] = {ptScene->atSceneBindGroups[uFrameIdx], ptView->atDeferredBG1[uFrameIdx]};
+        gptGfx->bind_graphics_bind_groups(
+            ptMainEncoder,
+            ptScene->tTerrainShader,
+            0, 2,
+            atBindGroups,
+            0, NULL
+        );
+
+
+        for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
+            pl__render_chunk(ptScene, ptScene->ptTerrain, ptCamera, ptMainEncoder, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &tMVP, 0);
+    }
+    gptGfx->pop_render_debug_group(ptMainEncoder);
+
     gptGfx->next_subpass(ptMainEncoder, NULL);
 
     plDeferredLightingPassInfo tDeferredLightingPassInfo = {
@@ -3735,6 +3824,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     gptGfx->next_subpass(ptMainEncoder, NULL);
 
     gptGfx->push_render_debug_group(ptMainEncoder, "Forward Lighting", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
+
 
     if(ptScene->tSkyboxTexture.uIndex != 0 && ptView->bShowSkybox)
     {
@@ -4863,9 +4953,10 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptStarter          = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptMaterial         = pl_get_api_latest(ptApiRegistry, plMaterialI);
         gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);
-        gptTerrainProcessor = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
         gptStage            = pl_get_api_latest(ptApiRegistry, plStageI);
         gptFreeList         = pl_get_api_latest(ptApiRegistry, plFreeListI);
+        gptCollision        = pl_get_api_latest(ptApiRegistry, plCollisionI);
+        gptImageOps         = pl_get_api_latest(ptApiRegistry, plImageOpsI);
     #endif
 
     if(bReload)

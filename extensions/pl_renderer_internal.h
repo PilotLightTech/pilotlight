@@ -60,12 +60,14 @@ Index of this file:
 #include "pl_starter_ext.h"
 #include "pl_material_ext.h"
 #include "pl_terrain_ext.h"
-#include "pl_terrain_processor_ext.h"
 #include "pl_stage_ext.h"
 #include "pl_freelist_ext.h"
+#include "pl_collision_ext.h"
+#include "pl_image_ops_ext.h"
 
 // shader interop
 #include "pl_shader_interop_renderer.h"
+#include "pl_shader_interop_terrain.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] defines
@@ -109,6 +111,7 @@ Index of this file:
     static const plScreenLogI*     gptScreenLog     = NULL;
     static const plResourceI*      gptResource      = NULL;
     static const plEcsI*           gptECS           = NULL;
+    static const plCollisionI*     gptCollision     = NULL;
 
     static struct _plIO* gptIO = 0;
 
@@ -120,9 +123,9 @@ Index of this file:
     static const plShaderVariantI*    gptShaderVariant    = NULL;
     static const plMaterialI*         gptMaterial         = NULL;
     static const plTerrainI*          gptTerrain          = NULL;
-    static const plTerrainProcessorI* gptTerrainProcessor = NULL;
     static const plStageI*            gptStage            = NULL;
     static const plFreeListI*         gptFreeList         = NULL;
+    static const plImageOpsI*         gptImageOps         = NULL;
     
 #endif
 
@@ -143,6 +146,9 @@ typedef struct _plMemCpyJobData         plMemCpyJobData;
 typedef struct _plOBB                   plOBB;
 typedef struct _plEnvironmentProbeData  plEnvironmentProbeData;
 
+// terrain
+typedef struct _plTerrain plTerrain;
+
 // shader variants
 typedef struct _plShaderVariant plShaderVariant;
 typedef struct _plComputeShaderVariant plComputeShaderVariant;
@@ -150,6 +156,7 @@ typedef struct _plComputeShaderVariant plComputeShaderVariant;
 // enums & flags
 typedef int plDrawableFlags;
 typedef int plSceneInternalFlags;
+typedef int plTerrainFlags;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -173,9 +180,18 @@ enum _plSceneInternalFlags
     PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY    = 1 << 3,
 };
 
+enum _plTerrainFlags
+{
+    PL_TERRAIN_FLAGS_NONE        = 0,
+    PL_TERRAIN_FLAGS_WIREFRAME   = 1 << 0,
+    PL_TERRAIN_FLAGS_SHOW_LEVELS = 1 << 1
+};
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
+
+
 
 typedef struct _plOBB
 {
@@ -416,6 +432,8 @@ typedef struct _plScene
     plShaderHandle tSpotLightingShader;
     plShaderHandle tProbeLightingShader;
     plShaderHandle tPointLightingShader;
+    plShaderHandle tTerrainShader;
+    plShaderHandle tTerrainShadowShader;
 
     // render passes
     plRenderPassHandle tFirstShadowRenderPass;
@@ -505,6 +523,9 @@ typedef struct _plScene
     plEnvironmentProbeData* sbtProbeData;
     plSkinData*             sbtSkinData;
     uint32_t                uNextTransformIndex;
+
+    // terrain
+    plTerrain* ptTerrain;
 
 } plScene;
 
@@ -630,7 +651,7 @@ typedef struct _plCSMInfo
 // scene render helpers
 static void pl__renderer_perform_skinning(plCommandBuffer*, plScene*);
 static bool pl__renderer_pack_shadow_atlas(plScene*);
-static void pl__renderer_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, plScene*, uint32_t, uint32_t, plCamera*, plCSMInfo);
+static void pl__renderer_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, plScene*, uint32_t, uint32_t, plCamera*, plCSMInfo, plDrawList3D*);
 static void pl__renderer_generate_shadow_maps(plRenderEncoder*, plCommandBuffer*, plScene*);
 
 static uint64_t pl_renderer__add_material_to_scene(plScene* ptScene, plEntity tMaterial);
@@ -640,6 +661,8 @@ static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice){ re
 static bool                    pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex);
 static uint32_t                pl__renderer_get_bindless_texture_index(plScene*, plTextureHandle);
 static uint32_t                pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);
+static void                    pl__renderer_return_bindless_texture_index(plScene*, plTextureHandle);
+static void                    pl__renderer_return_bindless_cube_texture_index(plScene*, plTextureHandle);
 
 // drawable ops
 static void pl__renderer_add_skybox_drawable(plScene*);

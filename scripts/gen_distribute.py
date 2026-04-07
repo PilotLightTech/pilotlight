@@ -139,7 +139,6 @@ with pl.project("pilotlight deploy"):
         "pl_voxel_ext",
         "pl_path_ext",
         "pl_audio_ext",
-        "pl_terrain_processor_ext",
         "pl_freelist_ext",
         "pl_stage_ext",
         "pl_image_ops_ext",

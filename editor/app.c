@@ -78,7 +78,6 @@ Index of this file:
 #include "pl_compress_ext.h"
 #include "pl_script_ext.h"
 #include "pl_terrain_ext.h"
-#include "pl_terrain_processor_ext.h"
 
 // shaders
 #include "pl_shader_interop_renderer.h" // PL_MESH_FORMAT_FLAG_XXXX
@@ -125,7 +124,6 @@ const plCompressI*          gptCompress         = NULL;
 const plMaterialI*          gptMaterial         = NULL;
 const plScriptI*            gptScript           = NULL;
 const plTerrainI*           gptTerrain          = NULL;
-const plTerrainProcessorI*  gptTerrainProcessor = NULL;
 
 #define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
 #define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
@@ -251,6 +249,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptVfs->mount_directory("/gltf", "../data/glTF-Sample-Assets-main/Models", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/fonts", "../data/pilotlight-assets-master/fonts", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/environments", "../data/pilotlight-assets-master/environments", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/textures", "../data/pilotlight-assets-master/terrain", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/shaders", "../shaders", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/shader-temp", "../shader-temp", PL_VFS_MOUNT_FLAGS_NONE);
 
@@ -424,24 +423,36 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->ptScene = gptRenderer->create_scene(tSceneInit);
     ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, ptIO->tMainViewportSize);
 
+    // float fXOffset = -330.0f;
+    // float fYOffset = 87.0f;
+    // float fZOffset = -330.0f;
+
+    // float fXOffset = -30.0f;
+    // float fYOffset = 0.1f;
+    // float fZOffset = 0.0f;
+
+    float fXOffset = -30.0f;
+    float fYOffset = 0.1f;
+    float fZOffset = 0.0f;
+
     // create main camera
     plCamera* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3_d(-4.012, 2.984, -1.109), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 30.0f, true, &ptMainCamera);
-    gptCamera->set_pitch_yaw(ptMainCamera, -0.465f, 1.341f);
+    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3_d(fXOffset -4.012, fYOffset + 2.984, fZOffset-1.109), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 650.0f, true, &ptMainCamera);
+    gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, PL_PI_2);
     gptCamera->update(ptMainCamera);
     gptScript->attach(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
 
     // create secondary camera
     plCamera* ptSecondaryCamera = NULL;
-    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "secondary camera", pl_create_vec3_d(-4.012f, 2.984f, -1.109f), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
+    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "secondary camera", pl_create_vec3_d(fXOffset-4.012f, fYOffset + 2.984f, fZOffset-1.109f), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
     gptCamera->set_pitch_yaw(ptSecondaryCamera, -0.465f, 1.341f);
     gptCamera->update(ptSecondaryCamera);
     plTransformComponent* ptSecondaryCameraTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSecondaryCamera);
-    ptSecondaryCameraTransform->tTranslation = pl_create_vec3(-4.012f, 2.984f, -1.109f);
+    ptSecondaryCameraTransform->tTranslation = pl_create_vec3(fXOffset-4.012f, fYOffset + 2.984f, fZOffset-1.109f);
 
     plEnvironmentProbeComponent* ptProbe = NULL;
     plVec3 atProbeLocations[] = {
-        pl_create_vec3(0.0f, 3.0f, 0.0f),
+        pl_create_vec3(fXOffset + 0.0f, fYOffset + 3.0f, fZOffset + 0.0f),
         // pl_create_vec3(-8.7f, 1.5f, 0.0f),
         // pl_create_vec3(8.8f, 1.5f, 0.0f),
     };
@@ -463,20 +474,20 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptLight->uCascadeCount = 4;
     ptLight->fIntensity = 18.0f;
     ptLight->uShadowResolution = 1024 * 2;
-    ptLight->afCascadeSplits[0] = 0.05f;
-    ptLight->afCascadeSplits[1] = 0.15f;
-    ptLight->afCascadeSplits[2] = 0.25f;
+    ptLight->afCascadeSplits[0] = 0.005f;
+    ptLight->afCascadeSplits[1] = 0.020f;
+    ptLight->afCascadeSplits[2] = 0.10f;
     ptLight->afCascadeSplits[3] = 1.00f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
-    plEntity tPointLight = gptRenderer->create_point_light(ptAppData->ptComponentLibrary, "point light", pl_create_vec3(9.316f, 1.497f, -1.042f), &ptLight);
+    plEntity tPointLight = gptRenderer->create_point_light(ptAppData->ptComponentLibrary, "point light", pl_create_vec3(fXOffset + 9.316f, fYOffset + 1.497f, fZOffset-1.042f), &ptLight);
     ptLight->uShadowResolution = 512;
     ptLight->tColor = (plVec3){0.0f, 1.0f, 0.0f};
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
     plTransformComponent* ptPLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tPointLight);
-    ptPLightTransform->tTranslation = pl_create_vec3(9.316f, 1.497f, -1.042f);
+    ptPLightTransform->tTranslation = pl_create_vec3(fXOffset + 9.316f, fYOffset + 1.497f, fZOffset-1.042f);
 
-    plEntity tSpotLight = gptRenderer->create_spot_light(ptAppData->ptComponentLibrary, "spot light", pl_create_vec3(0.0f, 3.27f, -1.5f), pl_create_vec3(0.0, -0.390f, 0.368f), &ptLight);
+    plEntity tSpotLight = gptRenderer->create_spot_light(ptAppData->ptComponentLibrary, "spot light", pl_create_vec3(fXOffset + 0.0f, fYOffset + 3.27f, fZOffset-1.5f), pl_create_vec3(0.0, -0.390f, 0.368f), &ptLight);
     ptLight->uShadowResolution = 512;
     ptLight->tColor = (plVec3){1.0f, 0.0f, 1.0f};
     ptLight->fRange = 10.0f;
@@ -484,9 +495,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptLight->fIntensity = 20.0f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
     plTransformComponent* ptSLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tSpotLight);
-    ptSLightTransform->tTranslation = pl_create_vec3(0.0f, 3.27f, -1.5f);
+    ptSLightTransform->tTranslation = pl_create_vec3(fXOffset + 0.0f, fYOffset + 3.27f, fZOffset-1.5f);
 
-    plEntity tPointLight2 = gptRenderer->create_point_light(ptAppData->ptComponentLibrary, "point light2", pl_create_vec3(-6.316f, 1.497f, -1.042f), &ptLight);
+    plEntity tPointLight2 = gptRenderer->create_point_light(ptAppData->ptComponentLibrary, "point light2", pl_create_vec3(fXOffset-6.316f, fYOffset + 1.497f, fZOffset-1.042f), &ptLight);
     ptLight->tColor = (plVec3){1.0f, 1.0f, 1.0f};
     ptLight->tFlags |= PL_LIGHT_FLAG_VISUALIZER;
     
@@ -499,10 +510,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plModelLoaderData tLoaderData0 = {0};
     plModelLoaderData tLoaderData1 = {0};
-    plMat4 tModelTranslation = pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f);
+    plMat4 tModelTranslation = pl_mat4_translate_xyz(fXOffset, fYOffset, fZOffset);
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/model.gltf", &tModelTranslation, &tLoaderData1);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/humanoid/floor.gltf", &tModelTranslation, &tLoaderData1);
-    gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", &tModelTranslation, &tLoaderData0);
+    // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", &tModelTranslation, &tLoaderData0);
     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/Sponza/glTF/Sponza.gltf", &tModelTranslation, &tLoaderData0);
     // gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/models/gltf/sort.gltf", &tModelTranslation, &tLoaderData0);
     // plMat4 tRotation = pl_mat4_rotate_xyz(-PL_PI_2, 0.0f, 1.0f, 0.0f);
@@ -1229,7 +1240,6 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptMaterial         = pl_get_api_latest(ptApiRegistry, plMaterialI);
     gptScript           = pl_get_api_latest(ptApiRegistry, plScriptI);
     gptTerrain          = pl_get_api_latest(ptApiRegistry, plTerrainI);
-    gptTerrainProcessor = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
 }
 
 

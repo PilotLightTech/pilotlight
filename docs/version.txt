@@ -104,7 +104,6 @@ the API is complete. It just means we won't break what currently exists.
 * Animation           v0.1.0 (pl_animation_ext.h)
 * Material            v0.1.0 (pl_material_ext.h)
 * Terrain             v0.1.0 (pl_terrain_ext.h)
-* Terrain Processor   v0.1.0 (pl_terrain_processor_ext.h)
 * Free List           v0.1.0 (pl_freelist_ext.h)
 * Image Ops           v0.1.0 (pl_image_ops_ext.h)
 * Stage               v0.1.0 (pl_stage_ext.h)

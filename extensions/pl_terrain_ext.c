@@ -1,5 +1,5 @@
 /*
-   pl_terrain_ext.c
+   pl_terrain_processor_ext.c
 */
 
 /*
@@ -25,6 +25,7 @@ Index of this file:
 #include <stdio.h>
 #include <float.h>
 #include <stdlib.h>
+#include <limits.h> // UINT_MAX
 #include "pl.h"
 #include "pl_terrain_ext.h"
 
@@ -33,43 +34,94 @@ Index of this file:
 #include "pl_math.h"
 #undef pl_vnsprintf
 #include "pl_memory.h"
-#include "pl_string.h"
 
 // stable extensions
 #include "pl_image_ext.h"
-#include "pl_graphics_ext.h"
-#include "pl_gpu_allocators_ext.h"
-#include "pl_starter_ext.h"
-#include "pl_shader_ext.h"
-#include "pl_screen_log_ext.h"
 #include "pl_vfs_ext.h"
-#include "pl_stats_ext.h"
+#include "pl_platform_ext.h"
 
 // unstable extensions
 #include "pl_collision_ext.h"
 #include "pl_freelist_ext.h"
-#include "pl_camera_ext.h"
-#include "pl_terrain_processor_ext.h"
-#include "pl_image_ops_ext.h"
-#include "pl_resource_ext.h"
-
-// shader interop
-#include "pl_shader_interop_terrain.h"
-
-//-----------------------------------------------------------------------------
-// [SECTION] defines
-//-----------------------------------------------------------------------------
-
-#define PL_REQUEST_QUEUE_SIZE 100
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
 //-----------------------------------------------------------------------------
 
-// basic types
-typedef struct _plTerrainResidencyNode   plTerrainResidencyNode;
-typedef struct _plTerrainReplacementNode plTerrainReplacementNode;
-typedef struct _plTerrainContext         plTerrainContext;
+// basic types for preprocessing
+typedef struct  _plEdgeKey          plEdgeKey;
+typedef struct _plTerrainMapElement plTerrainMapElement;
+typedef struct _plEdgeEntry         plEdgeEntry;
+typedef struct _plTrianglePrimitive plTrianglePrimitive;
+typedef struct _plTerrainHeightMap  plTerrainHeightMap;
+
+// basic types for rendering
+typedef struct _plTerrainChunk           plTerrainChunk;
+typedef struct _plTerrainChunkFile       plTerrainChunkFile;
+
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
+
+typedef struct _plTerrainMapElement
+{
+    int16_t  iX;
+    int16_t  iZ;
+    float    fY;
+    float    fError;
+    uint8_t  uFrameStamp;
+    int8_t   iActivationLevel;
+    uint32_t uVertexBufferIndex;
+} plTerrainMapElement;
+
+typedef struct _plEdgeKey
+{
+    uint32_t uLeft;
+    uint32_t uRight;
+    int iLevel;
+} plEdgeKey;
+
+typedef struct _plEdgeEntry
+{
+    uint32_t t0;
+    uint32_t t1;
+} plEdgeEntry;
+
+typedef struct _plTrianglePrimitive
+{
+    uint8_t  uLevel;
+    uint32_t uApex;
+    uint32_t uLeft;
+    uint32_t uRight;
+} plTrianglePrimitive;
+
+typedef struct _plTerrainHeightMap
+{
+    uint32_t             uRequestedSize;
+    int                  iSize;
+    int                  iLogSize;
+    float                fSampleSpacing;
+    float                fMaxBaseError;
+    float                fMetersPerPixel;
+    float                fMaxHeight;
+    float                fMinHeight;
+    plVec3               tCenter;
+    plTerrainMapElement* atElements;
+    const char*          pcOutputFile;
+    plEdgeEntry*         sbtEdges;
+    plVec3               tMinBounding;
+    plVec3               tMaxBounding;
+    uint32_t             uChunkCount;
+    uint8_t              uFrameStamp;
+    plTrianglePrimitive* sbtPrimitives;
+
+    plTerrainMapElement* atHaloElements;
+
+    // progress
+    uint32_t uCurrentMeshChunk;
+    uint32_t uCurrentHeightmap;
+    uint32_t uHeightmapCount;
+} plTerrainHeightMap;
 
 //-----------------------------------------------------------------------------
 // [SECTION] global data
@@ -91,151 +143,143 @@ typedef struct _plTerrainContext         plTerrainContext;
     #endif
 
     // required APIs
-    static const plImageI*            gptImage            = NULL;
-    static const plGraphicsI*         gptGfx              = NULL;
-    static const plFreeListI*         gptFreeList         = NULL;
-    static const plIOI*               gptIOI              = NULL;
-    static const plShaderI*           gptShader           = NULL;
-    static const plStarterI*          gptStarter          = NULL;
-    static const plCollisionI*        gptCollision        = NULL;
-    static const plScreenLogI*        gptScreenLog        = NULL;
-    static const plTerrainProcessorI* gptTerrainProcessor = NULL;
-    static const plGPUAllocatorsI*    gptGpuAllocators    = NULL;
-    static const plImageOpsI*         gptImageOps         = NULL;
-    static const plVfsI*              gptVfs              = NULL;
-    static const plResourceI*         gptResource         = NULL;
-    static const plStatsI*            gptStats            = NULL;
+    static const plImageI*   gptImage = NULL;
+    static const plFileI*    gptFile  = NULL;
+    static const plVfsI*     gptVfs   = NULL;
+    
 
 #endif
 
 #include "pl_ds.h"
 
 // context
-static plTerrainContext* gptTerrainCtx = NULL;
 
 //-----------------------------------------------------------------------------
-// [SECTION] structs
+// [SECTION] internal helpers (preprocessing)
 //-----------------------------------------------------------------------------
 
-typedef struct _plTerrainResidencyNode
+static inline int
+pl__lowest_one(int x)
 {
-    plTerrainResidencyNode* ptNext;
-    plTerrainResidencyNode* ptPrev;
-    plTerrainChunk*         ptChunk;
-    uint64_t                uFrameRequested;
-} plTerrainResidencyNode;
 
-typedef struct _plOBB2
-{
-    plVec3 tCenter;
-    plVec3 tExtents;
-    plVec3 atAxes[3]; // Orthonormal basis
-} plOBB2;
+    // Returns the bit position of the lowest 1 bit in the given value.
+    // If x == 0, returns the number of bits in an integer.
+    //
+    // E.g. pl__lowest_one(1) == 0; pl__lowest_one(16) == 4; pl__lowest_one(5) == 0;
 
-typedef struct _plChunkFileData
-{
-    plTerrainChunkFile tFile;
-    char               acPakFileName[256];
-    uint32_t           uTextureIndex;
-} plChunkFileData;
-
-typedef struct _plTerrain
-{
-    plRenderPassLayoutHandle tRenderPassLayoutHandle;
-    plTerrainRuntimeOptions tRuntimeOptions;
-    plChunkFileData* sbtChunkFiles;
-    plTerrainProcessInfo tInfo;
-    plVec2           tTopLeftGlobal;
-    plVec2           tBottomRightGlobal;
-    uint32_t                 uTileCount;
-    plTerrainProcessTileInfo* atTiles;
-    plDynamicDataBlock* ptCurrentDynamicBufferBlock;
-
-    // shaders
-    plShaderHandle tShader;
-    plShaderHandle tWireframeShader;
-    
-    plTerrainResidencyNode tRequestQueue;
-    plTerrainResidencyNode atRequests[PL_REQUEST_QUEUE_SIZE];
-    uint32_t*             sbuFreeRequests;
-
-    plTerrainChunk tReplacementQueue;
-
-    const char* pcVertexShader;
-    const char* pcFragmentShader;
-
-    plBufferHandle tIndexBuffer;
-    plFreeList tIndexBufferManager;
-    
-    plBufferHandle tVertexBuffer;
-    plFreeList tVertexBufferManager;
-} plTerrain;
-
-typedef struct _plTerrainContext
-{
-    plDevice*        ptDevice;
-    plBindGroupPool* ptBindGroupPool;
-
-    // gpu allocators
-    plDeviceMemoryAllocatorI* tLocalBuddyAllocator;
-
-    // samplers
-    plSamplerHandle tSampler;
-    plTextureHandle tDummyTexture;
-    uint32_t        uDummyIndex;
-
-    // bindless texture system
-    uint32_t          uTextureIndexCount;
-    plHashMap64       tTextureIndexHashmap; // texture handle <-> index
-    plBindGroupHandle atBindGroups[PL_MAX_FRAMES_IN_FLIGHT];
-
-    plTempAllocator tTempAllocator;
-
-    plBufferHandle tStagingBuffer;
-    uint32_t       uStagingBufferSize;
-    double*        pdDrawCalls;
-
-
-} plTerrainContext;
-
-
-
-//-----------------------------------------------------------------------------
-// [SECTION] internal helpers (rendering)
-//-----------------------------------------------------------------------------
-
-void pl_terrain_load_shaders(plTerrain* ptTerrain);
-
-// rendering
-static void pl__handle_residency (plTerrain*, plCommandBuffer*);
-static void pl__request_residency(plTerrain*, plTerrainChunk*);
-static void pl__touch_chunk(plTerrain*, plTerrainChunk*);
-static void pl__make_unresident  (plTerrain*, plTerrainChunk*);
-static bool pl__terrain_load(plTerrain* ptTerrain, plTerrainProcessInfo* ptInfo);
-void pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk);
-
-static void pl__render_chunk(plTerrain*, plCamera*, plRenderEncoder*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP);
-static bool pl__sat_visibility_test(plCamera*, const plAABB*);
-
-static void pl__free_chunk(plTerrain* ptTerrain, uint64_t);
-
-static void pl__free_chunk_until(plTerrain* P, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed);
-
-static plTextureHandle pl__terrain_create_texture_with_data (const plTextureDesc*, const char* pcName, uint32_t uIdentifier, const void*, size_t);
-static uint32_t pl__terrain_get_bindless_texture_index(plTextureHandle tTexture);
-static void pl__terrain_return_bindless_texture_index(plTextureHandle tTexture);
-bool pl__chlod_update_chunk_file(plTerrain* ptTerrain, uint32_t uIndex, const char* pcTexture);
-
-
-static inline bool pl__is_leaf_resident(const plTerrainChunk* c)
-{
-    if (!c->aptChildren[0]) return true; // no children in tree
-    return !(c->aptChildren[0]->ptIndexHole ||
-             c->aptChildren[1]->ptIndexHole ||
-             c->aptChildren[2]->ptIndexHole ||
-             c->aptChildren[3]->ptIndexHole);
+	int	intbits = sizeof(x) * 8;
+	int	i;
+	for (i = 0; i < intbits; i++, x = x >> 1)
+    {
+		if (x & 1)
+            break;
+	}
+	return i;
 }
 
+static inline int
+pl__vertex_index(plTerrainHeightMap* ptHeightMap, int x, int z)
+{
+    if (x < 0 || x >= ptHeightMap->iSize || z < 0 || z >= ptHeightMap->iSize)
+        return -1;
+    return ptHeightMap->iSize * z + x;
+}
+
+static inline void
+pl__activate_height_map_element(plTerrainMapElement* ptElement, int iLevel)
+{
+    if(iLevel > ptElement->iActivationLevel)
+        ptElement->iActivationLevel = (int8_t)iLevel;
+}
+
+static inline plTerrainMapElement*
+pl__get_elem(plTerrainHeightMap* ptHeightMap, int x, int z)
+{
+    return &ptHeightMap->atElements[x + z * ptHeightMap->iSize];
+}
+
+static inline int
+pl__node_index(plTerrainHeightMap* ptHeightMap, int x, int z)
+{
+	// Given the coordinates of the center of a quadtree node, this
+	// function returns its node index.  The node index is essentially
+	// the node's rank in a breadth-first quadtree traversal.  Assumes
+	// a [nw, ne, sw, se] traversal order.
+	//
+	// If the coordinates don't specify a valid node (e.g. if the coords
+	// are outside the heightfield) then returns -1.
+
+    if (x < 0 || x >= ptHeightMap->iSize || z < 0 || z >= ptHeightMap->iSize)
+        return -1;
+
+    int	l1 = pl__lowest_one(x | z);
+    int	depth = ptHeightMap->iLogSize - l1 - 1;
+
+    int	base = 0x55555555 & ((1 << depth*2) - 1);	// total node count in all levels above ours.
+    int	shift = l1 + 1;
+
+    // Effective coords within this node's level.
+    int	col = x >> shift;
+    int	row = z >> shift;
+
+    return base + (row << depth) + col;
+}
+
+static inline uint32_t pl_parent(uint32_t id)  { return id >> 1u; }
+static inline uint32_t pl_sibling(uint32_t id) { return id ^ 1u; }
+
+static inline int
+pl__mid_activation(plTerrainHeightMap* ptHeightMap, uint32_t uLeft, uint32_t uRight)
+{
+    plTerrainMapElement* eL = &ptHeightMap->atElements[uLeft];
+    plTerrainMapElement* eR = &ptHeightMap->atElements[uRight];
+
+    int iMidX = ((int)eL->iX + (int)eR->iX) / 2;
+    int iMidZ = ((int)eL->iZ + (int)eR->iZ) / 2;
+
+    plTerrainMapElement* ptElement = pl__get_elem(ptHeightMap, iMidX, iMidZ);
+    return ptElement->iActivationLevel;
+}
+
+// Given the triangle, computes an error value and activation level
+// for its base vertex, and recurses to child triangles.
+static void pl__update(plTerrainHeightMap*, float base_max_error, int ax, int az, int rx, int rz, int lx, int lz);
+static void pl__propagate_activation_level(plTerrainHeightMap*, int cx, int cz, int level, int target_level);
+
+// main steps
+static void pl__initialize_cdlod_heightmap(plTerrainHeightMap*, plTerrainProcessInfo*, uint32_t);
+static void pl__terrain_mesh(FILE*, plTerrainHeightMap*, int iStartIndexX, int iStartIndexY, int iLogSize, int iLevel);
+
+static inline plVec2
+pl__oct_wrap( plVec2 v )
+{
+    plVec2 w = {
+        .x = 1.0f - fabsf( v.y ),
+        .y = 1.0f - fabsf( v.x ),
+    };
+    if (v.x < 0.0f) w.x = -w.x;
+    if (v.y < 0.0f) w.y = -w.y;
+    return w;
+}
+ 
+static inline plVec2
+pl__encode( plVec3 n )
+{
+    n = pl_div_vec3_scalarf(n, ( fabsf( n.x ) + fabsf( n.y ) + fabsf( n.z ) ));
+    n.xy = n.z > 0.0f ? n.xy : pl__oct_wrap( n.xy );
+    // n.xy = n.xy * 0.5 + 0.5;
+    n.xy = pl_mul_vec2_scalarf(n.xy, 0.5f);
+    n.x += 0.5f;
+    n.y += 0.5f;
+    return n.xy;
+}
+
+static plVec3 pl__get_cartesian(plTerrainHeightMap*, plTerrainMapElement*);
+static plVec2 pl__get_normal(plTerrainHeightMap*, plTerrainMapElement*);
+
+#define PL_TERRAIN_SET_PRESENT(INDEX) atPresent[INDEX >> 3] |= (uint8_t)(1u << (INDEX & 7))
+#define PL_TERRAIN_UNSET_PRESENT(INDEX) atPresent[INDEX >> 3] &= ~(uint8_t)(1u << (INDEX & 7))
+#define PL_TERRAIN_PRESENT(INDEX) (bool)(atPresent[INDEX >> 3] & (uint8_t)(1u << (INDEX & 7)))
 
 
 //-----------------------------------------------------------------------------
@@ -243,1662 +287,1045 @@ static inline bool pl__is_leaf_resident(const plTerrainChunk* c)
 //-----------------------------------------------------------------------------
 
 void
-pl_terrain_initialize(plTerrainExtInit tInit)
+pl_terrain_process(plTerrainProcessInfo* ptInfo)
 {
-    gptTerrainCtx->ptDevice = tInit.ptDevice;
-    gptTerrainCtx->pdDrawCalls = gptStats->get_counter("terrain draw calls");
-
-    // create bind group pool
-    plBindGroupPoolDesc tBindGroupPoolDesc = {
-        .tFlags                   = PL_BIND_GROUP_POOL_FLAGS_NONE,
-        .szSamplerBindings        = 1,
-        .szSampledTextureBindings = PL_TERRAIN_MAX_BINDLESS_TEXTURES * 2,
-        .szStorageTextureBindings = 1,
-        .szStorageBufferBindings  = 1
-    };
-    gptTerrainCtx->ptBindGroupPool = gptGfx->create_bind_group_pool(tInit.ptDevice, &tBindGroupPoolDesc);
-
-    // retrieve GPU allocators
-    gptTerrainCtx->tLocalBuddyAllocator = gptGpuAllocators->get_local_buddy_allocator(tInit.ptDevice);
-
-    const plBindGroupLayoutDesc tBindGroupLayoutDesc = {
-        .atSamplerBindings = {
-            { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT}
-        },
-        .atTextureBindings = {
-            {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .bNonUniformIndexing = true, .uDescriptorCount = PL_TERRAIN_MAX_BINDLESS_TEXTURES}
-        }
-    };
-    plBindGroupLayoutHandle tBindGroupLayout = gptGfx->create_bind_group_layout(tInit.ptDevice, &tBindGroupLayoutDesc);
-
-
-    const plSamplerDesc tSamplerDesc = {
-        .tMagFilter    = PL_FILTER_LINEAR,
-        .tMinFilter    = PL_FILTER_LINEAR,
-        .fMinMip       = 0.0f,
-        .fMaxMip       = 1.0f,
-        .tVAddressMode = PL_ADDRESS_MODE_CLAMP_TO_BORDER,
-        .tUAddressMode = PL_ADDRESS_MODE_CLAMP_TO_BORDER,
-        .pcDebugName   = "sampler",
-        .tBorderColor  = PL_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK
-    };
-    gptTerrainCtx->tSampler = gptGfx->create_sampler(tInit.ptDevice, &tSamplerDesc);
-
-    const plBindGroupUpdateSamplerData tSamplerData = {
-        .tSampler = gptTerrainCtx->tSampler,
-        .uSlot    = 0
-    };
-    const plBindGroupUpdateData tBGSet0Data = {
-        .uSamplerCount = 1,
-        .atSamplerBindings = &tSamplerData
-    };
-
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    for(uint32_t i = 0; i < ptInfo->uTileCount; i++)
     {
-        // create global bindgroup
-        const plBindGroupDesc tGlobalBindGroupDesc = {
-            .ptPool      = gptTerrainCtx->ptBindGroupPool,
-            .tLayout     = tBindGroupLayout,
-            .pcDebugName = "global bind group"
-        };
-        gptTerrainCtx->atBindGroups[i] = gptGfx->create_bind_group(tInit.ptDevice, &tGlobalBindGroupDesc);
+        if(gptVfs->does_file_exist(ptInfo->atTiles[i].acOutputFile))
+            continue;
 
-        gptGfx->update_bind_group(tInit.ptDevice, gptTerrainCtx->atBindGroups[i], &tBGSet0Data);
-    }
-
-    const plTextureDesc tDummyTextureDesc = {
-        .tDimensions   = {2, 2, 1},
-        .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
-        .uLayers       = 1,
-        .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED,
-        .pcDebugName   = "dummy"
-    };
-
-    const float afDummyTextureData[] = {
-        0.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 0.0f, 0.0f
-    };
-    gptTerrainCtx->tDummyTexture = pl__terrain_create_texture_with_data(&tDummyTextureDesc, "dummy", 0, afDummyTextureData, sizeof(afDummyTextureData));
-    gptTerrainCtx->uDummyIndex = pl__terrain_get_bindless_texture_index(gptTerrainCtx->tDummyTexture);
-
-    plDevice* ptDevice = gptTerrainCtx->ptDevice;
-
-    if(tInit.uStagingBufferSize == 0) tInit.uStagingBufferSize = 268435456;
-    gptTerrainCtx->uStagingBufferSize = tInit.uStagingBufferSize;
-
-    // create vertex buffer
-    const plBufferDesc tStagingBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
-        .szByteSize  = gptTerrainCtx->uStagingBufferSize,
-        .pcDebugName = "terrain staging buffer"
-    };
-    gptTerrainCtx->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, NULL);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptTerrainCtx->tStagingBuffer);
-
-    // allocate memory for the vertex buffer
-    const plDeviceMemoryAllocation tStagingBufferAllocation = gptGfx->allocate_memory(ptDevice,
-        ptStagingBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
-        ptStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "staging buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, gptTerrainCtx->tStagingBuffer, &tStagingBufferAllocation);
-}
-
-void
-pl_terrain_cleanup(void)
-{
-    plDevice* ptDevice = gptTerrainCtx->ptDevice;
-    gptGfx->destroy_buffer(ptDevice, gptTerrainCtx->tStagingBuffer);
-    pl_hm_free(&gptTerrainCtx->tTextureIndexHashmap);
-    pl_temp_allocator_free(&gptTerrainCtx->tTempAllocator);
-    gptGfx->cleanup_bind_group_pool(gptTerrainCtx->ptBindGroupPool);
-    gptGpuAllocators->cleanup(gptTerrainCtx->ptDevice);
-}
-
-plTerrain*
-pl_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainInit tInit, plTerrainProcessInfo* ptInfo)
-{
-    plTerrain* ptTerrain = PL_ALLOC(sizeof(plTerrain));
-    memset(ptTerrain, 0, sizeof(plTerrain));
-
-
-    ptTerrain->tRenderPassLayoutHandle = *tInit.ptRenderPassLayoutHandle;
-    ptTerrain->tInfo = *ptInfo;
-    ptTerrain->tRuntimeOptions.fTau = 1.0f;
-    ptTerrain->tRuntimeOptions.tLightDirection = (plVec3){-1.0f, -1.0f, -1.0f};
-
-    if(tInit.pcVertexShader == NULL) tInit.pcVertexShader = "pl_terrain.vert";
-    if(tInit.pcFragmentShader == NULL) tInit.pcFragmentShader = "pl_terrain.frag";
-
-    ptTerrain->pcVertexShader = tInit.pcVertexShader;
-    ptTerrain->pcFragmentShader = tInit.pcFragmentShader;
-    pl_terrain_load_shaders(ptTerrain);
-    
-    pl_sb_resize(ptTerrain->sbuFreeRequests, PL_REQUEST_QUEUE_SIZE);
-
-    for(uint32_t i = 0; i < PL_REQUEST_QUEUE_SIZE; i++) 
-    {
-        ptTerrain->sbuFreeRequests[i] = i;
-    }
-
-    if(tInit.uIndexBufferSize == 0)  tInit.uIndexBufferSize = 268435456;
-    if(tInit.uVertexBufferSize == 0) tInit.uVertexBufferSize = 268435456;
-    
-    gptFreeList->create(tInit.uVertexBufferSize, 256, &ptTerrain->tVertexBufferManager);
-    gptFreeList->create(tInit.uIndexBufferSize, 256, &ptTerrain->tIndexBufferManager);
-
-    plDevice* ptDevice = gptTerrainCtx->ptDevice;
-
-    const plBufferDesc tVertexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
-        .szByteSize  = ptTerrain->tVertexBufferManager.uSize,
-        .pcDebugName = "vertex buffer"
-    };
-    ptTerrain->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptTerrain->tVertexBuffer);
-
-    // allocate memory for the vertex buffer
-    const plDeviceMemoryAllocation tVertexBufferAllocation = gptGfx->allocate_memory(ptDevice,
-        ptVertexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "vertex buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tVertexBuffer, &tVertexBufferAllocation);
-
-    // create index buffer
-    const plBufferDesc tIndexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
-        .szByteSize  = ptTerrain->tIndexBufferManager.uSize,
-        .pcDebugName = "index buffer"
-    };
-    ptTerrain->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, NULL);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, ptTerrain->tIndexBuffer);
-
-    // allocate memory for the index buffer
-    const plDeviceMemoryAllocation tIndexBufferAllocation = gptGfx->allocate_memory(ptDevice,
-        ptIndexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptIndexBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "index buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tIndexBuffer, &tIndexBufferAllocation);
-
-    pl__terrain_load(ptTerrain, ptInfo);
-    ptTerrain->atTiles = PL_ALLOC(sizeof(plTerrainProcessTileInfo) * ptInfo->uTileCount);
-    memset(ptTerrain->atTiles, 0, sizeof(plTerrainProcessTileInfo) * ptInfo->uTileCount);
-    memcpy(ptTerrain->atTiles, ptInfo->atTiles, sizeof(plTerrainProcessTileInfo) * ptInfo->uTileCount);
-    ptTerrain->uTileCount = ptInfo->uTileCount;
-
-    for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
-        pl__request_residency(ptTerrain, &ptTerrain->sbtChunkFiles[i].tFile.atChunks[0]);
-    return ptTerrain;
-}
-
-void
-pl_cleanup_terrain(plTerrain* ptTerrain)
-{
-    plDevice* ptDevice = gptTerrainCtx->ptDevice;
-
-    for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
-    {
-        PL_FREE(ptTerrain->sbtChunkFiles[i].tFile.atChunks);
-        ptTerrain->sbtChunkFiles[i].tFile.atChunks = NULL;
-        ptTerrain->sbtChunkFiles[i].tFile.uChunkCount = 0;
-        ptTerrain->sbtChunkFiles[i].tFile.fMaxBaseError = 0.0f;
-        ptTerrain->sbtChunkFiles[i].tFile.iTreeDepth = 0;
-    }
-
-    PL_FREE(ptTerrain->atTiles);
-    ptTerrain->atTiles = NULL;
-
-    // cleanup our resources
-    gptGfx->destroy_buffer(ptDevice, ptTerrain->tVertexBuffer);
-    gptGfx->destroy_buffer(ptDevice, ptTerrain->tIndexBuffer);
-    gptFreeList->cleanup(&ptTerrain->tVertexBufferManager);
-    gptFreeList->cleanup(&ptTerrain->tIndexBufferManager);
-
-
-
-    pl_sb_free(ptTerrain->sbuFreeRequests);
-    pl_sb_free(ptTerrain->sbtChunkFiles);
-    PL_FREE(ptTerrain);
-}
-
-
-//-----------------------------------------------------------------------------
-// [SECTION] terrain view api
-//-----------------------------------------------------------------------------
-
-void
-pl_render_terrain(plRenderEncoder* ptEncoder, plTerrain* ptTerrain, plCamera* ptCamera, plDynamicDataBlock* ptCurrentDynamicBufferBlock)
-{
-    ptTerrain->ptCurrentDynamicBufferBlock = ptCurrentDynamicBufferBlock;
-    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-    plDevice* ptDevice = gptTerrainCtx->ptDevice;
-    gptGfx->set_depth_bias(ptEncoder, 0.0f, 0.0f, 0.0f);
-
-    plShaderHandle tShader =
-        (ptTerrain->tRuntimeOptions.tFlags & PL_TERRAIN_FLAGS_WIREFRAME)
-        ? ptTerrain->tWireframeShader : ptTerrain->tShader;
-
-    gptGfx->bind_shader(ptEncoder, tShader);
-    gptGfx->bind_vertex_buffer(ptEncoder, ptTerrain->tVertexBuffer);
-    gptGfx->bind_graphics_bind_groups(
-        ptEncoder,
-        tShader,
-        0, 1,
-        &gptTerrainCtx->atBindGroups[gptGfx->get_current_frame_index()],
-        0, NULL
-    );
-
-    for(uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
-        pl__render_chunk(ptTerrain, ptCamera, ptEncoder, &ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptTerrain->sbtChunkFiles[i].tFile, &tMVP);
-}
-
-// Helper: clamp integer to a range
-static inline int clampi(int v, int lo, int hi)
-{
-    return v < lo ? lo : (v > hi ? hi : v);
-}
-
-void
-pl_terrain_set_texture(plTerrain* ptTerrain, plTerrainTexture* ptTexture)
-{
-    // ---------------------------------------------------------------------
-    // 1) Evict/unbind previous textures for all chunk files
-    // ---------------------------------------------------------------------
-    for (uint32_t i = 0; i < pl_sb_size(ptTerrain->sbtChunkFiles); i++)
-    {
-        if (ptTerrain->sbtChunkFiles[i].uTextureIndex != 0)
-        {
-            plResourceHandle tTextureResource = gptResource->load_ex(
-                ptTerrain->sbtChunkFiles[i].acPakFileName,
-                PL_RESOURCE_LOAD_FLAG_NO_CACHING, NULL, 0,
-                ptTerrain->sbtChunkFiles[i].acPakFileName, 0);
-
-            plTextureHandle tTexture = gptResource->get_texture(tTextureResource);
-            pl__terrain_return_bindless_texture_index(tTexture);
-            ptTerrain->sbtChunkFiles[i].uTextureIndex = 0;
-            gptResource->evict(tTextureResource);
-            gptResource->unload(tTextureResource);
-        }
-    }
-
-    // ---------------------------------------------------------------------
-    // 2) Active tile mask (use tInfo counts consistently)
-    // ---------------------------------------------------------------------
-    const uint32_t uH          = ptTerrain->tInfo.uHorizontalTiles;
-    const uint32_t uV          = ptTerrain->tInfo.uVerticalTiles;
-    const uint32_t uTileCount  = ptTerrain->tInfo.uTileCount;
-
-    bool* abActiveTextureTiles = PL_ALLOC(sizeof(bool) * uTileCount);
-    memset(abActiveTextureTiles, 0, sizeof(bool) * uTileCount);
-
-    if (ptTexture)
-    {
-        float fX = ptTexture->tCenter.x;
-        float fY = ptTexture->tCenter.y;
-
-        // -----------------------------------------------------------------
-        // 4) Compute world-space bounds of the incoming image in meters
-        // -----------------------------------------------------------------
-        plImageInfo tImageInfo = (plImageInfo){0};
-        gptImage->get_info_from_file(ptTexture->pcPath, &tImageInfo);
-
-        const float imgWm = (float)tImageInfo.iWidth  * ptTexture->fMetersPerPixel;
-        const float imgHm = (float)tImageInfo.iHeight * ptTexture->fMetersPerPixel;
-
-        const plVec2 tTopLeft = {
-            .x = fX - 0.5f * imgWm,
-            .y = fY - 0.5f * imgHm,
-        };
-        const plVec2 tBottomRight = {
-            .x = fX + 0.5f * imgWm,
-            .y = fY + 0.5f * imgHm,
+        plTerrainHeightMap tHeightMap = {
+            .fSampleSpacing  = 1.0f,
+            .fMaxBaseError   = ptInfo->atTiles[i].fMaxBaseError,
+            .fMetersPerPixel = ptInfo->fMetersPerPixel,
+            .fMaxHeight      = ptInfo->atTiles[i].fMaxHeight,
+            .fMinHeight      = ptInfo->atTiles[i].fMinHeight,
+            .tCenter         = {
+                .x = ptInfo->atTiles[i].tCenter.x,
+                .y = ptInfo->atTiles[i].tCenter.y,
+                .z = ptInfo->atTiles[i].tCenter.z,
+            },
+            .uRequestedSize  = ptInfo->uSize,
+            .pcOutputFile    = ptInfo->atTiles[i].acOutputFile
         };
 
-        // -----------------------------------------------------------------
-        // 5) Compute signed tile index range (BR index inclusive)
-        // -----------------------------------------------------------------
-        const float tileSizeM = (float)ptTerrain->tInfo.uSize * ptTerrain->tInfo.fMetersPerPixel;
+        pl__initialize_cdlod_heightmap(&tHeightMap, ptInfo, i);
 
-        int tlx = (int)floorf((tTopLeft.x     - ptTerrain->tTopLeftGlobal.x) / tileSizeM);
-        int tly = (int)floorf((tTopLeft.y     - ptTerrain->tTopLeftGlobal.y) / tileSizeM);
-        int brx = (int)floorf ((tBottomRight.x - ptTerrain->tTopLeftGlobal.x) / tileSizeM);
-        int bry = (int)floorf ((tBottomRight.y - ptTerrain->tTopLeftGlobal.y) / tileSizeM);
+        // update step
 
-        // No overlap with tile grid? Early out
-        if (!(tlx > (int)uH - 1 || tly > (int)uV - 1 || brx < 0 || bry < 0))
+        // Run a view-independent L-K style BTT update on the heightfield, to generate
+        // error and activation_level values for each element.
+
+        printf("updating 1\n");
+        pl__update(&tHeightMap, tHeightMap.fMaxBaseError, 0, tHeightMap.iSize-1, tHeightMap.iSize-1, tHeightMap.iSize-1, 0, 0);	// sw half of the square
+
+        printf("updating 2\n");
+        pl__update(&tHeightMap, tHeightMap.fMaxBaseError, tHeightMap.iSize-1, 0, 0, 0, tHeightMap.iSize-1, tHeightMap.iSize-1);	// ne half of the square
+
+        // propogate step
+
+        // Propagate the activation_level values of verts to their
+        // uParent verts, quadtree LOD style.  Gives same result as L-K.
+        printf("propogating\n");
+        for(int j = 0; j < tHeightMap.iLogSize; j++)
         {
-
-            // Clamp to grid
-            tlx = clampi(tlx, 0, (int)uH - 1);
-            tly = clampi(tly, 0, (int)uV - 1);
-            brx = clampi(brx, 0, (int)uH - 1);
-            bry = clampi(bry, 0, (int)uV - 1);
-
-            // Normalize order (defensive if rounding flipped them)
-            if (brx < tlx) { int t = brx; brx = tlx; tlx = t; }
-            if (bry < tly) { int t = bry; bry = tly; tly = t; }
-
-            const uint32_t tlIndex = (uint32_t)(tlx + tly * (int)uH);
-            const uint32_t brIndex = (uint32_t)(brx + bry * (int)uH);
-
-            if (tlIndex < uTileCount && brIndex < uTileCount)
-            {
-
-                // -----------------------------------------------------------------
-                // 6) Get local world coords of the clamped tile rectangle
-                //     (Use tile centers +/− half a tile to form inclusive bounds)
-                // -----------------------------------------------------------------
-                plVec2 tTopLeftLocal     = {0};
-                plVec2 tBottomRightLocal = {0};
-
-                // --- Top-left tile local origin ---
-                {
-                    tTopLeftLocal.x = ptTerrain->atTiles[tlIndex].tCenter.x - 0.5f * tileSizeM;
-                    tTopLeftLocal.y = ptTerrain->atTiles[tlIndex].tCenter.z - 0.5f * tileSizeM;
-                }
-
-                // --- Bottom-right tile local corner ---
-                {
-                    tBottomRightLocal.x = ptTerrain->atTiles[brIndex].tCenter.x + 0.5f * tileSizeM;
-                    tBottomRightLocal.y = ptTerrain->atTiles[brIndex].tCenter.z + 0.5f * tileSizeM;
-                }
-
-                // -----------------------------------------------------------------
-                // 7) Build a full canvas covering [tl..br] tiles, and place image
-                // -----------------------------------------------------------------
-                int iImageWidth  = 0;
-                int iImageHeight = 0;
-                int _unused      = 0;
-                unsigned char* pucImageData = gptImage->load_from_file(
-                    ptTexture->pcPath, &iImageWidth, &iImageHeight, &_unused, 4);
-
-                plImageOpInit tFullInfo = {
-                    .uVirtualWidth    = (uint32_t)fmaxf(1.0f, (tBottomRightLocal.x - tTopLeftLocal.x) / ptTexture->fMetersPerPixel),
-                    .uVirtualHeight   = (uint32_t)fmaxf(1.0f, (tBottomRightLocal.y - tTopLeftLocal.y) / ptTexture->fMetersPerPixel),
-                    .uChannels = 4,
-                    .uStride   = 4
-                };
-
-                plImageOpData tFullData = (plImageOpData){0};
-                gptImageOps->initialize(&tFullInfo, &tFullData);
-                // gptImageOps->add_region(&tFullData, 0, 0, tFullInfo.uVirtualWidth, tFullInfo.uVirtualHeight, PL_IMAGE_OP_COLOR_WHITE);
-
-                // If square() changes dims, we must use tFullData.uWidth/Height afterward
-                gptImageOps->square(&tFullData);
-
-                // Pixel offsets for where the image should land on the full canvas
-                const float fDistanceX = tTopLeft.x - tTopLeftLocal.x;
-                const float fDistanceY = tTopLeft.y - tTopLeftLocal.y;
-
-                const uint32_t fullW = tFullData.uVirtualWidth;
-                const uint32_t fullH = tFullData.uVirtualHeight;
-
-                const float fEffectiveMetersPerPixelX =
-                    (tBottomRightLocal.x - tTopLeftLocal.x) / (float)fullW;
-                const float fEffectiveMetersPerPixelY =
-                    (tBottomRightLocal.y - tTopLeftLocal.y) / (float)fullH;
-
-                const float fEffectiveMetersPerPixel = pl_max(fEffectiveMetersPerPixelX, fEffectiveMetersPerPixelY);
-
-                const uint32_t uXOffsetIndex =
-                    (uint32_t)fmaxf(0.0f, floorf(fDistanceX / fEffectiveMetersPerPixel));
-                const uint32_t uYOffsetIndex =
-                    (uint32_t)fmaxf(0.0f, floorf(fDistanceY / fEffectiveMetersPerPixel));
-
-                gptImageOps->add(&tFullData, uXOffsetIndex, uYOffsetIndex, (uint32_t)iImageWidth, (uint32_t)iImageHeight, pucImageData);
-                gptImageOps->square(&tFullData);
-                gptImage->free(pucImageData);
-
-                // -----------------------------------------------------------------
-                // 8) Slice canvas into per-tile images
-                // -----------------------------------------------------------------
-                const uint32_t uHorizontalExtent = (uint32_t)(brx - tlx + 1);
-                const uint32_t uVerticalExtent   = (uint32_t)(bry - tly + 1);
-
-                // Avoid zero increments if canvas is very small
-                uint32_t uXInc = (uHorizontalExtent > 0) ? (fullW / uHorizontalExtent) : 0;
-                uint32_t uYInc = (uVerticalExtent   > 0) ? (fullH / uVerticalExtent)   : 0;
-                if (uXInc == 0) uXInc = 1;
-                if (uYInc == 0) uYInc = 1;
-
-                uint32_t uInc = pl_min(uXInc, uYInc);
-
-                for (uint32_t ix = 0; ix < uHorizontalExtent; ix++)
-                {
-                    if(ix * uInc > tFullData.uActiveWidth)
-                        break;
-
-                    if(ix * uInc + uInc < tFullData.uActiveXOffset)
-                        continue;
-
-                    for (uint32_t iy = 0; iy < uVerticalExtent; iy++)
-                    {
-
-                        if(iy * uInc > tFullData.uActiveHeight)
-                            break;
-
-                        if(iy * uInc + uInc < tFullData.uActiveYOffset)
-                            continue;
-
-
-                        const uint32_t tileX = (uint32_t)(tlx + (int)ix);
-                        const uint32_t tileY = (uint32_t)(tly + (int)iy);
-
-                        char acNameBuffer[128] = {0};
-                        sprintf(acNameBuffer, "hazard_prep_%u_%u.png", tileX, tileY);
-
-                        // Mark tile active, with bounds check (defensive)
-                        const size_t flat = (size_t)tileX + (size_t)tileY * (size_t)uH;
-                        if (flat < (size_t)uTileCount)
-                            abActiveTextureTiles[flat] = true;
-
-
-
-                        int iSubXOffset = pl_max(ix * uInc, tFullData.uActiveXOffset);
-                        int iSubXEnd = pl_min(ix * uInc + uInc, tFullData.uActiveXOffset + tFullData.uActiveWidth);
-                        int iSubYOffset = pl_max(iy * uInc, tFullData.uActiveYOffset);
-                        int iSubYEnd = pl_min(iy * uInc + uInc, tFullData.uActiveYOffset + tFullData.uActiveHeight);
-                        int iFinalWidth = iSubXEnd - iSubXOffset;
-                        int iFinalHeight= iSubYEnd - iSubYOffset;
-
-                        uint8_t* puImageData = gptImageOps->extract(&tFullData, iSubXOffset, iSubYOffset, iFinalWidth, iFinalHeight, NULL);
-
-                        plImageWriteInfo tWriteInfo = {
-                            .iWidth       = (int)iFinalWidth,
-                            .iHeight      = (int)iFinalHeight,
-                            .iComponents  = 4,
-                            .iByteStride  = (int)(iFinalWidth * 4)
-                        };
-                        gptImage->write(acNameBuffer, puImageData, &tWriteInfo);
-                        gptImageOps->cleanup_extract(puImageData);
-
-                        sprintf(ptTerrain->sbtChunkFiles[flat].acPakFileName, "%s", acNameBuffer);
-
-                        plResourceHandle tTextureResource = gptResource->load_ex(
-                            ptTerrain->sbtChunkFiles[flat].acPakFileName,
-                            PL_RESOURCE_LOAD_FLAG_NO_CACHING, NULL, 0,
-                            NULL, 0); 
-                        gptResource->make_resident(tTextureResource);
-                        plTextureHandle tTexture = gptResource->get_texture(tTextureResource);
-                        ptTerrain->sbtChunkFiles[flat].uTextureIndex = pl__terrain_get_bindless_texture_index(tTexture);
-                        // plTexture* ptTexture = gptGfx->get_texture(gptTerrainCtx->ptDevice, tTexture);
-
-                        float fUStart = (float)iSubXOffset / (float)tFullData.uVirtualWidth;
-                        float fUEnd = (float)iSubXEnd / (float)tFullData.uVirtualWidth;
-
-                        float fVStart = (float)iSubYOffset / (float)tFullData.uVirtualHeight;
-                        float fVEnd = (float)iSubYEnd / (float)tFullData.uVirtualHeight;
-
-                        if(ix == 1 && iy == 1)
-                        {
-                            int a = 5;
-                        }
-
-                        // float fXAdditionalOffset = (float)(iSubXOffset - ix * uInc) / (float)iFinalWidth;
-                        // float fYAdditionalOffset = (float)(iSubYOffset - iy * uInc) / (float)iFinalHeight;
-
-                        for(uint32_t i = 0; i < ptTerrain->sbtChunkFiles[flat].tFile.uChunkCount; i++)
-                        {
-                            uint32_t uTopDownLevel = ptTerrain->sbtChunkFiles[flat].tFile.iTreeDepth - ptTerrain->sbtChunkFiles[flat].tFile.atChunks[i].uLevel - 1;
-
-                            // chunk width
-                            uint32_t uWidth = (uint32_t)((float)uInc / powf(2.0f, (float)uTopDownLevel));
-                            uint32_t uHeight = (uint32_t)((float)uInc / powf(2.0f, (float)uTopDownLevel));
-
-                            // final scaling factor
-                            float fXScale = (float)uWidth / (float)iFinalWidth;
-                            float fYScale = (float)uHeight / (float)iFinalHeight;
-
-                            ptTerrain->sbtChunkFiles[flat].tFile.atChunks[i].tUVScale.x = fXScale;
-                            ptTerrain->sbtChunkFiles[flat].tFile.atChunks[i].tUVScale.y = fYScale;
-
-                            // UV on parent chunk
-                            float fU = (float)ptTerrain->sbtChunkFiles[flat].tFile.atChunks[i].fX; // UV on original heightmap
-                            float fV = (float)ptTerrain->sbtChunkFiles[flat].tFile.atChunks[i].fY; // UV on original heightmap
-
-                            // convert to UV in final texture space
-                            fU = fU * (float)uInc / (float)iFinalWidth;
-                            fU = fU - (float)(iSubXOffset - ix * uInc) / (float)iFinalWidth;
-
-                            fV = fV * (float)uInc / (float)iFinalHeight;
-                            fV = fV - (float)(iSubYOffset - iy * uInc) / (float)iFinalHeight;
-
-                            // works for root level but does too much at child levels
-                            ptTerrain->sbtChunkFiles[flat].tFile.atChunks[i].tUVOffset.x = fU;
-                            ptTerrain->sbtChunkFiles[flat].tFile.atChunks[i].tUVOffset.y = fV;
-                        }
-                    }
-                }
-                gptImageOps->cleanup(&tFullData);
-            }
+            pl__propagate_activation_level(&tHeightMap, tHeightMap.iSize >> 1, tHeightMap.iSize >> 1, tHeightMap.iLogSize - 1, j);
+            pl__propagate_activation_level(&tHeightMap, tHeightMap.iSize >> 1, tHeightMap.iSize >> 1, tHeightMap.iLogSize - 1, j);
         }
-    }
 
-    // ---------------------------------------------------------------------
-    // 9) Update chunk files with generated hazard textures
-    // ---------------------------------------------------------------------
-    for (uint32_t k = 0; k < uTileCount; k++)
-    {
-        if(!abActiveTextureTiles[k])
-        {
-            for(uint32_t i = 0; i < ptTerrain->sbtChunkFiles[k].tFile.uChunkCount; i++)
-            {
-                ptTerrain->sbtChunkFiles[k].tFile.atChunks[i].tUVScale.x = 1.0f;
-                ptTerrain->sbtChunkFiles[k].tFile.atChunks[i].tUVScale.y = 1.0f;
-            }
-        }
-    }
+        // meshing step
 
-    PL_FREE(abActiveTextureTiles);
+        int iRootLevel = ptInfo->atTiles[i].iTreeDepth - 1;
+
+        plVfsFileHandle tFileHandle = gptVfs->register_file(ptInfo->atTiles[i].acOutputFile, false);
+        const char* pcPath = gptVfs->get_real_path(tFileHandle);
+
+        FILE* ptDataFile = fopen(pcPath, "wb");
+
+        plVersion tExtensionVersion = plTerrainI_version;
+        fwrite(&tExtensionVersion.uMajor, 1, sizeof(int), ptDataFile);
+        fwrite(&tExtensionVersion.uMinor, 1, sizeof(int), ptDataFile);
+        fwrite(&tExtensionVersion.uPatch, 1, sizeof(int), ptDataFile);
+
+        fwrite(&ptInfo->atTiles[i].iTreeDepth, 1, sizeof(int), ptDataFile);
+        fwrite(&tHeightMap.fMaxBaseError, 1, sizeof(float), ptDataFile);
+
+        tHeightMap.uChunkCount = 0x55555555 & ((1 << (ptInfo->atTiles[i].iTreeDepth*2)) - 1);
+        fwrite(&tHeightMap.uChunkCount, 1, sizeof(uint32_t), ptDataFile);
+
+        printf("meshing\n");
+        tHeightMap.uCurrentHeightmap = i;
+        tHeightMap.uHeightmapCount = ptInfo->uTileCount;
+        pl__terrain_mesh(ptDataFile, &tHeightMap, 0, 0, tHeightMap.iLogSize, iRootLevel);
+
+        PL_FREE(tHeightMap.atElements);
+        PL_FREE(tHeightMap.atHaloElements);
+
+        fclose(ptDataFile);
+    }
 }
+
+static void pl__chlod_read_chunk(plTerrainChunkFile* ptFileOut, int iRecurseCount, FILE* ptDataFile, uint32_t* puCurrentChunk);
 
 bool
-pl_chlod_load_chunk_file(plTerrain* ptTerrain, const char* pcPath)
+pl_terrain_load_chunk_file(const char* pcPath, plTerrainChunkFile* ptFile, uint32_t uFileID)
 {
-    plChunkFileData tChunkFileData = {0};
-    uint32_t uChunkFileID = pl_sb_size(ptTerrain->sbtChunkFiles);
-    gptTerrainProcessor->load_chunk_file(pcPath, &tChunkFileData.tFile, uChunkFileID);
 
-    for(uint32_t i = 0; i < tChunkFileData.tFile.uChunkCount; i++)
+    plVfsFileHandle tFileHandle = gptVfs->register_file(pcPath, true);
+    pcPath = gptVfs->get_real_path(tFileHandle);
+    
+    FILE* ptDataFile = fopen(pcPath, "rb");
+    strncpy(ptFile->acFile, pcPath, 128);
+    
+    if(ptDataFile == NULL)
     {
-
-        tChunkFileData.tFile.atChunks[i].uIndex = i;
-
-        tChunkFileData.tFile.atChunks[i].tUVScale.x = 1.0f;
-        tChunkFileData.tFile.atChunks[i].tUVScale.y = 1.0f;
+        return false;
     }
-    pl_sb_push(ptTerrain->sbtChunkFiles, tChunkFileData);
+
+    plVersion tFileVersion = {0};
+    fread(&tFileVersion.uMajor, 1, sizeof(int), ptDataFile);
+    fread(&tFileVersion.uMinor, 1, sizeof(int), ptDataFile);
+    fread(&tFileVersion.uPatch, 1, sizeof(int), ptDataFile);
+
+    plVersion tExtensionVersion = plTerrainI_version;
+    if(tFileVersion.uMajor > tExtensionVersion.uMajor)
+    {
+        printf("Chunk major version not supported");
+        fclose(ptDataFile);
+        return false;
+    }
+
+    if(tFileVersion.uMinor > tExtensionVersion.uMinor)
+    {
+        printf("Chunk minor version not supported");
+        fclose(ptDataFile);
+        return false;
+    }
+    
+    fread(&ptFile->iTreeDepth, 1, sizeof(int), ptDataFile);
+    fread(&ptFile->fMaxBaseError, 1, sizeof(float), ptDataFile);
+    fread(&ptFile->uChunkCount, 1, sizeof(uint32_t), ptDataFile);
+
+    ptFile->atChunks = PL_ALLOC(ptFile->uChunkCount * sizeof(plTerrainChunk));
+    memset(ptFile->atChunks, 0, ptFile->uChunkCount * sizeof(plTerrainChunk));
+
+    uint32_t uCurrentChunk = 0;
+    ptFile->atChunks[0].uFileID = uFileID;
+    pl__chlod_read_chunk(ptFile, ptFile->iTreeDepth - 1, ptDataFile, &uCurrentChunk);
+
+    fclose(ptDataFile);
     return true;
 }
 
-void
-pl_terrain_load_shaders(plTerrain* ptTerrain)
+static void
+pl__chlod_read_chunk(plTerrainChunkFile* ptFileOut, int iRecurseCount, FILE* ptDataFile, uint32_t* puCurrentChunk)
 {
-    if(gptGfx->is_shader_valid(gptTerrainCtx->ptDevice, ptTerrain->tShader))
+    plTerrainChunk* ptChunk = &ptFileOut->atChunks[*puCurrentChunk];
+    ptChunk->szFileLocation = (size_t)ftell(ptDataFile);
+
+    int iChunkLabel = 0;
+    fread(&iChunkLabel, 1, sizeof(int), ptDataFile);
+
+    int iLevel = 0;
+    fread(&iLevel, 1, sizeof(int), ptDataFile);
+    fread(&ptChunk->fX, 1, sizeof(float), ptDataFile);
+    fread(&ptChunk->fY, 1, sizeof(float), ptDataFile);
+    ptChunk->uLevel = (uint8_t)iLevel;
+
+    fread(&ptChunk->tMinBound, 1, sizeof(plVec3), ptDataFile);
+    fread(&ptChunk->tMaxBound, 1, sizeof(plVec3), ptDataFile);
+
+    uint32_t uVertexCount = 0;
+    fread(&uVertexCount, 1, sizeof(uint32_t), ptDataFile);
+    fseek(ptDataFile, sizeof(plTerrainVertex) * uVertexCount, SEEK_CUR);
+
+    uint32_t uIndexCount = 0;
+    fread(&uIndexCount, 1, sizeof(uint32_t), ptDataFile);
+    fseek(ptDataFile, sizeof(uint32_t) * uIndexCount, SEEK_CUR);
+
+    if(iRecurseCount > 0)
     {
-        gptGfx->queue_shader_for_deletion(gptTerrainCtx->ptDevice, ptTerrain->tShader);
-        gptGfx->queue_shader_for_deletion(gptTerrainCtx->ptDevice, ptTerrain->tWireframeShader);
-    }
-
-    plShaderDesc tShaderDesc = {
-        .tVertexShader    = gptShader->load_glsl(ptTerrain->pcVertexShader, "main", NULL, NULL),
-        .tFragmentShader  = gptShader->load_glsl(ptTerrain->pcFragmentShader, "main", NULL, NULL),
-        .tGraphicsState = {
-            .ulDepthWriteEnabled  = 1,
-            .ulDepthMode          = PL_COMPARE_MODE_GREATER_OR_EQUAL,
-            .ulCullMode           = PL_CULL_MODE_CULL_BACK,
-            .ulWireframe          = 0,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
-        },
-        .atVertexBufferLayouts = {
-            {
-                .atAttributes = {
-                    {.tFormat = PL_VERTEX_FORMAT_FLOAT3},
-                    {.tFormat = PL_VERTEX_FORMAT_FLOAT2},
-                    {.tFormat = PL_VERTEX_FORMAT_FLOAT2}
-                }
-            }
-        },
-        .atBlendStates = {
-            {
-                .bBlendEnabled   = false,
-                .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
-                .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tColorOp        = PL_BLEND_OP_ADD,
-                .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tAlphaOp        = PL_BLEND_OP_ADD
-            }
-        },
-        .atBindGroupLayouts = {
-            {
-                .atSamplerBindings = {
-                    { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT}
-                },
-                .atTextureBindings = {
-                    {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED, .bNonUniformIndexing = true, .uDescriptorCount = PL_TERRAIN_MAX_BINDLESS_TEXTURES}
-                }
-            }
-        },
-        .tRenderPassLayout = ptTerrain->tRenderPassLayoutHandle,
-        .pcDebugName = "terrain shader"
-    };
-    plDevice* ptDevice = gptTerrainCtx->ptDevice;
-    ptTerrain->tShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
-
-    tShaderDesc.tGraphicsState.ulWireframe = 1;
-    tShaderDesc.tGraphicsState.ulDepthWriteEnabled = 0;
-    tShaderDesc.tGraphicsState.ulDepthMode = PL_COMPARE_MODE_ALWAYS;
-    ptTerrain->tWireframeShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
-}
-
-void
-pl_terrain_set_shaders(plTerrain* ptTerrain, const char* pcVertexShader, const char* pcFragmentShader)
-{
-    ptTerrain->pcVertexShader   = pcVertexShader   ? pcVertexShader   : "terrain.vert";
-    ptTerrain->pcFragmentShader = pcFragmentShader ? pcFragmentShader : "terrain.frag";
-    pl_terrain_load_shaders(ptTerrain);
-}
-
-void
-pl_prepare_terrain(plTerrain* ptTerrain, plCommandBuffer* ptCmdBuffer)
-{
-    if(ptTerrain->tRequestQueue.ptNext)
-    {
-        gptScreenLog->add_message_ex(294, 10.0, PL_COLOR_32_YELLOW, 1.0f, "Stream Active");
-        pl__handle_residency(ptTerrain, ptCmdBuffer);
+        for(uint32_t i = 0; i < 4; i++)
+        {
+            ptChunk->aptChildren[i] = &ptFileOut->atChunks[++(*puCurrentChunk)];
+            ptChunk->aptChildren[i]->ptParent = ptChunk;
+            ptChunk->aptChildren[i]->uFileID = ptChunk->uFileID;
+            pl__chlod_read_chunk(ptFileOut, iRecurseCount - 1, ptDataFile, puCurrentChunk);
+        }
     }
     else
     {
-        gptScreenLog->add_message_ex(294, 10.0, PL_COLOR_32_RED, 1.0f, "Stream Inactive");
+        for(uint32_t i = 0; i < 4; i++)
+        {
+            ptChunk->aptChildren[i] = NULL;
+        }
     }
 }
 
-void
-pl_terrain_set_runtime_options(plTerrain* ptTerrain, plTerrainRuntimeOptions tOptions)
-{
-    ptTerrain->tRuntimeOptions = tOptions;
-}
-
-plTerrainRuntimeOptions
-pl_terrain_get_runtime_options(plTerrain* ptTerrain)
-{
-    return ptTerrain->tRuntimeOptions;
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
 static void
-pl__unload_children(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
-{
-    if(ptChunk->aptChildren[0] == NULL)
-        return;
-    if(ptChunk->aptChildren[0]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[0]);
-    if(ptChunk->aptChildren[1]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[1]);
-    if(ptChunk->aptChildren[2]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[2]);
-    if(ptChunk->aptChildren[3]->ptIndexHole) pl__make_unresident(ptTerrain, ptChunk->aptChildren[3]);    
-}
-
-bool
-pl__all_children_resident(plTerrainChunk* ptChunk)
-{
-    if(ptChunk->aptChildren[0] == NULL)
-        return false;
-    if(ptChunk->aptChildren[0]->ptIndexHole == NULL) return false;
-    if(ptChunk->aptChildren[1]->ptIndexHole == NULL) return false;
-    if(ptChunk->aptChildren[2]->ptIndexHole == NULL) return false;
-    if(ptChunk->aptChildren[3]->ptIndexHole == NULL) return false;
-    return true;
-}
-
-static void
-pl__free_chunk(plTerrain* ptTerrain, uint64_t uIndexCount)
+pl__initialize_cdlod_heightmap(plTerrainHeightMap* ptHeightMap, plTerrainProcessInfo* ptInfo, uint32_t uCurrentTileIndex)
 {
 
-    const uint64_t uCurrentFrame = gptIOI->get_io()->ulFrameCount;
+    ptHeightMap->uFrameStamp = 0;
+    ptHeightMap->iSize = (int)ptHeightMap->uRequestedSize;
+    ptHeightMap->iLogSize = (int) (log2(ptHeightMap->iSize - 1) + 0.5f);
 
-    // find tail (least-recently used)
-    plTerrainChunk* tail = ptTerrain->tReplacementQueue.ptNext;
-    if (!tail) {
-        // nothing to evict -> dead end
-        printf("Couldn't free chunks (replacement list empty)\n");
-        return;
-    }
-    while (tail->ptNext) tail = tail->ptNext;
+    // expand the heightfield dimension to contain the bitmap.
+    while (((1 << ptHeightMap->iLogSize) + 1) < ptHeightMap->iSize)
+        ptHeightMap->iLogSize++;
+    ptHeightMap->iSize = (1 << ptHeightMap->iLogSize) + 1;
 
-    // Pass 1: try to evict a chunk that fully satisfies the need by size
+    size_t szHeightMapSize = ptHeightMap->iSize * ptHeightMap->iSize * sizeof(uint16_t);
 
-    uint64_t freed = 0;
-    // move to tail
-    plTerrainChunk* c = ptTerrain->tReplacementQueue.ptNext;
-    if (!c) return; 
-    while (c->ptNext) c = c->ptNext;
+    uint16_t* auHeightMapData = PL_ALLOC(szHeightMapSize);
+    memset(auHeightMapData, 0, szHeightMapSize);
 
-    while (c && freed < uIndexCount)
+    uint16_t* auHaloHeightMapData = PL_ALLOC((4 * (ptHeightMap->iSize - 1) + 2) * sizeof(uint16_t));
+    memset(auHaloHeightMapData, 0, (4 * (ptHeightMap->iSize - 1) + 2) * sizeof(uint16_t));
+
+    uint32_t uRow = (uint32_t)floorf((float)uCurrentTileIndex / (float)ptInfo->uHorizontalTiles);
+    uint32_t uCol = uCurrentTileIndex % ptInfo->uHorizontalTiles;
+
+    const char* atHaloTiles[7] = {0};
+
+    if(uRow > 0) // north
+        atHaloTiles[0] = ptInfo->atTiles[uCol + (uRow - 1) * ptInfo->uHorizontalTiles].acHeightMapFile;
+
+    if(uRow > 0 && uCol < ptInfo->uHorizontalTiles - 1) // northeast
+        atHaloTiles[1] = ptInfo->atTiles[uCol + 1 + (uRow - 1) * ptInfo->uHorizontalTiles].acHeightMapFile;
+
+    if(uCol < ptInfo->uHorizontalTiles - 1) // east
+        atHaloTiles[2] = ptInfo->atTiles[uCol + 1 + uRow  * ptInfo->uHorizontalTiles].acHeightMapFile;
+
+    if(uRow < ptInfo->uVerticalTiles - 1 && uCol < ptInfo->uHorizontalTiles - 1) // southeast
+        atHaloTiles[3] = ptInfo->atTiles[uCol + 1 + (uRow + 1) * ptInfo->uHorizontalTiles].acHeightMapFile;
+
+    if(uRow < ptInfo->uVerticalTiles - 1) // south
+        atHaloTiles[4] = ptInfo->atTiles[uCol + (uRow + 1) * ptInfo->uHorizontalTiles].acHeightMapFile;
+
+    if(uRow < ptInfo->uVerticalTiles - 1 && uCol > 0) // southwest
+        atHaloTiles[5] = ptInfo->atTiles[uCol - 1 + (uRow + 1) * ptInfo->uHorizontalTiles].acHeightMapFile;
+
+    if(uCol > 0) // west
+        atHaloTiles[6] = ptInfo->atTiles[uCol - 1 + uRow * ptInfo->uHorizontalTiles].acHeightMapFile;
+
+    for(uint32_t uTileIndex = 0; uTileIndex < 7; uTileIndex++)
     {
-        plTerrainChunk* prev = c->ptPrev;
-        freed += c->uIndexCount;
-        pl__make_unresident(ptTerrain, c);
-        c = prev;
-    }
-
-    if (freed >= uIndexCount)
-        return;
-
-
-    // Pass 2: age-based eviction
-    for (c = tail; c; c = c->ptPrev)
-    {
-        if (uCurrentFrame - c->uLastFrameUsed > 30)
-        {
-            pl__make_unresident(ptTerrain, c);
-            return;
-        }
-    }
-
-    // Pass 3 (fallback): evict strictly by LRU, even if it was recently used.
-    // This prevents deadlock when memory is insufficient to hold both parent and child.
-    pl__make_unresident(ptTerrain, tail);
-
-}
-
-// Free from LRU tail until we have at least the requested bytes for BOTH pools.
-// Never evict level 0, and never evict non-leaves (chunks with resident children).
-static void
-pl__free_chunk_until(plTerrain* P,
-                     uint64_t idx_bytes_needed,
-                     uint64_t vtx_bytes_needed)
-{
-    // Walk to tail (oldest / least-recently-used)
-    plTerrainChunk* tail = P->tReplacementQueue.ptNext;
-    if (!tail) {
-        printf("Couldn't free chunks (replacement list empty)\n");
-        return;
-    }
-    while (tail->ptNext) tail = tail->ptNext;
-
-    uint64_t freed_idx = 0;
-    uint64_t freed_vtx = 0;
-
-    // Pass 1: strictly leaf, non-root, LRU → MRU until enough bytes
-    for (plTerrainChunk* c = tail; c; c = c->ptPrev) {
-        if (!c->ptIndexHole) continue;            // not resident -> skip
-        if (c->uLevel == 0) continue;             // keep roots
-        if (!pl__is_leaf_resident(c)) continue;   // don't drop nodes with resident children
-
-        freed_idx += (uint64_t)c->uIndexCount * sizeof(uint32_t);
-        freed_vtx += (uint64_t)c->ptVertexHole->uSize; // size was requested to freelist; safe to use
-
-        pl__make_unresident(P, c);
-
-        if (freed_idx >= idx_bytes_needed && freed_vtx >= vtx_bytes_needed)
-            return; // sufficient
-    }
-
-    // Pass 2: allow evicting non-leaf (still avoid root). Prefer aged items.
-    const uint64_t now = gptIOI->get_io()->ulFrameCount;
-    for (plTerrainChunk* c = tail; c; c = c->ptPrev) {
-        if (!c->ptIndexHole) continue;
-        if (c->uLevel == 0) continue;
-        if (now - c->uLastFrameUsed <= 30) continue;
-
-        freed_idx += (uint64_t)c->uIndexCount * sizeof(uint32_t);
-        freed_vtx += (uint64_t)c->ptVertexHole->uSize;
-        pl__make_unresident(P, c);
-
-        if (freed_idx >= idx_bytes_needed && freed_vtx >= vtx_bytes_needed)
-            return; // ✅ sufficient
-    }
-
-    // Pass 3: final fallback — evict oldest non-root regardless of age/leaf.
-    for (plTerrainChunk* c = tail; c; c = c->ptPrev) {
-        if (!c->ptIndexHole) continue;
-        if (c->uLevel == 0) continue;
-
-        pl__make_unresident(P, c);
-        return; // free at least one to make progress
-    }
-
-    // If we reached here, nothing could be evicted (only root is resident)
-    printf("Eviction failed: only root or no resident chunks available\n");
-}
-
-
-void
-pl__remove_from_residency_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
-{
-    plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
-
-    plTerrainResidencyNode* ptExistingRequest = NULL;
-    plTerrainResidencyNode* ptLastRequest = NULL;
-
-    while(ptCurrentRequest)
-    {
-        if(ptCurrentRequest->ptChunk == ptChunk)
-        {
-            ptExistingRequest = ptCurrentRequest;
-            break;
-        }
-        ptCurrentRequest = ptCurrentRequest->ptNext;
-    }
-
-    if(ptExistingRequest)
-    {
-
-        // remove node
-        if(ptExistingRequest->ptPrev)
-            ptExistingRequest->ptPrev->ptNext = ptExistingRequest->ptNext;
-        else
-            ptTerrain->tRequestQueue.ptNext = ptExistingRequest->ptNext;
-
-        if(ptExistingRequest->ptNext)
-            ptExistingRequest->ptNext->ptPrev = ptExistingRequest->ptPrev;
-
-        uint32_t uIndex = (uint32_t)(ptExistingRequest - &ptTerrain->atRequests[0]);
-        pl_sb_push(ptTerrain->sbuFreeRequests, uIndex);
-    }
-}
-
-static void
-pl__make_unresident(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
-{
-    pl__remove_from_residency_queue(ptTerrain, ptChunk);
-    pl__remove_from_replacement_queue(ptTerrain, ptChunk);
-    if(ptChunk->ptIndexHole && ptChunk->uIndexCount > 0)
-    {
-        if(ptChunk->ptIndexHole)
-            gptFreeList->return_node(&ptTerrain->tIndexBufferManager, ptChunk->ptIndexHole);
-        if(ptChunk->ptVertexHole)
-            gptFreeList->return_node(&ptTerrain->tVertexBufferManager, ptChunk->ptVertexHole);
-        ptChunk->uIndexCount = 0;
-        ptChunk->uLastFrameUsed = 0;
-        ptChunk->ptIndexHole = NULL;
-        ptChunk->ptVertexHole = NULL;
-        ptChunk->ptVertexHole = NULL;
-        if(ptChunk->aptChildren[0] != NULL)
-        {
-            pl__make_unresident(ptTerrain, ptChunk->aptChildren[0]);
-            pl__make_unresident(ptTerrain, ptChunk->aptChildren[1]);
-            pl__make_unresident(ptTerrain, ptChunk->aptChildren[2]);
-            pl__make_unresident(ptTerrain, ptChunk->aptChildren[3]);
-        }
-    }
-}
-
-static void
-pl__handle_residency(plTerrain* ptTerrain, plCommandBuffer* ptCommandBuffer)
-{
-    const uint64_t uCurrentFrame = gptIOI->get_io()->ulFrameCount;
-
-    plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
-    // ptCurrentRequest->uFrameRequested
-
-    if(ptCurrentRequest)
-    {
-
-        plTerrainChunk* ptChunk = ptCurrentRequest->ptChunk;
-
-        FILE* ptDataFile = fopen(ptTerrain->sbtChunkFiles[ptChunk->uFileID].tFile.acFile, "rb");
-        fseek(ptDataFile, (long)ptChunk->szFileLocation, SEEK_SET);
-
-        fseek(ptDataFile, sizeof(plVec3) * 2 + sizeof(int) * 4, SEEK_CUR);
-
-        uint32_t uVertexCount = 0;
-        fread(&uVertexCount, 1, sizeof(uint32_t), ptDataFile);
-
-        plTerrainVertex* ptVertices = PL_ALLOC(uVertexCount * sizeof(plTerrainVertex));
-        fread(ptVertices, 1, sizeof(plTerrainVertex) * uVertexCount, ptDataFile);
-
-        uint32_t uIndexCount = 0;
-        fread(&uIndexCount, 1, sizeof(uint32_t), ptDataFile);
+        if(atHaloTiles[uTileIndex] == 0)
+            continue;
         
-        uint32_t* ptIndices = PL_ALLOC(uIndexCount * sizeof(uint32_t));
-        fread(ptIndices, 1, sizeof(uint32_t) * uIndexCount, ptDataFile);
+        size_t szFileSize = gptVfs->get_file_size_str(atHaloTiles[uTileIndex]);
+        plVfsFileHandle tHeightMap = gptVfs->open_file(atHaloTiles[uTileIndex], PL_VFS_FILE_MODE_READ);
+        gptVfs->read_file(tHeightMap, NULL, &szFileSize);
+        uint8_t* puFileData = PL_ALLOC(szFileSize + 1);
+        memset(puFileData, 0, szFileSize + 1);
+        gptVfs->read_file(tHeightMap, puFileData, &szFileSize);
+        gptVfs->close_file(tHeightMap);
 
-        
+        // load image info
+        plImageInfo tImageInfo = {0};
+        gptImage->get_info(puFileData, (int)szFileSize, &tImageInfo);
+        int iImageWidth = tImageInfo.iWidth;
+        int iImageHeight = tImageInfo.iHeight;
 
+        void*          pImageData     = NULL;
+        void*          pConvertedData = NULL; // if not loaded as 16 bit
+        unsigned char* pucImageData   = NULL; // could be converted or not (aliased)
 
-        // bytes needed for this chunk
-        const uint64_t idx_bytes = (uint64_t)uIndexCount * sizeof(uint32_t);
-        const uint64_t vtx_bytes = (uint64_t)uVertexCount * sizeof(plTerrainVertex);
-
-        const uint64_t uVertexStageOffset = idx_bytes;
-        const uint64_t uIndexStageOffset = 0;
-
-        // Try once
-        plFreeListNode* idx_hole = gptFreeList->get_node(&ptTerrain->tIndexBufferManager, idx_bytes);
-        plFreeListNode* vtx_hole = gptFreeList->get_node(&ptTerrain->tVertexBufferManager, vtx_bytes);
-
-        if (!idx_hole || !vtx_hole)
+        int _unused = 0;
+        if(tImageInfo.b16Bit)
         {
-            if (idx_hole) gptFreeList->return_node(&ptTerrain->tIndexBufferManager, idx_hole);
-            if (vtx_hole) gptFreeList->return_node(&ptTerrain->tVertexBufferManager, vtx_hole);
-
-            // Free enough for BOTH pools and try again
-            pl__free_chunk_until(ptTerrain, idx_bytes, vtx_bytes);
-
-            idx_hole = gptFreeList->get_node(&ptTerrain->tIndexBufferManager, idx_bytes);
-            vtx_hole = gptFreeList->get_node(&ptTerrain->tVertexBufferManager, vtx_bytes);
+            uint16_t* puImageData = gptImage->load_16bit(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+            pucImageData = (unsigned char*)puImageData;
+            pImageData = puImageData;
         }
-
-        if (!idx_hole || !vtx_hole)
+        else if(tImageInfo.bHDR)
         {
-            if (idx_hole) gptFreeList->return_node(&ptTerrain->tIndexBufferManager, idx_hole);
-            if (vtx_hole) gptFreeList->return_node(&ptTerrain->tVertexBufferManager, vtx_hole);
+            float* pufImageData = gptImage->load_hdr(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+            uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
+            uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
 
-            PL_FREE(ptVertices);
-            PL_FREE(ptIndices);
-            fclose(ptDataFile);
-            printf("No Memory (post-eviction)\n");
-            return;
-        }
+            // scale for 16 bit
+            for(uint32_t i = 0; i < uPixelCount; i++)
+                puConvertedData[i] = (uint16_t)(pufImageData[i] * 65535.0f);
 
-        ptChunk->ptIndexHole = idx_hole;
-        ptChunk->ptVertexHole = vtx_hole;
-        ptChunk->uIndexCount  = uIndexCount;
+            gptImage->free(pufImageData);
+            pucImageData = (unsigned char*)puConvertedData;
+            pConvertedData = puConvertedData;
 
-        // update buffer offsets
-
-        plDevice* ptDevice = gptTerrainCtx->ptDevice;
-        plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, gptTerrainCtx->tStagingBuffer);
-
-        void* ptIndexStageDest = &ptStagingBuffer->tMemoryAllocation.pHostMapped[uIndexStageOffset];
-        void* ptVertexStageDest = &ptStagingBuffer->tMemoryAllocation.pHostMapped[uVertexStageOffset];
-
-        // copy memory to mapped staging buffer
-        memcpy(ptIndexStageDest, ptIndices, idx_bytes);
-        memcpy(ptVertexStageDest, ptVertices, vtx_bytes);
-
-        // destination offsets
-        const uint64_t uIndexFinalOffset = ptChunk->ptIndexHole->uOffset;
-        const uint64_t uVertexFinalOffset = ptChunk->ptVertexHole->uOffset;
-        
-        // begin blit pass, copy buffer, end pass
-        // NOTE: we are using the starter extension to get a blit encoder, later examples we will
-        //       handle this ourselves
-        plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-        gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-
-        gptGfx->copy_buffer(ptEncoder, gptTerrainCtx->tStagingBuffer, ptTerrain->tIndexBuffer, uIndexStageOffset, uIndexFinalOffset, idx_bytes);
-        gptGfx->copy_buffer(ptEncoder, gptTerrainCtx->tStagingBuffer, ptTerrain->tVertexBuffer, uVertexStageOffset, uVertexFinalOffset, vtx_bytes);
-        
-        gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-        gptGfx->end_blit_pass(ptEncoder);
-        // gptGfx->queue_buffer_for_deletion(ptDevice, tStagingBuffer);
-
-        PL_FREE(ptVertices);
-        PL_FREE(ptIndices);
-
-        fclose(ptDataFile);
-
-        pl__remove_from_residency_queue(ptTerrain, ptCurrentRequest->ptChunk);
-        pl__touch_chunk(ptTerrain, ptChunk);
-    }
-}
-
-static inline void
-pl__lru_unlink(plTerrain* P, plTerrainChunk* c)
-{
-    if (!c->bInReplacementList) return;
-    if (c->ptPrev) c->ptPrev->ptNext = c->ptNext;
-    else           P->tReplacementQueue.ptNext = c->ptNext;
-    if (c->ptNext) c->ptNext->ptPrev = c->ptPrev;
-    c->ptPrev = c->ptNext = NULL;
-    c->bInReplacementList = false;
-}
-
-static inline void
-pl__lru_push_front(plTerrain* P, plTerrainChunk* c)
-{
-    // Head insert
-    c->ptPrev = NULL;
-    c->ptNext = P->tReplacementQueue.ptNext;
-    if (c->ptNext) c->ptNext->ptPrev = c;
-    P->tReplacementQueue.ptNext = c;
-    c->bInReplacementList = true;
-}
-
-
-static void
-pl__touch_chunk(plTerrain* P, plTerrainChunk* c)
-{
-    if (!c) return;
-    c->uLastFrameUsed = gptIOI->get_io()->ulFrameCount;
-
-    pl__lru_unlink(P, c);
-    pl__lru_push_front(P, c);
-}
-
-
-// static void
-// pl__touch_chunk(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
-// {
-//     if(ptChunk == NULL)
-//         return;
-
-  
-//     ptChunk->uLastFrameUsed = gptIOI->get_io()->ulFrameCount;
-
-//     plTerrainChunk* ptCurrentRequest = ptTerrain->tReplacementQueue.ptNext;
-
-//     plTerrainChunk* ptExistingRequest = NULL;
-
-//     while(ptCurrentRequest)
-//     {
-//         if(ptCurrentRequest == ptChunk)
-//         {
-//             ptExistingRequest = ptCurrentRequest;
-//             break;
-//         }
-//         ptCurrentRequest = ptCurrentRequest->ptNext;
-//     }
-
-//     if(ptExistingRequest)
-//     {
-
-//         // remove node
-//         if(ptExistingRequest->ptPrev)
-//             ptExistingRequest->ptPrev->ptNext = ptExistingRequest->ptNext;
-
-//         if(ptExistingRequest->ptNext)
-//             ptExistingRequest->ptNext->ptPrev = ptExistingRequest->ptPrev;   
-//     }
-//     else
-//     {
-//         ptExistingRequest = ptChunk;
-//     }
-
-//     // place node at beginning
-//     ptExistingRequest->ptPrev = NULL;
-//     if(ptExistingRequest != ptTerrain->tReplacementQueue.ptNext)
-//         ptExistingRequest->ptNext = ptTerrain->tReplacementQueue.ptNext;
-//     ptTerrain->tReplacementQueue.ptNext = ptExistingRequest;
-//     if(ptExistingRequest->ptNext)
-//         ptExistingRequest->ptNext->ptPrev = ptExistingRequest;
-
-//     ptExistingRequest->uLastFrameUsed = gptIOI->get_io()->ulFrameCount;
-// }
-
-
-void
-pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
-{
-    pl__lru_unlink(ptTerrain, ptChunk);
-}
-
-static void
-pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
-{
-    if(ptChunk == NULL)
-        return;
-
-    if(ptChunk->ptIndexHole == NULL)
-    {
-        plTerrainResidencyNode* ptCurrentRequest = ptTerrain->tRequestQueue.ptNext;
-
-        plTerrainResidencyNode* ptExistingRequest = NULL;
-        plTerrainResidencyNode* ptLastRequest = NULL;
-
-        while(ptCurrentRequest)
-        {
-            if(ptCurrentRequest->ptChunk == ptChunk)
-            {
-                ptExistingRequest = ptCurrentRequest;
-                break;
-            }
-            if(ptCurrentRequest->ptNext == NULL)
-                ptLastRequest = ptCurrentRequest;
-            ptCurrentRequest = ptCurrentRequest->ptNext;
-        }
-
-        if(ptExistingRequest)
-        {
-
-            // remove node
-            if(ptExistingRequest->ptPrev)
-                ptExistingRequest->ptPrev->ptNext = ptExistingRequest->ptNext;
-
-            if(ptExistingRequest->ptNext)
-                ptExistingRequest->ptNext->ptPrev = ptExistingRequest->ptPrev;    
         }
         else
         {
-            if(pl_sb_size(ptTerrain->sbuFreeRequests) > 0)
-            {
-                uint32_t uNewIndex = pl_sb_pop(ptTerrain->sbuFreeRequests);
-                ptExistingRequest = &ptTerrain->atRequests[uNewIndex];
+            uint8_t* puImageData = gptImage->load(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+            uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
+            uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
 
-            }
-            else if(ptLastRequest)
+            // scale for 16 bit
+            for(uint32_t i = 0; i < uPixelCount; i++)
+                puConvertedData[i] = (uint16_t)(((float)puImageData[i] / 255.0f) * 65535.0f);
+
+            gptImage->free(puImageData);
+            pucImageData = (unsigned char*)puConvertedData;
+            pConvertedData = puConvertedData;
+        }
+
+        PL_FREE(puFileData);
+        puFileData = NULL;
+
+        if(uTileIndex == 0) // north
+        {
+            for(uint32_t i = 0; i < (uint32_t)iImageWidth; i++)
             {
-                if(ptLastRequest->ptPrev)
-                    ptLastRequest->ptPrev->ptNext = NULL;
-                ptExistingRequest = ptLastRequest; 
+                int x = i;
+                int y = (iImageHeight - 1);
+                uint16_t uRawValue = *(uint16_t*)&pucImageData[(x + y * iImageWidth) * sizeof(uint16_t)]; // south edge
+                auHaloHeightMapData[i] = uRawValue;
             }
-            else
+        }
+        else if(uTileIndex == 1) // northeast
+        {
+            int x = 0;
+            int y = iImageHeight - 1;
+            uint16_t uRawValue = *(uint16_t*)&pucImageData[(x + y * iImageWidth) * sizeof(uint16_t)]; // southwest corner
+            auHaloHeightMapData[(ptHeightMap->iSize - 1) * 4 + 0] = uRawValue;
+        }
+        else if(uTileIndex == 2) // east
+        {
+
+            for(uint32_t i = 0; i < (uint32_t)iImageHeight; i++)
             {
-                PL_ASSERT(false);
+                int x = 0;
+                int y = i;
+                uint16_t uRawValue = *(uint16_t*)&pucImageData[(x + y * iImageWidth) * sizeof(uint16_t)]; // west edge
+                int xdest = ptHeightMap->iSize - 1;
+                int ydest = i;
+                auHeightMapData[xdest + ydest * ptHeightMap->iSize] = uRawValue;
+            }
+
+            for(uint32_t i = 0; i < (uint32_t)iImageHeight; i++)
+            {
+                int x = 1;
+                int y = i;
+                uint16_t uRawValue = *(uint16_t*)&pucImageData[(x + y * iImageWidth) * sizeof(uint16_t)]; // west edge
+                auHaloHeightMapData[(ptHeightMap->iSize - 1) * 1 + i] = uRawValue;
+            }
+        }
+        else if(uTileIndex == 3) //  southeast
+        {
+            int x = 0;
+            int y = 0;
+            uint16_t uRawValue = *(uint16_t*)&pucImageData[(x + y * iImageWidth) * sizeof(uint16_t)]; // southwest corner
+            int xdest = ptHeightMap->iSize - 1;
+            int ydest = ptHeightMap->iSize - 1;
+            auHeightMapData[xdest + ydest * ptHeightMap->iSize] = uRawValue;
+        }
+        else if(uTileIndex == 4) // south
+        {
+            for(uint32_t i = 0; i < (uint32_t)iImageWidth; i++)
+            {
+                int x = i;
+                int y = 0;
+                uint16_t uRawValue = *(uint16_t*)&pucImageData[(x + y * iImageWidth) * sizeof(uint16_t)]; // north edge
+                int xdest = i;
+                int ydest = ptHeightMap->iSize - 1;
+                auHeightMapData[xdest + ydest * ptHeightMap->iSize] = uRawValue;
+            }
+            for(uint32_t i = 0; i < (uint32_t)iImageWidth; i++)
+            {
+                int x = i;
+                int y = 2;
+                uint16_t uRawValue = *(uint16_t*)&pucImageData[(x + y * iImageWidth) * sizeof(uint16_t)]; // north edge
+                int xdest = i;
+                int ydest = ptHeightMap->iSize - 1;
+                auHaloHeightMapData[(ptHeightMap->iSize - 1) * 2 + i] = uRawValue;
+            }
+        }
+        else if(uTileIndex == 5) //  southwest
+        {
+            int x = iImageWidth - 1;
+            int y = 0;
+            uint16_t uRawValue = *(uint16_t*)&pucImageData[(x + y * iImageWidth) * sizeof(uint16_t)]; // northeast corner
+            auHaloHeightMapData[(ptHeightMap->iSize - 1) * 4 + 1] = uRawValue;
+        }
+        else if(uTileIndex == 6) // west
+        {
+            for(uint32_t i = 0; i < (uint32_t)iImageHeight; i++)
+            {
+                int x = iImageWidth - 1;
+                int y = i;
+                uint16_t uRawValue = *(uint16_t*)&pucImageData[(x + y * iImageWidth) * sizeof(uint16_t)]; // east edge
+                auHaloHeightMapData[(ptHeightMap->iSize - 1) * 3 + i] = uRawValue;
             }
         }
 
-        // place node at beginning
-        ptExistingRequest->ptPrev = NULL;
-        if(ptExistingRequest != ptTerrain->tRequestQueue.ptNext)
-            ptExistingRequest->ptNext = ptTerrain->tRequestQueue.ptNext;
-        ptTerrain->tRequestQueue.ptNext = ptExistingRequest;
-        if(ptExistingRequest->ptNext)
-            ptExistingRequest->ptNext->ptPrev = ptExistingRequest;
-
-        ptExistingRequest->uFrameRequested = gptIOI->get_io()->ulFrameCount;
-        ptExistingRequest->ptChunk = ptChunk;
+        if(pImageData)
+            gptImage->free(pImageData);
+        if(pConvertedData)
+        {
+            PL_FREE(pConvertedData);
+        }
     }
-}
 
-static void
-pl__render_chunk(plTerrain* ptTerrain, plCamera* ptCamera , plRenderEncoder* ptEncoder, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP)
-{
-    PL_ASSERT(ptChunk != NULL);
+    size_t szFileSize = gptVfs->get_file_size_str(ptInfo->atTiles[uCurrentTileIndex].acHeightMapFile);
+    plVfsFileHandle tHeightMap = gptVfs->open_file(ptInfo->atTiles[uCurrentTileIndex].acHeightMapFile, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tHeightMap, NULL, &szFileSize);
+    uint8_t* puFileData = PL_ALLOC(szFileSize + 1);
+    memset(puFileData, 0, szFileSize + 1);
+    gptVfs->read_file(tHeightMap, puFileData, &szFileSize);
+    gptVfs->close_file(tHeightMap);
 
-    plAABB tAABB = {
-        .tMin = ptChunk->tMinBound,
-        .tMax = ptChunk->tMaxBound
-    };
+    // load image info
+    plImageInfo tImageInfo = {0};
+    gptImage->get_info(puFileData, (int)szFileSize, &tImageInfo);
+    int iImageWidth = tImageInfo.iWidth;
+    int iImageHeight = tImageInfo.iHeight;
 
-    if(!pl__sat_visibility_test(ptCamera, &tAABB))
-        return;
+    void*          pImageData     = NULL;
+    void*          pConvertedData = NULL; // if not loaded as 16 bit
+    unsigned char* pucImageData   = NULL; // could be converted or not (aliased)
 
-    plVec3 tClosestPoint = gptCollision->point_closest_point_aabb(ptCamera->tPos, tAABB);
-    float fDistance = fabsf(pl_length_vec3(pl_sub_vec3(tClosestPoint, ptCamera->tPos)));
-
-    pl__request_residency(ptTerrain, ptChunk);
-
-    if(ptChunk->ptIndexHole == NULL)
-        return;
-    
-    float fViewportWidth = gptIOI->get_io()->tMainViewportSize.x;
-    float fHorizontalFieldOfView = 2.0f * atanf(tanf(0.5f * ptCamera->fFieldOfView) * ptCamera->fAspectRatio);
-
-    float fK = fViewportWidth / (2.0f * tanf(0.5f * fHorizontalFieldOfView));
-
-    float fGeometricError = ptFile->fMaxBaseError * (float)ptChunk->uLevel;
-    float fRho = fGeometricError * fK / fDistance;
-
-
-    float tauSubdivide = ptTerrain->tRuntimeOptions.fTau;
-    float tauMerge     = tauSubdivide * 0.5f;
-
-    bool bChildrenResident = pl__all_children_resident(ptChunk);
-
-    // Decide refinement using hysteresis
-    if(!bChildrenResident || fRho <= tauSubdivide)
+    int _unused = 0;
+    if(tImageInfo.b16Bit)
     {
-        // Draw parent
-        const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-        plDevice* ptDevice = gptTerrainCtx->ptDevice;
-        plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, ptTerrain->ptCurrentDynamicBufferBlock);
-        plGpuDynTerrainData* ptDynamic = (plGpuDynTerrainData*)tDynamicBinding.pcData;
+        uint16_t* puImageData = gptImage->load_16bit(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        pucImageData = (unsigned char*)puImageData;
+        pImageData = puImageData;
+    }
+    else if(tImageInfo.bHDR)
+    {
+        float* pufImageData = gptImage->load_hdr(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
+        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
 
-        ptDynamic->tMvp            = tMVP;
-        ptDynamic->iLevel          = (int)ptChunk->uLevel;
-        ptDynamic->tFlags          = ptTerrain->tRuntimeOptions.tFlags;
-        ptDynamic->uTextureIndex   = ptTerrain->sbtChunkFiles[ptChunk->uFileID].uTextureIndex;
-        ptDynamic->tLightDirection = ptTerrain->tRuntimeOptions.tLightDirection;
-        ptDynamic->tUVInfo.xy       = ptChunk->tUVScale;
-        ptDynamic->tUVInfo.zw       = ptChunk->tUVOffset;
+        // scale for 16 bit
+        for(uint32_t i = 0; i < uPixelCount; i++)
+            puConvertedData[i] = (uint16_t)(pufImageData[i] * 65535.0f);
 
-        plShaderHandle tShader =
-            (ptTerrain->tRuntimeOptions.tFlags & PL_TERRAIN_FLAGS_WIREFRAME)
-            ? ptTerrain->tWireframeShader : ptTerrain->tShader;
+        gptImage->free(pufImageData);
+        pucImageData = (unsigned char*)puConvertedData;
+        pConvertedData = puConvertedData;
 
-        gptGfx->bind_graphics_bind_groups(
-            ptEncoder,
-            tShader,
-            0, 0,
-            NULL,
-            1, &tDynamicBinding
-        );
-
-        const plDrawIndex tDraw = {
-            .uInstanceCount = 1,
-            .uIndexCount    = ptChunk->uIndexCount,
-            .uVertexStart   = (uint32_t)(ptChunk->ptVertexHole->uOffset / sizeof(plTerrainVertex)),
-            .uIndexStart    = (uint32_t)(ptChunk->ptIndexHole->uOffset / sizeof(uint32_t)),
-            .tIndexBuffer   = ptTerrain->tIndexBuffer
-        };
-
-        gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
-        *gptTerrainCtx->pdDrawCalls += 1;
-
-        pl__touch_chunk(ptTerrain, ptChunk);
-
-        // --- Hysteresis refinement logic ---
-        if(fRho > tauSubdivide)
-        {
-            // Need children soon – schedule them
-            for(uint32_t i = 0; i < 4; i++)
-            {
-                if(ptChunk->aptChildren[i])
-                    pl__request_residency(ptTerrain, ptChunk->aptChildren[i]);
-            }
-        }
-        else if(fRho < tauMerge)
-        {
-            // Clearly low detail – unload children
-            pl__unload_children(ptTerrain, ptChunk);
-        }
-        // else: middle band → keep current state, prevent thrash
     }
     else
     {
-        // Descend into children
-        for(uint32_t i = 0; i < 4; i++)
-            pl__render_chunk(ptTerrain, ptCamera, ptEncoder, ptChunk->aptChildren[i], ptFile, ptMVP);
+        uint8_t* puImageData = gptImage->load(puFileData, (int)szFileSize, &iImageWidth, &iImageHeight, &_unused, 1);
+        uint32_t uPixelCount = (uint32_t)(iImageWidth * iImageHeight);
+        uint16_t* puConvertedData = PL_ALLOC(sizeof(uint32_t) * uPixelCount);
+
+        // scale for 16 bit
+        for(uint32_t i = 0; i < uPixelCount; i++)
+            puConvertedData[i] = (uint16_t)(((float)puImageData[i] / 255.0f) * 65535.0f);
+
+        gptImage->free(puImageData);
+        pucImageData = (unsigned char*)puConvertedData;
+        pConvertedData = puConvertedData;
     }
-}
 
-static bool
-pl__sat_visibility_test(plCamera* ptCamera, const plAABB* ptAABB)
-{
-    const float fTanFov = tanf(0.5f * ptCamera->fFieldOfView);
+    PL_FREE(puFileData);
+    puFileData = NULL;
 
-    const float fZNear = ptCamera->fNearZ;
-    const float fZFar = ptCamera->fFarZ;
+    uint32_t uMaxX = (uint32_t)iImageWidth;
+    uint32_t uMaxY = (uint32_t)iImageHeight;
 
-    // half width, half height
-    const float fXNear = ptCamera->fAspectRatio * ptCamera->fNearZ * fTanFov;
-    const float fYNear = ptCamera->fNearZ * fTanFov;
+    for(uint32_t i = 0; i < (uint32_t)iImageWidth; i++)
+    {
+        for(uint32_t j = 0; j < (uint32_t)iImageHeight; j++)
+        {
+            uint16_t uRawValue = *(uint16_t*)&pucImageData[(i + j * iImageWidth) * sizeof(uint16_t)];
 
-    // consider four adjacent corners of the AABB
-    plVec3 atCorners[] = {
-        {ptAABB->tMin.x, ptAABB->tMin.y, ptAABB->tMin.z},
-        {ptAABB->tMax.x, ptAABB->tMin.y, ptAABB->tMin.z},
-        {ptAABB->tMin.x, ptAABB->tMax.y, ptAABB->tMin.z},
-        {ptAABB->tMin.x, ptAABB->tMin.y, ptAABB->tMax.z},
+            uint32_t uGlobalXIndex = i;
+            uint32_t uGlobalYIndex = j;
+
+            auHeightMapData[uGlobalYIndex * ptHeightMap->iSize + uGlobalXIndex] = uRawValue;
+        }
+    }
+
+    if(pImageData)
+        gptImage->free(pImageData);
+    if(pConvertedData)
+    {
+        PL_FREE(pConvertedData);
+    }
+
+   ptHeightMap->tMinBounding = (plVec3){
+        .x = FLT_MAX,
+        .y = FLT_MAX,
+        .z = FLT_MAX
     };
 
-    // transform corners
-    for (size_t i = 0; i < 4; i++)
-        atCorners[i] = pl_mul_mat4_vec3(&ptCamera->tViewMat, atCorners[i]);
-
-    // Use transformed atCorners to calculate center, axes and extents
-
-    plOBB2 tObb = {
-        .atAxes = {
-            pl_sub_vec3(atCorners[1], atCorners[0]),
-            pl_sub_vec3(atCorners[2], atCorners[0]),
-            pl_sub_vec3(atCorners[3], atCorners[0])
-        },
+    ptHeightMap->tMaxBounding = (plVec3){
+        .x = -FLT_MAX,
+        .y = -FLT_MAX,
+        .z = -FLT_MAX
     };
 
-    tObb.tCenter = pl_add_vec3(atCorners[0], pl_mul_vec3_scalarf((pl_add_vec3(tObb.atAxes[0], pl_add_vec3(tObb.atAxes[1], tObb.atAxes[2]))), 0.5f));
-    tObb.tExtents = (plVec3){ pl_length_vec3(tObb.atAxes[0]), pl_length_vec3(tObb.atAxes[1]), pl_length_vec3(tObb.atAxes[2]) };
+    printf("Loaded images\n");
 
-    // normalize
-    tObb.atAxes[0] = pl_div_vec3_scalarf(tObb.atAxes[0], tObb.tExtents.x);
-    tObb.atAxes[1] = pl_div_vec3_scalarf(tObb.atAxes[1], tObb.tExtents.y);
-    tObb.atAxes[2] = pl_div_vec3_scalarf(tObb.atAxes[2], tObb.tExtents.z);
-    tObb.tExtents = pl_mul_vec3_scalarf(tObb.tExtents, 0.5f);
+    // Allocate storage.
+    int	iSampleCount = ptHeightMap->iSize * ptHeightMap->iSize;
+    ptHeightMap->atElements = PL_ALLOC(iSampleCount * sizeof(plTerrainMapElement));
+    memset(ptHeightMap->atElements, 0, iSampleCount * sizeof(plTerrainMapElement));
 
-    // axis along frustum
+    ptHeightMap->atHaloElements = PL_ALLOC((4 * (ptHeightMap->iSize - 1) + 3)  * sizeof(plTerrainMapElement));
+    memset(ptHeightMap->atHaloElements, 0, (4 * (ptHeightMap->iSize - 1) + 3) * sizeof(plTerrainMapElement));
+
+    // Initialize the data.
+    for (int j = 0; j < ptHeightMap->iSize; j++)
     {
-        // Projected center of our OBB
-        const float fMoC = tObb.tCenter.z;
-
-        // Projected size of OBB
-        float fRadius = 0.0f;
-        for (size_t i = 0; i < 3; i++)
-            fRadius += fabsf(tObb.atAxes[i].z) * tObb.tExtents.d[i];
-
-        const float fObbMin = fMoC - fRadius;
-        const float fObbMax = fMoC + fRadius;
-
-        if (fObbMin > fZFar || fObbMax < fZNear)
-            return false;
-    }
-
-
-    // other normals of frustum
-    {
-        const plVec3 atM[] = {
-            { fZNear, 0.0f, fXNear }, // Left Plane
-            { -fZNear, 0.0f, fXNear }, // Right plane
-            { 0.0, -fZNear, fYNear }, // Top plane
-            { 0.0, fZNear, fYNear }, // Bottom plane
-        };
-        for (size_t m = 0; m < 4; m++)
+        for (int i = 0; i < ptHeightMap->iSize; i++)
         {
-            const float fMoX = fabsf(atM[m].x);
-            const float fMoY = fabsf(atM[m].y);
-            const float fMoZ = atM[m].z;
-            const float fMoC = pl_dot_vec3(atM[m], tObb.tCenter);
+            float fY = 0.0f;
 
-            float fObbRadius = 0.0f;
-            for (size_t i = 0; i < 3; i++)
-                fObbRadius += fabsf(pl_dot_vec3(atM[m], tObb.atAxes[i])) * tObb.tExtents.d[i];
+            // Extract a height value from the pixel data.
+            uint32_t x = i;
+            uint32_t y = j;
 
-            const float fObbMin = fMoC - fObbRadius;
-            const float fObbMax = fMoC + fObbRadius;
+            uint16_t r = auHeightMapData[y * ptHeightMap->iSize + x];
 
-            const float fP = fXNear * fMoX + fYNear * fMoY;
+            // y = (float)r / 65355.0f;	// just using red component for now.
+            fY = (float)r / (float)UINT16_MAX;	// just using red component for now.
+            fY *= (ptHeightMap->fMaxHeight - ptHeightMap->fMinHeight);
+            fY += ptHeightMap->fMinHeight;
 
-            float fTau0 = fZNear * fMoZ - fP;
-            float fTau1 = fZNear * fMoZ + fP;
-
-            if (fTau0 < 0.0f)
-                fTau0 *= fZFar / fZNear;
-
-            if (fTau1 > 0.0f)
-                fTau1 *= fZFar / fZNear;
-
-            if (fObbMin > fTau1 || fObbMax < fTau0)
-                return false;
+            int iElementIndex = i + ptHeightMap->iSize * j;
+            ptHeightMap->atElements[iElementIndex].iActivationLevel = -1;
+            ptHeightMap->atElements[iElementIndex].iX = (int16_t)i;
+            ptHeightMap->atElements[iElementIndex].iZ = (int16_t)j;
+            ptHeightMap->atElements[iElementIndex].uVertexBufferIndex = UINT_MAX;
+            ptHeightMap->atElements[iElementIndex].fY = fY;
+            ptHeightMap->atElements[iElementIndex].uFrameStamp = 0;
         }
     }
 
-    // OBB axes
+    // north
+    for (int i = 0; i < ptHeightMap->iSize - 1; i++)
     {
-        for (size_t m = 0; m < 3; m++)
-        {
-            const plVec3* ptM = &tObb.atAxes[m];
-            const float fMoX = fabsf(ptM->x);
-            const float fMoY = fabsf(ptM->y);
-            const float fMoZ = ptM->z;
-            const float fMoC = pl_dot_vec3(*ptM, tObb.tCenter);
+        int iElementIndex = i;
+        uint16_t r = auHaloHeightMapData[iElementIndex];
 
-            const float fObbRadius = tObb.tExtents.d[m];
+        // y = (float)r / 65355.0f;	// just using red component for now.
+        float fY = (float)r / (float)UINT16_MAX;	// just using red component for now.
+        fY *= (ptHeightMap->fMaxHeight - ptHeightMap->fMinHeight);
+        fY += ptHeightMap->fMinHeight;
 
-            const float fObbMin = fMoC - fObbRadius;
-            const float fObbMax = fMoC + fObbRadius;
-
-            // frustum projection
-            const float fP = fXNear * fMoX + fYNear * fMoY;
-            float fTau0 = fZNear * fMoZ - fP;
-            float fTau1 = fZNear * fMoZ + fP;
-
-            if (fTau0 < 0.0f)
-                fTau0 *= fZFar / fZNear;
-
-            if (fTau1 > 0.0f)
-                fTau1 *= fZFar / fZNear;
-
-            if (fObbMin > fTau1 || fObbMax < fTau0)
-                return false;
-        }
-    }
-
-    // cross products between the edges
-    // first R x A_i
-    {
-        for (size_t m = 0; m < 3; m++)
-        {
-            const plVec3 tM = { 0.0f, -tObb.atAxes[m].z, tObb.atAxes[m].y };
-            const float fMoX = 0.0f;
-            const float fMoY = fabsf(tM.y);
-            const float fMoZ = tM.z;
-            const float fMoC = tM.y * tObb.tCenter.y + tM.z * tObb.tCenter.z;
-
-            float fObbRadius = 0.0f;
-            for (size_t i = 0; i < 3; i++)
-                fObbRadius += fabsf(pl_dot_vec3(tM, tObb.atAxes[i])) * tObb.tExtents.d[i];
-
-            const float fObbMin = fMoC - fObbRadius;
-            const float fObbMax = fMoC + fObbRadius;
-
-            // frustum projection
-            const float fP = fXNear * fMoX + fYNear * fMoY;
-            float fTau0 = fZNear * fMoZ - fP;
-            float fTau1 = fZNear * fMoZ + fP;
-
-            if (fTau0 < 0.0f)
-                fTau0 *= fZFar / fZNear;
-
-            if (fTau1 > 0.0f)
-                fTau1 *= fZFar / fZNear;
-
-            if (fObbMin > fTau1 || fObbMax < fTau0)
-                return false;
-        }
-    }
-
-    // U x A_i
-    {
-        for (size_t m = 0; m < 3; m++)
-        {
-            const plVec3 tM = { tObb.atAxes[m].z, 0.0f, -tObb.atAxes[m].x };
-            const float fMoX = fabsf(tM.x);
-            const float fMoY = 0.0f;
-            const float fMoZ = tM.z;
-            const float fMoC = tM.x * tObb.tCenter.x + tM.z * tObb.tCenter.z;
-
-            float fObbRadius = 0.0f;
-            for (size_t i = 0; i < 3; i++)
-                fObbRadius += fabsf(pl_dot_vec3(tM, tObb.atAxes[i])) * tObb.tExtents.d[i];
-
-            const float fObbMin = fMoC - fObbRadius;
-            const float fObbMax = fMoC + fObbRadius;
-
-            // frustum projection
-            const float fP = fXNear * fMoX + fYNear * fMoY;
-            float fTau0 = fZNear * fMoZ - fP;
-            float fTau1 = fZNear * fMoZ + fP;
-
-            if (fTau0 < 0.0f)
-                fTau0 *= fZFar / fZNear;
-
-            if (fTau1 > 0.0f)
-                fTau1 *= fZFar / fZNear;
-
-            if (fObbMin > fTau1 || fObbMax < fTau0)
-                return false;
-        }
-    }
-
-    // frustum Edges X Ai
-    {
-        for (size_t obb_edge_idx = 0; obb_edge_idx < 3; obb_edge_idx++)
-        {
-            const plVec3 atM[] = {
-                pl_cross_vec3((plVec3){-fXNear, 0.0f, fZNear}, tObb.atAxes[obb_edge_idx]), // Left Plane
-                pl_cross_vec3((plVec3){ fXNear, 0.0f, fZNear }, tObb.atAxes[obb_edge_idx]), // Right plane
-                pl_cross_vec3((plVec3){ 0.0f, fYNear, fZNear }, tObb.atAxes[obb_edge_idx]), // Top plane
-                pl_cross_vec3((plVec3){ 0.0, -fYNear, fZNear }, tObb.atAxes[obb_edge_idx]) // Bottom plane
-            };
-
-            for (size_t m = 0; m < 4; m++)
-            {
-                const float fMoX = fabsf(atM[m].x);
-                const float fMoY = fabsf(atM[m].y);
-                const float fMoZ = atM[m].z;
-
-                const float fEpsilon = 1e-4f;
-                if (fMoX < fEpsilon && fMoY < fEpsilon && fabsf(fMoZ) < fEpsilon) continue;
-
-                const float fMoC = pl_dot_vec3(atM[m], tObb.tCenter);
-
-                float fObbRadius = 0.0f;
-                for (size_t i = 0; i < 3; i++)
-                    fObbRadius += fabsf(pl_dot_vec3(atM[m], tObb.atAxes[i])) * tObb.tExtents.d[i];
-
-                const float fObbMin = fMoC - fObbRadius;
-                const float fObbMax = fMoC + fObbRadius;
-
-                // frustum projection
-                const float fP = fXNear * fMoX + fYNear * fMoY;
-                float fTau0 = fZNear * fMoZ - fP;
-                float fTau1 = fZNear * fMoZ + fP;
-
-                if (fTau0 < 0.0f)
-                    fTau0 *= fZFar / fZNear;
-
-                if (fTau1 > 0.0f)
-                    fTau1 *= fZFar / fZNear;
-
-                if (fObbMin > fTau1 || fObbMax < fTau0)
-                    return false;
-            }
-        }
-    }
-
-    // no intersections detected
-    return true;
-}
-
-static bool
-pl__terrain_load(plTerrain* ptTerrain, plTerrainProcessInfo* ptInfo)
-{
-    {
-        float fX = ptInfo->atTiles[0].tCenter.x;
-        float fY = ptInfo->atTiles[0].tCenter.z;
-        ptTerrain->tTopLeftGlobal.x = fX - 0.5f * (float)ptInfo->uSize * ptInfo->fMetersPerPixel;
-        ptTerrain->tTopLeftGlobal.y = fY - 0.5f * (float)ptInfo->uSize * ptInfo->fMetersPerPixel;
-    }
-
-    {
-        float fX = ptInfo->atTiles[ptInfo->uTileCount - 1].tCenter.x;
-        float fY = ptInfo->atTiles[ptInfo->uTileCount - 1].tCenter.z;
-        ptTerrain->tBottomRightGlobal.x = fX - 0.5f * (float)ptInfo->uSize * ptInfo->fMetersPerPixel;
-        ptTerrain->tBottomRightGlobal.y = fY - 0.5f * (float)ptInfo->uSize * ptInfo->fMetersPerPixel;
-    }
-
-    for(uint32_t k = 0; k < ptInfo->uTileCount; k++)
-    {
-        uint32_t i = k % ptInfo->uHorizontalTiles;
-        uint32_t j = (k - i) / ptInfo->uVerticalTiles;
-        pl_chlod_load_chunk_file(ptTerrain, ptInfo->atTiles[k].acOutputFile);
-    }
-    return true;
-}
-
-static plTextureHandle
-pl__terrain_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize)
-{
-    // for convience
-    plDevice* ptDevice = gptTerrainCtx->ptDevice;
-    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
- 
-    // create texture
-    plTexture* ptTexture = NULL;
-    const plTextureHandle tHandle = gptGfx->create_texture(ptDevice, ptDesc, &ptTexture);
-    pl_temp_allocator_reset(&gptTerrainCtx->tTempAllocator);
-
-    // choose allocator
-    plDeviceMemoryAllocatorI* ptAllocator = gptTerrainCtx->tLocalBuddyAllocator;
-
-    // allocate memory
-    const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
-        ptTexture->tMemoryRequirements.uMemoryTypeBits,
-        ptTexture->tMemoryRequirements.ulSize,
-        ptTexture->tMemoryRequirements.ulAlignment,
-        pl_temp_allocator_sprintf(&gptTerrainCtx->tTempAllocator, "texture alloc %s: %u", pcName, uIdentifier));
-
-    // bind memory
-    gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
-    pl_temp_allocator_reset(&gptTerrainCtx->tTempAllocator);
-
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "create texture 2");
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-    plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-    gptGfx->set_texture_usage(ptBlitEncoder, tHandle, PL_TEXTURE_USAGE_SAMPLED, 0);
-
-
-    // if data is presented, upload using staging buffer
-    if(pData)
-    {
-        PL_ASSERT(ptDesc->uLayers == 1); // this is for simple textures right now
-
-        // create staging buffer
-        const plBufferDesc tStagingBufferDesc = {
-            .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
-            .szByteSize  = szSize,
-            .pcDebugName = "temp staging buffer"
-        };
-        plBuffer* ptBuffer = NULL;
-        plBufferHandle tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, &ptBuffer);
-
-        // allocate memory for the vertex buffer
-        const plDeviceMemoryAllocation tStagingBufferAllocation = gptGfx->allocate_memory(ptDevice,
-            ptBuffer->tMemoryRequirements.ulSize,
-            PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
-            ptBuffer->tMemoryRequirements.uMemoryTypeBits,
-            "temp staging memory");
-
-        gptGfx->bind_buffer_to_memory(ptDevice, tStagingBuffer, &tStagingBufferAllocation);
-        memcpy(ptBuffer->tMemoryAllocation.pHostMapped, pData, szSize);
         
-        const plBufferImageCopy tBufferImageCopy = {
-            .uImageWidth = (uint32_t)ptDesc->tDimensions.x,
-            .uImageHeight = (uint32_t)ptDesc->tDimensions.y,
-            .uImageDepth = 1,
-            .uLayerCount = 1
-        };
-
-        gptGfx->copy_buffer_to_texture(ptBlitEncoder, tStagingBuffer, tHandle, 1, &tBufferImageCopy);
-        gptGfx->generate_mipmaps(ptBlitEncoder, tHandle);
-        gptGfx->queue_buffer_for_deletion(ptDevice, tStagingBuffer);
+        ptHeightMap->atHaloElements[iElementIndex].iX = (int16_t)i;
+        ptHeightMap->atHaloElements[iElementIndex].iZ = -1;
+        ptHeightMap->atHaloElements[iElementIndex].fY = fY;
     }
 
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-    gptGfx->end_blit_pass(ptBlitEncoder);
-    gptGfx->end_command_recording(ptCommandBuffer);
-    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
-    return tHandle;
+    // east
+    for (int i = 0; i < ptHeightMap->iSize - 1; i++)
+    {
+        int iElementIndex = (ptHeightMap->iSize - 1) * 1 + i;
+        uint16_t r = auHaloHeightMapData[iElementIndex];
+
+        // y = (float)r / 65355.0f;	// just using red component for now.
+        float fY = (float)r / (float)UINT16_MAX;	// just using red component for now.
+        fY *= (ptHeightMap->fMaxHeight - ptHeightMap->fMinHeight);
+        fY += ptHeightMap->fMinHeight;
+
+        ptHeightMap->atHaloElements[iElementIndex].iX = (int16_t)ptHeightMap->iSize + 1;
+        ptHeightMap->atHaloElements[iElementIndex].iZ = (int16_t)i;
+        ptHeightMap->atHaloElements[iElementIndex].fY = fY;
+    }
+
+    // south
+    for (int i = 0; i < ptHeightMap->iSize - 1; i++)
+    {
+        int iElementIndex = (ptHeightMap->iSize - 1) * 2 + i;
+        uint16_t r = auHaloHeightMapData[iElementIndex];
+
+        // y = (float)r / 65355.0f;	// just using red component for now.
+        float fY = (float)r / (float)UINT16_MAX;	// just using red component for now.
+        fY *= (ptHeightMap->fMaxHeight - ptHeightMap->fMinHeight);
+        fY += ptHeightMap->fMinHeight;
+
+        
+        ptHeightMap->atHaloElements[iElementIndex].iX = (int16_t)i;
+        ptHeightMap->atHaloElements[iElementIndex].iZ = (int16_t)ptHeightMap->iSize + 1;
+        ptHeightMap->atHaloElements[iElementIndex].fY = fY;
+    }
+
+    // west
+    for (int i = 0; i < ptHeightMap->iSize - 1; i++)
+    {
+        int iElementIndex = (ptHeightMap->iSize - 1) * 3 + i;
+        uint16_t r = auHaloHeightMapData[iElementIndex];
+
+        // y = (float)r / 65355.0f;	// just using red component for now.
+        float fY = (float)r / (float)UINT16_MAX;	// just using red component for now.
+        fY *= (ptHeightMap->fMaxHeight - ptHeightMap->fMinHeight);
+        fY += ptHeightMap->fMinHeight;
+
+        ptHeightMap->atHaloElements[iElementIndex].iX = -1;
+        ptHeightMap->atHaloElements[iElementIndex].iZ = (int16_t)i;
+        ptHeightMap->atHaloElements[iElementIndex].fY = fY;
+    }
+
+    {
+        int iElementIndex = (ptHeightMap->iSize - 1) * 4 + 0;
+        uint16_t r = auHaloHeightMapData[iElementIndex];
+
+        // y = (float)r / 65355.0f;	// just using red component for now.
+        float fY = (float)r / (float)UINT16_MAX;	// just using red component for now.
+        fY *= (ptHeightMap->fMaxHeight - ptHeightMap->fMinHeight);
+        fY += ptHeightMap->fMinHeight;
+
+        ptHeightMap->atHaloElements[iElementIndex].iX = (int16_t)(ptHeightMap->iSize - 1);
+        ptHeightMap->atHaloElements[iElementIndex].iZ = -1;
+        ptHeightMap->atHaloElements[iElementIndex].fY = fY;
+    }
+
+    {
+        int iElementIndex = (ptHeightMap->iSize - 1) * 4 + 1;
+        uint16_t r = auHaloHeightMapData[iElementIndex];
+
+        // y = (float)r / 65355.0f;	// just using red component for now.
+        float fY = (float)r / (float)UINT16_MAX;	// just using red component for now.
+        fY *= (ptHeightMap->fMaxHeight - ptHeightMap->fMinHeight);
+        fY += ptHeightMap->fMinHeight;
+
+        ptHeightMap->atHaloElements[iElementIndex].iX = -1;
+        ptHeightMap->atHaloElements[iElementIndex].iZ = (int16_t)(ptHeightMap->iSize - 1);
+        ptHeightMap->atHaloElements[iElementIndex].fY = fY;
+    }
+
+    PL_FREE(auHeightMapData);
+    auHeightMapData = NULL;
+
+    PL_FREE(auHaloHeightMapData);
+    auHaloHeightMapData = NULL;
+}
+
+static inline plEdgeKey
+pl__base_edge_key(uint8_t uLevel, uint32_t uLeft, uint32_t uRight)
+{
+    plEdgeKey k;
+    k.iLevel = (int)uLevel;
+    k.uLeft  = pl_min(uLeft, uRight);
+    k.uRight = pl_max(uLeft, uRight);
+    return k;
 }
 
 static void
-pl__terrain_return_bindless_texture_index(plTextureHandle tTexture)
+pl__terrain_mesh(FILE* ptFile, plTerrainHeightMap* ptHeightMap, int iStartIndexX, int iStartIndexY, int iLogSize, int iLevel)
 {
-    uint64_t uIndex = 0;
-    if(pl_hm_has_key_ex(&gptTerrainCtx->tTextureIndexHashmap, tTexture.uData, &uIndex))
+    float fProgress = (float)ptHeightMap->uCurrentHeightmap / (float)ptHeightMap->uHeightmapCount;
+    float fLocalProgress = (float)ptHeightMap->uCurrentMeshChunk / (float)ptHeightMap->uChunkCount;
+    fProgress += (fLocalProgress / (float)ptHeightMap->uHeightmapCount);
+    #ifdef _WIN32
+        system("cls");
+    #else
+        system("clear");
+    #endif
+    printf("Total: %0.3f%% \t Current Tile: %0.3f%% \n", fProgress * 100.0f, fLocalProgress * 100.0f);
+
+    const char spinner[] = "|/-\\";
+    int barWidth = 40;
+    int pos = (int)(fProgress * barWidth);
+
+    printf("[%.*s%*s] %3d%% %c\r",
+        //    pos, "****************************************",
+           pos, "########################################",
+           barWidth - pos, "",
+           (int)(fProgress * 100.0f),
+           spinner[(int)(fProgress * 10000) % 4]);
+
+
+    ptHeightMap->uCurrentMeshChunk++;
+    // printf("%u of %u\n", ptHeightMap->uCurrentMeshChunk++, ptHeightMap->uChunkCount);
+
+    ptHeightMap->uFrameStamp++;
+    if(ptHeightMap->uFrameStamp == 0) ptHeightMap->uFrameStamp++;
+
+    const int iSize      = (1 << iLogSize);
+    const int iEndIndexY = iStartIndexY + iSize;
+    const int iEndIndexX = iStartIndexX + iSize;
+    const uint8_t uMaxLevel = (uint8_t)(iLogSize * 2);
+
+    const int iHalfSize = iSize >> 1;
+    const int iCx = iStartIndexX + iHalfSize;
+    const int iCz = iStartIndexY + iHalfSize;
+
+    int iChunkLabel = pl__node_index(ptHeightMap, iCx, iCz);
+    fwrite(&iChunkLabel, 1, sizeof(int), ptFile);
+    fwrite(&iLevel,      1, sizeof(int), ptFile);
+
+    float fXWrite = (float)iStartIndexX / ptHeightMap->iSize;
+    float fYWrite = (float)iStartIndexY / ptHeightMap->iSize;
+
+    fwrite(&fXWrite, 1, sizeof(float), ptFile);
+    fwrite(&fYWrite, 1, sizeof(float), ptFile);
+
+    // activate the 4 corners
+    pl__activate_height_map_element(pl__get_elem(ptHeightMap, iStartIndexX, iStartIndexY), iLevel);
+    pl__activate_height_map_element(pl__get_elem(ptHeightMap, iStartIndexX, iEndIndexY),   iLevel);
+    pl__activate_height_map_element(pl__get_elem(ptHeightMap, iEndIndexX,   iEndIndexY),   iLevel);
+    pl__activate_height_map_element(pl__get_elem(ptHeightMap, iEndIndexX,   iStartIndexY), iLevel);
+
+    // roots
+    plTrianglePrimitive tRoot0 = {
+        .uLevel = (uint8_t)iLevel,
+        .uApex  = (uint32_t)pl__vertex_index(ptHeightMap, iEndIndexX,   iStartIndexY),
+        .uLeft  = (uint32_t)pl__vertex_index(ptHeightMap, iStartIndexX, iStartIndexY),
+        .uRight = (uint32_t)pl__vertex_index(ptHeightMap, iEndIndexX,   iEndIndexY)
+    };
+
+    plTrianglePrimitive tRoot1 = {
+        .uLevel = (uint8_t)iLevel,
+        .uApex  = (uint32_t)pl__vertex_index(ptHeightMap, iStartIndexX, iEndIndexY),
+        .uLeft  = (uint32_t)pl__vertex_index(ptHeightMap, iEndIndexX,   iEndIndexY),
+        .uRight = (uint32_t)pl__vertex_index(ptHeightMap, iStartIndexX, iStartIndexY)
+    };
+
+    // top-down refinement -----------------------------
+
+    plTrianglePrimitive* sbtWork   = NULL;
+    plTrianglePrimitive* sbtLeaves = NULL;
+
+    pl_sb_push(sbtWork, tRoot0);
+    pl_sb_push(sbtWork, tRoot1);
+
+    // “force mate to split” table keyed by base-edge at a given level
+    // value is unused; we just need membership
+    plHashMap tRequiredSplit = {0};
+
+    while(pl_sb_size(sbtWork) > 0)
     {
-        pl_hm_remove(&gptTerrainCtx->tTextureIndexHashmap, tTexture.uData);
+        plTrianglePrimitive t = pl_sb_pop(sbtWork);
+
+        // Stop if already at max depth
+        if(t.uLevel == uMaxLevel)
+        {
+            pl_sb_push(sbtLeaves, t);
+            continue;
+        }
+
+        // If our base-edge was marked as “must split”, force it
+        plEdgeKey tBaseKey = pl__base_edge_key(t.uLevel, t.uLeft, t.uRight);
+        uint64_t uBaseHash = pl_hm_hash(&tBaseKey, sizeof(plEdgeKey), 0);
+        const bool bForced = pl_hm_has_key(&tRequiredSplit, uBaseHash);
+
+        // If midpoint activation is >= iLevel => we MUST keep the split => so top-down we split.
+        const int iActivation = pl__mid_activation(ptHeightMap, t.uLeft, t.uRight);
+        const bool bShouldSplit = bForced || (iActivation >= iLevel);
+
+        if(!bShouldSplit)
+        {
+            // keep as leaf
+            pl_sb_push(sbtLeaves, t);
+            continue;
+        }
+
+        // If we split this triangle, its mate across the base must also be split to avoid T-junctions.
+        // Mark the base-edge as “required split” at this level. When mate is encountered it will split too.
+        // (If the mate never exists because boundary, this is harmless.)
+        if(!pl_hm_has_key(&tRequiredSplit, uBaseHash))
+            pl_hm_insert(&tRequiredSplit, uBaseHash, 1);
+
+        // split into 2 children
+        plTerrainMapElement* ptR = &(ptHeightMap->atElements[t.uRight]);
+        plTerrainMapElement* ptL = &(ptHeightMap->atElements[t.uLeft]);
+
+        const uint8_t uChildLevel = t.uLevel + 1;
+        const int iMidX = ((int)ptR->iX + (int)ptL->iX) / 2;
+        const int iMidZ = ((int)ptR->iZ + (int)ptL->iZ) / 2;
+        const uint32_t uMid = pl__vertex_index(ptHeightMap, iMidX, iMidZ);
+
+        plTrianglePrimitive c0 = {
+            .uLevel = uChildLevel,
+            .uApex  = uMid,
+            .uLeft  = t.uApex,
+            .uRight = t.uLeft
+        };
+
+        plTrianglePrimitive c1 = {
+            .uLevel = uChildLevel,
+            .uApex  = uMid,
+            .uLeft  = t.uRight,
+            .uRight = t.uApex
+        };
+
+        pl_sb_push(sbtWork, c0);
+        pl_sb_push(sbtWork, c1);
+    }
+
+    pl_hm_free(&tRequiredSplit);
+    pl_sb_free(sbtWork);
+
+    // ------------------------------------------------
+    // Unique vertex gathering
+    plVec3 tMinBounding = { .x = FLT_MAX,  .y = FLT_MAX,  .z = FLT_MAX };
+    plVec3 tMaxBounding = { .x = -FLT_MAX, .y = -FLT_MAX, .z = -FLT_MAX };
+
+    uint32_t uPresentCount = (uint32_t)pl_sb_size(sbtLeaves);
+
+    uint32_t* sbuUniqueVertices = NULL;
+    for(uint32_t it = 0; it < uPresentCount; it++)
+    {
+        plTrianglePrimitive t = sbtLeaves[it];
+
+        plTerrainMapElement* e0 = &(ptHeightMap->atElements[t.uApex]);
+        plTerrainMapElement* e1 = &(ptHeightMap->atElements[t.uRight]);
+        plTerrainMapElement* e2 = &(ptHeightMap->atElements[t.uLeft]);
+
+        if(e0->uFrameStamp != ptHeightMap->uFrameStamp) { e0->uVertexBufferIndex = pl_sb_size(sbuUniqueVertices); e0->uFrameStamp = ptHeightMap->uFrameStamp; pl_sb_push(sbuUniqueVertices, t.uApex); }
+        if(e1->uFrameStamp != ptHeightMap->uFrameStamp) { e1->uVertexBufferIndex = pl_sb_size(sbuUniqueVertices); e1->uFrameStamp = ptHeightMap->uFrameStamp; pl_sb_push(sbuUniqueVertices, t.uRight); }
+        if(e2->uFrameStamp != ptHeightMap->uFrameStamp) { e2->uVertexBufferIndex = pl_sb_size(sbuUniqueVertices); e2->uFrameStamp = ptHeightMap->uFrameStamp; pl_sb_push(sbuUniqueVertices, t.uLeft); }
+    }
+
+    uint32_t uVertexCount = (uint32_t)pl_sb_size(sbuUniqueVertices);
+    plTerrainVertex* atVertexData = PL_ALLOC(uVertexCount * sizeof(plTerrainVertex));
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        plTerrainMapElement* e = &(ptHeightMap->atElements[sbuUniqueVertices[i]]);
+        plTerrainVertex* v = &atVertexData[e->uVertexBufferIndex];
+
+        v->tPosition = pl__get_cartesian(ptHeightMap, e);
+        v->tNormal   = pl__get_normal(ptHeightMap, e);
+        v->tUV.x = (float)(e->iX - iStartIndexX) / (float)(iEndIndexX - iStartIndexX);
+        v->tUV.y = (float)(e->iZ - iStartIndexY) / (float)(iEndIndexY - iStartIndexY);
+
+        if(v->tPosition.x < tMinBounding.x) tMinBounding.x = v->tPosition.x;
+        if(v->tPosition.x > tMaxBounding.x) tMaxBounding.x = v->tPosition.x;
+        if(v->tPosition.y < tMinBounding.y) tMinBounding.y = v->tPosition.y;
+        if(v->tPosition.y > tMaxBounding.y) tMaxBounding.y = v->tPosition.y;
+        if(v->tPosition.z < tMinBounding.z) tMinBounding.z = v->tPosition.z;
+        if(v->tPosition.z > tMaxBounding.z) tMaxBounding.z = v->tPosition.z;
+    }
+    pl_sb_free(sbuUniqueVertices);
+
+    // Indices from leaves
+    uint32_t uIndexCount = 3u * uPresentCount;
+    uint32_t* atIndexData = PL_ALLOC(uIndexCount * sizeof(uint32_t));
+
+    uint32_t uCurrentIndex = 0;
+    for(uint32_t it = 0; it < uPresentCount; it++)
+    {
+        plTrianglePrimitive t = sbtLeaves[it];
+
+        plTerrainMapElement* e0 = &(ptHeightMap->atElements[t.uApex]);
+        plTerrainMapElement* e1 = &(ptHeightMap->atElements[t.uRight]);
+        plTerrainMapElement* e2 = &(ptHeightMap->atElements[t.uLeft]);
+
+        atIndexData[uCurrentIndex + 0] = e0->uVertexBufferIndex;
+        atIndexData[uCurrentIndex + 1] = e2->uVertexBufferIndex;
+        atIndexData[uCurrentIndex + 2] = e1->uVertexBufferIndex;
+        uCurrentIndex += 3;
+    }
+
+    pl_sb_free(sbtLeaves);
+
+    // Write out
+    fwrite(&tMinBounding, 1, sizeof(plVec3), ptFile);
+    fwrite(&tMaxBounding, 1, sizeof(plVec3), ptFile);
+
+    fwrite(&uVertexCount, 1, sizeof(uint32_t), ptFile);
+    fwrite(atVertexData, 1, sizeof(plTerrainVertex) * uVertexCount, ptFile);
+
+    fwrite(&uIndexCount, 1, sizeof(uint32_t), ptFile);
+    fwrite(atIndexData,  1, sizeof(uint32_t) * uIndexCount, ptFile);
+
+    PL_FREE(atVertexData);
+    PL_FREE(atIndexData);
+
+    // Recurse into children chunks
+    if(iLevel > 0)
+    {
+        const int childHalf = (1 << (iLogSize - 1));
+        pl__terrain_mesh(ptFile, ptHeightMap, iStartIndexX,             iStartIndexY + 0,             iLogSize - 1, iLevel - 1);
+        pl__terrain_mesh(ptFile, ptHeightMap, iStartIndexX + childHalf, iStartIndexY + 0,             iLogSize - 1, iLevel - 1);
+        pl__terrain_mesh(ptFile, ptHeightMap, iStartIndexX + 0,         iStartIndexY + childHalf,     iLogSize - 1, iLevel - 1);
+        pl__terrain_mesh(ptFile, ptHeightMap, iStartIndexX + childHalf, iStartIndexY + childHalf,     iLogSize - 1, iLevel - 1);
     }
 }
 
-static uint32_t
-pl__terrain_get_bindless_texture_index(plTextureHandle tTexture)
+static plVec3
+pl__get_cartesian(plTerrainHeightMap* ptHeightMap, plTerrainMapElement* ptElement)
+{
+    plVec3 tResult = {
+        (float)ptElement->iX * ptHeightMap->fMetersPerPixel + ptHeightMap->tCenter.x - ptHeightMap->iSize * ptHeightMap->fMetersPerPixel * 0.5f,
+        ptElement->fY + ptHeightMap->tCenter.y,
+        (float)ptElement->iZ * ptHeightMap->fMetersPerPixel + ptHeightMap->tCenter.z - ptHeightMap->iSize * ptHeightMap->fMetersPerPixel * 0.5f,
+    };
+    return tResult;
+}
+
+static plVec2
+pl__get_normal(plTerrainHeightMap* ptHeightMap, plTerrainMapElement* ptElement)
+{
+    int iL = ptElement->iX - 1;
+    int iR = ptElement->iX + 1;
+    int jD = ptElement->iZ - 1;
+    int jU = ptElement->iZ + 1;
+
+    const int maxHalo = ptHeightMap->iSize - 1;  // last valid slot in a (iSize-1)-length edge
+    const int hx = pl_min(pl_max(ptElement->iX, 0), maxHalo);
+    const int hz = pl_min(pl_max(ptElement->iZ, 0), maxHalo);
+
+    plTerrainMapElement* eL = NULL;
+    plTerrainMapElement* eR = NULL;
+    plTerrainMapElement* eD = NULL;
+    plTerrainMapElement* eU = NULL;
+
+    // west
+    if(ptElement->iX == 0 && ptElement->iZ == ptHeightMap->iSize - 1)
+        eL = &ptHeightMap->atHaloElements[4 * (ptHeightMap->iSize - 1) + 1];
+    else if(ptElement->iX == 0)
+        eL = &ptHeightMap->atHaloElements[3 * (ptHeightMap->iSize - 1) + hz];
+    else
+        eL = &ptHeightMap->atElements[iL + ptHeightMap->iSize*ptElement->iZ];
+    
+    // north
+    if(ptElement->iZ == 0 && ptElement->iX == ptHeightMap->iSize - 1)
+        eD = &ptHeightMap->atHaloElements[4 * (ptHeightMap->iSize - 1) + 0];
+    else if(ptElement->iZ == 0)
+        eD = &ptHeightMap->atHaloElements[hx];
+    else
+        eD = &ptHeightMap->atElements[ptElement->iX  + ptHeightMap->iSize*jD];
+
+    if(ptElement->iZ == ptHeightMap->iSize - 1)
+        eU = &ptHeightMap->atHaloElements[2 * (ptHeightMap->iSize - 1) + hx];
+    else
+        eU = &ptHeightMap->atElements[ptElement->iX  + ptHeightMap->iSize*jU];
+
+    // east
+    eR = ptElement->iX == ptHeightMap->iSize - 1 ? &ptHeightMap->atHaloElements[1 * (ptHeightMap->iSize - 1) + hz] : &ptHeightMap->atElements[iR + ptHeightMap->iSize*ptElement->iZ];
+
+    plVec3 pL = pl__get_cartesian(ptHeightMap, eL);
+    plVec3 pR = pl__get_cartesian(ptHeightMap, eR);
+    plVec3 pD = pl__get_cartesian(ptHeightMap, eD);
+    plVec3 pU = pl__get_cartesian(ptHeightMap, eU);
+
+    // Tangents are now true 3D directions along the surface sampling grid
+    plVec3 tX = pl_sub_vec3(pR, pL);
+    plVec3 tZ = pl_sub_vec3(pU, pD);
+
+    plVec3 n = pl_cross_vec3(tZ, tX);   // swap order if flipped
+    n = pl_norm_vec3(n);
+
+    return pl__encode(n);
+}
+
+static void
+pl__update(plTerrainHeightMap* ptHeightMap, float fBaseMaxError, int iApexX, int iApexZ, int iRightX, int iRightZ, int iLeftX, int iLeftZ)
+{
+	// compute the coordinates of this triangle's base vertex.
+	const int iDx = iLeftX - iRightX;
+	const int iDz = iLeftZ - iRightZ;
+	if (abs(iDx) <= 1 && abs(iDz) <= 1)
+    {
+		// We've reached the base level.  There's no base
+		// vertex to update, and no child triangles to
+		// recurse to.
+		return;
+	}
+
+	// base vert is midway between left and right verts.
+	const int iBaseX = iRightX + (iDx >> 1);
+	const int iBaseZ = iRightZ + (iDz >> 1);
+
+    plTerrainMapElement* ptBaseElement = pl__get_elem(ptHeightMap, iBaseX, iBaseZ);
+    plTerrainMapElement* ptLeftElement = pl__get_elem(ptHeightMap, iLeftX, iLeftZ);
+    plTerrainMapElement* ptRightElement = pl__get_elem(ptHeightMap, iRightX, iRightZ);
+
+    plVec3 tBaseVertex = pl__get_cartesian(ptHeightMap, ptBaseElement);
+    plVec3 tLeftVertex = pl__get_cartesian(ptHeightMap, ptLeftElement);
+    plVec3 tRightVertex = pl__get_cartesian(ptHeightMap, ptRightElement);
+
+    float fError = tBaseVertex.y - (tLeftVertex.y + tRightVertex.y) / 2.0f;
+
+	pl__get_elem(ptHeightMap, iBaseX, iBaseZ)->fError = fError;	// Set this vert's error value.
+	if (fabs(fError) >= fBaseMaxError)
+    {
+		// Compute the mesh level above which this vertex
+		// needs to be included in LOD meshes.
+		int	iActivationLevel = (int) floor(log2(fabs(fError) / fBaseMaxError) + 0.5);
+
+		// Force the base vert to at least this activation level.
+		plTerrainMapElement* ptElem = pl__get_elem(ptHeightMap, iBaseX, iBaseZ);
+        pl__activate_height_map_element(ptElem, iActivationLevel);
+	}
+
+	// recurse to child triangles
+	pl__update(ptHeightMap, fBaseMaxError, iBaseX, iBaseZ, iApexX, iApexZ, iRightX, iRightZ); // base, apex, right
+	pl__update(ptHeightMap, fBaseMaxError, iBaseX, iBaseZ, iLeftX, iLeftZ, iApexX, iApexZ);	  // base, left, apex
+}
+
+
+static void
+pl__propagate_activation_level(plTerrainHeightMap* ptHeightMap, int cx, int cz, int level, int target_level)
 {
 
-    uint64_t uIndex = 0;
-    if(pl_hm_has_key_ex(&gptTerrainCtx->tTextureIndexHashmap, tTexture.uData, &uIndex))
-        return (uint32_t)uIndex;
+    // Does a quadtree descent through the heightfield, in the square with
+    // center at (cx, cz) and size of (2 ^ (level + 1) + 1).  Descends
+    // until level == target_level, and then propagates this square's
+    // child center verts to the corresponding edge vert, and the edge
+    // verts to the center.  Essentially the quadtree meshing update
+    // dependency graph as in my Gamasutra article.  Must call this with
+    // successively increasing target_level to get correct propagation.
 
-    uint64_t ulValue = pl_hm_get_free_index(&gptTerrainCtx->tTextureIndexHashmap);
-    if(ulValue == PL_DS_HASH_INVALID)
+	int	half_size = 1 << level;
+	int	quarter_size = half_size >> 1;
+
+	if (level > target_level)
     {
-        PL_ASSERT(gptTerrainCtx->uTextureIndexCount < PL_TERRAIN_MAX_BINDLESS_TEXTURES);
-        ulValue = gptTerrainCtx->uTextureIndexCount++;
-
-        // TODO: handle when greater than 4096
-    }
-    pl_hm_insert(&gptTerrainCtx->tTextureIndexHashmap, tTexture.uData, ulValue);
-    
-    const plBindGroupUpdateTextureData tGlobalTextureData[] = {
+		// Recurse to children.
+		for (int j = 0; j < 2; j++)
         {
-            .tTexture = tTexture,
-            .uSlot    = 1,
-            .uIndex   = (uint32_t)ulValue,
-            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-        },
-    };
+			for (int i = 0; i < 2; i++)
+            {
+				pl__propagate_activation_level(ptHeightMap,
+							   cx - quarter_size + half_size * i,
+							   cz - quarter_size + half_size * j,
+							   level - 1, target_level);
+			}
+		}
+		return;
+	}
 
-    plBindGroupUpdateData tGlobalBindGroupData = {
-        .uTextureCount = 1,
-        .atTextureBindings = tGlobalTextureData
-    };
+	// We're at the target level.  Do the propagation on this
+	// square.
 
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-        gptGfx->update_bind_group(gptTerrainCtx->ptDevice, gptTerrainCtx->atBindGroups[i], &tGlobalBindGroupData);
+	// ee == east edge, en = north edge, etc
+	plTerrainMapElement* ee = pl__get_elem(ptHeightMap, cx + half_size, cz);
+	plTerrainMapElement* en = pl__get_elem(ptHeightMap, cx, cz - half_size);
+	plTerrainMapElement* ew = pl__get_elem(ptHeightMap, cx - half_size, cz);
+	plTerrainMapElement* es = pl__get_elem(ptHeightMap, cx, cz + half_size);
+	
+	if (level > 0)
+    {
+		// Propagate child verts to edge verts.
+		int	elev = pl__get_elem(ptHeightMap, cx + quarter_size, cz - quarter_size)->iActivationLevel; // ne
+        pl__activate_height_map_element(ee, elev);
+        pl__activate_height_map_element(en, elev);
 
-    return (uint32_t)ulValue;
+		elev = pl__get_elem(ptHeightMap, cx - quarter_size, cz - quarter_size)->iActivationLevel; // nw
+		pl__activate_height_map_element(en, elev);
+		pl__activate_height_map_element(ew, elev);
+
+		elev = pl__get_elem(ptHeightMap, cx - quarter_size, cz + quarter_size)->iActivationLevel; // sw
+		pl__activate_height_map_element(ew, elev);
+		pl__activate_height_map_element(es, elev);
+
+		elev = pl__get_elem(ptHeightMap, cx + quarter_size, cz + quarter_size)->iActivationLevel; // se
+		pl__activate_height_map_element(es, elev);
+		pl__activate_height_map_element(ee, elev);
+	}
+
+	// Propagate edge verts to center.
+	plTerrainMapElement* c = pl__get_elem(ptHeightMap, cx, cz);
+	pl__activate_height_map_element(c, ee->iActivationLevel);
+	pl__activate_height_map_element(c, en->iActivationLevel);
+	pl__activate_height_map_element(c, es->iActivationLevel);
+	pl__activate_height_map_element(c, ew->iActivationLevel);
 }
 
 //-----------------------------------------------------------------------------
@@ -1909,50 +1336,19 @@ PL_EXPORT void
 pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plTerrainI tApi = {
-        .initialize          = pl_terrain_initialize,
-        .cleanup             = pl_terrain_cleanup,
-        .create_terrain      = pl_create_terrain,
-        .cleanup_terrain     = pl_cleanup_terrain,
-        .prepare             = pl_prepare_terrain,
-        .reload_shaders      = pl_terrain_load_shaders,
-        .set_runtime_options = pl_terrain_set_runtime_options,
-        .get_runtime_options = pl_terrain_get_runtime_options,
-        .set_shaders         = pl_terrain_set_shaders,
-        .set_texture         = pl_terrain_set_texture,
-        .render              = pl_render_terrain
+        .process = pl_terrain_process,
+        .load_chunk_file = pl_terrain_load_chunk_file,
     };
     pl_set_api(ptApiRegistry, plTerrainI, &tApi);
 
     #ifndef PL_UNITY_BUILD
-        gptMemory           = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptImage            = pl_get_api_latest(ptApiRegistry, plImageI);
-        gptGfx              = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-        gptFreeList         = pl_get_api_latest(ptApiRegistry, plFreeListI);
-        gptIOI              = pl_get_api_latest(ptApiRegistry, plIOI);
-        gptStarter          = pl_get_api_latest(ptApiRegistry, plStarterI);
-        gptShader           = pl_get_api_latest(ptApiRegistry, plShaderI);
-        gptCollision        = pl_get_api_latest(ptApiRegistry, plCollisionI);
-        gptScreenLog        = pl_get_api_latest(ptApiRegistry, plScreenLogI);
-        gptTerrainProcessor = pl_get_api_latest(ptApiRegistry, plTerrainProcessorI);
-        gptGpuAllocators    = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
-        gptImageOps         = pl_get_api_latest(ptApiRegistry, plImageOpsI);
-        gptVfs              = pl_get_api_latest(ptApiRegistry, plVfsI);
-        gptResource         = pl_get_api_latest(ptApiRegistry, plResourceI);
-        gptStats            = pl_get_api_latest(ptApiRegistry, plStatsI);
+        gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
+        gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
+        gptVfs    = pl_get_api_latest(ptApiRegistry, plVfsI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
-
-    if(bReload)
-    {
-        gptTerrainCtx = ptDataRegistry->get_data("plTerrainContext");
-    }
-    else
-    {
-        static plTerrainContext tCtx = {0};
-        gptTerrainCtx = &tCtx;
-        ptDataRegistry->set_data("plTerrainContext", gptTerrainCtx);
-    }
 }
 
 PL_EXPORT void
@@ -1974,8 +1370,5 @@ pl_unload_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
     #define PL_MEMORY_IMPLEMENTATION
     #include "pl_memory.h"
-
-    #define PL_STRING_IMPLEMENTATION
-    #include "pl_string.h"
 
 #endif

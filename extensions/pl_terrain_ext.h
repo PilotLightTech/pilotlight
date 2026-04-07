@@ -10,7 +10,6 @@ Index of this file:
 // [SECTION] forward declarations
 // [SECTION] public api
 // [SECTION] structs
-// [SECTION] enums
 */
 
 //-----------------------------------------------------------------------------
@@ -39,23 +38,13 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // basic types
-typedef struct _plTerrainExtInit        plTerrainExtInit;
-typedef struct _plTerrainInit           plTerrainInit;
-typedef struct _plTerrainRuntimeOptions plTerrainRuntimeOptions;
-typedef struct _plTerrain               plTerrain;
-typedef struct _plTerrainTexture        plTerrainTexture;
-
-// enums/flags
-typedef int plTerrainFlags;
+typedef struct _plTerrainChunkFile       plTerrainChunkFile;
+typedef struct _plTerrainChunk           plTerrainChunk;
+typedef struct _plTerrainProcessTileInfo plTerrainProcessTileInfo;
+typedef struct _plTerrainProcessInfo     plTerrainProcessInfo;
 
 // external
-typedef struct _plTerrainProcessInfo    plTerrainProcessInfo;     // pl_terrain_processor.h
-typedef struct _plDevice                plDevice;                 // pl_graphics_ext.h
-typedef struct _plRenderEncoder         plRenderEncoder;          // pl_graphics_ext.h
-typedef struct _plDynamicDataBlock      plDynamicDataBlock;       // pl_graphics_ext.h
-typedef struct _plCamera                plCamera;                 // pl_camera_ext.h
-typedef struct _plCommandBuffer         plCommandBuffer;          // pl_graphics_ext.h
-typedef union  plRenderPassLayoutHandle plRenderPassLayoutHandle; // pl_graphics_ext.h
+typedef struct _plFreeListNode plFreeListNode; // pl_freelist_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -63,77 +52,81 @@ typedef union  plRenderPassLayoutHandle plRenderPassLayoutHandle; // pl_graphics
 
 typedef struct _plTerrainI
 {
-
-    // setup/shutdown
-    void (*initialize)(plTerrainExtInit);
-    void (*cleanup)   (void);
-
-    // terrain setup/finalization/shutdown
-    plTerrain* (*create_terrain) (plCommandBuffer*, plTerrainInit, plTerrainProcessInfo*);
-    void      (*cleanup_terrain)(plTerrain*);
-
-    void (*set_texture)(plTerrain*, plTerrainTexture*);
-
-    // per frame
-    void (*prepare)(plTerrain*, plCommandBuffer*);
-
-    // views (share terrain data, separate render targets)
-    void              (*render)     (plRenderEncoder*, plTerrain*, plCamera*, plDynamicDataBlock*);
-
-    // debugging helpers mostly
-    void                   (*set_runtime_options)(plTerrain*, plTerrainRuntimeOptions);
-    plTerrainRuntimeOptions (*get_runtime_options)(plTerrain*);
-    void                   (*reload_shaders)     (plTerrain*);
-     void                  (*set_shaders)        (plTerrain*, const char* pcVertexShader, const char* pcFragmentShader);
-
+    void (*process)         (plTerrainProcessInfo*);
+    bool (*load_chunk_file) (const char* path, plTerrainChunkFile* fileOut, uint32_t fileID);
 } plTerrainI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _plTerrainExtInit
+typedef struct _plTerrainProcessTileInfo
 {
-    plDevice* ptDevice;
-    uint32_t uStagingBufferSize; // default: 268435456 bytes
-} plTerrainExtInit;
+    float       fMaxBaseError;
+    float       fMaxHeight;
+    float       fMinHeight;
+    int         iTreeDepth;
+    plVec3      tCenter;
+    char        acHeightMapFile[256];
+    char        acOutputFile[256];
+} plTerrainProcessTileInfo;
 
-typedef struct _plTerrainTexture
+typedef struct _plTerrainProcessInfo
 {
-    const char* pcPath;
-    float       fMetersPerPixel;
-    plVec2      tCenter;
-} plTerrainTexture;
+    float                     fMetersPerPixel;
+    uint32_t                  uSize;
+    uint32_t                  uTileCount;
+    plTerrainProcessTileInfo* atTiles;
+    uint32_t                  uHorizontalTiles;
+    uint32_t                  uVerticalTiles;
+} plTerrainProcessInfo;
 
-typedef struct _plTerrainInit
+typedef struct _plTerrainChunk
 {
-    plRenderPassLayoutHandle* ptRenderPassLayoutHandle;
+    plTerrainChunk* ptParent;
+    plTerrainChunk* aptChildren[4];
 
-    // memory allocations
-    uint32_t uVertexBufferSize;  // default: 268435456 bytes
-    uint32_t uIndexBufferSize;   // default: 268435456 bytes
+    // chunk address (its position in the quadtree)
+    float fX;
+    float fY;
+    uint8_t uLevel;
 
-    // shaders
-    const char* pcVertexShader;   // default: "pl_terrain.vert"
-    const char* pcFragmentShader; // default: "pl_terrain.frag"
-} plTerrainInit;
+    // bounds
+    plVec3 tMinBound;
+    plVec3 tMaxBound;
 
-typedef struct _plTerrainRuntimeOptions
+    // gpu data
+    uint32_t        uIndex;
+    uint32_t        uIndexCount;
+    plFreeListNode* ptVertexHole;
+    plFreeListNode* ptIndexHole;
+    
+    size_t szFileLocation;
+    uint32_t uFileID;
+
+    uint64_t       uLastFrameUsed;
+    plTerrainChunk* ptNext;
+    plTerrainChunk* ptPrev;
+
+    bool bInReplacementList;
+    plVec2 tUVOffset;
+    plVec2 tUVScale;
+} plTerrainChunk;
+
+typedef struct _plTerrainChunkFile
 {
-    plTerrainFlags tFlags;
-    float         fTau;
-    plVec3        tLightDirection;
-} plTerrainRuntimeOptions;
+    int             iTreeDepth;
+    float           fMaxBaseError;
+    uint32_t        uChunkCount;
+    plTerrainChunk* atChunks;
+    char            acFile[128];
+} plTerrainChunkFile;
 
-//-----------------------------------------------------------------------------
-// [SECTION] enums
-//-----------------------------------------------------------------------------
-
-enum _plTerrainFlags
+typedef struct _plTerrainVertex
 {
-    PL_TERRAIN_FLAGS_NONE        = 0,
-    PL_TERRAIN_FLAGS_WIREFRAME   = 1 << 0,
-    PL_TERRAIN_FLAGS_SHOW_LEVELS = 1 << 1
-};
+    plVec3 tPosition;
+    plVec2 tNormal;
+    plVec2 tUV;
+} plTerrainVertex;
 
 #endif // PL_TERRAIN_EXT_H

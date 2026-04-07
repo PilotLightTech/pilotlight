@@ -204,6 +204,11 @@ PL_BEGIN_STRUCT(plGpuDynForwardData)
     int  iPointLightCount;
     int  iSpotLightCount;
     int  iDirectionLightCount;
+
+    int _iUnused0;
+    int _iUnused1;
+    int _iUnused2;
+    int iProbe;
 PL_END_STRUCT(plGpuDynForwardData)
 
 //-----------------------------------------------------------------------------
@@ -228,8 +233,8 @@ PL_END_STRUCT(plGpuSceneData)
 PL_BEGIN_STRUCT(plGpuViewData)
 
     int iTransmissionFrameBufferIndex;
-    int _iUnused0;
-    int _iUnused1;
+    float fCameraRange;
+    float fCameraNearZ;
     float fFogHeight;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
@@ -511,7 +516,10 @@ PL_BEGIN_STRUCT(plGpuDirectionLight)
     int _unused1;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~48 bytes~~~~~~~~~~~~~~~~
+    vec4 afCascadeSplits;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDirectionLight)
 
 PL_BEGIN_STRUCT(plGpuProbe)
@@ -586,7 +594,7 @@ PL_BEGIN_STRUCT(plGpuDynDeferredLighting)
     uint uGlobalIndex;
     int  iLightIndex;
     int iProbeCount;
-    uint _uUnused1;
+    int iProbe; // cascade help
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDynDeferredLighting)
 

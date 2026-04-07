@@ -818,6 +818,83 @@
             ]
         },
         {
+            "pcName": "terrain",
+            "tVertexShader":    { "file": "pl_terrain.vert"},
+            "tFragmentShader":  { "file": "pl_terrain.frag"},
+            "tGraphicsState": {
+                "ulDepthWriteEnabled":  true,
+                "ulDepthMode":          "PL_COMPARE_MODE_GREATER",
+                "ulCullMode":           "PL_CULL_MODE_CULL_BACK",
+                "ulWireframe":          false,
+                "ulDepthClampEnabled":  false,
+                "ulStencilTestEnabled": false,
+                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "ulStencilRef":         255,
+                "ulStencilMask":        255,
+                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+            },
+            "atVertexBufferLayouts": [
+                {
+                    "atAttributes": [
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" },
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                    ]
+                }
+            ],
+            "uSubpassIndex": 0,
+            "atBlendStates": [
+                { "bBlendEnabled": false },
+                { "bBlendEnabled": false },
+                { "bBlendEnabled": false },
+                { "bBlendEnabled": false }
+            ],
+            "atBindGroupLayouts": [ 
+                { "pcName": "scene" },
+                {
+                    "atBufferBindings": [
+                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                    ]
+                }
+            ]
+        },
+        {
+            "pcName": "terrain_shadow",
+            "tVertexShader": { "file": "pl_terrain_shadow.vert"},
+            "tGraphicsState": {
+                "ulDepthWriteEnabled":  true,
+                "ulDepthMode":          "PL_COMPARE_MODE_GREATER_OR_EQUAL",
+                "ulCullMode":           "PL_CULL_MODE_NONE",
+                "ulWireframe":          false,
+                "ulDepthClampEnabled":  true,
+                "ulStencilTestEnabled": false,
+                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "ulStencilRef":         255,
+                "ulStencilMask":        255,
+                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+            },
+            "atVertexBufferLayouts": [
+                {
+                    "atAttributes": [
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" },
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                    ]
+                }
+            ],
+            "atBlendStates": [
+                { "bBlendEnabled": false }
+            ],
+            "atBindGroupLayouts": [ 
+                { "pcName": "scene" },
+                { "pcName": "shadow" }
+            ]
+        },
+        {
             "pcName": "grid",
             "tVertexShader":    { "file": "pl_grid.vert"},
             "tFragmentShader":  { "file": "pl_grid.frag"},
