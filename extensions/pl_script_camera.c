@@ -67,10 +67,8 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
 
     plIO* ptIO = gptIO->get_io();
 
-    static const float gfCameraTravelSpeed = 4.0f;
+    static float fCameraTravelSpeed = 4.0f;
     static const float fCameraRotationSpeed = 0.005f;
-
-    float fCameraTravelSpeed = gfCameraTravelSpeed;
 
     bool bOwnKeyboard = gptUi->wants_keyboard_capture();
     bool bOwnMouse = gptUi->wants_mouse_capture();
@@ -91,7 +89,15 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
         }
 
         if(gptIO->is_key_down(PL_KEY_MOD_SHIFT))
-            fCameraTravelSpeed *= 3.0f;
+            fCameraTravelSpeed *= 10.0f;
+
+        if(gptIO->get_mouse_wheel() > 0.0f)
+            fCameraTravelSpeed *= 2.0f;
+        else if(gptIO->get_mouse_wheel() < 0.0f)
+        {
+            fCameraTravelSpeed /= 2.0f;
+            fCameraTravelSpeed = pl_max(fCameraTravelSpeed, 0.1f);
+        }
 
 
         // camera space
