@@ -700,7 +700,7 @@ if [ ! -f "../out/glfwd.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_X11 -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-fPIC -std=gnu99 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1141,7 +1141,7 @@ if [ ! -f "../out/glfw.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_X11 "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-fPIC -std=gnu99 "
 PL_LINKER_FLAGS="-ldl -lm "

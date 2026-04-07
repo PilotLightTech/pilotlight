@@ -153,6 +153,8 @@ with pl.project("pilotlight"):
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
                     pl.add_linker_flags("-lstdc++")
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
 
         def add_release_unity_ext():
             
@@ -186,6 +188,8 @@ with pl.project("pilotlight"):
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
                     pl.add_linker_flags("-lstdc++")
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
 
         with pl.configuration("debug"):                add_debug_unity_ext()
         with pl.configuration("release"):              add_release_unity_ext()
@@ -452,7 +456,7 @@ with pl.project("pilotlight"):
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
                     pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_X11", "_DEBUG")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan', '/usr/include/vulkan')
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "pthread", "xcb-cursor", "vulkan")
                     pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_compiler_flags("-fPIC", "-std=gnu99", "--debug -g")
@@ -463,7 +467,7 @@ with pl.project("pilotlight"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_COCOA", "_DEBUG")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan', '/usr/include/vulkan')
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "vulkan")
                     pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
                     pl.add_compiler_flags("-Wno-deprecated-declarations", "--debug -g", "-std=c99", "-fmodules", "-ObjC", "-fPIC")
@@ -485,7 +489,7 @@ with pl.project("pilotlight"):
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
                     pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_X11")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan', '/usr/include/vulkan')
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_dynamic_link_libraries("xcb", "X11", "X11-xcb", "xkbcommon", "pthread", "xcb-cursor", "vulkan")
                     pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_compiler_flags("-fPIC", "-std=gnu99")
@@ -496,7 +500,7 @@ with pl.project("pilotlight"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_COCOA")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan', '/usr/include/vulkan')
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_dynamic_link_libraries("vulkan")
                     pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
                     pl.add_compiler_flags("-std=c99", "-fmodules", "-ObjC", "-fPIC", "-Wno-deprecated-declarations")
@@ -510,7 +514,7 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.set_output_binary("glfwd")
                     pl.add_definitions("_GLFW_VULKAN_STATIC", "_GLFW_COCOA", "_DEBUG")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan', '/usr/include/vulkan')
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_dynamic_link_libraries("vulkan")
                     pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
                     pl.add_compiler_flags("-Wno-deprecated-declarations", "--debug -g", "-std=c99", "-fmodules", "-ObjC", "-fPIC")

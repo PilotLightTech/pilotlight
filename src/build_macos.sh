@@ -93,8 +93,8 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
@@ -363,8 +363,8 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
@@ -637,8 +637,8 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
@@ -817,7 +817,7 @@ if [ ! -f "../out/glfwd.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_COCOA -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-Wno-deprecated-declarations --debug -g -std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -1138,8 +1138,8 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
@@ -1318,7 +1318,7 @@ if [ ! -f "../out/glfw.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_COCOA "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
 PL_LINKER_FLAGS=""
@@ -2089,7 +2089,7 @@ if [ ! -f "../out/glfwd.a" ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -D_GLFW_VULKAN_STATIC -D_GLFW_COCOA -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan -I/usr/include/vulkan "
+PL_INCLUDE_DIRECTORIES="-I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/cgltf -I../dependencies/imgui -I../dependencies/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-Wno-deprecated-declarations --debug -g -std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
