@@ -146,6 +146,16 @@ pl_camera_update(plCamera* ptCamera)
             break;
         }
 
+        case PL_CAMERA_TYPE_ORTHOGRAPHIC_REVERSE_Z:
+        {
+            ptCamera->tProjMat.col[0].x = 2.0f / ptCamera->fWidth;
+            ptCamera->tProjMat.col[1].y = 2.0f / ptCamera->fHeight;
+            ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
+            ptCamera->tProjMat.col[3].z = -ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
+            ptCamera->tProjMat.col[3].w = 1.0f;
+            break;
+        }
+
         default:
         {
             PL_ASSERT(false && "Unknown camera component type");
