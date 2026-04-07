@@ -137,7 +137,7 @@ void main()
                 shadowCoord.xy = result.xy;
                 if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
                 {
-                    shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                    shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
                 }
                 else
                 {

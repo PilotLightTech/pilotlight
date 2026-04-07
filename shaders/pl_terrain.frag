@@ -53,22 +53,23 @@ void main()
 
     float fSlopeThing = dot(normal, vec3(0, 1, 0));
 
-    if(tShaderIn.tWorldPosition.y > 200.0)
-    {
-        outAlbedo = vec4(1.0, 1.0, 1.0, 1.0);
-    }
-    else if(fSlopeThing > 0.94)
-    {
-        outAlbedo = vec4(0.05, 0.3, 0.05, 1.0);
-    }
-    else if(fSlopeThing > 0.8)
-    {
-        outAlbedo = vec4(0.66, 0.598, 0.402, 1.0);
-    }
-    else
-    {
-        outAlbedo = vec4(0.05, 0.05, 0.05, 1.0);
-    }
+    // if(tShaderIn.tWorldPosition.y > 200.0)
+    // {
+    //     outAlbedo = vec4(1.0, 1.0, 1.0, 1.0);
+    // }
+    // else if(fSlopeThing > 0.94)
+    // {
+    //     outAlbedo = vec4(0.05, 0.3, 0.05, 1.0);
+    // }
+    // else if(fSlopeThing > 0.8)
+    // {
+    //     outAlbedo = vec4(0.66, 0.598, 0.402, 1.0);
+    // }
+    // else
+    // {
+    //     outAlbedo = vec4(0.05, 0.05, 0.05, 1.0);
+    // }
+    outAlbedo = vec4(0.1, 0.1, 0.1, 1.0);
     outNormal = Encode(normal);
     outAOMetalnessRoughness = vec4(1.0, 1.0, 1.0, 1.0);
 

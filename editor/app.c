@@ -473,12 +473,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     plEntity tDirectionLight = gptRenderer->create_directional_light(ptAppData->ptComponentLibrary, "direction light", pl_create_vec3(0.425f, -1.0f, -0.384f), &ptLight);
     ptLight->uCascadeCount = 4;
     ptLight->fIntensity = 18.0f;
+    ptLight->fShadowLambda = 0.6f;
     ptLight->uShadowResolution = 1024 * 2;
     ptLight->afCascadeSplits[0] = 0.005f;
-    ptLight->afCascadeSplits[1] = 0.020f;
-    ptLight->afCascadeSplits[2] = 0.10f;
-    ptLight->afCascadeSplits[3] = 1.00f;
+    ptLight->afCascadeSplits[1] = 0.05f;
+    ptLight->afCascadeSplits[2] = 0.1f;
+    ptLight->afCascadeSplits[3] = 0.15f;
     ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
+
 
     plEntity tPointLight = gptRenderer->create_point_light(ptAppData->ptComponentLibrary, "point light", pl_create_vec3(fXOffset + 9.316f, fYOffset + 1.497f, fZOffset-1.042f), &ptLight);
     ptLight->uShadowResolution = 512;
@@ -1065,6 +1067,9 @@ pl__show_editor_window(plAppData* ptAppData)
             
             gptUI->input_float("Depth Bias", &ptRuntimeOptions->fShadowConstantDepthBias, NULL, 0);
             gptUI->input_float("Slope Depth Bias", &ptRuntimeOptions->fShadowSlopeDepthBias, NULL, 0);
+            gptUI->input_float("Terrain Depth Bias", &ptRuntimeOptions->fTerrainShadowConstantDepthBias, NULL, 0);
+            gptUI->input_float("Terrain Slope Depth Bias", &ptRuntimeOptions->fTerrainShadowSlopeDepthBias, NULL, 0);
+            gptUI->slider_float("Max Shadow Range", &ptRuntimeOptions->fMaxShadowRange, 100.0f, 1000.0f, 0);
             gptUI->slider_uint("Outline Width", &ptRuntimeOptions->uOutlineWidth, 2, 50, 0);
             
             if(ptAppData->ptScene)

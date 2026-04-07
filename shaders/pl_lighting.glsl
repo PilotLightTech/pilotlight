@@ -322,12 +322,43 @@ textureProj(vec4 shadowCoord, vec2 offset, int textureIndex)
 }
 
 float
-filterPCF(vec4 sc, vec2 offset, int textureIndex)
+textureProj2(vec4 shadowCoord, vec2 offset, int textureIndex)
+{
+
+    // Perspective divide
+    vec3 proj = shadowCoord.xyz / shadowCoord.w;
+
+    // Early out: outside light frustum → lit
+    if (proj.z < 0.0 || proj.z > 1.0)
+        return 1.0;
+
+    // Apply atlas offset in UV space
+    vec2 uv = proj.xy + offset;
+
+    float dist =
+        texture(
+            sampler2D(
+                at2DTextures[nonuniformEXT(textureIndex)],
+                tSamplerNearestClamp),
+            uv).r;
+    return (dist <= proj.z) ? 1.0 : 0.0;
+}
+
+float hash12(vec2 p)
+{
+    vec3 p3  = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float
+filterPCFSimple(vec4 sc, vec2 offset, int textureIndex)
 {
 	ivec2 texDim = textureSize(sampler2D(at2DTextures[nonuniformEXT(textureIndex)], tSamplerNearestClamp), 0).xy;
 	float scale = 1.0;
 	float dx = scale * 1.0 / (float(texDim.x));
 	float dy = scale * 1.0 / (float(texDim.y));
+    vec2 texelSize = 1.0 / vec2(texDim);
 
 	float shadowFactor = 0.0;
 	// int count = 0;
@@ -337,13 +368,69 @@ filterPCF(vec4 sc, vec2 offset, int textureIndex)
     {
 		for (int y = -range; y <= range; y++)
         {
-			shadowFactor += textureProj(sc, vec2(dx*x, dy*y) + offset, textureIndex);
+            vec2 jitter = (hash12(gl_FragCoord.xy + vec2(x, y)) - 0.5) * texelSize;
+			shadowFactor += textureProj(sc, vec2(dx*x, dy*y) + offset + jitter, textureIndex);
 			// count++;
 		}
 	}
-	// return shadowFactor / count;
 	return shadowFactor / 9.0;
 }
+
+
+float
+filterPCF(vec4 sc, vec2 offset, int textureIndex, uint cascadeIndex)
+
+{
+    ivec2 texDim =
+        textureSize(
+            sampler2D(
+                at2DTextures[nonuniformEXT(textureIndex)],
+                tSamplerNearestClamp),
+            0).xy;
+
+    vec2 texelSize = 1.0 / vec2(texDim);
+
+    // ----- CHANGES BEGIN -----
+    int range = 1; // 5×5 PCF instead of 3×3
+    if(cascadeIndex == 0)
+        range = 3;
+    // ----- CHANGES END -----
+
+    float shadowSum = 0.0;
+    float weightSum = 0.0;
+
+    for (int x = -range; x <= range; x++)
+    {
+        for (int y = -range; y <= range; y++)
+        {
+            // Texel-centered PCF offset
+
+            vec2 jitter = (hash12(gl_FragCoord.xy + vec2(x, y)) - 0.5) * texelSize;
+
+            vec2 pcfOffset =
+                (vec2(x, y) + 0.5) * texelSize + jitter;
+
+            // ----- NEW: tent (pyramid) weights -----
+            float wx = 1.0 - abs(float(x)) / (float(range) + 1.0);
+            float wy = 1.0 - abs(float(y)) / (float(range) + 1.0);
+            float w  = wx * wy;
+            // --------------------------------------
+
+            shadowSum +=
+                w * textureProj2(
+                        sc,
+                        offset + pcfOffset,
+                        textureIndex);
+
+            weightSum += w;
+        }
+    }
+
+    return shadowSum / weightSum;
+}
+
+
+
 
 
 // Smooth 0..1 falloff between inner..outer, 1 inside inner, 0 beyond outer

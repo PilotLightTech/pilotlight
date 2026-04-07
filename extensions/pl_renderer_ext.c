@@ -239,9 +239,13 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tRuntimeOptions.bShowSelectedBoundingBox = true;
     gptData->tRuntimeOptions.bImageBasedLighting = true;
     gptData->tRuntimeOptions.bPunctualLighting = true;
+    gptData->tRuntimeOptions.bPcfShadows = true;
     gptData->tRuntimeOptions.bNormalMapping = true;
+    gptData->tRuntimeOptions.fMaxShadowRange = 150.0f;
+    gptData->tRuntimeOptions.fTerrainShadowConstantDepthBias = -100.0f;
+    gptData->tRuntimeOptions.fTerrainShadowSlopeDepthBias = -10.0f;
     gptData->tRuntimeOptions.fShadowConstantDepthBias = -1.25f;
-    gptData->tRuntimeOptions.fShadowSlopeDepthBias = -10.75f;
+    gptData->tRuntimeOptions.fShadowSlopeDepthBias = -1.75f;
     gptData->tRuntimeOptions.fExposure = 1.0f;
     gptData->tRuntimeOptions.fBrightness = 0.0f;
     gptData->tRuntimeOptions.fContrast = 1.0f;

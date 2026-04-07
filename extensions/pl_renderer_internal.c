@@ -1351,6 +1351,8 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
     // TODO: we shouldn't have to check all rects, optimize this
 
+    float fShadowFarZ = pl_min(ptSceneCamera->fFarZ, gptData->tRuntimeOptions.fMaxShadowRange);
+
     const uint32_t uAtlasRectCount = pl_sb_size(ptScene->sbtShadowRects);
     for(uint32_t uRectIndex = 0; uRectIndex < uAtlasRectCount; uRectIndex++)
     {
@@ -1363,7 +1365,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
         {
             continue;
         }
-        const plLightComponent* ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[ptData->uLightIndex].tEntity);
+        plLightComponent* ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[ptData->uLightIndex].tEntity);
 
 
         int iShadowIndex = ptScene->sbtDirectionLightData[ptData->uLightIndex].iShadowIndex;
@@ -1381,12 +1383,33 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
         const plVec3 tDirection = pl_norm_vec3(ptLight->tDirection);
         const uint32_t uCascadeCount = tInfo.bAltMode ? 1 : ptLight->uCascadeCount; // probe only needs single cascade
 
-        const float afCascadeSplits[4] = {
+        float afCascadeSplits[4] = {
             tInfo.bAltMode ? 1.0f : ptLight->afCascadeSplits[0], // use whole frustum for environment probes
             ptLight->afCascadeSplits[1],
             ptLight->afCascadeSplits[2],
             ptLight->afCascadeSplits[3]
         };
+
+        if(!tInfo.bAltMode && ptLight->fShadowLambda > 0.0f)
+        {
+            for(uint32_t i = 1; i <= uCascadeCount; ++i)
+            {
+                float p = (float)i / (float)uCascadeCount;
+
+                float logSplit =
+                    ptSceneCamera->fNearZ * powf(fShadowFarZ / ptSceneCamera->fNearZ, p);
+
+                float linSplit =
+                    ptSceneCamera->fNearZ + (fShadowFarZ - ptSceneCamera->fNearZ) * p;
+
+                float di =
+                    ptLight->fShadowLambda * logSplit +
+                    (1.0f - ptLight->fShadowLambda) * linSplit;
+
+                afCascadeSplits[i - 1] = (di - ptSceneCamera->fNearZ)/(ptSceneCamera->fFarZ - ptSceneCamera->fNearZ);
+                ptLight->afCascadeSplits[i - 1] = afCascadeSplits[i - 1];
+            }
+        }
 
         //-------------------------------------------------------------------------
         // stable light basis from direction only
@@ -1513,7 +1536,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             const float fCenterZ = 0.5f * (fZMin + fZMax);
 
             // optional z padding for off-frustum casters
-            const float fDepthPadding = 200.0f; // TODO: make option
+            const float fDepthPadding = 100.0f; // TODO: make option
             const float fNearZ = fZMax + fDepthPadding;
             const float fFarZ  = fZMin - fDepthPadding;
 
@@ -1580,7 +1603,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                 };
                 gptGfx->set_viewport(ptEncoder, &tViewport);
                 gptGfx->set_scissor_region(ptEncoder, &tScissor);
-                gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
+                gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fTerrainShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fTerrainShadowSlopeDepthBias);
                 gptGfx->bind_shader(ptEncoder, ptScene->tTerrainShadowShader);
                 gptGfx->bind_vertex_buffer(ptEncoder, ptScene->ptTerrain->tVertexBuffer);
                 plBindGroupHandle atBindGroups[] = {ptScene->atSceneBindGroups[uFrameIdx], tInfo.tBindGroup};

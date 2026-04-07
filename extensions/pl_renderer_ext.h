@@ -239,8 +239,11 @@ typedef struct _plRendererRuntimeOptions
     bool              bNormalMapping;
     bool              bPunctualLighting;
     bool              bPcfShadows;
+    float             fMaxShadowRange;
     float             fShadowConstantDepthBias;
     float             fShadowSlopeDepthBias;
+    float             fTerrainShadowConstantDepthBias;
+    float             fTerrainShadowSlopeDepthBias;
     uint32_t          uOutlineWidth;
     plShaderDebugMode tShaderDebugMode;
 
@@ -349,6 +352,7 @@ typedef struct _plLightComponent
     uint32_t     uShadowResolution; // 0 -> automatic
     float        afCascadeSplits[PL_MAX_SHADOW_CASCADES];
     uint32_t     uCascadeCount;
+    float        fShadowLambda;
 } plLightComponent;
 
 #endif // PL_RENDERER_EXT_H

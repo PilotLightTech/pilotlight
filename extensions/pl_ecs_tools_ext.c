@@ -807,6 +807,8 @@ pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, pl
                     {
                         gptUI->slider_uint("Cascades", &ptLightComp->uCascadeCount, 1, 4, 0);
                         gptUI->input_float4("Cascade Splits", ptLightComp->afCascadeSplits, "%0.6f", 0);
+                        gptUI->input_float("Shadow Lambda", &ptLightComp->fShadowLambda, "%0.2f", 0);
+                        gptUI->slider_float("Shadow Lambda#2", &ptLightComp->fShadowLambda, 0.0f, 1.0f, 0);
                     }
                     gptUI->end_collapsing_header();
                 }

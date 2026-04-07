@@ -516,7 +516,7 @@ void main()
                     shadowCoord.xy = result.xy;
                     if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
                     {
-                        shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
+                        shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset) + faceoffsets[int(result.z)] * tShadowData.fFactor, tShadowData.iShadowMapTexIdx);
                     }
                     else
                     {
@@ -654,7 +654,7 @@ void main()
 
                     if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
                     {
-                        shadow = filterPCF(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
+                        shadow = filterPCFSimple(shadowCoord, vec2(tShadowData.fXOffset, tShadowData.fYOffset), tShadowData.iShadowMapTexIdx);
                     }
                     else
                     {
@@ -805,13 +805,18 @@ void main()
                 }
                 }
 
+                if(cascadeIndex < 4)
                 {
                     vec4 shadowCoord = (abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat[cascadeIndex]) * tWorldPos2;
                     // cascadeIndex = j;
                 
                     if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
                     {
-                        shadow = filterPCF(shadowCoord, vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset) + vec2(cascadeIndex * tDirectionShadowData.atData[iShadowIndex].fFactor, 0), tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx);
+                        shadow = filterPCF(
+                            shadowCoord,
+                            vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset) + vec2(cascadeIndex * tDirectionShadowData.atData[iShadowIndex].fFactor, 0),
+                            tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx,
+                            cascadeIndex);
                     }
                     else
                     {
@@ -826,7 +831,7 @@ void main()
                         float splitEnd   = tLightData.afCascadeSplits[cascadeIndex];
 
                         // width of fade region (10% of cascade)
-                        float fadeRange = (splitEnd - splitStart) * 0.25;
+                        float fadeRange = (splitEnd - splitStart) * 0.1;
 
                         // distance to end of cascade
                         float distToEnd = splitEnd - viewDepth;
@@ -838,7 +843,10 @@ void main()
                         {
 
                             shadowCoord = (abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat[cascadeIndex + 1]) * tWorldPos2;
-                            float shadowfallback = filterPCF(shadowCoord, vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset) + vec2((cascadeIndex + 1.0) * tDirectionShadowData.atData[iShadowIndex].fFactor, 0), tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx);
+                            float shadowfallback = filterPCF(
+                                shadowCoord,
+                                vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset) + vec2((cascadeIndex + 1.0) * tDirectionShadowData.atData[iShadowIndex].fFactor, 0),
+                                tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx, cascadeIndex + 1);
 
                             shadow = mix(shadow, shadowfallback, cascade_fade);
                             // shadow = 100.0;
