@@ -90,7 +90,8 @@ with pl.project("pilotlight"):
     pl.add_profile(platform_filter=["Darwin"],
                     link_frameworks=["Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore"])
     pl.add_profile(compiler_filter=["clang"],
-                    link_directories=["/usr/local/lib"],
+                    link_directories=["/usr/local/lib", "/opt/homebrew/lib"],
+                    include_directories=["/usr/local/include", "/opt/homebrew/include"],
                     compiler_flags=["-std=c99", "-fmodules", "-ObjC", "-fPIC"])
     pl.add_profile(compiler_filter=["clang"],
                     configuration_filter=["debug", "moltenvk", "debug_experimental", "moltenvk_experimental"],
@@ -151,6 +152,8 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+                    pl.add_include_directories('$VULKAN_SDK/include')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
                     pl.add_linker_flags("-lstdc++")
 
@@ -184,6 +187,8 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
+                    pl.add_include_directories('$VULKAN_SDK/include')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
                     pl.add_linker_flags("-lstdc++")
 
@@ -196,14 +201,18 @@ with pl.project("pilotlight"):
         with pl.configuration("moltenvk"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_include_directories('$VULKAN_SDK/include')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_linker_flags("-lstdc++")
                     pl.add_dynamic_link_libraries("pthread", "vulkan")
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
-                    
+
         with pl.configuration("moltenvk_experimental"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_include_directories('$VULKAN_SDK/include')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_linker_flags("-lstdc++")
                     pl.add_dynamic_link_libraries("pthread", "vulkan")
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
@@ -646,7 +655,8 @@ with pl.project("pilotlight"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_static_link_libraries("dearimguid")
-                    pl.add_link_directories("/usr/local/lib")
+                    pl.add_include_directories('$VULKAN_SDK/include')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
                     pl.add_compiler_flags("-fPIC", "-fmodules", "--debug", "-g", "-std=c++14")
                     pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
@@ -730,6 +740,8 @@ with pl.project("pilotlight"):
                 with pl.compiler("clang"):
                     pl.add_static_link_libraries("glfwd", "dearimguid")
                     pl.add_definitions("PL_VULKAN_BACKEND")
+                    pl.add_include_directories('$VULKAN_SDK/include')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "pthread", "vulkan")
@@ -809,7 +821,8 @@ with pl.project("pilotlight"):
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
                     pl.add_definitions("PL_VULKAN_BACKEND")
-                    pl.add_link_directories("/usr/local/lib")
+                    pl.add_include_directories('$VULKAN_SDK/include')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_compiler_flags("--debug -g", "-std=c++11", "-fPIC", "-ObjC++", "-fmodules")
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
                     pl.add_dynamic_link_libraries("vulkan", "pthread")

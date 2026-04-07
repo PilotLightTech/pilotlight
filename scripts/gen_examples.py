@@ -92,7 +92,8 @@ with pl.project("pilotlight_examples"):
                     with pl.compiler("clang"):
                         pl.add_compiler_flags("-std=c99", "--debug", "-g", "-fmodules", "-ObjC", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-                        pl.add_link_directories("/usr/local/lib")
+                        pl.add_link_directories("/usr/local/lib", "/opt/homebrew/lib")
+                        pl.add_include_directories("/usr/local/include", "/opt/homebrew/include")
 
             with pl.configuration("release"):
 
@@ -103,20 +104,21 @@ with pl.project("pilotlight_examples"):
                         pl.add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c11", "-W4", "-WX", "-wd4201",
                                               "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
                                               "-permissive-", "-O2", "-MD")
-                        
+
                 # linux
                 with pl.platform("Linux"):
                     with pl.compiler("gcc"):
                         pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
                         pl.add_compiler_flags("-std=gnu11", "-fPIC")
                         pl.add_linker_flags("-ldl", "-lm")
-                
+
                 # macos
                 with pl.platform("Darwin"):
                     with pl.compiler("clang"):
                         pl.add_compiler_flags("-std=c99", "-fmodules", "-ObjC", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-                        pl.add_link_directories("/usr/local/lib")
+                        pl.add_link_directories("/usr/local/lib", "/opt/homebrew/lib")
+                        pl.add_include_directories("/usr/local/include", "/opt/homebrew/include")
 
     for name in cpp_examples:
 
@@ -151,7 +153,8 @@ with pl.project("pilotlight_examples"):
                         pl.add_linker_flags("-lstdc++", "-ldl", "-lm")
                         pl.add_compiler_flags("-std=c++14", "--debug", "-g", "-fmodules", "-ObjC++", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-                        pl.add_link_directories("/usr/local/lib")
+                        pl.add_link_directories("/usr/local/lib", "/opt/homebrew/lib")
+                        pl.add_include_directories("/usr/local/include", "/opt/homebrew/include")
 
             with pl.configuration("release_experimental"):
 
@@ -164,20 +167,21 @@ with pl.project("pilotlight_examples"):
                         pl.add_compiler_flags("-Zc:preprocessor", "-nologo", "-std:c++14", "-W4", "-WX", "-wd4201",
                                               "-wd4100", "-wd4996", "-wd4505", "-wd4189", "-wd5105", "-wd4115",
                                               "-permissive-", "-O2", "-MD")
-                        
+
                 # linux
                 with pl.platform("Linux"):
                     with pl.compiler("gcc"):
                         pl.add_link_directories("/usr/lib/x86_64-linux-gnu")
                         pl.add_compiler_flags("-std=c++14", "-fPIC")
                         pl.add_linker_flags("-ldl", "-lm")
-                
+
                 # macos
                 with pl.platform("Darwin"):
                     with pl.compiler("clang"):
                         pl.add_compiler_flags("-std=c++14", "-fmodules", "-ObjC++", "-fPIC")
                         pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
-                        pl.add_link_directories("/usr/local/lib")
+                        pl.add_link_directories("/usr/local/lib", "/opt/homebrew/lib")
+                        pl.add_include_directories("/usr/local/include", "/opt/homebrew/include")
 
 #-----------------------------------------------------------------------------
 # [SECTION] generate scripts

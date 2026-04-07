@@ -78,7 +78,8 @@ with pl.project("pilotlight deploy"):
     pl.add_profile(platform_filter=["Darwin"],
                     link_frameworks=["Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore"])
     pl.add_profile(compiler_filter=["clang"],
-                    link_directories=["/usr/local/lib"],
+                    link_directories=["/usr/local/lib", "/opt/homebrew/lib"],
+                    include_directories=["/usr/local/include", "/opt/homebrew/include"],
                     compiler_flags=["-std=c99", "-fmodules", "-ObjC", "-fPIC"])
     pl.add_profile(compiler_filter=["clang"],
                     configuration_filter=["debug"],
@@ -289,6 +290,8 @@ with pl.project("pilotlight deploy"):
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_include_directories('$VULKAN_SDK/include')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_linker_flags("-lstdc++")
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
@@ -319,6 +322,8 @@ with pl.project("pilotlight deploy"):
             # macos
             with pl.platform("Darwin"):
                 with pl.compiler("clang"):
+                    pl.add_include_directories('$VULKAN_SDK/include')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_linker_flags("-lstdc++")
                     pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
                         "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
