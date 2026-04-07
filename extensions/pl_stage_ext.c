@@ -306,6 +306,7 @@ pl_stage_flush(void)
     uRequestCount = pl_sb_size(gptStageCtx->sbtTextureUploadRequests);
     for(uint32_t i = 0; i < uRequestCount; i++)
     {
+        gptGfx->set_texture_usage(ptEncoder, gptStageCtx->sbtTextureUploadRequests[i].uDestinationTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
         gptGfx->copy_buffer_to_texture(ptEncoder,
             gptStageCtx->sbtStageBlocks[gptStageCtx->sbtTextureUploadRequests[i].uBufferIndex].tBuffer,
             gptStageCtx->sbtTextureUploadRequests[i].uDestinationTexture,
