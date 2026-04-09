@@ -165,7 +165,7 @@ pl_camera_update(plCamera* ptCamera)
 }
 
 plEntity
-pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plDVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera** pptCompOut)
+pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
@@ -192,7 +192,7 @@ pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* p
 }
 
 plEntity
-pl_camera_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plDVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera** pptCompOut)
+pl_camera_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
@@ -288,8 +288,8 @@ pl_camera_translate(plCamera* ptCamera, double dDx, double dDy, double dDz)
 {
     plVec3 tRightChange = pl_mul_vec3_scalarf(ptCamera->_tRightVec, (float)dDx);
     plVec3 tForwardChange = pl_mul_vec3_scalarf(ptCamera->_tForwardVec, (float)dDz);
-    ptCamera->tPosDouble = pl_add_vec3_d(ptCamera->tPosDouble, (plDVec3){.x = (double)tRightChange.x,   .y = (double)tRightChange.y,   .z = (double)tRightChange.z});
-    ptCamera->tPosDouble = pl_add_vec3_d(ptCamera->tPosDouble, (plDVec3){.x = (double)tForwardChange.x, .y = (double)tForwardChange.y, .z = (double)tForwardChange.z});
+    ptCamera->tPosDouble = pl_add_vec3_d(ptCamera->tPosDouble, (plVec3d){.x = (double)tRightChange.x,   .y = (double)tRightChange.y,   .z = (double)tRightChange.z});
+    ptCamera->tPosDouble = pl_add_vec3_d(ptCamera->tPosDouble, (plVec3d){.x = (double)tForwardChange.x, .y = (double)tForwardChange.y, .z = (double)tForwardChange.z});
     ptCamera->tPosDouble.y += dDy;
 
     ptCamera->tPos.x = (float)ptCamera->tPosDouble.x;
@@ -308,9 +308,9 @@ pl_camera_rotate(plCamera* ptCamera, float fDPitch, float fDYaw)
 }
 
 void
-pl_camera_look_at(plCamera* ptCamera, plDVec3 tEye, plDVec3 tTarget)
+pl_camera_look_at(plCamera* ptCamera, plVec3d tEye, plVec3d tTarget)
 {
-    const plDVec3 tDirection = pl_norm_vec3_d(pl_sub_vec3_d(tTarget, tEye));
+    const plVec3d tDirection = pl_norm_vec3_d(pl_sub_vec3_d(tTarget, tEye));
     ptCamera->fYaw = (float)atan2(tDirection.x, tDirection.z);
     ptCamera->fPitch = (float)asin(tDirection.y);
     ptCamera->tPosDouble = tEye;

@@ -79,14 +79,14 @@ typedef struct _plCameraI
     void (*set_pitch_yaw)  (plCamera*, float fPitch, float fYaw);
     void (*translate)      (plCamera*, double dX, double dY, double dZ);
     void (*rotate)         (plCamera*, float fDPitch, float fDYaw);
-    void (*look_at)        (plCamera*, plDVec3 tEye, plDVec3 tTarget);
+    void (*look_at)        (plCamera*, plVec3d tEye, plVec3d tTarget);
     void (*update)         (plCamera*);
 
     //----------------------------ECS INTEGRATION----------------------------------
 
     // entity helpers
-    plEntity (*create_perspective) (plComponentLibrary*, const char* pcName, plDVec3 tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera**);
-    plEntity (*create_orthographic)(plComponentLibrary*, const char* pcName, plDVec3 tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera**);
+    plEntity (*create_perspective) (plComponentLibrary*, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera**);
+    plEntity (*create_orthographic)(plComponentLibrary*, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera**);
 
     // system setup/shutdown/etc
     void         (*register_ecs_system)(void);
@@ -103,7 +103,7 @@ typedef struct _plCamera
 {
     plCameraType tType;
     plVec3       tPos;
-    plDVec3      tPosDouble;
+    plVec3d      tPosDouble;
     float        fNearZ;
     float        fFarZ;
     float        fFieldOfView;

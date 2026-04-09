@@ -71,7 +71,7 @@ typedef struct _plMeshBuilder
 {
     plMeshBuilderOptions   tOptions;
     plVec3*                sbtVertices;
-    plDVec3*               sbtVerticesD;
+    plVec3d*               sbtVerticesD;
     plMeshBuilderTriangle* sbtTriangles;
 } plMeshBuilder;
 
@@ -668,7 +668,7 @@ pl_mesh_builder_commit(plMeshBuilder* ptBuilder, uint32_t* puIndexBuffer, plVec3
 }
 
 void
-pl_mesh_builder_add_triangle_double(plMeshBuilder* ptBuilder, plDVec3 tA, plDVec3 tB, plDVec3 tC)
+pl_mesh_builder_add_triangle_double(plMeshBuilder* ptBuilder, plVec3d tA, plVec3d tB, plVec3d tC)
 {
     plMeshBuilderTriangle tTriangle;
     tTriangle.uIndex0 = UINT32_MAX;
@@ -681,7 +681,7 @@ pl_mesh_builder_add_triangle_double(plMeshBuilder* ptBuilder, plDVec3 tA, plDVec
 
     for(uint32_t i = 0; i < uVertexCount; i++)
     {
-        const plDVec3* ptVertex = &ptBuilder->sbtVerticesD[i];
+        const plVec3d* ptVertex = &ptBuilder->sbtVerticesD[i];
 
         double fDist = pl_length_sqr_vec3_d(pl_sub_vec3_d(*ptVertex, tA));
 
@@ -694,7 +694,7 @@ pl_mesh_builder_add_triangle_double(plMeshBuilder* ptBuilder, plDVec3 tA, plDVec
 
     for(uint32_t i = 0; i < uVertexCount; i++)
     {
-        const plDVec3* ptVertex = &ptBuilder->sbtVerticesD[i];
+        const plVec3d* ptVertex = &ptBuilder->sbtVerticesD[i];
 
         double fDist = pl_length_sqr_vec3_d(pl_sub_vec3_d(*ptVertex, tB));
 
@@ -707,7 +707,7 @@ pl_mesh_builder_add_triangle_double(plMeshBuilder* ptBuilder, plDVec3 tA, plDVec
 
     for(uint32_t i = 0; i < uVertexCount; i++)
     {
-        const plDVec3* ptVertex = &ptBuilder->sbtVerticesD[i];
+        const plVec3d* ptVertex = &ptBuilder->sbtVerticesD[i];
 
         double fDist = pl_length_sqr_vec3_d(pl_sub_vec3_d(*ptVertex, tC));
 
@@ -740,7 +740,7 @@ pl_mesh_builder_add_triangle_double(plMeshBuilder* ptBuilder, plDVec3 tA, plDVec
 }
 
 void
-pl_mesh_builder_commit_double(plMeshBuilder* ptBuilder, uint32_t* puIndexBuffer, plDVec3* ptVertexBuffer, uint32_t* puIndexBufferCountOut, uint32_t* puVertexBufferCountOut)
+pl_mesh_builder_commit_double(plMeshBuilder* ptBuilder, uint32_t* puIndexBuffer, plVec3d* ptVertexBuffer, uint32_t* puIndexBufferCountOut, uint32_t* puVertexBufferCountOut)
 {
     const uint32_t uVertexCount = pl_sb_size(ptBuilder->sbtVerticesD);
     const uint32_t uTriangleCount = pl_sb_size(ptBuilder->sbtTriangles);
@@ -754,7 +754,7 @@ pl_mesh_builder_commit_double(plMeshBuilder* ptBuilder, uint32_t* puIndexBuffer,
     if(puIndexBuffer && ptVertexBuffer)
     {
         memcpy(puIndexBuffer, ptBuilder->sbtTriangles, uTriangleCount * 3 * sizeof(uint32_t));
-        memcpy(ptVertexBuffer, ptBuilder->sbtVerticesD, uVertexCount * sizeof(plDVec3));
+        memcpy(ptVertexBuffer, ptBuilder->sbtVerticesD, uVertexCount * sizeof(plVec3d));
         pl_sb_reset(ptBuilder->sbtTriangles);
         pl_sb_reset(ptBuilder->sbtVerticesD);
     }

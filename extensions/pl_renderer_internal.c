@@ -21,10 +21,10 @@ Index of this file:
 // [SECTION] job system tasks
 //-----------------------------------------------------------------------------
 
-static inline plDVec3
+static inline plVec3d
 pl__to_double_vec(plVec3 tVec)
 {
-    return (plDVec3){(double)tVec.x, (double)tVec.y, (double)tVec.z};
+    return (plVec3d){(double)tVec.x, (double)tVec.y, (double)tVec.z};
 }
 
 static void
