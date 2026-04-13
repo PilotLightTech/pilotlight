@@ -432,6 +432,8 @@ typedef struct _plWindowDesc
     uint32_t uMaxWidth;
     uint32_t uMinHeight;
     uint32_t uMaxHeight;
+    bool     bFullscreen;
+    uint32_t uFullscreenMonitor;
     #endif
 
 } plWindowDesc;

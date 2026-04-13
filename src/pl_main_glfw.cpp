@@ -626,13 +626,44 @@ pl_create_window(plWindowDesc tDesc, plWindow** pptWindowOut)
     plWindow* ptWindow = (plWindow*)malloc(sizeof(plWindow));
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-    glfwWindowHint(GLFW_RESIZABLE, (tDesc.tFlags & PL_WINDOW_FLAG_NOT_RESIZABLE) ? GLFW_FALSE : GLFW_TRUE);
-    glfwWindowHint(GLFW_DECORATED, (tDesc.tFlags & PL_WINDOW_FLAG_UNDECORATED) ? GLFW_FALSE : GLFW_TRUE);
-    glfwWindowHint(GLFW_FLOATING,  (tDesc.tFlags & PL_WINDOW_FLAG_TOP_MOST) ? GLFW_TRUE : GLFW_FALSE);
-    glfwWindowHint(GLFW_POSITION_X,  tDesc.iXPos);
-    glfwWindowHint(GLFW_POSITION_Y,  tDesc.iYPos);
+    int iWidth = 320;
+    int iHeight = 200;
+    if (tDesc.bFullscreen)
+    {
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        glfwWindowHint(GLFW_FLOATING, GLFW_FALSE);
+        glfwWindowHint(GLFW_POSITION_X, 0);
+        glfwWindowHint(GLFW_POSITION_Y, 0);
 
-    ptGlfwWindow = glfwCreateWindow((int)tDesc.uWidth, (int)tDesc.uHeight, tDesc.pcTitle, NULL, NULL);
+        // When fullscreen mode is active use screen size of the target monitor and
+        // ignore values present in the window description.
+        // If target monitor cannot be resolved then fallback to minimum viable size.
+        int iMonitorCount = 0;
+        GLFWmonitor **pptMonitors = glfwGetMonitors(&iMonitorCount);
+        if (iMonitorCount > 0 && tDesc.uFullscreenMonitor < iMonitorCount)
+        {
+            const GLFWvidmode *ptMode = glfwGetVideoMode(pptMonitors[tDesc.uFullscreenMonitor]);
+            if (ptMode)
+            {
+                iWidth = (int)ptMode->width;
+                iHeight = (int)ptMode->height;
+            }
+        }
+    }
+    else
+    {
+        glfwWindowHint(GLFW_RESIZABLE, (tDesc.tFlags & PL_WINDOW_FLAG_NOT_RESIZABLE) ? GLFW_FALSE : GLFW_TRUE);
+        glfwWindowHint(GLFW_DECORATED, (tDesc.tFlags & PL_WINDOW_FLAG_UNDECORATED) ? GLFW_FALSE : GLFW_TRUE);
+        glfwWindowHint(GLFW_FLOATING,  (tDesc.tFlags & PL_WINDOW_FLAG_TOP_MOST) ? GLFW_TRUE : GLFW_FALSE);
+        glfwWindowHint(GLFW_POSITION_X,  tDesc.iXPos);
+        glfwWindowHint(GLFW_POSITION_Y,  tDesc.iYPos);
+
+        iWidth = (int)tDesc.uWidth;
+        iHeight = (int)tDesc.uHeight;
+    }
+
+    ptGlfwWindow = glfwCreateWindow(iWidth, iHeight, tDesc.pcTitle, NULL, NULL);
 
     int iMinWidth = tDesc.uMinWidth > 0 ? (int)tDesc.uMinWidth : GLFW_DONT_CARE;
     int iMaxWidth = tDesc.uMaxWidth > 0 ? (int)tDesc.uMaxWidth : GLFW_DONT_CARE;
