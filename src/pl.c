@@ -1528,88 +1528,18 @@ pl_tracked_realloc(void* pBuffer, size_t szSize, const char* pcFile, int iLine)
 //-----------------------------------------------------------------------------
 
 void
-pl_set_mouse_pos_callback(plMousePosCallback tCallback)
+pl_set_window_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* pUserData)
 {
-    gtMousePosCallback = tCallback;
+    // TODO: implement
 }
 
-void
-pl_set_mouse_enter_callback(plMouseEnterCallback tCallback)
+plWindowEventCallback
+pl_get_window_callback(plWindow* ptWindow)
 {
-    gtMouseEnterCallback = tCallback;
+    plWindowEventCallback tCallback = PL_ZERO_INIT;
+    return tCallback;
 }
 
-void
-pl_set_mouse_button_callback(plMouseButtonCallback tCallback)
-{
-    gtMouseButtonCallback = tCallback;
-}
-
-void
-pl_set_window_focus_callback(plWindowFocusCallback tCallback)
-{
-    gtWindowFocusCallback = tCallback;
-}
-
-void
-pl_set_scroll_callback(plScrollCallback tCallback)
-{
-    gtScrollCallback = tCallback;
-}
-
-void
-pl_set_key_callback(plKeyCallback tCallback)
-{
-    gtKeyCallback = tCallback;
-}
-
-void
-pl_set_char_callback(plCharCallback tCallback)
-{
-    gtCharCallback = tCallback;
-}
-
-plMousePosCallback
-pl_get_mouse_pos_callback(void)
-{
-    return gtMousePosCallback;
-}
-
-plMouseEnterCallback
-pl_get_mouse_enter_callback(void)
-{
-    return gtMouseEnterCallback;
-}
-
-plMouseButtonCallback
-pl_get_mouse_button_callback(void)
-{
-    return gtMouseButtonCallback;
-}
-
-plWindowFocusCallback
-pl_get_window_focus_callback(void)
-{
-    return gtWindowFocusCallback;
-}
-
-plScrollCallback
-pl_get_scroll_callback(void)
-{
-    return gtScrollCallback;
-}
-
-plKeyCallback
-pl_get_key_callback(void)
-{
-    return gtKeyCallback;
-}
-
-plCharCallback
-pl_get_char_callback(void)
-{
-    return gtCharCallback;
-}
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper implementations
@@ -1724,47 +1654,19 @@ pl__load_core_apis(void)
     gptApiRegistry       = ptApiRegistry;
 
     plWindowI tWindowApi = PL_ZERO_INIT;
-    tWindowApi.create  = pl_create_window;
-    tWindowApi.destroy = pl_destroy_window;
-    tWindowApi.show    = pl_show_window;
-
-    #ifdef PL_EXPERIMENTAL
-    tWindowApi.hide                      = pl_hide_window;
-    tWindowApi.set_mouse_pos_callback    = pl_set_mouse_pos_callback;
-    tWindowApi.set_mouse_enter_callback  = pl_set_mouse_enter_callback;
-    tWindowApi.set_mouse_button_callback = pl_set_mouse_button_callback;
-    tWindowApi.set_window_focus_callback = pl_set_window_focus_callback;
-    tWindowApi.set_scroll_callback       = pl_set_scroll_callback;
-    tWindowApi.set_key_callback          = pl_set_key_callback;
-    tWindowApi.set_char_callback         = pl_set_char_callback;
-    tWindowApi.get_mouse_pos_callback    = pl_get_mouse_pos_callback;
-    tWindowApi.get_mouse_enter_callback  = pl_get_mouse_enter_callback;
-    tWindowApi.get_mouse_button_callback = pl_get_mouse_button_callback;
-    tWindowApi.get_window_focus_callback = pl_get_window_focus_callback;
-    tWindowApi.get_scroll_callback       = pl_get_scroll_callback;
-    tWindowApi.get_key_callback          = pl_get_key_callback;
-    tWindowApi.get_char_callback         = pl_get_char_callback;
-    tWindowApi.hide_cursor               = pl_hide_cursor;
-    tWindowApi.capture_cursor            = pl_capture_cursor;
-    tWindowApi.normal_cursor             = pl_normal_cursor;
-    tWindowApi.set_raw_mouse_input       = pl_set_raw_mouse_input;
-    tWindowApi.set_pos                   = pl_set_window_pos;
-    tWindowApi.set_size                  = pl_set_window_size;
-    tWindowApi.get_pos                   = pl_get_window_pos;
-    tWindowApi.get_size                  = pl_get_window_size;
-    tWindowApi.minimize                  = pl_minimize_window;
-    tWindowApi.maximize                  = pl_minimize_window;
-    tWindowApi.restore                   = pl_restore_window;
-    tWindowApi.focus                     = pl_focus_window;
-    tWindowApi.is_maximized              = pl_is_window_maximized;
-    tWindowApi.is_minimized              = pl_is_window_minimized;
-    tWindowApi.is_focused                = pl_is_window_focused;
-    tWindowApi.is_hovered                = pl_is_window_hovered;
-    tWindowApi.is_resizable              = pl_is_window_resizable;
-    tWindowApi.is_decorated              = pl_is_window_decorated;
-    tWindowApi.is_top_most               = pl_is_window_top_most;
-    #endif
-
+    tWindowApi.create              = pl_create_window;
+    tWindowApi.destroy             = pl_destroy_window;
+    tWindowApi.show                = pl_show_window;
+    tWindowApi.set_callback        = pl_set_window_callback;
+    tWindowApi.get_callback        = pl_get_window_callback;
+    tWindowApi.set_attribute       = pl_set_window_attribute;
+    tWindowApi.get_attribute       = pl_get_window_attribute;
+    tWindowApi.set_cursor_mode     = pl_set_cursor_mode;
+    tWindowApi.get_cursor_mode     = pl_get_cursor_mode;
+    tWindowApi.set_raw_mouse_input = pl_set_raw_mouse_input;
+    tWindowApi.set_fullscreen      = pl_set_fullscreen;
+    tWindowApi.get_capabilities    = pl_get_window_capabilities;
+ 
     plLibraryI tLibraryApi = PL_ZERO_INIT;
     tLibraryApi.has_changed   = pl_has_library_changed;
     tLibraryApi.load          = pl_load_library;

@@ -828,6 +828,72 @@ pl_show_window(plWindow* ptWindow)
     ShowWindow(ptWindow->_pBackendData, SW_SHOWDEFAULT);
 }
 
+bool 
+pl_set_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
+{
+    return false;
+}
+
+bool
+pl_get_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
+{
+    return false;
+}
+
+bool
+pl_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
+{
+    return tMode == PL_CURSOR_MODE_NORMAL;
+}
+
+plCursorMode
+pl_get_cursor_mode(plWindow* ptWindow)
+{
+    return PL_CURSOR_MODE_NORMAL;
+}
+
+bool
+pl_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
+{
+    return !bValue;
+}
+
+bool
+pl_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* tDesc)
+{
+    return tDesc->tMode == PL_FULLSCREEN_MODE_NONE;
+}
+
+const plWindowCapabilities*
+pl_get_window_capabilities(void)
+{
+    static plWindowCapabilities tCapabilities = {};
+
+    tCapabilities.uCursorModeCount = 1;
+    tCapabilities.uAttributeCount = 1;
+    tCapabilities.uFullScreenModeCount = 2;
+
+    static const plWindowAttribute atSupportedAttributes[] = {
+        -1
+    };
+
+    static const plCursorMode atSupportedCursorModes[] = {
+        PL_CURSOR_MODE_NORMAL
+    };
+
+    static const plFullScreenMode atSupportedScreenModes[] = {
+        PL_FULLSCREEN_MODE_NONE,
+        PL_FULLSCREEN_MODE_EXCLUSIVE
+    };
+
+    tCapabilities.atCursorModes = atSupportedCursorModes;
+    tCapabilities.atFullScreenModes = atSupportedScreenModes;
+    tCapabilities.atWindowAttributes = atSupportedAttributes;
+    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_NONE;
+
+    return &tCapabilities;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] library ext
 //-----------------------------------------------------------------------------
