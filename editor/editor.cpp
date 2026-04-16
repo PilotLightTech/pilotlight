@@ -194,6 +194,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
     gptWindows->show(ptAppData->ptWindow);
 
+    plFullScreenDesc tFullScreen = {};
+    tFullScreen.iMonitor = 1;
+    tFullScreen.tMode = PL_FULLSCREEN_MODE_EXCLUSIVE;
+    gptWindows->set_fullscreen(ptAppData->ptWindow, &tFullScreen);
+
     plStarterInit tStarterInit = {};
     tStarterInit.tFlags   = PL_STARTER_FLAGS_NONE;
     tStarterInit.ptWindow = ptAppData->ptWindow;
@@ -621,6 +626,41 @@ pl_app_update(plAppData* ptAppData)
         }
         ImGui::EndMainMenuBar();
     }
+
+    // if(ImGui::Begin("Window testing", nullptr, ImGuiWindowFlags_None))
+    // {
+    //     plWindowAttributeValue tValue = {};
+    //     if(ImGui::Button("Maximize"))    gptWindows->set_attribute(ptAppData->ptWindow, PL_WINDOW_ATTRIBUTE_MAXIMIZED, &tValue);
+    //     if(ImGui::Button("Minimize"))
+    //     {
+    //         tValue.bValue = true;
+    //         gptWindows->set_attribute(ptAppData->ptWindow, PL_WINDOW_ATTRIBUTE_MINIMIZED, &tValue);
+    //     }
+    //     if(ImGui::Button("Restore"))
+    //     {
+    //         tValue.bValue = false;
+    //         gptWindows->set_attribute(ptAppData->ptWindow, PL_WINDOW_ATTRIBUTE_MINIMIZED, &tValue);
+    //     }
+    //     if(ImGui::Button("Hide"))
+    //     {
+    //         tValue.bValue = true;
+    //         gptWindows->set_attribute(ptAppData->ptWindow, PL_WINDOW_ATTRIBUTE_VISIBLE, &tValue);
+    //     }
+    //     if(ImGui::Button("Set Size"))
+    //     {
+    //         tValue.tuVec2.x = 500;
+    //         tValue.tuVec2.y = 500;
+    //         gptWindows->set_attribute(ptAppData->ptWindow, PL_WINDOW_ATTRIBUTE_SIZE, &tValue);
+    //     }
+    //     if(ImGui::Button("Full Screen"))
+    //     {
+    //         plFullScreenDesc tFullScreen = {};
+    //         tFullScreen.iMonitor = 1;
+    //         tFullScreen.tMode = PL_FULLSCREEN_MODE_EXCLUSIVE;
+    //         gptWindows->set_fullscreen(ptAppData->ptWindow, &tFullScreen);
+    //     }
+    // }
+    // ImGui::End();
 
     // main "editor" debug window
     if(ptAppData->bShowPilotLightTool)

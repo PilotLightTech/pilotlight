@@ -1038,7 +1038,6 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, plCamera* ptCame
     if(!bChildrenResident || fRho <= tauSubdivide || ptChunk->uLevel < 3)
     {
         const plDrawIndex tDraw = {
-            .uInstanceCount = 1,
             .uIndexCount    = ptChunk->uIndexCount,
             .uVertexStart   = (uint32_t)(ptChunk->ptVertexHole->uOffset / sizeof(plTerrainVertex)),
             .uIndexStart    = (uint32_t)(ptChunk->ptIndexHole->uOffset / sizeof(uint32_t)),

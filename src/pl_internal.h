@@ -43,15 +43,6 @@ plIO*            gptIOCtx      = NULL;
 plWindow* gptMainWindow = NULL;
 plWindow** gsbtWindows = NULL;
 
-// window callbacks
-plMousePosCallback    gtMousePosCallback    = NULL;
-plMouseEnterCallback  gtMouseEnterCallback  = NULL;
-plMouseButtonCallback gtMouseButtonCallback = NULL;
-plWindowFocusCallback gtWindowFocusCallback = NULL;
-plScrollCallback      gtScrollCallback      = NULL;
-plKeyCallback         gtKeyCallback         = NULL;
-plCharCallback        gtCharCallback        = NULL;
-
 // apis
 const plDataRegistryI*      gptDataRegistry      = NULL;
 const plApiRegistryI*       gptApiRegistry       = NULL;
@@ -72,32 +63,16 @@ bool  (*pl_app_info)    (const plApiRegistryI*);
 //-----------------------------------------------------------------------------
 
 // window api
-plWindowResult pl_create_window (plWindowDesc, plWindow** pptWindowOut);
-void           pl_destroy_window(plWindow*);
-void           pl_show_window(plWindow*);
-
-#ifdef PL_EXPERIMENTAL
-void pl_hide_window        (plWindow*);
-void pl_set_window_size    (plWindow*, uint32_t, uint32_t);
-void pl_set_window_pos     (plWindow*, int, int);
-void pl_get_window_size    (plWindow*, uint32_t*, uint32_t*);
-void pl_get_window_pos     (plWindow*, int*, int*);
-void pl_minimize_window    (plWindow*);
-void pl_maximize_window    (plWindow*);
-void pl_restore_window     (plWindow*);
-void pl_focus_window       (plWindow*);
-void pl_hide_cursor        (plWindow*);
-void pl_capture_cursor     (plWindow*);
-void pl_normal_cursor      (plWindow*);
-void pl_set_raw_mouse_input(plWindow*, bool);
-bool pl_is_window_maximized(plWindow*);
-bool pl_is_window_minimized(plWindow*);
-bool pl_is_window_focused  (plWindow*);
-bool pl_is_window_hovered  (plWindow*);
-bool pl_is_window_resizable(plWindow*);
-bool pl_is_window_decorated(plWindow*);
-bool pl_is_window_top_most (plWindow*);
-#endif
+plWindowResult              pl_create_window (plWindowDesc, plWindow** pptWindowOut);
+void                        pl_destroy_window(plWindow*);
+void                        pl_show_window(plWindow*);
+bool                        pl_set_window_attribute(plWindow*, plWindowAttribute, const plWindowAttributeValue*);
+bool                        pl_get_window_attribute(plWindow*, plWindowAttribute, plWindowAttributeValue*);
+bool                        pl_set_cursor_mode(plWindow*, plCursorMode);
+plCursorMode                pl_get_cursor_mode(plWindow*);
+bool                        pl_set_raw_mouse_input(plWindow*, bool);
+bool                        pl_set_fullscreen(plWindow*, const plFullScreenDesc*);
+const plWindowCapabilities* pl_get_window_capabilities(void);
 
 // clip board
 const char* pl_get_clipboard_text(void* user_data_ctx);

@@ -591,7 +591,6 @@ with pl.project("pilotlight"):
 
         pl.add_source_files("../editor/editor.cpp")
         pl.set_output_binary("editor")
-        pl.add_definitions("PL_EXPERIMENTAL")
 
         # default config
         with pl.configuration("debug_experimental"):
@@ -663,7 +662,6 @@ with pl.project("pilotlight"):
 
         pl.add_source_files("../extensions/pl_dear_imgui_ext.cpp")
         pl.set_output_binary("pl_dear_imgui_ext")
-        pl.add_definitions("PL_EXPERIMENTAL")
 
         with pl.configuration("debug_experimental"):
 

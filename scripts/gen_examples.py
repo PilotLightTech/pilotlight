@@ -124,7 +124,6 @@ with pl.project("pilotlight_examples"):
 
             pl.add_source_files(name + ".cpp")
             pl.set_output_binary(name)
-            pl.add_definitions("PL_EXPERIMENTAL")
 
             with pl.configuration("debug_experimental"):
 

@@ -791,7 +791,7 @@ lib -nologo -OUT:"../out/dearimguid.lib" "../out/*.obj"
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~~ editor | debug_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_EXPERIMENTAL 
+@set PL_DEFINES=-DPL_UNITY_BUILD 
 @set PL_INCLUDE_DIRECTORIES=-I"../editor" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"../dependencies/imgui" -I"../dependencies/glfw/include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -Od -MDd -Zi -permissive 
@@ -827,7 +827,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 :: skip during hot reload
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_dear_imgui_ext
 
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND 
+@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND 
 @set PL_INCLUDE_DIRECTORIES=-I"../editor" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"../dependencies/imgui" -I"../dependencies/glfw/include" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -Od -MDd -Zi -permissive 
@@ -1193,7 +1193,7 @@ lib -nologo -OUT:"../out/dearimgui.lib" "../out/*.obj"
 
 ::~~~~~~~~~~~~~~~~~~~~~~~~ editor | release_experimental ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_EXPERIMENTAL 
+@set PL_DEFINES=-DPL_UNITY_BUILD 
 @set PL_INCLUDE_DIRECTORIES=-I"../editor" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"../dependencies/imgui" -I"../dependencies/glfw/include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -O2 -MD -permissive 
@@ -1229,7 +1229,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 :: skip during hot reload
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pl_dear_imgui_ext
 
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND 
+@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND 
 @set PL_INCLUDE_DIRECTORIES=-I"../editor" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../dependencies/stb" -I"../dependencies/cgltf" -I"../dependencies/imgui" -I"../dependencies/glfw/include" -I"%VULKAN_SDK%\Include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" -LIBPATH:"%VULKAN_SDK%\Lib" 
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -O2 -MD -permissive 
