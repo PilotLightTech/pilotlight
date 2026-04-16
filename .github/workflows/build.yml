@@ -27,7 +27,7 @@ jobs:
     steps:
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Retrieve submodules
       run: git submodule update --init --recursive
@@ -115,7 +115,7 @@ jobs:
 
     - name: Upload Pilot Light
       if: ${{ always() }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: pilotlight_release_win32
         path: D:\a\pilotlight\pilotlight\out\pilotlight_win32.zip
@@ -129,7 +129,7 @@ jobs:
     steps:
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Retrieve submodules
       run: git submodule update --init --recursive
@@ -211,7 +211,7 @@ jobs:
 
     - name: Upload Pilot Light
       if: ${{ always() }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: pilotlight_release_macos
         path: /Users/runner/work/pilotlight/pilotlight/out/pilotlight_macos.zip
@@ -224,7 +224,7 @@ jobs:
     steps:
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Retrieve submodules
       run: git submodule update --init --recursive
@@ -321,7 +321,7 @@ jobs:
 
     - name: Upload Pilot Light
       if: ${{ always() }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: pilotlight_release_linux
         path: /home/runner/work/pilotlight/pilotlight/out/pilotlight_linux_amd64.zip
