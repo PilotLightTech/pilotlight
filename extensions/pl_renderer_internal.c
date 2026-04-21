@@ -2969,10 +2969,10 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         const plDispatch tDispach = {
             .uGroupCountX     = (uint32_t)iResolution / 16,
             .uGroupCountY     = (uint32_t)iResolution / 16,
-            .uGroupCountZ     = 2,
+            .uGroupCountZ     = 3,
             .uThreadPerGroupX = 16,
             .uThreadPerGroupY = 16,
-            .uThreadPerGroupZ = 3
+            .uThreadPerGroupZ = 2
         };
 
         plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 2");
@@ -3095,10 +3095,10 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             const plDispatch tDispach = {
                 .uGroupCountX     = (uint32_t)currentWidth / 16,
                 .uGroupCountY     = (uint32_t)currentWidth / 16,
-                .uGroupCountZ     = 2,
+                .uGroupCountZ     = 3,
                 .uThreadPerGroupX = 16,
                 .uThreadPerGroupY = 16,
-                .uThreadPerGroupZ = 3
+                .uThreadPerGroupZ = 2
             };
 
             plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 4");
@@ -3206,10 +3206,10 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             const plDispatch tDispach = {
                 .uGroupCountX     = (uint32_t)currentWidth / 16,
                 .uGroupCountY     = (uint32_t)currentWidth / 16,
-                .uGroupCountZ     = 2,
+                .uGroupCountZ     = 3,
                 .uThreadPerGroupX = 16,
                 .uThreadPerGroupY = 16,
-                .uThreadPerGroupZ = 3
+                .uThreadPerGroupZ = 2
             };
 
             plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "env cube 4");

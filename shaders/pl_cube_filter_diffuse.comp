@@ -25,7 +25,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
     plGpuDynFilterSpec tData;
 } tDynamicData;
 
-layout (local_size_x = 16, local_size_y = 16, local_size_z = 3) in;
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 2) in;
 
 void
 main()
@@ -33,11 +33,11 @@ main()
     const float fXCoord = gl_WorkGroupID.x * 16 + gl_LocalInvocationID.x;
     const float fYCoord = gl_WorkGroupID.y * 16 + gl_LocalInvocationID.y;
 
-    const int iFace = int(gl_WorkGroupID.z * 3 + gl_LocalInvocationID.z);
+    const int iFace = int(gl_WorkGroupID.z * 2 + gl_LocalInvocationID.z);
     const float fXinc = 1.0 / tDynamicData.tData.iResolution;
     const float fYinc = 1.0 / tDynamicData.tData.iResolution;
     const vec2 tInUV = vec2(fXCoord * fXinc, fYCoord * fYinc);
-    const int iCurrentPixel = int(fXCoord + fYCoord * tDynamicData.tData.iWidth); 
+    const int iCurrentPixel = int(fXCoord + fYCoord * tDynamicData.tData.iWidth);
 
     vec2 tNewUV = tInUV * (1 << tDynamicData.tData.iCurrentMipLevel);
     tNewUV = tNewUV * 2.0 - 1.0;
