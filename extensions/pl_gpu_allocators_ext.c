@@ -69,8 +69,8 @@ typedef struct _plDeviceAllocatorData
     uint32_t                  auFreeList[PL_DEVICE_LOCAL_LEVELS];
 } plDeviceAllocatorData;
 
-static plDeviceMemoryAllocation*
-pl_get_allocator_blocks(const plDeviceMemoryAllocatorI* ptAllocator, uint32_t* puSizeOut)
+plDeviceMemoryAllocation*
+pl_gpu_allocators_get_blocks(const plDeviceMemoryAllocatorI* ptAllocator, uint32_t* puSizeOut)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptAllocator->ptInst;
 
@@ -81,8 +81,8 @@ pl_get_allocator_blocks(const plDeviceMemoryAllocatorI* ptAllocator, uint32_t* p
     return ptData->sbtBlocks;
 }
 
-static plDeviceAllocationRange*
-pl_get_allocator_ranges(const plDeviceMemoryAllocatorI* ptAllocator, uint32_t* puSizeOut)
+plDeviceAllocationRange*
+pl_gpu_allocators_get_ranges(const plDeviceMemoryAllocatorI* ptAllocator, uint32_t* puSizeOut)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptAllocator->ptInst;
 
@@ -734,8 +734,8 @@ pl_free_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAl
     ptAllocation->ulSize       = 0;
 }
 
-static plDeviceMemoryAllocatorI*
-pl_get_local_dedicated_allocator(plDevice* ptDevice)
+plDeviceMemoryAllocatorI*
+pl_gpu_allocators_get_local_dedicated_allocator(plDevice* ptDevice)
 {
 
     static plDeviceAllocatorData* ptAllocatorData = NULL;
@@ -767,8 +767,8 @@ pl_get_local_dedicated_allocator(plDevice* ptDevice)
     return ptAllocator;
 }
 
-static plDeviceMemoryAllocatorI*
-pl_get_local_buddy_allocator(plDevice* ptDevice)
+plDeviceMemoryAllocatorI*
+pl_gpu_allocators_get_local_buddy_allocator(plDevice* ptDevice)
 {
 
     static plDeviceAllocatorData* ptAllocatorData = NULL;
@@ -806,8 +806,8 @@ pl_get_local_buddy_allocator(plDevice* ptDevice)
     return ptAllocator;
 }
 
-static plDeviceMemoryAllocatorI*
-pl_get_staging_uncached_allocator(plDevice* ptDevice)
+plDeviceMemoryAllocatorI*
+pl_gpu_allocators_get_staging_uncached_allocator(plDevice* ptDevice)
 {
     static plDeviceAllocatorData* ptAllocatorData = NULL;
     static plDeviceMemoryAllocatorI* ptAllocator = NULL;
@@ -839,8 +839,8 @@ pl_get_staging_uncached_allocator(plDevice* ptDevice)
     return ptAllocator;
 }
 
-static plDeviceMemoryAllocatorI*
-pl_get_staging_uncached_allocator_buddy(plDevice* ptDevice)
+plDeviceMemoryAllocatorI*
+pl_gpu_allocators_get_staging_uncached_allocator_buddy(plDevice* ptDevice)
 {
     static plDeviceAllocatorData* ptAllocatorData = NULL;
     static plDeviceMemoryAllocatorI* ptAllocator = NULL;
@@ -878,8 +878,8 @@ pl_get_staging_uncached_allocator_buddy(plDevice* ptDevice)
     return ptAllocator;
 }
 
-static plDeviceMemoryAllocatorI*
-pl_get_staging_cached_allocator(plDevice* ptDevice)
+plDeviceMemoryAllocatorI*
+pl_gpu_allocators_get_staging_cached_allocator(plDevice* ptDevice)
 {
     static plDeviceAllocatorData* ptAllocatorData = NULL;
     static plDeviceMemoryAllocatorI* ptAllocator = NULL;
@@ -911,8 +911,8 @@ pl_get_staging_cached_allocator(plDevice* ptDevice)
     return ptAllocator;
 }
 
-static void
-pl_cleanup_allocators(plDevice* ptDevice)
+void
+pl_gpu_allocators_cleanup_allocators(plDevice* ptDevice)
 {
     static bool bCleanedUp = false;
 
@@ -920,7 +920,7 @@ pl_cleanup_allocators(plDevice* ptDevice)
         return;
     
     bCleanedUp = true;
-    plDeviceMemoryAllocatorI* ptAllocator = pl_get_local_buddy_allocator(ptDevice);
+    plDeviceMemoryAllocatorI* ptAllocator = pl_gpu_allocators_get_local_buddy_allocator(ptDevice);
     plDeviceAllocatorData* ptAllocatorData = (plDeviceAllocatorData*)ptAllocator->ptInst;
 
     for(uint32_t i = 0; i < pl_sb_size(ptAllocatorData->sbtBlocks); i++)
@@ -932,7 +932,7 @@ pl_cleanup_allocators(plDevice* ptDevice)
     pl_sb_free(ptAllocatorData->sbtNodes);
     pl_sb_free(ptAllocatorData->sbtFreeBlockIndices);
 
-    ptAllocator = pl_get_local_dedicated_allocator(ptDevice);
+    ptAllocator = pl_gpu_allocators_get_local_dedicated_allocator(ptDevice);
     ptAllocatorData = (plDeviceAllocatorData*)ptAllocator->ptInst;
     for(uint32_t i = 0; i < pl_sb_size(ptAllocatorData->sbtBlocks); i++)
     {
@@ -943,7 +943,7 @@ pl_cleanup_allocators(plDevice* ptDevice)
     pl_sb_free(ptAllocatorData->sbtNodes);
     pl_sb_free(ptAllocatorData->sbtFreeBlockIndices);
 
-    ptAllocator = pl_get_staging_uncached_allocator(ptDevice);
+    ptAllocator = pl_gpu_allocators_get_staging_uncached_allocator(ptDevice);
     ptAllocatorData = (plDeviceAllocatorData*)ptAllocator->ptInst;
     for(uint32_t i = 0; i < pl_sb_size(ptAllocatorData->sbtBlocks); i++)
     {
@@ -954,7 +954,7 @@ pl_cleanup_allocators(plDevice* ptDevice)
     pl_sb_free(ptAllocatorData->sbtNodes);
     pl_sb_free(ptAllocatorData->sbtFreeBlockIndices);
 
-    ptAllocator = pl_get_staging_cached_allocator(ptDevice);
+    ptAllocator = pl_gpu_allocators_get_staging_cached_allocator(ptDevice);
     ptAllocatorData = (plDeviceAllocatorData*)ptAllocator->ptInst;
     for(uint32_t i = 0; i < pl_sb_size(ptAllocatorData->sbtBlocks); i++)
     {
@@ -965,7 +965,7 @@ pl_cleanup_allocators(plDevice* ptDevice)
     pl_sb_free(ptAllocatorData->sbtNodes);
     pl_sb_free(ptAllocatorData->sbtFreeBlockIndices);
 
-    ptAllocator = pl_get_staging_uncached_allocator_buddy(ptDevice);
+    ptAllocator = pl_gpu_allocators_get_staging_uncached_allocator_buddy(ptDevice);
     ptAllocatorData = (plDeviceAllocatorData*)ptAllocator->ptInst;
     for(uint32_t i = 0; i < pl_sb_size(ptAllocatorData->sbtBlocks); i++)
     {
@@ -977,8 +977,8 @@ pl_cleanup_allocators(plDevice* ptDevice)
     pl_sb_free(ptAllocatorData->sbtFreeBlockIndices);
 }
 
-static size_t
-pl_get_buddy_block_size(void)
+size_t
+pl_gpu_allocators_get_buddy_block_size(void)
 {
     return PL_DEVICE_BUDDY_BLOCK_SIZE;
 }
@@ -987,19 +987,19 @@ pl_get_buddy_block_size(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plGPUAllocatorsI tApi = {
-        .get_local_dedicated_allocator        = pl_get_local_dedicated_allocator,
-        .get_local_buddy_allocator            = pl_get_local_buddy_allocator,
-        .get_staging_uncached_allocator       = pl_get_staging_uncached_allocator,
-        .get_staging_cached_allocator         = pl_get_staging_cached_allocator,
-        .get_staging_uncached_buddy_allocator = pl_get_staging_uncached_allocator_buddy,
-        .get_blocks                           = pl_get_allocator_blocks,
-        .get_ranges                           = pl_get_allocator_ranges,
-        .cleanup                              = pl_cleanup_allocators,
-        .get_buddy_block_size                 = pl_get_buddy_block_size
+        .get_local_dedicated_allocator        = pl_gpu_allocators_get_local_dedicated_allocator,
+        .get_local_buddy_allocator            = pl_gpu_allocators_get_local_buddy_allocator,
+        .get_staging_uncached_allocator       = pl_gpu_allocators_get_staging_uncached_allocator,
+        .get_staging_cached_allocator         = pl_gpu_allocators_get_staging_cached_allocator,
+        .get_staging_uncached_buddy_allocator = pl_gpu_allocators_get_staging_uncached_allocator_buddy,
+        .get_blocks                           = pl_gpu_allocators_get_blocks,
+        .get_ranges                           = pl_gpu_allocators_get_ranges,
+        .cleanup                              = pl_gpu_allocators_cleanup_allocators,
+        .get_buddy_block_size                 = pl_gpu_allocators_get_buddy_block_size
     };
     pl_set_api(ptApiRegistry, plGPUAllocatorsI, &tApi);
 
@@ -1009,7 +1009,7 @@ pl_load_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
 }
 
-PL_EXPORT void
+void
 pl_unload_gpu_allocators_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

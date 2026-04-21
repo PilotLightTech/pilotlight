@@ -6,7 +6,7 @@
 Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
-// [SECTION] public api
+// [SECTION] public api struct
 */
 
 //-----------------------------------------------------------------------------
@@ -16,6 +16,10 @@ Index of this file:
 #ifndef PL_VOXEL_EXT_H
 #define PL_VOXEL_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
@@ -23,7 +27,7 @@ Index of this file:
 #define plVoxelI_version {1, 0, 0}
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plVoxelI
@@ -31,5 +35,9 @@ typedef struct _plVoxelI
     int _iUnused;
 
 } plVoxelI;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_VOXEL_EXT_H

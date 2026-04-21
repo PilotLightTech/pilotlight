@@ -8,7 +8,8 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 */
 
 //-----------------------------------------------------------------------------
@@ -17,6 +18,10 @@ Index of this file:
 
 #ifndef PL_ECS_TOOLS_EXT_H
 #define PL_ECS_TOOLS_EXT_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
@@ -28,6 +33,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -41,14 +47,30 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef struct _plScene            plScene;            // pl_renderer_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_ecs_tools_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_ecs_tools_ext(plApiRegistryI*, bool reload);
+
+PL_API void pl_ecs_tools_initialize (void);
+PL_API void pl_ecs_tools_cleanup    (void);
+PL_API bool pl_ecs_tools_show_window(plComponentLibrary*, plEntity* selectedEntity, plScene*, bool*);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plEcsToolsI
 {
     void (*initialize)     (void);
     void (*cleanup)        (void);
-    bool (*show_ecs_window)(plComponentLibrary*, plEntity* ptSelectedEntity, plScene*, bool*);
+    bool (*show_window)(plComponentLibrary*, plEntity* selectedEntity, plScene*, bool*);
 } plEcsToolsI;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_ECS_TOOLS_EXT_H

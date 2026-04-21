@@ -623,7 +623,7 @@ pl_app_update(plAppData* ptAppData)
     if(!gptStarter->begin_frame())
         return;
 
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     gptResource->new_frame();
     
@@ -684,7 +684,7 @@ pl_app_update(plAppData* ptAppData)
     }
 
     // run ecs system
-    pl_begin_cpu_sample(gptProfile, 0, "Run ECS");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Run ECS");
     gptScript->run_update_system(ptAppData->ptComponentLibrary);
     gptAnimation->run_animation_update_system(ptAppData->ptComponentLibrary, ptIO->fDeltaTime);
     gptPhysics->update(ptIO->fDeltaTime, ptAppData->ptComponentLibrary);
@@ -696,7 +696,7 @@ pl_app_update(plAppData* ptAppData)
     gptRenderer->run_skin_update_system(ptAppData->ptComponentLibrary);
     gptRenderer->run_object_update_system(ptAppData->ptComponentLibrary);
     gptRenderer->run_environment_probe_update_system(ptAppData->ptComponentLibrary); // run after object update
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 
     plEntity tNextEntity = {0};
     if(gptRenderer->get_hovered_entity(ptAppData->ptView, &tNextEntity))
@@ -723,7 +723,7 @@ pl_app_update(plAppData* ptAppData)
 
     if(ptAppData->bShowEntityWindow)
     {
-        if(gptEcsTools->show_ecs_window(ptAppData->ptComponentLibrary, &ptAppData->tSelectedEntity, ptAppData->ptScene, &ptAppData->bShowEntityWindow))
+        if(gptEcsTools->show_window(ptAppData->ptComponentLibrary, &ptAppData->tSelectedEntity, ptAppData->ptScene, &ptAppData->bShowEntityWindow))
         {
             if(ptAppData->tSelectedEntity.uData == UINT64_MAX)
             {
@@ -867,7 +867,7 @@ pl_app_update(plAppData* ptAppData)
 
     plRenderEncoder* ptRenderEncoder = gptStarter->begin_main_pass();
     gptStarter->end_main_pass();
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     gptStarter->end_frame();
 }
 
@@ -1154,7 +1154,8 @@ pl__show_editor_window(plAppData* ptAppData)
 
         if(gptUI->begin_collapsing_header(ICON_FA_BOXES_STACKED " Physics", 0))
         {
-            plPhysicsEngineSettings tPhysicsSettings = gptPhysics->get_settings();
+            plPhysicsEngineSettings tPhysicsSettings = {0};
+            gptPhysics->get_settings(&tPhysicsSettings);
 
             gptUI->checkbox("Enabled", &tPhysicsSettings.bEnabled);
             gptUI->checkbox("Debug Draw", &ptAppData->bPhysicsDebugDraw);

@@ -210,7 +210,7 @@ pl_shader_variant_cleanup(void)
 }
 
 plShaderHandle
-pl_shader_tool_get_shader(const char* pcName, const plGraphicsState* ptGraphicsState, const void* pTempVtxConstantData, const void* pTempFragConstantData, const plRenderPassLayoutHandle* ptRenderPassLayout)
+pl_shader_variant_get_shader(const char* pcName, const plGraphicsState* ptGraphicsState, const void* pTempVtxConstantData, const void* pTempFragConstantData, const plRenderPassLayoutHandle* ptRenderPassLayout)
 {
 
     uint32_t uVariantIndex = UINT32_MAX;
@@ -296,21 +296,21 @@ pl_shader_tool_get_shader(const char* pcName, const plGraphicsState* ptGraphicsS
 }
 
 plBindGroupLayoutHandle
-pl_shader_tool_get_shader_bind_group_layout(const char* pcName, uint32_t uIndex)
+pl_shader_variant_get_graphics_bind_group_layout(const char* pcName, uint32_t uIndex)
 {
     const uint64_t ulIndex = pl_hm32_lookup_str(&gptShaderVariantCtx->tGraphicsHashmap, pcName);
     return gptShaderVariantCtx->sbtMetaVariants[ulIndex].atBindGroupLayouts[uIndex];
 }
 
 plBindGroupLayoutHandle
-pl_shader_tool_get_compute_shader_bind_group_layout(const char* pcName, uint32_t uIndex)
+pl_shader_variant_get_compute_bind_group_layout(const char* pcName, uint32_t uIndex)
 {
     const uint64_t ulIndex = pl_hm32_lookup_str(&gptShaderVariantCtx->tComputeHashmap, pcName);
     return gptShaderVariantCtx->sbtComputeMetaVariants[ulIndex].atBindGroupLayouts[uIndex];
 }
 
 plComputeShaderHandle
-pl_shader_tool_get_compute_shader(const char* pcName, const void* pTempConstantData)
+pl_shader_variant_get_compute_shader(const char* pcName, const void* pTempConstantData)
 {
     uint32_t uVariantIndex = UINT32_MAX;
     if(!pl_hm32_has_key_str_ex(&gptShaderVariantCtx->tComputeHashmap, pcName, &uVariantIndex))
@@ -369,7 +369,7 @@ pl_shader_tool_get_compute_shader(const char* pcName, const void* pTempConstantD
 }
 
 bool
-pl_shader_tool_load_manifest(const char* pcPath)
+pl_shader_variant_load_manifest(const char* pcPath)
 {
     if(!gptVfs->does_file_exist(pcPath))
         return false;
@@ -824,7 +824,7 @@ pl_shader_tool_load_manifest(const char* pcPath)
 }
 
 bool
-pl_shader_tool_unload_manifest(const char* pcPath)
+pl_shader_variant_unload_manifest(const char* pcPath)
 {
     if(!gptVfs->does_file_exist(pcPath))
         return false;
@@ -900,7 +900,7 @@ pl_shader_tool_unload_manifest(const char* pcPath)
 }
 
 plBindGroupLayoutHandle
-pl_shader_tool_get_bind_group_layout(const char* pcName)
+pl_shader_variant_get_bind_group_layout(const char* pcName)
 {
 
     uint32_t uVariantIndex = UINT32_MAX;
@@ -1223,20 +1223,20 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+void
 pl_load_shader_variant_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plShaderVariantI tApi = {
         .initialize                     = pl_shader_variant_initialize,
         .cleanup                        = pl_shader_variant_cleanup,
         .update_stats                   = pl_shader_variant_update_stats,
-        .get_compute_shader             = pl_shader_tool_get_compute_shader,
-        .get_compute_bind_group_layout  = pl_shader_tool_get_compute_shader_bind_group_layout,
-        .get_shader                     = pl_shader_tool_get_shader,
-        .get_graphics_bind_group_layout = pl_shader_tool_get_shader_bind_group_layout,
-        .get_bind_group_layout          = pl_shader_tool_get_bind_group_layout,
-        .load_manifest                  = pl_shader_tool_load_manifest,
-        .unload_manifest                = pl_shader_tool_unload_manifest,
+        .get_compute_shader             = pl_shader_variant_get_compute_shader,
+        .get_compute_bind_group_layout  = pl_shader_variant_get_compute_bind_group_layout,
+        .get_shader                     = pl_shader_variant_get_shader,
+        .get_graphics_bind_group_layout = pl_shader_variant_get_graphics_bind_group_layout,
+        .get_bind_group_layout          = pl_shader_variant_get_bind_group_layout,
+        .load_manifest                  = pl_shader_variant_load_manifest,
+        .unload_manifest                = pl_shader_variant_unload_manifest,
     };
     pl_set_api(ptApiRegistry, plShaderVariantI, &tApi);
 
@@ -1261,7 +1261,7 @@ pl_load_shader_variant_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-static void
+void
 pl_unload_shader_variant_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

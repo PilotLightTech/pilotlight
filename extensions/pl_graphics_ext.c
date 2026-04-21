@@ -60,7 +60,7 @@ pl__get_vertex_attribute_size(plVertexFormat tFormat)
 }
 
 size_t
-pl_get_data_type_size(plDataType tType)
+pl_graphics_get_data_type_size(plDataType tType)
 {
     switch(tType)
     {
@@ -115,26 +115,26 @@ pl_get_data_type_size(plDataType tType)
     return 0;
 }
 
-static uint32_t
-pl_get_frames_in_flight(void)
+uint32_t
+pl_graphics_get_frames_in_flight(void)
 {
     return gptGraphics->uFramesInFlight;
 }
 
-static uint32_t
-pl_get_current_frame_index(void)
+uint32_t
+pl_graphics_get_current_frame_index(void)
 {
     return gptGraphics->uCurrentFrameIndex;
 }
 
-static size_t
-pl_get_local_memory_in_use(void)
+size_t
+pl_graphics_get_local_memory_in_use(void)
 {
     return gptGraphics->szLocalMemoryInUse;
 }
 
-static size_t
-pl_get_host_memory_in_use(void)
+size_t
+pl_graphics_get_host_memory_in_use(void)
 {
     return gptGraphics->szHostMemoryInUse;
 }
@@ -151,80 +151,80 @@ pl__get_frame_resources(plDevice* ptDevice)
     return &ptDevice->sbtFrames[gptGraphics->uCurrentFrameIndex];
 }
 
-static plBuffer*
-pl__get_buffer(plDevice* ptDevice, plBufferHandle tHandle)
+plBuffer*
+pl_graphics_get_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
     if(tHandle.uGeneration != ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtBuffersCold[tHandle.uIndex];
 }
 
-static plTexture*
-pl__get_texture(plDevice* ptDevice, plTextureHandle tHandle)
+plTexture*
+pl_graphics_get_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
     if(tHandle.uGeneration != ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtTexturesCold[tHandle.uIndex];
 }
 
-static plBindGroup*
-pl__get_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
+plBindGroup*
+pl_graphics_get_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
     if(tHandle.uGeneration != ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtBindGroupsCold[tHandle.uIndex];
 }
 
-static plBindGroupLayout*
-pl__get_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
+plBindGroupLayout*
+pl_graphics_get_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
 {
     if(tHandle.uGeneration != ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex];
 }
 
-static plShader*
-pl__get_shader(plDevice* ptDevice, plShaderHandle tHandle)
+plShader*
+pl_graphics_get_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
     if(tHandle.uGeneration != ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtShadersCold[tHandle.uIndex];
 }
 
-static plComputeShader*
-pl__get_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
+plComputeShader*
+pl_graphics_get_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
     if(tHandle.uGeneration != ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtComputeShadersCold[tHandle.uIndex];
 }
 
-static plSampler*
-pl_get_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
+plSampler*
+pl_graphics_get_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 {
     if(tHandle.uGeneration != ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtSamplersCold[tHandle.uIndex];
 }
 
-static plRenderPassLayout*
-pl_get_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+plRenderPassLayout*
+pl_graphics_get_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 {
     if(tHandle.uGeneration != ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex];
 }
 
-static plRenderPass*
-pl_get_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
+plRenderPass*
+pl_graphics_get_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
     if(tHandle.uGeneration != ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration)
         return NULL;
     return &ptDevice->sbtRenderPassesCold[tHandle.uIndex];
 }
 
-static void
-pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
+void
+pl_graphics_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
 {
     if(ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
     {
@@ -243,8 +243,8 @@ pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
     }
 }
 
-static void
-pl_queue_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
+void
+pl_graphics_queue_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
 {
     if(ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
     {
@@ -265,8 +265,8 @@ pl_queue_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
     }
 }
 
-static void
-pl_queue_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle)
+void
+pl_graphics_queue_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
     if(ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
     {
@@ -281,8 +281,8 @@ pl_queue_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle
     }
 }
 
-static void
-pl_queue_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+void
+pl_graphics_queue_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 {
     if(ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
     {
@@ -297,8 +297,8 @@ pl_queue_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutH
     }
 }
 
-static void
-pl_queue_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
+void
+pl_graphics_queue_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
 {
     if(ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
     {
@@ -314,8 +314,8 @@ pl_queue_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
     }
 }
 
-static void
-pl_queue_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle tHandle)
+void
+pl_graphics_queue_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
     if(ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
     {
@@ -331,8 +331,8 @@ pl_queue_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle t
     }
 }
 
-static void
-pl_queue_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
+void
+pl_graphics_queue_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
     if(ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
     {
@@ -347,8 +347,8 @@ pl_queue_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
     }
 }
 
-static void
-pl_queue_bind_group_layout_for_deletion(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
+void
+pl_graphics_queue_bind_group_layout_for_deletion(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
 {
 
     if(ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
@@ -364,8 +364,8 @@ pl_queue_bind_group_layout_for_deletion(plDevice* ptDevice, plBindGroupLayoutHan
     }
 }
 
-static void
-pl_queue_sampler_for_deletion(plDevice* ptDevice, plSamplerHandle tHandle)
+void
+pl_graphics_queue_sampler_for_deletion(plDevice* ptDevice, plSamplerHandle tHandle)
 {
     if(ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
     {
@@ -380,8 +380,8 @@ pl_queue_sampler_for_deletion(plDevice* ptDevice, plSamplerHandle tHandle)
     }
 }
 
-static void
-pl_draw_stream_cleanup(plDrawStream* ptStream)
+void
+pl_graphics_draw_stream_cleanup(plDrawStream* ptStream)
 {
     memset(&ptStream->_tCurrentDraw, 255, sizeof(plDrawStreamData));
     PL_FREE(ptStream->_auStream);
@@ -389,8 +389,8 @@ pl_draw_stream_cleanup(plDrawStream* ptStream)
     ptStream->_uStreamCount = 0;
 }
 
-static void
-pl_draw_stream_reset(plDrawStream* ptStream, uint32_t uDrawCount)
+void
+pl_graphics_reset_draw_stream(plDrawStream* ptStream, uint32_t uDrawCount)
 {
     memset(&ptStream->_tCurrentDraw, 0, sizeof(plDrawStreamData));
     ptStream->_uStreamCount = 0;
@@ -652,56 +652,56 @@ pl__cleanup_common_device(plDevice* ptDevice)
     PL_FREE(ptDevice);
 }
 
-static bool
-pl_is_buffer_valid(plDevice* ptDevice, plBufferHandle tHandle)
+bool
+pl_graphics_is_buffer_valid(plDevice* ptDevice, plBufferHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration);
 }
 
-static bool
-pl_is_bind_group_layout_valid(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
+bool
+pl_graphics_is_bind_group_layout_valid(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration);
 }
 
-static bool
-pl_is_sampler_valid(plDevice* ptDevice, plSamplerHandle tHandle)
+bool
+pl_graphics_is_sampler_valid(plDevice* ptDevice, plSamplerHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration);
 }
 
-static bool
-pl_is_texture_valid(plDevice* ptDevice, plTextureHandle tHandle)
+bool
+pl_graphics_is_texture_valid(plDevice* ptDevice, plTextureHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration);
 }
 
-static bool
-pl_is_bind_group_valid(plDevice* ptDevice, plBindGroupHandle tHandle)
+bool
+pl_graphics_is_bind_group_valid(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration);
 }
 
-static bool
-pl_is_render_pass_valid(plDevice* ptDevice, plRenderPassHandle tHandle)
+bool
+pl_graphics_is_render_pass_valid(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration);
 }
 
-static bool
-pl_is_render_pass_layout_valid(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+bool
+pl_graphics_is_render_pass_layout_valid(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration);
 }
 
-static bool
-pl_is_shader_valid(plDevice* ptDevice, plShaderHandle tHandle)
+bool
+pl_graphics_is_shader_valid(plDevice* ptDevice, plShaderHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration);
 }
 
-static bool
-pl_is_compute_shader_valid(plDevice* ptDevice, plComputeShaderHandle tHandle)
+bool
+pl_graphics_is_compute_shader_valid(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration);
 }
@@ -1021,25 +1021,26 @@ pl__return_event(plDevice* ptDevice, plTimelineEvent* ptEvent)
     ptDevice->ptEventFreeList = ptEvent;
 }
 
-static plRenderPassHandle
-pl_get_encoder_render_pass(plRenderEncoder* ptEncoder)
+plRenderPassHandle
+pl_graphics_get_encoder_render_pass(plRenderEncoder* ptEncoder)
 {
     return ptEncoder->tRenderPassHandle;
 }
-static uint32_t
-pl_get_render_encoder_subpass(plRenderEncoder* ptEncoder)
+
+uint32_t
+pl_graphics_get_render_encoder_subpass(plRenderEncoder* ptEncoder)
 {
     return ptEncoder->uCurrentSubpass;
 }
 
-static plSwapchainInfo
-pl_get_swapchain_info(plSwapchain* ptSwap)
+plSwapchainInfo
+pl_graphics_get_swapchain_info(plSwapchain* ptSwap)
 {
     return ptSwap->tInfo;
 }
 
-static const plDeviceMemoryAllocation*
-pl_get_gfx_allocations(plDevice* ptDevice, uint32_t* puSizeOut)
+const plDeviceMemoryAllocation*
+pl_graphics_get_allocations(plDevice* ptDevice, uint32_t* puSizeOut)
 {
     if(puSizeOut)
     {
@@ -1049,31 +1050,31 @@ pl_get_gfx_allocations(plDevice* ptDevice, uint32_t* puSizeOut)
 }
 
 const plDeviceInfo*
-pl_get_device_info(plDevice* ptDevice)
+pl_graphics_get_device_info(plDevice* ptDevice)
 {
     return &ptDevice->tInfo;
 }
 
 plCommandBuffer*
-pl_get_encoder_command_buffer(plRenderEncoder* ptEncoder)
+pl_graphics_get_encoder_command_buffer(plRenderEncoder* ptEncoder)
 {
     return ptEncoder->ptCommandBuffer;
 }
 
 plCommandBuffer*
-pl_get_compute_encoder_command_buffer(plComputeEncoder* ptEncoder)
+pl_graphics_get_compute_encoder_command_buffer(plComputeEncoder* ptEncoder)
 {
     return ptEncoder->ptCommandBuffer;
 }
 
 plCommandBuffer*
-pl_get_blit_encoder_command_buffer(plBlitEncoder* ptEncoder)
+pl_graphics_get_blit_encoder_command_buffer(plBlitEncoder* ptEncoder)
 {
     return ptEncoder->ptCommandBuffer;
 }
 
 uint32_t
-pl_calculate_mip_count(uint32_t uWidth, uint32_t uHeight)
+pl_graphics_calculate_mip_count(uint32_t uWidth, uint32_t uHeight)
 {
     uint32_t uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)uWidth, (int)uHeight))) + 1;
 
@@ -1091,7 +1092,7 @@ pl_calculate_mip_count(uint32_t uWidth, uint32_t uHeight)
     return uMips;
 }
 
-static plBlendState
+plBlendState
 pl_graphics_get_blend_state(plBlendMode tBlendMode)
 {
 
@@ -1168,190 +1169,190 @@ pl_graphics_get_blend_state(plBlendMode tBlendMode)
     return atStateMap[tBlendMode];
 }
 
-PL_EXPORT void
+void
 pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plGraphicsI tApi = {
-        .initialize                             = pl_initialize_graphics,
-        .get_backend                            = pl_get_backend,
-        .get_backend_string                     = pl_get_backend_string,
-        .set_depth_bias                         = pl_set_depth_bias,
-        .recreate_swapchain                     = pl_recreate_swapchain,
-        .get_swapchain_info                     = pl_get_swapchain_info,
-        .get_current_frame_index                = pl_get_current_frame_index,
-        .get_host_memory_in_use                 = pl_get_host_memory_in_use,
-        .get_local_memory_in_use                = pl_get_local_memory_in_use,
-        .get_frames_in_flight                   = pl_get_frames_in_flight,
-        .begin_frame                            = pl_begin_frame,
-        .create_device                          = pl_create_device,
-        .get_device_info                        = pl_get_device_info,
-        .enumerate_devices                      = pl_enumerate_devices,
-        .cleanup_device                         = pl_cleanup_device,
-        .acquire_swapchain_image                = pl_acquire_swapchain_image,
-        .get_swapchain_images                   = pl_get_swapchain_images,
-        .create_swapchain                       = pl_create_swapchain,
-        .create_surface                         = pl_create_surface,
-        .cleanup_surface                        = pl_cleanup_surface,
-        .cleanup_swapchain                      = pl_cleanup_swapchain,
-        .cleanup_semaphore                      = pl_cleanup_semaphore,
-        .dispatch                               = pl_dispatch,
-        .bind_compute_bind_groups               = pl_bind_compute_bind_groups,
-        .bind_graphics_bind_groups              = pl_bind_graphics_bind_groups,
-        .set_scissor_region                     = pl_set_scissor_region,
-        .set_viewport                           = pl_set_viewport,
-        .bind_vertex_buffer                     = pl_bind_vertex_buffer,
-        .bind_vertex_buffers                    = pl_bind_vertex_buffers,
-        .bind_shader                            = pl_bind_shader,
-        .bind_compute_shader                    = pl_bind_compute_shader,
-        .cleanup                                = pl_cleanup_graphics,
-        .begin_command_recording                = pl_begin_command_recording,
-        .end_command_recording                  = pl_end_command_recording,
-        .submit_command_buffer                  = pl_submit_command_buffer,
-        .wait_on_command_buffer                 = pl_wait_on_command_buffer,
-        .return_command_buffer                  = pl_return_command_buffer,
-        .reset_command_buffer                   = pl_reset_command_buffer,
-        .next_subpass                           = pl_next_subpass,
-        .begin_render_pass                      = pl_begin_render_pass,
-        .get_encoder_render_pass                = pl_get_encoder_render_pass,
-        .get_render_encoder_subpass             = pl_get_render_encoder_subpass,
-        .end_render_pass                        = pl_end_render_pass,
-        .begin_compute_pass                     = pl_begin_compute_pass,
-        .end_compute_pass                       = pl_end_compute_pass,
-        .begin_blit_pass                        = pl_begin_blit_pass,
-        .end_blit_pass                          = pl_end_blit_pass,
-        .set_texture_usage                      = pl_set_texture_usage,
-        .set_texture_usage_ex                   = pl_set_texture_usage_ex,
-        .draw_stream                            = pl_draw_stream,
-        .draw                                   = pl_draw,
-        .draw_indexed                           = pl_draw_indexed,
-        .present                                = pl_present,
-        .copy_buffer_to_texture                 = pl_copy_buffer_to_texture,
-        .copy_texture_to_buffer                 = pl_copy_texture_to_buffer,
-        .copy_texture                           = pl_copy_texture,
-        .generate_mipmaps                       = pl_generate_mipmaps,
-        .copy_buffer                            = pl_copy_buffer,
-        .signal_semaphore                       = pl_signal_semaphore,
-        .wait_semaphore                         = pl_wait_semaphore,
-        .get_semaphore_value                    = pl_get_semaphore_value,
-        .reset_draw_stream                      = pl_draw_stream_reset,
-        .cleanup_draw_stream                    = pl_draw_stream_cleanup,
-        .create_semaphore                       = pl_create_semaphore,
-        .create_buffer                          = pl_create_buffer,
-        .create_shader                          = pl_create_shader,
-        .create_compute_shader                  = pl_create_compute_shader,
-        .create_render_pass_layout              = pl_create_render_pass_layout,
-        .create_render_pass                     = pl_create_render_pass,
-        .create_texture                         = pl_create_texture,
-        .create_texture_view                    = pl_create_texture_view,
-        .create_sampler                         = pl_create_sampler,
-        .create_bind_group                      = pl_create_bind_group,
-        .create_bind_group_layout               = pl_create_bind_group_layout,
-        .destroy_bind_group_layout              = pl_destroy_bind_group_layout,
-        .queue_bind_group_layout_for_deletion   = pl_queue_bind_group_layout_for_deletion,
-        .get_bind_group_layout                  = pl__get_bind_group_layout,
-        .is_bind_group_layout_valid             = pl_is_bind_group_layout_valid,
-        .update_bind_group                      = pl_update_bind_group,
-        .allocate_dynamic_data_block            = pl_allocate_dynamic_data_block,
-        .queue_buffer_for_deletion              = pl_queue_buffer_for_deletion,
-        .queue_texture_for_deletion             = pl_queue_texture_for_deletion,
-        .queue_bind_group_for_deletion          = pl_queue_bind_group_for_deletion,
-        .queue_shader_for_deletion              = pl_queue_shader_for_deletion,
-        .queue_compute_shader_for_deletion      = pl_queue_compute_shader_for_deletion,
-        .queue_render_pass_for_deletion         = pl_queue_render_pass_for_deletion,
-        .queue_render_pass_layout_for_deletion  = pl_queue_render_pass_layout_for_deletion,
-        .queue_sampler_for_deletion             = pl_queue_sampler_for_deletion,
-        .destroy_bind_group                     = pl_destroy_bind_group,
-        .destroy_buffer                         = pl_destroy_buffer,
-        .destroy_texture                        = pl_destroy_texture,
-        .destroy_shader                         = pl_destroy_shader,
-        .destroy_compute_shader                 = pl_destroy_compute_shader,
-        .destroy_render_pass                    = pl_destroy_render_pass,
-        .destroy_render_pass_layout             = pl_destroy_render_pass_layout,
-        .destroy_sampler                        = pl_destroy_sampler,
-        .update_render_pass_attachments         = pl_update_render_pass_attachments,
-        .get_buffer                             = pl__get_buffer,
-        .get_texture                            = pl__get_texture,
-        .get_bind_group                         = pl__get_bind_group,
-        .get_shader                             = pl__get_shader,
-        .get_compute_shader                     = pl__get_compute_shader,
+        .initialize                             = pl_graphics_initialize,
+        .get_backend                            = pl_graphics_get_backend,
+        .get_backend_string                     = pl_graphics_get_backend_string,
+        .set_depth_bias                         = pl_graphics_set_depth_bias,
+        .recreate_swapchain                     = pl_graphics_recreate_swapchain,
+        .get_swapchain_info                     = pl_graphics_get_swapchain_info,
+        .get_current_frame_index                = pl_graphics_get_current_frame_index,
+        .get_host_memory_in_use                 = pl_graphics_get_host_memory_in_use,
+        .get_local_memory_in_use                = pl_graphics_get_local_memory_in_use,
+        .get_frames_in_flight                   = pl_graphics_get_frames_in_flight,
+        .begin_frame                            = pl_graphics_begin_frame,
+        .create_device                          = pl_graphics_create_device,
+        .get_device_info                        = pl_graphics_get_device_info,
+        .enumerate_devices                      = pl_graphics_enumerate_devices,
+        .cleanup_device                         = pl_graphics_cleanup_device,
+        .acquire_swapchain_image                = pl_graphics_acquire_swapchain_image,
+        .get_swapchain_images                   = pl_graphics_get_swapchain_images,
+        .create_swapchain                       = pl_graphics_create_swapchain,
+        .create_surface                         = pl_graphics_create_surface,
+        .cleanup_surface                        = pl_graphics_cleanup_surface,
+        .cleanup_swapchain                      = pl_graphics_cleanup_swapchain,
+        .cleanup_semaphore                      = pl_graphics_cleanup_semaphore,
+        .dispatch                               = pl_graphics_dispatch,
+        .bind_compute_bind_groups               = pl_graphics_bind_compute_bind_groups,
+        .bind_graphics_bind_groups              = pl_graphics_bind_graphics_bind_groups,
+        .set_scissor_region                     = pl_graphics_set_scissor_region,
+        .set_viewport                           = pl_graphics_set_viewport,
+        .bind_vertex_buffer                     = pl_graphics_bind_vertex_buffer,
+        .bind_vertex_buffers                    = pl_graphics_bind_vertex_buffers,
+        .bind_shader                            = pl_graphics_bind_shader,
+        .bind_compute_shader                    = pl_graphics_bind_compute_shader,
+        .cleanup                                = pl_graphics_cleanup,
+        .begin_command_recording                = pl_graphics_begin_command_recording,
+        .end_command_recording                  = pl_graphics_end_command_recording,
+        .submit_command_buffer                  = pl_graphics_submit_command_buffer,
+        .wait_on_command_buffer                 = pl_graphics_wait_on_command_buffer,
+        .return_command_buffer                  = pl_graphics_return_command_buffer,
+        .reset_command_buffer                   = pl_graphics_reset_command_buffer,
+        .next_subpass                           = pl_graphics_next_subpass,
+        .begin_render_pass                      = pl_graphics_begin_render_pass,
+        .get_encoder_render_pass                = pl_graphics_get_encoder_render_pass,
+        .get_render_encoder_subpass             = pl_graphics_get_render_encoder_subpass,
+        .end_render_pass                        = pl_graphics_end_render_pass,
+        .begin_compute_pass                     = pl_graphics_begin_compute_pass,
+        .end_compute_pass                       = pl_graphics_end_compute_pass,
+        .begin_blit_pass                        = pl_graphics_begin_blit_pass,
+        .end_blit_pass                          = pl_graphics_end_blit_pass,
+        .set_texture_usage                      = pl_graphics_set_texture_usage,
+        .set_texture_usage_ex                   = pl_graphics_set_texture_usage_ex,
+        .draw_stream                            = pl_graphics_draw_stream,
+        .draw                                   = pl_graphics_draw,
+        .draw_indexed                           = pl_graphics_draw_indexed,
+        .present                                = pl_graphics_present,
+        .copy_buffer_to_texture                 = pl_graphics_copy_buffer_to_texture,
+        .copy_texture_to_buffer                 = pl_graphics_copy_texture_to_buffer,
+        .copy_texture                           = pl_graphics_copy_texture,
+        .generate_mipmaps                       = pl_graphics_generate_mipmaps,
+        .copy_buffer                            = pl_graphics_copy_buffer,
+        .signal_semaphore                       = pl_graphics_signal_semaphore,
+        .wait_semaphore                         = pl_graphics_wait_semaphore,
+        .get_semaphore_value                    = pl_graphics_get_semaphore_value,
+        .reset_draw_stream                      = pl_graphics_reset_draw_stream,
+        .cleanup_draw_stream                    = pl_graphics_draw_stream_cleanup,
+        .create_semaphore                       = pl_graphics_create_semaphore,
+        .create_buffer                          = pl_graphics_create_buffer,
+        .create_shader                          = pl_graphics_create_shader,
+        .create_compute_shader                  = pl_graphics_create_compute_shader,
+        .create_render_pass_layout              = pl_graphics_create_render_pass_layout,
+        .create_render_pass                     = pl_graphics_create_render_pass,
+        .create_texture                         = pl_graphics_create_texture,
+        .create_texture_view                    = pl_graphics_create_texture_view,
+        .create_sampler                         = pl_graphics_create_sampler,
+        .create_bind_group                      = pl_graphics_create_bind_group,
+        .create_bind_group_layout               = pl_graphics_create_bind_group_layout,
+        .destroy_bind_group_layout              = pl_graphics_destroy_bind_group_layout,
+        .queue_bind_group_layout_for_deletion   = pl_graphics_queue_bind_group_layout_for_deletion,
+        .get_bind_group_layout                  = pl_graphics_get_bind_group_layout,
+        .is_bind_group_layout_valid             = pl_graphics_is_bind_group_layout_valid,
+        .update_bind_group                      = pl_graphics_update_bind_group,
+        .allocate_dynamic_data_block            = pl_graphics_allocate_dynamic_data_block,
+        .queue_buffer_for_deletion              = pl_graphics_queue_buffer_for_deletion,
+        .queue_texture_for_deletion             = pl_graphics_queue_texture_for_deletion,
+        .queue_bind_group_for_deletion          = pl_graphics_queue_bind_group_for_deletion,
+        .queue_shader_for_deletion              = pl_graphics_queue_shader_for_deletion,
+        .queue_compute_shader_for_deletion      = pl_graphics_queue_compute_shader_for_deletion,
+        .queue_render_pass_for_deletion         = pl_graphics_queue_render_pass_for_deletion,
+        .queue_render_pass_layout_for_deletion  = pl_graphics_queue_render_pass_layout_for_deletion,
+        .queue_sampler_for_deletion             = pl_graphics_queue_sampler_for_deletion,
+        .destroy_bind_group                     = pl_graphics_destroy_bind_group,
+        .destroy_buffer                         = pl_graphics_destroy_buffer,
+        .destroy_texture                        = pl_graphics_destroy_texture,
+        .destroy_shader                         = pl_graphics_destroy_shader,
+        .destroy_compute_shader                 = pl_graphics_destroy_compute_shader,
+        .destroy_render_pass                    = pl_graphics_destroy_render_pass,
+        .destroy_render_pass_layout             = pl_graphics_destroy_render_pass_layout,
+        .destroy_sampler                        = pl_graphics_destroy_sampler,
+        .update_render_pass_attachments         = pl_graphics_update_render_pass_attachments,
+        .get_buffer                             = pl_graphics_get_buffer,
+        .get_texture                            = pl_graphics_get_texture,
+        .get_bind_group                         = pl_graphics_get_bind_group,
+        .get_shader                             = pl_graphics_get_shader,
+        .get_compute_shader                     = pl_graphics_get_compute_shader,
         .get_blend_state                        = pl_graphics_get_blend_state,
-        .allocate_memory                        = pl_allocate_memory,
-        .free_memory                            = pl_free_memory,
-        .get_allocations                        = pl_get_gfx_allocations,
-        .flush_device                           = pl_flush_device,
-        .bind_buffer_to_memory                  = pl_bind_buffer_to_memory,
-        .bind_texture_to_memory                 = pl_bind_texture_to_memory,
-        .get_sampler                            = pl_get_sampler,
-        .get_render_pass                        = pl_get_render_pass,
-        .get_render_pass_layout                 = pl_get_render_pass_layout,
-        .create_command_pool                    = pl_create_command_pool,
-        .cleanup_command_pool                   = pl_cleanup_command_pool,
-        .reset_command_pool                     = pl_reset_command_pool,
-        .request_command_buffer                 = pl_request_command_buffer,
-        .create_bind_group_pool                 = pl_create_bind_group_pool,
-        .cleanup_bind_group_pool                = pl_cleanup_bind_group_pool,
-        .reset_bind_group_pool                  = pl_reset_bind_group_pool,
-        .pipeline_barrier                       = pl_pipeline_barrier,
-        .pipeline_barrier_blit                  = pl_pipeline_barrier_blit,
-        .pipeline_barrier_render                = pl_pipeline_barrier_render,
-        .pipeline_barrier_compute               = pl_pipeline_barrier_compute,
-        .is_buffer_valid                        = pl_is_buffer_valid,
-        .is_sampler_valid                       = pl_is_sampler_valid,
-        .is_texture_valid                       = pl_is_texture_valid,
-        .is_bind_group_valid                    = pl_is_bind_group_valid,
-        .is_render_pass_valid                   = pl_is_render_pass_valid,
-        .is_render_pass_layout_valid            = pl_is_render_pass_layout_valid,
-        .is_shader_valid                        = pl_is_shader_valid,
-        .is_compute_shader_valid                = pl_is_compute_shader_valid,
-        .get_compute_encoder_command_buffer     = pl_get_compute_encoder_command_buffer,
-        .get_blit_encoder_command_buffer        = pl_get_blit_encoder_command_buffer,
-        .get_encoder_command_buffer             = pl_get_encoder_command_buffer,
-        .invalidate_memory                      = pl_gfx_invalidate_memory,
-        .flush_memory                           = pl_gfx_flush_memory,
-        .get_data_type_size                     = pl_get_data_type_size,
-        .push_debug_group                       = pl_push_debug_group,
-        .pop_debug_group                        = pl_pop_debug_group,
-        .push_render_debug_group                = pl_push_render_debug_group,
-        .pop_render_debug_group                 = pl_pop_render_debug_group,
-        .push_blit_debug_group                  = pl_push_blit_debug_group,
-        .pop_blit_debug_group                   = pl_pop_blit_debug_group,
-        .push_compute_debug_group               = pl_push_compute_debug_group,
-        .pop_compute_debug_group                = pl_pop_compute_debug_group,
-        .insert_debug_label                     = pl_insert_debug_label,
-        .create_event                           = pl_create_event,
-        .cleanup_event                          = pl_cleanup_event,
-        .reset_event                            = pl_reset_event,
-        .set_event                              = pl_set_event,
-        .wait_for_events                        = pl_wait_for_events,
-        .calculate_mip_count                    = pl_calculate_mip_count,
+        .allocate_memory                        = pl_graphics_allocate_memory,
+        .free_memory                            = pl_graphics_free_memory,
+        .get_allocations                        = pl_graphics_get_allocations,
+        .flush_device                           = pl_graphics_flush_device,
+        .bind_buffer_to_memory                  = pl_graphics_bind_buffer_to_memory,
+        .bind_texture_to_memory                 = pl_graphics_bind_texture_to_memory,
+        .get_sampler                            = pl_graphics_get_sampler,
+        .get_render_pass                        = pl_graphics_get_render_pass,
+        .get_render_pass_layout                 = pl_graphics_get_render_pass_layout,
+        .create_command_pool                    = pl_graphics_create_command_pool,
+        .cleanup_command_pool                   = pl_graphics_cleanup_command_pool,
+        .reset_command_pool                     = pl_graphics_reset_command_pool,
+        .request_command_buffer                 = pl_graphics_request_command_buffer,
+        .create_bind_group_pool                 = pl_graphics_create_bind_group_pool,
+        .cleanup_bind_group_pool                = pl_graphics_cleanup_bind_group_pool,
+        .reset_bind_group_pool                  = pl_graphics_reset_bind_group_pool,
+        .pipeline_barrier                       = pl_graphics_pipeline_barrier,
+        .pipeline_barrier_blit                  = pl_graphics_pipeline_barrier_blit,
+        .pipeline_barrier_render                = pl_graphics_pipeline_barrier_render,
+        .pipeline_barrier_compute               = pl_graphics_pipeline_barrier_compute,
+        .is_buffer_valid                        = pl_graphics_is_buffer_valid,
+        .is_sampler_valid                       = pl_graphics_is_sampler_valid,
+        .is_texture_valid                       = pl_graphics_is_texture_valid,
+        .is_bind_group_valid                    = pl_graphics_is_bind_group_valid,
+        .is_render_pass_valid                   = pl_graphics_is_render_pass_valid,
+        .is_render_pass_layout_valid            = pl_graphics_is_render_pass_layout_valid,
+        .is_shader_valid                        = pl_graphics_is_shader_valid,
+        .is_compute_shader_valid                = pl_graphics_is_compute_shader_valid,
+        .get_compute_encoder_command_buffer     = pl_graphics_get_compute_encoder_command_buffer,
+        .get_blit_encoder_command_buffer        = pl_graphics_get_blit_encoder_command_buffer,
+        .get_encoder_command_buffer             = pl_graphics_get_encoder_command_buffer,
+        .invalidate_memory                      = pl_graphics_invalidate_memory,
+        .flush_memory                           = pl_graphics_flush_memory,
+        .get_data_type_size                     = pl_graphics_get_data_type_size,
+        .push_debug_group                       = pl_graphics_push_debug_group,
+        .pop_debug_group                        = pl_graphics_pop_debug_group,
+        .push_render_debug_group                = pl_graphics_push_render_debug_group,
+        .pop_render_debug_group                 = pl_graphics_pop_render_debug_group,
+        .push_blit_debug_group                  = pl_graphics_push_blit_debug_group,
+        .pop_blit_debug_group                   = pl_graphics_pop_blit_debug_group,
+        .push_compute_debug_group               = pl_graphics_push_compute_debug_group,
+        .pop_compute_debug_group                = pl_graphics_pop_compute_debug_group,
+        .insert_debug_label                     = pl_graphics_insert_debug_label,
+        .create_event                           = pl_graphics_create_event,
+        .cleanup_event                          = pl_graphics_cleanup_event,
+        .reset_event                            = pl_graphics_reset_event,
+        .set_event                              = pl_graphics_set_event,
+        .wait_for_events                        = pl_graphics_wait_for_events,
+        .calculate_mip_count                    = pl_graphics_calculate_mip_count,
 
         #if defined(PL_GRAPHICS_EXPOSE_VULKAN) && defined(PL_VULKAN_BACKEND)
-        .get_vulkan_instance        = pl_get_vulkan_instance,
-        .get_vulkan_api_version     = pl_get_vulkan_api_version,
-        .get_vulkan_device          = pl_get_vulkan_device,
-        .get_vulkan_surface         = pl_get_vulkan_surface,
-        .get_vulkan_physical_device = pl_get_vulkan_physical_device,
-        .get_vulkan_queue           = pl_get_vulkan_queue,
-        .get_vulkan_present_queue   = pl_get_vulkan_present_queue,
-        .get_vulkan_queue_family    = pl_get_vulkan_queue_family,
-        .get_vulkan_render_pass     = pl_get_vulkan_render_pass,
-        .get_vulkan_descriptor_pool = pl_get_vulkan_descriptor_pool,
-        .get_vulkan_sample_count    = pl_get_vulkan_sample_count,
-        .get_vulkan_command_buffer  = pl_get_vulkan_command_buffer,
-        .get_vulkan_image_view      = pl_get_vulkan_image_view,
-        .get_vulkan_sampler         = pl_get_vulkan_sampler,
-        .get_vulkan_descriptor_set  = pl_get_vulkan_descriptor_set,
-        .get_vulkan_allocation_callbacks = pl_get_vulkan_allocation_callbacks,
-        .get_vulkan_memory_properties = pl_get_vulkan_memory_properties,
+        .get_vulkan_instance        = pl_graphics_get_vulkan_instance,
+        .get_vulkan_api_version     = pl_graphics_get_vulkan_api_version,
+        .get_vulkan_device          = pl_graphics_get_vulkan_device,
+        .get_vulkan_surface         = pl_graphics_get_vulkan_surface,
+        .get_vulkan_physical_device = pl_graphics_get_vulkan_physical_device,
+        .get_vulkan_queue           = pl_graphics_get_vulkan_queue,
+        .get_vulkan_present_queue   = pl_graphics_get_vulkan_present_queue,
+        .get_vulkan_queue_family    = pl_graphics_get_vulkan_queue_family,
+        .get_vulkan_render_pass     = pl_graphics_get_vulkan_render_pass,
+        .get_vulkan_descriptor_pool = pl_graphics_get_vulkan_descriptor_pool,
+        .get_vulkan_sample_count    = pl_graphics_get_vulkan_sample_count,
+        .get_vulkan_command_buffer  = pl_graphics_get_vulkan_command_buffer,
+        .get_vulkan_image_view      = pl_graphics_get_vulkan_image_view,
+        .get_vulkan_sampler         = pl_graphics_get_vulkan_sampler,
+        .get_vulkan_descriptor_set  = pl_graphics_get_vulkan_descriptor_set,
+        .get_vulkan_allocation_callbacks = pl_graphics_get_vulkan_allocation_callbacks,
+        .get_vulkan_memory_properties = pl_graphics_get_vulkan_memory_properties,
         #endif
 
         #if defined(PL_GRAPHICS_EXPOSE_METAL) && defined(PL_METAL_BACKEND)
-        .get_metal_device                 = pl_get_metal_device,
-        .get_metal_render_pass_descriptor = pl_get_metal_render_pass_descriptor,
-        .get_metal_command_buffer         = pl_get_metal_command_buffer,
-        .get_metal_command_encoder        = pl_get_metal_command_encoder,
-        .get_metal_texture                = pl_get_metal_texture,
-        .get_metal_bind_group_texture     = pl_get_metal_bind_group_texture,
+        .get_metal_device                 = pl_graphics_get_metal_device,
+        .get_metal_render_pass_descriptor = pl_graphics_get_metal_render_pass_descriptor,
+        .get_metal_command_buffer         = pl_graphics_get_metal_command_buffer,
+        .get_metal_command_encoder        = pl_graphics_get_metal_command_encoder,
+        .get_metal_texture                = pl_graphics_get_metal_texture,
+        .get_metal_bind_group_texture     = pl_graphics_get_metal_bind_group_texture,
         #endif
     };
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);
@@ -1371,7 +1372,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

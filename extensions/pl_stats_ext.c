@@ -108,8 +108,8 @@ static void         pl__set_max_frames  (uint32_t);
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
-static double*
-pl__get_counter(char const* pcName)
+double*
+pl_stats_get_counter(char const* pcName)
 {
     const uint64_t ulHash = pl_hm_hash_str(pcName, 0);
 
@@ -145,8 +145,8 @@ pl__get_counter(char const* pcName)
     return &gptStatsCtx->sbtBlocks[ulBlockIndex]->atSources[ulIndex % PL_STATS_BLOCK_COUNT].dFrameValue;
 }
 
-static void
-pl__new_frame(void)
+void
+pl_stats_new_frame(void)
 {
     const uint64_t ulFrameIndex = gptStatsCtx->uCurrentFrame % gptStatsCtx->uMaxFrames;
     gptStatsCtx->uCurrentFrame++;
@@ -176,28 +176,28 @@ pl__new_frame(void)
     }     
 }
 
-static const char**
-pl__get_names(uint32_t* puCount)
+const char**
+pl_stats_get_names(uint32_t* puCount)
 {
     if(puCount)
         *puCount = pl_sb_size(gptStatsCtx->sbtNames);
     return gptStatsCtx->sbtNames;
 }
 
-static uint32_t
-pl__get_max_frames(void)
+uint32_t
+pl_stats_get_max_frames(void)
 {
     return gptStatsCtx->uMaxFrames;
 }
 
-static void
-pl__set_max_frames(uint32_t uMaxFrames)
+void
+pl_stats_set_max_frames(uint32_t uMaxFrames)
 {
     gptStatsCtx->uMaxFrames = uMaxFrames;
 }
 
-static double**
-pl__get_counter_data(char const* pcName)
+double**
+pl_stats_get_counter_data(char const* pcName)
 {
     const uint64_t ulHash = pl_hm_hash_str(pcName, 0);
     uint64_t ulIndex = UINT64_MAX;
@@ -236,16 +236,16 @@ pl__get_counter_data(char const* pcName)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plStatsI tApi = {
-        .get_counter      = pl__get_counter,
-        .new_frame        = pl__new_frame,
-        .get_counter_data = pl__get_counter_data,
-        .get_names        = pl__get_names,
-        .set_max_frames   = pl__set_max_frames,
-        .get_max_frames   = pl__get_max_frames
+        .get_counter      = pl_stats_get_counter,
+        .new_frame        = pl_stats_new_frame,
+        .get_counter_data = pl_stats_get_counter_data,
+        .get_names        = pl_stats_get_names,
+        .set_max_frames   = pl_stats_set_max_frames,
+        .get_max_frames   = pl_stats_get_max_frames
     };
     pl_set_api(ptApiRegistry, plStatsI, &tApi);
 
@@ -267,7 +267,7 @@ pl_load_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_stats_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

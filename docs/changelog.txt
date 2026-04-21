@@ -5,7 +5,26 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-- v0.9.0 (2026-04-16)
+- v0.9.0 (2026-04-21) (core)              -added support for direct functions! (see example_basic_2.c)
+                      (starter    v1.4.0) -performance improvements for resizing
+                      (screen log v2.2.0) -add flags for hiding messages
+                      (window     v1.2.0) -expose experimental features (must be checked by user)
+                      (build      v1.5.0) -automatically add "lib" to unix libraries(BREAKING)
+                      (string int.v2.0.0) -remove "string" from function names(BREAKING)
+                      (profile    v2.0.0) -rename macros (BREAKING, SEE FILE)
+                      (log        v2.0.0) -rename macros (BREAKING, SEE FILE)
+                      (rect pack  v2.0.0) -rename function from "pack_rects" to "pack" (BREAKING)
+                      (atomics    v2.0.0) -rename functions (BREAKING, SEE FILE)
+                      (camera)            -add reverse Z orthographic camera
+                      (math)              -rename double structs
+                      (stage)             -add resource staging extension
+                      (imgui)             -update imgui & implot versions
+                      (renderer)          -fix CSM calculations
+                                          -shader performance improvements
+                                          -fix many environment probe issues
+                                          -remove finalize scene workflow
+                                          -improve internal resource usages
+                                          -fix PCF calculations
 - v0.8.0 (2026-03-06) (graphics   v1.7.2) -expose color write mask for stencil buffer
                                           -fix copy buffer issues in vulkan backend
                       (draw       v2.0.0) -re-combined draw & draw extensions

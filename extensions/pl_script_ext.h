@@ -8,7 +8,8 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] forward declarations
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 */
 
 //-----------------------------------------------------------------------------
@@ -18,10 +19,15 @@ Index of this file:
 #ifndef PL_SCRIPT_EXT_H
 #define PL_SCRIPT_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include "pl_ecs_ext.inl" // plEntity
 
 //-----------------------------------------------------------------------------
@@ -46,21 +52,35 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_script_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_script_ext(plApiRegistryI*, bool reload);
+
+// scripts
+PL_API plEntity     pl_script_create(plComponentLibrary*, const char* file, plScriptFlags, plScriptComponent**);
+PL_API void         pl_script_attach(plComponentLibrary*, const char* file, plScriptFlags, plEntity, plScriptComponent**);
+
+// system setup/shutdown/etc
+PL_API void         pl_script_register_ecs_system(void);
+PL_API void         pl_script_run_update_system  (plComponentLibrary*);
+
+// ecs types
+PL_API plEcsTypeKey pl_script_get_ecs_type_key(void);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plScriptI
 {
-    // scripts
-    plEntity (*create)(plComponentLibrary*, const char* file, plScriptFlags, plScriptComponent**);
-    void     (*attach)(plComponentLibrary*, const char* file, plScriptFlags, plEntity, plScriptComponent**);
-
-    // system setup/shutdown/etc
-    void (*register_ecs_system)(void);
-    void (*run_update_system)  (plComponentLibrary*);
-
-    // ecs types
-    plEcsTypeKey (*get_ecs_type_key)(void);
+    plEntity     (*create)             (plComponentLibrary*, const char* file, plScriptFlags, plScriptComponent**);
+    void         (*attach)             (plComponentLibrary*, const char* file, plScriptFlags, plEntity, plScriptComponent**);
+    void         (*register_ecs_system)(void);
+    void         (*run_update_system)  (plComponentLibrary*);
+    plEcsTypeKey (*get_ecs_type_key)   (void);
 
 } plScriptI;
 
@@ -101,5 +121,9 @@ enum _plScriptFlags
     PL_SCRIPT_FLAG_PLAY_ONCE  = 1 << 1,
     PL_SCRIPT_FLAG_RELOADABLE = 1 << 2
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_SCRIPT_EXT_H

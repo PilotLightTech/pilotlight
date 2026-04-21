@@ -585,19 +585,19 @@ pl_stage_completed(uint64_t uValue)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_stage_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plStageI tApi = {
-        .initialize = pl_stage_initialize,
-        .cleanup    = pl_stage_cleanup,
-        .new_frame = pl_stage_new_frame,
-        .stage_buffer_upload = pl_stage_stage_buffer_upload,
+        .initialize           = pl_stage_initialize,
+        .cleanup              = pl_stage_cleanup,
+        .new_frame            = pl_stage_new_frame,
+        .stage_buffer_upload  = pl_stage_stage_buffer_upload,
         .stage_texture_upload = pl_stage_stage_texture_upload,
-        .flush        = pl_stage_flush,
-        .queue_buffer_upload = pl_stage_queue_buffer_upload,
+        .flush                = pl_stage_flush,
+        .queue_buffer_upload  = pl_stage_queue_buffer_upload,
         .queue_texture_upload = pl_stage_queue_texture_upload,
-        .completed = pl_stage_completed
+        .completed            = pl_stage_completed
     };
     pl_set_api(ptApiRegistry, plStageI, &tApi);
 
@@ -620,7 +620,7 @@ pl_load_stage_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
 }
 
-PL_EXPORT void
+void
 pl_unload_stage_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

@@ -570,7 +570,7 @@ pl_job_cleanup(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plJobI tApi = {
@@ -602,7 +602,7 @@ pl_load_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_job_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

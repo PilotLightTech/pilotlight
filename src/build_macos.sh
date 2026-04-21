@@ -230,7 +230,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/app.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -500,7 +500,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/app.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -774,7 +774,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/app.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1001,7 +1001,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ --debug -g -std=c++14 "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
 PL_STATIC_LINK_LIBRARIES="-ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_dear_imgui_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/editor.cpp "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1275,7 +1275,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/app.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1502,7 +1502,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-ldearimgui "
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_dear_imgui_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/editor.cpp "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1772,7 +1772,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/app.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -2046,7 +2046,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/app.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -2273,7 +2273,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-fPIC -fmodules --debug -g -std=c++14 "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
 PL_STATIC_LINK_LIBRARIES="-ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_dear_imgui_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/editor.cpp "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 

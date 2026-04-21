@@ -92,7 +92,7 @@ pl_mesh_get_ecs_type_key_mesh(void)
 }
 
 void
-pl_calculate_normals(plMeshComponent* atMeshes, uint32_t uComponentCount)
+pl_mesh_calculate_normals(plMeshComponent* atMeshes, uint32_t uComponentCount)
 {
 
     for(uint32_t uMeshIndex = 0; uMeshIndex < uComponentCount; uMeshIndex++)
@@ -127,7 +127,7 @@ pl_calculate_normals(plMeshComponent* atMeshes, uint32_t uComponentCount)
 }
 
 void
-pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
+pl_mesh_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
 {
 
     for(uint32_t uMeshIndex = 0; uMeshIndex < uComponentCount; uMeshIndex++)
@@ -196,7 +196,7 @@ pl_calculate_tangents(plMeshComponent* atMeshes, uint32_t uComponentCount)
 }
 
 void
-pl_allocate_vertex_data(plMeshComponent* ptMesh, size_t szVertexCount, uint64_t uVertexStreamMask, size_t szIndexCount)
+pl_mesh_allocate_vertex_data(plMeshComponent* ptMesh, size_t szVertexCount, uint64_t uVertexStreamMask, size_t szIndexCount)
 {
     ptMesh->ulVertexStreamMask = uVertexStreamMask;
     ptMesh->szVertexCount = szVertexCount;
@@ -297,7 +297,7 @@ pl__mesh_cleanup(plComponentLibrary* ptLibrary)
 }
 
 plEntity
-pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
+pl_mesh_create(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed mesh";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created mesh: '%s'", pcName);
@@ -310,7 +310,7 @@ pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComp
 }
 
 plEntity
-pl_ecs_create_sphere_mesh(plComponentLibrary* ptLibrary, const char* pcName, float fRadius, uint32_t uLatitudeBands, uint32_t uLongitudeBands, plMeshComponent** pptCompOut)
+pl_mesh_create_sphere(plComponentLibrary* ptLibrary, const char* pcName, float fRadius, uint32_t uLatitudeBands, uint32_t uLongitudeBands, plMeshComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed sphere mesh";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created sphere mesh: '%s'", pcName);
@@ -327,7 +327,7 @@ pl_ecs_create_sphere_mesh(plComponentLibrary* ptLibrary, const char* pcName, flo
     if(uLongitudeBands == 0)
     uLongitudeBands = 64;
 
-    pl_allocate_vertex_data(ptMesh, (uLatitudeBands + 1) * (uLongitudeBands + 1), PL_MESH_FORMAT_FLAG_HAS_NORMAL, uLatitudeBands * uLongitudeBands * 6);
+    pl_mesh_allocate_vertex_data(ptMesh, (uLatitudeBands + 1) * (uLongitudeBands + 1), PL_MESH_FORMAT_FLAG_HAS_NORMAL, uLatitudeBands * uLongitudeBands * 6);
 
     uint32_t uCurrentPoint = 0;
 
@@ -377,7 +377,7 @@ pl_ecs_create_sphere_mesh(plComponentLibrary* ptLibrary, const char* pcName, flo
 }
 
 plEntity
-pl_ecs_create_cube_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
+pl_mesh_create_cube(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed cube mesh";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created cube mesh: '%s'", pcName);
@@ -387,7 +387,7 @@ pl_ecs_create_cube_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMes
     if(pptCompOut)
         *pptCompOut = ptMesh;
 
-    pl_allocate_vertex_data(ptMesh, 4 * 6, PL_MESH_FORMAT_FLAG_HAS_NORMAL, 6 * 6);
+    pl_mesh_allocate_vertex_data(ptMesh, 4 * 6, PL_MESH_FORMAT_FLAG_HAS_NORMAL, 6 * 6);
 
     // front (+z)
     ptMesh->ptVertexPositions[0] = (plVec3){  0.5f, -0.5f, 0.5f };
@@ -503,7 +503,7 @@ pl_ecs_create_cube_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMes
 }
 
 plEntity
-pl_ecs_create_plane_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
+pl_mesh_create_plane(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed plane mesh";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created plane mesh: '%s'", pcName);
@@ -513,7 +513,7 @@ pl_ecs_create_plane_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMe
     if(pptCompOut)
         *pptCompOut = ptMesh;
 
-    pl_allocate_vertex_data(ptMesh, 4, PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0, 6);
+    pl_mesh_allocate_vertex_data(ptMesh, 4, PL_MESH_FORMAT_FLAG_HAS_NORMAL | PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0, 6);
 
     ptMesh->ptVertexPositions[0] = (plVec3){-0.5f, 0.0f, -0.5f};
     ptMesh->ptVertexPositions[1] = (plVec3){-0.5f, 0.0f,  0.5f};
@@ -543,7 +543,7 @@ pl_ecs_create_plane_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMe
 }
 
 void
-pl_mesh_register_system(void)
+pl_mesh_register_ecs_system(void)
 {
 
     const plComponentDesc tMeshDesc = {
@@ -764,18 +764,18 @@ pl_mesh_builder_commit_double(plMeshBuilder* ptBuilder, uint32_t* puIndexBuffer,
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+void
 pl_load_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plMeshI tApi = {
-        .register_ecs_system   = pl_mesh_register_system,
-        .create_mesh           = pl_ecs_create_mesh,
-        .create_sphere_mesh    = pl_ecs_create_sphere_mesh,
-        .create_cube_mesh      = pl_ecs_create_cube_mesh,
-        .create_plane_mesh     = pl_ecs_create_plane_mesh,
-        .calculate_normals     = pl_calculate_normals,
-        .calculate_tangents    = pl_calculate_tangents,
-        .allocate_vertex_data  = pl_allocate_vertex_data,
+        .register_ecs_system   = pl_mesh_register_ecs_system,
+        .create                = pl_mesh_create,
+        .create_sphere         = pl_mesh_create_sphere,
+        .create_cube           = pl_mesh_create_cube,
+        .create_plane          = pl_mesh_create_plane,
+        .calculate_normals     = pl_mesh_calculate_normals,
+        .calculate_tangents    = pl_mesh_calculate_tangents,
+        .allocate_vertex_data  = pl_mesh_allocate_vertex_data,
         .get_ecs_type_key_mesh = pl_mesh_get_ecs_type_key_mesh,
     };
     pl_set_api(ptApiRegistry, plMeshI, &tApi);
@@ -808,7 +808,7 @@ pl_load_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-static void
+void
 pl_unload_mesh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

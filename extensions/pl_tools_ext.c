@@ -130,7 +130,7 @@ static void pl__show_logging           (bool* bValue);
 //-----------------------------------------------------------------------------
 
 void
-pl_debug_initialize(plToolsInit tInit)
+pl_tools_initialize(plToolsInit tInit)
 {
     gptDebugCtx->ptDevice = tInit.ptDevice;
     if(gptConsole->add_bool_variable)
@@ -144,7 +144,7 @@ pl_debug_initialize(plToolsInit tInit)
 }
 
 void
-pl_debug_update(void)
+pl_tools_update(void)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -1298,13 +1298,13 @@ pl__show_logging(bool* bValue)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
     const plToolsI tApi = {
-        .initialize = pl_debug_initialize,
-        .update     = pl_debug_update
+        .initialize = pl_tools_initialize,
+        .update     = pl_tools_update
     };
     pl_set_api(ptApiRegistry, plToolsI, &tApi);
 
@@ -1337,7 +1337,7 @@ pl_load_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

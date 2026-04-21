@@ -81,25 +81,25 @@ static plAnimationContext* gptAnimationCtx = NULL;
 //-----------------------------------------------------------------------------
 
 plEcsTypeKey
-pl_ecs_core_get_ecs_type_key_animation(void)
+pl_animation_get_ecs_type_key_animation(void)
 {
     return gptAnimationCtx->tAnimationComponentType;
 }
 
 plEcsTypeKey
-pl_ecs_core_get_ecs_type_key_animation_data(void)
+pl_animation_get_ecs_type_key_animation_data(void)
 {
     return gptAnimationCtx->tAnimationDataComponentType;
 }
 
 plEcsTypeKey
-pl_ecs_core_get_ecs_type_key_inverse_kinematics(void)
+pl_animation_get_ecs_type_key_inverse_kinematics(void)
 {
     return gptAnimationCtx->tInverseKinematicsComponentType;
 }
 
 plEcsTypeKey
-pl_ecs_core_get_ecs_type_key_humanoid(void)
+pl_animation_get_ecs_type_key_humanoid(void)
 {
     return gptAnimationCtx->tHumanoidComponentType;
 }
@@ -156,7 +156,7 @@ pl__ecs_ik_reset(plComponentLibrary* ptLibrary)
 }
 
 plEntity
-pl_ecs_create_animation(plComponentLibrary* ptLibrary, const char* pcName, uint32_t uChannelCount, plAnimationComponent** pptCompOut)
+pl_animation_create(plComponentLibrary* ptLibrary, const char* pcName, uint32_t uChannelCount, plAnimationComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created animation: '%s'", pcName);
@@ -177,7 +177,7 @@ pl_ecs_create_animation(plComponentLibrary* ptLibrary, const char* pcName, uint3
 }
 
 plEntity
-pl_ecs_create_animation_data(plComponentLibrary* ptLibrary, const char* pcName, uint32_t uKeyFrameCount, size_t szDataSize, plAnimationDataComponent** pptCompOut)
+pl_animation_create_data(plComponentLibrary* ptLibrary, const char* pcName, uint32_t uKeyFrameCount, size_t szDataSize, plAnimationDataComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation data";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created animation data: '%s'", pcName);
@@ -613,19 +613,19 @@ pl_animation_register_ecs_system(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+void
 pl_load_animation_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plAnimationI tApi = {
-        .register_ecs_system                  = pl_core_register_system,
-        .create_animation                     = pl_ecs_create_animation,
-        .create_animation_data                = pl_ecs_create_animation_data,
-        .run_animation_update_system          = pl_run_animation_update_system,
-        .run_inverse_kinematics_update_system = pl_run_inverse_kinematics_update_system,
-        .get_ecs_type_key_animation           = pl_ecs_core_get_ecs_type_key_animation,
-        .get_ecs_type_key_animation_data      = pl_ecs_core_get_ecs_type_key_animation_data,
-        .get_ecs_type_key_inverse_kinematics  = pl_ecs_core_get_ecs_type_key_inverse_kinematics,
-        .get_ecs_type_key_humanoid            = pl_ecs_core_get_ecs_type_key_humanoid,
+        .register_ecs_system                  = pl_animation_register_ecs_system,
+        .create                               = pl_animation_create,
+        .create_data                          = pl_animation_create_data,
+        .run_animation_update_system          = pl_animation_run_animation_update_system,
+        .run_inverse_kinematics_update_system = pl_animation_run_inverse_kinematics_update_system,
+        .get_ecs_type_key_animation           = pl_animation_get_ecs_type_key_animation,
+        .get_ecs_type_key_animation_data      = pl_animation_get_ecs_type_key_animation_data,
+        .get_ecs_type_key_inverse_kinematics  = pl_animation_get_ecs_type_key_inverse_kinematics,
+        .get_ecs_type_key_humanoid            = pl_animation_get_ecs_type_key_humanoid,
     };
     pl_set_api(ptApiRegistry, plAnimationI, &tApi);
 
@@ -650,7 +650,7 @@ pl_load_animation_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-static void
+void
 pl_unload_animation_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

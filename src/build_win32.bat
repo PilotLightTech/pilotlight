@@ -200,7 +200,6 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
 @set PL_SOURCES="../editor/app.c" 
 
 :: run compiler (and linker)
@@ -208,7 +207,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mStep: app[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -434,7 +433,6 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
 @set PL_SOURCES="../editor/app.c" 
 
 :: run compiler (and linker)
@@ -442,7 +440,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mStep: app[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -672,7 +670,6 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -Od -MDd -Zi 
 @set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
 @set PL_SOURCES="../editor/app.c" 
 
 :: run compiler (and linker)
@@ -680,7 +677,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mStep: app[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -838,7 +835,6 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -Od -MDd -Zi -permissive 
 @set PL_LINKER_FLAGS=-incremental:no -nologo -noimplib -noexp 
 @set PL_STATIC_LINK_LIBRARIES=dearimguid.lib 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_dear_imgui_ext.lib 
 @set PL_SOURCES="../editor/editor.cpp" 
 
 :: run compiler (and linker)
@@ -846,7 +842,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mStep: editor[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/editor.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/editor_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/editor.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/editor_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -1076,7 +1072,6 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-Zc:preprocessor -nologo -W4 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -permissive- -O2 -MD 
 @set PL_LINKER_FLAGS=-noexp -incremental:no -noimplib 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib 
 @set PL_SOURCES="../editor/app.c" 
 
 :: run compiler (and linker)
@@ -1084,7 +1079,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mStep: app[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/app.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/app_%random%.pdb" %PL_LINK_DIRECTORIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -1242,7 +1237,6 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4201 -wd4100 -wd4996 -wd4505 -wd4189 -wd5105 -wd4115 -O2 -MD -permissive 
 @set PL_LINKER_FLAGS=-incremental:no -nologo -noimplib -noexp 
 @set PL_STATIC_LINK_LIBRARIES=dearimgui.lib 
-@set PL_DYNAMIC_LINK_LIBRARIES=pl_unity_ext.lib pl_platform_ext.lib pl_dear_imgui_ext.lib 
 @set PL_SOURCES="../editor/editor.cpp" 
 
 :: run compiler (and linker)
@@ -1250,7 +1244,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 @echo [1m[93mStep: editor[0m
 @echo [1m[93m~~~~~~~~~~~~~~~~~~~~~~[0m
 @echo [1m[36mCompiling and Linking...[0m
-cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/editor.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/editor_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES% %PL_DYNAMIC_LINK_LIBRARIES%
+cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"../out/editor.dll" -Fo"../out/" -LD -link %PL_LINKER_FLAGS% -PDB:"../out/editor_%random%.pdb" %PL_LINK_DIRECTORIES% %PL_STATIC_LINK_LIBRARIES%
 
 :: check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%

@@ -51,7 +51,8 @@ with pl.project("pilotlight_examples"):
         'example_basic_2',
         'example_basic_3',
         'example_basic_4',
-        'example_basic_6',
+        'example_basic_5',
+        'example_basic_wip_0',
         'example_gfx_0',
         'example_gfx_1',
         'example_gfx_2',
@@ -60,7 +61,7 @@ with pl.project("pilotlight_examples"):
     ]
 
     cpp_examples = [
-        'example_basic_5',
+        'example_basic_6',
     ]
 
     for name in c_examples:
@@ -69,6 +70,7 @@ with pl.project("pilotlight_examples"):
 
             pl.add_source_files(name + ".c")
             pl.set_output_binary(name)
+            pl.add_dynamic_link_libraries("pl_unity_ext", "pl_platform_ext")
 
             with pl.configuration("debug"):
 

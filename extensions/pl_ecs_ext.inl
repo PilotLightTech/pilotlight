@@ -16,6 +16,10 @@ Index of this file:
 #ifndef PL_ECS_EXT_INL
 #define PL_ECS_EXT_INL
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -44,5 +48,8 @@ typedef struct _plPackedEntity
     struct _plComponentLibrary* ptLibrary;
 } plPackedEntity;
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_ECS_EXT_INL

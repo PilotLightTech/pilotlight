@@ -16,6 +16,10 @@ Index of this file:
 #ifndef PL_AUDIO_EXT_H
 #define PL_AUDIO_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
@@ -31,5 +35,9 @@ typedef struct _plAudioI
     int _iUnused;
 
 } plAudioI;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_AUDIO_EXT_H

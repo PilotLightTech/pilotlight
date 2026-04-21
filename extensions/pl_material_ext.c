@@ -50,13 +50,13 @@ static plMaterialContext* gptMaterialCtx = NULL;
 //-----------------------------------------------------------------------------
 
 plEcsTypeKey
-pl_get_ecs_type_key_material(void)
+pl_material_get_ecs_type_key(void)
 {
     return gptMaterialCtx->tComponentType;
 }
 
 plEntity
-pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName, plMaterialComponent** pptCompOut)
+pl_material_create(plComponentLibrary* ptLibrary, const char* pcName, plMaterialComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed material";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created material: '%s'", pcName);
@@ -71,7 +71,7 @@ pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName, plMate
 }
 
 void
-pl_material_register_system(void)
+pl_material_register_ecs_system(void)
 {
 
     const plComponentDesc tMaterialDesc = {
@@ -105,13 +105,13 @@ pl_material_register_system(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+void
 pl_load_material_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plMaterialI tApi = {
-        .register_ecs_system = pl_material_register_system,
-        .create              = pl_ecs_create_material,
-        .get_ecs_type_key    = pl_get_ecs_type_key_material
+        .register_ecs_system = pl_material_register_ecs_system,
+        .create              = pl_material_create,
+        .get_ecs_type_key    = pl_material_get_ecs_type_key
     };
     pl_set_api(ptApiRegistry, plMaterialI, &tApi);
 
@@ -132,7 +132,7 @@ pl_load_material_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-static void
+void
 pl_unload_material_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

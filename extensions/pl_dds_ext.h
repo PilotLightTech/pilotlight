@@ -9,6 +9,7 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
+// [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
 */
@@ -51,16 +52,21 @@ Index of this file:
 #ifndef PL_DDS_EXT_H
 #define PL_DDS_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plDdsI_version {1, 0, 0}
+#define plDdsI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdbool.h> // bool
 #include <stdint.h>  // uint*_t
 
@@ -76,6 +82,18 @@ typedef struct _plDdsMipInfo   plDdsMipInfo;
 // external
 typedef int plFormat;      // pl_graphics_ext.h
 typedef int plTextureType; // pl_graphics_ext.h
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_dds_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_dds_ext(plApiRegistryI*, bool reload);
+
+PL_API uint32_t pl_dds_get_header_size(void);
+PL_API bool     pl_dds_read_info      (uint8_t*, plDdsReadInfo*);
+PL_API void     pl_dds_write_info     (uint8_t*, const plDdsWriteInfo*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -126,5 +144,9 @@ typedef struct _plDdsWriteInfo
     plFormat      tFormat; // texture format
     plTextureType tType;   // texture type
 } plDdsWriteInfo;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_DDS_EXT_H

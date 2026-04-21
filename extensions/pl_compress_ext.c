@@ -507,7 +507,7 @@ pl__decompress(uint8_t* puOutput, uint8_t* puI, uint32_t uLength)
 //-----------------------------------------------------------------------------
 
 uint32_t
-pl_compress(uint8_t* puDataIn, uint32_t uSize, uint8_t* puDataOut, uint32_t uSizeOut)
+pl_compress_compress(uint8_t* puDataIn, uint32_t uSize, uint8_t* puDataOut, uint32_t uSizeOut)
 {
     gpuOut = puDataOut;
     guOutBytes = 0;
@@ -517,7 +517,7 @@ pl_compress(uint8_t* puDataIn, uint32_t uSize, uint8_t* puDataOut, uint32_t uSiz
 }
 
 uint32_t
-pl_decompress(uint8_t* puDataIn, uint32_t size, uint8_t* puDataOut, uint32_t uSizeOut)
+pl_compress_decompress(uint8_t* puDataIn, uint32_t size, uint8_t* puDataOut, uint32_t uSizeOut)
 {
     if(puDataOut == NULL)
         return pl__decompress_length(puDataIn);
@@ -531,12 +531,12 @@ pl_decompress(uint8_t* puDataIn, uint32_t size, uint8_t* puDataOut, uint32_t uSi
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_compress_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plCompressI tApi = {
-        .compress   = pl_compress,
-        .decompress = pl_decompress,
+        .compress   = pl_compress_compress,
+        .decompress = pl_compress_decompress,
     };
     pl_set_api(ptApiRegistry, plCompressI, &tApi);
 
@@ -546,7 +546,7 @@ pl_load_compress_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
 }
 
-PL_EXPORT void
+void
 pl_unload_compress_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

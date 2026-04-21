@@ -315,21 +315,18 @@ static bool                   pl__is_stencil_format  (plFormat tFormat);
 static MTLBlendFactor         pl__metal_blend_factor(plBlendFactor tFactor);
 static MTLBlendOperation      pl__metal_blend_op(plBlendOp tOp);
 
-static plDeviceMemoryAllocation pl_allocate_memory(plDevice* ptDevice, size_t ulSize, plMemoryFlags, uint32_t uTypeFilter, const char* pcName);
-static void pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock);
-
 #define PL__ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-static plRenderPassLayoutHandle
-pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDesc* ptDesc)
+plRenderPassLayoutHandle
+pl_graphics_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDesc* ptDesc)
 {
 
     plRenderPassLayoutHandle tHandle = pl__get_new_render_pass_layout_handle(ptDevice);
-    plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, tHandle);
+    plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, tHandle);
     ptLayout->tDesc = *ptDesc;
 
     if (ptDesc->pcDebugName == NULL)
@@ -341,15 +338,15 @@ pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDesc* p
     return tHandle;
 }
 
-static void
-pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments)
+void
+pl_graphics_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments)
 {
 
-    plRenderPass* ptRenderPass = pl_get_render_pass(ptDevice, tHandle);
+    plRenderPass* ptRenderPass = pl_graphics_get_render_pass(ptDevice, tHandle);
     plMetalRenderPass* ptMetalRenderPass = &ptDevice->sbtRenderPassesHot[tHandle.uIndex];
     ptRenderPass->tDesc.tDimensions = tDimensions;
 
-    plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, ptRenderPass->tDesc.tLayout);
+    plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, ptRenderPass->tDesc.tLayout);
 
     for(uint32_t uFrameIndex = 0; uFrameIndex < gptGraphics->uFramesInFlight; uFrameIndex++)
     {
@@ -387,11 +384,11 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
     }
 }
 
-static plRenderPassHandle
-pl_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const plRenderPassAttachments* ptAttachments)
+plRenderPassHandle
+pl_graphics_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const plRenderPassAttachments* ptAttachments)
 {
     plRenderPassHandle tHandle = pl__get_new_render_pass_handle(ptDevice);
-    plRenderPass* ptPass = pl_get_render_pass(ptDevice, tHandle);
+    plRenderPass* ptPass = pl_graphics_get_render_pass(ptDevice, tHandle);
     ptPass->tDesc = *ptDesc;
 
     if (ptDesc->pcDebugName == NULL)
@@ -399,7 +396,7 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const 
         ptPass->tDesc.pcDebugName = "unnamed render pass";
     }
 
-    plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, ptDesc->tLayout);
+    plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, ptDesc->tLayout);
 
     plMetalRenderPass* ptMetalRenderPass = &ptDevice->sbtRenderPassesHot[tHandle.uIndex];
     ptMetalRenderPass->tFence = [ptDevice->tDevice newFence];
@@ -548,8 +545,8 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const 
     return tHandle;
 }
 
-static void
-pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+void
+pl_graphics_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
@@ -563,7 +560,7 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
 
     plMetalBuffer* ptBuffer = &ptDevice->sbtBuffersHot[tBufferHandle.uIndex];
     plMetalTexture* ptTexture = &ptDevice->sbtTexturesHot[tTextureHandle.uIndex];
-    plTexture* ptColdTexture = pl__get_texture(ptDevice, tTextureHandle);
+    plTexture* ptColdTexture = pl_graphics_get_texture(ptDevice, tTextureHandle);
 
     for(uint32_t i = 0; i < uRegionCount; i++)
     {
@@ -592,7 +589,7 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
 }
 
 void
-pl_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
+pl_graphics_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
@@ -636,8 +633,8 @@ pl_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureH
     }
 }
 
-static void
-pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+void
+pl_graphics_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
@@ -648,7 +645,7 @@ pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHand
     }
 
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
-    const plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
+    const plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tTextureHandle);
     const plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[tTextureHandle.uIndex];
     const plMetalBuffer* ptMetalBuffer = &ptDevice->sbtBuffersHot[tBufferHandle.uIndex];
 
@@ -679,8 +676,8 @@ pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHand
     }
 }
 
-static void
-pl_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint64_t uSourceOffset, uint64_t uDestinationOffset, size_t szSize)
+void
+pl_graphics_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint64_t uSourceOffset, uint64_t uDestinationOffset, size_t szSize)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
@@ -694,8 +691,8 @@ pl_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle 
     [ptEncoder->tEncoder copyFromBuffer:ptDevice->sbtBuffersHot[tSource.uIndex].tBuffer sourceOffset:uSourceOffset toBuffer:ptDevice->sbtBuffersHot[tDestination.uIndex].tBuffer destinationOffset:uDestinationOffset size:szSize];
 }
 
-static plTimelineSemaphore*
-pl_create_semaphore(plDevice* ptDevice, bool bHostVisible)
+plTimelineSemaphore*
+pl_graphics_create_semaphore(plDevice* ptDevice, bool bHostVisible)
 {
     plTimelineSemaphore* ptSemaphore = pl__get_new_semaphore(ptDevice);
     
@@ -710,14 +707,14 @@ pl_create_semaphore(plDevice* ptDevice, bool bHostVisible)
     return ptSemaphore;
 }
 
-static void
-pl_cleanup_semaphore(plTimelineSemaphore* ptSemaphore)
+void
+pl_graphics_cleanup_semaphore(plTimelineSemaphore* ptSemaphore)
 {
     pl__return_semaphore(ptSemaphore->ptDevice, ptSemaphore);
 }
 
-static void
-pl_signal_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore, uint64_t ulValue)
+void
+pl_graphics_signal_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore, uint64_t ulValue)
 {
     PL_ASSERT(ptSemaphore->tSharedEvent != nil);
     if(ptSemaphore->tSharedEvent)
@@ -726,8 +723,8 @@ pl_signal_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore, uint64
     }
 }
 
-static void
-pl_wait_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore, uint64_t ulValue)
+void
+pl_graphics_wait_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore, uint64_t ulValue)
 {
     PL_ASSERT(ptSemaphore->tSharedEvent != nil);
     if(ptSemaphore->tSharedEvent)
@@ -739,8 +736,8 @@ pl_wait_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore, uint64_t
     }
 }
 
-static uint64_t
-pl_get_semaphore_value(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
+uint64_t
+pl_graphics_get_semaphore_value(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
 {
     PL_ASSERT(ptSemaphore->tSharedEvent != nil);
 
@@ -752,7 +749,7 @@ pl_get_semaphore_value(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
 }
 
 plTimelineEvent*
-pl_create_event(plDevice* ptDevice)
+pl_graphics_create_event(plDevice* ptDevice)
 {
     plTimelineEvent* ptEvent = pl__get_new_event(ptDevice);
     ptEvent->tEvent = [ptDevice->tDevice newEvent];
@@ -760,25 +757,25 @@ pl_create_event(plDevice* ptDevice)
 }
 
 void
-pl_cleanup_event(plTimelineEvent* ptEvent)
+pl_graphics_cleanup_event(plTimelineEvent* ptEvent)
 {
     pl__return_event(ptEvent->ptDevice, ptEvent);
 }
 
 void
-pl_reset_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tSrcStages)
+pl_graphics_reset_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tSrcStages)
 {
     ptEvent->uValue++;
 }
 
 void
-pl_set_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tFlags)
+pl_graphics_set_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tFlags)
 {
     [ptCmdBuffer->tCmdBuffer encodeSignalEvent:ptEvent->tEvent value:ptEvent->uValue];
 }
 
 void
-pl_wait_for_events(plCommandBuffer* ptCmdBuffer, plTimelineEvent** atEvents, uint32_t uEventCount, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages)
+pl_graphics_wait_for_events(plCommandBuffer* ptCmdBuffer, plTimelineEvent** atEvents, uint32_t uEventCount, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages)
 {
     for(uint32_t i = 0; i < uEventCount; i++)
     {
@@ -786,11 +783,11 @@ pl_wait_for_events(plCommandBuffer* ptCmdBuffer, plTimelineEvent** atEvents, uin
     }
 }
 
-static plBufferHandle
-pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer** ptBufferOut)
+plBufferHandle
+pl_graphics_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer** ptBufferOut)
 {
     plBufferHandle tHandle = pl__get_new_buffer_handle(ptDevice);
-    plBuffer* ptBuffer = pl__get_buffer(ptDevice, tHandle);
+    plBuffer* ptBuffer = pl_graphics_get_buffer(ptDevice, tHandle);
 
     ptBuffer->tDesc = *ptDesc;
 
@@ -821,10 +818,10 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer** ptBu
     return tHandle;
 }
 
-static void
-pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
+void
+pl_graphics_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
 {
-    plBuffer* ptBuffer = pl__get_buffer(ptDevice, tHandle);
+    plBuffer* ptBuffer = pl_graphics_get_buffer(ptDevice, tHandle);
     ptBuffer->tMemoryAllocation = *ptAllocation;
     plMetalBuffer* ptMetalBuffer = &ptDevice->sbtBuffersHot[tHandle.uIndex];
 
@@ -845,8 +842,8 @@ pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDev
     ptMetalBuffer->uHeap = ptAllocation->uHandle;
 }
 
-static void
-pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
+void
+pl_graphics_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
 
@@ -858,18 +855,18 @@ pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
-    plTexture* ptTexture = pl__get_texture(ptDevice, tTexture);
+    plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tTexture);
     if(ptTexture->tDesc.uMips < 2)
         return;
 
     [ptEncoder->tEncoder generateMipmapsForTexture:ptDevice->sbtTexturesHot[tTexture.uIndex].tTexture];
 }
 
-static plTextureHandle
-pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTexture** ptTextureOut)
+plTextureHandle
+pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTexture** ptTextureOut)
 {
     plTextureHandle tHandle = pl__get_new_texture_handle(ptDevice);
-    plTexture* ptTexture = pl__get_texture(ptDevice, tHandle);
+    plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tHandle);
 
     plTextureDesc tDesc = *ptDesc;
 
@@ -949,11 +946,11 @@ pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTexture** p
     return tHandle;
 }
 
-static plSamplerHandle
-pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
+plSamplerHandle
+pl_graphics_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
 {
     plSamplerHandle tHandle = pl__get_new_sampler_handle(ptDevice);
-    plSampler* ptSampler = pl_get_sampler(ptDevice, tHandle);
+    plSampler* ptSampler = pl_graphics_get_sampler(ptDevice, tHandle);
     ptSampler->tDesc = *ptDesc;
 
     MTLSamplerDescriptor *samplerDesc = [MTLSamplerDescriptor new];
@@ -1000,7 +997,7 @@ pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
 }
 
 plBindGroupLayoutHandle
-pl_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayoutDesc* ptDesc)
+pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayoutDesc* ptDesc)
 {
     plBindGroupLayoutHandle tHandle = pl__get_new_bind_group_layout_handle(ptDevice);
     plBindGroupLayout* ptLayout = &ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex];
@@ -1048,17 +1045,17 @@ pl_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayoutDesc* ptD
     return tHandle;
 }
 
-static plBindGroupHandle
-pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
+plBindGroupHandle
+pl_graphics_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
 {
     
     plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
-    plBindGroup* ptBindGroup = pl__get_bind_group(ptDevice, tHandle);
+    plBindGroup* ptBindGroup = pl_graphics_get_bind_group(ptDevice, tHandle);
     ptBindGroup->tDesc = *ptDesc;
-    plBindGroupLayout* ptBindGroupLayout = pl__get_bind_group_layout(ptDevice, ptDesc->tLayout);
+    plBindGroupLayout* ptBindGroupLayout = pl_graphics_get_bind_group_layout(ptDevice, ptDesc->tLayout);
 
     plBindGroupLayoutDesc* ptLayout = &ptBindGroupLayout->tDesc;
-
+    ptBindGroup->_uDescriptorCount = ptBindGroupLayout->_uDescriptorCount;
 
     NSUInteger argumentBufferLength = sizeof(uint64_t) * ptBindGroupLayout->_uDescriptorCount;
 
@@ -1069,6 +1066,8 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     tMetalBindGroup.tShaderArgumentBuffer = ptDesc->ptPool->tArgumentBuffer.tBuffer;
     tMetalBindGroup.uOffset = ptDesc->ptPool->szCurrentArgumentOffset;
     tMetalBindGroup.uSize = argumentBufferLength;
+
+    PL_ASSERT(ptDesc->ptPool->szCurrentArgumentOffset + argumentBufferLength <= ptDesc->ptPool->szHeapSize);
     ptDesc->ptPool->szCurrentArgumentOffset += argumentBufferLength;
     [tMetalBindGroup.tShaderArgumentBuffer retain];
     if(ptDesc->pcDebugName)
@@ -1079,17 +1078,18 @@ pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     return tHandle;
 }
 
-static void
-pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBindGroupUpdateData* ptData)
+void
+pl_graphics_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBindGroupUpdateData* ptData)
 {
 
     plMetalBindGroup* ptMetalBindGroup = &ptDevice->sbtBindGroupsHot[tHandle.uIndex];
-    plBindGroup* ptBindGroup = pl__get_bind_group(ptDevice, tHandle);
+    plBindGroup* ptBindGroup = pl_graphics_get_bind_group(ptDevice, tHandle);
     const char* pcDescriptorStart = ptMetalBindGroup->tShaderArgumentBuffer.contents;
 
     pl_sb_reset(ptBindGroup->_sbtTextures);
 
     uint64_t* pulDescriptorStart = (uint64_t*)&pcDescriptorStart[ptMetalBindGroup->uOffset];
+    // printf("%p Writing %u through %u \t %s\n", ptMetalBindGroup->tShaderArgumentBuffer.contents, ptMetalBindGroup->uOffset, ptMetalBindGroup->uOffset + ptBindGroup->_uDescriptorCount * 8, ptBindGroup->tDesc.pcDebugName);
 
     for(uint32_t i = 0; i < ptData->uBufferCount; i++)
     {
@@ -1103,7 +1103,7 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     for(uint32_t i = 0; i < ptData->uTextureCount; i++)
     {
         const plBindGroupUpdateTextureData* ptUpdate = &ptData->atTextureBindings[i];
-        plTexture* ptTexture = pl__get_texture(ptDevice, ptUpdate->tTexture);
+        plTexture* ptTexture = pl_graphics_get_texture(ptDevice, ptUpdate->tTexture);
         if(i == 0)
             ptMetalBindGroup->tFirstTexture = ptUpdate->tTexture;
         plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[ptUpdate->tTexture.uIndex];
@@ -1129,8 +1129,8 @@ pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBind
     }
 }
 
-static plBindGroupPool*
-pl_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc* ptDesc)
+plBindGroupPool*
+pl_graphics_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc* ptDesc)
 {
     plBindGroupPool* ptPool = PL_ALLOC(sizeof(plBindGroupPool));
     memset(ptPool, 0, sizeof(plBindGroupPool));
@@ -1158,26 +1158,28 @@ pl_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc* ptDesc)
         .tBuffer = [ptPool->tDescriptorHeap newBufferWithLength:ptPool->szHeapSize options:MTLResourceStorageModeShared offset:0]
     };
 
+    memset(tArgumentBuffer.tBuffer.contents, 0, ptPool->szHeapSize);
+
     ptPool->tArgumentBuffer = tArgumentBuffer;
     return ptPool;
 }
 
-static void
-pl_reset_bind_group_pool(plBindGroupPool* ptPool)
+void
+pl_graphics_reset_bind_group_pool(plBindGroupPool* ptPool)
 {
     ptPool->szCurrentArgumentOffset = 0;
 }
 
-static void
-pl_cleanup_bind_group_pool(plBindGroupPool* ptPool)
+void
+pl_graphics_cleanup_bind_group_pool(plBindGroupPool* ptPool)
 {
     PL_FREE(ptPool);
 }
 
-static void
-pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
+void
+pl_graphics_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
 {
-    plTexture* ptTexture = pl__get_texture(ptDevice, tHandle);
+    plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tHandle);
     ptTexture->tMemoryAllocation = *ptAllocation;
     plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
 
@@ -1195,12 +1197,12 @@ pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plD
     ptMetalTexture->ptTextureDescriptor = nil;
 }
 
-static plTextureHandle
-pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
+plTextureHandle
+pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
 {
     plTextureHandle tHandle = pl__get_new_texture_handle(ptDevice);
-    plTexture* ptNewTexture = pl__get_texture(ptDevice, tHandle);
-    plTexture* ptOriginalTexture = pl__get_texture(ptDevice, ptViewDesc->tTexture);
+    plTexture* ptNewTexture = pl_graphics_get_texture(ptDevice, tHandle);
+    plTexture* ptOriginalTexture = pl_graphics_get_texture(ptDevice, ptViewDesc->tTexture);
 
     ptNewTexture->tDesc = ptOriginalTexture->tDesc;
     ptNewTexture->tView = *ptViewDesc;
@@ -1265,8 +1267,8 @@ pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
     return tHandle;
 }
 
-static plDynamicDataBlock
-pl_allocate_dynamic_data_block(plDevice* ptDevice)
+plDynamicDataBlock
+pl_graphics_allocate_dynamic_data_block(plDevice* ptDevice)
 {
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
 
@@ -1305,11 +1307,11 @@ pl_allocate_dynamic_data_block(plDevice* ptDevice)
     return tBlock;
 }
 
-static plComputeShaderHandle
-pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescription)
+plComputeShaderHandle
+pl_graphics_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescription)
 {
     plComputeShaderHandle tHandle = pl__get_new_compute_shader_handle(ptDevice);
-    plComputeShader* ptShader = pl__get_compute_shader(ptDevice, tHandle);
+    plComputeShader* ptShader = pl_graphics_get_compute_shader(ptDevice, tHandle);
     ptShader->tDesc = *ptDescription;
     ptShader->tDesc._uBindGroupLayoutCount = 0;
     ptShader->tDesc._uConstantCount = 0;
@@ -1341,7 +1343,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
         if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
             break;
-        uTotalConstantSize += pl_get_data_type_size(ptConstant->tType);
+        uTotalConstantSize += pl_graphics_get_data_type_size(ptConstant->tType);
         ptShader->tDesc._uConstantCount++;
     }
 
@@ -1366,7 +1368,7 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
         const uint32_t uConstantIndex = ptConstant->uID == 0 ? i : ptConstant->uID;
         const uint32_t uAutoConstantOffset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
         [ptConstantValues setConstantValue:&pcConstantData[uAutoConstantOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:uConstantIndex];
-        uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
+        uConstantOffset += (uint32_t)pl_graphics_get_data_type_size(ptConstant->tType);
     }
 
     id<MTLFunction> computeFunction = [ptMetalShader->library newFunctionWithName:entryFunc constantValues:ptConstantValues error:&error];
@@ -1387,11 +1389,11 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
     return tHandle;
 }
 
-static plShaderHandle
-pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
+plShaderHandle
+pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 {
     plShaderHandle tHandle = pl__get_new_shader_handle(ptDevice);
-    plShader* ptShader = pl__get_shader(ptDevice, tHandle);
+    plShader* ptShader = pl_graphics_get_shader(ptDevice, tHandle);
     ptShader->tDesc = *ptDescription;
     ptShader->tDesc._uBindGroupLayoutCount = 0;
     ptShader->tDesc._uVertexConstantCount = 0;
@@ -1496,7 +1498,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 
     // renderpass stuff
-    const plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, ptShader->tDesc.tRenderPassLayout);
+    const plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, ptShader->tDesc.tRenderPassLayout);
 
     size_t uTotalVertexConstantSize = 0;
     for(uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
@@ -1504,7 +1506,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atVertexConstants[i];
         if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
             break;
-        uTotalVertexConstantSize += pl_get_data_type_size(ptConstant->tType);
+        uTotalVertexConstantSize += pl_graphics_get_data_type_size(ptConstant->tType);
         ptShader->tDesc._uVertexConstantCount++;
     }
 
@@ -1514,7 +1516,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atFragmentConstants[i];
         if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
             break;
-        uTotalFragmentConstantSize += pl_get_data_type_size(ptConstant->tType);
+        uTotalFragmentConstantSize += pl_graphics_get_data_type_size(ptConstant->tType);
         ptShader->tDesc._uFragmentConstantCount++;
     }
 
@@ -1540,7 +1542,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         const uint32_t uConstantIndex = ptConstant->uID == 0 ? i : ptConstant->uID;
         const uint32_t uAutoConstantOffset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
         [ptVertexConstantValues setConstantValue:&pcVertexConstantData[uAutoConstantOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:uConstantIndex];
-        uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
+        uConstantOffset += (uint32_t)pl_graphics_get_data_type_size(ptConstant->tType);
     }
 
     const char* pcFragmentConstantData = ptDescription->pFragmentTempConstantData;
@@ -1551,7 +1553,7 @@ pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         const uint32_t uConstantIndex = ptConstant->uID == 0 ? i : ptConstant->uID;
         const uint32_t uAutoConstantOffset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
         [ptFragmentConstantValues setConstantValue:&pcFragmentConstantData[uAutoConstantOffset] type:pl__metal_data_type(ptConstant->tType) atIndex:uConstantIndex];
-        uConstantOffset += (uint32_t)pl_get_data_type_size(ptConstant->tType);
+        uConstantOffset += (uint32_t)pl_graphics_get_data_type_size(ptConstant->tType);
     }
 
     id<MTLFunction> vertexFunction = [ptMetalShader->tVertexLibrary newFunctionWithName:vertexEntry constantValues:ptVertexConstantValues error:&error];
@@ -1658,7 +1660,7 @@ typedef struct _plInternalDeviceAllocatorData
     plDeviceMemoryAllocatorI* ptAllocator;
 } plInternalDeviceAllocatorData;
 
-static plDeviceMemoryAllocation
+plDeviceMemoryAllocation
 pl_allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
 {
     plInternalDeviceAllocatorData* ptData = (plInternalDeviceAllocatorData*)ptInst;
@@ -1672,19 +1674,19 @@ pl_allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uT
         .tMemoryFlags = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT
     };
 
-    plDeviceMemoryAllocation tBlock = pl_allocate_memory(ptData->ptDevice, ulSize, tAllocation.tMemoryFlags, uTypeFilter, "Uncached Heap");
+    plDeviceMemoryAllocation tBlock = pl_graphics_allocate_memory(ptData->ptDevice, ulSize, tAllocation.tMemoryFlags, uTypeFilter, "Uncached Heap");
     tAllocation.uHandle = tBlock.uHandle;
     tAllocation.pHostMapped = tBlock.pHostMapped;
     gptGraphics->szHostMemoryInUse += ulSize;
     return tAllocation;
 }
 
-static void
+void
 pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation* ptAllocation)
 {
     plInternalDeviceAllocatorData* ptData = (plInternalDeviceAllocatorData*)ptInst;
     plDeviceMemoryAllocation tBlock = {.uHandle = ptAllocation->uHandle};
-    pl_free_memory(ptData->ptDevice, &tBlock);
+    pl_graphics_free_memory(ptData->ptDevice, &tBlock);
     gptGraphics->szHostMemoryInUse -= ptAllocation->ulSize;
     ptAllocation->uHandle = UINT64_MAX;
     ptAllocation->ulSize = 0;
@@ -1692,19 +1694,19 @@ pl_free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryA
 }
 
 plGraphicsBackend
-pl_get_backend(void)
+pl_graphics_get_backend(void)
 {
     return PL_GRAPHICS_BACKEND_METAL;
 }
 
 const char*
-pl_get_backend_string(void)
+pl_graphics_get_backend_string(void)
 {
     return "Metal";
 }
 
-static bool
-pl_initialize_graphics(const plGraphicsInit* ptDesc)
+bool
+pl_graphics_initialize(const plGraphicsInit* ptDesc)
 {
     static plGraphics gtGraphics = {0};
     gptGraphics = &gtGraphics;
@@ -1727,16 +1729,16 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     return true;
 }
 
-static plSurface*
-pl_create_surface(plWindow* ptWindow)
+plSurface*
+pl_graphics_create_surface(plWindow* ptWindow)
 {
     plSurface* ptSurface = PL_ALLOC(sizeof(plSurface));
     memset(ptSurface, 0, sizeof(plSurface));
     return ptSurface;
 }
 
-static void
-pl_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
+void
+pl_graphics_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
 {
     *puDeviceCount = 1;
 
@@ -1773,8 +1775,8 @@ pl_enumerate_devices(plDeviceInfo* atDeviceInfo, uint32_t* puDeviceCount)
     
 }
 
-static plDevice*
-pl_create_device(const plDeviceInit* ptInit)
+plDevice*
+pl_graphics_create_device(const plDeviceInit* ptInit)
 {
     plIO* ptIOCtx = gptIOI->get_io();
 
@@ -1821,7 +1823,7 @@ pl_create_device(const plDeviceInit* ptInit)
 
     uint32_t uDeviceCount = 16;
     plDeviceInfo atDeviceInfos[16] = {0};
-    pl_enumerate_devices(atDeviceInfos, &uDeviceCount);
+    pl_graphics_enumerate_devices(atDeviceInfos, &uDeviceCount);
 
     memcpy(&ptDevice->tInfo, &atDeviceInfos[ptInit->uDeviceIdx], sizeof(plDeviceInfo));
 
@@ -1869,8 +1871,8 @@ pl_create_device(const plDeviceInit* ptInit)
     return ptDevice;
 }
 
-static plSwapchain*
-pl_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainInit* ptInit)
+plSwapchain*
+pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainInit* ptInit)
 {
 
     plSwapchain* ptSwap = PL_ALLOC(sizeof(plSwapchain));
@@ -1893,7 +1895,7 @@ pl_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainI
     for(uint32_t i = 0; i < ptSwap->uImageCount; i++)
     {
         plTextureHandle tHandle = pl__get_new_texture_handle(ptDevice);
-        plTexture* ptTexture = pl__get_texture(ptDevice, tHandle);
+        plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tHandle);
         pl_sb_push(ptSwap->sbtSwapchainTextureViews, tHandle);
         ptTexture->tDesc.tDimensions = (plVec3){gptIO->tMainViewportSize.x, gptIO->tMainViewportSize.y, 1.0f};
         ptTexture->tDesc.uLayers = 1;
@@ -1918,16 +1920,16 @@ pl_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainI
     return ptSwap;
 }
 
-static plTextureHandle*
-pl_get_swapchain_images(plSwapchain* ptSwap, uint32_t* puSizeOut)
+plTextureHandle*
+pl_graphics_get_swapchain_images(plSwapchain* ptSwap, uint32_t* puSizeOut)
 {
     if(puSizeOut)
         *puSizeOut = ptSwap->uImageCount;
     return ptSwap->sbtSwapchainTextureViews;
 }
 
-static void
-pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
+void
+pl_graphics_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
 {
 
     bool bMSAAChange = ptSwap->tInfo.tSampleCount != ptInit->tSampleCount;
@@ -1941,8 +1943,8 @@ pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
         ptSwap->tInfo.tSampleCount = 1;
 }
 
-static plCommandPool*
-pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
+plCommandPool*
+pl_graphics_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
 {
     plCommandPool* ptPool = PL_ALLOC(sizeof(plCommandPool));
     memset(ptPool, 0, sizeof(plCommandPool));
@@ -1952,8 +1954,8 @@ pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
     return ptPool;
 }
 
-static void
-pl_cleanup_command_pool(plCommandPool* ptPool)
+void
+pl_graphics_cleanup_command_pool(plCommandPool* ptPool)
 {
     plCommandBuffer* ptCurrentCommandBuffer = ptPool->ptCommandBufferFreeList;
     while(ptCurrentCommandBuffer)
@@ -1966,13 +1968,13 @@ pl_cleanup_command_pool(plCommandPool* ptPool)
     PL_FREE(ptPool);
 }
 
-static void
-pl_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags tFlags)
+void
+pl_graphics_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags tFlags)
 {
 }
 
-static void
-pl_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
+void
+pl_graphics_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
 {
     MTLCommandBufferDescriptor* ptCmdBufferDescriptor = [MTLCommandBufferDescriptor new];
     ptCmdBufferDescriptor.retainedReferences = NO;
@@ -1980,8 +1982,8 @@ pl_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
     ptCommandBuffer->tCmdBuffer = [ptCommandBuffer->ptPool->tCmdQueue commandBufferWithDescriptor:ptCmdBufferDescriptor];
 }
 
-static plCommandBuffer*
-pl_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
+plCommandBuffer*
+pl_graphics_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
 {
     plCommandBuffer* ptCommandBuffer = ptPool->ptCommandBufferFreeList;
     if(ptCommandBuffer)
@@ -2010,8 +2012,8 @@ pl_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
     return ptCommandBuffer;
 }
 
-static void
-pl_begin_frame(plDevice* ptDevice)
+void
+pl_graphics_begin_frame(plDevice* ptDevice)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -2025,8 +2027,8 @@ pl_begin_frame(plDevice* ptDevice)
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
-static bool
-pl_acquire_swapchain_image(plSwapchain* ptSwapchain)
+bool
+pl_graphics_acquire_swapchain_image(plSwapchain* ptSwapchain)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -2051,8 +2053,8 @@ pl_acquire_swapchain_image(plSwapchain* ptSwapchain)
     return true;
 }
 
-static void
-pl_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginCommandInfo* ptBeginInfo)
+void
+pl_graphics_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginCommandInfo* ptBeginInfo)
 {
     if(ptBeginInfo)
     {
@@ -2072,14 +2074,14 @@ pl_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginComman
     }
 }
 
-static void
-pl_end_command_recording(plCommandBuffer* ptCommandBuffer)
+void
+pl_graphics_end_command_recording(plCommandBuffer* ptCommandBuffer)
 {
     [ptCommandBuffer->tCmdBuffer enqueue];
 }
 
-static bool
-pl_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubmitInfo, plSwapchain** ptSwaps, uint32_t uSwapchainCount)
+bool
+pl_graphics_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubmitInfo, plSwapchain** ptSwaps, uint32_t uSwapchainCount)
 {
     plDevice* ptDevice = ptCommandBuffer->ptDevice;
 
@@ -2109,8 +2111,8 @@ pl_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubmitInfo, p
     return true;
 }
 
-static void
-pl_next_subpass(plRenderEncoder* ptEncoder, const plPassResources* ptResources)
+void
+pl_graphics_next_subpass(plRenderEncoder* ptEncoder, const plPassResources* ptResources)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
@@ -2175,8 +2177,8 @@ pl_next_subpass(plRenderEncoder* ptEncoder, const plPassResources* ptResources)
     }
 }
 
-static plRenderEncoder*
-pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, const plPassResources* ptResources)
+plRenderEncoder*
+pl_graphics_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, const plPassResources* ptResources)
 {
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plRenderEncoder* ptEncoder = pl__get_new_render_encoder();
@@ -2229,9 +2231,9 @@ pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, con
         }
     }
 
-    plRenderPass* ptRenderPass = pl_get_render_pass(ptDevice, tPass);
+    plRenderPass* ptRenderPass = pl_graphics_get_render_pass(ptDevice, tPass);
     plMetalRenderPass* ptMetalRenderPass = &ptDevice->sbtRenderPassesHot[tPass.uIndex];
-    plRenderPassLayout* ptLayout = pl_get_render_pass_layout(ptDevice, ptRenderPass->tDesc.tLayout);
+    plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, ptRenderPass->tDesc.tLayout);
     ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer renderCommandEncoderWithDescriptor:ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0]];
     if(ptRenderPass->tDesc.ptSwapchain)
     {
@@ -2249,12 +2251,12 @@ pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, con
     return ptEncoder;
 }
 
-static void
-pl_end_render_pass(plRenderEncoder* ptEncoder)
+void
+pl_graphics_end_render_pass(plRenderEncoder* ptEncoder)
 {
     plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
 
-    plRenderPass* ptRenderPass = pl_get_render_pass(ptDevice, ptEncoder->tRenderPassHandle);
+    plRenderPass* ptRenderPass = pl_graphics_get_render_pass(ptDevice, ptEncoder->tRenderPassHandle);
     plMetalRenderPass* ptMetalRenderPass = &ptDevice->sbtRenderPassesHot[ptEncoder->tRenderPassHandle.uIndex];
     if(ptRenderPass->tDesc.ptSwapchain == NULL)
     {
@@ -2264,8 +2266,8 @@ pl_end_render_pass(plRenderEncoder* ptEncoder)
     pl__return_render_encoder(ptEncoder);
 }
 
-static void
-pl_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
+void
+pl_graphics_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
 {
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
@@ -2297,31 +2299,31 @@ pl_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSub
     [ptCmdBuffer->tCmdBuffer commit];
 }
 
-static void
-pl_wait_on_command_buffer(plCommandBuffer* ptCmdBuffer)
+void
+pl_graphics_wait_on_command_buffer(plCommandBuffer* ptCmdBuffer)
 {
     [ptCmdBuffer->tCmdBuffer waitUntilCompleted];
 }
 
-static void
-pl_return_command_buffer(plCommandBuffer* ptCmdBuffer)
+void
+pl_graphics_return_command_buffer(plCommandBuffer* ptCmdBuffer)
 {
     ptCmdBuffer->ptNext = ptCmdBuffer->ptPool->ptCommandBufferFreeList;
     ptCmdBuffer->ptPool->ptCommandBufferFreeList = ptCmdBuffer;
 }
 
-static void
-pl_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
+void
+pl_graphics_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
 {
 }
 
 void
-pl_set_texture_usage_ex(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
+pl_graphics_set_texture_usage_ex(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
 {
 }
 
-static plBlitEncoder*
-pl_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
+plBlitEncoder*
+pl_graphics_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
 {
     plBlitEncoder* ptEncoder = pl__get_new_blit_encoder();
     
@@ -2331,8 +2333,8 @@ pl_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
     return ptEncoder;
 }
 
-static void
-pl_end_blit_pass(plBlitEncoder* ptEncoder)
+void
+pl_graphics_end_blit_pass(plBlitEncoder* ptEncoder)
 {
     if(ptEncoder->bActive)
     {
@@ -2343,7 +2345,7 @@ pl_end_blit_pass(plBlitEncoder* ptEncoder)
 }
 
 void
-pl_pipeline_barrier(plCommandBuffer* ptCommandBuffer, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
+pl_graphics_pipeline_barrier(plCommandBuffer* ptCommandBuffer, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
     if(ptCommandBuffer->tEvent == nil)
     {
@@ -2355,24 +2357,24 @@ pl_pipeline_barrier(plCommandBuffer* ptCommandBuffer, plPipelineStageFlags befor
 }
 
 void
-pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
+pl_graphics_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
 }
 
 void
-pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
+pl_graphics_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
     [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeBuffers | MTLBarrierScopeTextures];
 }
 
 void
-pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
+pl_graphics_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
     [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeRenderTargets | MTLBarrierScopeBuffers | MTLBarrierScopeTextures afterStages:pl__metal_pipeline_stage_flags(beforeStages) beforeStages:pl__metal_pipeline_stage_flags(afterStages)];
 }
 
-static plComputeEncoder*
-pl_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResources* ptResources)
+plComputeEncoder*
+pl_graphics_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResources* ptResources)
 {
     plComputeEncoder* ptEncoder = pl__get_new_compute_encoder();
     ptEncoder->tEncoder = [ptCmdBuffer->tCmdBuffer computeCommandEncoder];
@@ -2429,16 +2431,16 @@ pl_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResources* ptRes
     return ptEncoder;
 }
 
-static void
-pl_end_compute_pass(plComputeEncoder* ptEncoder)
+void
+pl_graphics_end_compute_pass(plComputeEncoder* ptEncoder)
 {
     plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
     [ptEncoder->tEncoder endEncoding];
     pl__return_compute_encoder(ptEncoder);
 }
 
-static void
-pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispatch* atDispatches)
+void
+pl_graphics_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispatch* atDispatches)
 {
     for(uint32_t i = 0; i < uDispatchCount; i++)
     {
@@ -2449,8 +2451,8 @@ pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispat
     }
 }
 
-static void
-pl_bind_compute_bind_groups(
+void
+pl_graphics_bind_compute_bind_groups(
     plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst, uint32_t uCount,
     const plBindGroupHandle* atBindGroups, uint32_t uDynamicCount, const plDynamicBinding* ptDynamicBinding)
 {
@@ -2482,7 +2484,7 @@ pl_bind_compute_bind_groups(
         for(uint32_t k = 0; k < uTextureCount; k++)
         {
             const plTextureHandle tTextureHandle = ptBindGroup->_sbtTextures[k];
-            plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
+            plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tTextureHandle);
             if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_STORAGE)
             {
                 [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead | MTLResourceUsageWrite];  
@@ -2499,8 +2501,8 @@ pl_bind_compute_bind_groups(
     }
 }
 
-static void
-pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, uint32_t uDynamicCount, const plDynamicBinding* ptDynamicBinding)
+void
+pl_graphics_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle* atBindGroups, uint32_t uDynamicCount, const plDynamicBinding* ptDynamicBinding)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
@@ -2531,7 +2533,7 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
         for(uint32_t k = 0; k < uTextureCount; k++)
         {
             const plTextureHandle tTextureHandle = ptBindGroup->_sbtTextures[k];
-            plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
+            plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tTextureHandle);
             [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
         }
 
@@ -2540,14 +2542,14 @@ pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle,
     }
 }
 
-static void
-pl_set_depth_bias(plRenderEncoder* ptEncoder, float fDepthBiasConstantFactor, float fDepthBiasClamp, float fDepthBiasSlopeFactor)
+void
+pl_graphics_set_depth_bias(plRenderEncoder* ptEncoder, float fDepthBiasConstantFactor, float fDepthBiasClamp, float fDepthBiasSlopeFactor)
 {
     [ptEncoder->tEncoder setDepthBias:fDepthBiasConstantFactor slopeScale:fDepthBiasSlopeFactor clamp:fDepthBiasClamp];
 }
 
-static void
-pl_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
+void
+pl_graphics_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
 {
     MTLViewport tViewport = {
         .originX = ptViewport->fX,
@@ -2560,8 +2562,8 @@ pl_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
     [ptEncoder->tEncoder setViewport:tViewport];
 }
 
-static void
-pl_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
+void
+pl_graphics_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
 {
     MTLScissorRect tScissorRect = {
         .x      = (NSUInteger)(ptScissor->iOffsetX),
@@ -2572,8 +2574,8 @@ pl_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
     [ptEncoder->tEncoder setScissorRect:tScissorRect];
 }
 
-static void
-pl_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
+void
+pl_graphics_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
@@ -2583,8 +2585,8 @@ pl_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
         atIndex:4];
 }
 
-static void
-pl_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
+void
+pl_graphics_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
@@ -2597,8 +2599,8 @@ pl_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uint32_t uCo
     }
 }
 
-static void
-pl_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw* atDraws)
+void
+pl_graphics_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw* atDraws)
 {
 
     for(uint32_t i = 0; i < uCount; i++)
@@ -2612,8 +2614,8 @@ pl_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw* atDraws)
     }
 }
 
-static void
-pl_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex* atDraws)
+void
+pl_graphics_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex* atDraws)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
@@ -2632,8 +2634,8 @@ pl_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex* 
     }
 }
 
-static void
-pl_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
+void
+pl_graphics_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
@@ -2648,17 +2650,20 @@ pl_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
     [ptEncoder->tEncoder setTriangleFillMode:ptMetalShader->tFillMode];
 }
 
-static void
-pl_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle)
+void
+pl_graphics_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle)
 {
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plMetalComputeShader* ptMetalShader = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
+    // NSLog(@"maxTotalThreadsPerThreadgroup=%lu threadExecutionWidth=%lu",
+    //     (unsigned long)ptMetalShader->tPipelineState.maxTotalThreadsPerThreadgroup,
+    //     (unsigned long)ptMetalShader->tPipelineState.threadExecutionWidth);
     [ptEncoder->tEncoder setComputePipelineState:ptMetalShader->tPipelineState];
 }
 
-static void
-pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
+void
+pl_graphics_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
@@ -2770,7 +2775,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 for(uint32_t k = 0; k < uTextureCount; k++)
                 {
                     const plTextureHandle tTextureHandle = ptBindGroup->_sbtTextures[k];
-                    plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
+                    plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tTextureHandle);
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
 
@@ -2800,7 +2805,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
                 for(uint32_t k = 0; k < uTextureCount; k++)
                 {
                     const plTextureHandle tTextureHandle = ptBindGroup->_sbtTextures[k];
-                    plTexture* ptTexture = pl__get_texture(ptDevice, tTextureHandle);
+                    plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tTextureHandle);
                     [ptEncoder->tEncoder useResource:ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tTexture usage:MTLResourceUsageRead stages:MTLRenderStageVertex | MTLRenderStageFragment];  
                 }
 
@@ -2936,33 +2941,33 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
-static void
-pl_flush_device(plDevice* ptDevice)
+void
+pl_graphics_flush_device(plDevice* ptDevice)
 {
     gptThreads->sleep_thread(500);
 }
 
-static void
-pl_cleanup_graphics(void)
+void
+pl_graphics_cleanup(void)
 {
     pl_sb_free(gptGraphics->sbtMainRenderPassHandles);
     pl__cleanup_common_graphics();
 }
 
-static void
-pl_cleanup_surface(plSurface* ptSurface)
+void
+pl_graphics_cleanup_surface(plSurface* ptSurface)
 {
     PL_FREE(ptSurface);
 }
 
-static void
-pl_cleanup_swapchain(plSwapchain* ptSwap)
+void
+pl_graphics_cleanup_swapchain(plSwapchain* ptSwap)
 {
     pl__cleanup_common_swapchain(ptSwap);
 }
 
-static void
-pl_cleanup_device(plDevice* ptDevice)
+void
+pl_graphics_cleanup_device(plDevice* ptDevice)
 {
     for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtRenderPassesHot); i++)
     {
@@ -2993,54 +2998,54 @@ pl_cleanup_device(plDevice* ptDevice)
 }
 
 void
-pl_push_render_debug_group(plRenderEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+pl_graphics_push_render_debug_group(plRenderEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
 {
     [ptEncoder->tEncoder pushDebugGroup:[NSString stringWithUTF8String:pcLabel]];
 }
 
 void
-pl_pop_render_debug_group(plRenderEncoder* ptEncoder)
+pl_graphics_pop_render_debug_group(plRenderEncoder* ptEncoder)
 {
     [ptEncoder->tEncoder popDebugGroup];
 }
 
 void
-pl_push_blit_debug_group(plBlitEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+pl_graphics_push_blit_debug_group(plBlitEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
 {
     [ptEncoder->tEncoder pushDebugGroup:[NSString stringWithUTF8String:pcLabel]];
 }
 
 void
-pl_pop_blit_debug_group(plBlitEncoder* ptEncoder)
+pl_graphics_pop_blit_debug_group(plBlitEncoder* ptEncoder)
 {
     [ptEncoder->tEncoder popDebugGroup];
 }
 
 void
-pl_push_compute_debug_group(plComputeEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+pl_graphics_push_compute_debug_group(plComputeEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
 {
     [ptEncoder->tEncoder pushDebugGroup:[NSString stringWithUTF8String:pcLabel]];
 }
 
 void
-pl_pop_compute_debug_group(plComputeEncoder* ptEncoder)
+pl_graphics_pop_compute_debug_group(plComputeEncoder* ptEncoder)
 {
     [ptEncoder->tEncoder popDebugGroup];
 }
 
 void
-pl_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
+pl_graphics_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
 {
 }
 
 void
-pl_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
+pl_graphics_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
 {
     [ptCmdBuffer->tCmdBuffer pushDebugGroup:[NSString stringWithUTF8String:pcLabel]];
 }
 
 void
-pl_pop_debug_group(plCommandBuffer* ptCmdBuffer)
+pl_graphics_pop_debug_group(plCommandBuffer* ptCmdBuffer)
 {
     [ptCmdBuffer->tCmdBuffer popDebugGroup];
 }
@@ -3497,7 +3502,7 @@ pl__garbage_collect(plDevice* ptDevice)
     for(uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtShaders); i++)
     {
         const uint16_t iResourceIndex = ptGarbage->sbtShaders[i].uIndex;
-        plShader* ptResource = pl__get_shader(ptDevice, ptGarbage->sbtShaders[i]);
+        plShader* ptResource = pl_graphics_get_shader(ptDevice, ptGarbage->sbtShaders[i]);
 
         plMetalShader* ptVariantMetalResource = &ptDevice->sbtShadersHot[ptGarbage->sbtShaders[i].uIndex];
         [ptVariantMetalResource->tDepthStencilState release];
@@ -3593,7 +3598,7 @@ pl__garbage_collect(plDevice* ptDevice)
             }
             else
             {
-                pl_free_memory(ptDevice, &ptGarbage->sbtMemory[i]);
+                pl_graphics_free_memory(ptDevice, &ptGarbage->sbtMemory[i]);
             }
             pl_sb_del(ptGarbage->sbtMemory, i);
             i--;
@@ -3615,8 +3620,8 @@ pl__garbage_collect(plDevice* ptDevice)
 // [SECTION] device memory allocators
 //-----------------------------------------------------------------------------
 
-static plDeviceMemoryAllocation
-pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags, uint32_t uTypeFilter, const char* pcName)
+plDeviceMemoryAllocation
+pl_graphics_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags, uint32_t uTypeFilter, const char* pcName)
 {
     if(pcName == NULL)
     {
@@ -3667,8 +3672,8 @@ pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags
     return tBlock;
 }
 
-static void
-pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
+void
+pl_graphics_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
     const uint32_t uMemoryBlockCount = pl_sb_size(ptDevice->sbtMemoryBlocks);
     for(uint32_t i = 0; i < uMemoryBlockCount; i++)
@@ -3704,19 +3709,19 @@ pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 }
 
 bool
-pl_gfx_flush_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
+pl_graphics_flush_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
 {
     return true;
 }
 
 bool
-pl_gfx_invalidate_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
+pl_graphics_invalidate_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
 {
     return true;
 }
 
-static void
-pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
+void
+pl_graphics_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
 
     ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
@@ -3729,11 +3734,11 @@ pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
     if(ptBuffer->tMemoryAllocation.ptAllocator)
         ptBuffer->tMemoryAllocation.ptAllocator->free(ptBuffer->tMemoryAllocation.ptAllocator->ptInst, &ptBuffer->tMemoryAllocation);
     else
-        pl_free_memory(ptDevice, &ptBuffer->tMemoryAllocation);
+        pl_graphics_free_memory(ptDevice, &ptBuffer->tMemoryAllocation);
 }
 
-static void
-pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
+void
+pl_graphics_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
     pl_sb_push(ptDevice->sbtTextureFreeIndices, tHandle.uIndex);
     ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
@@ -3748,11 +3753,11 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
     if(ptTexture->tMemoryAllocation.ptAllocator)
         ptTexture->tMemoryAllocation.ptAllocator->free(ptTexture->tMemoryAllocation.ptAllocator->ptInst, &ptTexture->tMemoryAllocation);
     else
-        pl_free_memory(ptDevice, &ptTexture->tMemoryAllocation);
+        pl_graphics_free_memory(ptDevice, &ptTexture->tMemoryAllocation);
 }
 
-static void
-pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
+void
+pl_graphics_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
     ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration++;
     pl_sb_push(ptDevice->sbtBindGroupFreeIndices, tHandle.uIndex);
@@ -3765,14 +3770,14 @@ pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 }
 
 void
-pl_destroy_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
+pl_graphics_destroy_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
 {
     ptDevice->sbtBindGroupLayoutsCold[tHandle.uIndex]._uGeneration++;
     pl_sb_push(ptDevice->sbtBindGroupLayoutFreeIndices, tHandle.uIndex);
 }
 
-static void
-pl_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
+void
+pl_graphics_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
     ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration++;
     pl_sb_push(ptDevice->sbtRenderPassFreeIndices, tHandle.uIndex);
@@ -3789,15 +3794,15 @@ pl_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
     }
 }
 
-static void
-pl_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+void
+pl_graphics_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 {
     ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration++;
     pl_sb_push(ptDevice->sbtRenderPassLayoutFreeIndices, tHandle.uIndex);
 }
 
-static void
-pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
+void
+pl_graphics_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
     ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration++;
 
@@ -3813,7 +3818,7 @@ pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 }
 
 void
-pl_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
+pl_graphics_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 {
     PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy sampler %u immediately", tHandle.uIndex);
     [ptDevice->sbtSamplersHot[tHandle.uIndex].tSampler release];
@@ -3822,8 +3827,8 @@ pl_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
     pl_sb_push(ptDevice->sbtSamplerFreeIndices, tHandle.uIndex);
 }
 
-static void
-pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
+void
+pl_graphics_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
     ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration++;
 
@@ -3835,37 +3840,37 @@ pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
 }
 
 id<MTLDevice>
-pl_get_metal_device(plDevice* ptDevice)
+pl_graphics_get_metal_device(plDevice* ptDevice)
 {
     return ptDevice->tDevice;
 }
 
 MTLRenderPassDescriptor*
-pl_get_metal_render_pass_descriptor(plDevice* ptDevice, plRenderPassHandle tHandle)
+pl_graphics_get_metal_render_pass_descriptor(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
     return ptDevice->sbtRenderPassesHot[tHandle.uIndex].atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0];
 }
 
 id<MTLCommandBuffer>
-pl_get_metal_command_buffer(plCommandBuffer* ptCommandBuffer)
+pl_graphics_get_metal_command_buffer(plCommandBuffer* ptCommandBuffer)
 {
     return ptCommandBuffer->tCmdBuffer;
 }
 
 id<MTLRenderCommandEncoder>
-pl_get_metal_command_encoder(plRenderEncoder* ptEncoder)
+pl_graphics_get_metal_command_encoder(plRenderEncoder* ptEncoder)
 {
     return ptEncoder->tEncoder;
 }
 
 id<MTLTexture>
-pl_get_metal_texture(plDevice* ptDevice, plTextureHandle tHandle)
+pl_graphics_get_metal_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
     return ptDevice->sbtTexturesHot[tHandle.uIndex].tTexture;
 }
 
 plTextureHandle
-pl_get_metal_bind_group_texture(plDevice* ptDevice, plBindGroupHandle tHandle)
+pl_graphics_get_metal_bind_group_texture(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
     return ptDevice->sbtBindGroupsHot[tHandle.uIndex].tFirstTexture;
 }

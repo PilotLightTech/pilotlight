@@ -912,7 +912,7 @@ pl__add_osx_tracking_area(NSView* _Nonnull view)
 //-----------------------------------------------------------------------------
 
 void
-pl_copy_file(const char* source, const char* destination)
+pl_file_copy(const char* source, const char* destination)
 {
     copyfile_state_t tS = copyfile_state_alloc();
     copyfile(source, destination, tS, COPYFILE_XATTR | COPYFILE_DATA);
@@ -1000,7 +1000,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
                 {
                     ptLibrary->uTempIndex = 0;
                 }
-                pl_copy_file(ptLibrary->acPath, acTemporaryPath);
+                pl_file_copy(ptLibrary->acPath, acTemporaryPath);
 
                 ptLibrary->handle = NULL;
                 ptLibrary->handle = dlopen(acTemporaryPath, RTLD_NOW);

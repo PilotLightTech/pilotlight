@@ -12,6 +12,8 @@ Index of this file:
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
+// [SECTION] declared structs (for C++)
+// [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
 // [SECTION] enums
@@ -90,6 +92,10 @@ Index of this file:
 #ifndef PL_GRAPHICS_EXT_H
 #define PL_GRAPHICS_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
@@ -114,12 +120,13 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 7, 2}
+#define plGraphicsI_version {1, 8, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdlib.h>  // size_t
 #include <stdint.h>  // uint*_t
 #include <stdbool.h> // bool
@@ -302,6 +309,291 @@ typedef struct VkPhysicalDeviceMemoryProperties VkPhysicalDeviceMemoryProperties
 @class MTLRenderPassDescriptor;
 @protocol MTLDevice, MTLCommandBuffer, MTLRenderCommandEncoder, MTLTexture;
 #endif
+
+//-----------------------------------------------------------------------------
+// [SECTION] declared structs (for C++)
+//-----------------------------------------------------------------------------
+
+typedef struct _plDynamicDataBlock
+{
+    // [INTERNAL]
+    uint16_t _uBufferHandle;
+    uint32_t _uByteSize;
+    uint32_t _uAlignment;
+    uint32_t _uBumpAmount;
+    char*    _pcData;
+    uint32_t _uCurrentOffset;
+} plDynamicDataBlock;
+
+typedef struct _plDeviceMemoryAllocation
+{
+    plMemoryFlags             tMemoryFlags;  // memory mode used to allocate (i.e. PL_MEMORY_XXXX)
+    uint64_t                  ulMemoryType; // opaque but exposed so custom allocators can ensure memory types match
+    uint64_t                  uHandle;      // opaque handle (e.g. VkDeviceMemory, index into metal heap)
+    uint64_t                  ulOffset;     // offset into actual allocation (will be zero here, but allocators are free to use this)
+    uint64_t                  ulSize;       // actual size of allocation
+    char*                     pHostMapped;  // host mapped memory if host visible
+    plDeviceMemoryAllocatorI* ptAllocator;  // if allocated from user allocator, this should be set so cleanup can delegate
+    const char*               pcName;
+
+        // [INTERNAL]
+    uint64_t _uFrameBoundaryValueForDeletion;
+} plDeviceMemoryAllocation;
+
+typedef struct _plBlendState
+{
+    bool          bBlendEnabled;
+    uint8_t       uColorWriteMask; // PL_COLOR_WRITE_MASK_* bits
+    plBlendOp     tColorOp;
+    plBlendOp     tAlphaOp;
+    plBlendFactor tSrcColorFactor;
+    plBlendFactor tDstColorFactor;
+    plBlendFactor tSrcAlphaFactor;
+    plBlendFactor tDstAlphaFactor;
+} plBlendState;
+
+typedef struct _plSwapchainInfo
+{
+    bool          bVSync;
+    uint32_t      uWidth;
+    uint32_t      uHeight;
+    plFormat      tFormat;
+    plSampleCount tSampleCount;
+} plSwapchainInfo;
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_graphics_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_graphics_ext(plApiRegistryI*, bool reload);
+
+// context
+PL_API bool              pl_graphics_initialize(const plGraphicsInit*);
+PL_API void              pl_graphics_cleanup   (void);
+PL_API plGraphicsBackend pl_graphics_get_backend(void);
+PL_API const char*       pl_graphics_get_backend_string(void);
+
+// devices
+PL_API void                pl_graphics_enumerate_devices(plDeviceInfo*, uint32_t* deviceCountOut);
+PL_API plDevice*           pl_graphics_create_device    (const plDeviceInit*);
+PL_API void                pl_graphics_cleanup_device   (plDevice*);
+PL_API void                pl_graphics_flush_device     (plDevice*);
+PL_API const plDeviceInfo* pl_graphics_get_device_info  (plDevice*);
+
+// surface
+PL_API plSurface* pl_graphics_create_surface (plWindow*);
+PL_API void       pl_graphics_cleanup_surface(plSurface*);
+
+// swapchain
+PL_API plSwapchain*     pl_graphics_create_swapchain       (plDevice*, plSurface*, const plSwapchainInit*);
+PL_API void             pl_graphics_cleanup_swapchain      (plSwapchain*);
+PL_API bool             pl_graphics_acquire_swapchain_image(plSwapchain*);
+PL_API void             pl_graphics_recreate_swapchain     (plSwapchain*, const plSwapchainInit*);
+PL_API plTextureHandle* pl_graphics_get_swapchain_images   (plSwapchain*, uint32_t* puSizeOut);
+PL_API plSwapchainInfo  pl_graphics_get_swapchain_info     (plSwapchain*);
+
+// query
+PL_API uint32_t pl_graphics_get_frames_in_flight   (void);
+PL_API uint32_t pl_graphics_get_current_frame_index(void);
+PL_API size_t   pl_graphics_get_host_memory_in_use (void);
+PL_API size_t   pl_graphics_get_local_memory_in_use(void);
+
+// per frame
+PL_API void pl_graphics_begin_frame(plDevice*);
+PL_API bool pl_graphics_present    (plCommandBuffer*, const plSubmitInfo*, plSwapchain**, uint32_t uSwapchainCount);
+
+// timeline semaphore ops
+PL_API plTimelineSemaphore* pl_graphics_create_semaphore   (plDevice*, bool hostVisible);
+PL_API void                 pl_graphics_cleanup_semaphore  (plTimelineSemaphore*);
+PL_API void                 pl_graphics_signal_semaphore   (plDevice*, plTimelineSemaphore*, uint64_t);
+PL_API void                 pl_graphics_wait_semaphore     (plDevice*, plTimelineSemaphore*, uint64_t);
+PL_API uint64_t             pl_graphics_get_semaphore_value(plDevice*, plTimelineSemaphore*);
+
+// command pools & buffers
+PL_API plCommandPool*   pl_graphics_create_command_pool    (plDevice*, const plCommandPoolDesc*);
+PL_API void             pl_graphics_cleanup_command_pool   (plCommandPool*);
+PL_API void             pl_graphics_reset_command_pool     (plCommandPool*, plCommandPoolResetFlags); // call at beginning of frame
+PL_API plCommandBuffer* pl_graphics_request_command_buffer (plCommandPool*, const char* debugName);   // retrieve command buffer from the pool
+PL_API void             pl_graphics_return_command_buffer  (plCommandBuffer*); // return command buffer to pool
+PL_API void             pl_graphics_reset_command_buffer   (plCommandBuffer*); // call if reusing after submit/present
+PL_API void             pl_graphics_wait_on_command_buffer (plCommandBuffer*); // call after submit to block/wait
+PL_API void             pl_graphics_begin_command_recording(plCommandBuffer*, const plBeginCommandInfo*);
+PL_API void             pl_graphics_end_command_recording  (plCommandBuffer*);
+PL_API void             pl_graphics_submit_command_buffer  (plCommandBuffer*, const plSubmitInfo*);
+
+// timeline events
+PL_API plTimelineEvent* pl_graphics_create_event   (plDevice*);
+PL_API void             pl_graphics_cleanup_event  (plTimelineEvent*);
+PL_API void             pl_graphics_reset_event    (plCommandBuffer*, plTimelineEvent*, plPipelineStageFlags srcStages);
+PL_API void             pl_graphics_set_event      (plCommandBuffer*, plTimelineEvent*, plPipelineStageFlags srcStages);
+PL_API void             pl_graphics_wait_for_events(plCommandBuffer*, plTimelineEvent**, uint32_t eventCount, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages);
+
+// render encoder
+PL_API plRenderEncoder*   pl_graphics_begin_render_pass         (plCommandBuffer*, plRenderPassHandle, const plPassResources*); // do not store
+PL_API void               pl_graphics_next_subpass              (plRenderEncoder*, const plPassResources*);
+PL_API void               pl_graphics_end_render_pass           (plRenderEncoder*);
+PL_API plRenderPassHandle pl_graphics_get_encoder_render_pass   (plRenderEncoder*);
+PL_API uint32_t           pl_graphics_get_render_encoder_subpass(plRenderEncoder*);
+PL_API plCommandBuffer*   pl_graphics_get_encoder_command_buffer(plRenderEncoder*);
+
+// render encoder: draw stream (preferred system)
+//   Notes:
+//     - call reset_draw_stream(...) with the maximum number of possible calls to
+//       pl_add_to_draw_stream before the next call to draw_stream so any memory
+//       allocations can happen before a hot loop where pl_add_to_draw_stream is called.
+PL_API void pl_graphics_reset_draw_stream   (plDrawStream*, uint32_t drawCount);
+PL_API void pl_graphics_cleanup_draw_stream (plDrawStream*);
+PL_API void pl_graphics_draw_stream         (plRenderEncoder*, uint32_t areaCount, plDrawArea*); // decodes drawstream (does not reset draw stream)
+// INLINED -> void pl_add_to_draw_stream(plDrawStream*, plDrawStreamData);
+
+// render encoder: direct (prefer draw stream system, this will be used for bindless mostly)
+PL_API void pl_graphics_bind_graphics_bind_groups(plRenderEncoder*, plShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
+PL_API void pl_graphics_set_depth_bias           (plRenderEncoder*, float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor);
+PL_API void pl_graphics_set_viewport             (plRenderEncoder*, const plRenderViewport*);
+PL_API void pl_graphics_set_scissor_region       (plRenderEncoder*, const plScissor*);
+PL_API void pl_graphics_bind_vertex_buffer       (plRenderEncoder*, plBufferHandle);
+PL_API void pl_graphics_bind_vertex_buffers      (plRenderEncoder*, uint32_t first, uint32_t count, const plBufferHandle*, const size_t* offsets); // offsets can be NULL or array of "count" length
+PL_API void pl_graphics_draw                     (plRenderEncoder*, uint32_t count, const plDraw*);
+PL_API void pl_graphics_draw_indexed             (plRenderEncoder*, uint32_t count, const plDrawIndex*);
+PL_API void pl_graphics_bind_shader              (plRenderEncoder*, plShaderHandle);
+
+// compute encoder
+PL_API plComputeEncoder* pl_graphics_begin_compute_pass                (plCommandBuffer*, const plPassResources*); // do not store
+PL_API void              pl_graphics_end_compute_pass                  (plComputeEncoder*);
+PL_API void              pl_graphics_dispatch                          (plComputeEncoder*, uint32_t dispatchCount, const plDispatch*);
+PL_API void              pl_graphics_bind_compute_shader               (plComputeEncoder*, plComputeShaderHandle);
+PL_API void              pl_graphics_bind_compute_bind_groups          (plComputeEncoder*, plComputeShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
+PL_API plCommandBuffer*  pl_graphics_get_compute_encoder_command_buffer(plComputeEncoder*);
+
+// blit encoder 
+PL_API plBlitEncoder*   pl_graphics_begin_blit_pass                (plCommandBuffer*); // do not store
+PL_API void             pl_graphics_end_blit_pass                  (plBlitEncoder*);
+PL_API void             pl_graphics_set_texture_usage              (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
+PL_API void             pl_graphics_set_texture_usage_ex           (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages);
+PL_API void             pl_graphics_copy_buffer_to_texture         (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
+PL_API void             pl_graphics_copy_texture_to_buffer         (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
+PL_API void             pl_graphics_copy_texture                   (plBlitEncoder*, plTextureHandle src, plTextureHandle dst, uint32_t regionCount, const plImageCopy*);
+PL_API void             pl_graphics_generate_mipmaps               (plBlitEncoder*, plTextureHandle);
+PL_API void             pl_graphics_copy_buffer                    (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint64_t sourceOffset, uint64_t destinationOffset, size_t);
+PL_API plCommandBuffer* pl_graphics_get_blit_encoder_command_buffer(plBlitEncoder*);
+
+// global barriers
+PL_API void pl_graphics_pipeline_barrier        (plCommandBuffer*,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses);
+PL_API void pl_graphics_pipeline_barrier_blit   (plBlitEncoder*,    plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
+PL_API void pl_graphics_pipeline_barrier_compute(plComputeEncoder*, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
+PL_API void pl_graphics_pipeline_barrier_render (plRenderEncoder*,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
+
+//-----------------------------------------------------------------------------
+
+// buffers
+PL_API plBufferHandle pl_graphics_create_buffer            (plDevice*, const plBufferDesc*, plBuffer**);
+PL_API void           pl_graphics_bind_buffer_to_memory    (plDevice*, plBufferHandle, const plDeviceMemoryAllocation*);
+PL_API void           pl_graphics_queue_buffer_for_deletion(plDevice*, plBufferHandle);
+PL_API void           pl_graphics_destroy_buffer           (plDevice*, plBufferHandle);
+PL_API plBuffer*      pl_graphics_get_buffer               (plDevice*, plBufferHandle); // do not store
+PL_API bool           pl_graphics_is_buffer_valid          (plDevice*, plBufferHandle);
+
+// samplers
+PL_API plSamplerHandle pl_graphics_create_sampler            (plDevice*, const plSamplerDesc*);
+PL_API void            pl_graphics_destroy_sampler           (plDevice*, plSamplerHandle);
+PL_API void            pl_graphics_queue_sampler_for_deletion(plDevice*, plSamplerHandle);
+PL_API plSampler*      pl_graphics_get_sampler               (plDevice*, plSamplerHandle); // do not store
+PL_API bool            pl_graphics_is_sampler_valid          (plDevice*, plSamplerHandle);
+
+// textures
+PL_API plTextureHandle pl_graphics_create_texture            (plDevice*, const plTextureDesc*, plTexture**);
+PL_API plTextureHandle pl_graphics_create_texture_view       (plDevice*, const plTextureViewDesc*);
+PL_API void            pl_graphics_bind_texture_to_memory    (plDevice*, plTextureHandle, const plDeviceMemoryAllocation*);
+PL_API void            pl_graphics_queue_texture_for_deletion(plDevice*, plTextureHandle);
+PL_API void            pl_graphics_destroy_texture           (plDevice*, plTextureHandle);
+PL_API plTexture*      pl_graphics_get_texture               (plDevice*, plTextureHandle); // do not store
+PL_API bool            pl_graphics_is_texture_valid          (plDevice*, plTextureHandle);
+
+// bind groups
+PL_API plBindGroupPool*  pl_graphics_create_bind_group_pool       (plDevice*, const plBindGroupPoolDesc*);
+PL_API void              pl_graphics_cleanup_bind_group_pool      (plBindGroupPool*);
+PL_API void              pl_graphics_reset_bind_group_pool        (plBindGroupPool*);
+PL_API plBindGroupHandle pl_graphics_create_bind_group            (plDevice*, const plBindGroupDesc*);
+PL_API void              pl_graphics_update_bind_group            (plDevice*, plBindGroupHandle, const plBindGroupUpdateData*);
+PL_API void              pl_graphics_queue_bind_group_for_deletion(plDevice*, plBindGroupHandle);
+PL_API void              pl_graphics_destroy_bind_group           (plDevice*, plBindGroupHandle);
+PL_API plBindGroup*      pl_graphics_get_bind_group               (plDevice*, plBindGroupHandle); // do not store
+PL_API bool              pl_graphics_is_bind_group_valid          (plDevice*, plBindGroupHandle);
+
+// bind group layouts
+PL_API plBindGroupLayoutHandle pl_graphics_create_bind_group_layout            (plDevice*, const plBindGroupLayoutDesc*);
+PL_API void                    pl_graphics_destroy_bind_group_layout           (plDevice*, plBindGroupLayoutHandle);
+PL_API void                    pl_graphics_queue_bind_group_layout_for_deletion(plDevice*, plBindGroupLayoutHandle);
+PL_API plBindGroupLayout*      pl_graphics_get_bind_group_layout               (plDevice*, plBindGroupLayoutHandle); // do not store
+PL_API bool                    pl_graphics_is_bind_group_layout_valid          (plDevice*, plBindGroupLayoutHandle);
+
+// render passes
+PL_API plRenderPassHandle pl_graphics_create_render_pass            (plDevice*, const plRenderPassDesc*, const plRenderPassAttachments*);
+PL_API void               pl_graphics_update_render_pass_attachments(plDevice*, plRenderPassHandle, plVec2 dimensions, const plRenderPassAttachments*);
+PL_API void               pl_graphics_queue_render_pass_for_deletion(plDevice*, plRenderPassHandle);
+PL_API void               pl_graphics_destroy_render_pass           (plDevice*, plRenderPassHandle);
+PL_API plRenderPass*      pl_graphics_get_render_pass               (plDevice*, plRenderPassHandle); // do not store
+PL_API bool               pl_graphics_is_render_pass_valid          (plDevice*, plRenderPassHandle);
+
+// render pass layouts
+PL_API plRenderPassLayoutHandle pl_graphics_create_render_pass_layout            (plDevice*, const plRenderPassLayoutDesc*);
+PL_API void                     pl_graphics_queue_render_pass_layout_for_deletion(plDevice*, plRenderPassLayoutHandle);
+PL_API void                     pl_graphics_destroy_render_pass_layout           (plDevice*, plRenderPassLayoutHandle);
+PL_API plRenderPassLayout*      pl_graphics_get_render_pass_layout               (plDevice*, plRenderPassLayoutHandle); // do not store
+PL_API bool                     pl_graphics_is_render_pass_layout_valid          (plDevice*, plRenderPassLayoutHandle);
+
+// pixel & vertex shaders
+PL_API plShaderHandle pl_graphics_create_shader            (plDevice*, const plShaderDesc*);
+PL_API void           pl_graphics_queue_shader_for_deletion(plDevice*, plShaderHandle);
+PL_API void           pl_graphics_destroy_shader           (plDevice*, plShaderHandle);
+PL_API plShader*      pl_graphics_get_shader               (plDevice*, plShaderHandle); // do not store
+PL_API bool           pl_graphics_is_shader_valid          (plDevice*, plShaderHandle);
+
+// compute shaders
+PL_API plComputeShaderHandle pl_graphics_create_compute_shader            (plDevice*, const plComputeShaderDesc*);
+PL_API void                  pl_graphics_queue_compute_shader_for_deletion(plDevice*, plComputeShaderHandle);
+PL_API void                  pl_graphics_destroy_compute_shader           (plDevice*, plComputeShaderHandle);
+PL_API bool                  pl_graphics_is_compute_shader_valid          (plDevice*, plComputeShaderHandle);
+PL_API plComputeShader*      pl_graphics_get_compute_shader               (plDevice*, plComputeShaderHandle); // do not store
+
+// dynamic data system
+//   Notes:
+//     - call "allocate_dynamic_data_block" once at the beginning of the frame
+//       then use "pl_allocate_dynamic_data" throughout the frame (it will allocate new
+//       blocks as needed)
+//     - do not store the plDynamicDataBlock returned from "allocate_dynamic_data_block"
+//       longer than a single frame (they are reset every frame)
+PL_API plDynamicDataBlock pl_graphics_allocate_dynamic_data_block(plDevice*); // do not store longer than a single frame (this ar)
+// INLINED -> plDynamicBinding pl_allocate_dynamic_data(const plGraphicsI*,  plDevice*, plDynamicDataBlock*)
+
+// memory (only guaranteed 64 allocations, so suballocate)
+//   Notes:
+//     - if allocation fails, the "ulSize" member will be zero
+PL_API plDeviceMemoryAllocation        pl_graphics_allocate_memory  (plDevice*, size_t, plMemoryFlags, uint32_t typeFilter, const char* debugName);
+PL_API void                            pl_graphics_free_memory      (plDevice*, plDeviceMemoryAllocation*);
+PL_API bool                            pl_graphics_flush_memory     (plDevice*, uint32_t rangeCount, const plDeviceMemoryRange*); // call after writing from host on non-coherent memory
+PL_API bool                            pl_graphics_invalidate_memory(plDevice*, uint32_t rangeCount, const plDeviceMemoryRange*); // call after writing from device on non-coherent memory
+PL_API const plDeviceMemoryAllocation* pl_graphics_get_allocations(plDevice*, uint32_t* sizeOut);
+
+//------------------------------DEBUGGING--------------------------------------
+
+PL_API void pl_graphics_push_render_debug_group (plRenderEncoder*, const char*, plVec4 color);
+PL_API void pl_graphics_pop_render_debug_group  (plRenderEncoder*);
+PL_API void pl_graphics_push_blit_debug_group   (plBlitEncoder*, const char*, plVec4 color);
+PL_API void pl_graphics_pop_blit_debug_group    (plBlitEncoder*);
+PL_API void pl_graphics_push_compute_debug_group(plComputeEncoder*, const char*, plVec4 color);
+PL_API void pl_graphics_pop_compute_debug_group (plComputeEncoder*);
+PL_API void pl_graphics_push_debug_group        (plCommandBuffer*, const char*, plVec4 color);
+PL_API void pl_graphics_pop_debug_group         (plCommandBuffer*);
+PL_API void pl_graphics_insert_debug_label      (plCommandBuffer*, const char*, plVec4 color); // vulkan only
+
+//---------------------------------MISC----------------------------------------
+
+PL_API size_t       pl_graphics_get_data_type_size(plDataType);
+PL_API plBlendState pl_graphics_get_blend_state   (plBlendMode);
+PL_API uint32_t     pl_graphics_calculate_mip_count(uint32_t width, uint32_t height);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -588,21 +880,6 @@ typedef struct _plDeviceMemoryRequirements
     uint32_t uMemoryTypeBits; // opaque and used by backends
 } plDeviceMemoryRequirements;
 
-typedef struct _plDeviceMemoryAllocation
-{
-    plMemoryFlags             tMemoryFlags;  // memory mode used to allocate (i.e. PL_MEMORY_XXXX)
-    uint64_t                  ulMemoryType; // opaque but exposed so custom allocators can ensure memory types match
-    uint64_t                  uHandle;      // opaque handle (e.g. VkDeviceMemory, index into metal heap)
-    uint64_t                  ulOffset;     // offset into actual allocation (will be zero here, but allocators are free to use this)
-    uint64_t                  ulSize;       // actual size of allocation
-    char*                     pHostMapped;  // host mapped memory if host visible
-    plDeviceMemoryAllocatorI* ptAllocator;  // if allocated from user allocator, this should be set so cleanup can delegate
-    const char*               pcName;
-
-        // [INTERNAL]
-    uint64_t _uFrameBoundaryValueForDeletion;
-} plDeviceMemoryAllocation;
-
 typedef struct _plDeviceMemoryAllocatorI
 {
     struct plDeviceMemoryAllocatorO* ptInst; // opaque pointer
@@ -726,17 +1003,6 @@ typedef struct _plDynamicBinding
     char*    pcData;
 } plDynamicBinding;
 
-typedef struct _plDynamicDataBlock
-{
-    // [INTERNAL]
-    uint16_t _uBufferHandle;
-    uint32_t _uByteSize;
-    uint32_t _uAlignment;
-    uint32_t _uBumpAmount;
-    char*    _pcData;
-    uint32_t _uCurrentOffset;
-} plDynamicDataBlock;
-
 typedef struct _plBindGroupUpdateSamplerData
 {
     plSamplerHandle tSampler;
@@ -828,6 +1094,7 @@ typedef struct _plBindGroup
     uint16_t _uGeneration;
     uint64_t _uFrameBoundaryValueForDeletion;
     plTextureHandle* _sbtTextures;
+    uint32_t _uDescriptorCount;
 } plBindGroup;
 
 typedef struct _plBindGroupLayout
@@ -881,18 +1148,6 @@ typedef struct _plComputeShader
     uint16_t _uGeneration;
     uint64_t _uFrameBoundaryValueForDeletion;
 } plComputeShader;
-
-typedef struct _plBlendState
-{
-    bool          bBlendEnabled;
-    uint8_t       uColorWriteMask; // PL_COLOR_WRITE_MASK_* bits
-    plBlendOp     tColorOp;
-    plBlendOp     tAlphaOp;
-    plBlendFactor tSrcColorFactor;
-    plBlendFactor tDstColorFactor;
-    plBlendFactor tSrcAlphaFactor;
-    plBlendFactor tDstAlphaFactor;
-} plBlendState;
 
 typedef struct _plVertexAttribute
 {
@@ -1221,14 +1476,7 @@ typedef struct _plGraphicsInit
     plGraphicsInitFlags tFlags;
 } plGraphicsInit;
 
-typedef struct _plSwapchainInfo
-{
-    bool          bVSync;
-    uint32_t      uWidth;
-    uint32_t      uHeight;
-    plFormat      tFormat;
-    plSampleCount tSampleCount;
-} plSwapchainInfo;
+
 
 typedef struct _plSwapchainInit
 {
@@ -1977,5 +2225,9 @@ pl_add_to_draw_stream(plDrawStream* ptStream, plDrawStreamData tDraw)
     if(uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_COUNT)
         ptStream->_auStream[ptStream->_uStreamCount++] = ptStream->_tCurrentDraw.uInstanceCount;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_GRAPHICS_EXT_H

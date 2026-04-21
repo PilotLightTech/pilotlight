@@ -11,6 +11,7 @@ Index of this file:
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
+// [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] enums
 // [SECTION] structs
@@ -37,6 +38,10 @@ Index of this file:
 #ifndef PL_DRAW_EXT_H
 #define PL_DRAW_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] defines
 //-----------------------------------------------------------------------------
@@ -48,12 +53,13 @@ Index of this file:
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawI_version {2, 0, 0}
+#define plDrawI_version {2, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>
 #include "pl_math.h"
 
@@ -108,6 +114,131 @@ typedef struct _plCommandBuffer plCommandBuffer;   // pl_graphics_ext.h
 typedef struct _plBindGroupPool plBindGroupPool;   // pl_graphics_ext.h
 typedef union plBindGroupHandle plBindGroupHandle; // pl_graphics_ext.h
 typedef union plTextureHandle   plTextureHandle;   // pl_graphics_ext.h
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_draw_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_draw_ext(plApiRegistryI*, bool reload);
+
+// init/cleanup
+PL_API void pl_draw_initialize(const plDrawInit*);
+PL_API void pl_draw_cleanup   (void); // usually called by backend "cleanup" func.
+
+// per frame
+PL_API void pl_draw_new_frame(void);
+PL_API void pl_draw_submit_2d_drawlist(plDrawList2D*, plRenderEncoder*, float fWidth, float fHeight, uint32_t sampleCount);
+PL_API void pl_draw_submit_3d_drawlist(plDrawList3D*, plRenderEncoder*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t sampleCount);
+
+// misc.
+PL_API void pl_draw_use_nearest_sampler(plDrawLayer2D*);
+PL_API void pl_draw_use_linear_sampler (plDrawLayer2D*);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~fonts~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+// font atlas
+PL_API plFontAtlas* pl_draw_create_font_atlas     (void);
+PL_API bool         pl_draw_build_font_atlas      (plCommandBuffer*, plFontAtlas*);
+PL_API void         pl_draw_cleanup_font_atlas    (plFontAtlas*);
+PL_API void         pl_draw_set_font_atlas        (plFontAtlas*);
+PL_API plFontAtlas* pl_draw_get_current_font_atlas(void);
+
+PL_API plFont* pl_draw_get_first_font          (plFontAtlas*);
+PL_API plFont* pl_draw_add_default_font        (plFontAtlas*);
+PL_API plFont* pl_draw_add_font_from_file_ttf  (plFontAtlas*, plFontConfig, const char* file);
+PL_API plFont* pl_draw_add_font_from_memory_ttf(plFontAtlas*, plFontConfig, void* data);
+PL_API plVec2  pl_draw_calculate_text_size     (const char* text, plDrawTextOptions);
+PL_API plRect  pl_draw_calculate_text_bb       (plVec2 p, const char* text, plDrawTextOptions);
+
+// bind group stuff
+PL_API plBindGroupHandle pl_draw_create_bind_group_for_texture(plTextureHandle);
+PL_API plBindGroupPool*  pl_draw_get_bind_group_pool(void);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~2D~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+// drawlists
+PL_API plDrawList2D* pl_draw_request_2d_drawlist(void);
+PL_API void          pl_draw_return_2d_drawlist (plDrawList2D*);
+
+// layers
+PL_API plDrawLayer2D* pl_draw_request_2d_layer(plDrawList2D*);
+PL_API void           pl_draw_return_2d_layer (plDrawLayer2D*);
+PL_API void           pl_draw_submit_2d_layer (plDrawLayer2D*);
+
+// drawing (lines)
+PL_API void pl_draw_add_line          (plDrawLayer2D*, plVec2 p0, plVec2 p1, plDrawLineOptions);
+PL_API void pl_draw_add_lines         (plDrawLayer2D*, plVec2* points, uint32_t count, plDrawLineOptions);
+PL_API void pl_draw_add_triangle      (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plDrawLineOptions);
+PL_API void pl_draw_add_rect          (plDrawLayer2D*, plVec2 pMin, plVec2 pMax, plDrawLineOptions);
+PL_API void pl_draw_add_rect_rounded  (plDrawLayer2D*, plVec2 pMin, plVec2 pMax, float radius, uint32_t segments, plDrawRectFlags, plDrawLineOptions);
+PL_API void pl_draw_add_quad          (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plDrawLineOptions);
+PL_API void pl_draw_add_circle        (plDrawLayer2D*, plVec2 p, float radius, uint32_t segments, plDrawLineOptions);
+PL_API void pl_draw_add_polygon       (plDrawLayer2D*, plVec2* points, uint32_t count, plDrawLineOptions);
+PL_API void pl_draw_add_bezier_quad   (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, uint32_t segments, plDrawLineOptions);
+PL_API void pl_draw_add_bezier_cubic  (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, uint32_t segments, plDrawLineOptions);
+
+// drawing (solids)
+PL_API void pl_draw_add_triangle_filled      (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plDrawSolidOptions);
+PL_API void pl_draw_add_triangles_filled     (plDrawLayer2D*, plVec2* points, uint32_t count, plDrawSolidOptions);
+PL_API void pl_draw_add_rect_filled          (plDrawLayer2D*, plVec2 minP, plVec2 maxP, plDrawSolidOptions);
+PL_API void pl_draw_add_rect_rounded_filled  (plDrawLayer2D*, plVec2 minP, plVec2 maxP, float radius, uint32_t segments, plDrawRectFlags, plDrawSolidOptions);
+PL_API void pl_draw_add_quad_filled          (plDrawLayer2D*, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plDrawSolidOptions);
+PL_API void pl_draw_add_circle_filled        (plDrawLayer2D*, plVec2 p, float radius, uint32_t segments, plDrawSolidOptions);
+PL_API void pl_draw_add_convex_polygon_filled(plDrawLayer2D*, plVec2* points, uint32_t count, plDrawSolidOptions);
+PL_API void pl_draw_add_image                (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP);
+PL_API void pl_draw_add_image_ex             (plDrawLayer2D*, plTextureID, plVec2 minP, plVec2 maxP, plVec2 minUV, plVec2 maxUV, uint32_t color);
+PL_API void pl_draw_add_image_quad           (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3);
+PL_API void pl_draw_add_image_quad_ex        (plDrawLayer2D*, plTextureID, plVec2 p0, plVec2 p1, plVec2 p2, plVec2 p3, plVec2 p0UV, plVec2 p1UV, plVec2 p2UV, plVec2 p3UV, uint32_t color);
+
+// drawing (text)
+PL_API void pl_draw_add_text        (plDrawLayer2D*, plVec2 p, const char* text, plDrawTextOptions);
+PL_API void pl_draw_add_text_clipped(plDrawLayer2D*, plVec2 p, const char* text, plVec2 clipMin, plVec2 clipMax, plDrawTextOptions);
+
+// clipping
+PL_API void          pl_draw_push_clip_rect_pt(plDrawList2D*, const plRect*, bool bAccumulate);
+PL_API void          pl_draw_push_clip_rect   (plDrawList2D*, plRect, bool bAccumulate);
+PL_API void          pl_draw_pop_clip_rect    (plDrawList2D*);
+PL_API const plRect* pl_draw_get_clip_rect    (plDrawList2D*);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~3D~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+// drawlists
+PL_API plDrawList3D* pl_draw_request_3d_drawlist(void);
+PL_API void          pl_draw_return_3d_drawlist(plDrawList3D*);
+
+// text
+PL_API void pl_draw_add_3d_text(plDrawList3D*, plVec3 p, const char* text, plDrawTextOptions);
+
+// solid
+PL_API void pl_draw_add_3d_triangle_filled    (plDrawList3D*, plVec3 p0, plVec3 p1, plVec3 p2, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_circle_xz_filled   (plDrawList3D*, plVec3 center, float radius, uint32_t segments, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_band_xz_filled     (plDrawList3D*, plVec3 center, float innerRadius, float outerRadius, uint32_t segments, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_band_xy_filled     (plDrawList3D*, plVec3 center, float innerRadius, float outerRadius, uint32_t segments, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_band_yz_filled     (plDrawList3D*, plVec3 center, float innerRadius, float outerRadius, uint32_t segments, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_centered_box_filled(plDrawList3D*, plVec3 center, float width, float height, float depth, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_plane_xz_filled    (plDrawList3D*, plVec3 center, float width, float height, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_plane_xy_filled    (plDrawList3D*, plVec3 center, float width, float height, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_plane_yz_filled    (plDrawList3D*, plVec3 center, float width, float height, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_sphere_filled      (plDrawList3D*, plSphere, uint32_t latBands, uint32_t longBands, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_cylinder_filled    (plDrawList3D*, plCylinder, uint32_t segments, plDrawSolidOptions);
+PL_API void pl_draw_add_3d_cone_filled        (plDrawList3D*, plCone, uint32_t segments, plDrawSolidOptions);
+
+// wireframe
+PL_API void pl_draw_add_3d_line        (plDrawList3D*, plVec3 p0, plVec3 p1, plDrawLineOptions);
+PL_API void pl_draw_add_3d_cross       (plDrawList3D*, plVec3 p, float length, plDrawLineOptions);
+PL_API void pl_draw_add_3d_transform   (plDrawList3D*, const plMat4* transform, float length, plDrawLineOptions);
+PL_API void pl_draw_add_3d_frustum     (plDrawList3D*, const plMat4* transform, plDrawFrustumDesc, plDrawLineOptions);
+PL_API void pl_draw_add_3d_centered_box(plDrawList3D*, plVec3 center, float width, float height, float depth, plDrawLineOptions);
+PL_API void pl_draw_add_3d_aabb        (plDrawList3D*, plVec3 minP, plVec3 maxP, plDrawLineOptions);
+PL_API void pl_draw_add_3d_bezier_quad (plDrawList3D*, plVec3 p0, plVec3 p1, plVec3 p2, uint32_t segments, plDrawLineOptions);
+PL_API void pl_draw_add_3d_bezier_cubic(plDrawList3D*, plVec3 p0, plVec3 p1, plVec3 p2, plVec3 tP3, uint32_t segments, plDrawLineOptions);
+PL_API void pl_draw_add_3d_circle_xz   (plDrawList3D*, plVec3 center, float radius, uint32_t segments, plDrawLineOptions);
+PL_API void pl_draw_add_3d_sphere      (plDrawList3D*, plSphere, uint32_t latBands, uint32_t longBands, plDrawLineOptions);
+PL_API void pl_draw_add_3d_capsule     (plDrawList3D*, plCapsule, uint32_t latBands, uint32_t longBands, plDrawLineOptions);
+PL_API void pl_draw_add_3d_cylinder    (plDrawList3D*, plCylinder, uint32_t segments, plDrawLineOptions);
+PL_API void pl_draw_add_3d_cone        (plDrawList3D*, plCone, uint32_t segments, plDrawLineOptions);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -365,5 +496,9 @@ typedef struct _plFont
     plFont*                 _ptNextFont;
     plFontGlyph*            _ptFallbackGlyph;
 } plFont;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_DRAW_EXT_H

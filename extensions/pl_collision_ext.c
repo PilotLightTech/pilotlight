@@ -43,7 +43,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 bool
-pl_intersect_ray_plane(plVec3 tPoint, plVec3 tDir, const plPlane* ptPlane, plVec3* ptIntersectionPointOut)
+pl_collision_intersect_ray_plane(plVec3 tPoint, plVec3 tDir, const plPlane* ptPlane, plVec3* ptIntersectionPointOut)
 {
     float fDenom = pl_dot_vec3(ptPlane->tDirection, tDir);
     if(fDenom == 0.0f)
@@ -64,7 +64,7 @@ pl_intersect_ray_plane(plVec3 tPoint, plVec3 tDir, const plPlane* ptPlane, plVec
 }
 
 bool
-pl_intersect_line_segment_plane(plVec3 tA, plVec3 tB, const plPlane* ptPlane, plVec3* ptIntersectionPointOut)
+pl_collision_intersect_line_segment_plane(plVec3 tA, plVec3 tB, const plPlane* ptPlane, plVec3* ptIntersectionPointOut)
 {
     plVec3 tDir = pl_sub_vec3(tB, tA);
 
@@ -87,7 +87,7 @@ pl_intersect_line_segment_plane(plVec3 tA, plVec3 tB, const plPlane* ptPlane, pl
 }
 
 bool
-pl_intersect_line_segment_cylinder(plVec3 tA, plVec3 tB, const plCylinder* ptCylinder, float* pfT)
+pl_collision_intersect_line_segment_cylinder(plVec3 tA, plVec3 tB, const plCylinder* ptCylinder, float* pfT)
 {
     plVec3 tD = pl_sub_vec3(ptCylinder->tTipPos, ptCylinder->tBasePos);
     plVec3 tM = pl_sub_vec3(tA, ptCylinder->tBasePos);
@@ -646,13 +646,13 @@ pl_collision_pen_box_sphere(const plBox* ptBox, const plSphere* ptSphere, plColl
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_collision_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plCollisionI tApi = {
-        .intersect_ray_plane              = pl_intersect_ray_plane,
-        .intersect_line_segment_plane     = pl_intersect_line_segment_plane,
-        .intersect_line_segment_cylinder  = pl_intersect_line_segment_cylinder,
+        .intersect_ray_plane              = pl_collision_intersect_ray_plane,
+        .intersect_line_segment_plane     = pl_collision_intersect_line_segment_plane,
+        .intersect_line_segment_cylinder  = pl_collision_intersect_line_segment_cylinder,
         .point_closest_point_plane        = pl_collision_point_closest_point_plane,
         .point_closest_point_line_segment = pl_collision_point_closest_point_line_segment,
         .point_closest_point_aabb         = pl_collision_point_closest_point_line_aabb,
@@ -671,7 +671,7 @@ pl_load_collision_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
 }
 
-PL_EXPORT void
+void
 pl_unload_collision_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

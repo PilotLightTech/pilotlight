@@ -307,7 +307,7 @@ pl_screen_log_get_drawlist(float fXPos, float fYPos, float fWidth, float fHeight
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_screen_log_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 
@@ -346,7 +346,7 @@ pl_load_screen_log_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_screen_log_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

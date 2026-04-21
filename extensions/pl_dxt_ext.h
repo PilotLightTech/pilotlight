@@ -10,6 +10,7 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
+// [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
 // [SECTION] enums
@@ -36,16 +37,21 @@ Index of this file:
 #ifndef PL_DXT_EXT_H
 #define PL_DXT_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plDxtI_version {1, 0, 0}
+#define plDxtI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h> // uint*_t
 #include <stddef.h> // size_t
 
@@ -60,13 +66,23 @@ typedef struct _plDxtInfo plDxtInfo; // input information
 typedef int plDxtFlags; // -> enum _plDxtFlags // Flag: compression option flags (PL_DXT_FLAGS_XXXX)
 
 //-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_dxt_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_dxt_ext(plApiRegistryI*, bool reload);
+
+// Notes
+//   - setting dataOut to NULL, will set sizeOut to required buffer size
+PL_API void pl_dxt_compress(const plDxtInfo*, uint8_t* dataOut, size_t* sizeOut);
+
+//-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plDxtI
 {
-    // Notes
-    //   - setting dataOut to NULL, will set sizeOut to required buffer size
     void (*compress)(const plDxtInfo*, uint8_t* dataOut, size_t* sizeOut);
 } plDxtI;
 
@@ -92,5 +108,9 @@ enum _plDxtFlags
     PL_DXT_FLAGS_NONE         = 0,
     PL_DXT_FLAGS_HIGH_QUALITY = 1 << 0 // only for 3 & 4 channels
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_DXT_EXT_H

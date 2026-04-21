@@ -9,7 +9,8 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] structs
 */
 
@@ -34,6 +35,10 @@ Index of this file:
 #ifndef PL_BVH_EXT_H
 #define PL_BVH_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
@@ -44,6 +49,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>
 #include <stdbool.h>
 #include "pl_math.h"
@@ -60,7 +66,28 @@ typedef struct _plBVHNode plBVHNode;
 typedef bool (*plBVHCallback)(uint32_t index, void* userData);
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_bvh_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_bvh_ext(plApiRegistryI*, bool reload);
+
+// setup/shutdown
+PL_API void pl_bvh_cleanup              (plBVH*);
+
+// basic usage (stable)
+PL_API void pl_bvh_build                (plBVH*, const plAABB*, uint32_t count);
+
+// intersects (stable)
+PL_API void pl_bvh_intersects_aabb      (plBVH*, plAABB, plBVHCallback, void* userData);
+PL_API bool pl_bvh_intersects_aabb_first(plBVH*, plAABB, plBVHCallback, void* userData);
+
+// helpers
+PL_API bool pl_bvh_traverse             (plBVH*, plBVHNode** nodeOut, uint32_t* indexOut);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plBVHI
@@ -104,5 +131,9 @@ typedef struct _plBVH
     uint32_t    _uLeafCount;
     plBVHNode** _sbtNodeStack;
 } plBVH;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_BVH_EXT_H

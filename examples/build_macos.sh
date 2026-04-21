@@ -88,8 +88,10 @@ else
     rm -f ../out/example_basic_3_*.dylib
     rm -f ../out/example_basic_4.dylib
     rm -f ../out/example_basic_4_*.dylib
-    rm -f ../out/example_basic_6.dylib
-    rm -f ../out/example_basic_6_*.dylib
+    rm -f ../out/example_basic_5.dylib
+    rm -f ../out/example_basic_5_*.dylib
+    rm -f ../out/example_basic_wip_0.dylib
+    rm -f ../out/example_basic_wip_0_*.dylib
     rm -f ../out/example_gfx_0.dylib
     rm -f ../out/example_gfx_0_*.dylib
     rm -f ../out/example_gfx_1.dylib
@@ -111,7 +113,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_basic_0.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -153,7 +155,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_basic_1.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -195,7 +197,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_basic_2.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -237,7 +239,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_basic_3.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -279,7 +281,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_basic_4.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -312,7 +314,7 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_5 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
@@ -321,8 +323,8 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="example_basic_6.c "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_SOURCES="example_basic_5.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -334,10 +336,52 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: example_basic_6${NC}
+echo ${YELLOW}Step: example_basic_5${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_6.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_5.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_wip_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
+PL_LINKER_FLAGS=""
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_SOURCES="example_basic_wip_0.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: example_basic_wip_0${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_wip_0.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -363,7 +407,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_gfx_0.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -405,7 +449,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_gfx_1.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -447,7 +491,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_gfx_2.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -489,7 +533,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_gfx_3.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -531,7 +575,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_gfx_4.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -610,8 +654,10 @@ else
     rm -f ../out/example_basic_3_*.dylib
     rm -f ../out/example_basic_4.dylib
     rm -f ../out/example_basic_4_*.dylib
-    rm -f ../out/example_basic_6.dylib
-    rm -f ../out/example_basic_6_*.dylib
+    rm -f ../out/example_basic_5.dylib
+    rm -f ../out/example_basic_5_*.dylib
+    rm -f ../out/example_basic_wip_0.dylib
+    rm -f ../out/example_basic_wip_0_*.dylib
     rm -f ../out/example_gfx_0.dylib
     rm -f ../out/example_gfx_0_*.dylib
     rm -f ../out/example_gfx_1.dylib
@@ -633,7 +679,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_basic_0.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -675,7 +721,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_basic_1.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -717,7 +763,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_basic_2.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -759,7 +805,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_basic_3.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -801,7 +847,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_basic_4.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -834,7 +880,7 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_5 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
@@ -843,8 +889,8 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="example_basic_6.c "
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_SOURCES="example_basic_5.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -856,10 +902,52 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: example_basic_6${NC}
+echo ${YELLOW}Step: example_basic_5${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_6.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_5.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_wip_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../editor -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb -I../dependencies/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
+PL_LINKER_FLAGS=""
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_SOURCES="example_basic_wip_0.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: example_basic_wip_0${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_wip_0.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -885,7 +973,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_gfx_0.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -927,7 +1015,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_gfx_1.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -969,7 +1057,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_gfx_2.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1011,7 +1099,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_gfx_3.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1053,7 +1141,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
 PL_SOURCES="example_gfx_4.c "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
@@ -1122,11 +1210,11 @@ else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
     rm -r -f ../out-temp
-    rm -f ../out/example_basic_5.dylib
-    rm -f ../out/example_basic_5_*.dylib
+    rm -f ../out/example_basic_6.dylib
+    rm -f ../out/example_basic_6_*.dylib
 
 fi
-#~~~~~~~~~~~~~~~~~~~~~ example_basic_5 | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~~ example_basic_6 | debug_experimental ~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
@@ -1136,7 +1224,7 @@ PL_COMPILER_FLAGS="-std=c++14 --debug -g -fmodules -ObjC++ -fPIC "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
 PL_STATIC_LINK_LIBRARIES="-ldearimguid "
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="example_basic_5.cpp "
+PL_SOURCES="example_basic_6.cpp "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -1148,10 +1236,10 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: example_basic_5${NC}
+echo ${YELLOW}Step: example_basic_6${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_5.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_6.dylib"
 
 # check build status
 if [ $? -ne 0 ]
@@ -1204,11 +1292,11 @@ else
     # cleanup binaries if not hot reloading
     PL_HOT_RELOAD_STATUS=$PL_HOT_RELOAD_STATUS
     rm -r -f ../out-temp
-    rm -f ../out/example_basic_5.dylib
-    rm -f ../out/example_basic_5_*.dylib
+    rm -f ../out/example_basic_6.dylib
+    rm -f ../out/example_basic_6_*.dylib
 
 fi
-#~~~~~~~~~~~~~~~~~~~~ example_basic_5 | release_experimental ~~~~~~~~~~~~~~~~~~~~
+#~~~~~~~~~~~~~~~~~~~~ example_basic_6 | release_experimental ~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
@@ -1218,7 +1306,7 @@ PL_COMPILER_FLAGS="-std=c++14 -fmodules -ObjC++ -fPIC "
 PL_LINKER_FLAGS=""
 PL_STATIC_LINK_LIBRARIES="-ldearimgui "
 PL_DYNAMIC_LINK_LIBRARIES=""
-PL_SOURCES="example_basic_5.cpp "
+PL_SOURCES="example_basic_6.cpp "
 PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
 
 # add flags for specific hardware
@@ -1230,10 +1318,10 @@ fi
 
 # run compiler (and linker)
 echo
-echo ${YELLOW}Step: example_basic_5${NC}
+echo ${YELLOW}Step: example_basic_6${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_5.dylib"
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_6.dylib"
 
 # check build status
 if [ $? -ne 0 ]

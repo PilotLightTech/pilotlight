@@ -9,6 +9,7 @@ Index of this file:
 // [SECTION] apis
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
+// [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
 // [SECTION] enums
@@ -36,6 +37,10 @@ Index of this file:
 #ifndef PL_CAMERA_EXT_H
 #define PL_CAMERA_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
@@ -46,6 +51,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>  // uint*_t
 #include <stdbool.h> // bool
 #include "pl_math.h" // plVec3, plMat4
@@ -64,6 +70,36 @@ typedef int plCameraType;
 typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef uint32_t                   plEcsTypeKey;       // pl_ecs_ext.h
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_camera_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_camera_ext(plApiRegistryI*, bool reload);
+
+// operations
+PL_API void pl_camera_set_fov        (plCamera*, float fYFov);
+PL_API void pl_camera_set_clip_planes(plCamera*, float fNearZ, float fFarZ);
+PL_API void pl_camera_set_aspect     (plCamera*, float fAspect);
+PL_API void pl_camera_set_pos        (plCamera*, double x, double y, double z);
+PL_API void pl_camera_set_pitch_yaw  (plCamera*, float fPitch, float fYaw);
+PL_API void pl_camera_translate      (plCamera*, double dX, double dY, double dZ);
+PL_API void pl_camera_rotate         (plCamera*, float fDPitch, float fDYaw);
+PL_API void pl_camera_look_at        (plCamera*, plVec3d tEye, plVec3d tTarget);
+PL_API void pl_camera_update         (plCamera*);
+
+//----------------------------ECS INTEGRATION----------------------------------
+
+// entity helpers
+PL_API plEntity pl_camera_create_perspective (plComponentLibrary*, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera**);
+PL_API plEntity pl_camera_create_orthographic(plComponentLibrary*, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera**);
+
+// system setup/shutdown/etc
+PL_API void         pl_camera_register_ecs_system(void);
+PL_API void         pl_camera_run_ecs            (plComponentLibrary*);
+PL_API plEcsTypeKey pl_camera_get_ecs_type_key   (void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -142,5 +178,9 @@ enum _plCameraType
 
     PL_CAMERA_TYPE_COUNT
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_CAMERA_EXT_H

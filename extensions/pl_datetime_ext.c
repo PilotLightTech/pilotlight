@@ -216,7 +216,7 @@ pl_datetime_day_of_week(plMonth tMonth, int iDay, int iYear)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_datetime_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plDateTimeI tApi = {
@@ -232,7 +232,7 @@ pl_load_datetime_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plDateTimeI, &tApi);
 }
 
-PL_EXPORT void
+void
 pl_unload_datetime_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

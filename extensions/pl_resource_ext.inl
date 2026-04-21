@@ -16,6 +16,10 @@ Index of this file:
 #ifndef PL_RESOURCE_EXT_INL
 #define PL_RESOURCE_EXT_INL
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
@@ -36,5 +40,9 @@ typedef union _plResourceHandle
     };
     uint64_t ulData;
 } plResourceHandle;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_RESOURCE_EXT_INL

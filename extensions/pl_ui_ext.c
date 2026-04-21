@@ -23,7 +23,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 void
-pl_set_dark_theme(void)
+pl_ui_set_dark_theme(void)
 {
     // styles
     gptCtx->tStyle.fTitlePadding            = 5.0f;
@@ -86,31 +86,31 @@ pl_set_dark_theme(void)
 }
 
 plDrawList2D*
-pl_get_draw_list(void)
+pl_ui_get_draw_list(void)
 {
     return gptCtx->ptDrawlist;
 }
 
 plDrawList2D*
-pl_get_debug_draw_list(void)
+pl_ui_get_debug_draw_list(void)
 {
     return gptCtx->ptDebugDrawlist;
 }
 
 bool
-pl_wants_mouse_capture(void)
+pl_ui_wants_mouse_capture(void)
 {
     return gptCtx->bWantCaptureMouse;
 }
 
 bool
-pl_wants_keyboard_capture(void)
+pl_ui_wants_keyboard_capture(void)
 {
     return gptCtx->bWantCaptureKeyboard;
 }
 
 bool
-pl_wants_text_input(void)
+pl_ui_wants_text_input(void)
 {
     return gptCtx->bWantTextInput;
 }
@@ -190,7 +190,7 @@ pl__focus_window(plUiWindow* ptWindow)
 }
 
 void
-pl_end_frame(void)
+pl_ui_end_frame(void)
 {
     // draw submission
     gptDraw->submit_2d_layer(gptCtx->ptBgLayer);
@@ -323,7 +323,7 @@ pl_end_frame(void)
 }
 
 void
-pl_push_theme_color(plUiColor tColorCode, plVec4 tColor)
+pl_ui_push_theme_color(plUiColor tColorCode, plVec4 tColor)
 {
     const plUiColorStackItem tPrevItem = {
         .tIndex = tColorCode,
@@ -334,7 +334,7 @@ pl_push_theme_color(plUiColor tColorCode, plVec4 tColor)
 }
 
 void
-pl_pop_theme_color(uint32_t uCount)
+pl_ui_pop_theme_color(uint32_t uCount)
 {
     for(uint32_t i = 0; i < uCount; i++)
     {
@@ -345,20 +345,20 @@ pl_pop_theme_color(uint32_t uCount)
 }
 
 void
-pl_set_default_font(plFont* ptFont)
+pl_ui_set_default_font(plFont* ptFont)
 {
     gptCtx->tFont = ptFont;
     gptCtx->tStyle.fFontSize = ptFont->fSize;
 }
 
 plFont*
-pl_get_default_font(void)
+pl_ui_get_default_font(void)
 {
     return gptCtx->tFont;
 }
 
 void
-pl_set_keyboard_focus_last_item(void)
+pl_ui_set_keyboard_focus_last_item(void)
 {
     gptCtx->tInputTextState.uId = gptCtx->tPrevItemData.uHash;
     gptCtx->uNavId = gptCtx->tPrevItemData.uHash;
@@ -369,7 +369,7 @@ pl_set_keyboard_focus_last_item(void)
 }
 
 void
-pl_layout_row(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount, const float* pfSizesOrRatios)
+pl_ui_layout_row(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount, const float* pfSizesOrRatios)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     
@@ -385,7 +385,7 @@ pl_layout_row(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount, con
 }
 
 void
-pl_end_window(void)
+pl_ui_end_window(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
@@ -415,22 +415,22 @@ pl_end_window(void)
 }
 
 bool
-pl_begin_window(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
+pl_ui_begin_window(const char* pcName, bool* pbOpen, plUiWindowFlags tFlags)
 {
     bool bResult = pl__begin_window_ex(pcName, pbOpen, tFlags);
 
     static const float pfRatios[] = {300.0f};
     if(bResult)
     {
-        pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
+        pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
     }
     else
-        pl_end_window();
+        pl_ui_end_window();
     return bResult;
 }
 
 plDrawLayer2D*
-pl_get_window_fg_drawlayer(void)
+pl_ui_get_window_fg_drawlayer(void)
 {
     PL_ASSERT(gptCtx->ptCurrentWindow && "no current window");
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
@@ -438,7 +438,7 @@ pl_get_window_fg_drawlayer(void)
 }
 
 plDrawLayer2D*
-pl_get_window_bg_drawlayer(void)
+pl_ui_get_window_bg_drawlayer(void)
 {
     PL_ASSERT(gptCtx->ptCurrentWindow && "no current window");
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
@@ -446,13 +446,13 @@ pl_get_window_bg_drawlayer(void)
 }
 
 plVec2
-pl_get_cursor_pos(void)
+pl_ui_get_cursor_pos(void)
 {
     return pl__get_cursor_pos();
 }
 
 void
-pl_set_next_window_size(plVec2 tSize, plUiConditionFlags tCondition)
+pl_ui_set_next_window_size(plVec2 tSize, plUiConditionFlags tCondition)
 {
     gptCtx->tNextWindowData.tSize = tSize;
     gptCtx->tNextWindowData.tFlags |= PL_NEXT_WINDOW_DATA_FLAGS_HAS_SIZE;
@@ -460,7 +460,7 @@ pl_set_next_window_size(plVec2 tSize, plUiConditionFlags tCondition)
 }
 
 void
-pl_set_next_window_pos(plVec2 tPos, plUiConditionFlags tCondition)
+pl_ui_set_next_window_pos(plVec2 tPos, plUiConditionFlags tCondition)
 {
     gptCtx->tNextWindowData.tPos = tPos;
     gptCtx->tNextWindowData.tFlags |= PL_NEXT_WINDOW_DATA_FLAGS_HAS_POS;
@@ -468,15 +468,15 @@ pl_set_next_window_pos(plVec2 tPos, plUiConditionFlags tCondition)
 }
 
 void
-pl_end_child(void)
+pl_ui_end_child(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
-    pl_end_window();
+    pl_ui_end_window();
     pl__smart_advance_cursor(ptWindow->tSize.x, ptWindow->tSize.y);
 }
 
 bool
-pl_begin_child(const char* pcName, plUiChildFlags tChildFlags, plUiWindowFlags tWindowFlags)
+pl_ui_begin_child(const char* pcName, plUiChildFlags tChildFlags, plUiWindowFlags tWindowFlags)
 {
     plUiWindow* ptParentWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptParentWindow->tTempData.tLayoutRow;
@@ -491,8 +491,8 @@ pl_begin_child(const char* pcName, plUiChildFlags tChildFlags, plUiWindowFlags t
         PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR | 
         PL_UI_WINDOW_FLAGS_NO_MOVE | tWindowFlags;
 
-    pl_set_next_window_pos(tStartPos, PL_UI_COND_ALWAYS);
-    pl_set_next_window_size(tWidgetSize, PL_UI_COND_ALWAYS);
+    pl_ui_set_next_window_pos(tStartPos, PL_UI_COND_ALWAYS);
+    pl_ui_set_next_window_size(tWidgetSize, PL_UI_COND_ALWAYS);
     bool bValue =  pl__begin_window_ex(pcName, NULL, tFlags);
 
     static const float pfRatios[] = {300.0f};
@@ -500,17 +500,17 @@ pl_begin_child(const char* pcName, plUiChildFlags tChildFlags, plUiWindowFlags t
     {
         plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
         ptWindow->tMinSize = pl_min_vec2(ptWindow->tMinSize, tWidgetSize);
-        pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
+        pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
     }
     else
     {
-        pl_end_child();
+        pl_ui_end_child();
     }
     return bValue;
 }
 
 void
-pl_open_popup(const char* pcName, plUiPopupFlags tFlags)
+pl_ui_open_popup(const char* pcName, plUiPopupFlags tFlags)
 {
     uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
     const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
@@ -522,7 +522,7 @@ pl_open_popup(const char* pcName, plUiPopupFlags tFlags)
 }
 
 void
-pl_close_current_popup(void)
+pl_ui_close_current_popup(void)
 {
     if(pl_sb_size(gptCtx->sbtBeginPopupStack) == 0)
         return;
@@ -541,13 +541,13 @@ pl_close_current_popup(void)
 }
 
 void
-pl_end_popup(void)
+pl_ui_end_popup(void)
 {
-    pl_end_window();
+    pl_ui_end_window();
 }
 
 bool
-pl_is_popup_open(const char* pcName)
+pl_ui_is_popup_open(const char* pcName)
 {
     uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
     const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
@@ -563,7 +563,7 @@ pl_is_popup_open(const char* pcName)
 }
 
 bool
-pl_begin_popup(const char* pcName, plUiWindowFlags tFlags)
+pl_ui_begin_popup(const char* pcName, plUiWindowFlags tFlags)
 {
     uint32_t uHashSeed = pl_sb_size(gptCtx->sbuIdStack) > 0 ? pl_sb_top(gptCtx->sbuIdStack) : 0;
     const uint32_t uHash = pl_str_hash(pcName, 0, uHashSeed);
@@ -595,7 +595,7 @@ pl_begin_popup(const char* pcName, plUiWindowFlags tFlags)
         static const float pfRatios[] = {300.0f};
         if(bResult)
         {
-            pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
+            pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
             if(bNewOpen)
             {
                 pl__focus_window(gptCtx->ptCurrentWindow);
@@ -603,7 +603,7 @@ pl_begin_popup(const char* pcName, plUiWindowFlags tFlags)
             gptCtx->ptNavWindow = gptCtx->ptCurrentWindow;
         }
         else
-            pl_end_popup();
+            pl_ui_end_popup();
         return bResult;
     }
 
@@ -611,7 +611,7 @@ pl_begin_popup(const char* pcName, plUiWindowFlags tFlags)
 }
 
 void
-pl_begin_tooltip(void)
+pl_ui_begin_tooltip(void)
 {
     plUiWindow* ptWindow = &gptCtx->tTooltipWindow;
 
@@ -646,11 +646,11 @@ pl_begin_tooltip(void)
     gptCtx->ptCurrentWindow = ptWindow;
 
     static const float pfRatios[] = {300.0f};
-    pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
+    pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios);
 }
 
 void
-pl_end_tooltip(void)
+pl_ui_end_tooltip(void)
 {
     plUiWindow* ptWindow = &gptCtx->tTooltipWindow;
 
@@ -680,21 +680,21 @@ pl_ui_get_window_size(void)
 }
 
 plVec2
-pl_get_window_scroll(void)
+pl_ui_get_window_scroll(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     return ptWindow->tScroll;
 }
 
 plVec2
-pl_get_window_scroll_max(void)
+pl_ui_get_window_scroll_max(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     return ptWindow->tScrollMax;
 }
 
 void
-pl_set_window_scroll(plVec2 tScroll)
+pl_ui_set_window_scroll(plVec2 tScroll)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     if(ptWindow->tScrollMax.x >= tScroll.x)
@@ -705,7 +705,7 @@ pl_set_window_scroll(plVec2 tScroll)
 }
 
 void
-pl_set_next_window_collapse(bool bCollapsed, plUiConditionFlags tCondition)
+pl_ui_set_next_window_collapse(bool bCollapsed, plUiConditionFlags tCondition)
 {
     gptCtx->tNextWindowData.bCollapsed = bCollapsed;
     gptCtx->tNextWindowData.tFlags |= PL_NEXT_WINDOW_DATA_FLAGS_HAS_COLLAPSED;
@@ -713,7 +713,7 @@ pl_set_next_window_collapse(bool bCollapsed, plUiConditionFlags tCondition)
 }
 
 bool
-pl_step_clipper(plUiClipper* ptClipper)
+pl_ui_step_clipper(plUiClipper* ptClipper)
 {
     if(ptClipper->uItemCount == 0)
         return false;
@@ -765,7 +765,7 @@ pl_step_clipper(plUiClipper* ptClipper)
 }
 
 void
-pl_layout_dynamic(float fHeight, uint32_t uWidgetCount)
+pl_ui_layout_dynamic(float fHeight, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
@@ -781,7 +781,7 @@ pl_layout_dynamic(float fHeight, uint32_t uWidgetCount)
 }
 
 void
-pl_layout_static(float fHeight, float fWidth, uint32_t uWidgetCount)
+pl_ui_layout_static(float fHeight, float fWidth, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
@@ -797,7 +797,7 @@ pl_layout_static(float fHeight, float fWidth, uint32_t uWidgetCount)
 }
 
 void
-pl_layout_row_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount)
+pl_ui_layout_row_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
@@ -812,7 +812,7 @@ pl_layout_row_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCoun
 }
 
 void
-pl_layout_row_push(float fWidth)
+pl_ui_layout_row_push(float fWidth)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
@@ -821,7 +821,7 @@ pl_layout_row_push(float fWidth)
 }
 
 void
-pl_layout_row_end(void)
+pl_ui_layout_row_end(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
@@ -836,7 +836,7 @@ pl_layout_row_end(void)
 }
 
 void
-pl_layout_template_begin(float fHeight)
+pl_ui_layout_template_begin(float fHeight)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
@@ -852,7 +852,7 @@ pl_layout_template_begin(float fHeight)
 }
 
 void
-pl_layout_template_push_dynamic(void)
+pl_ui_layout_template_push_dynamic(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
@@ -864,7 +864,7 @@ pl_layout_template_push_dynamic(void)
 }
 
 void
-pl_layout_template_push_variable(float fWidth)
+pl_ui_layout_template_push_variable(float fWidth)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
@@ -879,7 +879,7 @@ pl_layout_template_push_variable(float fWidth)
 }
 
 void
-pl_layout_template_push_static(float fWidth)
+pl_ui_layout_template_push_static(float fWidth)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
@@ -894,7 +894,7 @@ pl_layout_template_push_static(float fWidth)
 }
 
 void
-pl_layout_template_end(void)
+pl_ui_layout_template_end(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
@@ -1075,7 +1075,7 @@ pl_layout_template_end(void)
 }
 
 void
-pl_layout_space_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount)
+pl_ui_layout_space_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCount)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
 
@@ -1090,7 +1090,7 @@ pl_layout_space_begin(plUiLayoutRowType tType, float fHeight, uint32_t uWidgetCo
 }
 
 void
-pl_layout_space_push(float fX, float fY, float fWidth, float fHeight)
+pl_ui_layout_space_push(float fX, float fY, float fWidth, float fHeight)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
@@ -1103,7 +1103,7 @@ pl_layout_space_push(float fX, float fY, float fWidth, float fHeight)
 }
 
 void
-pl_layout_space_end(void)
+pl_ui_layout_space_end(void)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;
     plUiLayoutRow* ptCurrentRow = &ptWindow->tTempData.tLayoutRow;
@@ -1118,13 +1118,13 @@ pl_layout_space_end(void)
 }
 
 bool
-pl_was_last_item_hovered(void)
+pl_ui_was_last_item_hovered(void)
 {
     return gptCtx->tPrevItemData.bHovered;
 }
 
 bool
-pl_was_last_item_active(void)
+pl_ui_was_last_item_active(void)
 {
     return gptCtx->tPrevItemData.bActive;
 }
@@ -2266,7 +2266,7 @@ pl_ui_initialize(void)
 
     gptCtx->tFrameBufferScale.x = 1.0f;
     gptCtx->tFrameBufferScale.y = 1.0f;
-    pl_set_dark_theme();
+    pl_ui_set_dark_theme();
 }
 
 void
@@ -2444,9 +2444,8 @@ pl_ui_text_filter_pass(plUiTextFilter* ptFilter, const char* text, const char* t
 
 #include "pl_ui_widgets.c"
 
-
 void
-pl_show_debug_window(bool* pbOpen)
+pl_ui_show_debug_window(bool* pbOpen)
 {
     // tools
     static bool bShowWindowOuterRect = false;
@@ -2454,108 +2453,108 @@ pl_show_debug_window(bool* pbOpen)
     static bool bShowWindowInnerRect = false;
     static bool bShowWindowInnerClipRect = false;
 
-    if(pl_begin_window("Pilot Light UI Metrics/Debugger", pbOpen, 0))
+    if(pl_ui_begin_window("Pilot Light UI Metrics/Debugger", pbOpen, 0))
     {
 
         const float pfRatios[] = {1.0f};
-        pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+        pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
 
-        pl_separator();
+        pl_ui_separator();
 
-        pl_checkbox("Show Window Inner Rect", &bShowWindowInnerRect);
-        pl_checkbox("Show Window Inner Clip Rect", &bShowWindowInnerClipRect);
-        pl_checkbox("Show Window Outer Rect", &bShowWindowOuterRect);
-        pl_checkbox("Show Window Outer Rect Clipped", &bShowWindowOuterClippedRect);
-        pl_separator();
+        pl_ui_checkbox("Show Window Inner Rect", &bShowWindowInnerRect);
+        pl_ui_checkbox("Show Window Inner Clip Rect", &bShowWindowInnerClipRect);
+        pl_ui_checkbox("Show Window Outer Rect", &bShowWindowOuterRect);
+        pl_ui_checkbox("Show Window Outer Rect Clipped", &bShowWindowOuterClippedRect);
+        pl_ui_separator();
 
-        if(pl_tree_node("Windows", 0))
+        if(pl_ui_tree_node("Windows", 0))
         {
             for(uint32_t uWindowIndex = 0; uWindowIndex < pl_sb_size(gptCtx->sbptFocusedWindows); uWindowIndex++)
             {
                 const plUiWindow* ptWindow = gptCtx->sbptFocusedWindows[uWindowIndex];
 
-                if(pl_tree_node(ptWindow->pcName, 0))
+                if(pl_ui_tree_node(ptWindow->pcName, 0))
                 {
-                    pl_text(" - Pos:          (%0.1f, %0.1f)", ptWindow->tPos.x, ptWindow->tPos.y);
-                    pl_text(" - Size:         (%0.1f, %0.1f)", ptWindow->tSize.x, ptWindow->tSize.y);
-                    pl_text(" - Content Size: (%0.1f, %0.1f)", ptWindow->tContentSize.x, ptWindow->tContentSize.y);
-                    pl_text(" - Min Size:     (%0.1f, %0.1f)", ptWindow->tMinSize.x, ptWindow->tMinSize.y);
-                    pl_text(" - Scroll:       (%0.1f/%0.1f, %0.1f/%0.1f)", ptWindow->tScroll.x, ptWindow->tScrollMax.x, ptWindow->tScroll.y, ptWindow->tScrollMax.y);
-                    pl_text(" - Focused:      %s", ptWindow == gptCtx->ptNavWindow ? "1" : "0");
-                    pl_text(" - Active:       %s", ptWindow == gptCtx->ptActiveWindow ? "1" : "0");
-                    pl_text(" - Hovered:      %s", ptWindow == gptCtx->ptHoveredWindow ? "1" : "0");
-                    pl_text(" - Dragging:     %s", ptWindow == gptCtx->ptMovingWindow ? "1" : "0");
-                    pl_text(" - Scrolling:    %s", ptWindow == gptCtx->ptWheelingWindow ? "1" : "0");
-                    pl_text(" - Resizing:     %s", ptWindow == gptCtx->ptSizingWindow ? "1" : "0");
-                    pl_text(" - Collapsed:    %s", ptWindow->bCollapsed ? "1" : "0");
-                    pl_text(" - Auto Sized:   %s", ptWindow->tFlags &  PL_UI_WINDOW_FLAGS_AUTO_SIZE ? "1" : "0");
+                    pl_ui_text(" - Pos:          (%0.1f, %0.1f)", ptWindow->tPos.x, ptWindow->tPos.y);
+                    pl_ui_text(" - Size:         (%0.1f, %0.1f)", ptWindow->tSize.x, ptWindow->tSize.y);
+                    pl_ui_text(" - Content Size: (%0.1f, %0.1f)", ptWindow->tContentSize.x, ptWindow->tContentSize.y);
+                    pl_ui_text(" - Min Size:     (%0.1f, %0.1f)", ptWindow->tMinSize.x, ptWindow->tMinSize.y);
+                    pl_ui_text(" - Scroll:       (%0.1f/%0.1f, %0.1f/%0.1f)", ptWindow->tScroll.x, ptWindow->tScrollMax.x, ptWindow->tScroll.y, ptWindow->tScrollMax.y);
+                    pl_ui_text(" - Focused:      %s", ptWindow == gptCtx->ptNavWindow ? "1" : "0");
+                    pl_ui_text(" - Active:       %s", ptWindow == gptCtx->ptActiveWindow ? "1" : "0");
+                    pl_ui_text(" - Hovered:      %s", ptWindow == gptCtx->ptHoveredWindow ? "1" : "0");
+                    pl_ui_text(" - Dragging:     %s", ptWindow == gptCtx->ptMovingWindow ? "1" : "0");
+                    pl_ui_text(" - Scrolling:    %s", ptWindow == gptCtx->ptWheelingWindow ? "1" : "0");
+                    pl_ui_text(" - Resizing:     %s", ptWindow == gptCtx->ptSizingWindow ? "1" : "0");
+                    pl_ui_text(" - Collapsed:    %s", ptWindow->bCollapsed ? "1" : "0");
+                    pl_ui_text(" - Auto Sized:   %s", ptWindow->tFlags &  PL_UI_WINDOW_FLAGS_AUTO_SIZE ? "1" : "0");
 
-                    pl_tree_pop();
+                    pl_ui_tree_pop();
                 }  
             }
-            pl_tree_pop();
+            pl_ui_tree_pop();
         }
-        if(pl_tree_node("Internal State", 0))
+        if(pl_ui_tree_node("Internal State", 0))
         {
-            pl_separator_text("Windowing");
-            pl_indent(0.0f);
+            pl_ui_separator_text("Windowing");
+            pl_ui_indent(0.0f);
             
-            pl_text("Hovered Window: %s", gptCtx->ptHoveredWindow ? gptCtx->ptHoveredWindow->pcName : "NULL");
-            pl_text("Moving Window:  %s", gptCtx->ptMovingWindow ? gptCtx->ptMovingWindow->pcName : "NULL");
-            pl_text("Sizing Window:  %s", gptCtx->ptSizingWindow ? gptCtx->ptSizingWindow->pcName : "NULL");
-            pl_text("Scrolling Window:  %s", gptCtx->ptScrollingWindow ? gptCtx->ptScrollingWindow->pcName : "NULL");
-            pl_text("Wheeling Window:  %s", gptCtx->ptWheelingWindow ? gptCtx->ptWheelingWindow->pcName : "NULL");
-            pl_unindent(0.0f);
+            pl_ui_text("Hovered Window: %s", gptCtx->ptHoveredWindow ? gptCtx->ptHoveredWindow->pcName : "NULL");
+            pl_ui_text("Moving Window:  %s", gptCtx->ptMovingWindow ? gptCtx->ptMovingWindow->pcName : "NULL");
+            pl_ui_text("Sizing Window:  %s", gptCtx->ptSizingWindow ? gptCtx->ptSizingWindow->pcName : "NULL");
+            pl_ui_text("Scrolling Window:  %s", gptCtx->ptScrollingWindow ? gptCtx->ptScrollingWindow->pcName : "NULL");
+            pl_ui_text("Wheeling Window:  %s", gptCtx->ptWheelingWindow ? gptCtx->ptWheelingWindow->pcName : "NULL");
+            pl_ui_unindent(0.0f);
             
-            pl_separator_text("Items");
-            pl_indent(0.0f);
-            pl_text("Active Window: %s", gptCtx->ptActiveWindow ? gptCtx->ptActiveWindow->pcName : "NULL");
-            pl_text("Active ID:        %u", gptCtx->uActiveId);
-            pl_text("Hovered ID:       %u", gptCtx->uHoveredId);
-            pl_unindent(0.0f);
+            pl_ui_separator_text("Items");
+            pl_ui_indent(0.0f);
+            pl_ui_text("Active Window: %s", gptCtx->ptActiveWindow ? gptCtx->ptActiveWindow->pcName : "NULL");
+            pl_ui_text("Active ID:        %u", gptCtx->uActiveId);
+            pl_ui_text("Hovered ID:       %u", gptCtx->uHoveredId);
+            pl_ui_unindent(0.0f);
 
-            pl_separator_text("Navigation");
-            pl_indent(0.0f);
-            pl_text("Nav Window: %s", gptCtx->ptNavWindow ? gptCtx->ptNavWindow->pcName : "NULL"); 
-            pl_text("Nav ID:     %u", gptCtx->uNavId);
-            pl_unindent(0.0f);
-            pl_tree_pop();
+            pl_ui_separator_text("Navigation");
+            pl_ui_indent(0.0f);
+            pl_ui_text("Nav Window: %s", gptCtx->ptNavWindow ? gptCtx->ptNavWindow->pcName : "NULL"); 
+            pl_ui_text("Nav ID:     %u", gptCtx->uNavId);
+            pl_ui_unindent(0.0f);
+            pl_ui_tree_pop();
         }
-        if(pl_tree_node("Input", 0))
+        if(pl_ui_tree_node("Input", 0))
         {
-            pl_separator_text("Keyboard");
-            pl_indent(0.0f);
-            pl_text("Keys mods: %s%s%s%s", gptIO->bKeyCtrl ? "CTRL " : "", gptIO->bKeyShift ? "SHIFT " : "", gptIO->bKeyAlt ? "ALT " : "", gptIO->bKeySuper ? "SUPER " : "");
-            pl_unindent(0.0f);
+            pl_ui_separator_text("Keyboard");
+            pl_ui_indent(0.0f);
+            pl_ui_text("Keys mods: %s%s%s%s", gptIO->bKeyCtrl ? "CTRL " : "", gptIO->bKeyShift ? "SHIFT " : "", gptIO->bKeyAlt ? "ALT " : "", gptIO->bKeySuper ? "SUPER " : "");
+            pl_ui_unindent(0.0f);
             
-            pl_separator_text("Mouse State");
-            pl_indent(0.0f);
+            pl_ui_separator_text("Mouse State");
+            pl_ui_indent(0.0f);
             if (gptIOI->is_mouse_pos_valid(gptIO->_tMousePos))
-                pl_text("Mouse pos: (%g, %g)", gptIO->_tMousePos.x, gptIO->_tMousePos.y);
+                pl_ui_text("Mouse pos: (%g, %g)", gptIO->_tMousePos.x, gptIO->_tMousePos.y);
             else
-                pl_text("Mouse pos: <INVALID>");
-            pl_text("Mouse delta: (%g, %g)", gptIO->_tMouseDelta.x, gptIO->_tMouseDelta.y);
+                pl_ui_text("Mouse pos: <INVALID>");
+            pl_ui_text("Mouse delta: (%g, %g)", gptIO->_tMouseDelta.x, gptIO->_tMouseDelta.y);
             // int count = IM_ARRAYSIZE(io.MouseDown);
             // pl_text("Mouse down:");     for (int i = 0; i < count; i++) if (IsMouseDown(i)) { SameLine(); Text("b%d (%.02f secs)", i, io.MouseDownDuration[i]); }
             // pl_text("Mouse clicked:");  for (int i = 0; i < count; i++) if (IsMouseClicked(i)) { SameLine(); Text("b%d (%d)", i, io.MouseClickedCount[i]); }
             // pl_text("Mouse released:"); for (int i = 0; i < count; i++) if (IsMouseReleased(i)) { SameLine(); Text("b%d", i); }
-            pl_text("Mouse wheel: %.1f", gptIO->_fMouseWheel);
+            pl_ui_text("Mouse wheel: %.1f", gptIO->_fMouseWheel);
             // Text("MouseStationaryTimer: %.2f", g.MouseStationaryTimer);
             // pl_text("Mouse source: %s", GetMouseSourceName(io.MouseSource));
-            pl_unindent(0.0f);
+            pl_ui_unindent(0.0f);
 
-            pl_separator_text("Mouse Wheeling");
-            pl_text("Wheeling Window: '%s'", gptCtx->ptWheelingWindow ? gptCtx->ptWheelingWindow->pcName : "NULL");
+            pl_ui_separator_text("Mouse Wheeling");
+            pl_ui_text("Wheeling Window: '%s'", gptCtx->ptWheelingWindow ? gptCtx->ptWheelingWindow->pcName : "NULL");
             // Text("WheelingWindowReleaseTimer: %.2f", gptCtx->WheelingWindowReleaseTimer);
             // Text("WheelingAxisAvg[] = { %.3f, %.3f }, Main Axis: %s", g.WheelingAxisAvg.x, g.WheelingAxisAvg.y, (g.WheelingAxisAvg.x > g.WheelingAxisAvg.y) ? "X" : (g.WheelingAxisAvg.x < g.WheelingAxisAvg.y) ? "Y" : "<none>");
-            pl_indent(0.0f);
+            pl_ui_indent(0.0f);
 
-            pl_unindent(0.0f);
+            pl_ui_unindent(0.0f);
 
-            pl_tree_pop();
+            pl_ui_tree_pop();
         }
 
-        pl_end_window();
+        pl_ui_end_window();
     } 
 
     for(uint32_t uWindowIndex = 0; uWindowIndex < pl_sb_size(gptCtx->sbptWindows); uWindowIndex++)
@@ -2580,67 +2579,67 @@ pl_show_debug_window(bool* pbOpen)
 }
 
 void
-pl_show_style_editor_window(bool* pbOpen)
+pl_ui_show_style_editor_window(bool* pbOpen)
 {
 
-    if(pl_begin_window("Pilot Light UI Style", pbOpen, 0))
+    if(pl_ui_begin_window("Pilot Light UI Style", pbOpen, 0))
     {
 
         const float pfRatios[] = {1.0f};
-        pl_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+        pl_ui_layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
 
         plUiStyle* ptStyle = &gptCtx->tStyle;
 
-        if(pl_begin_tab_bar("Tabs", 0))
+        if(pl_ui_begin_tab_bar("Tabs", 0))
         {
-            if(pl_begin_tab("Colors", 0))
+            if(pl_ui_begin_tab("Colors", 0))
             { 
-                pl_end_tab();
+                pl_ui_end_tab();
             }
             
-            if(pl_begin_tab("Sizes", 0))
+            if(pl_ui_begin_tab("Sizes", 0))
             {
-                pl_vertical_spacing();
-                pl_separator_text("Title");
-                pl_slider_float("Title Padding", &ptStyle->fTitlePadding, 0.0f, 32.0f, 0);
+                pl_ui_vertical_spacing();
+                pl_ui_separator_text("Title");
+                pl_ui_slider_float("Title Padding", &ptStyle->fTitlePadding, 0.0f, 32.0f, 0);
 
-                pl_vertical_spacing();
-                pl_separator_text("Window");
-                pl_slider_float("Horizontal Padding## window", &ptStyle->fWindowHorizontalPadding, 0.0f, 32.0f, 0);
-                pl_slider_float("Vertical Padding## window", &ptStyle->fWindowVerticalPadding, 0.0f, 32.0f, 0);
-                pl_slider_int("Border Size## window", &ptStyle->iWindowBorderSize, 0, 1, 0);
+                pl_ui_vertical_spacing();
+                pl_ui_separator_text("Window");
+                pl_ui_slider_float("Horizontal Padding## window", &ptStyle->fWindowHorizontalPadding, 0.0f, 32.0f, 0);
+                pl_ui_slider_float("Vertical Padding## window", &ptStyle->fWindowVerticalPadding, 0.0f, 32.0f, 0);
+                pl_ui_slider_int("Border Size## window", &ptStyle->iWindowBorderSize, 0, 1, 0);
 
-                pl_vertical_spacing();
-                pl_separator_text("Scrollbar");
-                pl_slider_float("Size##scrollbar", &ptStyle->fScrollbarSize, 0.0f, 32.0f, 0);
+                pl_ui_vertical_spacing();
+                pl_ui_separator_text("Scrollbar");
+                pl_ui_slider_float("Size##scrollbar", &ptStyle->fScrollbarSize, 0.0f, 32.0f, 0);
 
-                pl_vertical_spacing();
-                pl_separator_text("Rounding");
-                pl_slider_float("Window Rounding", &ptStyle->fWindowRounding, 0.0f, 12.0f, 0);
-                pl_slider_float("Child Rounding", &ptStyle->fChildRounding, 0.0f, 12.0f, 0);
-                pl_slider_float("Frame Rounding", &ptStyle->fFrameRounding, 0.0f, 12.0f, 0);
-                pl_slider_float("Scrollbar Rounding", &ptStyle->fScrollbarRounding, 0.0f, 12.0f, 0);
-                pl_slider_float("Grab Rounding", &ptStyle->fGrabRounding, 0.0f, 12.0f, 0);
-                pl_slider_float("Tab Rounding", &ptStyle->fTabRounding, 0.0f, 12.0f, 0);
+                pl_ui_vertical_spacing();
+                pl_ui_separator_text("Rounding");
+                pl_ui_slider_float("Window Rounding", &ptStyle->fWindowRounding, 0.0f, 12.0f, 0);
+                pl_ui_slider_float("Child Rounding", &ptStyle->fChildRounding, 0.0f, 12.0f, 0);
+                pl_ui_slider_float("Frame Rounding", &ptStyle->fFrameRounding, 0.0f, 12.0f, 0);
+                pl_ui_slider_float("Scrollbar Rounding", &ptStyle->fScrollbarRounding, 0.0f, 12.0f, 0);
+                pl_ui_slider_float("Grab Rounding", &ptStyle->fGrabRounding, 0.0f, 12.0f, 0);
+                pl_ui_slider_float("Tab Rounding", &ptStyle->fTabRounding, 0.0f, 12.0f, 0);
                 
-                pl_vertical_spacing();
-                pl_separator_text("Misc");
-                pl_slider_float("Indent", &ptStyle->fIndentSize, 0.0f, 32.0f, 0); 
-                pl_slider_float("Slider Size", &ptStyle->fSliderSize, 3.0f, 32.0f, 0); 
-                pl_slider_float("Font Size", &ptStyle->fFontSize, 13.0f, 48.0f, 0); 
+                pl_ui_vertical_spacing();
+                pl_ui_separator_text("Misc");
+                pl_ui_slider_float("Indent", &ptStyle->fIndentSize, 0.0f, 32.0f, 0); 
+                pl_ui_slider_float("Slider Size", &ptStyle->fSliderSize, 3.0f, 32.0f, 0); 
+                pl_ui_slider_float("Font Size", &ptStyle->fFontSize, 13.0f, 48.0f, 0); 
 
-                pl_vertical_spacing();
-                pl_separator_text("Widgets");
-                pl_slider_float("Separator Text Size", &ptStyle->fSeparatorTextLineSize, 0.0f, 10.0f, 0); 
-                pl_slider_float("Separator Text Alignment x", &ptStyle->tSeparatorTextAlignment.x, 0.0f, 1.0f, 0); 
-                pl_slider_float("Separator Text Alignment y", &ptStyle->tSeparatorTextAlignment.y, 0.0f, 1.0f, 0); 
-                pl_slider_float("Separator Text Pad x", &ptStyle->tSeparatorTextPadding.x, 0.0f, 40.0f, 0); 
-                pl_slider_float("Separator Text Pad y", &ptStyle->tSeparatorTextPadding.y, 0.0f, 40.0f, 0); 
-                pl_end_tab();
+                pl_ui_vertical_spacing();
+                pl_ui_separator_text("Widgets");
+                pl_ui_slider_float("Separator Text Size", &ptStyle->fSeparatorTextLineSize, 0.0f, 10.0f, 0); 
+                pl_ui_slider_float("Separator Text Alignment x", &ptStyle->tSeparatorTextAlignment.x, 0.0f, 1.0f, 0); 
+                pl_ui_slider_float("Separator Text Alignment y", &ptStyle->tSeparatorTextAlignment.y, 0.0f, 1.0f, 0); 
+                pl_ui_slider_float("Separator Text Pad x", &ptStyle->tSeparatorTextPadding.x, 0.0f, 40.0f, 0); 
+                pl_ui_slider_float("Separator Text Pad y", &ptStyle->tSeparatorTextPadding.y, 0.0f, 40.0f, 0); 
+                pl_ui_end_tab();
             }
-            pl_end_tab_bar();
+            pl_ui_end_tab_bar();
         }     
-        pl_end_window();
+        pl_ui_end_window();
     }  
 }
 
@@ -2648,134 +2647,134 @@ pl_show_style_editor_window(bool* pbOpen)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plUiI tApi = {
         .initialize                    = pl_ui_initialize,
         .cleanup                       = pl_ui_cleanup,
-        .get_draw_list                 = pl_get_draw_list,
-        .get_debug_draw_list           = pl_get_debug_draw_list,
+        .get_draw_list                 = pl_ui_get_draw_list,
+        .get_debug_draw_list           = pl_ui_get_debug_draw_list,
         .new_frame                     = pl_ui_new_frame,
-        .end_frame                     = pl_end_frame,
-        .wants_keyboard_capture        = pl_wants_keyboard_capture,
-        .wants_text_input              = pl_wants_text_input,
-        .wants_mouse_capture           = pl_wants_mouse_capture,
-        .show_debug_window             = pl_show_debug_window,
-        .show_style_editor_window      = pl_show_style_editor_window,
-        .set_dark_theme                = pl_set_dark_theme,
-        .push_theme_color              = pl_push_theme_color,
-        .pop_theme_color               = pl_pop_theme_color,
-        .set_default_font              = pl_set_default_font,
-        .get_default_font              = pl_get_default_font,
-        .begin_window                  = pl_begin_window,
-        .end_window                    = pl_end_window,
-        .get_window_fg_drawlayer       = pl_get_window_fg_drawlayer,
-        .get_window_bg_drawlayer       = pl_get_window_bg_drawlayer,
-        .get_cursor_pos                = pl_get_cursor_pos,
-        .begin_child                   = pl_begin_child,
-        .end_child                     = pl_end_child,
-        .is_popup_open                 = pl_is_popup_open,
-        .close_current_popup           = pl_close_current_popup,
-        .open_popup                    = pl_open_popup,
-        .begin_popup                   = pl_begin_popup,
-        .end_popup                     = pl_end_popup,
-        .begin_tooltip                 = pl_begin_tooltip,
-        .end_tooltip                   = pl_end_tooltip,
+        .end_frame                     = pl_ui_end_frame,
+        .wants_keyboard_capture        = pl_ui_wants_keyboard_capture,
+        .wants_text_input              = pl_ui_wants_text_input,
+        .wants_mouse_capture           = pl_ui_wants_mouse_capture,
+        .show_debug_window             = pl_ui_show_debug_window,
+        .show_style_editor_window      = pl_ui_show_style_editor_window,
+        .set_dark_theme                = pl_ui_set_dark_theme,
+        .push_theme_color              = pl_ui_push_theme_color,
+        .pop_theme_color               = pl_ui_pop_theme_color,
+        .set_default_font              = pl_ui_set_default_font,
+        .get_default_font              = pl_ui_get_default_font,
+        .begin_window                  = pl_ui_begin_window,
+        .end_window                    = pl_ui_end_window,
+        .get_window_fg_drawlayer       = pl_ui_get_window_fg_drawlayer,
+        .get_window_bg_drawlayer       = pl_ui_get_window_bg_drawlayer,
+        .get_cursor_pos                = pl_ui_get_cursor_pos,
+        .begin_child                   = pl_ui_begin_child,
+        .end_child                     = pl_ui_end_child,
+        .is_popup_open                 = pl_ui_is_popup_open,
+        .close_current_popup           = pl_ui_close_current_popup,
+        .open_popup                    = pl_ui_open_popup,
+        .begin_popup                   = pl_ui_begin_popup,
+        .end_popup                     = pl_ui_end_popup,
+        .begin_tooltip                 = pl_ui_begin_tooltip,
+        .end_tooltip                   = pl_ui_end_tooltip,
         .get_window_pos                = pl_ui_get_window_pos,
         .get_window_size               = pl_ui_get_window_size,
-        .get_window_scroll             = pl_get_window_scroll,
-        .get_window_scroll_max         = pl_get_window_scroll_max,
-        .set_window_scroll             = pl_set_window_scroll,
-        .set_next_window_pos           = pl_set_next_window_pos,
-        .set_next_window_size          = pl_set_next_window_size,
-        .set_next_window_collapse      = pl_set_next_window_collapse,
-        .button                        = pl_button,
-        .selectable                    = pl_selectable,
-        .checkbox                      = pl_checkbox,
-        .radio_button                  = pl_radio_button,
-        .image                         = pl_image,
-        .image_ex                      = pl_image_ex,
-        .image_button                  = pl_image_button,
-        .image_button_ex               = pl_image_button_ex,
-        .invisible_button              = pl_invisible_button,
-        .dummy                         = pl_dummy,
-        .progress_bar                  = pl_progress_bar,
-        .text                          = pl_text,
-        .text_v                        = pl_text_v,
-        .color_text                    = pl_color_text,
-        .color_text_v                  = pl_color_text_v,
-        .labeled_text                  = pl_labeled_text,
-        .labeled_text_v                = pl_labeled_text_v,
-        .begin_combo                   = pl_begin_combo,
-        .end_combo                     = pl_end_combo,
-        .input_text                    = pl_input_text,
-        .input_text_hint               = pl_input_text_hint,
-        .input_float                   = pl_input_float,
-        .input_float2                  = pl_input_float2,
-        .input_float3                  = pl_input_float3,
-        .input_float4                  = pl_input_float4,
-        .input_int                     = pl_input_int,
-        .input_int2                    = pl_input_int2,
-        .input_int3                    = pl_input_int3,
-        .input_int4                    = pl_input_int4,
-        .input_uint                    = pl_input_uint,
-        .input_uint2                   = pl_input_uint2,
-        .input_uint3                   = pl_input_uint3,
-        .input_uint4                   = pl_input_uint4,
-        .slider_float                  = pl_slider_float,
-        .slider_float_f                = pl_slider_float_f,
-        .slider_int                    = pl_slider_int,
-        .slider_int_f                  = pl_slider_int_f,
-        .slider_uint                   = pl_slider_uint,
-        .slider_uint_f                 = pl_slider_uint_f,
-        .drag_float                    = pl_drag_float,
-        .drag_float_f                  = pl_drag_float_f,
-        .begin_collapsing_header       = pl_begin_collapsing_header,
-        .end_collapsing_header         = pl_end_collapsing_header,
-        .tree_node                     = pl_tree_node,
-        .tree_node_f                   = pl_tree_node_f,
-        .tree_node_v                   = pl_tree_node_v,
-        .tree_pop                      = pl_tree_pop,
-        .begin_menu                    = pl_begin_menu,
-        .end_menu                      = pl_end_menu,
-        .menu_item                     = pl_menu_item,
-        .menu_item_toggle              = pl_menu_item_toggle,
-        .begin_tab_bar                 = pl_begin_tab_bar,
-        .end_tab_bar                   = pl_end_tab_bar,
-        .begin_tab                     = pl_begin_tab,
-        .end_tab                       = pl_end_tab,
-        .separator                     = pl_separator,
-        .separator_text                = pl_separator_text,
-        .vertical_spacing              = pl_vertical_spacing,
-        .indent                        = pl_indent,
-        .unindent                      = pl_unindent,
-        .step_clipper                  = pl_step_clipper,
-        .layout_dynamic                = pl_layout_dynamic,
-        .layout_static                 = pl_layout_static,
-        .layout_row_begin              = pl_layout_row_begin,
-        .layout_row_push               = pl_layout_row_push,
-        .layout_row_end                = pl_layout_row_end,
-        .layout_row                    = pl_layout_row,
-        .layout_template_begin         = pl_layout_template_begin,
-        .layout_template_push_dynamic  = pl_layout_template_push_dynamic,
-        .layout_template_push_variable = pl_layout_template_push_variable,
-        .layout_template_push_static   = pl_layout_template_push_static,
-        .layout_template_end           = pl_layout_template_end,
-        .layout_space_begin            = pl_layout_space_begin,
-        .layout_space_push             = pl_layout_space_push,
-        .layout_space_end              = pl_layout_space_end,
-        .was_last_item_hovered         = pl_was_last_item_hovered,
-        .was_last_item_active          = pl_was_last_item_active,
-        .push_id_string                = pl_push_id_string,
-        .push_id_pointer               = pl_push_id_pointer,
-        .push_id_uint                  = pl_push_id_uint,
-        .pop_id                        = pl_pop_id,
+        .get_window_scroll             = pl_ui_get_window_scroll,
+        .get_window_scroll_max         = pl_ui_get_window_scroll_max,
+        .set_window_scroll             = pl_ui_set_window_scroll,
+        .set_next_window_pos           = pl_ui_set_next_window_pos,
+        .set_next_window_size          = pl_ui_set_next_window_size,
+        .set_next_window_collapse      = pl_ui_set_next_window_collapse,
+        .button                        = pl_ui_button,
+        .selectable                    = pl_ui_selectable,
+        .checkbox                      = pl_ui_checkbox,
+        .radio_button                  = pl_ui_radio_button,
+        .image                         = pl_ui_image,
+        .image_ex                      = pl_ui_image_ex,
+        .image_button                  = pl_ui_image_button,
+        .image_button_ex               = pl_ui_image_button_ex,
+        .invisible_button              = pl_ui_invisible_button,
+        .dummy                         = pl_ui_dummy,
+        .progress_bar                  = pl_ui_progress_bar,
+        .text                          = pl_ui_text,
+        .text_v                        = pl_ui_text_v,
+        .color_text                    = pl_ui_color_text,
+        .color_text_v                  = pl_ui_color_text_v,
+        .labeled_text                  = pl_ui_labeled_text,
+        .labeled_text_v                = pl_ui_labeled_text_v,
+        .begin_combo                   = pl_ui_begin_combo,
+        .end_combo                     = pl_ui_end_combo,
+        .input_text                    = pl_ui_input_text,
+        .input_text_hint               = pl_ui_input_text_hint,
+        .input_float                   = pl_ui_input_float,
+        .input_float2                  = pl_ui_input_float2,
+        .input_float3                  = pl_ui_input_float3,
+        .input_float4                  = pl_ui_input_float4,
+        .input_int                     = pl_ui_input_int,
+        .input_int2                    = pl_ui_input_int2,
+        .input_int3                    = pl_ui_input_int3,
+        .input_int4                    = pl_ui_input_int4,
+        .input_uint                    = pl_ui_input_uint,
+        .input_uint2                   = pl_ui_input_uint2,
+        .input_uint3                   = pl_ui_input_uint3,
+        .input_uint4                   = pl_ui_input_uint4,
+        .slider_float                  = pl_ui_slider_float,
+        .slider_float_f                = pl_ui_slider_float_f,
+        .slider_int                    = pl_ui_slider_int,
+        .slider_int_f                  = pl_ui_slider_int_f,
+        .slider_uint                   = pl_ui_slider_uint,
+        .slider_uint_f                 = pl_ui_slider_uint_f,
+        .drag_float                    = pl_ui_drag_float,
+        .drag_float_f                  = pl_ui_drag_float_f,
+        .begin_collapsing_header       = pl_ui_begin_collapsing_header,
+        .end_collapsing_header         = pl_ui_end_collapsing_header,
+        .tree_node                     = pl_ui_tree_node,
+        .tree_node_f                   = pl_ui_tree_node_f,
+        .tree_node_v                   = pl_ui_tree_node_v,
+        .tree_pop                      = pl_ui_tree_pop,
+        .begin_menu                    = pl_ui_begin_menu,
+        .end_menu                      = pl_ui_end_menu,
+        .menu_item                     = pl_ui_menu_item,
+        .menu_item_toggle              = pl_ui_menu_item_toggle,
+        .begin_tab_bar                 = pl_ui_begin_tab_bar,
+        .end_tab_bar                   = pl_ui_end_tab_bar,
+        .begin_tab                     = pl_ui_begin_tab,
+        .end_tab                       = pl_ui_end_tab,
+        .separator                     = pl_ui_separator,
+        .separator_text                = pl_ui_separator_text,
+        .vertical_spacing              = pl_ui_vertical_spacing,
+        .indent                        = pl_ui_indent,
+        .unindent                      = pl_ui_unindent,
+        .step_clipper                  = pl_ui_step_clipper,
+        .layout_dynamic                = pl_ui_layout_dynamic,
+        .layout_static                 = pl_ui_layout_static,
+        .layout_row_begin              = pl_ui_layout_row_begin,
+        .layout_row_push               = pl_ui_layout_row_push,
+        .layout_row_end                = pl_ui_layout_row_end,
+        .layout_row                    = pl_ui_layout_row,
+        .layout_template_begin         = pl_ui_layout_template_begin,
+        .layout_template_push_dynamic  = pl_ui_layout_template_push_dynamic,
+        .layout_template_push_variable = pl_ui_layout_template_push_variable,
+        .layout_template_push_static   = pl_ui_layout_template_push_static,
+        .layout_template_end           = pl_ui_layout_template_end,
+        .layout_space_begin            = pl_ui_layout_space_begin,
+        .layout_space_push             = pl_ui_layout_space_push,
+        .layout_space_end              = pl_ui_layout_space_end,
+        .was_last_item_hovered         = pl_ui_was_last_item_hovered,
+        .was_last_item_active          = pl_ui_was_last_item_active,
+        .push_id_string                = pl_ui_push_id_string,
+        .push_id_pointer               = pl_ui_push_id_pointer,
+        .push_id_uint                  = pl_ui_push_id_uint,
+        .pop_id                        = pl_ui_pop_id,
         .text_filter_build             = pl_ui_text_filter_build,
         .text_filter_pass              = pl_ui_text_filter_pass,
         .text_filter_cleanup           = pl_ui_text_filter_cleanup,
         .text_filter_active            = pl_ui_text_filter_active,
-        .set_keyboard_focus_last_item  = pl_set_keyboard_focus_last_item
+        .set_keyboard_focus_last_item  = pl_ui_set_keyboard_focus_last_item
     };
     pl_set_api(ptApiRegistry, plUiI, &tApi);
 
@@ -2798,7 +2797,7 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

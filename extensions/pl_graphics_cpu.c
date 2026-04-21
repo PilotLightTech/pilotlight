@@ -307,68 +307,68 @@ typedef struct _plSwapchain
 //-----------------------------------------------------------------------------
 
 plTimelineSemaphore*
-pl_create_semaphore(plDevice* ptDevice, bool bHostVisible)
+pl_graphics_create_semaphore(plDevice* ptDevice, bool bHostVisible)
 {
     plTimelineSemaphore* ptSemaphore = pl__get_new_semaphore(ptDevice);
     return ptSemaphore;
 }
 
 void
-pl_cleanup_semaphore(plTimelineSemaphore* ptSemaphore)
+pl_graphics_cleanup_semaphore(plTimelineSemaphore* ptSemaphore)
 {
 }
 
 void
-pl_signal_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore, uint64_t ulValue)
+pl_graphics_signal_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore, uint64_t ulValue)
 {
 }
 
 void
-pl_wait_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore, uint64_t ulValue)
+pl_graphics_wait_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore, uint64_t ulValue)
 {
 }
 
 uint64_t
-pl_get_semaphore_value(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
+pl_graphics_get_semaphore_value(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
 {
     uint64_t ulValue = 0;
     return ulValue;
 }
 
 plTimelineEvent*
-pl_create_event(plDevice* ptDevice)
+pl_graphics_create_event(plDevice* ptDevice)
 {
     plTimelineEvent* ptEvent = pl__get_new_event(ptDevice);
     return ptEvent;
 }
 
 void
-pl_cleanup_event(plTimelineEvent* ptEvent)
+pl_graphics_cleanup_event(plTimelineEvent* ptEvent)
 {
     pl__return_event(ptEvent->ptDevice, ptEvent);
 }
 
 void
-pl_reset_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tSrcStages)
+pl_graphics_reset_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tSrcStages)
 {
 }
 
 void
-pl_set_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tFlags)
+pl_graphics_set_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tFlags)
 {
 }
 
 void
-pl_wait_for_events(plCommandBuffer* ptCmdBuffer, plTimelineEvent** atEvents, uint32_t uEventCount, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages)
+pl_graphics_wait_for_events(plCommandBuffer* ptCmdBuffer, plTimelineEvent** atEvents, uint32_t uEventCount, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages)
 {
 }
 
 
 plBufferHandle
-pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer **ptBufferOut)
+pl_graphics_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer **ptBufferOut)
 {
     plBufferHandle tHandle = pl__get_new_buffer_handle(ptDevice);
-    plBuffer* ptBuffer = pl__get_buffer(ptDevice, tHandle);
+    plBuffer* ptBuffer = pl_graphics_get_buffer(ptDevice, tHandle);
     ptBuffer->tDesc = *ptDesc;
 
     if(ptDesc->pcDebugName == NULL)
@@ -393,7 +393,7 @@ pl_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer **ptBu
 }
 
 void
-pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
+pl_graphics_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
 {   
     plBuffer* ptBuffer = &ptDevice->sbtBuffersCold[tHandle.uIndex];
     ptBuffer->tMemoryAllocation = *ptAllocation;
@@ -406,86 +406,86 @@ pl_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, const plDev
 
 }
 
-static plDynamicDataBlock
-pl_allocate_dynamic_data_block(plDevice* ptDevice)
+plDynamicDataBlock
+pl_graphics_allocate_dynamic_data_block(plDevice* ptDevice)
 {
     plDynamicDataBlock tBlock = {0};
     return tBlock;
 }
 
 void
-pl_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_graphics_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
 
 }
 
 void
-pl_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
+pl_graphics_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
 {
 }
 
 void
-pl_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
+pl_graphics_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 {
 }
 
 plSamplerHandle
-pl_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
+pl_graphics_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
 {
     plSamplerHandle tHandle = pl__get_new_sampler_handle(ptDevice);
     return tHandle;
 }
 
 plBindGroupHandle
-pl_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
+pl_graphics_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
 {
     plBindGroupHandle tHandle = pl__get_new_bind_group_handle(ptDevice);
     return tHandle;
 }
 
 plBindGroupLayoutHandle
-pl_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayoutDesc* ptDesc)
+pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayoutDesc* ptDesc)
 {
     plBindGroupLayoutHandle tHandle = pl__get_new_bind_group_layout_handle(ptDevice);
     return tHandle;
 }
 
 void
-pl_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBindGroupUpdateData* ptData)
+pl_graphics_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBindGroupUpdateData* ptData)
 {
 }
 
 plTextureHandle
-pl_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTexture **ptTextureOut)
+pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTexture **ptTextureOut)
 {
     plTextureHandle tHandle = pl__get_new_texture_handle(ptDevice);
     return tHandle;
 }
 
 void
-pl_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
+pl_graphics_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
 {
 }
 
 void
-pl_set_texture_usage_ex(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
+pl_graphics_set_texture_usage_ex(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
 {
 }
 
 void
-pl_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
+pl_graphics_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
 {
 }
 
 plTextureHandle
-pl_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
+pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptViewDesc)
 {
     plTextureHandle tHandle = pl__get_new_texture_handle(ptDevice);
     return tHandle;
 }
 
 plComputeShaderHandle
-pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescription)
+pl_graphics_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescription)
 {
 
     plComputeShaderHandle tHandle = pl__get_new_compute_shader_handle(ptDevice);
@@ -493,27 +493,27 @@ pl_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc* ptDescri
 }
 
 plShaderHandle
-pl_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
+pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 {
     plShaderHandle tHandle = pl__get_new_shader_handle(ptDevice);
     return tHandle;
 }
 
 plTextureHandle*
-pl_get_swapchain_images(plSwapchain* ptSwap, uint32_t* puSizeOut)
+pl_graphics_get_swapchain_images(plSwapchain* ptSwap, uint32_t* puSizeOut)
 {
     return ptSwap->sbtSwapchainTextureViews;
 }
 
 plRenderPassLayoutHandle
-pl_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDesc* ptDesc)
+pl_graphics_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDesc* ptDesc)
 {
     const plRenderPassLayoutHandle tHandle = pl__get_new_render_pass_layout_handle(ptDevice);
     return tHandle;
 }
 
 plRenderPassHandle
-pl_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const plRenderPassAttachments* ptAttachments)
+pl_graphics_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const plRenderPassAttachments* ptAttachments)
 {
 
     plRenderPassHandle tHandle = pl__get_new_render_pass_handle(ptDevice);
@@ -521,121 +521,121 @@ pl_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const 
 }
 
 void
-pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments)
+pl_graphics_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments)
 {
 }
 
 void
-pl_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginCommandInfo* ptBeginInfo)
+pl_graphics_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginCommandInfo* ptBeginInfo)
 {
 }
 
 plRenderEncoder*
-pl_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, const plPassResources* ptResource)
+pl_graphics_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, const plPassResources* ptResource)
 {
     plRenderEncoder* ptEncoder = pl__get_new_render_encoder();
     return ptEncoder;
 }
 
 void
-pl_next_subpass(plRenderEncoder* ptEncoder, const plPassResources* ptResource)
+pl_graphics_next_subpass(plRenderEncoder* ptEncoder, const plPassResources* ptResource)
 {
 }
 
 void
-pl_end_render_pass(plRenderEncoder* ptEncoder)
-{
-}
-
-static void
-pl_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
+pl_graphics_end_render_pass(plRenderEncoder* ptEncoder)
 {
 }
 
 void
-pl_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
+pl_graphics_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
 {
 }
 
 void
-pl_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw *atDraws)
+pl_graphics_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
 {
 }
 
 void
-pl_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex *atDraws)
+pl_graphics_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw *atDraws)
 {
 }
 
 void
-pl_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
+pl_graphics_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex *atDraws)
 {
 }
 
 void
-pl_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle)
+pl_graphics_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
 {
 }
 
 void
-pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAreas)
+pl_graphics_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle)
+{
+}
+
+void
+pl_graphics_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAreas)
 {
 
 }
 
 void
-pl_set_depth_bias(plRenderEncoder* ptEncoder, float fDepthBiasConstantFactor, float fDepthBiasClamp, float fDepthBiasSlopeFactor)
+pl_graphics_set_depth_bias(plRenderEncoder* ptEncoder, float fDepthBiasConstantFactor, float fDepthBiasClamp, float fDepthBiasSlopeFactor)
 {
 }
 
 void
-pl_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
+pl_graphics_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
 {
 }
 
 void
-pl_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
+pl_graphics_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
 {
 }
 
 plDeviceMemoryAllocation
-pl_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags, uint32_t uTypeFilter, const char* pcName)
+pl_graphics_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMemoryFlags, uint32_t uTypeFilter, const char* pcName)
 {
     plDeviceMemoryAllocation tBlock = {0};
     return tBlock;
 }
 
 void
-pl_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
+pl_graphics_free_memory(plDevice* ptDevice, plDeviceMemoryAllocation* ptBlock)
 {
 }
 
 bool
-pl_gfx_flush_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
+pl_graphics_flush_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
 {
     return true;
 }
 
 bool
-pl_gfx_invalidate_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
+pl_graphics_invalidate_memory(plDevice* ptDevice, uint32_t uRangeCount, const plDeviceMemoryRange* atRanges)
 {
     return true;
 }
 
 plGraphicsBackend
-pl_get_backend(void)
+pl_graphics_get_backend(void)
 {
     return PL_GRAPHICS_BACKEND_CPU;
 }
 
 const char*
-pl_get_backend_string(void)
+pl_graphics_get_backend_string(void)
 {
     return "CPU Rasterizer";
 }
 
 bool
-pl_initialize_graphics(const plGraphicsInit* ptDesc)
+pl_graphics_initialize(const plGraphicsInit* ptDesc)
 {
     static plGraphics gtGraphics = {0};
     gptGraphics = &gtGraphics;
@@ -665,8 +665,8 @@ pl_initialize_graphics(const plGraphicsInit* ptDesc)
     return true;
 }
 
-static void
-pl_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCount)
+void
+pl_graphics_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCount)
 {
     *puDeviceCount = 1;
 
@@ -682,7 +682,7 @@ pl_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCount)
 }
 
 plDevice*
-pl_create_device(const plDeviceInit* ptInit)
+pl_graphics_create_device(const plDeviceInit* ptInit)
 {
 
     plDevice* ptDevice = PL_ALLOC(sizeof(plDevice));
@@ -723,7 +723,7 @@ pl_create_device(const plDeviceInit* ptInit)
 }
 
 plSurface*
-pl_create_surface(plWindow* ptWindow)
+pl_graphics_create_surface(plWindow* ptWindow)
 {
     plSurface* ptSurface = PL_ALLOC(sizeof(plSurface));
     memset(ptSurface, 0, sizeof(plSurface));
@@ -731,7 +731,7 @@ pl_create_surface(plWindow* ptWindow)
 }
 
 plSwapchain*
-pl_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainInit* ptInit)
+pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainInit* ptInit)
 {
 
     plSwapchain* ptSwap = PL_ALLOC(sizeof(plSwapchain));
@@ -740,7 +740,7 @@ pl_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainI
 }
 
 void
-pl_begin_frame(plDevice* ptDevice)
+pl_graphics_begin_frame(plDevice* ptDevice)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     pl__garbage_collect(ptDevice);
@@ -748,7 +748,7 @@ pl_begin_frame(plDevice* ptDevice)
 }
 
 bool
-pl_acquire_swapchain_image(plSwapchain* ptSwap)
+pl_graphics_acquire_swapchain_image(plSwapchain* ptSwap)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -756,12 +756,12 @@ pl_acquire_swapchain_image(plSwapchain* ptSwap)
 }
 
 void
-pl_end_command_recording(plCommandBuffer* ptCommandBuffer)
+pl_graphics_end_command_recording(plCommandBuffer* ptCommandBuffer)
 {
 }
 
 bool
-pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwapchain **ptSwaps, uint32_t uSwapchainCount)
+pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwapchain **ptSwaps, uint32_t uSwapchainCount)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
@@ -770,120 +770,120 @@ pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwa
 }
 
 void
-pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
+pl_graphics_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
-pl_flush_device(plDevice* ptDevice)
+pl_graphics_flush_device(plDevice* ptDevice)
 {
 }
 
 void
-pl_cleanup_graphics(void)
+pl_graphics_cleanup(void)
 {
     pl__cleanup_common_graphics();
 }
 
 void
-pl_cleanup_surface(plSurface* ptSurface)
+pl_graphics_cleanup_surface(plSurface* ptSurface)
 {
     PL_FREE(ptSurface);
 }
 
 void
-pl_cleanup_swapchain(plSwapchain* ptSwap)
+pl_graphics_cleanup_swapchain(plSwapchain* ptSwap)
 {
     pl__cleanup_common_swapchain(ptSwap);
 }
 
 void
-pl_cleanup_device(plDevice* ptDevice)
+pl_graphics_cleanup_device(plDevice* ptDevice)
 {
     pl__cleanup_common_device(ptDevice);
 }
 
 void
-pl_pipeline_barrier(plCommandBuffer* ptCommandBuffer, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
+pl_graphics_pipeline_barrier(plCommandBuffer* ptCommandBuffer, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
 {
 }
 
 void
-pl_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
+pl_graphics_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
 {
 }
 
 void
-pl_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
+pl_graphics_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
 {
 }
 
 void
-pl_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
+pl_graphics_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
 {
 }
 
 plComputeEncoder*
-pl_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResources* ptResources)
+pl_graphics_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResources* ptResources)
 {
     plComputeEncoder* ptEncoder = pl__get_new_compute_encoder();
     return ptEncoder;
 }
 
 void
-pl_end_compute_pass(plComputeEncoder* ptEncoder)
+pl_graphics_end_compute_pass(plComputeEncoder* ptEncoder)
 {
     pl__return_compute_encoder(ptEncoder);
 }
 
 plBlitEncoder*
-pl_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
+pl_graphics_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
 {
     plBlitEncoder* ptEncoder = pl__get_new_blit_encoder();
     return ptEncoder;
 }
 
 void
-pl_end_blit_pass(plBlitEncoder* ptEncoder)
+pl_graphics_end_blit_pass(plBlitEncoder* ptEncoder)
 {
     pl__return_blit_encoder(ptEncoder);
 }
 
 void
-pl_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispatch *atDispatches)
+pl_graphics_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispatch *atDispatches)
 {
 }
 
 void
-pl_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst,
+pl_graphics_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst,
     uint32_t uCount, const plBindGroupHandle *atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
 {
 }
 
 void
-pl_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle *atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
+pl_graphics_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle *atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
 {
 }
 
 void
-pl_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
+pl_graphics_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo)
 {
 }
 
 void
-pl_wait_on_command_buffer(plCommandBuffer* ptCmdBuffer)
+pl_graphics_wait_on_command_buffer(plCommandBuffer* ptCmdBuffer)
 {
 }
 
 void
-pl_return_command_buffer(plCommandBuffer* ptCmdBuffer)
+pl_graphics_return_command_buffer(plCommandBuffer* ptCmdBuffer)
 {
 }
 
 plBindGroupPool*
-pl_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc* ptDesc)
+pl_graphics_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc* ptDesc)
 {
     plBindGroupPool* ptPool = PL_ALLOC(sizeof(plBindGroupPool));
     memset(ptPool, 0, sizeof(plBindGroupPool));
@@ -891,18 +891,18 @@ pl_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc* ptDesc)
 }
 
 void
-pl_reset_bind_group_pool(plBindGroupPool* ptPool)
+pl_graphics_reset_bind_group_pool(plBindGroupPool* ptPool)
 {
 }
 
 void
-pl_cleanup_bind_group_pool(plBindGroupPool* ptPool)
+pl_graphics_cleanup_bind_group_pool(plBindGroupPool* ptPool)
 {
     PL_FREE(ptPool);
 }
 
 plCommandPool *
-pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
+pl_graphics_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
 {
     plCommandPool* ptPool = PL_ALLOC(sizeof(plCommandPool));
     memset(ptPool, 0, sizeof(plCommandPool));
@@ -910,23 +910,23 @@ pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
 }
 
 void
-pl_cleanup_command_pool(plCommandPool* ptPool)
+pl_graphics_cleanup_command_pool(plCommandPool* ptPool)
 {
     PL_FREE(ptPool);
 }
 
 void
-pl_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags tFlags)
+pl_graphics_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags tFlags)
 {
 }
 
 void
-pl_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
+pl_graphics_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
 {
 }
 
 plCommandBuffer*
-pl_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
+pl_graphics_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
 {
     plCommandBuffer* ptCommandBuffer = ptPool->ptCommandBufferFreeList;
     if (ptCommandBuffer)
@@ -942,17 +942,17 @@ pl_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
 }
 
 void
-pl_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint64_t uSourceOffset, uint64_t uDestinationOffset, size_t szSize)
+pl_graphics_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint64_t uSourceOffset, uint64_t uDestinationOffset, size_t szSize)
 {
 }
 
 void
-pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_graphics_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
 }
 
 void
-pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
+pl_graphics_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
     PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy buffer %u immediately", tHandle.uIndex);
     ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
@@ -962,88 +962,88 @@ pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 }
 
 void
-pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
+pl_graphics_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
 {
 }
 
 void
-pl_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
+pl_graphics_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 {
 }
 
 void
-pl_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
+pl_graphics_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
 }
 
 void
-pl_destroy_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
+pl_graphics_destroy_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandle tHandle)
 {
 }
 
 void
-pl_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
+pl_graphics_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
 {
 }
 
 void
-pl_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
+pl_graphics_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
 {
 }
 
 void
-pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
+pl_graphics_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
 }
 
 void
-pl_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
+pl_graphics_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHandle)
 {
 }
 
 void
-pl_push_render_debug_group(plRenderEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+pl_graphics_push_render_debug_group(plRenderEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
 {
 }
 
 void
-pl_pop_render_debug_group(plRenderEncoder* ptEncoder)
+pl_graphics_pop_render_debug_group(plRenderEncoder* ptEncoder)
 {
 }
 
 void
-pl_push_blit_debug_group(plBlitEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+pl_graphics_push_blit_debug_group(plBlitEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
 {
 }
 
 void
-pl_pop_blit_debug_group(plBlitEncoder* ptEncoder)
+pl_graphics_pop_blit_debug_group(plBlitEncoder* ptEncoder)
 {
 }
 
 void
-pl_push_compute_debug_group(plComputeEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
+pl_graphics_push_compute_debug_group(plComputeEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
 {
 }
 
 void
-pl_pop_compute_debug_group(plComputeEncoder* ptEncoder)
+pl_graphics_pop_compute_debug_group(plComputeEncoder* ptEncoder)
 {
 }
 
 void
-pl_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
+pl_graphics_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
 {
 
 }
 
 void
-pl_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
+pl_graphics_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
 {
 }
 
 void
-pl_pop_debug_group(plCommandBuffer* ptCmdBuffer)
+pl_graphics_pop_debug_group(plCommandBuffer* ptCmdBuffer)
 {
 }
 

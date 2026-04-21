@@ -10,7 +10,8 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] enums
 // [SECTION] structs
 // [SECTION] components
@@ -38,6 +39,10 @@ Index of this file:
 #ifndef PL_ANIMATION_EXT_H
 #define PL_ANIMATION_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
@@ -56,6 +61,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stddef.h>       // size_t
 #include <stdbool.h>      // bool
 #include "pl_ecs_ext.inl" // plEntity
@@ -85,7 +91,33 @@ typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_animation_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_animation_ext(plApiRegistryI*, bool reload);
+
+// system setup/shutdown/etc
+PL_API void         pl_animation_register_ecs_system(void);
+
+// entity helpers (creates entity and necessary components)
+//   - do NOT store out parameter; use it immediately
+PL_API plEntity     pl_animation_create     (plComponentLibrary*, const char* name, uint32_t channelCount, plAnimationComponent**);
+PL_API plEntity     pl_animation_create_data(plComponentLibrary*, const char* name, uint32_t keyFrameCount, size_t dataSize, plAnimationDataComponent**);
+
+// systems
+PL_API void         pl_animation_run_animation_update_system         (plComponentLibrary*, float deltaTime);
+PL_API void         pl_animation_run_inverse_kinematics_update_system(plComponentLibrary*);
+
+// ecs types
+PL_API plEcsTypeKey pl_animation_get_ecs_type_key_animation         (void);
+PL_API plEcsTypeKey pl_animation_get_ecs_type_key_animation_data    (void);
+PL_API plEcsTypeKey pl_animation_get_ecs_type_key_inverse_kinematics(void);
+PL_API plEcsTypeKey pl_animation_get_ecs_type_key_humanoid          (void);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plAnimationI
@@ -96,8 +128,8 @@ typedef struct _plAnimationI
 
     // entity helpers (creates entity and necessary components)
     //   - do NOT store out parameter; use it immediately
-    plEntity (*create_animation)     (plComponentLibrary*, const char* pcName, uint32_t channelCount, plAnimationComponent**);
-    plEntity (*create_animation_data)(plComponentLibrary*, const char* pcName, uint32_t keyFrameCount, size_t dataSize, plAnimationDataComponent**);
+    plEntity (*create)     (plComponentLibrary*, const char* name, uint32_t channelCount, plAnimationComponent**);
+    plEntity (*create_data)(plComponentLibrary*, const char* name, uint32_t keyFrameCount, size_t dataSize, plAnimationDataComponent**);
 
     // systems
     void (*run_animation_update_system)         (plComponentLibrary*, float fDeltaTime);
@@ -263,5 +295,9 @@ typedef struct _plInverseKinematicsComponent
     uint32_t uChainLength;
     uint32_t uIterationCount;
 } plInverseKinematicsComponent;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_ANIMATION_EXT_H

@@ -49,8 +49,8 @@ static const plMemoryI *gptMemory = NULL;
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-static void
-pl_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, plRenderPassHandle tMainRenderPass)
+void
+pl_dear_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, plRenderPassHandle tMainRenderPass)
 {
 
     ImPlotContext *ptImPlotContext = ImPlot::CreateContext();
@@ -82,8 +82,8 @@ pl_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, plRenderPassHandle 
 #endif
 }
 
-static void
-pl_imgui_cleanup(void)
+void
+pl_dear_imgui_cleanup(void)
 {
 #ifdef PL_CPU_BACKEND
 #elif defined(PL_VULKAN_BACKEND)
@@ -96,8 +96,8 @@ pl_imgui_cleanup(void)
     ImPlot::DestroyContext();
 }
 
-static void
-pl_imgui_new_frame(plDevice *ptDevice, plRenderPassHandle tMainRenderPass)
+void
+pl_dear_imgui_new_frame(plDevice *ptDevice, plRenderPassHandle tMainRenderPass)
 {
 #ifdef PL_CPU_BACKEND
 #elif defined(PL_VULKAN_BACKEND)
@@ -110,8 +110,8 @@ pl_imgui_new_frame(plDevice *ptDevice, plRenderPassHandle tMainRenderPass)
     ImGui::NewFrame();
 }
 
-static void
-pl_imgui_render(plRenderEncoder *ptRenderEncoder, plCommandBuffer *ptCommandBuffer)
+void
+pl_dear_imgui_render(plRenderEncoder *ptRenderEncoder, plCommandBuffer *ptCommandBuffer)
 {
     ImGui::Render();
     ImDrawData *main_draw_data = ImGui::GetDrawData();
@@ -133,7 +133,7 @@ pl_imgui_render(plRenderEncoder *ptRenderEncoder, plCommandBuffer *ptCommandBuff
 }
 
 ImTextureID
-pl_imgui_get_texture_id_from_bindgroup(plDevice *ptDevice, plBindGroupHandle tHandle)
+pl_dear_imgui_get_texture_id_from_bindgroup(plDevice *ptDevice, plBindGroupHandle tHandle)
 {
 #if defined(PL_VULKAN_BACKEND)
     return (ImTextureID)gptGfx->get_vulkan_descriptor_set(ptDevice, tHandle);
@@ -148,15 +148,15 @@ pl_imgui_get_texture_id_from_bindgroup(plDevice *ptDevice, plBindGroupHandle tHa
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_dear_imgui_ext(const plApiRegistryI *ptApiRegistry, bool bReload)
 {
     plDearImGuiI tApi = PL_ZERO_INIT;
-    tApi.initialize = pl_imgui_initialize;
-    tApi.cleanup = pl_imgui_cleanup;
-    tApi.new_frame = pl_imgui_new_frame;
-    tApi.render = pl_imgui_render;
-    tApi.get_texture_id_from_bindgroup = pl_imgui_get_texture_id_from_bindgroup;
+    tApi.initialize                    = pl_dear_imgui_initialize;
+    tApi.cleanup                       = pl_dear_imgui_cleanup;
+    tApi.new_frame                     = pl_dear_imgui_new_frame;
+    tApi.render                        = pl_dear_imgui_render;
+    tApi.get_texture_id_from_bindgroup = pl_dear_imgui_get_texture_id_from_bindgroup;
     pl_set_api(ptApiRegistry, plDearImGuiI, &tApi);
 
     gptGfx = pl_get_api_latest(ptApiRegistry, plGraphicsI);
@@ -177,7 +177,7 @@ pl_load_dear_imgui_ext(const plApiRegistryI *ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_dear_imgui_ext(const plApiRegistryI *ptApiRegistry, bool bReload)
 {
 

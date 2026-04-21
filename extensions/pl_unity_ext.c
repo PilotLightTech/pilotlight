@@ -15,6 +15,8 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include "pl.h"
+#include "pl_unity_ext.h"
+#include "pl_unity_ext.inc"
 
 #include "pl_stage_ext.c"
 #include "pl_shader_ext.c"
@@ -64,14 +66,320 @@ Index of this file:
 #include "pl_image_ops_ext.c"
 
 //-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+void 
+pl_io_new_frame(void)
+{
+    gptIOI->new_frame();
+}
+
+plIO*
+pl_io_get_io(void)
+{
+    return gptIOI->get_io();
+}
+
+bool
+pl_io_is_key_down(plKey tKey)
+{
+    return gptIOI->is_key_down(tKey);
+}
+
+bool
+pl_io_is_key_pressed(plKey tKey, bool bRepeat)
+{
+    return gptIOI->is_key_pressed(tKey, bRepeat);
+}
+
+bool
+pl_io_is_key_released(plKey tKey)
+{
+    return gptIOI->is_key_released(tKey);
+}
+
+int
+pl_io_get_key_pressed_amount(plKey tKey, float repeatDelay, float rate)
+{
+    return gptIOI->get_key_pressed_amount(tKey, repeatDelay, rate);
+}
+
+bool
+pl_io_is_mouse_down(plMouseButton tButton)
+{
+    return gptIOI->is_mouse_down(tButton);
+}
+
+bool
+pl_io_is_mouse_clicked(plMouseButton tButton, bool repeat)
+{
+    return gptIOI->is_mouse_clicked(tButton, repeat);
+}
+
+bool
+pl_io_is_mouse_released(plMouseButton tButton)
+{
+    return gptIOI->is_mouse_released(tButton);
+}
+
+bool
+pl_io_is_mouse_double_clicked(plMouseButton tButton)
+{
+    return gptIOI->is_mouse_double_clicked(tButton);
+}
+
+bool
+pl_io_is_mouse_dragging(plMouseButton tButton, float threshold)
+{
+    return gptIOI->is_mouse_dragging(tButton, threshold);
+}
+
+bool
+pl_io_is_mouse_hovering_rect(plVec2 tMinVec, plVec2 maxVec)
+{
+    return gptIOI->is_mouse_hovering_rect(tMinVec, maxVec);
+}
+
+void
+pl_io_reset_mouse_drag_delta(plMouseButton tButton)
+{
+    gptIOI->reset_mouse_drag_delta(tButton);
+}
+
+plVec2
+pl_io_get_mouse_drag_delta(plMouseButton tButton, float fThreshold)
+{
+    return gptIOI->get_mouse_drag_delta(tButton, fThreshold);
+}
+
+plVec2
+pl_io_get_mouse_pos(void)
+{
+    return gptIOI->get_mouse_pos();
+}
+
+float
+pl_io_get_mouse_wheel(void)
+{
+    return gptIOI->get_mouse_wheel();
+}
+
+bool
+pl_io_is_mouse_pos_valid(plVec2 tPos)
+{
+    return gptIOI->is_mouse_pos_valid(tPos);
+}
+
+void
+pl_io_set_mouse_cursor(plMouseCursor tCursor)
+{
+    gptIOI->set_mouse_cursor(tCursor);
+}
+
+void
+pl_io_add_key_event(plKey tKey, bool bDown)
+{
+    gptIOI->add_key_event(tKey, bDown);
+}
+
+void
+pl_io_add_text_event(uint32_t uChar)
+{
+    gptIOI->add_text_event(uChar);
+}
+
+void
+pl_io_add_text_event_utf16(uint16_t uChar)
+{
+    gptIOI->add_text_event_utf16(uChar);
+}
+
+void
+pl_io_add_text_events_utf8(const char* pcText)
+{
+    gptIOI->add_text_events_utf8(pcText);
+}
+
+void
+pl_io_add_mouse_pos_event(float x, float y)
+{
+    gptIOI->add_mouse_pos_event(x, y);
+}
+
+void
+pl_io_add_mouse_button_event(int tButton, bool down)
+{
+    gptIOI->add_mouse_button_event(tButton, down);
+}
+
+void
+pl_io_add_mouse_wheel_event(float horizontalDelta, float verticalDelta)
+{
+    gptIOI->add_mouse_wheel_event(horizontalDelta, verticalDelta);
+}
+
+void
+pl_io_clear_input_characters(void)
+{
+    gptIOI->clear_input_characters();
+}
+
+plVersion
+pl_io_get_version(void)
+{
+    return gptIOI->get_version();
+}
+
+const char*
+pl_io_get_version_string(void)
+{
+    return gptIOI->get_version_string();
+}
+
+void
+pl_data_registry_set_data(const char* pcName, void* pData)
+{
+    gptDataRegistry->set_data(pcName, pData);
+}
+
+void*
+pl_data_registry_get_data(const char* pcName)
+{
+    return gptDataRegistry->get_data(pcName);
+}
+
+const plWindowCapabilities*
+pl_window_get_capabilities(void)
+{
+    return gptWindow->get_capabilities();
+}
+
+plWindowResult
+pl_window_create(plWindowDesc tDesc, plWindow** windowPtrOut)
+{
+    return gptWindow->create(tDesc, windowPtrOut);
+}
+
+void
+pl_window_destroy(plWindow* ptWindow)
+{
+    gptWindow->destroy(ptWindow);
+}
+
+void
+pl_window_show(plWindow* ptWindow)
+{
+    gptWindow->show(ptWindow);
+}
+
+bool
+pl_window_set_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, const plWindowAttributeValue* ptValue)
+{
+    return gptWindow->set_attribute(ptWindow, tAttribute, ptValue);
+}
+
+bool
+pl_window_get_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWindowAttributeValue* ptValue)
+{
+    return gptWindow->get_attribute(ptWindow, tAttribute, ptValue);
+}
+
+bool
+pl_window_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
+{
+    return gptWindow->set_cursor_mode(ptWindow, tMode);
+}
+
+plCursorMode
+pl_window_get_cursor_mode(plWindow* ptWindow)
+{
+    return gptWindow->get_cursor_mode(ptWindow);
+}
+
+bool
+pl_window_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
+{
+    return gptWindow->set_raw_mouse_input(ptWindow, bValue);
+}
+
+bool
+pl_window_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* ptDesc)
+{
+    return gptWindow->set_fullscreen(ptWindow, ptDesc);
+}
+
+void
+pl_window_set_callback(plWindow* ptWindow, plWindowEventCallback tCallback, void* userData)
+{
+    gptWindow->set_callback(ptWindow, tCallback, userData);
+}
+
+plWindowEventCallback
+pl_window_get_callback(plWindow* ptWindow)
+{
+    return gptWindow->get_callback(ptWindow);
+}
+
+plLibraryResult
+pl_library_load(plLibraryDesc tDesc, plSharedLibrary** libraryPtrOut)
+{
+    return gptLibrary->load(tDesc, libraryPtrOut);
+}
+
+bool
+pl_library_has_changed(plSharedLibrary* ptLibrary)
+{
+    return gptLibrary->has_changed(ptLibrary);
+}
+
+void*
+pl_library_load_function(plSharedLibrary* ptLibrary, const char* pcName)
+{
+    return gptLibrary->load_function(ptLibrary, pcName);
+}
+
+bool
+pl_extension_registry_load(const char* name, const char* loadFunc, const char* unloadFunc, bool reloadable)
+{
+    return gptExtensionRegistry->load(name, loadFunc, unloadFunc, reloadable);
+}
+
+bool
+pl_extension_registry_unload(const char* name)
+{
+    return gptExtensionRegistry->unload(name);
+}
+
+void
+pl_extension_registry_add_path(const char* path)
+{
+    gptExtensionRegistry->add_path(path);
+}
+
+PL_API void*
+pl_memory_realloc(void* pData, size_t szSize)
+{
+    return gptMemory->realloc(pData, szSize);
+}
+
+PL_API void*
+pl_memory_tracked_realloc(void* pData, size_t szSize, const char* file, int line)
+{
+    return gptMemory->tracked_realloc(pData, szSize, file, line);
+}
+
+//-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     gptApiRegistry       = ptApiRegistry;
     gptDataRegistry      = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+    gptWindow            = pl_get_api_latest(ptApiRegistry, plWindowI);
+    gptLibrary           = pl_get_api_latest(ptApiRegistry, plLibraryI);
     gptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
     gptMemory            = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptString            = pl_get_api_latest(ptApiRegistry, plStringInternI);
@@ -139,7 +447,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
 
     pl_load_ecs_ext(ptApiRegistry, bReload);
-    pl_load_camera_ecs_ext(ptApiRegistry, bReload);
+    pl_load_camera_ext(ptApiRegistry, bReload);
     pl_load_resource_ext(ptApiRegistry, bReload);
     pl_load_model_loader_ext(ptApiRegistry, bReload);
     pl_load_renderer_ext(ptApiRegistry, bReload);
@@ -173,7 +481,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_stage_ext(ptApiRegistry, bReload);
 }
 
-PL_EXPORT void
+void
 pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     pl_unload_shader_ext(ptApiRegistry, bReload);
@@ -191,7 +499,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_ui_ext(ptApiRegistry, bReload);
     pl_unload_ecs_ext(ptApiRegistry, bReload);
     pl_unload_mesh_ext(ptApiRegistry, bReload);
-    pl_unload_camera_ecs_ext(ptApiRegistry, bReload);
+    pl_unload_camera_ext(ptApiRegistry, bReload);
     pl_unload_resource_ext(ptApiRegistry, bReload);
     pl_unload_model_loader_ext(ptApiRegistry, bReload);
     pl_unload_renderer_ext(ptApiRegistry, bReload);

@@ -1332,11 +1332,11 @@ pl__propagate_activation_level(plTerrainHeightMap* ptHeightMap, int cx, int cz, 
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plTerrainI tApi = {
-        .process = pl_terrain_process,
+        .process         = pl_terrain_process,
         .load_chunk_file = pl_terrain_load_chunk_file,
     };
     pl_set_api(ptApiRegistry, plTerrainI, &tApi);
@@ -1345,13 +1345,13 @@ pl_load_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptMemory  = pl_get_api_latest(ptApiRegistry, plMemoryI);
         gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
         gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
-        gptVfs    = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 }
 
-PL_EXPORT void
+void
 pl_unload_terrain_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

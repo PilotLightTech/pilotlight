@@ -10,6 +10,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] api
 // [SECTION] forward declarations
+// [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] enums & flags
 // [SECTION] structs
@@ -35,10 +36,15 @@ Index of this file:
 #ifndef PL_UI_EXT_H
 #define PL_UI_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdbool.h> // bool
 #include <stdint.h>  // uint*_t
 #include <stdarg.h>  // va list
@@ -49,7 +55,7 @@ Index of this file:
 // [SECTION] api
 //-----------------------------------------------------------------------------
 
-#define plUiI_version {1, 0, 0}
+#define plUiI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -83,6 +89,270 @@ typedef struct _plFont        plFont;        // pl_draw_ext.h
 #ifndef plTextureID
     typedef uint32_t plTextureID;
 #endif
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_ui_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_ui_ext(plApiRegistryI*, bool reload);
+
+// setup/shutdown
+PL_API void pl_ui_initialize(void);
+PL_API void pl_ui_cleanup   (void);
+
+// render data
+PL_API plDrawList2D* pl_ui_get_draw_list      (void);
+PL_API plDrawList2D* pl_ui_get_debug_draw_list(void);
+
+// main
+PL_API void pl_ui_new_frame(void); // start a new ui frame, this should be the first command before calling any commands below
+PL_API void pl_ui_end_frame(void); // ends ui frame
+
+// mouse/keyboard ownership
+PL_API bool pl_ui_wants_mouse_capture   (void);
+PL_API bool pl_ui_wants_keyboard_capture(void);
+PL_API bool pl_ui_wants_text_input      (void);
+
+// tools
+PL_API void pl_ui_show_debug_window       (bool* open);
+PL_API void pl_ui_show_style_editor_window(bool* open);
+
+// styling
+PL_API void pl_ui_set_dark_theme  (void);
+PL_API void pl_ui_push_theme_color(plUiColor colorIndex, plVec4 color);
+PL_API void pl_ui_pop_theme_color (uint32_t count);
+
+// fonts
+PL_API void    pl_ui_set_default_font(plFont*);
+PL_API plFont* pl_ui_get_default_font(void);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~windows~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+// windows
+// - only call "end_window()" if "begin_window()" returns true (its call automatically if false)
+// - passing a valid pointer to pbOpen will show a red circle that will turn pbOpen false when clicked
+// - "begin_window()" will return false if collapsed or clipped
+// - if you use autosize, make sure at least 1 row has a static component (or the window will grow unbounded)
+PL_API bool pl_ui_begin_window(const char* name, bool* open, plUiWindowFlags);
+PL_API void pl_ui_end_window  (void);
+
+// popups
+// - only call "end_popup()" if "begin_popup()" returns true (its call automatically if false)
+// - passing a valid pointer to pbOpen will show a red circle that will turn pbOpen false when clicked
+// - "begin_popup()" will return false if collapsed or clipped
+// - if you use autosize, make sure at least 1 row has a static component (or the window will grow unbounded)
+PL_API void pl_ui_open_popup         (const char* name, plUiPopupFlags);
+PL_API void pl_ui_close_current_popup(void);
+PL_API bool pl_ui_is_popup_open      (const char* name);
+PL_API bool pl_ui_begin_popup        (const char* name, plUiWindowFlags);
+PL_API void pl_ui_end_popup          (void);
+
+// window utilities
+PL_API plDrawLayer2D* pl_ui_get_window_fg_drawlayer(void); // returns current window foreground drawlist (call between begin_window(...) & end_window(...))
+PL_API plDrawLayer2D* pl_ui_get_window_bg_drawlayer(void); // returns current window background drawlist (call between begin_window(...) & end_window(...))
+PL_API plVec2         pl_ui_get_cursor_pos         (void); // returns current cursor position (where the next widget will start drawing)
+
+// child windows
+// - only call "end_child()" if "begin_child()" returns true (its call automatically if false)
+// - self-contained window with scrolling & clipping
+PL_API bool pl_ui_begin_child(const char* name, plUiChildFlags, plUiWindowFlags);
+PL_API void pl_ui_end_child  (void);
+
+// tooltips
+// - window that follows the mouse (usually used in combination with "was_last_item_hovered()")
+PL_API void pl_ui_begin_tooltip(void);
+PL_API void pl_ui_end_tooltip  (void);
+
+// window utilities
+// - refers to current window (between "begin_window()" & "end_window()")
+PL_API plVec2 pl_ui_get_window_pos       (void);
+PL_API plVec2 pl_ui_get_window_size      (void);
+PL_API plVec2 pl_ui_get_window_scroll    (void);
+PL_API plVec2 pl_ui_get_window_scroll_max(void);
+PL_API void   pl_ui_set_window_scroll    (plVec2 scroll);
+
+// window manipulation
+// - call before "begin_window()"
+PL_API void pl_ui_set_next_window_pos     (plVec2 pos, plUiConditionFlags);
+PL_API void pl_ui_set_next_window_size    (plVec2 size, plUiConditionFlags);
+PL_API void pl_ui_set_next_window_collapse(bool collapsed, plUiConditionFlags);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~widgets~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+// main
+PL_API bool pl_ui_button          (const char* text);
+PL_API bool pl_ui_selectable      (const char* text, bool* value, plUiSelectableFlags);
+PL_API bool pl_ui_checkbox        (const char* text, bool* value);
+PL_API bool pl_ui_radio_button    (const char* text, int* valuePtr, int value);
+PL_API void pl_ui_image           (plTextureID, plVec2 size);
+PL_API void pl_ui_image_ex        (plTextureID, plVec2 size, plVec2 uv0, plVec2 uv1, plVec4 tintColor, plVec4 borderColor);
+PL_API bool pl_ui_image_button    (const char* id, plTextureID, plVec2 size);
+PL_API bool pl_ui_image_button_ex (const char* id, plTextureID, plVec2 size, plVec2 uv0, plVec2 uv1, plVec4 tintColor, plVec4 borderColor);
+PL_API bool pl_ui_invisible_button(const char* text, plVec2 size);
+PL_API void pl_ui_dummy           (plVec2 size);
+
+// plotting
+PL_API void pl_ui_progress_bar(float fraction, plVec2 size, const char* overlay);
+
+// text
+PL_API void pl_ui_text          (const char* fmt, ...);
+PL_API void pl_ui_text_v        (const char* fmt, va_list args);
+PL_API void pl_ui_color_text    (plVec4 color, const char* fmt, ...);
+PL_API void pl_ui_color_text_v  (plVec4 color, const char* fmt, va_list args);
+PL_API void pl_ui_labeled_text  (const char* label, const char* fmt, ...);
+PL_API void pl_ui_labeled_text_v(const char* label, const char* fmt, va_list args);
+
+// input
+PL_API bool pl_ui_input_text     (const char* label, char* buffer, size_t bufferSize, plUiInputTextFlags);
+PL_API bool pl_ui_input_text_hint(const char* label, const char* hint, char* buffer, size_t bufferSize, plUiInputTextFlags);
+PL_API bool pl_ui_input_float    (const char* label, float* value, const char* fmt, plUiInputTextFlags);
+PL_API bool pl_ui_input_float2   (const char* label, float value[2], const char* fmt, plUiInputTextFlags);
+PL_API bool pl_ui_input_float3   (const char* label, float value[3], const char* fmt, plUiInputTextFlags);
+PL_API bool pl_ui_input_float4   (const char* label, float value[4], const char* fmt, plUiInputTextFlags);
+PL_API bool pl_ui_input_int      (const char* label, int* value, plUiInputTextFlags);
+PL_API bool pl_ui_input_int2     (const char* label, int value[2], plUiInputTextFlags);
+PL_API bool pl_ui_input_int3     (const char* label, int value[3], plUiInputTextFlags);
+PL_API bool pl_ui_input_int4     (const char* label, int value[4], plUiInputTextFlags);
+PL_API bool pl_ui_input_uint     (const char* label, uint32_t* value, plUiInputTextFlags);
+PL_API bool pl_ui_input_uint2    (const char* label, uint32_t value[2], plUiInputTextFlags);
+PL_API bool pl_ui_input_uint3    (const char* label, uint32_t value[3], plUiInputTextFlags);
+PL_API bool pl_ui_input_uint4    (const char* label, uint32_t value[4], plUiInputTextFlags);
+
+// sliders
+PL_API bool pl_ui_slider_float  (const char* label, float* value, float minValue, float maxValue, plUiSliderFlags);
+PL_API bool pl_ui_slider_float_f(const char* label, float* value, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+PL_API bool pl_ui_slider_int    (const char* label, int* value, int minValue, int maxValue, plUiSliderFlags);
+PL_API bool pl_ui_slider_int_f  (const char* label, int* value, int minValue, int maxValue, const char* fmt, plUiSliderFlags);
+PL_API bool pl_ui_slider_uint   (const char* label, uint32_t* value, uint32_t minValue, uint32_t maxValue, plUiSliderFlags);
+PL_API bool pl_ui_slider_uint_f (const char* label, uint32_t* value, uint32_t minValue, uint32_t maxValue, const char* fmt, plUiSliderFlags);
+
+// drag sliders
+PL_API bool pl_ui_drag_float  (const char* label, float* value, float speed, float minValue, float maxValue, plUiSliderFlags);
+PL_API bool pl_ui_drag_float_f(const char* label, float* value, float speed, float minValue, float maxValue, const char* fmt, plUiSliderFlags);
+
+// combo
+PL_API bool pl_ui_begin_combo(const char* label, const char* preview, plUiComboFlags);
+PL_API void pl_ui_end_combo  (void);
+
+// trees
+// - only call "tree_pop()" if "tree_node()" returns true (its call automatically if false)
+// - only call "end_collapsing_header()" if "begin_collapsing_header()" returns true (its call automatically if false)
+PL_API bool pl_ui_begin_collapsing_header(const char* text, plUiTreeNodeFlags);
+PL_API void pl_ui_end_collapsing_header  (void);
+PL_API bool pl_ui_tree_node              (const char* text, plUiTreeNodeFlags);
+PL_API bool pl_ui_tree_node_f            (const char* fmt, plUiTreeNodeFlags, ...);
+PL_API bool pl_ui_tree_node_v            (const char* fmt, plUiTreeNodeFlags, va_list args);
+PL_API void pl_ui_tree_pop               (void);
+
+// tabs & tab bars
+// - only call "end_tab_bar()" if "begin_tab_bar()" returns true (its call automatically if false)
+// - only call "end_tab()" if "begin_tab()" returns true (its call automatically if false)
+PL_API bool pl_ui_begin_tab_bar(const char* text, plUiTabBarFlags);
+PL_API void pl_ui_end_tab_bar  (void);
+PL_API bool pl_ui_begin_tab    (const char* text, plUiTabFlags);
+PL_API void pl_ui_end_tab      (void);
+
+// menus (not ready, do not use yet)
+PL_API bool pl_ui_begin_menu      (const char* label, bool enabled);
+PL_API void pl_ui_end_menu        (void);
+PL_API bool pl_ui_menu_item       (const char* label, const char* shortcut, bool selected, bool enabled);
+PL_API bool pl_ui_menu_item_toggle(const char* label, const char* shortcut, bool* selected, bool enabled);
+
+// misc.
+PL_API void pl_ui_separator_text  (const char* text);
+PL_API void pl_ui_separator       (void);
+PL_API void pl_ui_vertical_spacing(void);
+PL_API void pl_ui_indent          (float);
+PL_API void pl_ui_unindent        (float);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~text filter~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+PL_API void pl_ui_text_filter_cleanup(plUiTextFilter*);
+PL_API void pl_ui_text_filter_build  (plUiTextFilter*);
+PL_API bool pl_ui_text_filter_pass   (plUiTextFilter*, const char* text, const char* text_end);
+PL_API bool pl_ui_text_filter_active (plUiTextFilter*);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~clipper~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+// - clipper based on "Dear ImGui"'s ImGuiListClipper (https://github.com/ocornut/imgui)
+// - Used for large numbers of evenly spaced rows.
+// - Without Clipper:
+//       for(uint32_t i = 0; i < QUANTITY; i++)
+//           ptUi->text("%i", i);
+// - With Clipper:
+//       plUiClipper tClipper = {QUANTITY};
+//       while(ptUi->step_clipper(&tClipper))
+//           for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
+//               ptUi->text("%i", i);
+PL_API bool pl_ui_step_clipper(plUiClipper*);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~layout systems~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+// - layout systems are based on "Nuklear" (https://github.com/Immediate-Mode-UI/Nuklear)
+// - 6 different layout strategies
+// - default layout strategy is system 2 with widgetCount=1 & width=300 & height=0
+// - setting fHeight=0 will cause the row height to be equal to the minimum height of the maximum height widget
+// - currently, there is a bug where the layout system isn't restored (see ISSUE #54),
+//   this will be fixed soon
+
+// layout system 1
+// - provides each widget with the same horizontal space and grows dynamically with the parent window
+// - wraps (i.e. setting widgetCount to 2 and adding 4 widgets will create 2 rows)
+PL_API void pl_ui_layout_dynamic(float height, uint32_t widgetCount);
+
+// layout system 2
+// - provides each widget with the same horizontal pixel widget and does not grow with the parent window
+// - wraps (i.e. setting widgetCount to 2 and adding 4 widgets will create 2 rows)
+PL_API void pl_ui_layout_static(float height, float width, uint32_t widgetCount);
+
+// layout system 3
+// - allows user to change the width per widget
+// - if tType=PL_UI_LAYOUT_ROW_TYPE_STATIC, then width is pixel width
+// - if tType=PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, then width is a ratio of the available width
+// - does not wrap
+PL_API void pl_ui_layout_row_begin(plUiLayoutRowType, float height, uint32_t widgetCount);
+PL_API void pl_ui_layout_row_push (float width);
+PL_API void pl_ui_layout_row_end  (void);
+
+// layout system 4
+// - same as layout system 3 but the "array" form
+// - wraps (i.e. setting widgetCount to 2 and adding 4 widgets will create 2 rows)
+PL_API void pl_ui_layout_row(plUiLayoutRowType, float height, uint32_t widgetCount, const float* sizesOrRatios);
+
+// layout system 5
+// - similar to a flexbox
+// - wraps (i.e. setting widgetCount to 2 and adding 4 widgets will create 2 rows)
+PL_API void pl_ui_layout_template_begin        (float height);
+PL_API void pl_ui_layout_template_push_dynamic (void);        // can go to minimum widget width if not enough space (10 pixels)
+PL_API void pl_ui_layout_template_push_variable(float width); // variable width with min pixel width of width but can grow bigger if enough space
+PL_API void pl_ui_layout_template_push_static  (float width); // static pixel width of width
+PL_API void pl_ui_layout_template_end          (void);
+
+// layout system 6
+// - allows user to place widgets freely
+// - if tType=PL_UI_LAYOUT_ROW_TYPE_STATIC, then width/height is pixel width/height
+// - if tType=PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, then width/height is a ratio of the available width/height (for layout_space_begin())
+// - if tType=PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, then width is a ratio of the available width & height is a ratio of height given to "layout_space_begin()" (for layout_space_push())
+PL_API void pl_ui_layout_space_begin(plUiLayoutRowType, float height, uint32_t widgetCount);
+PL_API void pl_ui_layout_space_push (float fX, float fY, float width, float height);
+PL_API void pl_ui_layout_space_end  (void);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ID stack~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_API void pl_ui_push_id_string (const char*);
+PL_API void pl_ui_push_id_pointer(const void*);
+PL_API void pl_ui_push_id_uint   (uint32_t);
+PL_API void pl_ui_pop_id         (void);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~state query~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_API bool pl_ui_was_last_item_hovered(void);
+PL_API bool pl_ui_was_last_item_active (void);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~focus~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_API void pl_ui_set_keyboard_focus_last_item(void); // don't use yet
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -485,5 +755,9 @@ typedef struct _plUiTextFilter
     uint32_t                     uCountGrep;
     struct _plUiTextFilterRange* sbtFilters;
 } plUiTextFilter;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_UI_EXT_H

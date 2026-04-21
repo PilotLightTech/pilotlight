@@ -332,7 +332,6 @@ with pl.project("pilotlight"):
 
         pl.add_source_files("../editor/app.c")
         pl.set_output_binary("app")
-        pl.add_dynamic_link_libraries("pl_unity_ext", "pl_platform_ext")
 
         def add_app():
             
@@ -675,7 +674,6 @@ with pl.project("pilotlight"):
 
         pl.add_source_files("../editor/editor.cpp")
         pl.set_output_binary("editor")
-        pl.add_dynamic_link_libraries("pl_unity_ext", "pl_platform_ext", "pl_dear_imgui_ext")
 
         # default config
         with pl.configuration("debug_experimental"):

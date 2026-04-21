@@ -9,7 +9,8 @@ Index of this file:
 // [SECTION] apis
 // [SECTION] defines
 // [SECTION] includes
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] structs
 */
 
@@ -56,6 +57,10 @@ Index of this file:
 #ifndef PL_RENDERER_EXT_H
 #define PL_RENDERER_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
@@ -72,6 +77,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include "pl_ecs_ext.inl"      // plEntity
 #include "pl_resource_ext.inl" // plResourceHandle
 #include "pl_math.h"           // plVec3, plMat4
@@ -122,89 +128,144 @@ typedef int plLightType;       // pl_shader_interop_renderer.h
 typedef int plDrawFlags;       // pl_draw_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_renderer_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_renderer_ext(plApiRegistryI*, bool reload);
+
+// setup/shutdown
+PL_API void              pl_renderer_initialize(plRendererSettings);
+PL_API void              pl_renderer_cleanup   (void);
+
+// scenes
+PL_API plScene*          pl_renderer_create_scene (plSceneInit);
+PL_API void              pl_renderer_cleanup_scene(plScene*);
+
+// scene composition
+PL_API void              pl_renderer_load_skybox_from_panorama    (plScene*, const char* path, int resolution);
+PL_API bool              pl_renderer_add_drawable_objects_to_scene(plScene*, uint32_t count, const plEntity* objects);
+PL_API void              pl_renderer_add_probe_to_scene           (plScene*, plEntity);
+PL_API void              pl_renderer_add_light_to_scene           (plScene*, plEntity);
+PL_API void              pl_renderer_add_materials_to_scene       (plScene*, uint32_t count, const plEntity* materials);
+
+// scene - runtime
+PL_API void              pl_renderer_reload_scene_shaders(plScene*);
+PL_API void              pl_renderer_update_scene_material(plScene*, plEntity material);
+
+// views
+PL_API plView*           pl_renderer_create_view     (plScene*, plVec2 dims);
+PL_API void              pl_renderer_cleanup_view    (plView*);
+PL_API plBindGroupHandle pl_renderer_get_view_texture(plView*, plVec2* maxUVOut);
+PL_API void              pl_renderer_resize_view     (plView*, plVec2 dims);
+
+// per frame
+PL_API bool              pl_renderer_begin_frame  (void);
+PL_API void              pl_renderer_prepare_scene(plScene*);
+PL_API void              pl_renderer_prepare_view (plView*, plCamera*);
+PL_API void              pl_renderer_render_view  (plView*, plCamera* mainCamera, plCamera* cullCamera);
+
+// per frame options
+PL_API void              pl_renderer_show_skybox               (plView*);
+PL_API void              pl_renderer_show_grid                 (plView*);
+PL_API void              pl_renderer_debug_draw_lights         (plView*, const plLightComponent*, uint32_t lightCount);
+PL_API void              pl_renderer_debug_draw_all_bound_boxes(plView*);
+PL_API void              pl_renderer_debug_draw_bvh            (plView*);
+
+// selection & highlighting
+PL_API void             pl_renderer_update_hovered_entity(plView*, plVec2 offset, plVec2 windowScale);
+PL_API bool             pl_renderer_get_hovered_entity   (plView*, plEntity*);
+PL_API void             pl_renderer_outline_entities     (plScene*, uint32_t count, plEntity*);
+
+// misc
+PL_API plDrawList3D*             pl_renderer_get_debug_drawlist (plView*);
+PL_API plDrawList3D*             pl_renderer_get_gizmo_drawlist (plView*);
+PL_API plRendererRuntimeOptions* pl_renderer_get_runtime_options(void);
+PL_API void                      pl_renderer_rebuild_scene_bvh  (plScene*);
+
+//----------------------------ECS INTEGRATION----------------------------------
+
+// system setup/shutdown/etc
+PL_API void          pl_renderer_register_ecs_system(void);
+
+// entity helpers (creates entity and necessary components)
+//   - do NOT store out parameter; use it immediately
+PL_API plEntity      pl_renderer_create_object           (plComponentLibrary*, const char* name, plObjectComponent**);
+PL_API plEntity      pl_renderer_create_skin             (plComponentLibrary*, const char* name, plSkinComponent**);
+PL_API plEntity      pl_renderer_create_directional_light(plComponentLibrary*, const char* name, plVec3 dir, plLightComponent**);
+PL_API plEntity      pl_renderer_create_point_light      (plComponentLibrary*, const char* name, plVec3 pos, plLightComponent**);
+PL_API plEntity      pl_renderer_create_spot_light       (plComponentLibrary*, const char* name, plVec3 pos, plVec3 dir, plLightComponent**);
+PL_API plEntity      pl_renderer_create_environment_probe(plComponentLibrary*, const char* name, plVec3 pos, plEnvironmentProbeComponent**);
+
+// object helpers
+PL_API plEntity     pl_renderer_copy_object(plComponentLibrary*, const char* name, plEntity originalObject, plObjectComponent**);
+
+// systems
+PL_API void         pl_renderer_run_object_update_system           (plComponentLibrary*);
+PL_API void         pl_renderer_run_skin_update_system             (plComponentLibrary*);
+PL_API void         pl_renderer_run_light_update_system            (plComponentLibrary*);
+PL_API void         pl_renderer_run_environment_probe_update_system(plComponentLibrary*);
+
+// ecs types
+PL_API plEcsTypeKey pl_renderer_get_ecs_type_key_object           (void);
+PL_API plEcsTypeKey pl_renderer_get_ecs_type_key_skin             (void);
+PL_API plEcsTypeKey pl_renderer_get_ecs_type_key_light            (void);
+PL_API plEcsTypeKey pl_renderer_get_ecs_type_key_environment_probe(void);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plRendererI
 {
-    // setup/shutdown
-    void (*initialize)(plRendererSettings);
-    void (*cleanup)   (void);
-
-    // scenes
-    plScene* (*create_scene) (plSceneInit);
-    void     (*cleanup_scene)(plScene*);
-
-    // scene composition
-    void (*load_skybox_from_panorama)    (plScene*, const char* path, int resolution);
-    bool (*add_drawable_objects_to_scene)(plScene*, uint32_t count, const plEntity* objects);
-    void (*add_probe_to_scene)           (plScene*, plEntity);
-    void (*add_light_to_scene)           (plScene*, plEntity);
-    void (*add_materials_to_scene)       (plScene*, uint32_t count, const plEntity* materials);
-
-    // scene - runtime
-    void (*reload_scene_shaders)(plScene*);
-    void (*update_scene_material)(plScene*, plEntity material);
-
-    // views
-    plView*           (*create_view)     (plScene*, plVec2 dims);
-    void              (*cleanup_view)    (plView*);
-    plBindGroupHandle (*get_view_texture)(plView*, plVec2* maxUVOut);
-    void              (*resize_view)     (plView*, plVec2 dims);
-
-    // per frame
-    bool (*begin_frame)  (void);
-    void (*prepare_scene)(plScene*);
-    void (*prepare_view) (plView*, plCamera*);
-    void (*render_view)  (plView*, plCamera* mainCamera, plCamera* cullCamera);
-    
-    // per frame options
-    void (*show_skybox)               (plView*);
-    void (*show_grid)                 (plView*);
-    void (*debug_draw_lights)         (plView*, const plLightComponent*, uint32_t lightCount);
-    void (*debug_draw_all_bound_boxes)(plView*);
-    void (*debug_draw_bvh)            (plView*);
-
-    // selection & highlighting
-    void (*update_hovered_entity)(plView*, plVec2 offset, plVec2 windowScale);
-    bool (*get_hovered_entity)   (plView*, plEntity*);
-    void (*outline_entities)     (plScene*, uint32_t count, plEntity*);
-
-    // misc
-    plDrawList3D*             (*get_debug_drawlist) (plView*);
-    plDrawList3D*             (*get_gizmo_drawlist) (plView*);
-    plRendererRuntimeOptions* (*get_runtime_options)(void);
-    void                      (*rebuild_scene_bvh)  (plScene*);
-
-    //----------------------------ECS INTEGRATION----------------------------------
-
-    // system setup/shutdown/etc
-    void (*register_ecs_system)(void);
-
-    // entity helpers (creates entity and necessary components)
-    //   - do NOT store out parameter; use it immediately
-    plEntity (*create_object)             (plComponentLibrary*, const char* name, plObjectComponent**);
-    plEntity (*create_skin)               (plComponentLibrary*, const char* name, plSkinComponent**);
-    plEntity (*create_directional_light)  (plComponentLibrary*, const char* name, plVec3 dir, plLightComponent**);
-    plEntity (*create_point_light)        (plComponentLibrary*, const char* name, plVec3 pos, plLightComponent**);
-    plEntity (*create_spot_light)         (plComponentLibrary*, const char* name, plVec3 pos, plVec3 dir, plLightComponent**);
-    plEntity (*create_environment_probe)  (plComponentLibrary*, const char* name, plVec3 pos, plEnvironmentProbeComponent**);
-
-    // object helpers
-    plEntity (*copy_object) (plComponentLibrary*, const char* name, plEntity originalObject, plObjectComponent**);
-
-    // systems
-    void (*run_object_update_system)           (plComponentLibrary*);
-    void (*run_skin_update_system)             (plComponentLibrary*);
-    void (*run_light_update_system)            (plComponentLibrary*);
-    void (*run_environment_probe_update_system)(plComponentLibrary*);
-
-    // ecs types
-    plEcsTypeKey (*get_ecs_type_key_object)           (void);
-    plEcsTypeKey (*get_ecs_type_key_skin)             (void);
-    plEcsTypeKey (*get_ecs_type_key_light)            (void);
-    plEcsTypeKey (*get_ecs_type_key_environment_probe)(void);
-
+    void                      (*initialize)                         (plRendererSettings);
+    void                      (*cleanup)                            (void);
+    plScene*                  (*create_scene)                       (plSceneInit);
+    void                      (*cleanup_scene)                      (plScene*);
+    void                      (*load_skybox_from_panorama)          (plScene*, const char* path, int resolution);
+    bool                      (*add_drawable_objects_to_scene)      (plScene*, uint32_t count, const plEntity* objects);
+    void                      (*add_probe_to_scene)                 (plScene*, plEntity);
+    void                      (*add_light_to_scene)                 (plScene*, plEntity);
+    void                      (*add_materials_to_scene)             (plScene*, uint32_t count, const plEntity* materials);
+    void                      (*reload_scene_shaders)               (plScene*);
+    void                      (*update_scene_material)              (plScene*, plEntity material);
+    plView*                   (*create_view)                        (plScene*, plVec2 dims);
+    void                      (*cleanup_view)                       (plView*);
+    plBindGroupHandle         (*get_view_texture)                   (plView*, plVec2* maxUVOut);
+    void                      (*resize_view)                        (plView*, plVec2 dims);
+    bool                      (*begin_frame)                        (void);
+    void                      (*prepare_scene)                      (plScene*);
+    void                      (*prepare_view)                       (plView*, plCamera*);
+    void                      (*render_view)                        (plView*, plCamera* mainCamera, plCamera* cullCamera);
+    void                      (*show_skybox)                        (plView*);
+    void                      (*show_grid)                          (plView*);
+    void                      (*debug_draw_lights)                  (plView*, const plLightComponent*, uint32_t lightCount);
+    void                      (*debug_draw_all_bound_boxes)         (plView*);
+    void                      (*debug_draw_bvh)                     (plView*);
+    void                      (*update_hovered_entity)              (plView*, plVec2 offset, plVec2 windowScale);
+    bool                      (*get_hovered_entity)                 (plView*, plEntity*);
+    void                      (*outline_entities)                   (plScene*, uint32_t count, plEntity*);
+    plDrawList3D*             (*get_debug_drawlist)                 (plView*);
+    plDrawList3D*             (*get_gizmo_drawlist)                 (plView*);
+    plRendererRuntimeOptions* (*get_runtime_options)                (void);
+    void                      (*rebuild_scene_bvh)                  (plScene*);
+    void                      (*register_ecs_system)                (void);
+    plEntity                  (*create_object)                      (plComponentLibrary*, const char* name, plObjectComponent**);
+    plEntity                  (*create_skin)                        (plComponentLibrary*, const char* name, plSkinComponent**);
+    plEntity                  (*create_directional_light)           (plComponentLibrary*, const char* name, plVec3 dir, plLightComponent**);
+    plEntity                  (*create_point_light)                 (plComponentLibrary*, const char* name, plVec3 pos, plLightComponent**);
+    plEntity                  (*create_spot_light)                  (plComponentLibrary*, const char* name, plVec3 pos, plVec3 dir, plLightComponent**);
+    plEntity                  (*create_environment_probe)           (plComponentLibrary*, const char* name, plVec3 pos, plEnvironmentProbeComponent**);
+    plEntity                  (*copy_object)                        (plComponentLibrary*, const char* name, plEntity originalObject, plObjectComponent**);
+    void                      (*run_object_update_system)           (plComponentLibrary*);
+    void                      (*run_skin_update_system)             (plComponentLibrary*);
+    void                      (*run_light_update_system)            (plComponentLibrary*);
+    void                      (*run_environment_probe_update_system)(plComponentLibrary*);
+    plEcsTypeKey              (*get_ecs_type_key_object)           (void);
+    plEcsTypeKey              (*get_ecs_type_key_skin)             (void);
+    plEcsTypeKey              (*get_ecs_type_key_light)            (void);
+    plEcsTypeKey              (*get_ecs_type_key_environment_probe)(void);
 } plRendererI;
 
 //-----------------------------------------------------------------------------
@@ -354,5 +415,9 @@ typedef struct _plLightComponent
     uint32_t     uCascadeCount;
     float        fShadowLambda;
 } plLightComponent;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_RENDERER_EXT_H

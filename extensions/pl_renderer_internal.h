@@ -526,7 +526,6 @@ typedef struct _plScene
 
     // terrain
     plTerrain* ptTerrain;
-
 } plScene;
 
 typedef struct _plRefRendererData
@@ -579,10 +578,6 @@ typedef struct _plRefRendererData
     // draw stream data
     plDrawStream tDrawStream;
     
-    // sync
-    plTimelineSemaphore* ptClickSemaphore;
-    uint64_t ulSemClickNextValue;
-
     // dynamic buffer system
     plDynamicDataBlock tCurrentDynamicDataBlock;
 

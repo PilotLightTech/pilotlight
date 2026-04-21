@@ -5,7 +5,6 @@
 /*
 Index of this file:
 // [SECTION] includes
-// [SECTION] public api
 // [SECTION] implementation
 // [SECTION] extension loading
 // [SECTION] unity
@@ -19,13 +18,6 @@ Index of this file:
 #include "pl_renderer_terrain.c"
 #include "pl_renderer_internal.c"
 
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api
-//-----------------------------------------------------------------------------
-
-void pl_renderer_reload_scene_shaders(plScene*);
-void pl_renderer_add_materials_to_scene(plScene*, uint32_t, const plEntity* atMaterials);
 
 //-----------------------------------------------------------------------------
 // [SECTION] implementation
@@ -655,9 +647,6 @@ pl_renderer_initialize(plRendererSettings tSettings)
     gptData->tUVRenderPassLayout = gptGfx->create_render_pass_layout(gptData->ptDevice, &tUVRenderPassLayoutDesc);
 
     pl_temp_allocator_reset(&gptData->tTempAllocator);
-
-    // create semaphores
-    gptData->ptClickSemaphore = gptGfx->create_semaphore(gptData->ptDevice, false);
 };
 
 plScene*
@@ -700,7 +689,7 @@ pl_renderer_create_scene(plSceneInit tInit)
         .szByteSize = tInit.szSkinBufferSize,
         .pcDebugName = "skin buffer"
     };
-    gptFreeList->create((uint64_t)tInit.szSkinBufferSize, 128, &ptScene->tSkinBufferFreeList);
+    gptFreeList->create((uint64_t)tInit.szSkinBufferSize, 4096, &ptScene->tSkinBufferFreeList);
 
     const plBindGroupDesc tSkinBindGroupDesc = {
         .ptPool      = gptData->ptBindGroupPool,
@@ -714,24 +703,6 @@ pl_renderer_create_scene(plSceneInit tInit)
         .tLayout     = gptShaderVariant->get_compute_bind_group_layout("skinning", 1),
         .pcDebugName = "skin bind group 2"
     };
-
-    for(uint32_t uFrameIndex = 0; uFrameIndex < gptGfx->get_frames_in_flight(); uFrameIndex++)
-    {
-        
-        ptScene->atDynamicSkinBuffer[uFrameIndex] = pl__renderer_create_staging_buffer(&tSkinBufferDesc, "joint buffer", uFrameIndex);
-
-        const plBindGroupUpdateBufferData tSkinBGBufferData[] = 
-        {
-            { .uSlot = 0, .tBuffer = ptScene->atDynamicSkinBuffer[uFrameIndex], .szBufferRange = tSkinBufferDesc.szByteSize }
-        };
-
-        const plBindGroupUpdateData tSkinBGData = {
-            .uBufferCount      = 1,
-            .atBufferBindings  = tSkinBGBufferData
-        };
-        ptScene->atSkinBindGroup1[uFrameIndex] = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroup2Desc);
-        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atSkinBindGroup1[uFrameIndex], &tSkinBGData);
-    }
 
     const plBufferDesc tIndexBufferDesc = {
         .tUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
@@ -809,6 +780,24 @@ pl_renderer_create_scene(plSceneInit tInit)
 
     gptFreeList->create(atCameraBuffersDesc.szByteSize, sizeof(plMat4) * PL_MAX_SHADOW_CASCADES, &ptScene->tShadowCameraFreeList);
 
+    for(uint32_t uFrameIndex = 0; uFrameIndex < gptGfx->get_frames_in_flight(); uFrameIndex++)
+    {
+        
+        ptScene->atDynamicSkinBuffer[uFrameIndex] = pl__renderer_create_staging_buffer(&tSkinBufferDesc, "joint buffer", uFrameIndex);
+
+        const plBindGroupUpdateBufferData tSkinBGBufferData[] = 
+        {
+            { .uSlot = 0, .tBuffer = ptScene->atDynamicSkinBuffer[uFrameIndex], .szBufferRange = tSkinBufferDesc.szByteSize }
+        };
+
+        const plBindGroupUpdateData tSkinBGData = {
+            .uBufferCount      = 1,
+            .atBufferBindings  = tSkinBGBufferData
+        };
+        ptScene->atSkinBindGroup1[uFrameIndex] = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroup2Desc);
+        gptGfx->update_bind_group(gptData->ptDevice, ptScene->atSkinBindGroup1[uFrameIndex], &tSkinBGData);
+    }
+
     const plBindGroupUpdateBufferData atBufferData[] = 
     {
         { .uSlot = 0, .tBuffer = ptScene->tStorageBuffer, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tStorageBuffer)->tDesc.szByteSize},
@@ -883,11 +872,11 @@ pl_renderer_create_scene(plSceneInit tInit)
     pl_renderer__add_material_to_scene(ptScene, tMaterial);
 
     plMeshComponent* ptMesh = NULL;
-    ptScene->tProbeMesh = gptMesh->create_sphere_mesh(ptScene->ptComponentLibrary, "environment probe mesh", 0.25f, 32, 32, &ptMesh);
+    ptScene->tProbeMesh = gptMesh->create_sphere(ptScene->ptComponentLibrary, "environment probe mesh", 0.25f, 32, 32, &ptMesh);
     ptMesh->tMaterial = tMaterial;
 
     ptMesh = NULL;
-    ptScene->tUnitSphereMesh = gptMesh->create_sphere_mesh(ptScene->ptComponentLibrary, "unit sphere mesh", 1.0f, 16, 16, &ptMesh);
+    ptScene->tUnitSphereMesh = gptMesh->create_sphere(ptScene->ptComponentLibrary, "unit sphere mesh", 1.0f, 16, 16, &ptMesh);
 
     plFreeListNode* ptIndexBufferNode = gptFreeList->get_node(&ptScene->tIndexBufferFreeList, (uint32_t)ptMesh->szIndexCount * sizeof(uint32_t));
     plFreeListNode* ptVertexBufferNode = gptFreeList->get_node(&ptScene->tVertexBufferFreeList, (uint32_t)ptMesh->szVertexCount * sizeof(plVec3));
@@ -1226,6 +1215,7 @@ pl_renderer_create_scene(plSceneInit tInit)
     pl_terrain_set_texture(ptScene, ptScene->ptTerrain, &tTerrainTexture);
 #endif
 
+    // create semaphores
     return ptScene;
 }
 
@@ -2375,8 +2365,6 @@ pl_renderer_cleanup(void)
     gptStage->cleanup();
     gptGfx->flush_device(gptData->ptDevice);
 
-    gptGfx->cleanup_semaphore(gptData->ptClickSemaphore);
-
     gptGfx->cleanup_bind_group_pool(gptData->ptBindGroupPool);
     gptGpuAllocators->cleanup(gptData->ptDevice);
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -3332,9 +3320,9 @@ pl_renderer_prepare_scene(plScene* ptScene)
     pl__renderer_pack_shadow_atlas(ptScene);
 
     const plBeginCommandInfo tShadowBeginInfo = {
-        .uWaitSemaphoreCount   = 2,
-        .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore(), gptStarter->get_last_timeline_semaphore()},
-        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value(), ptScene->uLastSemValueForShadow},
+        .uWaitSemaphoreCount   = 1,
+        .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
+        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
     };
 
     plCommandBuffer* ptShadowCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "scene shadows");
@@ -4603,7 +4591,7 @@ pl_renderer_get_runtime_options(void)
 }
 
 void
-pl_renderer_rebuild_bvh(plScene* ptScene)
+pl_renderer_rebuild_scene_bvh(plScene* ptScene)
 {
     plComponentLibrary* ptLibrary = ptScene->ptComponentLibrary;
 
@@ -4687,7 +4675,7 @@ pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupShare
 }
 
 void
-pl_run_skin_update_system(plComponentLibrary* ptLibrary)
+pl_renderer_run_skin_update_system(plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plSkinComponent* ptComponents = NULL;
@@ -4744,7 +4732,7 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
 }
 
 void
-pl_run_object_update_system(plComponentLibrary* ptLibrary)
+pl_renderer_run_object_update_system(plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     
@@ -4763,7 +4751,7 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
 }
 
 void
-pl_renderer_register_system(void)
+pl_renderer_register_ecs_system(void)
 {
 
     const plComponentDesc tObjectDesc = {
@@ -4824,7 +4812,7 @@ pl_renderer_register_system(void)
 }
 
 void
-pl_run_light_update_system(plComponentLibrary* ptLibrary)
+pl_renderer_run_light_update_system(plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -4849,7 +4837,7 @@ pl_run_light_update_system(plComponentLibrary* ptLibrary)
 }
 
 void
-pl_run_probe_update_system(plComponentLibrary* ptLibrary)
+pl_renderer_run_environment_probe_update_system(plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -4874,7 +4862,7 @@ pl_run_probe_update_system(plComponentLibrary* ptLibrary)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     plRendererI tApi = {0};
@@ -4903,13 +4891,13 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi.update_hovered_entity               = pl_renderer_update_hovered_entity;
     tApi.get_hovered_entity                  = pl_renderer_get_hovered_entity;
     tApi.get_runtime_options                 = pl_renderer_get_runtime_options;
-    tApi.rebuild_scene_bvh                   = pl_renderer_rebuild_bvh;
+    tApi.rebuild_scene_bvh                   = pl_renderer_rebuild_scene_bvh;
     tApi.debug_draw_lights                   = pl_renderer_debug_draw_lights;
     tApi.debug_draw_all_bound_boxes          = pl_renderer_debug_draw_all_bound_boxes;
     tApi.debug_draw_bvh                      = pl_renderer_debug_draw_bvh;
     tApi.show_skybox                         = pl_renderer_show_skybox;
     tApi.show_grid                           = pl_renderer_show_grid;
-    tApi.register_ecs_system                 = pl_renderer_register_system;
+    tApi.register_ecs_system                 = pl_renderer_register_ecs_system;
     tApi.create_skin                         = pl_renderer_create_skin;
     tApi.create_directional_light            = pl_renderer_create_directional_light;
     tApi.create_point_light                  = pl_renderer_create_point_light;
@@ -4920,11 +4908,11 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi.get_ecs_type_key_skin               = pl_renderer_get_ecs_type_key_skin;
     tApi.get_ecs_type_key_light              = pl_renderer_get_ecs_type_key_light;
     tApi.get_ecs_type_key_environment_probe  = pl_renderer_get_ecs_type_key_environment_probe;
-    tApi.run_light_update_system             = pl_run_light_update_system;
-    tApi.run_environment_probe_update_system = pl_run_probe_update_system;
+    tApi.run_light_update_system             = pl_renderer_run_light_update_system;
+    tApi.run_environment_probe_update_system = pl_renderer_run_environment_probe_update_system;
     tApi.get_ecs_type_key_object             = pl_renderer_get_ecs_type_key_object;
-    tApi.run_skin_update_system              = pl_run_skin_update_system;
-    tApi.run_object_update_system            = pl_run_object_update_system;
+    tApi.run_skin_update_system              = pl_renderer_run_skin_update_system;
+    tApi.run_object_update_system            = pl_renderer_run_object_update_system;
     pl_set_api(ptApiRegistry, plRendererI, &tApi);
 
     // core apis
@@ -4969,7 +4957,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }   
 }
 
-PL_EXPORT void
+void
 pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

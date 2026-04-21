@@ -871,7 +871,7 @@ pl_console_update(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_console_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plConsoleI tApi = {
@@ -918,7 +918,7 @@ pl_load_console_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_console_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

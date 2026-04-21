@@ -38,8 +38,8 @@ Index of this file:
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static bool
-pl__get_info_from_memory(const unsigned char* pcBuffer, int iLength, plImageInfo* ptInfoOut)
+bool
+pl_image_get_info(const unsigned char* pcBuffer, int iLength, plImageInfo* ptInfoOut)
 {
     ptInfoOut->b16Bit = stbi_is_16_bit_from_memory(pcBuffer, iLength);
     ptInfoOut->bHDR = stbi_is_hdr_from_memory(pcBuffer, iLength);
@@ -48,7 +48,7 @@ pl__get_info_from_memory(const unsigned char* pcBuffer, int iLength, plImageInfo
 }
 
 bool
-pl_get_info_from_file(const char* pcPath, plImageInfo* ptInfoOut)
+pl_image_get_info_from_file(const char* pcPath, plImageInfo* ptInfoOut)
 {
     // load image file from disk
     size_t szImageFileSize = gptVfs->get_file_size_str(pcPath);
@@ -58,13 +58,13 @@ pl_get_info_from_file(const char* pcPath, plImageInfo* ptInfoOut)
     gptVfs->read_file(tFile, pucBuffer, &szImageFileSize);
     gptVfs->close_file(tFile);
 
-    bool bResult = pl__get_info_from_memory(pucBuffer, (int)szImageFileSize, ptInfoOut);
+    bool bResult = pl_image_get_info(pucBuffer, (int)szImageFileSize, ptInfoOut);
     PL_FREE(pucBuffer);
     return bResult;
 }
 
-static bool
-pl_write_image(char const *pcFileName, const void *pData, const plImageWriteInfo* ptInfo)
+bool
+pl_image_write(char const *pcFileName, const void *pData, const plImageWriteInfo* ptInfo)
 {
     const char* pcExt = pl_str_get_file_extension(pcFileName, NULL, 0);
     
@@ -141,25 +141,73 @@ pl_image_load_hdr_from_file(const char* pcPath, int* piX, int* piY, int* piChann
     return pucImageData;
 }
 
+unsigned char*
+pl_image_load(const unsigned char* buffer, int length, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels)
+{
+    return stbi_load_from_memory(buffer, length, widthOut, heightOut, channelsOut, desiredChannels);
+}
+
+unsigned short*
+pl_image_load_16bit(const unsigned char* buffer, int length, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels)
+{
+    return stbi_load_16_from_memory(buffer, length, widthOut, heightOut, channelsOut, desiredChannels);
+}
+
+float*
+pl_image_load_hdr(const unsigned char* buffer, int length, int* widthOut, int* heightOut, int* channelsOut, int desiredChannels)
+{
+    return stbi_loadf_from_memory(buffer, length, widthOut, heightOut, channelsOut, desiredChannels);
+}
+
+void
+pl_image_free(void* returnValueFromLoad)
+{
+    stbi_image_free(returnValueFromLoad);
+}
+
+void
+pl_image_set_hdr_to_ldr_gamma(float value)
+{
+    stbi_hdr_to_ldr_gamma(value);
+}
+
+void
+pl_image_set_hdr_to_ldr_scale(float value)
+{
+    stbi_hdr_to_ldr_scale(value);
+}
+
+void
+pl_image_set_ldr_to_hdr_gamma(float value)
+{
+    stbi_ldr_to_hdr_gamma(value);
+}
+
+void
+pl_image_set_ldr_to_hdr_scale(float value)
+{
+    stbi_ldr_to_hdr_scale(value);
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plImageI tApi = {
-        .get_info               = pl__get_info_from_memory,
-        .get_info_from_file     = pl_get_info_from_file,
-        .load                   = stbi_load_from_memory,
-        .load_16bit             = stbi_load_16_from_memory,
-        .load_hdr               = stbi_loadf_from_memory,
-        .free                   = stbi_image_free,
-        .write                  = pl_write_image,
-        .set_hdr_to_ldr_gamma   = stbi_hdr_to_ldr_gamma,
-        .set_hdr_to_ldr_scale   = stbi_hdr_to_ldr_scale,
-        .set_ldr_to_hdr_gamma   = stbi_ldr_to_hdr_gamma,
-        .set_ldr_to_hdr_scale   = stbi_ldr_to_hdr_scale,
+        .get_info               = pl_image_get_info,
+        .get_info_from_file     = pl_image_get_info_from_file,
+        .load                   = pl_image_load,
+        .load_16bit             = pl_image_load_16bit,
+        .load_hdr               = pl_image_load_hdr,
+        .free                   = pl_image_free,
+        .write                  = pl_image_write,
+        .set_hdr_to_ldr_gamma   = pl_image_set_hdr_to_ldr_gamma,
+        .set_hdr_to_ldr_scale   = pl_image_set_hdr_to_ldr_scale,
+        .set_ldr_to_hdr_gamma   = pl_image_set_ldr_to_hdr_gamma,
+        .set_ldr_to_hdr_scale   = pl_image_set_ldr_to_hdr_scale,
         .load_from_file         = pl_image_load_from_file,
         .load_16bit_from_file   = pl_image_load_16bit_from_file,
         .load_hdr_from_file     = pl_image_load_hdr_from_file
@@ -170,7 +218,7 @@ pl_load_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptVfs    = pl_get_api_latest(ptApiRegistry, plVfsI);
 }
 
-PL_EXPORT void
+void
 pl_unload_image_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

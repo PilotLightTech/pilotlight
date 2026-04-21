@@ -9,7 +9,8 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] APIs
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] structs
 */
 
@@ -33,10 +34,15 @@ Index of this file:
 #ifndef PL_GPU_ALLOCATORS_EXT_H
 #define PL_GPU_ALLOCATORS_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>
 
 //-----------------------------------------------------------------------------
@@ -55,10 +61,33 @@ typedef struct _plDevice plDevice;
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plGPUAllocatorsI_version {1, 0, 0}
+#define plGPUAllocatorsI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_gpu_allocators_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_gpu_allocators_ext(plApiRegistryI*, bool reload);
+
+// allocators
+PL_API plDeviceMemoryAllocatorI* pl_gpu_allocators_get_local_dedicated_allocator       (plDevice*);
+PL_API plDeviceMemoryAllocatorI* pl_gpu_allocators_get_local_buddy_allocator           (plDevice*);
+PL_API plDeviceMemoryAllocatorI* pl_gpu_allocators_get_staging_uncached_allocator      (plDevice*);
+PL_API plDeviceMemoryAllocatorI* pl_gpu_allocators_get_staging_uncached_buddy_allocator(plDevice*);
+PL_API plDeviceMemoryAllocatorI* pl_gpu_allocators_get_staging_cached_allocator        (plDevice*);
+
+// misc
+PL_API size_t                   pl_gpu_allocators_get_buddy_block_size(void);
+PL_API void                     pl_gpu_allocators_cleanup(plDevice*);
+
+// for debug viewing
+PL_API plDeviceMemoryAllocation* pl_gpu_allocators_get_blocks(const plDeviceMemoryAllocatorI*, uint32_t* sizeOut);
+PL_API plDeviceAllocationRange*  pl_gpu_allocators_get_ranges(const plDeviceMemoryAllocatorI*, uint32_t* sizeOut);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plGPUAllocatorsI
@@ -95,5 +124,9 @@ typedef struct _plDeviceAllocationRange
     uint32_t uNodeIndex;
     uint32_t uNextNode;
 } plDeviceAllocationRange;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_GPU_ALLOCATORS_EXT_H

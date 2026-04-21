@@ -9,7 +9,8 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] APIs
 // [SECTION] forward declarations
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] structs
 // [SECTION] enums
 */
@@ -37,6 +38,10 @@ Index of this file:
 #ifndef PL_SHADER_EXT_H
 #define PL_SHADER_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // compile-time options
 // #define PL_OFFLINE_SHADERS_ONLY
 #ifndef PL_MAX_SHADER_INCLUDE_DIRECTORIES
@@ -55,6 +60,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>  // uint*_t
 #include <stdbool.h> // bool
 
@@ -62,7 +68,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plShaderI_version {1, 3, 0}
+#define plShaderI_version {1, 4, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -80,7 +86,33 @@ typedef int plShaderOptimizationLevel; // -> enum _plShaderOptimizationLevel // 
 typedef struct _plShaderModule plShaderModule; // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_shader_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_shader_ext(plApiRegistryI*, bool reload);
+
+// setup
+PL_API bool                   pl_shader_initialize (const plShaderOptions*);
+PL_API void                   pl_shader_cleanup    (void);
+
+// settings
+PL_API void                   pl_shader_set_options(const plShaderOptions*);
+PL_API const plShaderOptions* pl_shader_get_options(void);
+
+// load shader (compile if not already compiled)
+PL_API plShaderModule         pl_shader_load_glsl(const char* shader, const char* entryFunc, const char* file, plShaderOptions*);
+
+// compilation (pass null shader options to use default)
+PL_API plShaderModule         pl_shader_compile_glsl(const char* shader, const char* entryFunc, plShaderOptions*);
+
+// write/read on disk
+PL_API void                   pl_shader_write_to_disk (const char* shader, const plShaderModule*);
+PL_API plShaderModule         pl_shader_read_from_disk(const char* shader, const char* entryFunc);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plShaderI
@@ -150,5 +182,9 @@ enum _plShaderOptimizationLevel
     PL_SHADER_OPTIMIZATION_SIZE,
     PL_SHADER_OPTIMIZATION_PERFORMANCE
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_SHADER_EXT_H

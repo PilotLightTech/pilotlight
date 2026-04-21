@@ -8,7 +8,8 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] APIs
 // [SECTION] forward declarations
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] enums
 */
 
@@ -19,10 +20,15 @@ Index of this file:
 #ifndef PL_GIZMO_EXT_H
 #define PL_GIZMO_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdbool.h>
 
 //-----------------------------------------------------------------------------
@@ -44,7 +50,20 @@ typedef struct _plCamera             plCamera;             // pl_ecs_ext.h
 typedef struct _plDrawList3D         plDrawList3D;         // pl_draw_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_gizmo_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_gizmo_ext(plApiRegistryI*, bool reload);
+
+PL_API void pl_gizmo_set_mode (plGizmoMode);
+PL_API void pl_gizmo_next_mode(void);
+PL_API bool pl_gizmo_active   (void);
+PL_API void pl_gizmo_gizmo    (plDrawList3D*, plCamera*, plTransformComponent* selectedTransform, plTransformComponent* parentTransform, plVec2 viewOffset, plVec2 viewScale);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plGizmoI
@@ -61,12 +80,16 @@ typedef struct _plGizmoI
 
 enum _plGizmoMode
 {
-    PL_GIZMO_MODE_NONE,
+    PL_GIZMO_MODE_NONE = 0,
     PL_GIZMO_MODE_TRANSLATION,
     PL_GIZMO_MODE_ROTATION,
     PL_GIZMO_MODE_SCALE,
 
     PL_GIZMO_MODE_COUNT,
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_GIZMO_EXT_H

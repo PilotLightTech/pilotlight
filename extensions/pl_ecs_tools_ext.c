@@ -91,8 +91,8 @@ static plEcsToolsContext* gptEcsToolsCtx = NULL;
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-static bool
-pl_show_ecs_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, plScene* ptScene, bool* pbShowWindow)
+bool
+pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEntity, plScene* ptScene, bool* pbShowWindow)
 {
     bool bResult = false;
 
@@ -1032,26 +1032,28 @@ pl_ecs_tools_cleanup(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plEcsToolsI tApi = {
-        .show_ecs_window = pl_show_ecs_window,
-        .initialize      = pl_ecs_tools_initialize,
-        .cleanup         = pl_ecs_tools_cleanup
+        .show_window = pl_ecs_tools_show_window,
+        .initialize  = pl_ecs_tools_initialize,
+        .cleanup     = pl_ecs_tools_cleanup
     };
     pl_set_api(ptApiRegistry, plEcsToolsI, &tApi);
 
-    gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
-    gptRenderer  = pl_get_api_latest(ptApiRegistry, plRendererI);
-    gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptECS       = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptPhysics   = pl_get_api_latest(ptApiRegistry, plPhysicsI);
-    gptCamera    = pl_get_api_latest(ptApiRegistry, plCameraI);
-    gptAnimation = pl_get_api_latest(ptApiRegistry, plAnimationI);
-    gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
-    gptMaterial  = pl_get_api_latest(ptApiRegistry, plMaterialI);
-    gptScript    = pl_get_api_latest(ptApiRegistry, plScriptI);
+    #ifndef PL_UNITY_BUILD
+        gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptRenderer  = pl_get_api_latest(ptApiRegistry, plRendererI);
+        gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
+        gptECS       = pl_get_api_latest(ptApiRegistry, plEcsI);
+        gptPhysics   = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+        gptCamera    = pl_get_api_latest(ptApiRegistry, plCameraI);
+        gptAnimation = pl_get_api_latest(ptApiRegistry, plAnimationI);
+        gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
+        gptMaterial  = pl_get_api_latest(ptApiRegistry, plMaterialI);
+        gptScript    = pl_get_api_latest(ptApiRegistry, plScriptI);
+    #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
@@ -1067,7 +1069,7 @@ pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

@@ -10,7 +10,8 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] defines
 // [SECTION] forward declarations & basic types
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] enums
 // [SECTION] structs
 // [SECTION] components
@@ -36,6 +37,10 @@ Index of this file:
 #ifndef PL_MATERIAL_EXT_H
 #define PL_MATERIAL_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
@@ -46,6 +51,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include "pl_ecs_ext.inl"      // plEntity
 #include "pl_resource_ext.inl" // plResourceHandle
 #include "pl_math.h"           // plVec3, plMat4
@@ -75,19 +81,31 @@ typedef int plAlphaMode;
 typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_material_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_material_ext(plApiRegistryI*, bool reload);
+
+// system setup/shutdown/etc
+PL_API void         pl_material_register_ecs_system(void);
+
+// do NOT store out parameter; use it immediately
+PL_API plEntity     pl_material_create(plComponentLibrary*, const char* name, plMaterialComponent**);
+
+// ecs types
+PL_API plEcsTypeKey pl_material_get_ecs_type_key(void);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plMaterialI
 {
-    // system setup/shutdown/etc
-    void (*register_ecs_system)(void);
-
-    // do NOT store out parameter; use it immediately
-    plEntity (*create)(plComponentLibrary*, const char* name, plMaterialComponent**);
-
-    // ecs types
-    plEcsTypeKey (*get_ecs_type_key)(void);
+    void         (*register_ecs_system)(void);
+    plEntity     (*create)             (plComponentLibrary*, const char* name, plMaterialComponent**);
+    plEcsTypeKey (*get_ecs_type_key)   (void);
 } plMaterialI;
 
 //-----------------------------------------------------------------------------
@@ -201,5 +219,9 @@ typedef struct _plMaterialComponent
     plVec3          tDiffuseTransmissionColor; // default: {0.0f, 0.0f, 0.0f}
     plTextureMap    atTextureMaps[PL_TEXTURE_SLOT_COUNT];
 } plMaterialComponent;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_MATERIAL_EXT_H

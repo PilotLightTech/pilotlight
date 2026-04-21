@@ -1,5 +1,5 @@
 /*
-   example_basic_5.cpp
+   example_basic_6.cpp
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
@@ -168,7 +168,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plWindowDesc tWindowDesc = {
         PL_WINDOW_FLAG_NONE,
-        "Example Basic 5",
+        "Example Basic 6",
         500,
         500,
         200,

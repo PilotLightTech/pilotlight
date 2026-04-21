@@ -602,7 +602,7 @@ pl_config_save_to_disk(const char* pcFileName)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_config_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plConfigI tApi = {
@@ -640,7 +640,7 @@ pl_load_config_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_config_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

@@ -294,7 +294,7 @@ pl_bvh_traverse(plBVH* ptBvh, plBVHNode** pptNodeOut, uint32_t* puIndexOut)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_bvh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plBVHI tApi = {
@@ -302,7 +302,7 @@ pl_load_bvh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .cleanup               = pl_bvh_cleanup,
         .intersects_aabb       = pl_bvh_intersects_aabb,
         .intersects_aabb_first = pl_bvh_intersects_aabb_first,
-        .traverse = pl_bvh_traverse,
+        .traverse              = pl_bvh_traverse,
     };
     pl_set_api(ptApiRegistry, plBVHI, &tApi);
 
@@ -310,7 +310,7 @@ pl_load_bvh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
 }
 
-PL_EXPORT void
+void
 pl_unload_bvh_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

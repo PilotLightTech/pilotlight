@@ -99,26 +99,26 @@ static void pl__gizmo_scale                 (plDrawList3D*, plCamera*, plTransfo
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-static void
+void
 pl_gizmo_set_mode(plGizmoMode tMode)
 {
     gptGizmoCtx->tSelectionMode = tMode;
 }
 
-static bool
+bool
 pl_gizmo_active(void)
 {
     return gptGizmoCtx->bActive;
 }
 
-static void
+void
 pl_gizmo_next_mode(void)
 {
     gptGizmoCtx->tSelectionMode = (gptGizmoCtx->tSelectionMode + 1) % PL_GIZMO_MODE_COUNT;
 }
 
-static void
-pl_gizmo(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
+void
+pl_gizmo_gizmo(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformComponent* ptSelectedTransform, plTransformComponent* ptParentTransform, plVec2 tViewOffset, plVec2 tViewScale)
 {
 
     if(ptSelectedTransform)
@@ -1307,14 +1307,14 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plGizmoI tApi = {
         .set_mode  = pl_gizmo_set_mode,
         .next_mode = pl_gizmo_next_mode,
         .active    = pl_gizmo_active,
-        .gizmo     = pl_gizmo
+        .gizmo     = pl_gizmo_gizmo
     };
     pl_set_api(ptApiRegistry, plGizmoI, &tApi);
 
@@ -1338,7 +1338,7 @@ pl_load_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_gizmo_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

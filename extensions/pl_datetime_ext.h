@@ -7,9 +7,11 @@
 Index of this file:
 // [SECTION] header mess
 // [SECTION] APIs
+// [SECTION] includes
 // [SECTION] forward declarations
-// [SECTION] public api struct
 // [SECTION] structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] enums
 */
 
@@ -20,11 +22,21 @@ Index of this file:
 #ifndef PL_DATETIME_EXT_H
 #define PL_DATETIME_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plDateTimeI_version {1, 0, 1}
+#define plDateTimeI_version {1, 1, 0}
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
+#include "pl.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -38,22 +50,6 @@ typedef struct _plDateTime plDateTime;
 // enums
 typedef int plMonth; // -> enum _plMonth PL_XXXX
 typedef int plDay;   // -> enum _plDay   PL_XXDAY
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api struct
-//-----------------------------------------------------------------------------
-
-typedef struct _plDateTimeI
-{
-    plDateTime  (*now)              (void);
-    bool        (*leap_year)        (int);
-    const char* (*month_as_string)  (plMonth);
-    plMonth     (*month_from_string)(const char*);
-    int         (*day_of_year)      (plMonth, int day, int year);
-    plDay       (*day_of_week)      (plMonth, int day, int year);
-    int         (*days_in_month)    (plMonth, int year);
-    plDate      (*day_of_year_date) (int day);
-} plDateTimeI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -78,6 +74,39 @@ typedef struct _plDateTime
     plDate tDate;
     plTime tTime;
 } plDateTime;
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_datetime_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_datetime_ext(plApiRegistryI*, bool reload);
+
+PL_API plDateTime  pl_datetime_now              (void);
+PL_API bool        pl_datetime_leap_year        (int);
+PL_API const char* pl_datetime_month_as_string  (plMonth);
+PL_API plMonth     pl_datetime_month_from_string(const char*);
+PL_API int         pl_datetime_day_of_year      (plMonth, int day, int year);
+PL_API plDay       pl_datetime_day_of_week      (plMonth, int day, int year);
+PL_API int         pl_datetime_days_in_month    (plMonth, int year);
+PL_API plDate      pl_datetime_day_of_year_date (int day);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
+//-----------------------------------------------------------------------------
+
+typedef struct _plDateTimeI
+{
+    plDateTime  (*now)              (void);
+    bool        (*leap_year)        (int);
+    const char* (*month_as_string)  (plMonth);
+    plMonth     (*month_from_string)(const char*);
+    int         (*day_of_year)      (plMonth, int day, int year);
+    plDay       (*day_of_week)      (plMonth, int day, int year);
+    int         (*days_in_month)    (plMonth, int year);
+    plDate      (*day_of_year_date) (int day);
+} plDateTimeI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -107,5 +136,9 @@ enum _plDay {
     PL_FRIDAY    = 6,
     PL_SATURDAY  = 7,
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_DATETIME_EXT_H

@@ -1619,7 +1619,7 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plStarterI tApi = {
@@ -1693,7 +1693,7 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 
 }
 
-PL_EXPORT void
+void
 pl_unload_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

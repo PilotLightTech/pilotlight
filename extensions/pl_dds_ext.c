@@ -977,7 +977,7 @@ pl_dds_get_header_size(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_dds_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plDdsI tApi = {
@@ -988,7 +988,7 @@ pl_load_dds_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plDdsI, &tApi);
 }
 
-PL_EXPORT void
+void
 pl_unload_dds_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

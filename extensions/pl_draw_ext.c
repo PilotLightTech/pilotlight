@@ -319,7 +319,7 @@ static const plFontGlyph* pl__find_glyph(plFont* ptFont, uint32_t c);
 
 // stateful drawing
 #define pl__submit_path(ptLayer, tOptions)\
-    pl_add_lines((ptLayer), (ptLayer)->sbtPath, pl_sb_size((ptLayer)->sbtPath), (tOptions));\
+    pl_draw_add_lines((ptLayer), (ptLayer)->sbtPath, pl_sb_size((ptLayer)->sbtPath), (tOptions));\
     pl_sb_reset((ptLayer)->sbtPath);
 
 #define PL_NORMALIZE2F_OVER_ZERO(VX,VY) \
@@ -388,7 +388,7 @@ pl__add_3d_indexed_lines(
 }
 
 static inline void
-pl__add_3d_lines(plDrawList3D* ptDrawlist, uint32_t uCount, const plVec3* atPoints, plDrawLineOptions tOptions)
+pl_draw_add_3d_lines(plDrawList3D* ptDrawlist, uint32_t uCount, const plVec3* atPoints, plDrawLineOptions tOptions)
 {
     const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtLineVertexBuffer);
     const uint32_t uIndexStart = pl_sb_size(ptDrawlist->sbtLineIndexBuffer);
@@ -499,14 +499,13 @@ pl__add_3d_path(plDrawList3D* ptDrawlist, uint32_t uCount, const plVec3* atPoint
 static plBufferHandle         pl__create_staging_buffer(const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
 static const plPipelineEntry* pl__get_3d_pipeline              (plRenderPassHandle, uint32_t uMSAASampleCount, plDrawFlags, uint32_t uSubpassIndex);
 static const plPipelineEntry* pl__get_2d_pipeline              (plRenderPassHandle, uint32_t uMSAASampleCount, uint32_t uSubpassIndex);
-static plBindGroupHandle      pl_create_bind_group_for_texture(plTextureHandle);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
 //-----------------------------------------------------------------------------
 
-static void
-pl_initialize(const plDrawInit* ptInit)
+void
+pl_draw_initialize(const plDrawInit* ptInit)
 {
     gptDrawCtx->ptDevice = ptInit->ptDevice;
     plDevice* ptDevice = gptDrawCtx->ptDevice;
@@ -637,8 +636,8 @@ pl_initialize(const plDrawInit* ptInit)
     }
 }
 
-static void
-pl_cleanup(void)
+void
+pl_draw_cleanup(void)
 {
 
     plDevice* ptDevice = gptDrawCtx->ptDevice;
@@ -686,8 +685,8 @@ pl_cleanup(void)
     }
 }
 
-static plDrawList2D*
-pl_request_2d_drawlist(void)
+plDrawList2D*
+pl_draw_request_2d_drawlist(void)
 {
     plDrawList2D* ptDrawlist = pl_pool_allocator_alloc(&gptDrawCtx->tDrawlistPool2D);
 
@@ -700,8 +699,8 @@ pl_request_2d_drawlist(void)
     return ptDrawlist;
 }
 
-static plDrawLayer2D*
-pl_request_2d_layer(plDrawList2D* ptDrawlist)
+plDrawLayer2D*
+pl_draw_request_2d_layer(plDrawList2D* ptDrawlist)
 {
    plDrawLayer2D* ptLayer = NULL;
    
@@ -724,8 +723,8 @@ pl_request_2d_layer(plDrawList2D* ptDrawlist)
    return ptLayer;
 }
 
-static plDrawList3D*
-pl_request_3d_drawlist(void)
+plDrawList3D*
+pl_draw_request_3d_drawlist(void)
 {
     plDrawList3D* ptDrawlist = pl_pool_allocator_alloc(&gptDrawCtx->tDrawlistPool3D);
 
@@ -741,15 +740,15 @@ pl_request_3d_drawlist(void)
 
         if(ptDrawlist->pt2dDrawlist == NULL)
         {
-            ptDrawlist->pt2dDrawlist = pl_request_2d_drawlist();
-            ptDrawlist->ptLayer = pl_request_2d_layer(ptDrawlist->pt2dDrawlist);
+            ptDrawlist->pt2dDrawlist = pl_draw_request_2d_drawlist();
+            ptDrawlist->ptLayer = pl_draw_request_2d_layer(ptDrawlist->pt2dDrawlist);
         }
     }
     return ptDrawlist;
 }
 
-static void
-pl_return_2d_drawlist(plDrawList2D* ptDrawlist)
+void
+pl_draw_return_2d_drawlist(plDrawList2D* ptDrawlist)
 {
     pl_sb_free(ptDrawlist->sbtVertexBuffer);
     pl_sb_free(ptDrawlist->_sbtLayerCache);
@@ -778,8 +777,8 @@ pl_return_2d_drawlist(plDrawList2D* ptDrawlist)
     gptDrawCtx->uDrawlistCount2D--;
 }
 
-static void
-pl_return_2d_layer(plDrawLayer2D* ptLayer)
+void
+pl_draw_return_2d_layer(plDrawLayer2D* ptLayer)
 {
     ptLayer->ptLastCommand = NULL;
     ptLayer->uVertexCount = 0;
@@ -789,11 +788,11 @@ pl_return_2d_layer(plDrawLayer2D* ptLayer)
     pl_sb_push(ptLayer->ptDrawlist->_sbtLayerCache, ptLayer);
 }
 
-static void
-pl_return_3d_drawlist(plDrawList3D* ptDrawlist)
+void
+pl_draw_return_3d_drawlist(plDrawList3D* ptDrawlist)
 {
-    pl_return_2d_layer(ptDrawlist->ptLayer);
-    pl_return_2d_drawlist(ptDrawlist->pt2dDrawlist);
+    pl_draw_return_2d_layer(ptDrawlist->ptLayer);
+    pl_draw_return_2d_drawlist(ptDrawlist->pt2dDrawlist);
     pl_sb_free(ptDrawlist->sbtLineIndexBuffer);
     pl_sb_free(ptDrawlist->sbtLineVertexBuffer);
     pl_sb_free(ptDrawlist->sbtSolidIndexBuffer);
@@ -813,8 +812,8 @@ pl_return_3d_drawlist(plDrawList3D* ptDrawlist)
     gptDrawCtx->uDrawlistCount3D--;
 }
 
-static void
-pl_submit_2d_layer(plDrawLayer2D* ptLayer)
+void
+pl_draw_submit_2d_layer(plDrawLayer2D* ptLayer)
 {
     pl_sb_push(ptLayer->ptDrawlist->_sbtSubmittedLayers, ptLayer);
     const uint32_t uCurrentIndexCount = pl_sb_size(ptLayer->ptDrawlist->sbuIndexBuffer);
@@ -827,8 +826,8 @@ pl_submit_2d_layer(plDrawLayer2D* ptLayer)
         uAdditionalIndexCount * sizeof(uint32_t));
 }
 
-static void
-pl_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawLineOptions tOptions)
+void
+pl_draw_add_lines(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawLineOptions tOptions)
 {
     uint32_t uSegmentCount = uCount - 1;
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
@@ -881,16 +880,16 @@ pl_add_2d_callback(plDrawLayer2D* ptLayer, plDrawCallback tCallback, void* pUser
     ptLayer->ptLastCommand = NULL;
 }
 
-static void
-pl_add_line(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plDrawLineOptions tOptions)
+void
+pl_draw_add_line(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plDrawLineOptions tOptions)
 {
     pl_sb_push(ptLayer->sbtPath, p0);
     pl_sb_push(ptLayer->sbtPath, p1);
     pl__submit_path(ptLayer, tOptions);
 }
 
-static void
-pl_add_text_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTextOptions tOptions)
+void
+pl_draw_add_text(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTextOptions tOptions)
 {
 
     if(tOptions.pcTextEnd == NULL)
@@ -1035,8 +1034,8 @@ pl_add_text_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plDrawTextO
     }
 }
 
-static void
-pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plVec2 tMin, plVec2 tMax, plDrawTextOptions tOptions)
+void
+pl_draw_add_text_clipped(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plVec2 tMin, plVec2 tMax, plDrawTextOptions tOptions)
 {
 
     if(tOptions.pcTextEnd == NULL)
@@ -1188,8 +1187,8 @@ pl_add_text_clipped_ex(plDrawLayer2D* ptLayer, plVec2 p, const char* pcText, plV
     }
 }
 
-static void
-pl_add_triangle(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plDrawLineOptions tOptions)
+void
+pl_draw_add_triangle(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plDrawLineOptions tOptions)
 {
     pl_sb_push(ptLayer->sbtPath, tP0);
     pl_sb_push(ptLayer->sbtPath, tP1);
@@ -1198,8 +1197,8 @@ pl_add_triangle(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plDr
     pl__submit_path(ptLayer, tOptions);    
 }
 
-static void
-pl_add_triangle_filled(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plVec2 p2, plDrawSolidOptions tOptions)
+void
+pl_draw_add_triangle_filled(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plVec2 p2, plDrawSolidOptions tOptions)
 {
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 3, 3);
@@ -1212,8 +1211,8 @@ pl_add_triangle_filled(plDrawLayer2D* ptLayer, plVec2 p0, plVec2 p1, plVec2 p2, 
     pl__add_index(ptLayer, uVertexStart, 0, 1, 2);
 }
 
-static void
-pl_add_triangles_filled(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawSolidOptions tOptions)
+void
+pl_draw_add_triangles_filled(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCount, plDrawSolidOptions tOptions)
 {
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 3 * uCount, 3 * uCount);
@@ -1228,8 +1227,8 @@ pl_add_triangles_filled(plDrawLayer2D* ptLayer, plVec2* atPoints, uint32_t uCoun
     }
 }
 
-static void
-pl_add_rect(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDrawLineOptions tOptions)
+void
+pl_draw_add_rect(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDrawLineOptions tOptions)
 {
     const plVec2 fBotLeftVec  = {tMinP.x, tMaxP.y};
     const plVec2 fTopRightVec = {tMaxP.x, tMinP.y};
@@ -1242,8 +1241,8 @@ pl_add_rect(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDrawLineOption
     pl__submit_path(ptLayer, tOptions);   
 }
 
-static void
-pl_add_rect_filled(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDrawSolidOptions tOptions)
+void
+pl_draw_add_rect_filled(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDrawSolidOptions tOptions)
 {
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
@@ -1261,16 +1260,15 @@ pl_add_rect_filled(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, plDrawSol
     pl__add_index(ptLayer, uVertexStart, 0, 2, 3);
 }
 
-static void
-pl_add_rect_rounded_ex(
-    plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, float fRadius,
+void
+pl_draw_add_rect_rounded(plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, float fRadius,
     uint32_t uSegments, plDrawRectFlags tFlags, plDrawLineOptions tOptions)
 {
     // segments is the number of segments used to approximate one corner
 
     if(fRadius <= 0.0f)
     {
-        pl_add_rect(ptLayer, tMinP, tMaxP, tOptions);
+        pl_draw_add_rect(ptLayer, tMinP, tMaxP, tOptions);
         return;
     }
     else
@@ -1340,14 +1338,14 @@ pl_add_rect_rounded_ex(
     pl__submit_path(ptLayer, tOptions);
 }
 
-static void
-pl_add_rect_rounded_filled_ex(
+void
+pl_draw_add_rect_rounded_filled(
         plDrawLayer2D* ptLayer, plVec2 tMinP, plVec2 tMaxP, float fRadius,
         uint32_t uSegments, plDrawRectFlags tFlags, plDrawSolidOptions tOptions)
 {
     if(fRadius <= 0.0f)
     {
-        pl_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
+        pl_draw_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
         return;
     }
     else
@@ -1358,13 +1356,13 @@ pl_add_rect_rounded_filled_ex(
 
     if(tMaxP.x - tMinP.x < fRadius * 2.0f)
     {
-        pl_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
+        pl_draw_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
         return;
     }
 
     if(tMaxP.y - tMinP.y < fRadius * 2.0f)
     {
-        pl_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
+        pl_draw_add_rect_filled(ptLayer, tMinP, tMaxP, tOptions);
         return;
     }
 
@@ -1432,16 +1430,16 @@ pl_add_rect_rounded_filled_ex(
         for(uint32_t i = 0; i < uSegments - 1; i++)
         {
             plVec2 tPoint = {tInnerTopLeft.x + fRadius * cosf(fTheta), tInnerTopLeft.y - fRadius * sinf(fTheta)};
-            pl_add_triangle_filled(ptLayer, tInnerTopLeft, tLastPoint, tPoint, tOptions);
+            pl_draw_add_triangle_filled(ptLayer, tInnerTopLeft, tLastPoint, tPoint, tOptions);
             tLastPoint = tPoint;
             fTheta += fIncrement;
         }
-        pl_add_triangle_filled(ptLayer, tInnerTopLeft, tLastPoint, tOuterTopLeft1, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerTopLeft, tLastPoint, tOuterTopLeft1, tOptions);
     }
     else
     {
-        pl_add_triangle_filled(ptLayer, tInnerTopLeft, tOuterTopLeft0, tMinP, tOptions);
-        pl_add_triangle_filled(ptLayer, tInnerTopLeft, tMinP, tOuterTopLeft1, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerTopLeft, tOuterTopLeft0, tMinP, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerTopLeft, tMinP, tOuterTopLeft1, tOptions);
     }
 
     if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_LEFT)
@@ -1451,16 +1449,16 @@ pl_add_rect_rounded_filled_ex(
         for(uint32_t i = 0; i < uSegments - 1; i++)
         {
             plVec2 tPoint = {tInnerBottomLeft.x + fRadius * cosf(fTheta), tInnerBottomLeft.y - fRadius * sinf(fTheta)};
-            pl_add_triangle_filled(ptLayer, tInnerBottomLeft, tLastPoint, tPoint, tOptions);
+            pl_draw_add_triangle_filled(ptLayer, tInnerBottomLeft, tLastPoint, tPoint, tOptions);
             tLastPoint = tPoint;
             fTheta += fIncrement;
         }
-        pl_add_triangle_filled(ptLayer, tInnerBottomLeft, tLastPoint, tOuterBottomLeft1, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerBottomLeft, tLastPoint, tOuterBottomLeft1, tOptions);
     }
     else
     {
-        pl_add_triangle_filled(ptLayer, tInnerBottomLeft, tOuterBottomLeft0, (plVec2){tMinP.x, tMaxP.y}, tOptions);
-        pl_add_triangle_filled(ptLayer, tInnerBottomLeft, (plVec2){tMinP.x, tMaxP.y}, tOuterBottomLeft1, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerBottomLeft, tOuterBottomLeft0, (plVec2){tMinP.x, tMaxP.y}, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerBottomLeft, (plVec2){tMinP.x, tMaxP.y}, tOuterBottomLeft1, tOptions);
     }
 
     if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_BOTTOM_RIGHT)
@@ -1470,16 +1468,16 @@ pl_add_rect_rounded_filled_ex(
         for(uint32_t i = 0; i < uSegments - 1; i++)
         {
             plVec2 tPoint = {tInnerBottomRight.x + fRadius * cosf(fTheta), tInnerBottomRight.y - fRadius * sinf(fTheta)};
-            pl_add_triangle_filled(ptLayer, tInnerBottomRight, tLastPoint, tPoint, tOptions);
+            pl_draw_add_triangle_filled(ptLayer, tInnerBottomRight, tLastPoint, tPoint, tOptions);
             tLastPoint = tPoint;
             fTheta += fIncrement;
         }
-        pl_add_triangle_filled(ptLayer, tInnerBottomRight, tLastPoint, tOuterBottomRight1, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerBottomRight, tLastPoint, tOuterBottomRight1, tOptions);
     }
     else
     {
-        pl_add_triangle_filled(ptLayer, tInnerBottomRight, tOuterBottomRight0, tMaxP, tOptions);
-        pl_add_triangle_filled(ptLayer, tInnerBottomRight, tMaxP, tOuterBottomRight1, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerBottomRight, tOuterBottomRight0, tMaxP, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerBottomRight, tMaxP, tOuterBottomRight1, tOptions);
     }
 
     if(tFlags & PL_DRAW_RECT_FLAG_ROUND_CORNERS_TOP_RIGHT)
@@ -1489,21 +1487,21 @@ pl_add_rect_rounded_filled_ex(
         for(uint32_t i = 0; i < uSegments - 1; i++)
         {
             plVec2 tPoint = {tInnerTopRight.x + fRadius * cosf(fTheta), tInnerTopRight.y - fRadius * sinf(fTheta)};
-            pl_add_triangle_filled(ptLayer, tInnerTopRight, tLastPoint, tPoint, tOptions);
+            pl_draw_add_triangle_filled(ptLayer, tInnerTopRight, tLastPoint, tPoint, tOptions);
             tLastPoint = tPoint;
             fTheta += fIncrement;
         }
-        pl_add_triangle_filled(ptLayer, tInnerTopRight, tLastPoint, tOuterTopRight1, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerTopRight, tLastPoint, tOuterTopRight1, tOptions);
     }
     else
     {
-        pl_add_triangle_filled(ptLayer, tInnerTopRight, tOuterTopRight0, (plVec2){tMaxP.x, tMinP.y}, tOptions);
-        pl_add_triangle_filled(ptLayer, tInnerTopRight, (plVec2){tMaxP.x, tMinP.y}, tOuterTopRight1, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerTopRight, tOuterTopRight0, (plVec2){tMaxP.x, tMinP.y}, tOptions);
+        pl_draw_add_triangle_filled(ptLayer, tInnerTopRight, (plVec2){tMaxP.x, tMinP.y}, tOuterTopRight1, tOptions);
     }
 }
 
-static  void
-pl_add_quad(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plDrawLineOptions tOptions)
+void
+pl_draw_add_quad(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plDrawLineOptions tOptions)
 {
     pl_sb_push(ptLayer->sbtPath, tP0);
     pl_sb_push(ptLayer->sbtPath, tP1);
@@ -1513,8 +1511,8 @@ pl_add_quad(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 t
     pl__submit_path(ptLayer, tOptions);
 }
 
-static void
-pl_add_quad_filled(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plDrawSolidOptions tOptions)
+void
+pl_draw_add_quad_filled(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plDrawSolidOptions tOptions)
 {
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
@@ -1529,8 +1527,8 @@ pl_add_quad_filled(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, p
     pl__add_index(ptLayer, uVtxStart, 0, 2, 3);
 }
 
-static void
-pl_add_circle(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t uSegments, plDrawLineOptions tOptions)
+void
+pl_draw_add_circle(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t uSegments, plDrawLineOptions tOptions)
 {
     if(uSegments == 0){ uSegments = 12; }
     const float fIncrement = PL_2PI / uSegments;
@@ -1544,8 +1542,8 @@ pl_add_circle(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t uSegmen
     pl__submit_path(ptLayer, tOptions);   
 }
 
-static void
-pl_add_circle_filled(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
+void
+pl_draw_add_circle_filled(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
     if(uSegments == 0){ uSegments = 12; }
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
@@ -1569,8 +1567,8 @@ pl_add_circle_filled(plDrawLayer2D* ptLayer, plVec2 tP, float fRadius, uint32_t 
     pl__add_index(ptLayer, uVertexStart, uSegments, 0, 1);
 }
 
-static void
-pl_add_polygon(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawLineOptions tOptions)
+void
+pl_draw_add_polygon(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawLineOptions tOptions)
 {
     for(uint32_t i = 0; i < uPointsSize; i++)
     {
@@ -1581,8 +1579,8 @@ pl_add_polygon(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, pl
     pl__submit_path(ptLayer, tOptions);
 }
 
-static void
-pl_add_convex_polygon_filled(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawSolidOptions tOptions)
+void
+pl_draw_add_convex_polygon_filled(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t uPointsSize, plDrawSolidOptions tOptions)
 {
     pl__prepare_draw_command(ptLayer, gptDrawCtx->ptAtlas->tTexture, false);
     pl__reserve_triangles(ptLayer, 3 * (uPointsSize - 2), uPointsSize);
@@ -1600,8 +1598,8 @@ pl_add_convex_polygon_filled(plDrawLayer2D* ptLayer, plVec2* tPoints, uint32_t u
     }
 }
 
-static void
-pl_add_image_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, uint32_t uColor)
+void
+pl_draw_add_image_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVec2 tPMax, plVec2 tUvMin, plVec2 tUvMax, uint32_t uColor)
 {
     pl__prepare_draw_command(ptLayer, tTexture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
@@ -1620,7 +1618,7 @@ pl_add_image_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVe
 }
 
 void
-pl_add_image_quad_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec2 tUv0, plVec2 tUv1, plVec2 tUv2, plVec2 tUv3, uint32_t uColor)
+pl_draw_add_image_quad_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, plVec2 tUv0, plVec2 tUv1, plVec2 tUv2, plVec2 tUv3, uint32_t uColor)
 {
     pl__prepare_draw_command(ptLayer, tTexture, false);
     pl__reserve_triangles(ptLayer, 6, 4);
@@ -1637,19 +1635,19 @@ pl_add_image_quad_ex(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tP0, p
 }
 
 void
-pl_add_image_quad(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3)
+pl_draw_add_image_quad(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3)
 {
-    pl_add_image_quad_ex(ptLayer, tTexture, tP0, tP1, tP2, tP3, (plVec2){0}, (plVec2){0.0f, 1.0f}, (plVec2){1.0f, 1.0f}, (plVec2){1.0f, 0.0f}, PL_COLOR_32_WHITE);
+    pl_draw_add_image_quad_ex(ptLayer, tTexture, tP0, tP1, tP2, tP3, (plVec2){0}, (plVec2){0.0f, 1.0f}, (plVec2){1.0f, 1.0f}, (plVec2){1.0f, 0.0f}, PL_COLOR_32_WHITE);
 }
 
-static void
-pl_add_image(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVec2 tPMax)
+void
+pl_draw_add_image(plDrawLayer2D* ptLayer, plTextureID tTexture, plVec2 tPMin, plVec2 tPMax)
 {
-    pl_add_image_ex(ptLayer, tTexture, tPMin, tPMax, (plVec2){0}, (plVec2){1.0f, 1.0f}, PL_COLOR_32_WHITE);
+    pl_draw_add_image_ex(ptLayer, tTexture, tPMin, tPMax, (plVec2){0}, (plVec2){1.0f, 1.0f}, PL_COLOR_32_WHITE);
 }
 
-static void
-pl_add_bezier_quad(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, uint32_t uSegments, plDrawLineOptions tOptions)
+void
+pl_draw_add_bezier_quad(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, uint32_t uSegments, plDrawLineOptions tOptions)
 {
     // order of the bezier curve inputs are 0=start, 1=control, 2=ending
 
@@ -1681,8 +1679,8 @@ pl_add_bezier_quad(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, u
     pl__submit_path(ptLayer, tOptions); 
 }
 
-static void
-pl_add_bezier_cubic(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, uint32_t uSegments, plDrawLineOptions tOptions)
+void
+pl_draw_add_bezier_cubic(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, plVec2 tP3, uint32_t uSegments, plDrawLineOptions tOptions)
 {
     // order of the bezier curve inputs are 0=start, 1=control 1, 2=control 2, 3=ending
     if(uSegments == 0)
@@ -1717,8 +1715,8 @@ pl_add_bezier_cubic(plDrawLayer2D* ptLayer, plVec2 tP0, plVec2 tP1, plVec2 tP2, 
     pl__submit_path(ptLayer, tOptions); 
 }
 
-static plFont*
-pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pData)
+plFont*
+pl_draw_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pData)
 {
     ptAtlas->_iGlyphPadding = 1;
 
@@ -1935,8 +1933,8 @@ pl_add_font_from_memory_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, void* pD
     return ptFont;
 }
 
-static plFont*
-pl_add_font_from_file_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile)
+plFont*
+pl_draw_add_font_from_file_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, const char* pcFile)
 {
     size_t szFileSize = gptVfs->get_file_size_str(pcFile);
     plVfsFileHandle tHandle = gptVfs->open_file(pcFile, PL_VFS_FILE_MODE_READ);
@@ -1948,14 +1946,14 @@ pl_add_font_from_file_ttf(plFontAtlas* ptAtlas, plFontConfig tConfig, const char
         gptVfs->read_file(tHandle, puData, &szFileSize);
         gptVfs->close_file(tHandle);
 
-        plFont* ptFont = pl_add_font_from_memory_ttf(ptAtlas, tConfig, puData);
+        plFont* ptFont = pl_draw_add_font_from_memory_ttf(ptAtlas, tConfig, puData);
         return ptFont;
     }
     return NULL;
 }
 
-static plVec2
-pl_calculate_text_size(const char* pcText, plDrawTextOptions tOptions)
+plVec2
+pl_draw_calculate_text_size(const char* pcText, plDrawTextOptions tOptions)
 {
 
     if(tOptions.pcTextEnd == NULL)
@@ -2068,8 +2066,8 @@ pl_calculate_text_size(const char* pcText, plDrawTextOptions tOptions)
     }
 }
 
-static plRect
-pl_calculate_text_bb(plVec2 tP, const char* pcText, plDrawTextOptions tOptions)
+plRect
+pl_draw_calculate_text_bb(plVec2 tP, const char* pcText, plDrawTextOptions tOptions)
 {
     if(tOptions.pcTextEnd == NULL)
     {
@@ -2203,8 +2201,8 @@ pl_calculate_text_bb(plVec2 tP, const char* pcText, plDrawTextOptions tOptions)
     return tResult;
 }
 
-static void
-pl_push_clip_rect_pt(plDrawList2D* ptDrawlist, const plRect* ptRect, bool bAccumulate)
+void
+pl_draw_push_clip_rect_pt(plDrawList2D* ptDrawlist, const plRect* ptRect, bool bAccumulate)
 {
     plRect tRect = *ptRect;
     if(bAccumulate && pl_sb_size(ptDrawlist->_sbtClipStack) > 0)
@@ -2212,50 +2210,50 @@ pl_push_clip_rect_pt(plDrawList2D* ptDrawlist, const plRect* ptRect, bool bAccum
     pl_sb_push(ptDrawlist->_sbtClipStack, tRect);
 }
 
-static void
-pl_push_clip_rect(plDrawList2D* ptDrawlist, plRect tRect, bool bAccumulate)
+void
+pl_draw_push_clip_rect(plDrawList2D* ptDrawlist, plRect tRect, bool bAccumulate)
 {
     if(bAccumulate && pl_sb_size(ptDrawlist->_sbtClipStack) > 0)
         tRect = pl_rect_clip_full(&tRect, &pl_sb_back(ptDrawlist->_sbtClipStack));
     pl_sb_push(ptDrawlist->_sbtClipStack, tRect);
 }
 
-static void
-pl_pop_clip_rect(plDrawList2D* ptDrawlist)
+void
+pl_draw_pop_clip_rect(plDrawList2D* ptDrawlist)
 {
     pl_sb_pop(ptDrawlist->_sbtClipStack);
 }
 
-static const plRect*
-pl_get_clip_rect(plDrawList2D* ptDrawlist)
+const plRect*
+pl_draw_get_clip_rect(plDrawList2D* ptDrawlist)
 {
      if(pl_sb_size(ptDrawlist->_sbtClipStack) > 0)
         return &pl_sb_back(ptDrawlist->_sbtClipStack);
     return NULL;
 }
 
-static plFontAtlas*
-pl_create_font_atlas(void)
+plFontAtlas*
+pl_draw_create_font_atlas(void)
 {
     plFontAtlas* ptAtlas = PL_ALLOC(sizeof(plFontAtlas));
     memset(ptAtlas, 0, sizeof(plFontAtlas));
     return ptAtlas;
 }
 
-static void
-pl_set_font_atlas(plFontAtlas* ptAtlas)
+void
+pl_draw_set_font_atlas(plFontAtlas* ptAtlas)
 {
     gptDrawCtx->ptAtlas = ptAtlas;
 }
 
-static plFontAtlas*
-pl_get_font_atlas(void)
+plFontAtlas*
+pl_draw_get_current_font_atlas(void)
 {
     return gptDrawCtx->ptAtlas;
 }
 
-static plFont*
-pl_get_first_font(plFontAtlas* ptAtlas)
+plFont*
+pl_draw_get_first_font(plFontAtlas* ptAtlas)
 {
     plFont* ptFont = ptAtlas->_ptFontListHead;
     while(ptFont)
@@ -2268,8 +2266,8 @@ pl_get_first_font(plFontAtlas* ptAtlas)
     return ptFont;
 }
 
-static bool
-pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
+bool
+pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
 {
 
     // create our white location
@@ -2584,14 +2582,14 @@ pl_build_font_atlas_backend(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtl
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
 
-    ptAtlas->tTexture = pl_create_bind_group_for_texture(tTexture).uData;
+    ptAtlas->tTexture = pl_draw_create_bind_group_for_texture(tTexture).uData;
 
     gptGfx->destroy_buffer(ptDevice, tStagingBuffer);
     return true;
 }
 
-static void
-pl_cleanup_font_atlas(plFontAtlas* ptAtlas)
+void
+pl_draw_cleanup_font_atlas(plFontAtlas* ptAtlas)
 {
     if(ptAtlas == NULL)
         ptAtlas = gptDrawCtx->ptAtlas;
@@ -2629,8 +2627,8 @@ pl_cleanup_font_atlas(plFontAtlas* ptAtlas)
     PL_FREE(ptAtlas);
 }
 
-static void
-pl_new_draw_3d_frame(void)
+void
+pl_draw_new_frame(void)
 {
     static double* pd2dPipelineCount = NULL;
     static double* pd3dPipelineCount = NULL;
@@ -2714,8 +2712,8 @@ pl__add_3d_triangles(
     }
 }
 
-static void
-pl__add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plDrawSolidOptions tOptions)
+void
+pl_draw_add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, plDrawSolidOptions tOptions)
 {
 
     pl_sb_reserve(ptDrawlist->sbtSolidVertexBuffer, pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) + 3);
@@ -2732,8 +2730,8 @@ pl__add_3d_triangle_filled(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plV
     pl_sb_push(ptDrawlist->sbtSolidIndexBuffer, uVertexStart + 2);
 }
 
-static void
-pl__add_3d_sphere_filled(plDrawList3D* ptDrawlist, plSphere tDesc, uint32_t uLatBands, uint32_t uLongBands, plDrawSolidOptions tOptions)
+void
+pl_draw_add_3d_sphere_filled(plDrawList3D* ptDrawlist, plSphere tDesc, uint32_t uLatBands, uint32_t uLongBands, plDrawSolidOptions tOptions)
 {
     const uint32_t uVertexStart = pl_sb_size(ptDrawlist->sbtSolidVertexBuffer);
     const uint32_t uIndexStart = pl_sb_size(ptDrawlist->sbtSolidIndexBuffer);
@@ -2791,8 +2789,8 @@ pl__add_3d_sphere_filled(plDrawList3D* ptDrawlist, plSphere tDesc, uint32_t uLat
     }
 }
 
-static void
-pl__add_3d_circle_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
+void
+pl_draw_add_3d_circle_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
     if(uSegments == 0){ uSegments = 12; }
     const float fIncrement = PL_2PI / uSegments;
@@ -2821,8 +2819,8 @@ pl__add_3d_circle_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRad
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_centered_box_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plDrawSolidOptions tOptions)
+void
+pl_draw_add_3d_centered_box_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plDrawSolidOptions tOptions)
 {
 
     const float fHalfWidth = fWidth / 2.0f;
@@ -2863,8 +2861,8 @@ pl__add_3d_centered_box_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float f
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_plane_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plDrawSolidOptions tOptions)
+void
+pl_draw_add_3d_plane_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plDrawSolidOptions tOptions)
 {
 
     const float fHalfWidth = fWidth / 2.0f;
@@ -2889,8 +2887,8 @@ pl__add_3d_plane_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidt
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_plane_xy_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plDrawSolidOptions tOptions)
+void
+pl_draw_add_3d_plane_xy_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plDrawSolidOptions tOptions)
 {
 
     const float fHalfWidth = fWidth / 2.0f;
@@ -2915,8 +2913,8 @@ pl__add_3d_plane_xy_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidt
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_plane_yz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plDrawSolidOptions tOptions)
+void
+pl_draw_add_3d_plane_yz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, plDrawSolidOptions tOptions)
 {
     const float fHalfWidth = fWidth / 2.0f;
     const float fHalfHeight = fHeight / 2.0f;
@@ -2936,8 +2934,8 @@ pl__add_3d_plane_yz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidt
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_band_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius, float fOuterRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
+void
+pl_draw_add_3d_band_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius, float fOuterRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
     if(uSegments == 0)
         uSegments = 12;
@@ -2978,8 +2976,8 @@ pl__add_3d_band_xz_filled(plDrawList3D* ptDrawlist, plVec3 tCenter, float fInner
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_band_xy_filled(
+void
+pl_draw_add_3d_band_xy_filled(
     plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius,
     float fOuterRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
@@ -3015,8 +3013,8 @@ pl__add_3d_band_xy_filled(
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_band_yz_filled(
+void
+pl_draw_add_3d_band_yz_filled(
     plDrawList3D* ptDrawlist, plVec3 tCenter, float fInnerRadius,
     float fOuterRadius, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
@@ -3058,8 +3056,8 @@ pl__add_3d_band_yz_filled(
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_cylinder_filled(plDrawList3D* ptDrawlist, plCylinder tDesc, uint32_t uSegments, plDrawSolidOptions tOptions)
+void
+pl_draw_add_3d_cylinder_filled(plDrawList3D* ptDrawlist, plCylinder tDesc, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
 
     if(uSegments == 0)
@@ -3125,8 +3123,8 @@ pl__add_3d_cylinder_filled(plDrawList3D* ptDrawlist, plCylinder tDesc, uint32_t 
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_cone_filled(plDrawList3D* ptDrawlist, plCone tDesc, uint32_t uSegments, plDrawSolidOptions tOptions)
+void
+pl_draw_add_3d_cone_filled(plDrawList3D* ptDrawlist, plCone tDesc, uint32_t uSegments, plDrawSolidOptions tOptions)
 {
 
     if(uSegments == 0)
@@ -3177,8 +3175,8 @@ pl__add_3d_cone_filled(plDrawList3D* ptDrawlist, plCone tDesc, uint32_t uSegment
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plDrawLineOptions tOptions)
 {
     pl_sb_reserve(ptDrawlist->sbtLineVertexBuffer, pl_sb_size(ptDrawlist->sbtLineVertexBuffer) + 4);
     pl_sb_reserve(ptDrawlist->sbtLineIndexBuffer, pl_sb_size(ptDrawlist->sbtLineIndexBuffer) + 6);
@@ -3219,8 +3217,8 @@ pl__add_3d_line(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plDrawLineOpti
     pl_sb_push(ptDrawlist->sbtLineIndexBuffer, uVertexStart + 3);
 }
 
-static void
-pl__add_3d_text(plDrawList3D* ptDrawlist, plVec3 tP, const char* pcText, plDrawTextOptions tOptions)
+void
+pl_draw_add_3d_text(plDrawList3D* ptDrawlist, plVec3 tP, const char* pcText, plDrawTextOptions tOptions)
 {
     plDraw3DText tText = {
         .fSize       = tOptions.fSize == 0.0f ? tOptions.ptFont->fSize : tOptions.fSize,
@@ -3233,8 +3231,8 @@ pl__add_3d_text(plDrawList3D* ptDrawlist, plVec3 tP, const char* pcText, plDrawT
     pl_sb_push(ptDrawlist->sbtTextEntries, tText);
 }
 
-static void
-pl__add_3d_cross(plDrawList3D* ptDrawlist, plVec3 tP, float fLength, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_cross(plDrawList3D* ptDrawlist, plVec3 tP, float fLength, plDrawLineOptions tOptions)
 {
     const float fHalfLength = fLength / 2.0f;
     const plVec3 aatVerticies[6] = {
@@ -3245,11 +3243,11 @@ pl__add_3d_cross(plDrawList3D* ptDrawlist, plVec3 tP, float fLength, plDrawLineO
         {  tP.x,  tP.y, tP.z - fHalfLength},
         {  tP.x,  tP.y, tP.z + fHalfLength}
     };
-    pl__add_3d_lines(ptDrawlist, 3, aatVerticies, tOptions);
+    pl_draw_add_3d_lines(ptDrawlist, 3, aatVerticies, tOptions);
 }
 
-static void
-pl__add_3d_transform(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_transform(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float fLength, plDrawLineOptions tOptions)
 {
 
     const plVec3 tOrigin = pl_mul_mat4_vec3(ptTransform, (plVec3){0.0f, 0.0f, 0.0f});
@@ -3258,15 +3256,15 @@ pl__add_3d_transform(plDrawList3D* ptDrawlist, const plMat4* ptTransform, float 
     const plVec3 tZAxis  = pl_mul_mat4_vec3(ptTransform, (plVec3){0.0f, 0.0f, fLength});
 
     tOptions.uColor = PL_COLOR_32_RGB(1.0f, 0.0f, 0.0f);
-    pl__add_3d_line(ptDrawlist, tOrigin, tXAxis, tOptions);
+    pl_draw_add_3d_line(ptDrawlist, tOrigin, tXAxis, tOptions);
     tOptions.uColor = PL_COLOR_32_RGB(0.0f, 1.0f, 0.0f);
-    pl__add_3d_line(ptDrawlist, tOrigin, tYAxis, tOptions);
+    pl_draw_add_3d_line(ptDrawlist, tOrigin, tYAxis, tOptions);
     tOptions.uColor = PL_COLOR_32_RGB(0.0f, 0.0f, 1.0f);
-    pl__add_3d_line(ptDrawlist, tOrigin, tZAxis, tOptions);
+    pl_draw_add_3d_line(ptDrawlist, tOrigin, tZAxis, tOptions);
 }
 
-static void
-pl__add_3d_frustum(plDrawList3D* ptDrawlist, const plMat4* ptTransform, plDrawFrustumDesc tDesc, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_frustum(plDrawList3D* ptDrawlist, const plMat4* ptTransform, plDrawFrustumDesc tDesc, plDrawLineOptions tOptions)
 {
     const float fSmallHeight = tanf(tDesc.fYFov / 2.0f) * tDesc.fNearZ;
     const float fSmallWidth  = fSmallHeight * tDesc.fAspectRatio;
@@ -3301,8 +3299,8 @@ pl__add_3d_frustum(plDrawList3D* ptDrawlist, const plMat4* ptTransform, plDrawFr
     pl__add_3d_indexed_lines(ptDrawlist, 24, atVerticies, auIndices, tOptions);
 }
 
-static void
-pl__add_3d_sphere_ex(plDrawList3D* ptDrawlist, plSphere tSphere, uint32_t uLatBands, uint32_t uLongBands, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_sphere(plDrawList3D* ptDrawlist, plSphere tSphere, uint32_t uLatBands, uint32_t uLongBands, plDrawLineOptions tOptions)
 {
     if(uLatBands == 0)
         uLatBands = 16;
@@ -3361,8 +3359,8 @@ pl__add_3d_sphere_ex(plDrawList3D* ptDrawlist, plSphere tSphere, uint32_t uLatBa
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_capsule_ex(plDrawList3D* ptDrawlist, plCapsule tDesc, uint32_t uLatBands, uint32_t uLongBands, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_capsule(plDrawList3D* ptDrawlist, plCapsule tDesc, uint32_t uLatBands, uint32_t uLongBands, plDrawLineOptions tOptions)
 {
     if(uLatBands == 0)
         uLatBands = 16;
@@ -3461,8 +3459,8 @@ pl__add_3d_capsule_ex(plDrawList3D* ptDrawlist, plCapsule tDesc, uint32_t uLatBa
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_cylinder(plDrawList3D* ptDrawlist, plCylinder tDesc, uint32_t uSegments, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_cylinder(plDrawList3D* ptDrawlist, plCylinder tDesc, uint32_t uSegments, plDrawLineOptions tOptions)
 {
 
     if(uSegments == 0)
@@ -3516,8 +3514,8 @@ pl__add_3d_cylinder(plDrawList3D* ptDrawlist, plCylinder tDesc, uint32_t uSegmen
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_cone_ex(plDrawList3D* ptDrawlist, plCone tDesc, uint32_t uSegments, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_cone(plDrawList3D* ptDrawlist, plCone tDesc, uint32_t uSegments, plDrawLineOptions tOptions)
 {
 
     if(uSegments == 0)
@@ -3567,8 +3565,8 @@ pl__add_3d_cone_ex(plDrawList3D* ptDrawlist, plCone tDesc, uint32_t uSegments, p
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_circle_xz(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius, uint32_t uSegments, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_circle_xz(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius, uint32_t uSegments, plDrawLineOptions tOptions)
 {
     if(uSegments == 0){ uSegments = 12; }
     const float fIncrement = PL_2PI / uSegments;
@@ -3584,8 +3582,8 @@ pl__add_3d_circle_xz(plDrawList3D* ptDrawlist, plVec3 tCenter, float fRadius, ui
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 }
 
-static void
-pl__add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, float fHeight, float fDepth, plDrawLineOptions tOptions)
 {
 
     const float fHalfWidth = fWidth / 2.0f;
@@ -3624,8 +3622,8 @@ pl__add_3d_centered_box(plDrawList3D* ptDrawlist, plVec3 tCenter, float fWidth, 
     pl__add_3d_indexed_lines(ptDrawlist, 24, atVerticies, auIndices, tOptions);
 }
 
-static void
-pl__add_3d_aabb(plDrawList3D* ptDrawlist, plVec3 tMin, plVec3 tMax, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_aabb(plDrawList3D* ptDrawlist, plVec3 tMin, plVec3 tMax, plDrawLineOptions tOptions)
 {
     const plVec3 atVerticies[] = {
         {  tMin.x, tMin.y, tMin.z },
@@ -3655,8 +3653,8 @@ pl__add_3d_aabb(plDrawList3D* ptDrawlist, plVec3 tMin, plVec3 tMax, plDrawLineOp
     pl__add_3d_indexed_lines(ptDrawlist, 24, atVerticies, auIndices, tOptions);
 }
 
-static void
-pl__add_3d_bezier_quad(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, uint32_t uSegments, plDrawLineOptions tOptions)
+void
+pl_draw_add_3d_bezier_quad(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2, uint32_t uSegments, plDrawLineOptions tOptions)
 {
 
     // order of the bezier curve inputs are 0=start, 1=control, 2=ending
@@ -3684,17 +3682,17 @@ pl__add_3d_bezier_quad(plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 
         atVerticies[0] = atVerticies[1];
         atVerticies[1] = p4;
 
-        pl__add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tOptions);
+        pl_draw_add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tOptions);
     }
 
     // set up last point
     atVerticies[0] = atVerticies[1];
     atVerticies[1] = tP2;
-    pl__add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tOptions);
+    pl_draw_add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tOptions);
 }
 
-static void
-pl__add_3d_bezier_cubic(
+void
+pl_draw_add_3d_bezier_cubic(
     plDrawList3D* ptDrawlist, plVec3 tP0, plVec3 tP1, plVec3 tP2,
     plVec3 tP3, uint32_t uSegments, plDrawLineOptions tOptions)
 {
@@ -3727,13 +3725,13 @@ pl__add_3d_bezier_cubic(
         atVerticies[0] = atVerticies[1];
         atVerticies[1] = p7;
 
-        pl__add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tOptions);
+        pl_draw_add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tOptions);
     }
 
     // set up last point
     atVerticies[0] = atVerticies[1];
     atVerticies[1] = tP3;
-    pl__add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tOptions);
+    pl_draw_add_3d_line(ptDrawlist, atVerticies[0], atVerticies[1], tOptions);
 }
 
 //-----------------------------------------------------------------------------
@@ -3991,8 +3989,8 @@ static const char gcPtrDefaultFontCompressed[11980 + 1] =
     "GT4CPGT4CPGT4CPGT4CPGT4CPGT4CP-qekC`.9kEg^+F$kwViFJTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5KTB&5o,^<-28ZI'O?;xp"
     "O?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xpO?;xp;7q-#lLYI:xvD=#";
 
-static plFont*
-pl_add_default_font(plFontAtlas* ptAtlas)
+plFont*
+pl_draw_add_default_font(plFontAtlas* ptAtlas)
 {
 
     void* pData = NULL;
@@ -4023,11 +4021,11 @@ pl_add_default_font(plFontAtlas* ptAtlas)
         .uRangeCount    = 1
     };
     
-    return pl_add_font_from_memory_ttf(ptAtlas, tFontConfig, pData);
+    return pl_draw_add_font_from_memory_ttf(ptAtlas, tFontConfig, pData);
 }
 
 plBindGroupHandle
-pl_create_bind_group_for_texture(plTextureHandle tTexture)
+pl_draw_create_bind_group_for_texture(plTextureHandle tTexture)
 {
     const plBindGroupLayoutDesc tDrawingBindGroup = {
         .atTextureBindings = { 
@@ -4065,19 +4063,19 @@ pl__use_nearest_sampler(const plDrawList2D* ptDrawlist, const plDrawCommand* tCm
 }
 
 void
-pl_use_nearest_sampler(plDrawLayer2D* ptLayer)
+pl_draw_use_nearest_sampler(plDrawLayer2D* ptLayer)
 {
     pl_add_2d_callback(ptLayer, pl__use_nearest_sampler, NULL, 0);
 }
 
 void
-pl_use_linear_sampler(plDrawLayer2D* ptLayer)
+pl_draw_use_linear_sampler(plDrawLayer2D* ptLayer)
 {
     pl_add_2d_callback(ptLayer, plDrawCallbackResetRenderState, NULL, 0);
 }
 
 void
-pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
+pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
 {
     gptGfx->set_depth_bias( ptEncoder, 0.0f, 0.0f, 0.0f);
 
@@ -4348,7 +4346,7 @@ pl_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, floa
 }
 
 void
-pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags tFlags, uint32_t uMSAASampleCount)
+pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags tFlags, uint32_t uMSAASampleCount)
 {
     gptGfx->push_render_debug_group(ptEncoder, "3D Draw", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
@@ -4573,7 +4571,7 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         {
             tPos.x = fWidth * 0.5f * (1.0f + tPos.x);
             tPos.y = fHeight * 0.5f * (1.0f + tPos.y);
-            pl_add_text_ex(ptDrawlist->ptLayer,
+            pl_draw_add_text(ptDrawlist->ptLayer,
                 (plVec2){roundf(tPos.x + 0.5f), roundf(tPos.y + 0.5f)},
                 ptText->acText,
                 (plDrawTextOptions){
@@ -4584,8 +4582,8 @@ pl_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, floa
         }
     }
 
-    pl_submit_2d_layer(ptDrawlist->ptLayer);
-    pl_submit_2d_drawlist(ptDrawlist->pt2dDrawlist, ptEncoder, fWidth, fHeight, uMSAASampleCount);
+    pl_draw_submit_2d_layer(ptDrawlist->ptLayer);
+    pl_draw_submit_2d_drawlist(ptDrawlist->pt2dDrawlist, ptEncoder, fWidth, fHeight, uMSAASampleCount);
     gptGfx->pop_render_debug_group(ptEncoder);
 }
 
@@ -4994,90 +4992,90 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plDrawI tApi = {
-        .initialize                    = pl_initialize,
-        .cleanup                       = pl_cleanup,
-        .request_3d_drawlist           = pl_request_3d_drawlist,
-        .return_3d_drawlist            = pl_return_3d_drawlist,
-        .new_frame                     = pl_new_draw_3d_frame,
-        .add_3d_triangle_filled        = pl__add_3d_triangle_filled,
-        .add_3d_circle_xz_filled       = pl__add_3d_circle_xz_filled,
-        .add_3d_band_xz_filled         = pl__add_3d_band_xz_filled,
-        .add_3d_band_xy_filled         = pl__add_3d_band_xy_filled,
-        .add_3d_band_yz_filled         = pl__add_3d_band_yz_filled,
-        .add_3d_sphere_filled          = pl__add_3d_sphere_filled,
-        .add_3d_cylinder_filled        = pl__add_3d_cylinder_filled,
-        .add_3d_cone_filled            = pl__add_3d_cone_filled,
-        .add_3d_centered_box_filled    = pl__add_3d_centered_box_filled,
-        .add_3d_plane_xz_filled        = pl__add_3d_plane_xz_filled,
-        .add_3d_plane_xy_filled        = pl__add_3d_plane_xy_filled,
-        .add_3d_plane_yz_filled        = pl__add_3d_plane_yz_filled,
-        .add_3d_line                   = pl__add_3d_line,
-        .add_3d_cross                  = pl__add_3d_cross,
-        .add_3d_transform              = pl__add_3d_transform,
-        .add_3d_frustum                = pl__add_3d_frustum,
-        .add_3d_sphere                 = pl__add_3d_sphere_ex,
-        .add_3d_capsule                = pl__add_3d_capsule_ex,
-        .add_3d_cylinder               = pl__add_3d_cylinder,
-        .add_3d_cone                   = pl__add_3d_cone_ex,
-        .add_3d_centered_box           = pl__add_3d_centered_box,
-        .add_3d_bezier_quad            = pl__add_3d_bezier_quad,
-        .add_3d_bezier_cubic           = pl__add_3d_bezier_cubic,
-        .add_3d_aabb                   = pl__add_3d_aabb,
-        .add_3d_circle_xz              = pl__add_3d_circle_xz,
-        .add_3d_text                   = pl__add_3d_text,
-        .request_2d_drawlist           = pl_request_2d_drawlist,
-        .return_2d_drawlist            = pl_return_2d_drawlist,
-        .request_2d_layer              = pl_request_2d_layer,
-        .return_2d_layer               = pl_return_2d_layer,
-        .submit_2d_layer               = pl_submit_2d_layer,
-        .build_font_atlas              = pl_build_font_atlas_backend,
-        .create_font_atlas             = pl_create_font_atlas,
-        .set_font_atlas                = pl_set_font_atlas,
-        .get_current_font_atlas        = pl_get_font_atlas,
-        .get_first_font                = pl_get_first_font,
-        .cleanup_font_atlas            = pl_cleanup_font_atlas,
-        .add_default_font              = pl_add_default_font,
-        .add_font_from_file_ttf        = pl_add_font_from_file_ttf,
-        .add_font_from_memory_ttf      = pl_add_font_from_memory_ttf,
-        .calculate_text_size           = pl_calculate_text_size,
-        .calculate_text_bb             = pl_calculate_text_bb,
-        .push_clip_rect_pt             = pl_push_clip_rect_pt,
-        .push_clip_rect                = pl_push_clip_rect,
-        .pop_clip_rect                 = pl_pop_clip_rect,
-        .get_clip_rect                 = pl_get_clip_rect,
-        .add_line                      = pl_add_line,
-        .add_lines                     = pl_add_lines,
-        .add_text                      = pl_add_text_ex,
-        .add_text_clipped              = pl_add_text_clipped_ex,
-        .add_triangle                  = pl_add_triangle,
-        .add_triangle_filled           = pl_add_triangle_filled,
-        .add_triangles_filled          = pl_add_triangles_filled,
-        .add_rect_rounded              = pl_add_rect_rounded_ex,
-        .add_rect_rounded_filled       = pl_add_rect_rounded_filled_ex,
-        .add_rect                      = pl_add_rect,
-        .add_rect_filled               = pl_add_rect_filled,
-        .add_quad                      = pl_add_quad,
-        .add_quad_filled               = pl_add_quad_filled,
-        .add_circle                    = pl_add_circle,
-        .add_circle_filled             = pl_add_circle_filled,
-        .add_polygon                   = pl_add_polygon,
-        .add_convex_polygon_filled     = pl_add_convex_polygon_filled,
-        .add_image                     = pl_add_image,
-        .add_image_ex                  = pl_add_image_ex,
-        .add_image_quad                = pl_add_image_quad,
-        .add_image_quad_ex             = pl_add_image_quad_ex,
-        .add_bezier_quad               = pl_add_bezier_quad,
-        .add_bezier_cubic              = pl_add_bezier_cubic,
-        .submit_2d_drawlist            = pl_submit_2d_drawlist,
-        .submit_3d_drawlist            = pl_submit_3d_drawlist,
-        .create_bind_group_for_texture = pl_create_bind_group_for_texture,
+        .initialize                    = pl_draw_initialize,
+        .cleanup                       = pl_draw_cleanup,
+        .request_3d_drawlist           = pl_draw_request_3d_drawlist,
+        .return_3d_drawlist            = pl_draw_return_3d_drawlist,
+        .new_frame                     = pl_draw_new_frame,
+        .add_3d_triangle_filled        = pl_draw_add_3d_triangle_filled,
+        .add_3d_circle_xz_filled       = pl_draw_add_3d_circle_xz_filled,
+        .add_3d_band_xz_filled         = pl_draw_add_3d_band_xz_filled,
+        .add_3d_band_xy_filled         = pl_draw_add_3d_band_xy_filled,
+        .add_3d_band_yz_filled         = pl_draw_add_3d_band_yz_filled,
+        .add_3d_sphere_filled          = pl_draw_add_3d_sphere_filled,
+        .add_3d_cylinder_filled        = pl_draw_add_3d_cylinder_filled,
+        .add_3d_cone_filled            = pl_draw_add_3d_cone_filled,
+        .add_3d_centered_box_filled    = pl_draw_add_3d_centered_box_filled,
+        .add_3d_plane_xz_filled        = pl_draw_add_3d_plane_xz_filled,
+        .add_3d_plane_xy_filled        = pl_draw_add_3d_plane_xy_filled,
+        .add_3d_plane_yz_filled        = pl_draw_add_3d_plane_yz_filled,
+        .add_3d_line                   = pl_draw_add_3d_line,
+        .add_3d_cross                  = pl_draw_add_3d_cross,
+        .add_3d_transform              = pl_draw_add_3d_transform,
+        .add_3d_frustum                = pl_draw_add_3d_frustum,
+        .add_3d_sphere                 = pl_draw_add_3d_sphere,
+        .add_3d_capsule                = pl_draw_add_3d_capsule,
+        .add_3d_cylinder               = pl_draw_add_3d_cylinder,
+        .add_3d_cone                   = pl_draw_add_3d_cone,
+        .add_3d_centered_box           = pl_draw_add_3d_centered_box,
+        .add_3d_bezier_quad            = pl_draw_add_3d_bezier_quad,
+        .add_3d_bezier_cubic           = pl_draw_add_3d_bezier_cubic,
+        .add_3d_aabb                   = pl_draw_add_3d_aabb,
+        .add_3d_circle_xz              = pl_draw_add_3d_circle_xz,
+        .add_3d_text                   = pl_draw_add_3d_text,
+        .request_2d_drawlist           = pl_draw_request_2d_drawlist,
+        .return_2d_drawlist            = pl_draw_return_2d_drawlist,
+        .request_2d_layer              = pl_draw_request_2d_layer,
+        .return_2d_layer               = pl_draw_return_2d_layer,
+        .submit_2d_layer               = pl_draw_submit_2d_layer,
+        .build_font_atlas              = pl_draw_build_font_atlas,
+        .create_font_atlas             = pl_draw_create_font_atlas,
+        .set_font_atlas                = pl_draw_set_font_atlas,
+        .get_current_font_atlas        = pl_draw_get_current_font_atlas,
+        .get_first_font                = pl_draw_get_first_font,
+        .cleanup_font_atlas            = pl_draw_cleanup_font_atlas,
+        .add_default_font              = pl_draw_add_default_font,
+        .add_font_from_file_ttf        = pl_draw_add_font_from_file_ttf,
+        .add_font_from_memory_ttf      = pl_draw_add_font_from_memory_ttf,
+        .calculate_text_size           = pl_draw_calculate_text_size,
+        .calculate_text_bb             = pl_draw_calculate_text_bb,
+        .push_clip_rect_pt             = pl_draw_push_clip_rect_pt,
+        .push_clip_rect                = pl_draw_push_clip_rect,
+        .pop_clip_rect                 = pl_draw_pop_clip_rect,
+        .get_clip_rect                 = pl_draw_get_clip_rect,
+        .add_line                      = pl_draw_add_line,
+        .add_lines                     = pl_draw_add_lines,
+        .add_text                      = pl_draw_add_text,
+        .add_text_clipped              = pl_draw_add_text_clipped,
+        .add_triangle                  = pl_draw_add_triangle,
+        .add_triangle_filled           = pl_draw_add_triangle_filled,
+        .add_triangles_filled          = pl_draw_add_triangles_filled,
+        .add_rect_rounded              = pl_draw_add_rect_rounded,
+        .add_rect_rounded_filled       = pl_draw_add_rect_rounded_filled,
+        .add_rect                      = pl_draw_add_rect,
+        .add_rect_filled               = pl_draw_add_rect_filled,
+        .add_quad                      = pl_draw_add_quad,
+        .add_quad_filled               = pl_draw_add_quad_filled,
+        .add_circle                    = pl_draw_add_circle,
+        .add_circle_filled             = pl_draw_add_circle_filled,
+        .add_polygon                   = pl_draw_add_polygon,
+        .add_convex_polygon_filled     = pl_draw_add_convex_polygon_filled,
+        .add_image                     = pl_draw_add_image,
+        .add_image_ex                  = pl_draw_add_image_ex,
+        .add_image_quad                = pl_draw_add_image_quad,
+        .add_image_quad_ex             = pl_draw_add_image_quad_ex,
+        .add_bezier_quad               = pl_draw_add_bezier_quad,
+        .add_bezier_cubic              = pl_draw_add_bezier_cubic,
+        .submit_2d_drawlist            = pl_draw_submit_2d_drawlist,
+        .submit_3d_drawlist            = pl_draw_submit_3d_drawlist,
+        .create_bind_group_for_texture = pl_draw_create_bind_group_for_texture,
         .get_bind_group_pool           = pl_draw_get_bind_group_pool,
-        .use_nearest_sampler           = pl_use_nearest_sampler,
-        .use_linear_sampler            = pl_use_linear_sampler,
+        .use_nearest_sampler           = pl_draw_use_nearest_sampler,
+        .use_linear_sampler            = pl_draw_use_linear_sampler,
     };
     pl_set_api(ptApiRegistry, plDrawI, &tApi);
 
@@ -5115,7 +5113,7 @@ pl_load_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_draw_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

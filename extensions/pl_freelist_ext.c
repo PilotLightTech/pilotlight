@@ -226,7 +226,7 @@ pl_freelist_return_node(plFreeList* ptFreeList, plFreeListNode* ptNode)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_freelist_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plFreeListI tApi = {
@@ -238,7 +238,7 @@ pl_load_freelist_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plFreeListI, &tApi);
 }
 
-PL_EXPORT void
+void
 pl_unload_freelist_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

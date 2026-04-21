@@ -54,13 +54,13 @@ static plScriptContext* gptScriptCtx = NULL;
 //-----------------------------------------------------------------------------
 
 plEcsTypeKey
-pl_get_ecs_type_key_script(void)
+pl_script_get_ecs_type_key(void)
 {
     return gptScriptCtx->tComponentType;
 }
 
 plEntity
-pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plScriptComponent** pptCompOut)
+pl_script_create(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plScriptComponent** pptCompOut)
 {
 
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created script: '%s'", pcFile);
@@ -84,7 +84,7 @@ pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
 }
 
 void
-pl_ecs_attach_script(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plEntity tEntity, plScriptComponent** pptCompOut)
+pl_script_attach(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plEntity tEntity, plScriptComponent** pptCompOut)
 {
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "attach script: '%s'", pcFile);
     plScriptComponent* ptScript = gptECS->add_component(ptLibrary, gptScriptCtx->tComponentType, tEntity);
@@ -105,7 +105,7 @@ pl_ecs_attach_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
 }
 
 void
-pl_script_register_system(void)
+pl_script_register_ecs_system(void)
 {
 
     const plComponentDesc tScriptDesc = {
@@ -116,7 +116,7 @@ pl_script_register_system(void)
 }
 
 void
-pl_run_script_update_system(plComponentLibrary* ptLibrary)
+pl_script_run_update_system(plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -142,15 +142,15 @@ pl_run_script_update_system(plComponentLibrary* ptLibrary)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+void
 pl_load_script_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plScriptI tApi = {
-        .attach              = pl_ecs_attach_script,
-        .create              = pl_ecs_create_script,
-        .run_update_system   = pl_run_script_update_system,
-        .register_ecs_system = pl_script_register_system,
-        .get_ecs_type_key    = pl_get_ecs_type_key_script
+        .attach              = pl_script_attach,
+        .create              = pl_script_create,
+        .run_update_system   = pl_script_run_update_system,
+        .register_ecs_system = pl_script_register_ecs_system,
+        .get_ecs_type_key    = pl_script_get_ecs_type_key
     };
     pl_set_api(ptApiRegistry, plScriptI, &tApi);
 
@@ -174,7 +174,7 @@ pl_load_script_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-static void
+void
 pl_unload_script_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

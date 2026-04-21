@@ -321,7 +321,7 @@ pl_physics_get_ecs_type_key_force_field(void)
 }
 
 void
-pl_physics_register_system(void)
+pl_physics_register_ecs_system(void)
 {
     const plComponentDesc tRigidBodyDesc = {
         .pcName = "Rigid Body Physics",
@@ -364,10 +364,10 @@ pl_physics_set_settings(plPhysicsEngineSettings tSettings)
     gptPhysicsCtx->tSettings = tSettings;
 }
 
-plPhysicsEngineSettings
-pl_physics_get_settings(void)
+void
+pl_physics_get_settings(plPhysicsEngineSettings* ptOut)
 {
-    return gptPhysicsCtx->tSettings;
+    *ptOut = gptPhysicsCtx->tSettings;
 }
 
 void
@@ -2062,7 +2062,7 @@ pl__contact_calculate_contact_basis(plContact* ptContact)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plPhysicsI tApi = {
@@ -2088,7 +2088,7 @@ pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .wake_up_all                         = pl_physics_wake_up_all,
         .sleep_body                          = pl_physics_sleep_body,
         .sleep_all                           = pl_physics_sleep_all,
-        .register_ecs_system                 = pl_physics_register_system,
+        .register_ecs_system                 = pl_physics_register_ecs_system,
         .get_ecs_type_key_force_field        = pl_physics_get_ecs_type_key_force_field,
         .get_ecs_type_key_rigid_body_physics = pl_physics_get_ecs_type_key_rigid_body_physics,
     };
@@ -2120,7 +2120,7 @@ pl_load_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_physics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

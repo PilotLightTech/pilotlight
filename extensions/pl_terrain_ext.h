@@ -9,6 +9,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] forward declarations
 // [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] structs
 */
 
@@ -18,6 +19,10 @@ Index of this file:
 
 #ifndef PL_TERRAIN_EXT_H
 #define PL_TERRAIN_EXT_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
@@ -29,6 +34,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdbool.h>
 #include <stdint.h>
 #include "pl_math.h"
@@ -48,6 +54,17 @@ typedef struct _plFreeListNode plFreeListNode; // pl_freelist_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_terrain_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_terrain_ext(plApiRegistryI*, bool reload);
+
+PL_API void pl_terrain_process         (plTerrainProcessInfo*);
+PL_API bool pl_terrain_load_chunk_file (const char* path, plTerrainChunkFile* fileOut, uint32_t fileID);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plTerrainI
@@ -128,5 +145,9 @@ typedef struct _plTerrainVertex
     plVec2 tNormal;
     plVec2 tUV;
 } plTerrainVertex;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_TERRAIN_EXT_H

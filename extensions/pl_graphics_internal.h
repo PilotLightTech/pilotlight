@@ -61,25 +61,25 @@ typedef struct _plFrameContext plFrameContext;
 static struct _plGraphics* gptGraphics = NULL;
 static uint64_t uLogChannelGraphics = UINT64_MAX;
 
-// getters (generational pool)
-static plSampler*          pl_get_sampler           (plDevice*, plSamplerHandle);
-static plRenderPassLayout* pl_get_render_pass_layout(plDevice*, plRenderPassLayoutHandle);
-static plRenderPass*       pl_get_render_pass       (plDevice*, plRenderPassHandle);
-static plBuffer*           pl__get_buffer           (plDevice*, plBufferHandle);
-static plTexture*          pl__get_texture          (plDevice*, plTextureHandle);
-static plBindGroup*        pl__get_bind_group       (plDevice*, plBindGroupHandle);
-static plBindGroupLayout*  pl__get_bind_group_layout(plDevice*, plBindGroupLayoutHandle);
-static plShader*           pl__get_shader           (plDevice*, plShaderHandle);
-static plComputeShader*    pl__get_compute_shader   (plDevice*, plComputeShaderHandle);
+// // getters (generational pool)
+// static plSampler*          pl_graphics_get_sampler           (plDevice*, plSamplerHandle);
+// static plRenderPassLayout* pl_graphics_get_render_pass_layout(plDevice*, plRenderPassLayoutHandle);
+// static plRenderPass*       pl_graphics_get_render_pass       (plDevice*, plRenderPassHandle);
+// static plBuffer*           pl_graphics_get_buffer           (plDevice*, plBufferHandle);
+// static plTexture*          pl_graphics_get_texture          (plDevice*, plTextureHandle);
+// static plBindGroup*        pl_graphics_get_bind_group       (plDevice*, plBindGroupHandle);
+// static plBindGroupLayout*  pl_graphics_get_bind_group_layout(plDevice*, plBindGroupLayoutHandle);
+// static plShader*           pl_graphics_get_shader           (plDevice*, plShaderHandle);
+// static plComputeShader*    pl_graphics_get_compute_shader   (plDevice*, plComputeShaderHandle);
 
-static bool pl_is_buffer_valid            (plDevice*, plBufferHandle);
-static bool pl_is_sampler_valid           (plDevice*, plSamplerHandle);
-static bool pl_is_texture_valid           (plDevice*, plTextureHandle);
-static bool pl_is_bind_group_valid        (plDevice*, plBindGroupHandle);
-static bool pl_is_render_pass_valid       (plDevice*, plRenderPassHandle);
-static bool pl_is_render_pass_layout_valid(plDevice*, plRenderPassLayoutHandle);
-static bool pl_is_shader_valid            (plDevice*, plShaderHandle);
-static bool pl_is_compute_shader_valid    (plDevice*, plComputeShaderHandle);
+// static bool pl_graphics_is_buffer_valid            (plDevice*, plBufferHandle);
+// static bool pl_graphics_is_sampler_valid           (plDevice*, plSamplerHandle);
+// static bool pl_graphics_is_texture_valid           (plDevice*, plTextureHandle);
+// static bool pl_graphics_is_bind_group_valid        (plDevice*, plBindGroupHandle);
+// static bool pl_graphics_is_render_pass_valid       (plDevice*, plRenderPassHandle);
+// static bool pl_graphics_is_render_pass_layout_valid(plDevice*, plRenderPassLayoutHandle);
+// static bool pl_graphics_is_shader_valid            (plDevice*, plShaderHandle);
+// static bool pl_graphics_is_compute_shader_valid    (plDevice*, plComputeShaderHandle);
 
 // new handles
 static plBufferHandle           pl__get_new_buffer_handle(plDevice*);
@@ -107,25 +107,9 @@ static void pl__return_event(plDevice*, plTimelineEvent*);
 static plFrameGarbage* pl__get_frame_garbage(plDevice*);
 static plFrameContext* pl__get_frame_resources(plDevice*);
 
-static void pl_queue_buffer_for_deletion(plDevice*, plBufferHandle);
-static void pl_queue_texture_for_deletion(plDevice*, plTextureHandle);
-static void pl_queue_render_pass_for_deletion(plDevice*, plRenderPassHandle);
-static void pl_queue_render_pass_layout_for_deletion(plDevice*, plRenderPassLayoutHandle);
-static void pl_queue_shader_for_deletion(plDevice*, plShaderHandle);
-static void pl_queue_compute_shader_for_deletion(plDevice*, plComputeShaderHandle);
-static void pl_queue_bind_group_for_deletion(plDevice*, plBindGroupHandle);
-static void pl_queue_bind_group_layout_for_deletion(plDevice*, plBindGroupLayoutHandle);
-static void pl_queue_sampler_for_deletion(plDevice*, plSamplerHandle);
-
 // helpers
-static size_t   pl_get_data_type_size(plDataType);
 static uint32_t pl__format_stride(plFormat);
 static size_t   pl__get_vertex_attribute_size(plVertexFormat);
-
-// backends
-static uint32_t pl_get_current_frame_index(void);
-static size_t   pl_get_local_memory_in_use(void);
-static size_t   pl_get_host_memory_in_use(void);
 
 // drawstream
 static void pl_drawstream_cleanup(plDrawStream*);
@@ -139,6 +123,5 @@ static void pl__cleanup_common_swapchain(plSwapchain*);
 
 // misc.
 static void pl__garbage_collect(plDevice*);
-static plBlendState pl_graphics_get_blend_state(plBlendMode tBlendMode);
 
 #endif // PL_GRAPHICS_INTERNAL_EXT_H

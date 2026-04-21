@@ -165,7 +165,7 @@ pl_camera_update(plCamera* ptCamera)
 }
 
 plEntity
-pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera** pptCompOut)
+pl_camera_create_perspective(plComponentLibrary* ptLibrary, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
@@ -192,7 +192,7 @@ pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* p
 }
 
 plEntity
-pl_camera_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera** pptCompOut)
+pl_camera_create_orthographic(plComponentLibrary* ptLibrary, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
@@ -219,7 +219,7 @@ pl_camera_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* 
 }
 
 void
-pl_run_camera_update_system(plComponentLibrary* ptLibrary)
+pl_camera_run_ecs(plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -321,7 +321,7 @@ pl_camera_look_at(plCamera* ptCamera, plVec3d tEye, plVec3d tTarget)
 }
 
 void
-pl_camera_register_system(void)
+pl_camera_register_ecs_system(void)
 {
     static const plComponentDesc tDesc = {
         .pcName = "Camera",
@@ -340,15 +340,15 @@ pl_camera_get_ecs_type_key(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
-pl_load_camera_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+void
+pl_load_camera_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plCameraI tApi = {
-        .register_ecs_system = pl_camera_register_system,
-        .run_ecs             = pl_run_camera_update_system,
+        .register_ecs_system = pl_camera_register_ecs_system,
+        .run_ecs             = pl_camera_run_ecs,
         .get_ecs_type_key    = pl_camera_get_ecs_type_key,
-        .create_perspective  = pl_camera_create_perspective_camera,
-        .create_orthographic = pl_camera_create_orthographic_camera,
+        .create_perspective  = pl_camera_create_perspective,
+        .create_orthographic = pl_camera_create_orthographic,
         .set_fov             = pl_camera_set_fov,
         .set_clip_planes     = pl_camera_set_clip_planes,
         .set_aspect          = pl_camera_set_aspect,
@@ -379,8 +379,8 @@ pl_load_camera_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-static void
-pl_unload_camera_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
+void
+pl_unload_camera_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
         return;

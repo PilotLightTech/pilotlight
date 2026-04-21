@@ -10,6 +10,7 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] includes
 // [SECTION] forward declarations
+// [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
 */
@@ -35,16 +36,21 @@ Index of this file:
 #ifndef PL_PAK_EXT_H
 #define PL_PAK_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plPakI_version {1, 1, 0}
+#define plPakI_version {1, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>  // uint*_t
 #include <stdbool.h> // bool
 #include <stddef.h>  // size_t
@@ -58,6 +64,34 @@ typedef struct _plPakFile      plPakFile;
 typedef struct _plPakInfo      plPakInfo;
 typedef struct _plPakEntryInfo plPakEntryInfo;
 typedef struct _plPakChildFile plPakChildFile;
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_pak_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_pak_ext(plApiRegistryI*, bool reload);
+
+// packing
+PL_API bool            pl_pak_begin_packing  (const char* file, uint32_t contentVersion, plPakFile**);
+PL_API bool            pl_pak_add_from_disk  (plPakFile*, const char* pakPath, const char* filePath, bool compress);
+PL_API void            pl_pak_add_from_memory(plPakFile*, const char* pakPath, uint8_t* fileData, size_t fileByteSize, bool compress);
+PL_API void            pl_pak_end_packing    (plPakFile**);
+
+// unpacking
+PL_API bool            pl_pak_load     (const char* file, plPakInfo*, plPakFile**);
+PL_API void            pl_pak_unload   (plPakFile**);
+PL_API bool            pl_pak_read_file(plPakFile*, const char* file, uint8_t* bufferOut, size_t* fileByteSizeOut);
+
+// streaming usage
+PL_API plPakChildFile* pl_pak_open_file                     (plPakFile*, const char* file);
+PL_API void            pl_pak_close_file                    (plPakChildFile*);
+PL_API size_t          pl_pak_read_file_stream              (plPakChildFile*, size_t elementSize, size_t elementCount, void* bufferOut);
+PL_API size_t          pl_pak_get_file_stream_position      (plPakChildFile*);
+PL_API void            pl_pak_reset_file_stream_position    (plPakChildFile*);
+PL_API void            pl_pak_set_file_stream_position      (plPakChildFile*, size_t);
+PL_API void            pl_pak_increment_file_stream_position(plPakChildFile*, size_t);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -112,5 +146,8 @@ typedef struct _plPakInfo
     plPakEntryInfo* atEntries;
 } plPakInfo;
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_PAK_EXT_H

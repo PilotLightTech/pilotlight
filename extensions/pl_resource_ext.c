@@ -1104,7 +1104,7 @@ pl_resource_make_resident(plResourceHandle tHandle)
 }
 
 void
-pl_resource_clear_all(void)
+pl_resource_clear(void)
 {
     const uint32_t uResourceCount = pl_sb_size(gptResourceManager->sbtResources);
     for(uint32_t i = 1; i < uResourceCount; i++)
@@ -1149,7 +1149,7 @@ pl_resource_get_file_data(plResourceHandle tHandle, size_t* pSzFileByteSizeOut)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+void
 pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plResourceI tApi = {
@@ -1162,7 +1162,7 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .is_valid      = pl_resource_is_valid,
         .is_loaded     = pl_resource_is_loaded,
         .unload        = pl_resource_unload,
-        .clear         = pl_resource_clear_all,
+        .clear         = pl_resource_clear,
         .is_resident   = pl_resource_is_resident,
         .evict         = pl_resource_evict,
         .evict_ex      = pl_resource_evict_ex,
@@ -1196,7 +1196,7 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-static void
+void
 pl_unload_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

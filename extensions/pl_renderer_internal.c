@@ -575,10 +575,11 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
         const plPassBufferResource atPassBuffers[] = {
             { .tHandle = ptScene->tStorageBuffer, .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_READ | PL_PASS_RESOURCE_USAGE_WRITE },
             { .tHandle = ptScene->tVertexBuffer,  .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_WRITE },
+            { .tHandle = ptScene->atDynamicSkinBuffer[gptGfx->get_current_frame_index()],  .tStages = PL_SHADER_STAGE_COMPUTE, .tUsage = PL_PASS_RESOURCE_USAGE_READ | PL_PASS_RESOURCE_USAGE_WRITE },
         };
 
         const plPassResources tPassResources = {
-            .uBufferCount = 2,
+            .uBufferCount = 3,
             .atBuffers = atPassBuffers
         };
 

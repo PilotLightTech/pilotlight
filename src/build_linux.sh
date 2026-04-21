@@ -203,7 +203,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
+PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
 PL_SOURCES="../editor/app.c "
 
 # run compiler (and linker)
@@ -432,7 +432,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
+PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
 PL_SOURCES="../editor/app.c "
 
 # run compiler (and linker)
@@ -665,7 +665,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
+PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
 PL_SOURCES="../editor/app.c "
 
 # run compiler (and linker)
@@ -873,7 +873,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-ldearimguid "
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_dear_imgui_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/editor.cpp "
 
 # run compiler (and linker)
@@ -1106,7 +1106,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/lib/x86_64-linux-gnu -Wl,
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
 PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
+PL_DYNAMIC_LINK_LIBRARIES="-lxcb -lX11 -lX11-xcb -lxkbcommon -lxcb-cursor -lxcb-xfixes -lxcb-keysyms -lpthread "
 PL_SOURCES="../editor/app.c "
 
 # run compiler (and linker)
@@ -1314,7 +1314,7 @@ PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -std=c++14 "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-ldearimgui "
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext -lpl_dear_imgui_ext "
+PL_DYNAMIC_LINK_LIBRARIES=""
 PL_SOURCES="../editor/editor.cpp "
 
 # run compiler (and linker)

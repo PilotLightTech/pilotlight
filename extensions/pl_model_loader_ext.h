@@ -9,7 +9,8 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] APIs
 // [SECTION] forward declarations
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] structs
 */
 
@@ -36,10 +37,15 @@ Index of this file:
 #ifndef PL_MODEL_LOADER_EXT_H
 #define PL_MODEL_LOADER_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>
 #include <stdbool.h>
 #include "pl_math.h"
@@ -62,14 +68,25 @@ typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
 typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_model_loader_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_model_loader_ext(plApiRegistryI*, bool reload);
+
+PL_API bool pl_model_loader_load_stl (plComponentLibrary*, const char* pcPath, plVec4 tColor, const plMat4* ptTransform, plModelLoaderData* ptDataOut);
+PL_API bool pl_model_loader_load_gltf(plComponentLibrary*, const char* pcPath, const plMat4* ptTransform, plModelLoaderData* ptDataOut);
+PL_API void pl_model_loader_free_data(plModelLoaderData*);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plModelLoaderI
 {
-    bool (*load_stl) (plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, const plMat4* ptTransform, plModelLoaderData* ptDataOut);
-    bool (*load_gltf)(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* ptTransform, plModelLoaderData* ptDataOut);
-
+    bool (*load_stl) (plComponentLibrary*, const char* pcPath, plVec4 tColor, const plMat4* ptTransform, plModelLoaderData* ptDataOut);
+    bool (*load_gltf)(plComponentLibrary*, const char* pcPath, const plMat4* ptTransform, plModelLoaderData* ptDataOut);
     void (*free_data)(plModelLoaderData*);
 } plModelLoaderI;
 
@@ -82,5 +99,9 @@ typedef struct _plModelLoaderData
     uint32_t  uObjectCount;
     plEntity* atObjects;
 } plModelLoaderData;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_MODEL_LOADER_EXT_H

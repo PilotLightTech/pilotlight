@@ -361,7 +361,7 @@ pl_get_window_capabilities(void)
 //-----------------------------------------------------------------------------
 
 void
-pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
+pl_file_binary_read(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
     if(pszSizeIn == NULL)
         return;
@@ -404,7 +404,7 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 }
 
 void
-pl_copy_file(const char* source, const char* destination)
+pl_file_copy(const char* source, const char* destination)
 {
     #ifdef _WIN32
         BOOL bResult = CopyFile(source, destination, FALSE);
@@ -414,7 +414,7 @@ pl_copy_file(const char* source, const char* destination)
     copyfile_state_free(tS);
     #else
         size_t bufferSize = 0u;
-        pl_binary_read_file(source, &bufferSize, NULL);
+        pl_file_binary_read(source, &bufferSize, NULL);
 
         struct stat stat_buf;
         int fromfd = open(source, O_RDONLY);
@@ -664,7 +664,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
                 {
                     ptLibrary->uTempIndex = 0;
                 }
-                pl_copy_file(ptLibrary->acPath, acTemporaryPath);
+                pl_file_copy(ptLibrary->acPath, acTemporaryPath);
 
                 ptLibrary->handle = NULL;
                 ptLibrary->handle = dlopen(acTemporaryPath, RTLD_NOW);
@@ -752,7 +752,7 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
                 {
                     ptLibrary->uTempIndex = 0;
                 }
-                pl_copy_file(ptLibrary->acPath, acTemporaryPath);
+                pl_file_copy(ptLibrary->acPath, acTemporaryPath);
 
                 ptLibrary->handle = NULL;
                 ptLibrary->handle = dlopen(acTemporaryPath, RTLD_NOW);

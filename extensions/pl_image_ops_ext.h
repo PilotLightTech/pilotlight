@@ -8,6 +8,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] APIs
 // [SECTION] forward declarations & basic types
+// [SECTION] public api
 // [SECTION] public api struct
 // [SECTION] structs
 // [SECTION] enums
@@ -20,10 +21,15 @@ Index of this file:
 #ifndef PL_IMAGE_OPS_EXT_H
 #define PL_IMAGE_OPS_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>
 
 //-----------------------------------------------------------------------------
@@ -44,6 +50,28 @@ typedef struct _plImageOpRegion plImageOpRegion; // internal
 // enums
 typedef int plImageOpFlags;
 typedef int plImageOpColor;
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_image_ops_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_image_ops_ext(plApiRegistryI*, bool reload);
+
+PL_API void pl_image_ops_initialize(plImageOpInit*, plImageOpData* dataOut);
+PL_API void pl_image_ops_cleanup   (plImageOpData*);
+
+// building operations
+PL_API void pl_image_ops_add       (plImageOpData*, int x, int y, uint32_t w, uint32_t h, uint8_t*);
+PL_API void pl_image_ops_add_region(plImageOpData*, int x, int y, uint32_t w, uint32_t h, plImageOpColor);
+
+// in-place place operations
+PL_API void pl_image_ops_square(plImageOpData*);
+
+// misc.
+PL_API uint8_t* pl_image_ops_extract        (plImageOpData* dataIn, int x, int y, uint32_t w, uint32_t h, uint64_t* sizeOut);
+PL_API void     pl_image_ops_cleanup_extract(uint8_t*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -113,5 +141,9 @@ enum _plImageOpColor
     PL_IMAGE_OP_COLOR_TRANSPARENT = 0,
     PL_IMAGE_OP_COLOR_WHITE,
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_IMAGE_OPS_EXT_H

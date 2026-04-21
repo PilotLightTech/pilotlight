@@ -142,22 +142,22 @@ pl_spvc_error_callback(void* pUserData, const char* pcError)
 
 #endif
 
-static void
-pl_cleanup_shader_ext(void)
+void
+pl_shader_cleanup(void)
 {
     pl_temp_allocator_free(&gptShaderCtx->tTempAllocator);
     pl_temp_allocator_free(&gptShaderCtx->tTempAllocator2);
     gptString->destroy_repository(gptShaderCtx->ptStringRepo);
 }
 
-static bool
-pl_initialize_shader_ext(const plShaderOptions* ptShaderOptions)
+bool
+pl_shader_initialize(const plShaderOptions* ptShaderOptions)
 {
 
     if(gptShaderCtx->bInitialized)
         return true;
 
-    gptShaderCtx->ptStringRepo = gptString->create_string_repository();
+    gptShaderCtx->ptStringRepo = gptString->create_repository();
 
     plLogExtChannelInit tLogInit = {
         .tType = PL_LOG_CHANNEL_TYPE_BUFFER | PL_LOG_CHANNEL_TYPE_CONSOLE
@@ -277,7 +277,7 @@ pl_shader_get_options(void)
     return &gptShaderCtx->tDefaultShaderOptions;
 }
 
-static void
+void
 pl_shader_set_options(const plShaderOptions* ptShaderOptions)
 {
 
@@ -447,8 +447,8 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
     }
 }
 
-static void
-pl_write_to_disk(const char* pcShader, const plShaderModule* ptModule)
+void
+pl_shader_write_to_disk(const char* pcShader, const plShaderModule* ptModule)
 {
     plVfsFileHandle tHandle = gptVfs->open_file(pcShader, PL_VFS_FILE_MODE_WRITE);
     gptVfs->write_file(tHandle, ptModule->puCode, ptModule->szCodeSize);
@@ -456,8 +456,8 @@ pl_write_to_disk(const char* pcShader, const plShaderModule* ptModule)
     PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "write shader to disk \"%s\"", pcShader);
 }
 
-static plShaderModule
-pl_read_from_disk(const char* pcShader, const char* pcEntryFunc)
+plShaderModule
+pl_shader_read_from_disk(const char* pcShader, const char* pcEntryFunc)
 {
     plShaderModule tModule = {0};
     if(pcShader && gptVfs->does_file_exist(pcShader))
@@ -475,8 +475,8 @@ pl_read_from_disk(const char* pcShader, const char* pcEntryFunc)
     return tModule;
 }
 
-static plShaderModule
-pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* ptOptions)
+plShaderModule
+pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* ptOptions)
 {
 
     plShaderModule tModule = {0};
@@ -752,8 +752,8 @@ pl_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOptions* 
     return tModule;
 }
 
-static plShaderModule
-pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, plShaderOptions* ptOptions)
+plShaderModule
+pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, plShaderOptions* ptOptions)
 {
     PL_LOG_DEBUG_API_F(gptLog, gptShaderCtx->uLogChannel, "try to load: \"%s\"", pcShader);
 
@@ -829,7 +829,7 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
 
     // unless overriden, try to load precompiled shader
     if(!(ptOptions->tFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE))
-        tModule = pl_read_from_disk(pcCacheFile, pcEntryFunc);
+        tModule = pl_shader_read_from_disk(pcCacheFile, pcEntryFunc);
 
     // no precompiled shader available, compile it ourselves
     if(tModule.szCodeSize == 0)
@@ -840,9 +840,9 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
         else
             pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
 
-        tModule = pl_compile_glsl(pcShader, pcEntryFunc, ptOptions);
+        tModule = pl_shader_compile_glsl(pcShader, pcEntryFunc, ptOptions);
         if(!(ptOptions->tFlags & PL_SHADER_FLAGS_NEVER_CACHE) && tModule.szCodeSize > 0)
-            pl_write_to_disk(pcCacheFile, &tModule);
+            pl_shader_write_to_disk(pcCacheFile, &tModule);
     }
     pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator2);
     return tModule;
@@ -852,18 +852,18 @@ pl_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* pcFile, 
 // [SECTION] script loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plShaderI tApi = {
-        .initialize     = pl_initialize_shader_ext,
-        .cleanup        = pl_cleanup_shader_ext,
+        .initialize     = pl_shader_initialize,
+        .cleanup        = pl_shader_cleanup,
         .set_options    = pl_shader_set_options,
         .get_options    = pl_shader_get_options,
-        .load_glsl      = pl_load_glsl,
-        .compile_glsl   = pl_compile_glsl,
-        .write_to_disk  = pl_write_to_disk,
-        .read_from_disk = pl_read_from_disk,
+        .load_glsl      = pl_shader_load_glsl,
+        .compile_glsl   = pl_shader_compile_glsl,
+        .write_to_disk  = pl_shader_write_to_disk,
+        .read_from_disk = pl_shader_read_from_disk,
     };
     pl_set_api(ptApiRegistry, plShaderI, &tApi);
 
@@ -897,7 +897,7 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

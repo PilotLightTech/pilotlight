@@ -7,8 +7,10 @@ Index of this file:
 // [SECTION] implementation notes
 // [SECTION] header mess
 // [SECTION] apis
+// [SECTION] includes
 // [SECTION] forward declarations & basic types
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] structs
 */
 
@@ -39,11 +41,21 @@ Index of this file:
 #ifndef PL_TOOLS_EXT_H
 #define PL_TOOLS_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plToolsI_version {1, 0, 0}
+#define plToolsI_version {1, 1, 0}
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
+#include "pl.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -56,13 +68,24 @@ typedef struct _plToolsInit plToolsInit;
 typedef struct _plDevice plDevice; // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_tools_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_tools_ext(plApiRegistryI*, bool reload);
+
+PL_API void pl_tools_initialize(plToolsInit);
+PL_API void pl_tools_update    (void); // call after beginning ui frame
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plToolsI
 {
     void (*initialize)(plToolsInit);
-    void (*update)    (void); // call after beginning ui frame
+    void (*update)    (void);
 } plToolsI;
 
 //-----------------------------------------------------------------------------
@@ -73,5 +96,9 @@ typedef struct _plToolsInit
 {
     plDevice* ptDevice;
 } plToolsInit;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_TOOLS_EXT_H

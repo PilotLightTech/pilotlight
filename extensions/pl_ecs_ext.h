@@ -8,7 +8,8 @@ Index of this file:
 // [SECTION] header mess
 // [SECTION] apis
 // [SECTION] forward declarations & basic types
-// [SECTION] public api structs
+// [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] components
 // [SECTION] structs
 // [SECTION] enums
@@ -35,16 +36,21 @@ Index of this file:
 #ifndef PL_ECS_EXT_H
 #define PL_ECS_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plEcsI_version {1, 0, 0}
+#define plEcsI_version {1, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdbool.h>      // bool
 #include "pl_ecs_ext.inl" // plEntity
 
@@ -67,7 +73,67 @@ typedef struct _plHierarchyComponent plHierarchyComponent;
 typedef int plTransformFlags;
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api structs
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_ecs_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_ecs_ext(plApiRegistryI*, bool reload);
+
+//-------------------------------GENERAL---------------------------------------
+
+// system setup/shutdown
+PL_API void         pl_ecs_initialize     (plEcsInit);
+PL_API plEcsTypeKey pl_ecs_register_type  (plComponentDesc, const void* template_component); // can store
+PL_API void         pl_ecs_finalize       (void);
+PL_API void         pl_ecs_cleanup        (void);
+PL_API uint64_t     pl_ecs_get_log_channel(void);
+
+// libraries
+PL_API bool                pl_ecs_create_library       (plComponentLibrary**);
+PL_API void                pl_ecs_cleanup_library      (plComponentLibrary**);
+PL_API void                pl_ecs_reset_library        (plComponentLibrary*);
+PL_API void                pl_ecs_set_library_type_data(plComponentLibrary*, plEcsTypeKey, void*);
+PL_API void*               pl_ecs_get_library_type_data(plComponentLibrary*, plEcsTypeKey);
+PL_API plComponentLibrary* pl_ecs_get_default_library  (void);
+
+// entities
+PL_API plEntity pl_ecs_create_entity     (plComponentLibrary*, const char* name);
+PL_API void     pl_ecs_remove_entity     (plComponentLibrary*, plEntity);
+PL_API bool     pl_ecs_is_entity_valid   (plComponentLibrary*, plEntity);
+PL_API plEntity pl_ecs_get_entity_by_name(plComponentLibrary*, const char* name);
+PL_API plEntity pl_ecs_get_current_entity(plComponentLibrary*, plEntity);
+
+// components
+PL_API void*    pl_ecs_add_component (plComponentLibrary*, plEcsTypeKey, plEntity); // do not store
+PL_API void*    pl_ecs_get_component (plComponentLibrary*, plEcsTypeKey, plEntity); // do not store
+PL_API bool     pl_ecs_has_component (plComponentLibrary*, plEcsTypeKey, plEntity);
+PL_API size_t   pl_ecs_get_index     (plComponentLibrary*, plEcsTypeKey, plEntity);
+PL_API uint32_t pl_ecs_get_components(plComponentLibrary*, plEcsTypeKey, void**, const plEntity**); // do not store
+
+//----------------------------CORE COMPONENTS----------------------------------
+
+// component types (can store)
+PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_tag      (void);
+PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_layer    (void);
+PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_transform(void);
+PL_API plEcsTypeKey pl_ecs_get_ecs_type_key_hierarchy(void);
+
+// transforms
+//   - do NOT store out parameter; use it immediately
+PL_API plEntity pl_ecs_create_transform(plComponentLibrary*, const char* name, plTransformComponent**);
+
+// hierarchy
+PL_API void   pl_ecs_attach_component        (plComponentLibrary*, plEntity, plEntity tParent);
+PL_API void   pl_ecs_deattach_component      (plComponentLibrary*, plEntity);
+PL_API plMat4 pl_ecs_compute_parent_transform(plComponentLibrary*, plEntity);
+
+// systems
+PL_API void pl_ecs_run_transform_update_system(plComponentLibrary*);
+PL_API void pl_ecs_run_hierarchy_update_system(plComponentLibrary*);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plEcsI
@@ -191,5 +257,9 @@ enum _plTransformFlags
     PL_TRANSFORM_FLAGS_NONE  = 0,
     PL_TRANSFORM_FLAGS_DIRTY = 1 << 0,
 };
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_ECS_EXT_H

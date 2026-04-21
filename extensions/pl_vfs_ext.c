@@ -9,7 +9,6 @@ Index of this file:
 // [SECTION] enums
 // [SECTION] structs
 // [SECTION] global data
-// [SECTION] public api forward declaration
 // [SECTION] internal api
 // [SECTION] public api implementation
 // [SECTION] extension loading
@@ -128,22 +127,6 @@ typedef struct _plVirtualFileSystemContext
 //-----------------------------------------------------------------------------
 
 static plVirtualFileSystemContext* gptVfsCtx = NULL;
-
-//-----------------------------------------------------------------------------
-// [SECTION] public api forward declaration
-//-----------------------------------------------------------------------------
-
-plVfsFileHandle pl_vfs_open           (const char*, plVfsFileMode);
-void            pl_vfs_close          (plVfsFileHandle);
-size_t          pl_vfs_write          (plVfsFileHandle, const void*, size_t);
-plVfsResult     pl_vfs_read           (plVfsFileHandle, void*, size_t*);
-bool            pl_vfs_is_file_valid  (plVfsFileHandle);
-plVfsFileHandle pl_vfs_register_file  (const char*, bool);
-size_t          pl_vfs_file_size      (const char*);
-const char*     pl_vfs_get_real_path  (plVfsFileHandle);
-plVfsResult     pl_vfs_mount_directory(const char* directory, const char* physicalDirectory, plVfsMountFlags);
-plVfsResult     pl_vfs_mount_pak      (const char* directory, const char* pakFilePath, plVfsMountFlags);
-plVfsResult     pl_vfs_mount_memory   (const char* directory, plVfsMountFlags);
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -598,7 +581,7 @@ pl_vfs_is_file_open(plVfsFileHandle tHandle)
 }
 
 plVfsFileHandle
-pl_vfs_open(const char* pcFile, plVfsFileMode tMode)
+pl_vfs_open_file(const char* pcFile, plVfsFileMode tMode)
 {
 
     plVfsFileHandle tHandle = pl_vfs_register_file(pcFile, false);
@@ -666,7 +649,7 @@ pl_vfs_open(const char* pcFile, plVfsFileMode tMode)
 }
 
 void
-pl_vfs_close(plVfsFileHandle tHandle)
+pl_vfs_close_file(plVfsFileHandle tHandle)
 {
     plVfsFile* ptFile = pl__vfs_get_file(tHandle);
     if(ptFile == NULL)
@@ -696,7 +679,7 @@ pl_vfs_close(plVfsFileHandle tHandle)
 }
 
 size_t
-pl_vfs_write(plVfsFileHandle tHandle, const void* pData, size_t szSize)
+pl_vfs_write_file(plVfsFileHandle tHandle, const void* pData, size_t szSize)
 {
 
     plVfsFile* ptFile = pl__vfs_get_file(tHandle);
@@ -743,7 +726,7 @@ pl_vfs_write(plVfsFileHandle tHandle, const void* pData, size_t szSize)
 }
 
 plVfsResult
-pl_vfs_read(plVfsFileHandle tHandle, void* pData, size_t* pszSizeOut)
+pl_vfs_read_file(plVfsFileHandle tHandle, void* pData, size_t* pszSizeOut)
 {
     plVfsFile* ptFile = pl__vfs_get_file(tHandle);
     if(ptFile == NULL)
@@ -825,7 +808,7 @@ pl_vfs_is_file_valid(plVfsFileHandle tHandle)
 }
 
 size_t
-pl_vfs_file_size(const char* pcFile)
+pl_vfs_file_size_str(const char* pcFile)
 {
     plVfsFileHandle tHandle = pl_vfs_register_file(pcFile, true);
     plVfsFile* ptFile = pl__vfs_get_file(tHandle);
@@ -1103,22 +1086,22 @@ pl_vfs_write_file_stream(plVfsFileHandle tHandle, size_t szElementSize, size_t s
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_vfs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plVfsI tApi = { 
         .register_file                  = pl_vfs_register_file,
-        .open_file                      = pl_vfs_open,
-        .close_file                     = pl_vfs_close,
+        .open_file                      = pl_vfs_open_file,
+        .close_file                     = pl_vfs_close_file,
         .mount_directory                = pl_vfs_mount_directory,
         .mount_pak                      = pl_vfs_mount_pak,
         .mount_memory                   = pl_vfs_mount_memory,
-        .write_file                     = pl_vfs_write,
-        .read_file                      = pl_vfs_read,
+        .write_file                     = pl_vfs_write_file,
+        .read_file                      = pl_vfs_read_file,
         .delete_file                    = pl_vfs_delete_file,
         .does_file_exist                = pl_vfs_does_file_exist,
         .is_file_open                   = pl_vfs_is_file_open,
-        .get_file_size_str              = pl_vfs_file_size,
+        .get_file_size_str              = pl_vfs_file_size_str,
         .get_real_path                  = pl_vfs_get_real_path,
         .is_file_valid                  = pl_vfs_is_file_valid,
         .get_file_stream_position       = pl_vfs_get_file_stream_position,
@@ -1156,7 +1139,7 @@ pl_load_vfs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_vfs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

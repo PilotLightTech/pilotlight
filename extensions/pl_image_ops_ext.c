@@ -126,7 +126,7 @@ pl__maybe_grow_image_op_data(plImageOpData* ptData)
 //-----------------------------------------------------------------------------
 
 void
-pl_image_op_initialize_data(plImageOpInit* ptInfo, plImageOpData* ptDataOut)
+pl_image_ops_initialize(plImageOpInit* ptInfo, plImageOpData* ptDataOut)
 {
     ptDataOut->uVirtualWidth   = ptInfo->uVirtualWidth;
     ptDataOut->uVirtualHeight  = ptInfo->uVirtualHeight;
@@ -136,7 +136,7 @@ pl_image_op_initialize_data(plImageOpInit* ptInfo, plImageOpData* ptDataOut)
 }
 
 void
-pl_image_op_cleanup_data(plImageOpData* ptData)
+pl_image_ops_cleanup(plImageOpData* ptData)
 {
     if(ptData->_atRegions)
     {
@@ -150,13 +150,13 @@ pl_image_op_cleanup_data(plImageOpData* ptData)
 }
 
 void
-pl_image_op_cleanup_extract(uint8_t* puData)
+pl_image_ops_cleanup_extract(uint8_t* puData)
 {
     PL_FREE(puData);
 }
 
 uint8_t*
-pl_image_op_extract(plImageOpData* ptDataIn, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, uint64_t* puSizeOut)
+pl_image_ops_extract(plImageOpData* ptDataIn, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, uint64_t* puSizeOut)
 {
 
     const size_t row_bytes = (size_t)uWidth * (size_t)ptDataIn->_uStride;
@@ -219,7 +219,7 @@ pl_image_op_extract(plImageOpData* ptDataIn, int iXOffset, int iYOffset, uint32_
 }
 
 void
-pl_image_op_add(plImageOpData* ptData, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, uint8_t* puData)
+pl_image_ops_add(plImageOpData* ptData, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, uint8_t* puData)
 {
 
     plImageOpRegion tNewRegion = {
@@ -238,7 +238,7 @@ pl_image_op_add(plImageOpData* ptData, int iXOffset, int iYOffset, uint32_t uWid
 }
 
 void
-pl_image_op_add_region(plImageOpData* ptData, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, plImageOpColor tColor)
+pl_image_ops_add_region(plImageOpData* ptData, int iXOffset, int iYOffset, uint32_t uWidth, uint32_t uHeight, plImageOpColor tColor)
 {
 
     plImageOpRegion tNewRegion = {
@@ -261,7 +261,7 @@ pl_image_op_add_region(plImageOpData* ptData, int iXOffset, int iYOffset, uint32
 }
 
 void
-pl_image_op_square(plImageOpData* ptData)
+pl_image_ops_square(plImageOpData* ptData)
 {
     uint32_t uTarget = pl_max(ptData->uVirtualWidth, ptData->uVirtualHeight);
     ptData->uVirtualWidth = uTarget;
@@ -276,24 +276,24 @@ pl_image_op_square(plImageOpData* ptData)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_image_ops_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plImageOpsI tApi = {
-        .initialize      = pl_image_op_initialize_data,
-        .cleanup         = pl_image_op_cleanup_data,
-        .add             = pl_image_op_add,
-        .extract         = pl_image_op_extract,
-        .square          = pl_image_op_square,
-        .add_region      = pl_image_op_add_region,
-        .cleanup_extract = pl_image_op_cleanup_extract,
+        .initialize      = pl_image_ops_initialize,
+        .cleanup         = pl_image_ops_cleanup,
+        .add             = pl_image_ops_add,
+        .extract         = pl_image_ops_extract,
+        .square          = pl_image_ops_square,
+        .add_region      = pl_image_ops_add_region,
+        .cleanup_extract = pl_image_ops_cleanup_extract,
     };
     pl_set_api(ptApiRegistry, plImageOpsI, &tApi);
 
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
 }
 
-PL_EXPORT void
+void
 pl_unload_image_ops_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

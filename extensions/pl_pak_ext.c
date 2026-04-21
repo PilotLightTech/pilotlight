@@ -479,7 +479,7 @@ pl_pak_increment_file_stream_position(plPakChildFile* ptEntry, size_t szDelta)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_pak_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plPakI tApi = {
@@ -511,7 +511,7 @@ pl_load_pak_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #endif
 }
 
-PL_EXPORT void
+void
 pl_unload_pak_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

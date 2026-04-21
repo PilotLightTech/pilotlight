@@ -327,7 +327,7 @@ pl_dxt_compress(const plDxtInfo* ptInfo, uint8_t* puDataOut, size_t* szSizeOut)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_dxt_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plDxtI tApi = {
@@ -336,7 +336,7 @@ pl_load_dxt_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plDxtI, &tApi);
 }
 
-PL_EXPORT void
+void
 pl_unload_dxt_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

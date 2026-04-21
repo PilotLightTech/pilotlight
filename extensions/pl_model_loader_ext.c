@@ -97,16 +97,16 @@ static void pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const c
 // [SECTION] implementation
 //-----------------------------------------------------------------------------
 
-static void
-pl__free_data(plModelLoaderData* ptData)
+void
+pl_model_loader_free_data(plModelLoaderData* ptData)
 {
     pl_sb_free(ptData->atObjects);
     ptData->uObjectCount = 0;
     ptData->atObjects = NULL;
 }
 
-static bool
-pl__load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, const plMat4* ptTransform, plModelLoaderData* ptDataOut)
+bool
+pl_model_loader_load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, const plMat4* ptTransform, plModelLoaderData* ptDataOut)
 {
 
     // read in STL file
@@ -277,8 +277,8 @@ pl__load_mixamorig(const cgltf_node* ptJointNode, plHumanoidComponent* ptHumanoi
         ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_TOES] = tTransformEntity;
 }
 
-static bool
-pl__load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* ptTransform, plModelLoaderData* ptDataOut)
+bool
+pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* ptTransform, plModelLoaderData* ptDataOut)
 {
     plGltfLoadingData tLoadingData = {.ptLibrary = ptLibrary};
     cgltf_options tGltfOptions = {0};
@@ -1006,7 +1006,7 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
     plComponentLibrary* ptLibrary = ptSceneData->ptLibrary;
 
     plAnimationComponent* ptAnimationComp = NULL;
-    plEntity tAnimationEntity = gptAnimation->create_animation(ptLibrary, ptAnimation->name, (uint32_t)ptAnimation->channels_count, &ptAnimationComp);
+    plEntity tAnimationEntity = gptAnimation->create(ptLibrary, ptAnimation->name, (uint32_t)ptAnimation->channels_count, &ptAnimationComp);
 
     // load channels
     for(size_t i = 0; i < ptAnimation->channels_count; i++)
@@ -1063,7 +1063,7 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
         }
 
         plAnimationDataComponent* ptAnimationDataComp = NULL;
-        tSampler.tData = gptAnimation->create_animation_data(ptLibrary, ptSampler->input->name, uKeyFrameCount, sizeof(float) * uKeyFrameDataComponents * ptSampler->output->count, &ptAnimationDataComp);
+        tSampler.tData = gptAnimation->create_data(ptLibrary, ptSampler->input->name, uKeyFrameCount, sizeof(float) * uKeyFrameDataComponents * ptSampler->output->count, &ptAnimationDataComp);
 
         ptAnimationComp = gptECS->get_component(ptLibrary, gptAnimation->get_ecs_type_key_animation(), tAnimationEntity);
         ptAnimationComp->fEnd = pl_maxf(ptAnimationComp->fEnd, ptSampler->input->max[0]);
@@ -1256,13 +1256,13 @@ pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfL
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plModelLoaderI tApi = {
-        .load_stl  = pl__load_stl,
-        .load_gltf = pl__load_gltf,
-        .free_data = pl__free_data
+        .load_stl  = pl_model_loader_load_stl,
+        .load_gltf = pl_model_loader_load_gltf,
+        .free_data = pl_model_loader_free_data
     };
     pl_set_api(ptApiRegistry, plModelLoaderI, &tApi);
 
@@ -1278,7 +1278,7 @@ pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     #endif
 }
 
-PL_EXPORT void
+void
 pl_unload_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

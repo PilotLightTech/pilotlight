@@ -233,7 +233,7 @@ pl_ecs_finalize(void)
 
 
 void
-pl_ecs_set_internal_data(plComponentLibrary* ptLibrary, plEcsTypeKey tType, void* pData)
+pl_ecs_set_library_type_data(plComponentLibrary* ptLibrary, plEcsTypeKey tType, void* pData)
 {
     if(ptLibrary == NULL)
         ptLibrary = gptEcsCtx->ptDefaultLibrary;
@@ -242,7 +242,7 @@ pl_ecs_set_internal_data(plComponentLibrary* ptLibrary, plEcsTypeKey tType, void
 }
 
 void*
-pl_ecs_get_internal_data(plComponentLibrary* ptLibrary, plEcsTypeKey tType)
+pl_ecs_get_library_type_data(plComponentLibrary* ptLibrary, plEcsTypeKey tType)
 {
     if(ptLibrary == NULL)
         ptLibrary = gptEcsCtx->ptDefaultLibrary;
@@ -324,7 +324,7 @@ pl_ecs_is_entity_valid(plComponentLibrary* ptLibrary, plEntity tEntity)
 }
 
 plEntity
-pl_ecs_get_entity(plComponentLibrary* ptLibrary, const char* pcName)
+pl_ecs_get_entity_by_name(plComponentLibrary* ptLibrary, const char* pcName)
 {
     if(ptLibrary == NULL)
         ptLibrary = gptEcsCtx->ptDefaultLibrary;
@@ -627,7 +627,7 @@ pl_ecs_deattach_component(plComponentLibrary* ptLibrary, plEntity tEntity)
 }
 
 void
-pl_run_transform_update_system(plComponentLibrary* ptLibrary)
+pl_ecs_run_transform_update_system(plComponentLibrary* ptLibrary)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -682,7 +682,7 @@ pl_ecs_get_log_channel(void)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-static void
+void
 pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plEcsI tApi = {
@@ -695,7 +695,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .reset_library               = pl_ecs_reset_library,
         .register_type               = pl_ecs_register_type,
         .remove_entity               = pl_ecs_remove_entity,
-        .get_entity_by_name          = pl_ecs_get_entity,
+        .get_entity_by_name          = pl_ecs_get_entity_by_name,
         .get_current_entity          = pl_ecs_get_current_entity,
         .is_entity_valid             = pl_ecs_is_entity_valid,
         .has_component               = pl_ecs_has_component,
@@ -704,8 +704,8 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_log_channel             = pl_ecs_get_log_channel,
         .get_component               = pl_ecs_get_component,
         .add_component               = pl_ecs_add_component,
-        .set_library_type_data       = pl_ecs_set_internal_data,
-        .get_library_type_data       = pl_ecs_get_internal_data,
+        .set_library_type_data       = pl_ecs_set_library_type_data,
+        .get_library_type_data       = pl_ecs_get_library_type_data,
         .create_entity               = pl_ecs_create_entity,
         .get_ecs_type_key_tag        = pl_ecs_get_ecs_type_key_tag,
         .get_ecs_type_key_layer      = pl_ecs_get_ecs_type_key_layer,
@@ -713,8 +713,8 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .attach_component            = pl_ecs_attach_component,
         .deattach_component          = pl_ecs_deattach_component,
         .compute_parent_transform    = pl_ecs_compute_parent_transform,
-        .run_transform_update_system = pl_run_transform_update_system,
-        .run_hierarchy_update_system = pl_run_hierarchy_update_system,
+        .run_transform_update_system = pl_ecs_run_transform_update_system,
+        .run_hierarchy_update_system = pl_ecs_run_hierarchy_update_system,
         .get_ecs_type_key_transform  = pl_ecs_get_ecs_type_key_transform,
         .get_ecs_type_key_hierarchy  = pl_ecs_get_ecs_type_key_hierarchy
     };
@@ -746,7 +746,7 @@ pl_load_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-static void
+void
 pl_unload_ecs_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
