@@ -168,8 +168,8 @@ pl_app_shutdown(plAppData* ptAppData)
     pl_window_destroy(ptAppData->ptWindow);
     
     // unload extensions
-    pl_load_ext(gptApiRegistry, false);
-    pl_load_platform_ext(gptApiRegistry, false);
+    pl_unload_ext(gptApiRegistry, false);
+    pl_unload_platform_ext(gptApiRegistry, false);
     PL_FREE(ptAppData);
 }
 
