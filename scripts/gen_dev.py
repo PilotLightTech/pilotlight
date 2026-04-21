@@ -63,7 +63,7 @@ with pl.project("pilotlight"):
                     include_directories=['%WindowsSdkDir%Include\\um', '%WindowsSdkDir%Include\\shared'])
     pl.add_profile(compiler_filter=["msvc"],
                     target_type_filter=[pl.TargetType.DYNAMIC_LIBRARY],
-                    linker_flags=["-noimplib", "-noexp"])
+                    linker_flags=["-noexp"])
     pl.add_profile(compiler_filter=["msvc"],
                     linker_flags=["-incremental:no"],
                     compiler_flags=["-Zc:preprocessor", "-nologo", "-W4", "-WX", "-wd4201",
@@ -228,6 +228,7 @@ with pl.project("pilotlight"):
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
                     pl.add_compiler_flags("-std:c11")
+                    pl.add_linker_flags("-noimplib")
                                 
             # linux
             with pl.platform("Linux"):
@@ -331,12 +332,13 @@ with pl.project("pilotlight"):
 
         pl.add_source_files("../editor/app.c")
         pl.set_output_binary("app")
+        pl.add_dynamic_link_libraries("pl_unity_ext", "pl_platform_ext")
 
         def add_app():
             
             with pl.platform("Windows"):
                 with pl.compiler("msvc"):
-                    pass
+                    pl.add_linker_flags("-noimplib")
             
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
@@ -584,6 +586,88 @@ with pl.project("pilotlight"):
                     pl.add_linker_flags("-ldl -lm", "-lstdc++")
 
     #-----------------------------------------------------------------------------
+    # [SECTION] pl_dear_imgui_ext
+    #-----------------------------------------------------------------------------
+
+    with pl.target("pl_dear_imgui_ext", pl.TargetType.DYNAMIC_LIBRARY, False, True):
+
+        pl.add_source_files("../extensions/pl_dear_imgui_ext.cpp")
+        pl.set_output_binary("pl_dear_imgui_ext")
+
+        with pl.configuration("debug_experimental"):
+
+            pl.add_static_link_libraries("glfwd", "dearimguid")
+
+            # win32
+            with pl.platform("Windows"):
+                pl.add_definitions("PL_VULKAN_BACKEND")
+                with pl.compiler("msvc"):
+                    pl.add_include_directories("%VULKAN_SDK%\\Include")
+                    pl.add_linker_flags("-incremental:no", "-nologo", "-noexp")
+                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
+                    pl.add_static_link_libraries("ucrtd", "vulkan-1")
+                    pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-Od", "-MDd", "-Zi", "-permissive")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_definitions("PL_VULKAN_BACKEND")
+                    pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
+                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_dynamic_link_libraries("vulkan")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_definitions("PL_METAL_BACKEND")
+                    pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++14", "--debug -g", "-Wno-nullability-completeness")
+                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
+
+        with pl.configuration("release_experimental"):
+
+            pl.add_static_link_libraries("glfw", "dearimgui")
+
+            # win32
+            with pl.platform("Windows"):
+                pl.add_definitions("PL_VULKAN_BACKEND")
+                with pl.compiler("msvc"):
+                    pl.add_include_directories("%VULKAN_SDK%\\Include")
+                    pl.add_linker_flags("-incremental:no", "-nologo", "-noexp")
+                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
+                    pl.add_static_link_libraries("ucrtd", "vulkan-1")
+                    pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-O2", "-MD", "-permissive")
+
+            # linux
+            with pl.platform("Linux"):
+                with pl.compiler("gcc"):
+                    pl.add_definitions("PL_VULKAN_BACKEND")
+                    pl.add_compiler_flags("-fPIC", "-std=c++14")
+                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
+                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
+                    pl.add_link_directories('$VULKAN_SDK/lib')
+                    pl.add_dynamic_link_libraries("vulkan")
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_definitions("PL_METAL_BACKEND")
+                    pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++14", "-Wno-nullability-completeness")
+                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
+
+        with pl.configuration("moltenvk_experimental"):
+
+            # macos
+            with pl.platform("Darwin"):
+                with pl.compiler("clang"):
+                    pl.add_static_link_libraries("glfwd", "dearimguid")
+                    pl.add_definitions("PL_VULKAN_BACKEND")
+                    pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
+                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
+                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "pthread", "vulkan")
+
+    #-----------------------------------------------------------------------------
     # [SECTION] editor
     #-----------------------------------------------------------------------------
 
@@ -591,6 +675,7 @@ with pl.project("pilotlight"):
 
         pl.add_source_files("../editor/editor.cpp")
         pl.set_output_binary("editor")
+        pl.add_dynamic_link_libraries("pl_unity_ext", "pl_platform_ext", "pl_dear_imgui_ext")
 
         # default config
         with pl.configuration("debug_experimental"):
@@ -654,88 +739,6 @@ with pl.project("pilotlight"):
                     pl.add_compiler_flags("-fPIC", "-fmodules", "--debug", "-g", "-std=c++14")
                     pl.add_link_frameworks("Metal", "MetalKit", "Cocoa", "IOKit", "CoreVideo", "QuartzCore")
             
-    #-----------------------------------------------------------------------------
-    # [SECTION] pl_dear_imgui_ext
-    #-----------------------------------------------------------------------------
-
-    with pl.target("pl_dear_imgui_ext", pl.TargetType.DYNAMIC_LIBRARY, False, True):
-
-        pl.add_source_files("../extensions/pl_dear_imgui_ext.cpp")
-        pl.set_output_binary("pl_dear_imgui_ext")
-
-        with pl.configuration("debug_experimental"):
-
-            pl.add_static_link_libraries("glfwd", "dearimguid")
-
-            # win32
-            with pl.platform("Windows"):
-                pl.add_definitions("PL_VULKAN_BACKEND")
-                with pl.compiler("msvc"):
-                    pl.add_include_directories("%VULKAN_SDK%\\Include")
-                    pl.add_linker_flags("-incremental:no", "-nologo", "-noimplib", "-noexp")
-                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
-                    pl.add_static_link_libraries("ucrtd", "vulkan-1")
-                    pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-Od", "-MDd", "-Zi", "-permissive")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_definitions("PL_VULKAN_BACKEND")
-                    pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
-                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_link_directories('$VULKAN_SDK/lib')
-                    pl.add_dynamic_link_libraries("vulkan")
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_definitions("PL_METAL_BACKEND")
-                    pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++14", "--debug -g", "-Wno-nullability-completeness")
-                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
-
-        with pl.configuration("release_experimental"):
-
-            pl.add_static_link_libraries("glfw", "dearimgui")
-
-            # win32
-            with pl.platform("Windows"):
-                pl.add_definitions("PL_VULKAN_BACKEND")
-                with pl.compiler("msvc"):
-                    pl.add_include_directories("%VULKAN_SDK%\\Include")
-                    pl.add_linker_flags("-incremental:no", "-nologo", "-noimplib", "-noexp")
-                    pl.add_link_directories('%VULKAN_SDK%\\Lib')
-                    pl.add_static_link_libraries("ucrtd", "vulkan-1")
-                    pl.add_compiler_flags("-nologo", "-std:c++14", "-W3", "-WX", "-O2", "-MD", "-permissive")
-
-            # linux
-            with pl.platform("Linux"):
-                with pl.compiler("gcc"):
-                    pl.add_definitions("PL_VULKAN_BACKEND")
-                    pl.add_compiler_flags("-fPIC", "-std=c++14")
-                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
-                    pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_link_directories('$VULKAN_SDK/lib')
-                    pl.add_dynamic_link_libraries("vulkan")
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_definitions("PL_METAL_BACKEND")
-                    pl.add_compiler_flags("-fPIC", "-ObjC++", "-std=c++14", "-Wno-nullability-completeness")
-                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
-
-        with pl.configuration("moltenvk_experimental"):
-
-            # macos
-            with pl.platform("Darwin"):
-                with pl.compiler("clang"):
-                    pl.add_static_link_libraries("glfwd", "dearimguid")
-                    pl.add_definitions("PL_VULKAN_BACKEND")
-                    pl.add_compiler_flags("-fPIC", "-std=c++14", "--debug -g")
-                    pl.add_linker_flags("-ldl -lm", "-lstdc++")
-                    pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "pthread", "vulkan")
-
     #-----------------------------------------------------------------------------
     # [SECTION] pilot light glfw backend
     #-----------------------------------------------------------------------------
