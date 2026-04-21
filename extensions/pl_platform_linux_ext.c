@@ -72,7 +72,7 @@ pl_file_exists(const char* pcFile)
 }
 
 plFileResult
-pl_file_delete(const char* pcFile)
+pl_file_remove(const char* pcFile)
 {
     int iResult = remove(pcFile);
     if(iResult)
@@ -81,7 +81,7 @@ pl_file_delete(const char* pcFile)
 }
 
 plFileResult
-pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
+pl_file_binary_read(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 {
     if(pszSizeIn == NULL)
         return PL_FILE_RESULT_FAIL;
@@ -124,7 +124,7 @@ pl_binary_read_file(const char* pcFile, size_t* pszSizeIn, uint8_t* pcBuffer)
 }
 
 plFileResult
-pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
+pl_file_binary_write(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
 {
     FILE* ptDataFile = fopen(pcFile, "wb");
     if (ptDataFile)
@@ -137,10 +137,10 @@ pl_binary_write_file(const char* pcFile, size_t szSize, uint8_t* pcBuffer)
 }
 
 plFileResult
-pl_copy_file(const char* source, const char* destination)
+pl_file_copy(const char* source, const char* destination)
 {
     size_t bufferSize = 0u;
-    pl_binary_read_file(source, &bufferSize, NULL);
+    pl_file_binary_read(source, &bufferSize, NULL);
 
     struct stat stat_buf;
     int fromfd = open(source, O_RDONLY);
@@ -255,7 +255,7 @@ typedef struct _plAtomicCounter
 } plAtomicCounter;
 
 plAtomicsResult
-pl_create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
+pl_atomics_create_counter(int64_t ilValue, plAtomicCounter** ptCounter)
 {
     *ptCounter = PL_ALLOC(sizeof(plAtomicCounter));
     atomic_init(&(*ptCounter)->ilValue, ilValue); //-V522
@@ -263,38 +263,38 @@ pl_create_atomic_counter(int64_t ilValue, plAtomicCounter** ptCounter)
 }
 
 void
-pl_destroy_atomic_counter(plAtomicCounter** ptCounter)
+pl_atomics_destroy_counter(plAtomicCounter** ptCounter)
 {
     PL_FREE((*ptCounter));
     (*ptCounter) = NULL;
 }
 
 void
-pl_atomic_store(plAtomicCounter* ptCounter, int64_t ilValue)
+pl_atomics_store(plAtomicCounter* ptCounter, int64_t ilValue)
 {
     atomic_store(&ptCounter->ilValue, ilValue);
 }
 
 int64_t
-pl_atomic_load(plAtomicCounter* ptCounter)
+pl_atomics_load(plAtomicCounter* ptCounter)
 {
     return atomic_load(&ptCounter->ilValue);
 }
 
 bool
-pl_atomic_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue)
+pl_atomics_compare_exchange(plAtomicCounter* ptCounter, int64_t ilExpectedValue, int64_t ilDesiredValue)
 {
     return atomic_compare_exchange_strong(&ptCounter->ilValue, &ilExpectedValue, ilDesiredValue);
 }
 
 int64_t
-pl_atomic_increment(plAtomicCounter* ptCounter)
+pl_atomics_increment(plAtomicCounter* ptCounter)
 {
     return atomic_fetch_add(&ptCounter->ilValue, 1);
 }
 
 int64_t
-pl_atomic_decrement(plAtomicCounter* ptCounter)
+pl_atomics_decrement(plAtomicCounter* ptCounter)
 {
     return atomic_fetch_sub(&ptCounter->ilValue, 1);
 }
@@ -328,7 +328,7 @@ pl_network_cleanup(void)
 }
 
 plNetworkResult
-pl_create_address(const char* pcAddress, const char* pcService, plNetworkAddressFlags tFlags, plNetworkAddress** pptAddress)
+pl_network_create_address(const char* pcAddress, const char* pcService, plNetworkAddressFlags tFlags, plNetworkAddress** pptAddress)
 {
     
     struct addrinfo tHints;
@@ -359,7 +359,7 @@ pl_create_address(const char* pcAddress, const char* pcService, plNetworkAddress
 }
 
 void
-pl_destroy_address(plNetworkAddress** pptAddress)
+pl_network_destroy_address(plNetworkAddress** pptAddress)
 {
     plNetworkAddress* ptAddress = *pptAddress;
     if(ptAddress == NULL)
@@ -371,7 +371,7 @@ pl_destroy_address(plNetworkAddress** pptAddress)
 }
 
 void
-pl_create_socket(plSocketFlags tFlags, plSocket** pptSocketOut)
+pl_network_create_socket(plSocketFlags tFlags, plSocket** pptSocketOut)
 {
     *pptSocketOut = PL_ALLOC(sizeof(plSocket));
     plSocket* ptSocket = *pptSocketOut;
@@ -380,7 +380,7 @@ pl_create_socket(plSocketFlags tFlags, plSocket** pptSocketOut)
 }
 
 void
-pl_destroy_socket(plSocket** pptSocket)
+pl_network_destroy_socket(plSocket** pptSocket)
 {
     plSocket* ptSocket = *pptSocket;
 
@@ -394,7 +394,7 @@ pl_destroy_socket(plSocket** pptSocket)
 }
 
 plNetworkResult
-pl_send_socket_data_to(plSocket* ptFromSocket, plNetworkAddress* ptAddress, const void* pData, size_t szSize, size_t* pszSentSize)
+pl_network_send_socket_data_to(plSocket* ptFromSocket, plNetworkAddress* ptAddress, const void* pData, size_t szSize, size_t* pszSentSize)
 {
 
     if(!ptFromSocket->bInitialized)
@@ -427,7 +427,7 @@ pl_send_socket_data_to(plSocket* ptFromSocket, plNetworkAddress* ptAddress, cons
 }
 
 plNetworkResult
-pl_bind_socket(plSocket* ptSocket, plNetworkAddress* ptAddress)
+pl_network_bind_socket(plSocket* ptSocket, plNetworkAddress* ptAddress)
 {
     if(!ptSocket->bInitialized)
     {
@@ -460,7 +460,7 @@ pl_bind_socket(plSocket* ptSocket, plNetworkAddress* ptAddress)
 }
 
 plNetworkResult
-pl_get_socket_data_from(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize, plSocketReceiverInfo* ptReceiverInfo)
+pl_network_get_socket_data_from(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize, plSocketReceiverInfo* ptReceiverInfo)
 {
     struct sockaddr_storage tClientAddress = {0};
     socklen_t tClientLen = sizeof(tClientAddress);
@@ -493,7 +493,7 @@ pl_get_socket_data_from(plSocket* ptSocket, void* pData, size_t szSize, size_t* 
 }
 
 plNetworkResult
-pl_connect_socket(plSocket* ptFromSocket, plNetworkAddress* ptAddress)
+pl_network_connect_socket(plSocket* ptFromSocket, plNetworkAddress* ptAddress)
 {
 
     if(!ptFromSocket->bInitialized)
@@ -529,7 +529,7 @@ pl_connect_socket(plSocket* ptFromSocket, plNetworkAddress* ptAddress)
 }
 
 plNetworkResult
-pl_get_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize)
+pl_network_get_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRecievedSize)
 {
     int iBytesReceived = recv(ptSocket->tSocket, (char*)pData, (int)szSize, 0);
     if(iBytesReceived < 1)
@@ -542,7 +542,7 @@ pl_get_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszRe
 }
 
 plNetworkResult
-pl_select_sockets(plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec)
+pl_network_select_sockets(plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocketCount, uint32_t uTimeOutMilliSec)
 {
     SOCKET tMaxSocket = 0;
     fd_set tReads;
@@ -575,7 +575,7 @@ pl_select_sockets(plSocket** ptSockets, bool* abSelectedSockets, uint32_t uSocke
 }
 
 plNetworkResult
-pl_accept_socket(plSocket* ptSocket, plSocket** pptSocketOut)
+pl_network_accept_socket(plSocket* ptSocket, plSocket** pptSocketOut)
 {
     *pptSocketOut = NULL; 
     struct sockaddr_storage tClientAddress = {0};
@@ -594,7 +594,7 @@ pl_accept_socket(plSocket* ptSocket, plSocket** pptSocketOut)
 }
 
 plNetworkResult
-pl_listen_socket(plSocket* ptSocket)
+pl_network_listen_socket(plSocket* ptSocket)
 {
     if(listen(ptSocket->tSocket, 10) < 0)
     {
@@ -604,7 +604,7 @@ pl_listen_socket(plSocket* ptSocket)
 }
 
 plNetworkResult
-pl_send_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszSentSize)
+pl_network_send_socket_data(plSocket* ptSocket, void* pData, size_t szSize, size_t* pszSentSize)
 {
     int iResult = send(ptSocket->tSocket, (char*)pData, (int)szSize, 0);
     if(iResult == -1)
@@ -655,7 +655,7 @@ typedef struct _plThreadKey
 } plThreadKey;
 
 void
-pl_sleep(uint32_t millisec)
+pl_threads_sleep_thread(uint32_t millisec)
 {
     struct timespec ts = {0};
     int res;
@@ -671,13 +671,13 @@ pl_sleep(uint32_t millisec)
 }
 
 uint64_t
-pl_get_thread_id(plThread* ptThread)
+pl_threads_get_thread_id(plThread* ptThread)
 {
     return ptThread->uID;
 }
 
 uint64_t
-pl_get_current_thread_id(void)
+pl_threads_get_current_thread_id(void)
 {
     pthread_t tId = pthread_self();
 
@@ -694,7 +694,7 @@ pl_get_current_thread_id(void)
 }
 
 plThreadResult
-pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThreadOut)
+pl_threads_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThreadOut)
 {
     *pptThreadOut = PL_ALLOC(sizeof(plThread));
     plThread* ptThread = *pptThreadOut;
@@ -710,15 +710,15 @@ pl_create_thread(plThreadProcedure ptProcedure, void* pData, plThread** pptThrea
 }
 
 void
-pl_join_thread(plThread* ptThread)
+pl_threads_join_thread(plThread* ptThread)
 {
     pthread_join(ptThread->tHandle, NULL);
 }
 
 void
-pl_destroy_thread(plThread** ppThread)
+pl_threads_destroy_thread(plThread** ppThread)
 {
-    pl_join_thread(*ppThread);
+    pl_threads_join_thread(*ppThread);
 
     const uint32_t uThreadCount = pl_sb_size(gsbtThreads);
     for(uint32_t i = 0; i < uThreadCount; i++)
@@ -735,13 +735,13 @@ pl_destroy_thread(plThread** ppThread)
 }
 
 void
-pl_yield_thread(void)
+pl_threads_yield_thread(void)
 {
     sched_yield();
 }
 
 plThreadResult
-pl_platform_create_mutex(plMutex** pptMutexOut)
+pl_threads_create_mutex(plMutex** pptMutexOut)
 {
     *pptMutexOut = malloc(sizeof(plMutex));
     if(pthread_mutex_init(&(*pptMutexOut)->tHandle, NULL)) //-V522
@@ -753,19 +753,19 @@ pl_platform_create_mutex(plMutex** pptMutexOut)
 }
 
 void
-pl_platform_lock_mutex(plMutex* ptMutex)
+pl_threads_lock_mutex(plMutex* ptMutex)
 {
     pthread_mutex_lock(&ptMutex->tHandle);
 }
 
 void
-pl_platform_unlock_mutex(plMutex* ptMutex)
+pl_threads_unlock_mutex(plMutex* ptMutex)
 {
     pthread_mutex_unlock(&ptMutex->tHandle);
 }
 
 void
-pl_platform_destroy_mutex(plMutex** pptMutex)
+pl_threads_destroy_mutex(plMutex** pptMutex)
 {
     pthread_mutex_destroy(&(*pptMutex)->tHandle);
     free((*pptMutex));
@@ -773,7 +773,7 @@ pl_platform_destroy_mutex(plMutex** pptMutex)
 }
 
 plThreadResult
-pl_create_critical_section(plCriticalSection** pptCriticalSectionOut)
+pl_threads_create_critical_section(plCriticalSection** pptCriticalSectionOut)
 {
     *pptCriticalSectionOut = PL_ALLOC(sizeof(plCriticalSection));
     if(pthread_mutex_init(&(*pptCriticalSectionOut)->tHandle, NULL))
@@ -785,7 +785,7 @@ pl_create_critical_section(plCriticalSection** pptCriticalSectionOut)
 }
 
 void
-pl_destroy_critical_section(plCriticalSection** pptCriticalSection)
+pl_destroy_create_critical_section(plCriticalSection** pptCriticalSection)
 {
     pthread_mutex_destroy(&(*pptCriticalSection)->tHandle);
     PL_FREE((*pptCriticalSection));
@@ -793,19 +793,19 @@ pl_destroy_critical_section(plCriticalSection** pptCriticalSection)
 }
 
 void
-pl_enter_critical_section(plCriticalSection* ptCriticalSection)
+pl_destroy_enter_critical_section(plCriticalSection* ptCriticalSection)
 {
     pthread_mutex_lock(&ptCriticalSection->tHandle);
 }
 
 void
-pl_leave_critical_section(plCriticalSection* ptCriticalSection)
+pl_threads_leave_critical_section(plCriticalSection* ptCriticalSection)
 {
     pthread_mutex_unlock(&ptCriticalSection->tHandle);
 }
 
 uint32_t
-pl_get_hardware_thread_count(void)
+pl_threads_get_hardware_thread_count(void)
 {
 
     int numCPU = sysconf(_SC_NPROCESSORS_ONLN);
@@ -813,7 +813,7 @@ pl_get_hardware_thread_count(void)
 }
 
 plThreadResult
-pl_platform_create_semaphor(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
+pl_threads_create_semaphore(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut)
 {
     *pptSemaphoreOut = PL_ALLOC(sizeof(plSemaphore));
     memset((*pptSemaphoreOut), 0, sizeof(plSemaphore));
@@ -826,7 +826,7 @@ pl_platform_create_semaphor(uint32_t uIntialCount, plSemaphore** pptSemaphoreOut
 }
 
 void
-pl_destroy_semaphore(plSemaphore** pptSemaphore)
+pl_threads_destroy_semaphore(plSemaphore** pptSemaphore)
 {
     sem_destroy(&(*pptSemaphore)->tHandle);
     PL_FREE((*pptSemaphore));
@@ -834,25 +834,25 @@ pl_destroy_semaphore(plSemaphore** pptSemaphore)
 }
 
 void
-pl_wait_on_semaphore(plSemaphore* ptSemaphore)
+pl_threads_wait_on_semaphore(plSemaphore* ptSemaphore)
 {
     sem_wait(&ptSemaphore->tHandle);
 }
 
 bool
-pl_try_wait_on_semaphore(plSemaphore* ptSemaphore)
+pl_threads_try_wait_on_semaphore(plSemaphore* ptSemaphore)
 {
     return sem_trywait(&ptSemaphore->tHandle) == 0;
 }
 
 void
-pl_release_semaphore(plSemaphore* ptSemaphore)
+pl_threads_release_semaphore(plSemaphore* ptSemaphore)
 {
     sem_post(&ptSemaphore->tHandle);
 }
 
 plThreadResult
-pl_allocate_thread_local_key(plThreadKey** pptKeyOut)
+pl_threads_allocate_thread_local_key(plThreadKey** pptKeyOut)
 {
     *pptKeyOut = PL_ALLOC(sizeof(plThreadKey));
     int iStatus = pthread_key_create(&(*pptKeyOut)->tKey, NULL);
@@ -866,7 +866,7 @@ pl_allocate_thread_local_key(plThreadKey** pptKeyOut)
 }
 
 void
-pl_free_thread_local_key(plThreadKey** pptKey)
+pl_threads_free_thread_local_key(plThreadKey** pptKey)
 {
     pthread_key_delete((*pptKey)->tKey);
     PL_FREE((*pptKey));
@@ -874,7 +874,7 @@ pl_free_thread_local_key(plThreadKey** pptKey)
 }
 
 void*
-pl_allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
+pl_threads_allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
 {
     void* pData = PL_ALLOC(szSize);
     memset(pData, 0, szSize);
@@ -883,20 +883,20 @@ pl_allocate_thread_local_data(plThreadKey* ptKey, size_t szSize)
 }
 
 void*
-pl_get_thread_local_data(plThreadKey* ptKey)
+pl_threads_get_thread_local_data(plThreadKey* ptKey)
 {
     void* pData = pthread_getspecific(ptKey->tKey);
     return pData;
 }
 
 void
-pl_free_thread_local_data(plThreadKey* ptKey, void* pData)
+pl_threads_free_thread_local_data(plThreadKey* ptKey, void* pData)
 {
     PL_FREE(pData);
 }
 
 plThreadResult
-pl_create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
+pl_threads_create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
 {
     *pptBarrierOut = PL_ALLOC(sizeof(plBarrier));
     pthread_barrier_init(&(*pptBarrierOut)->tHandle, NULL, uThreadCount);
@@ -904,7 +904,7 @@ pl_create_barrier(uint32_t uThreadCount, plBarrier** pptBarrierOut)
 }
 
 void
-pl_destroy_barrier(plBarrier** pptBarrier)
+pl_threads_destroy_barrier(plBarrier** pptBarrier)
 {
     pthread_barrier_destroy(&(*pptBarrier)->tHandle);
     PL_FREE((*pptBarrier));
@@ -912,13 +912,13 @@ pl_destroy_barrier(plBarrier** pptBarrier)
 }
 
 void
-pl_wait_on_barrier(plBarrier* ptBarrier)
+pl_threads_wait_on_barrier(plBarrier* ptBarrier)
 {
     pthread_barrier_wait(&ptBarrier->tHandle);
 }
 
 plThreadResult
-pl_create_condition_variable(plConditionVariable** pptConditionVariableOut)
+pl_threads_create_condition_variable(plConditionVariable** pptConditionVariableOut)
 {
     *pptConditionVariableOut = PL_ALLOC(sizeof(plConditionVariable));
     pthread_cond_init(&(*pptConditionVariableOut)->tHandle, NULL);
@@ -926,7 +926,7 @@ pl_create_condition_variable(plConditionVariable** pptConditionVariableOut)
 }
 
 void               
-pl_destroy_condition_variable(plConditionVariable** pptConditionVariable)
+pl_threads_destroy_condition_variable(plConditionVariable** pptConditionVariable)
 {
     pthread_cond_destroy(&(*pptConditionVariable)->tHandle);
     PL_FREE((*pptConditionVariable));
@@ -934,19 +934,19 @@ pl_destroy_condition_variable(plConditionVariable** pptConditionVariable)
 }
 
 void               
-pl_wake_condition_variable(plConditionVariable* ptConditionVariable)
+pl_threads_wake_condition_variable(plConditionVariable* ptConditionVariable)
 {
     pthread_cond_signal(&ptConditionVariable->tHandle);
 }
 
 void               
-pl_wake_all_condition_variable(plConditionVariable* ptConditionVariable)
+pl_threads_wake_all_condition_variable(plConditionVariable* ptConditionVariable)
 {
     pthread_cond_broadcast(&ptConditionVariable->tHandle);
 }
 
 void               
-pl_sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
+pl_threads_sleep_condition_variable(plConditionVariable* ptConditionVariable, plCriticalSection* ptCriticalSection)
 {
     pthread_cond_wait(&ptConditionVariable->tHandle, &ptCriticalSection->tHandle);
 }
@@ -956,40 +956,40 @@ pl_sleep_condition_variable(plConditionVariable* ptConditionVariable, plCritical
 //-----------------------------------------------------------------------------
 
 size_t
-pl_get_page_size(void)
+pl_virtual_memory_get_page_size(void)
 {
     return (size_t)getpagesize();
 }
 
 void*
-pl_virtual_alloc(void* pAddress, size_t szSize)
+pl_virtual_memory_alloc(void* pAddress, size_t szSize)
 {
     void* pResult = mmap(pAddress, szSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     return pResult;
 }
 
 void*
-pl_virtual_reserve(void* pAddress, size_t szSize)
+pl_virtual_memory_reserve(void* pAddress, size_t szSize)
 {
     void* pResult = mmap(pAddress, szSize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     return pResult;
 }
 
 void*
-pl_virtual_commit(void* pAddress, size_t szSize)
+pl_virtual_memory_commit(void* pAddress, size_t szSize)
 {
     mprotect(pAddress, szSize, PROT_READ | PROT_WRITE);
     return pAddress;
 }
 
 void
-pl_virtual_free(void* pAddress, size_t szSize)
+pl_virtual_memory_free(void* pAddress, size_t szSize)
 {
     munmap(pAddress, szSize);
 }
 
 void
-pl_virtual_uncommit(void* pAddress, size_t szSize)
+pl_virtual_memory_uncommit(void* pAddress, size_t szSize)
 {
     mprotect(pAddress, szSize, PROT_NONE);
 }
@@ -998,15 +998,15 @@ pl_virtual_uncommit(void* pAddress, size_t szSize)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plFileI tFileApi = {
-        .copy                   = pl_copy_file,
+        .copy                   = pl_file_copy,
         .exists                 = pl_file_exists,
-        .remove                 = pl_file_delete,
-        .binary_read            = pl_binary_read_file,
-        .binary_write           = pl_binary_write_file,
+        .remove                 = pl_file_remove,
+        .binary_read            = pl_file_binary_read,
+        .binary_write           = pl_file_binary_write,
         .directory_exists       = pl_file_directory_exists,
         .create_directory       = pl_file_create_directory,
         .remove_directory       = pl_file_remove_directory,
@@ -1017,75 +1017,75 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plNetworkI tNetworkApi = {
         .initialize           = pl_network_initialize,
         .cleanup              = pl_network_cleanup,
-        .create_address       = pl_create_address,
-        .destroy_address      = pl_destroy_address,
-        .create_socket        = pl_create_socket,
-        .destroy_socket       = pl_destroy_socket,
-        .bind_socket          = pl_bind_socket,
-        .send_socket_data_to  = pl_send_socket_data_to,
-        .get_socket_data_from = pl_get_socket_data_from,
-        .connect_socket       = pl_connect_socket,
-        .get_socket_data      = pl_get_socket_data,
-        .listen_socket        = pl_listen_socket,
-        .select_sockets       = pl_select_sockets,
-        .accept_socket        = pl_accept_socket,
-        .send_socket_data     = pl_send_socket_data,
+        .create_address       = pl_network_create_address,
+        .destroy_address      = pl_network_destroy_address,
+        .create_socket        = pl_network_create_socket,
+        .destroy_socket       = pl_network_destroy_socket,
+        .bind_socket          = pl_network_bind_socket,
+        .send_socket_data_to  = pl_network_send_socket_data_to,
+        .get_socket_data_from = pl_network_get_socket_data_from,
+        .connect_socket       = pl_network_connect_socket,
+        .get_socket_data      = pl_network_get_socket_data,
+        .listen_socket        = pl_network_listen_socket,
+        .select_sockets       = pl_network_select_sockets,
+        .accept_socket        = pl_network_accept_socket,
+        .send_socket_data     = pl_network_send_socket_data,
     };
 
     const plThreadsI tThreadApi = {
-        .get_hardware_thread_count   = pl_get_hardware_thread_count,
-        .create_thread               = pl_create_thread,
-        .destroy_thread              = pl_destroy_thread,
-        .join_thread                 = pl_join_thread,
-        .yield_thread                = pl_yield_thread,
-        .sleep_thread                = pl_sleep,
-        .get_thread_id               = pl_get_thread_id,
-        .get_current_thread_id       = pl_get_current_thread_id,
-        .create_mutex                = pl_platform_create_mutex,
-        .destroy_mutex               = pl_platform_destroy_mutex,
-        .lock_mutex                  = pl_platform_lock_mutex,
-        .unlock_mutex                = pl_platform_unlock_mutex,
-        .create_semaphore            = pl_platform_create_semaphor,
-        .destroy_semaphore           = pl_destroy_semaphore,
-        .wait_on_semaphore           = pl_wait_on_semaphore,
-        .try_wait_on_semaphore       = pl_try_wait_on_semaphore,
-        .release_semaphore           = pl_release_semaphore,
-        .allocate_thread_local_key   = pl_allocate_thread_local_key,
-        .allocate_thread_local_data  = pl_allocate_thread_local_data,
-        .free_thread_local_key       = pl_free_thread_local_key, 
-        .get_thread_local_data       = pl_get_thread_local_data, 
-        .free_thread_local_data      = pl_free_thread_local_data, 
-        .create_critical_section     = pl_create_critical_section,
-        .destroy_critical_section    = pl_destroy_critical_section,
-        .enter_critical_section      = pl_enter_critical_section,
-        .leave_critical_section      = pl_leave_critical_section,
-        .create_condition_variable   = pl_create_condition_variable,
-        .destroy_condition_variable  = pl_destroy_condition_variable,
-        .wake_condition_variable     = pl_wake_condition_variable,
-        .wake_all_condition_variable = pl_wake_all_condition_variable,
-        .sleep_condition_variable    = pl_sleep_condition_variable,
-        .create_barrier              = pl_create_barrier,
-        .destroy_barrier             = pl_destroy_barrier,
-        .wait_on_barrier             = pl_wait_on_barrier
+        .get_hardware_thread_count   = pl_threads_get_hardware_thread_count,
+        .create_thread               = pl_threads_create_thread,
+        .destroy_thread              = pl_threads_destroy_thread,
+        .join_thread                 = pl_threads_join_thread,
+        .yield_thread                = pl_threads_yield_thread,
+        .sleep_thread                = pl_threads_sleep_thread,
+        .get_thread_id               = pl_threads_get_thread_id,
+        .get_current_thread_id       = pl_threads_get_current_thread_id,
+        .create_mutex                = pl_threads_create_mutex,
+        .destroy_mutex               = pl_threads_destroy_mutex,
+        .lock_mutex                  = pl_threads_lock_mutex,
+        .unlock_mutex                = pl_threads_unlock_mutex,
+        .create_semaphore            = pl_threads_create_semaphore,
+        .destroy_semaphore           = pl_threads_destroy_semaphore,
+        .wait_on_semaphore           = pl_threads_wait_on_semaphore,
+        .try_wait_on_semaphore       = pl_threads_try_wait_on_semaphore,
+        .release_semaphore           = pl_threads_release_semaphore,
+        .allocate_thread_local_key   = pl_threads_allocate_thread_local_key,
+        .allocate_thread_local_data  = pl_threads_allocate_thread_local_data,
+        .free_thread_local_key       = pl_threads_free_thread_local_key, 
+        .get_thread_local_data       = pl_threads_get_thread_local_data, 
+        .free_thread_local_data      = pl_threads_free_thread_local_data, 
+        .create_critical_section     = pl_threads_create_critical_section,
+        .destroy_critical_section    = pl_destroy_create_critical_section,
+        .enter_critical_section      = pl_destroy_enter_critical_section,
+        .leave_critical_section      = pl_threads_leave_critical_section,
+        .create_condition_variable   = pl_threads_create_condition_variable,
+        .destroy_condition_variable  = pl_threads_destroy_condition_variable,
+        .wake_condition_variable     = pl_threads_wake_condition_variable,
+        .wake_all_condition_variable = pl_threads_wake_all_condition_variable,
+        .sleep_condition_variable    = pl_threads_sleep_condition_variable,
+        .create_barrier              = pl_threads_create_barrier,
+        .destroy_barrier             = pl_threads_destroy_barrier,
+        .wait_on_barrier             = pl_threads_wait_on_barrier
     };
 
     const plAtomicsI tAtomicsApi = {
-        .create_atomic_counter   = pl_create_atomic_counter,
-        .destroy_atomic_counter  = pl_destroy_atomic_counter,
-        .atomic_store            = pl_atomic_store,
-        .atomic_load             = pl_atomic_load,
-        .atomic_compare_exchange = pl_atomic_compare_exchange,
-        .atomic_increment        = pl_atomic_increment,
-        .atomic_decrement        = pl_atomic_decrement
+        .create_counter   = pl_atomics_create_counter,
+        .destroy_counter  = pl_atomics_destroy_counter,
+        .store            = pl_atomics_store,
+        .load             = pl_atomics_load,
+        .compare_exchange = pl_atomics_compare_exchange,
+        .increment        = pl_atomics_increment,
+        .decrement        = pl_atomics_decrement
     };
 
     const plVirtualMemoryI tVirtualMemoryApi = {
-        .get_page_size = pl_get_page_size,
-        .alloc         = pl_virtual_alloc,
-        .reserve       = pl_virtual_reserve,
-        .commit        = pl_virtual_commit,
-        .uncommit      = pl_virtual_uncommit,
-        .free          = pl_virtual_free,
+        .get_page_size = pl_virtual_memory_get_page_size,
+        .alloc         = pl_virtual_memory_alloc,
+        .reserve       = pl_virtual_memory_reserve,
+        .commit        = pl_virtual_memory_commit,
+        .uncommit      = pl_virtual_memory_uncommit,
+        .free          = pl_virtual_memory_free,
     };
 
     pl_set_api(ptApiRegistry, plFileI, &tFileApi);
@@ -1097,7 +1097,7 @@ pl_load_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
 }
 
-PL_EXPORT void
+void
 pl_unload_platform_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

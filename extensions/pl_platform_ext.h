@@ -10,6 +10,7 @@ Index of this file:
 // [SECTION] defines
 // [SECTION] forward declarations
 // [SECTION] public apis
+// [SECTION] public api structs
 // [SECTION] enums
 // [SECTION] structs
 */
@@ -21,10 +22,15 @@ Index of this file:
 #ifndef PL_PLATFORM_EXT_H
 #define PL_PLATFORM_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>  // uint8_t
 #include <stdbool.h> // bool
 #include <stddef.h>  // size_t
@@ -33,7 +39,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plAtomicsI_version       {1, 0, 0}
+#define plAtomicsI_version       {2, 0, 0}
 #define plFileI_version          {1, 1, 0}
 #define plNetworkI_version       {1, 0, 0}
 #define plThreadsI_version       {1, 0, 1}
@@ -93,16 +99,147 @@ typedef int plThreadResult; // -> enum _plThreadResult // Enum:
 // [SECTION] public apis
 //-----------------------------------------------------------------------------
 
+// extension load/unload (must call directly if not using extension system)
+PL_API void pl_load_platform_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_platform_ext(plApiRegistryI*, bool reload);
+
+//-----------------------------atomics api-------------------------------------
+
+PL_API plAtomicsResult pl_atomics_create_counter  (int64_t value, plAtomicCounter** counterPtrOut);
+PL_API void            pl_atomics_destroy_counter (plAtomicCounter**);
+PL_API void            pl_atomics_store           (plAtomicCounter*, int64_t value);
+PL_API int64_t         pl_atomics_load            (plAtomicCounter*);
+PL_API bool            pl_atomics_compare_exchange(plAtomicCounter*, int64_t expectedValue, int64_t desiredValue);
+PL_API int64_t         pl_atomics_increment       (plAtomicCounter*);
+PL_API int64_t         pl_atomics_decrement       (plAtomicCounter*);
+
+//-----------------------------threads api-------------------------------------
+
+// threads
+PL_API plThreadResult pl_threads_create_thread            (plThreadProcedure, void* data, plThread** threadPtrOut);
+PL_API void           pl_threads_destroy_thread           (plThread** threadPtr);
+PL_API void           pl_threads_join_thread              (plThread*);
+PL_API uint64_t       pl_threads_get_thread_id            (plThread*);
+PL_API void           pl_threads_yield_thread             (void);
+PL_API void           pl_threads_sleep_thread             (uint32_t milliSec);
+PL_API uint32_t       pl_threads_get_hardware_thread_count(void);
+PL_API uint64_t       pl_threads_get_current_thread_id    (void);
+
+// thread local storage
+PL_API plThreadResult pl_threads_allocate_thread_local_key (plThreadKey** keyPtrOut);
+PL_API void           pl_threads_free_thread_local_key     (plThreadKey** keyPtr);
+PL_API void*          pl_threads_allocate_thread_local_data(plThreadKey*, size_t);
+PL_API void           pl_threads_free_thread_local_data    (plThreadKey*, void* data);
+PL_API void*          pl_threads_get_thread_local_data     (plThreadKey*);
+
+// mutexes
+PL_API plThreadResult pl_threads_create_mutex (plMutex** mutexPtrOut);
+PL_API void           pl_threads_destroy_mutex(plMutex** mutexPtr);
+PL_API void           pl_threads_lock_mutex   (plMutex*);
+PL_API void           pl_threads_unlock_mutex (plMutex*);
+
+// critical sections
+PL_API plThreadResult pl_threads_create_critical_section (plCriticalSection** criticalSectionPtrOut);
+PL_API void           pl_threads_destroy_critical_section(plCriticalSection**);
+PL_API void           pl_threads_enter_critical_section  (plCriticalSection*);
+PL_API void           pl_threads_leave_critical_section  (plCriticalSection*);
+
+// semaphores
+PL_API plThreadResult pl_threads_create_semaphore     (uint32_t value, plSemaphore** semaphorePtrOut);
+PL_API void           pl_threads_destroy_semaphore    (plSemaphore**);
+PL_API void           pl_threads_wait_on_semaphore    (plSemaphore*); // waits until semaphore value is 0
+PL_API bool           pl_threads_try_wait_on_semaphore(plSemaphore*);
+PL_API void           pl_threads_release_semaphore    (plSemaphore*); // decrements semaphore value
+
+// barriers
+PL_API plThreadResult pl_threads_create_barrier (uint32_t threadCount, plBarrier** barrierPtrOut);
+PL_API void           pl_threads_destroy_barrier(plBarrier** barrierPtr);
+PL_API void           pl_threads_wait_on_barrier(plBarrier*);
+
+// condition variables
+PL_API plThreadResult pl_threads_create_condition_variable  (plConditionVariable** conditionVariablePtrOut);
+PL_API void           pl_threads_destroy_condition_variable (plConditionVariable**);
+PL_API void           pl_threads_wake_condition_variable    (plConditionVariable*);
+PL_API void           pl_threads_wake_all_condition_variable(plConditionVariable*);
+PL_API void           pl_threads_sleep_condition_variable   (plConditionVariable*, plCriticalSection*);
+
+//-------------------------------file api--------------------------------------
+
+// simple file ops
+PL_API bool         pl_file_exists(const char* path);
+PL_API plFileResult pl_file_remove(const char* path);
+PL_API plFileResult pl_file_copy  (const char* source, const char* destination);
+
+// binary files
+PL_API plFileResult pl_file_binary_read (const char* file, size_t* sizeOut, uint8_t* buffer); // pass NULL for buffer to get size
+PL_API plFileResult pl_file_binary_write(const char* file, size_t, uint8_t* buffer);
+
+// simple directory ops
+PL_API bool         pl_file_directory_exists(const char* path);
+PL_API plFileResult pl_file_create_directory(const char* path);
+PL_API plFileResult pl_file_remove_directory(const char* path);
+
+// directory info
+PL_API plFileResult pl_file_get_directory_info    (const char* path, plDirectoryInfo* infoOut);
+PL_API void         pl_file_cleanup_directory_info(plDirectoryInfo* infoOut);
+
+//-----------------------------network api-------------------------------------
+
+// setup/shutdown
+PL_API bool pl_network_initialize(void);
+PL_API void pl_network_cleanup(void);
+
+// addresses
+PL_API plNetworkResult pl_network_create_address (const char* address, const char* service, plNetworkAddressFlags, plNetworkAddress** addressPtrOut);
+PL_API void            pl_network_destroy_address(plNetworkAddress**);
+
+// sockets: general
+PL_API void            pl_network_create_socket (plSocketFlags, plSocket** socketPtrOut);
+PL_API void            pl_network_destroy_socket(plSocket**);
+PL_API plNetworkResult pl_network_bind_socket   (plSocket*, plNetworkAddress*);
+
+// sockets: udp usually
+PL_API plNetworkResult pl_network_send_socket_data_to (plSocket*, plNetworkAddress*, const void* data, size_t, size_t* sentPtrSizeOut);
+PL_API plNetworkResult pl_network_get_socket_data_from(plSocket*, void* dataOut, size_t, size_t* recievedPtrSize, plSocketReceiverInfo*);
+
+// sockets: tcp usually
+PL_API plNetworkResult pl_network_select_sockets  (plSocket** sockets, bool* selectedSockets, uint32_t socketCount, uint32_t timeOutMilliSec);
+PL_API plNetworkResult pl_network_connect_socket  (plSocket*, plNetworkAddress*);
+PL_API plNetworkResult pl_network_listen_socket   (plSocket*);
+PL_API plNetworkResult pl_network_accept_socket   (plSocket*, plSocket** socketPtrOut);
+PL_API plNetworkResult pl_network_get_socket_data (plSocket*, void* dataOut, size_t, size_t* recievedPtrSize);
+PL_API plNetworkResult pl_network_send_socket_data(plSocket*, void* data, size_t, size_t* sentPtrSizeOut);
+
+//-------------------------virtual memory api----------------------------------
+
+// Notes
+//   - committed memory does not necessarily mean the memory has been mapped to physical
+//     memory. This is happens when the memory is actually touched. Even so, on Windows
+//     you can not commit more memmory then you have in your page file.
+//   - uncommitted memory does not necessarily mean the memory will be immediately
+//     evicted. It is up to the OS.
+
+PL_API size_t pl_virtual_memory_get_page_size(void);                  // returns memory page size
+PL_API void*  pl_virtual_memory_alloc        (void* address, size_t); // reserves & commits a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+PL_API void*  pl_virtual_memory_reserve      (void* address, size_t); // reserves a block of memory. pAddress is starting address or use NULL to have system choose. szSize must be a multiple of memory page size.
+PL_API void*  pl_virtual_memory_commit       (void* address, size_t); // commits a block of reserved memory. szSize must be a multiple of memory page size.
+PL_API void   pl_virtual_memory_uncommit     (void* address, size_t); // uncommits a block of committed memory.
+PL_API void   pl_virtual_memory_free         (void* address, size_t); // frees a block of previously reserved/committed memory. Must be the starting address returned from "reserve()" or "alloc()"
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api structs
+//-----------------------------------------------------------------------------
+
 typedef struct _plAtomicsI
 {
 
-    plAtomicsResult (*create_atomic_counter)  (int64_t value, plAtomicCounter** counterPtrOut);
-    void            (*destroy_atomic_counter) (plAtomicCounter**);
-    void            (*atomic_store)           (plAtomicCounter*, int64_t value);
-    int64_t         (*atomic_load)            (plAtomicCounter*);
-    bool            (*atomic_compare_exchange)(plAtomicCounter*, int64_t expectedValue, int64_t desiredValue);
-    int64_t         (*atomic_increment)       (plAtomicCounter*);
-    int64_t         (*atomic_decrement)       (plAtomicCounter*);
+    plAtomicsResult (*create_counter)  (int64_t value, plAtomicCounter** counterPtrOut);
+    void            (*destroy_counter) (plAtomicCounter**);
+    void            (*store)           (plAtomicCounter*, int64_t value);
+    int64_t         (*load)            (plAtomicCounter*);
+    bool            (*compare_exchange)(plAtomicCounter*, int64_t expectedValue, int64_t desiredValue);
+    int64_t         (*increment)       (plAtomicCounter*);
+    int64_t         (*decrement)       (plAtomicCounter*);
 
 } plAtomicsI;
 
@@ -314,5 +451,9 @@ typedef struct _plDirectoryInfo
     uint32_t          uEntryCount;
     plDirectoryEntry* sbtEntries;
 } plDirectoryInfo;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_PLATFORM_EXT_H
