@@ -279,8 +279,8 @@ with pl.project("pilotlight deploy"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_static_link_libraries("libshaderc_combined", "libspirv-cross-c", "libspirv-cross-core", "libspirv-cross-cpp",
-                        "libspirv-cross-glsl", "libspirv-cross-hlsl", "libspirv-cross-msl", "libspirv-cross-reflect", "libspirv-cross-util")
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
+                        "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_linker_flags("-lstdc++")
@@ -311,8 +311,8 @@ with pl.project("pilotlight deploy"):
             # linux
             with pl.platform("Linux"):
                 with pl.compiler("gcc"):
-                    pl.add_static_link_libraries("libshaderc_combined", "libspirv-cross-c", "libspirv-cross-core", "libspirv-cross-cpp",
-                        "libspirv-cross-glsl", "libspirv-cross-hlsl", "libspirv-cross-msl", "libspirv-cross-reflect", "libspirv-cross-util")
+                    pl.add_static_link_libraries("shaderc_combined", "spirv-cross-c", "spirv-cross-core", "spirv-cross-cpp",
+                        "spirv-cross-glsl", "spirv-cross-hlsl", "spirv-cross-msl", "spirv-cross-reflect", "spirv-cross-util")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
                     pl.add_link_directories('$VULKAN_SDK/lib')
                     pl.add_linker_flags("-lstdc++")

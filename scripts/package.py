@@ -184,11 +184,11 @@ for extension in extensions:
             for file in glob.glob("../out/" + extension + "_*.pdb"):
                 shutil.move(file, target_directory + "/bin/")
     elif platform.system() == "Darwin":
-        shutil.move("../out/" + extension + ".dylib", target_directory + "/bin/")
+        shutil.move("../out/lib" + extension + ".dylib", target_directory + "/bin/")
         if debug_package:
-            shutil.copytree("../out/" + extension + ".dylib.dSYM", target_directory + "/bin/" + extension + ".dylib.dSYM")
+            shutil.copytree("../out/lib" + extension + ".dylib.dSYM", target_directory + "/bin/lib" + extension + ".dylib.dSYM")
     elif platform.system() == "Linux":
-        shutil.move("../out/" + extension + ".so", target_directory + "/bin/")
+        shutil.move("../out/lib" + extension + ".so", target_directory + "/bin/")
 
 # copy scripts
 for script in scripts:
@@ -197,12 +197,12 @@ for script in scripts:
         for file in glob.glob("../out/" + script + "d_*.pdb"):
             shutil.move(file, target_directory + "/bin/")
     elif platform.system() == "Darwin":
-        shutil.move("../out/" + script + ".dylib", target_directory + "/bin/")
+        shutil.move("../out/lib" + script + ".dylib", target_directory + "/bin/")
         if debug_package:
-            shutil.copytree("../out/" + script + "d.dylib.dSYM", target_directory + "/bin/" + script + "d.dylib.dSYM")
+            shutil.copytree("../out/lib" + script + "d.dylib.dSYM", target_directory + "/bin/lib" + script + "d.dylib.dSYM")
             
     elif platform.system() == "Linux":
-        shutil.move("../out/" + script + ".so", target_directory + "/bin/")
+        shutil.move("../out/lib" + script + ".so", target_directory + "/bin/")
 
 # copy libs & executable
 if platform.system() == "Windows":
