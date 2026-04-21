@@ -142,7 +142,8 @@ plKeyEventResponder* gKeyEventResponder = NULL;
 NSTextInputContext*  gInputContext = NULL;
 id                   gMonitor;
 NSCursor* aptMouseCursors[PL_MOUSE_CURSOR_COUNT];
-const char* gpcLibraryExtension               = "dylib";
+const char* gpcLibraryExtension = "dylib";
+const char* gpcLibraryPrefix    = "lib";
 
 //-----------------------------------------------------------------------------
 // [SECTION] entry point
@@ -959,11 +960,11 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
         if(pl_str_get_file_extension(tDesc.pcName, ptLibrary->acFileExtension, 16) == NULL)
             strncpy(ptLibrary->acFileExtension, "dylib", 16);
 
-        pl_sprintf(ptLibrary->acPath, "%s%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
+        pl_sprintf(ptLibrary->acPath, "%slib%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
         if(gbHotReloadActive)
         {
-            pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
-            pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+            pl_sprintf(ptLibrary->acLockFile, "%slib%s", ptLibrary->acDirectory, pcLockFile);
+            pl_sprintf(ptLibrary->acTransitionalPath, "%s/lib%s_", pcCacheDirectory, ptLibrary->acName);
         }
 
         if(!gbHotReloadActive || !(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))

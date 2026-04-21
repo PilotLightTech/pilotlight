@@ -623,10 +623,12 @@ pl_load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnlo
     // find path
     bool bFoundDirectly = false;
     char acTemporaryName[PL_MAX_PATH_LENGTH] = PL_ZERO_INIT;
+    char acTemporaryName2[PL_MAX_PATH_LENGTH] = PL_ZERO_INIT;
     pl_sprintf(acTemporaryName, "%s.%s", pcName, gpcLibraryExtension);
+    pl_sprintf(acTemporaryName2, "%s%s.%s", gpcLibraryPrefix, pcName, gpcLibraryExtension);
 
 
-    FILE* ptDataFile = fopen(acTemporaryName, "r");
+    FILE* ptDataFile = fopen(acTemporaryName2, "r");
     if(ptDataFile)
     {
         fclose(ptDataFile);
@@ -639,8 +641,9 @@ pl_load_extension(const char* pcName, const char* pcLoadFunc, const char* pcUnlo
         for(uint32_t i = 0; i < pl_sb_size(gsbpcExtensionPaths); i++)
         {
             pl_sprintf(acTemporaryName, "%s/%s.%s", gsbpcExtensionPaths[i], pcName, gpcLibraryExtension);
+            pl_sprintf(acTemporaryName2, "%s/%s%s.%s", gsbpcExtensionPaths[i], gpcLibraryPrefix, pcName, gpcLibraryExtension);
 
-            ptDataFile = fopen(acTemporaryName, "r");
+            ptDataFile = fopen(acTemporaryName2, "r");
             if(ptDataFile)
             {
                 fclose(ptDataFile);

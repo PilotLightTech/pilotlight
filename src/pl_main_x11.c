@@ -104,6 +104,7 @@ xcb_screen_t*         gptScreen     = NULL;
 xcb_atom_t            gtWmProtocols;
 xcb_atom_t            gtWmDeleteWin;
 xcb_cursor_context_t* gptCursorContext = NULL;
+const char* gpcLibraryPrefix        = "lib";
 const char* gpcLibraryExtension        = "so";
 
 // linux stuff
@@ -766,12 +767,12 @@ pl_load_library(plLibraryDesc tDesc, plSharedLibrary** pptLibraryOut)
         if(pl_str_get_file_extension(tDesc.pcName, ptLibrary->acFileExtension, 16) == NULL)
             strncpy(ptLibrary->acFileExtension, "so", 16);
 
-        pl_sprintf(ptLibrary->acPath, "%s%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
+        pl_sprintf(ptLibrary->acPath, "%slib%s.%s", ptLibrary->acDirectory, ptLibrary->acName, ptLibrary->acFileExtension);
         
         if(gbHotReloadActive)
         {
-            pl_sprintf(ptLibrary->acLockFile, "%s%s", ptLibrary->acDirectory, pcLockFile);
-            pl_sprintf(ptLibrary->acTransitionalPath, "%s/%s_", pcCacheDirectory, ptLibrary->acName);
+            pl_sprintf(ptLibrary->acLockFile, "%slib%s", ptLibrary->acDirectory, pcLockFile);
+            pl_sprintf(ptLibrary->acTransitionalPath, "%s/lib%s_", pcCacheDirectory, ptLibrary->acName);
         }
 
         if(!gbHotReloadActive || !(tDesc.tFlags & PL_LIBRARY_FLAGS_RELOADABLE))

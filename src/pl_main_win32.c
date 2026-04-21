@@ -81,6 +81,7 @@ INT64       ilTicksPerSecond                  = 0;
 HWND        tMouseHandle                      = NULL;
 bool        bMouseTracked                     = true;
 WNDCLASSEXW gtWc                              = {0};
+const char* gpcLibraryPrefix                  = "";
 const char* gpcLibraryExtension               = "dll";
 
 //-----------------------------------------------------------------------------
