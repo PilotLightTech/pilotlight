@@ -204,7 +204,7 @@
             "atBindGroupLayouts": [
                 {
                     "atSamplerBindings": [
-                        { "uSlot": 3, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 2, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ],
                     "atBufferBindings": [
                         { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },

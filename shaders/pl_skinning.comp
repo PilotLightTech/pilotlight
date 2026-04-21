@@ -26,13 +26,13 @@ layout(scalar, set = 0, binding = 1) buffer _tOutputPosBuffer
 	vec3 atVertexData[];
 } tOutputPosBuffer;
 
-layout(set = 0, binding = 3) uniform sampler tSampler;
+layout(set = 0, binding = 2) uniform sampler tSampler;
 
 //-----------------------------------------------------------------------------
 // [SECTION] bind group 1
 //-----------------------------------------------------------------------------
 
-layout(std140, set = 1, binding = 0) buffer _tSkinningData
+layout(std140, set = 1, binding = 0) readonly buffer _tSkinningData
 {
 	mat4 atData[];
 } tSkinningData;

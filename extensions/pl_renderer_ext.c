@@ -816,7 +816,7 @@ pl_renderer_create_scene(plSceneInit tInit)
     };
 
     const plBindGroupUpdateSamplerData atSamplerData[] = {
-        { .uSlot = 3, .tSampler = gptData->tSamplerLinearRepeat}
+        { .uSlot = 2, .tSampler = gptData->tSamplerLinearRepeat}
     };
 
     plBindGroupUpdateData tBGData0 = {
