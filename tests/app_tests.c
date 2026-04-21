@@ -190,7 +190,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData = PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
 
-    ptAppData->ptStringRepo = gptString->create_string_repository();
+    ptAppData->ptStringRepo = gptString->create_repository();
 
     // mount some directories
     gptVfs->mount_directory("/testing", "../out", PL_VFS_MOUNT_FLAGS_NONE);
@@ -252,7 +252,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
-    gptString->destroy_string_repository(ptAppData->ptStringRepo);
+    gptString->destroy_repository(ptAppData->ptStringRepo);
 
     PL_FREE(ptAppData);
 

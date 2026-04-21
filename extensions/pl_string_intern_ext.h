@@ -18,11 +18,21 @@ Index of this file:
 #ifndef PL_STRING_INTERN_EXT_H
 #define PL_STRING_INTERN_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plStringInternI_version {1, 0, 2}
+#define plStringInternI_version {2, 0, 0}
+
+//-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
+#include "pl.inc"
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -37,12 +47,16 @@ typedef struct _plStringRepository plStringRepository;
 
 typedef struct _plStringInternI
 {
-    plStringRepository* (*create_string_repository) (void);
-    void                (*destroy_string_repository)(plStringRepository*);
+    plStringRepository* (*create_repository) (void);
+    void                (*destroy_repository)(plStringRepository*);
     
     const char* (*intern)(plStringRepository*, const char* pcString);
     void        (*remove)(plStringRepository*, const char* pcString);
 
 } plStringInternI;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // PL_STRING_INTERN_EXT_H

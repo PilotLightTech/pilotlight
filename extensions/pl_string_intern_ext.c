@@ -71,7 +71,7 @@ typedef struct _plStringRepository
 //-----------------------------------------------------------------------------
 
 plStringRepository*
-pl_create_string_repository(void)
+pl_string_intern_create_repository(void)
 {
     plStringRepository* ptRepo = PL_ALLOC(sizeof(plStringRepository));
     memset(ptRepo, 0, sizeof(plStringRepository));
@@ -79,7 +79,7 @@ pl_create_string_repository(void)
 }
 
 void
-pl_destroy_string_repository(plStringRepository* ptRepo)
+pl_string_intern_destroy_repository(plStringRepository* ptRepo)
 {
 
     plStringInternBlock* ptCurrentBlock = ptRepo->ptHeadBlock;
@@ -97,7 +97,7 @@ pl_destroy_string_repository(plStringRepository* ptRepo)
 }
 
 const char*
-pl_intern(plStringRepository* ptRepo, const char* pcString)
+pl_string_intern_intern(plStringRepository* ptRepo, const char* pcString)
 {
 
     // do hash once
@@ -184,7 +184,14 @@ pl_intern(plStringRepository* ptRepo, const char* pcString)
             ptRepo->sbtEntries[uKey].uSize = uStringLength;
         }
 
-        strncpy(&ptRepo->sbtEntries[uKey].ptBlock->acBuffer[ptRepo->sbtEntries[uKey].uOffset], pcString, uStringLength);
+        if(&ptRepo->sbtEntries[uKey].ptBlock->acBuffer[ptRepo->sbtEntries[uKey].uOffset] != pcString)
+        {
+            strncpy(&ptRepo->sbtEntries[uKey].ptBlock->acBuffer[ptRepo->sbtEntries[uKey].uOffset], pcString, uStringLength);
+        }
+        else
+        {
+            PL_ASSERT(false);
+        }
     }
 
     ptRepo->sbtEntries[uKey].uRefCount++;
@@ -192,7 +199,7 @@ pl_intern(plStringRepository* ptRepo, const char* pcString)
 }
 
 void
-pl_remove_intern(plStringRepository* ptRepo, const char* pcString)
+pl_string_intern_remove(plStringRepository* ptRepo, const char* pcString)
 {
 
     if(pcString == NULL)
@@ -280,21 +287,21 @@ pl_remove_intern(plStringRepository* ptRepo, const char* pcString)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_string_intern_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plStringInternI tApi = {
-        .create_string_repository  = pl_create_string_repository,
-        .destroy_string_repository = pl_destroy_string_repository,
-        .intern                    = pl_intern,
-        .remove                    = pl_remove_intern
+        .create_repository  = pl_string_intern_create_repository,
+        .destroy_repository = pl_string_intern_destroy_repository,
+        .intern             = pl_string_intern_intern,
+        .remove             = pl_string_intern_remove
     };
     pl_set_api(ptApiRegistry, plStringInternI, &tApi);
 
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
 }
 
-PL_EXPORT void
+void
 pl_unload_string_intern_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

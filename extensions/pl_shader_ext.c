@@ -147,7 +147,7 @@ pl_cleanup_shader_ext(void)
 {
     pl_temp_allocator_free(&gptShaderCtx->tTempAllocator);
     pl_temp_allocator_free(&gptShaderCtx->tTempAllocator2);
-    gptString->destroy_string_repository(gptShaderCtx->ptStringRepo);
+    gptString->destroy_repository(gptShaderCtx->ptStringRepo);
 }
 
 static bool
@@ -327,18 +327,18 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
 
     for(uint32_t i = 0; i < PL_MAX_SHADER_INCLUDE_DIRECTORIES; i++)
     {
-        gptString->remove(gptShaderCtx->ptStringRepo, gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[i]);
+        // gptString->remove(gptShaderCtx->ptStringRepo, gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[i]);
         gptShaderCtx->tDefaultShaderOptions.apcIncludeDirectories[i] = NULL;
     }
     for(uint32_t i = 0; i < PL_MAX_SHADER_DIRECTORIES; i++)
     {
-        gptString->remove(gptShaderCtx->ptStringRepo, gptShaderCtx->tDefaultShaderOptions.apcDirectories[i]);
+        // gptString->remove(gptShaderCtx->ptStringRepo, gptShaderCtx->tDefaultShaderOptions.apcDirectories[i]);
         gptShaderCtx->tDefaultShaderOptions.apcDirectories[i] = NULL;
     }
     for(uint32_t i = 0; i < PL_MAX_SHADER_MACRO_DEFINITIONS; i++)
     {
-        gptString->remove(gptShaderCtx->ptStringRepo, gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcName);
-        gptString->remove(gptShaderCtx->ptStringRepo, gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcValue);
+        // gptString->remove(gptShaderCtx->ptStringRepo, gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcName);
+        // gptString->remove(gptShaderCtx->ptStringRepo, gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcValue);
         gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcName = NULL;
         gptShaderCtx->tDefaultShaderOptions.atMacroDefinitions[i].pcValue = NULL;
     }
