@@ -55,8 +55,8 @@ static plRectPackContext* gptRectPackCtx = NULL;
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static void
-pl_pack_rects(int iWidth, int iHeight, plPackRect* ptRects, uint32_t uRectCount)
+void
+pl_rect_pack_pack(int iWidth, int iHeight, plPackRect* ptRects, uint32_t uRectCount)
 {
     if(gptRectPackCtx->ptNodes == NULL)
     {
@@ -78,11 +78,11 @@ pl_pack_rects(int iWidth, int iHeight, plPackRect* ptRects, uint32_t uRectCount)
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_rect_pack_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plRectPackI tApi = {
-        .pack_rects = pl_pack_rects
+        .pack = pl_rect_pack_pack
     };
     pl_set_api(ptApiRegistry, plRectPackI, &tApi);
 
@@ -99,7 +99,7 @@ pl_load_rect_pack_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_rect_pack_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)

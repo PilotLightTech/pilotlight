@@ -748,7 +748,7 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
 
     // pack rects
     const uint32_t uRectCount = pl_sb_size(ptScene->sbtShadowRects);
-    gptRect->pack_rects(ptScene->uShadowAtlasResolution, ptScene->uShadowAtlasResolution, ptScene->sbtShadowRects, uRectCount);
+    gptRect->pack(ptScene->uShadowAtlasResolution, ptScene->uShadowAtlasResolution, ptScene->sbtShadowRects, uRectCount);
 
     // ensure rects are packed
     bool bPacked = true;
