@@ -46,7 +46,45 @@ static plProfileContext* gptProfileCtx = NULL;
 //-----------------------------------------------------------------------------
 
 void
-pl_initialize_profile_ext(uint32_t uThreadCount)
+pl_profile_begin_frame(void)
+{
+    pl__begin_profile_frame();
+}
+
+void
+pl_profile_end_frame(void)
+{
+    pl__end_profile_frame();
+}
+
+void
+pl_profile_begin_sample(uint32_t uThreadIndex, const char* pcName)
+{
+    pl__begin_profile_sample(uThreadIndex, pcName);
+}
+
+void
+pl_profile_end_sample(uint32_t uThreadIndex)
+{
+    pl__end_profile_sample(uThreadIndex);
+}
+
+plProfileCpuSample*
+pl_profile_get_last_frame_samples(uint32_t uThreadIndex, uint32_t* puSize)
+{
+    plProfileSample* ptSamples = pl_get_last_frame_samples(uThreadIndex, puSize);
+    return (plProfileCpuSample*)ptSamples;
+}
+
+double             
+pl_profile_get_last_frame_overhead(uint32_t uThreadIndex)
+{
+    plProfileFrame* ptFrame = gptProfileContext->ptThreadData[uThreadIndex].ptLastFrame;
+    return ptFrame->dInternalDuration;
+}
+
+void
+pl_profile_set_thread_count(uint32_t uThreadCount)
 {
     if(gptProfileCtx)
     {
@@ -60,35 +98,21 @@ pl_initialize_profile_ext(uint32_t uThreadCount)
     gptDataRegistry->set_data("plProfileContext", gptProfileCtx);
 }
 
-plProfileCpuSample*
-pl_get_last_frame_cpu_samples(uint32_t uThreadIndex, uint32_t* puSize)
-{
-    plProfileSample* ptSamples = pl_get_last_frame_samples(uThreadIndex, puSize);
-    return (plProfileCpuSample*)ptSamples;
-}
-
-double
-pl__get_profile_overhead(uint32_t uThreadIndex)
-{
-    plProfileFrame* ptFrame = gptProfileContext->ptThreadData[uThreadIndex].ptLastFrame;
-    return ptFrame->dInternalDuration;
-}
-
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
 
-PL_EXPORT void
+void
 pl_load_profile_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plProfileI tApi = {
-        .set_thread_count        = pl_initialize_profile_ext,
-        .begin_frame             = pl__begin_profile_frame,
-        .end_frame               = pl__end_profile_frame,
-        .begin_sample            = pl__begin_profile_sample,
-        .end_sample              = pl__end_profile_sample,
-        .get_last_frame_samples  = pl_get_last_frame_cpu_samples,
-        .get_last_frame_overhead = pl__get_profile_overhead
+        .set_thread_count        = pl_profile_set_thread_count,
+        .begin_frame             = pl_profile_begin_frame,
+        .end_frame               = pl_profile_end_frame,
+        .begin_sample            = pl_profile_begin_sample,
+        .end_sample              = pl_profile_end_sample,
+        .get_last_frame_samples  = pl_profile_get_last_frame_samples,
+        .get_last_frame_overhead = pl_profile_get_last_frame_overhead
     };
     pl_set_api(ptApiRegistry, plProfileI, &tApi);
 
@@ -110,7 +134,7 @@ pl_load_profile_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     }
 }
 
-PL_EXPORT void
+void
 pl_unload_profile_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
 

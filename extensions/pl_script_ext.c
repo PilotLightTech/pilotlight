@@ -118,7 +118,7 @@ pl_script_register_system(void)
 void
 pl_run_script_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plScriptComponent* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
@@ -135,7 +135,7 @@ pl_run_script_update_system(plComponentLibrary* ptLibrary)
         if(ptComponents[i].tFlags & PL_SCRIPT_FLAG_PLAY_ONCE)
             ptComponents[i].tFlags = PL_SCRIPT_FLAG_NONE;
     }
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 //-----------------------------------------------------------------------------

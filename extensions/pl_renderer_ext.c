@@ -2390,7 +2390,7 @@ pl_renderer_cleanup(void)
 void
 pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int iResolution)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     const int iSamples = 512;
     plDevice* ptDevice = gptData->ptDevice;
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
@@ -2398,9 +2398,9 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
     int iPanoramaWidth = 0;
     int iPanoramaHeight = 0;
     int iUnused = 0;
-    pl_begin_cpu_sample(gptProfile, 0, "load image");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "load image");
     float* pfPanoramaData = gptImage->load_hdr_from_file(pcPath, &iPanoramaWidth, &iPanoramaHeight, &iUnused, 4);
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     PL_ASSERT(pfPanoramaData);
 
     const size_t uFaceSize = ((size_t)iResolution * (size_t)iResolution) * 4 * sizeof(float);
@@ -2553,7 +2553,7 @@ pl_renderer_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, int 
         pl__renderer_add_skybox_drawable(ptScene);
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
@@ -2658,7 +2658,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
         return;
 
     // fill CPU buffers & drawable list
-    pl_begin_cpu_sample(gptProfile, 0, "recreate shaders");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "recreate shaders");
 
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
@@ -2672,7 +2672,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
 
     if(!(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_ACTIVE))
     {
-        pl_end_cpu_sample(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
         return;
     }
 
@@ -2958,7 +2958,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     }
 
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
@@ -3021,7 +3021,7 @@ pl_renderer_get_hovered_entity(plView* ptView, plEntity* ptEntityOut)
 void
 pl_renderer_prepare_scene(plScene* ptScene)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     if(ptScene->ptTerrain)
         pl_prepare_terrain(ptScene->ptTerrain);
@@ -3507,13 +3507,13 @@ pl_renderer_prepare_scene(plScene* ptScene)
         pl__renderer_update_probes(ptScene);
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
 pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     // for convience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -3634,13 +3634,13 @@ pl_renderer_prepare_view(plView* ptView, plCamera* ptCamera)
     }
 
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
 pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCamera)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     // for convience
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -3650,7 +3650,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~culling~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    pl_begin_cpu_sample(gptProfile, 0, "culling");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "culling");
     
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
 
@@ -3680,7 +3680,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
                 ptView->sbtVisibleDrawables[i] = i;
         }
     }
-    pl_end_cpu_sample(gptProfile, 0); // culling
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0); // culling
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -3701,7 +3701,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~binning based on pass type~~~~~~~~~~~~~~~~~~~~~~~~~
     
-    pl_begin_cpu_sample(gptProfile, 0, "binning");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "binning");
 
     if(ptCullCamera)
     {
@@ -3742,7 +3742,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
             }
         }
     }
-    pl_end_cpu_sample(gptProfile, 0); // binning
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0); // binning
 
     const plBeginCommandInfo tSceneBeginInfo = {
         .uWaitSemaphoreCount   = 1,
@@ -3935,7 +3935,7 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
         *pdVisibleTransparentObjects = (double)(pl_sb_size(ptView->sbuVisibleForwardEntities));
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
@@ -4017,7 +4017,7 @@ void
 pl_renderer_debug_draw_bvh(plView* ptView)
 {
     plScene* ptScene = ptView->ptParentScene;
-    pl_begin_cpu_sample(gptProfile, 0, "draw BVH");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "draw BVH");
 
     plObjectComponent* ptComponents = NULL;
     gptECS->get_components(ptScene->ptComponentLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
@@ -4036,13 +4036,13 @@ pl_renderer_debug_draw_bvh(plView* ptView)
             gptDraw->add_3d_aabb(ptView->pt3DDrawList, ptNode->tAABB.tMin, ptNode->tAABB.tMax, (plDrawLineOptions){.fThickness = 0.02f, .uColor = PL_COLOR_32_WHITE});
         }
     }
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 bool
 pl_renderer_begin_frame(void)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plDevice* ptDevice = gptData->ptDevice;
 
@@ -4127,7 +4127,7 @@ pl_renderer_begin_frame(void)
 
             if(ptView->auHoverResultProcessing[uFrameIdx])
             {
-                pl_begin_cpu_sample(gptProfile, 0, "Picking Retrieval");
+                PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Picking Retrieval");
                 
                 plBuffer* ptPickBuffer = gptGfx->get_buffer(ptDevice, ptView->atPickBuffer[uFrameIdx]);
                 const uint32_t uNewID = *(uint32_t*)ptPickBuffer->tMemoryAllocation.pHostMapped;
@@ -4138,11 +4138,11 @@ pl_renderer_begin_frame(void)
                 ptView->auHoverResultReady[uFrameIdx] = true;
                 memset(ptPickBuffer->tMemoryAllocation.pHostMapped, 0, sizeof(uint32_t) * 2);
         
-                pl_end_cpu_sample(gptProfile, 0);
+                PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
             }
         }
     }
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }
 
@@ -4176,7 +4176,7 @@ pl_renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCoun
     if(uObjectCount == 0)
         return true;
 
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     int iSceneWideRenderingFlags = 0;
     if(gptData->tRuntimeOptions.bImageBasedLighting) iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
@@ -4235,7 +4235,7 @@ pl_renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCoun
         {
             pl_sb_del_n(ptScene->sbtDrawables, uStart, uObjectCount);
             pl_sb_del_n(ptScene->sbtDrawableResources, uStart, uObjectCount);
-            pl_end_cpu_sample(gptProfile, 0);
+            PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
             return false;
         }
 
@@ -4491,14 +4491,14 @@ pl_renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCoun
         ptScene->sbtDrawables[uDrawableIndex].tIndexBuffer = ptScene->sbtDrawables[uDrawableIndex].uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer;
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }
 
 void
 pl_renderer_update_scene_material(plScene* ptScene, plEntity tMaterialComp)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
 
@@ -4512,7 +4512,7 @@ pl_renderer_update_scene_material(plScene* ptScene, plEntity tMaterialComp)
     if(uMaterialIndex == UINT32_MAX)
     {
         PL_ASSERT(false && "material isn't in scene");
-        pl_end_cpu_sample(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
         return;
     }
     else
@@ -4577,13 +4577,13 @@ pl_renderer_update_scene_material(plScene* ptScene, plEntity tMaterialComp)
 
 
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
 pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, const plEntity* atMaterials)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
 
@@ -4593,7 +4593,7 @@ pl_renderer_add_materials_to_scene(plScene* ptScene, uint32_t uMaterialCount, co
         pl_renderer__add_material_to_scene(ptScene, tMaterialComp);
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 plRendererRuntimeOptions*
@@ -4689,7 +4689,7 @@ pl__object_update_job(plInvocationData tInvoData, void* pData, void* pGroupShare
 void
 pl_run_skin_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plSkinComponent* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
     const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tSkinComponentType, (void**)&ptComponents, &ptEntities);
@@ -4740,13 +4740,13 @@ pl_run_skin_update_system(plComponentLibrary* ptLibrary)
         }
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
 pl_run_object_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     
     plObjectComponent* ptComponents = NULL;
     const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptData->tObjectComponentType, (void**)&ptComponents, NULL);
@@ -4759,7 +4759,7 @@ pl_run_object_update_system(plComponentLibrary* ptLibrary)
     gptJob->dispatch_batch(uComponentCount, 0, tJobDesc, &ptCounter);
     gptJob->wait_for_counter(ptCounter);
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
@@ -4826,7 +4826,7 @@ pl_renderer_register_system(void)
 void
 pl_run_light_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plLightComponent* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
@@ -4845,13 +4845,13 @@ pl_run_light_update_system(plComponentLibrary* ptLibrary)
             // TODO: direction
         }
     }
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
 pl_run_probe_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     // not used yet
 
@@ -4867,7 +4867,7 @@ pl_run_probe_update_system(plComponentLibrary* ptLibrary)
     //         plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, gptEcsCoreCtx->tTransformComponentType, tEntity);
     //     }
     // }
-    pl_end_cpu_sample(gptProfile, 0); 
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0); 
 }
 
 //-----------------------------------------------------------------------------

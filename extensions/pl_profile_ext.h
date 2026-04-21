@@ -9,6 +9,7 @@ Index of this file:
 // [SECTION] APIs
 // [SECTION] forward declarations
 // [SECTION] public api
+// [SECTION] public api struct
 // [SECTION] structs
 // [SECTION] macros
 */
@@ -20,17 +21,22 @@ Index of this file:
 #ifndef PL_PROFILE_EXT_H
 #define PL_PROFILE_EXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include "pl.inc"
 #include <stdint.h>
 
 //-----------------------------------------------------------------------------
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plProfileI_version {1, 0, 0}
+#define plProfileI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -41,6 +47,29 @@ typedef struct _plProfileCpuSample plProfileCpuSample;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
+//-----------------------------------------------------------------------------
+
+// extension loading
+PL_API void pl_load_profile_ext  (plApiRegistryI*, bool reload);
+PL_API void pl_unload_profile_ext(plApiRegistryI*, bool reload);
+
+// frames
+PL_API void pl_profile_begin_frame(void);
+PL_API void pl_profile_end_frame  (void);
+
+// sampling (prefer macros below)
+PL_API void pl_profile_begin_sample(uint32_t threadIndex, const char* name);
+PL_API void pl_profile_end_sample  (uint32_t threadIndex);
+
+// results
+PL_API plProfileCpuSample* pl_profile_get_last_frame_samples (uint32_t threadIndex, uint32_t* sizeOut);
+PL_API double              pl_profile_get_last_frame_overhead(uint32_t threadIndex);
+
+// misc.
+PL_API void pl_profile_set_thread_count(uint32_t threadCount);
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api struct
 //-----------------------------------------------------------------------------
 
 typedef struct _plProfileI
@@ -78,11 +107,19 @@ typedef struct _plProfileCpuSample
 //-----------------------------------------------------------------------------
 
 #ifdef PL_PROFILE_ON
-    #define pl_begin_cpu_sample(api, uThreadIndex, pcName) (api)->begin_sample((uThreadIndex), (pcName))
-    #define pl_end_cpu_sample(api, uThreadIndex)           (api)->end_sample((uThreadIndex))
+    #define PL_PROFILE_BEGIN_SAMPLE_API(api, uThreadIndex, pcName) (api)->begin_sample((uThreadIndex), (pcName))
+    #define PL_PROFILE_END_SAMPLE_API(api, uThreadIndex)           (api)->end_sample((uThreadIndex))
+    #define PL_PROFILE_BEGIN_SAMPLE(uThreadIndex, pcName) pl_profile_begin_sample((uThreadIndex), (pcName))
+    #define PL_PROFILE_END_SAMPLE(uThreadIndex)           pl_profile_end_sample((uThreadIndex))
 #else
-    #define pl_begin_cpu_sample(api, uThreadIndex, pcName) //
-    #define pl_end_cpu_sample(api, uThreadIndex) //
+    #define PL_PROFILE_BEGIN_SAMPLE_API(api, uThreadIndex, pcName) //
+    #define PL_PROFILE_END_SAMPLE_API(api, uThreadIndex) //
+    #define PL_PROFILE_BEGIN_SAMPLE(uThreadIndex, pcName) //
+    #define PL_PROFILE_END_SAMPLE(uThreadIndex) //
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif // PL_PROFILE_EXT_H

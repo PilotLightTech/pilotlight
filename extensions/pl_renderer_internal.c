@@ -563,7 +563,7 @@ pl__renderer_sat_visibility_test(plCamera* ptCamera, const plAABB* ptAABB)
 static void
 pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
 
     // update skin textures
@@ -620,13 +620,13 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
         gptGfx->pop_compute_debug_group(ptComputeEncoder);
         gptGfx->end_compute_pass(ptComputeEncoder);
     }
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static bool
 pl__renderer_pack_shadow_atlas(plScene* ptScene)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     
     uint32_t uViewCount = pl_sb_size(ptScene->sbptViews);
     pl_sb_reset(ptScene->sbtShadowRects);
@@ -762,14 +762,14 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
         }
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return bPacked;
 }
 
 static void
 pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, plScene* ptScene)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     // for convience
     plDevice*     ptDevice   = gptData->ptDevice;
@@ -1317,13 +1317,13 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
         }
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static void
 pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, plScene* ptScene, uint32_t uViewHandle, uint32_t uProbeIndex, plCamera* ptSceneCamera, plCSMInfo tInfo, plDrawList3D* ptDrawlist)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     // for convience
     plDevice*      ptDevice  = gptData->ptDevice;
@@ -1946,7 +1946,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
         }
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -2867,7 +2867,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
 static void
 pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironmentProbeData* ptProbe)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plDevice* ptDevice = gptData->ptDevice;
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
@@ -3282,7 +3282,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         }
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static void
@@ -4010,7 +4010,7 @@ pl__render_view_debug_pass(plView* ptView, plCamera* ptCamera, plCamera* ptCullC
 static void
 pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBuffer* ptSceneCmdBuffer)
 {
-    pl_begin_cpu_sample(gptProfile, 0, "Picking Submission");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Picking Submission");
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -4106,7 +4106,7 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
     }
     gptGfx->end_render_pass(ptPickEncoder);
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static void
@@ -4264,7 +4264,7 @@ pl__render_view_jfa_pass(plView* ptView)
 static void
 pl__render_view_outline_pass(plView* ptView, plCamera* ptCamera)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
@@ -4351,13 +4351,13 @@ pl__render_view_outline_pass(plView* ptView, plCamera* ptCamera)
     gptGfx->submit_command_buffer(ptCommandBuffer, &tOutlineSubmitInfo);
     gptGfx->return_command_buffer(ptCommandBuffer);
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static void
 pl__render_view_bloom_pass(plView* ptView)
 {
-    pl_begin_cpu_sample(gptProfile, 0, "bloom");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "bloom");
 
     // for convience
     // const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
@@ -4668,7 +4668,7 @@ pl__render_view_bloom_pass(plView* ptView)
         gptGfx->return_command_buffer(ptPostCmdBuffer);
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static void

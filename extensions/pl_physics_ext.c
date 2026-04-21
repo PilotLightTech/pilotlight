@@ -557,7 +557,7 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
     if(!gptPhysicsCtx->tSettings.bEnabled)
         return;
 
-    pl_begin_cpu_sample(gptProfile, 0, "Physics Update");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Physics Update");
 
     const float fSubstepTime = (1.0f / gptPhysicsCtx->tSettings.fSimulationFrameRate);
 
@@ -575,29 +575,29 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
     fRemainder = modff(fRatio, &fRemainder);
     uint32_t uSubsteps = (uint32_t)ceilf(fRatio);
 
-    pl_begin_cpu_sample(gptProfile, 0, "Update Physics Objects");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Physics Objects");
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
     {
         // register rigid bodies or update them if they already exists
         pl_physics_create_rigid_body(ptLibrary, ptRigidBodyEntities[i]);
     }
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 
     // physics substep
     for(uint32_t uSubstep = 0; uSubstep < uSubsteps; uSubstep++)
     {
-        pl_begin_cpu_sample(gptProfile, 0, "Substep");
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Substep");
         pl__physics_update_force_fields(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, ptLibrary);
         pl__detect_collisions(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, ptLibrary);
         pl__resolve_contacts(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier);
         pl__physics_integrate(fSubstepTime * gptPhysicsCtx->tSettings.fSimulationMultiplier, gptPhysicsCtx->sbtRigidBodies, uRigidBodyCount);
-        pl_end_cpu_sample(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     }
 
     // interpolation required
     if(fRemainder > 0.0f)
     {
-        pl_begin_cpu_sample(gptProfile, 0, "Interpolation Step");
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Interpolation Step");
         for(uint32_t i = 0; i < uRigidBodyCount; i++)
         {
             plRigidBody* ptBody = &gptPhysicsCtx->sbtRigidBodies[i];
@@ -607,11 +607,11 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
             ptBody->tOrientation = pl_quat_slerp(ptBody->tPreviousOrientation, ptBody->tOrientation, fRemainder);
             ptBody->tTransform = pl_rotation_translation_scale(ptBody->tOrientation, ptBody->tPosition, (plVec3){1.0f, 1.0f, 1.0f});
         }
-        pl_end_cpu_sample(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     }
 
     // update transforms
-    pl_begin_cpu_sample(gptProfile, 0, "Update Transforms");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Transforms");
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
     const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
     for(uint32_t i = 0; i < uRigidBodyCount; i++)
@@ -629,9 +629,9 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
         pl_decompose_matrix(&tTransform, &tUnUsedScale, &ptSphereTransform->tRotation, &ptSphereTransform->tTranslation);
         ptSphereTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
     }
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
@@ -643,7 +643,7 @@ pl_physics_reset(void)
 void
 pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
 {
-    pl_begin_cpu_sample(gptProfile, 0, "Physics Draw");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Physics Draw");
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
@@ -753,7 +753,7 @@ pl_physics_draw(plComponentLibrary* ptLibrary, plDrawList3D* ptDrawlist)
             gptDraw->add_3d_line(ptDrawlist, ptTransform->tTranslation, pl_add_vec3(ptTransform->tTranslation, tDirection), (plDrawLineOptions){.uColor = PL_COLOR_32_RED, .fThickness = 0.05f});
         }
     }
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
@@ -1017,7 +1017,7 @@ pl_physics_sleep_all(void)
 static void
 pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
-    pl_begin_cpu_sample(gptProfile, 0, "Update Force Fields");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Update Force Fields");
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
@@ -1082,13 +1082,13 @@ pl__physics_update_force_fields(float fDeltaTime, plComponentLibrary* ptLibrary)
             }
         }
     }
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static void
 pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
 {
-    pl_begin_cpu_sample(gptProfile, 0, "Collision Detection");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Collision Detection");
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
     const plEcsTypeKey tRigidBodyPhysicsComponentType = gptPhysicsCtx->tRigidBodyPhysicsComponentType;
@@ -1162,7 +1162,7 @@ pl__detect_collisions(float fDeltaTime, plComponentLibrary* ptLibrary)
         }
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static plVec3
@@ -1683,7 +1683,7 @@ pl__contact_adjust_velocities(float fDeltaTime)
 static void
 pl__resolve_contacts(float fDeltaTime)
 {
-    pl_begin_cpu_sample(gptProfile, 0, "Resolve Contacts");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Resolve Contacts");
 
     const uint32_t uContactCount = pl_sb_size(gptPhysicsCtx->sbtContactArray);
 
@@ -1705,13 +1705,13 @@ pl__resolve_contacts(float fDeltaTime)
     // resolve the velocity problems with the contacts.
     pl__contact_adjust_velocities(fDeltaTime);
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static void
 pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCount)
 {
-    pl_begin_cpu_sample(gptProfile, 0, "Integration");
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Integration");
 
     for(uint32_t i = 0; i < uBodyCount; i++)
     {
@@ -1813,7 +1813,7 @@ pl__physics_integrate(float fDeltaTime, plRigidBody* atBodies, uint32_t uBodyCou
         }
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static void

@@ -199,9 +199,9 @@ pl_ecs_create_animation_data(plComponentLibrary* ptLibrary, const char* pcName, 
 }
 
 void
-pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
+pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plAnimationComponent* ptComponents = NULL;
     const uint32_t uComponentCount = gptECS->get_components(ptLibrary, gptAnimationCtx->tAnimationComponentType, (void**)&ptComponents, NULL);
@@ -386,13 +386,13 @@ pl_run_animation_update_system(plComponentLibrary* ptLibrary, float fDeltaTime)
         }
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
-pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
+pl_animation_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plInverseKinematicsComponent* ptComponents = NULL;
     const plEntity* ptEntities = NULL;
@@ -548,11 +548,11 @@ pl_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
 
     pl_sb_reset(ptData->sbtTransformsCopy);
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
-pl_core_register_system(void)
+pl_animation_register_ecs_system(void)
 {
 
     gptAnimationCtx->tTransformComponentType = gptECS->get_ecs_type_key_transform();

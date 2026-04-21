@@ -146,44 +146,44 @@ pl_debug_initialize(plToolsInit tInit)
 void
 pl_debug_update(void)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     if(gptDebugCtx->bShowMemoryAllocations)
     {
-        pl_begin_cpu_sample(gptProfile, 0, "Memory Allocations");
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Memory Allocations");
         pl__show_memory_allocations(&gptDebugCtx->bShowMemoryAllocations);
-        pl_end_cpu_sample(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     }
 
     if(gptDebugCtx->bShowProfiling)
     {
-        pl_begin_cpu_sample(gptProfile, 0, "Profiling");
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Profiling");
         pl__show_profiling(&gptDebugCtx->bShowProfiling);
-        pl_end_cpu_sample(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     }
 
     if(gptDebugCtx->bShowStats)
     {
-        pl_begin_cpu_sample(gptProfile, 0, "Statistics");
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Statistics");
         pl__show_statistics(&gptDebugCtx->bShowStats);
-        pl_end_cpu_sample(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     }
 
     if(gptDebugCtx->bShowDeviceMemoryAnalyzer)
     {
-        pl_begin_cpu_sample(gptProfile, 0, "Device Memory Analyzer");
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Device Memory Analyzer");
         pl__show_device_memory(&gptDebugCtx->bShowDeviceMemoryAnalyzer);
-        pl_end_cpu_sample(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     }
 
     if(gptDebugCtx->bShowLogging)
     {
-        pl_begin_cpu_sample(gptProfile, 0, "Logging");
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Logging");
         pl__show_logging(&gptDebugCtx->bShowLogging);
-        pl_end_cpu_sample(gptProfile, 0);
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 //-----------------------------------------------------------------------------
