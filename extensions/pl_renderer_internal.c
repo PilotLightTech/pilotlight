@@ -96,7 +96,7 @@ pl__renderer_create_local_texture(const plTextureDesc* ptDesc, const char* pcNam
     gptGfx->return_command_buffer(ptCommandBuffer);
 
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created local texture %s %u", pcName, uIdentifier);
-    pl_log_info_f(gptLog, gptData->uLogChannel, "created local texture %s %u", pcName, uIdentifier);
+    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created local texture %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -142,7 +142,7 @@ pl__renderer_create_texture(const plTextureDesc* ptDesc, const char* pcName, uin
     gptGfx->return_command_buffer(ptCommandBuffer);
 
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created texture %s %u", pcName, uIdentifier);
-    pl_log_info_f(gptLog, gptData->uLogChannel, "created texture %s %u", pcName, uIdentifier);
+    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created texture %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -205,7 +205,7 @@ pl__renderer_create_texture_with_data(const plTextureDesc* ptDesc, const char* p
     }
 
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created texture %s %u", pcName, uIdentifier);
-    pl_log_info_f(gptLog, gptData->uLogChannel, "created texture %s %u", pcName, uIdentifier);
+    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created texture %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -239,7 +239,7 @@ pl__renderer_create_staging_buffer(const plBufferDesc* ptDesc, const char* pcNam
     pl_temp_allocator_free(&tTempAllocator);
 
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created staging buffer %s %u", pcName, uIdentifier);
-    pl_log_info_f(gptLog, gptData->uLogChannel, "created staging buffer %s %u", pcName, uIdentifier);
+    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created staging buffer %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -267,7 +267,7 @@ pl__renderer_create_cached_staging_buffer(const plBufferDesc* ptDesc, const char
     pl_temp_allocator_free(&tTempAllocator);
 
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created cached staging buffer %s %u", pcName, uIdentifier);
-    pl_log_info_f(gptLog, gptData->uLogChannel, "created cached staging buffer %s %u", pcName, uIdentifier);
+    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created cached staging buffer %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -301,7 +301,7 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
     pl_temp_allocator_free(&tTempAllocator);
 
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created local buffer %s %u", pcName, uIdentifier);
-    pl_log_info_f(gptLog, gptData->uLogChannel, "created local buffer %s %u", pcName, uIdentifier);
+    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created local buffer %s %u", pcName, uIdentifier);
     return tHandle;
 }
 
@@ -4200,11 +4200,11 @@ pl__render_view_jfa_pass(plView* ptView)
         uJumpSteps = 1;
 
     const plDispatch tDispach = {
-        .uGroupCountX     = (uint32_t)ceilf(tDimensions.x / 32.0f),
-        .uGroupCountY     = (uint32_t)ceilf(tDimensions.y / 32.0f),
+        .uGroupCountX     = (uint32_t)ceilf(tDimensions.x / 8.0f),
+        .uGroupCountY     = (uint32_t)ceilf(tDimensions.y / 8.0f),
         .uGroupCountZ     = 1,
-        .uThreadPerGroupX = 32,
-        .uThreadPerGroupY = 32,
+        .uThreadPerGroupX = 8,
+        .uThreadPerGroupY = 8,
         .uThreadPerGroupZ = 1
     };
 
@@ -4709,11 +4709,11 @@ pl__render_view_tonemap_pass(plView* ptView)
     gptGfx->bind_compute_bind_groups(ptPostEncoder, tTonemapShader, 0, 1, &ptView->tTonemapBG, 1, &tTonemapDynamicBinding);
 
     plDispatch tTonemapDispatch = {
-        .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 32.0f)),
-        .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 32.0f)),
+        .uGroupCountX     = (uint32_t)(ceilf(ptView->tTargetSize.x / 8.0f)),
+        .uGroupCountY     = (uint32_t)(ceilf(ptView->tTargetSize.y / 8.0f)),
         .uGroupCountZ     = 1,
-        .uThreadPerGroupX = 32,
-        .uThreadPerGroupY = 32,
+        .uThreadPerGroupX = 8,
+        .uThreadPerGroupY = 8,
         .uThreadPerGroupZ = 1
     };
     gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);

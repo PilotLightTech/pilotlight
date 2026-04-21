@@ -168,7 +168,7 @@ plEntity
 pl_camera_create_perspective_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     const plCamera tCamera = {
@@ -195,7 +195,7 @@ plEntity
 pl_camera_create_orthographic_camera(plComponentLibrary* ptLibrary, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     const plCamera tCamera = {

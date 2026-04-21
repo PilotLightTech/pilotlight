@@ -219,7 +219,7 @@ pl_ecs_create_library(plComponentLibrary** pptLibrary)
 
     pl_sb_push(ptLibrary->_sbtEntityGenerations, UINT32_MAX-1);
 
-    pl_log_info(gptLog, gptEcsCtx->uLogChannel, "initialized component library");
+    PL_LOG_INFO_API(gptLog, gptEcsCtx->uLogChannel, "initialized component library");
 
     return true;
 }
@@ -581,7 +581,7 @@ plEntity
 pl_ecs_create_transform(plComponentLibrary* ptLibrary, const char* pcName, plTransformComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed transform";
-    pl_log_debug_f(gptLog, gptEcsCtx->uLogChannel, "created transform: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptEcsCtx->uLogChannel, "created transform: '%s'", pcName);
     plEntity tNewEntity = pl_ecs_create_entity(ptLibrary, pcName);
 
     plTransformComponent* ptTransform = pl_ecs_add_component(ptLibrary, gptEcsCtx->tTransformComponentType, tNewEntity);

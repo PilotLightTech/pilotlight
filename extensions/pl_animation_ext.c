@@ -159,7 +159,7 @@ plEntity
 pl_ecs_create_animation(plComponentLibrary* ptLibrary, const char* pcName, uint32_t uChannelCount, plAnimationComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created animation: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created animation: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plAnimationComponent* ptCompOut = gptECS->add_component(ptLibrary, gptAnimationCtx->tAnimationComponentType, tNewEntity);
@@ -180,7 +180,7 @@ plEntity
 pl_ecs_create_animation_data(plComponentLibrary* ptLibrary, const char* pcName, uint32_t uKeyFrameCount, size_t szDataSize, plAnimationDataComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed animation data";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created animation data: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created animation data: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plAnimationDataComponent* ptCompOut = gptECS->add_component(ptLibrary, gptAnimationCtx->tAnimationDataComponentType, tNewEntity);

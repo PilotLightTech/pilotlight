@@ -55,7 +55,7 @@ plEntity
 pl_renderer_create_directional_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tDirection, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed directional light";
-    pl_log_debug_f(gptLog, gptData->uLogChannel, "created directional light: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptData->uLogChannel, "created directional light: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
     plLightComponent* ptLight =  gptECS->add_component(ptLibrary, gptData->tLightComponentType, tNewEntity);
     ptLight->tDirection = tDirection;
@@ -70,7 +70,7 @@ plEntity
 pl_renderer_create_point_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed point light";
-    pl_log_debug_f(gptLog, gptData->uLogChannel, "created point light: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptData->uLogChannel, "created point light: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
     plLightComponent* ptLight =  gptECS->add_component(ptLibrary, gptData->tLightComponentType, tNewEntity);
     ptLight->tPosition = tPosition;
@@ -85,7 +85,7 @@ plEntity
 pl_renderer_create_environment_probe(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plEnvironmentProbeComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed environment probe";
-    pl_log_debug_f(gptLog, gptData->uLogChannel, "created environment probe: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptData->uLogChannel, "created environment probe: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plTransformComponent* ptProbeTransform = gptECS->add_component(ptLibrary, gptECS->get_ecs_type_key_transform(), tNewEntity);
@@ -102,7 +102,7 @@ plEntity
 pl_renderer_create_spot_light(plComponentLibrary* ptLibrary, const char* pcName, plVec3 tPosition, plVec3 tDirection, plLightComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed spot light";
-    pl_log_debug_f(gptLog, gptData->uLogChannel, "created spot light: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptData->uLogChannel, "created spot light: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
     plLightComponent* ptLight =  gptECS->add_component(ptLibrary, gptData->tLightComponentType, tNewEntity);
     ptLight->tPosition = tPosition;
@@ -118,7 +118,7 @@ plEntity
 pl_renderer_create_object(plComponentLibrary* ptLibrary, const char* pcName, plObjectComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed object";
-    pl_log_debug_f(gptLog, gptData->uLogChannel, "created object: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptData->uLogChannel, "created object: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plObjectComponent* ptObject = gptECS->add_component(ptLibrary, gptData->tObjectComponentType, tNewEntity);
@@ -138,7 +138,7 @@ plEntity
 pl_renderer_copy_object(plComponentLibrary* ptLibrary, const char* pcName, plEntity tOriginalObject, plObjectComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed object copy";
-    pl_log_debug_f(gptLog, gptData->uLogChannel, "copied object: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptData->uLogChannel, "copied object: '%s'", pcName);
 
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
@@ -162,7 +162,7 @@ plEntity
 pl_renderer_create_skin(plComponentLibrary* ptLibrary, const char* pcName, plSkinComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed skin";
-    pl_log_debug_f(gptLog, gptData->uLogChannel, "created skin: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptData->uLogChannel, "created skin: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plSkinComponent* ptSkin = gptECS->add_component(ptLibrary, gptData->tSkinComponentType, tNewEntity);
@@ -2678,7 +2678,7 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
 
     plDevice* ptDevice = gptData->ptDevice;
 
-    pl_log_info_f(gptLog, gptData->uLogChannel, "reload shaders for scene %s", ptScene->pcName);
+    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "reload shaders for scene %s", ptScene->pcName);
 
     plShaderOptions tOriginalOptions = *gptShader->get_options();
 
@@ -3165,7 +3165,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
 
             if(!gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))
             {
-                pl_log_info(gptLog, gptData->uLogChannel, "creating required transmission texture");
+                PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "creating required transmission texture");
                 const plTextureDesc tRawOutput2TextureDesc = {
                     .tDimensions   = {ptView->tTargetSize.x, ptView->tTargetSize.y, 1},
                     .tFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
@@ -3188,7 +3188,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
 
             if(gptGfx->is_texture_valid(ptDevice, ptView->tTransmissionTexture))
             {
-                pl_log_info(gptLog, gptData->uLogChannel, "freeing unneeded transmission texture");
+                PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "freeing unneeded transmission texture");
                 gptGfx->queue_texture_for_deletion(ptDevice, ptView->tTransmissionTexture);
             }
         }
@@ -3362,7 +3362,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
     ptShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSpotLightShadowDataBuffer[uFrameIdx]);
     memcpy(ptShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtSpotLightShadowData, sizeof(plGpuSpotLightShadow) * pl_sb_size(ptScene->sbtSpotLightShadowData));
     
-    if(uFrameIdx == 0 && gptIO->ulFrameCount > 3) // multiple frames in flight may fight
+    if(uFrameIdx == 0 && gptIO->ulFrameCount > 1) // multiple frames in flight may fight
     {
         const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
         for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
@@ -3372,7 +3372,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
 
             if((ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && !gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
             {
-                pl_log_info(gptLog, gptData->uLogChannel, "creating required sheen env texture");
+                PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "creating required sheen env texture");
                 const plTextureDesc tTextureDesc = {
                     .tDimensions = {(float)ptProbeComp->uResolution, (float)ptProbeComp->uResolution, 1},
                     .tFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -3387,7 +3387,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
             }
             else if(!(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
             {
-                pl_log_info(gptLog, gptData->uLogChannel, "freeing unneeded sheen env texture");
+                PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "freeing unneeded sheen env texture");
                 gptGfx->queue_texture_for_deletion(ptDevice, ptProbe->tSheenEnvTexture);
             }
 

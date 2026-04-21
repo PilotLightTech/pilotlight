@@ -742,16 +742,16 @@ pl_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plSwapchainI
 void
 pl_begin_frame(plDevice* ptDevice)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     pl__garbage_collect(ptDevice);
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 bool
 pl_acquire_swapchain_image(plSwapchain* ptSwap)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }
 
@@ -763,17 +763,17 @@ pl_end_command_recording(plCommandBuffer* ptCommandBuffer)
 bool
 pl_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitInfo, plSwapchain **ptSwaps, uint32_t uSwapchainCount)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }
 
 void
 pl_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptInit)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
@@ -954,7 +954,7 @@ pl_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle
 void
 pl_destroy_buffer(plDevice* ptDevice, plBufferHandle tHandle)
 {
-    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy buffer %u immediately", tHandle.uIndex);
+    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy buffer %u immediately", tHandle.uIndex);
     ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
     pl_sb_push(ptDevice->sbtBufferFreeIndices, tHandle.uIndex);
 
@@ -1055,7 +1055,7 @@ pl_pop_debug_group(plCommandBuffer* ptCmdBuffer)
 static void
 pl__garbage_collect(plDevice* ptDevice)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
 
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
@@ -1067,5 +1067,5 @@ pl__garbage_collect(plDevice* ptDevice)
     pl_sb_reset(ptGarbage->sbtMemory);
     pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }

@@ -234,12 +234,12 @@ pl_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
         pl_sb_push(ptGarbage->sbtMemory, ptDevice->sbtBuffersCold[tHandle.uIndex].tMemoryAllocation);
         ptDevice->sbtBuffersCold[tHandle.uIndex]._uGeneration++;
         ptDevice->sbtBuffersCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
-        // pl_log_trace_f(gptLog, uLogChannelGraphics, "Queue buffer %u for deletion frame %llu", tHandle.uIndex, gptIO->ulFrameCount);
-        pl_log_debug_f(gptLog, uLogChannelGraphics, "queue buffer %s for deletion (%u)", ptDevice->sbtBuffersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+        // PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "Queue buffer %u for deletion frame %llu", tHandle.uIndex, gptIO->ulFrameCount);
+        PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "queue buffer %s for deletion (%u)", ptDevice->sbtBuffersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
     else
     {
-        pl_log_warn_f(gptLog, uLogChannelGraphics, "double buffer %s deletion (%u)", ptDevice->sbtBuffersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+        PL_LOG_WARN_API_F(gptLog, uLogChannelGraphics, "double buffer %s deletion (%u)", ptDevice->sbtBuffersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
 }
 
@@ -257,11 +257,11 @@ pl_queue_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHandle)
         }
         ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
         ptDevice->sbtTexturesCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
-        pl_log_debug_f(gptLog, uLogChannelGraphics, "queue texture %s for deletion (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+        PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "queue texture %s for deletion (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
     else
     {
-        pl_log_warn_f(gptLog, uLogChannelGraphics, "double texture %s deletion (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+        PL_LOG_WARN_API_F(gptLog, uLogChannelGraphics, "double texture %s deletion (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
 }
 
@@ -277,7 +277,7 @@ pl_queue_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle
     }
     else
     {
-        pl_log_warn(gptLog, uLogChannelGraphics, "double render pass deletion");
+        PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "double render pass deletion");
     }
 }
 
@@ -293,7 +293,7 @@ pl_queue_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutH
     }
     else
     {
-        pl_log_warn(gptLog, uLogChannelGraphics, "double render pass layout deletion");
+        PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "double render pass layout deletion");
     }
 }
 
@@ -306,11 +306,11 @@ pl_queue_shader_for_deletion(plDevice* ptDevice, plShaderHandle tHandle)
         pl_sb_push(ptGarbage->sbtShaders, tHandle);
         ptDevice->sbtShadersCold[tHandle.uIndex]._uGeneration++;
         ptDevice->sbtShadersCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
-        pl_log_debug_f(gptLog, uLogChannelGraphics, "queue shader %s for deletion (%u)", ptDevice->sbtShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+        PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "queue shader %s for deletion (%u)", ptDevice->sbtShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
     else
     {
-        pl_log_warn_f(gptLog, uLogChannelGraphics, "double shader %s deletion (%u)", ptDevice->sbtShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+        PL_LOG_WARN_API_F(gptLog, uLogChannelGraphics, "double shader %s deletion (%u)", ptDevice->sbtShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
 }
 
@@ -323,11 +323,11 @@ pl_queue_compute_shader_for_deletion(plDevice* ptDevice, plComputeShaderHandle t
         pl_sb_push(ptGarbage->sbtComputeShaders, tHandle);
         ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uGeneration++;
         ptDevice->sbtComputeShadersCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
-        pl_log_debug_f(gptLog, uLogChannelGraphics, "queue compute shader %s for deletion (%u)", ptDevice->sbtComputeShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+        PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "queue compute shader %s for deletion (%u)", ptDevice->sbtComputeShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
     else
     {
-        pl_log_warn_f(gptLog, uLogChannelGraphics, "double compute shader %s deletion (%u)", ptDevice->sbtComputeShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+        PL_LOG_WARN_API_F(gptLog, uLogChannelGraphics, "double compute shader %s deletion (%u)", ptDevice->sbtComputeShadersCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
     }
 }
 
@@ -343,7 +343,7 @@ pl_queue_bind_group_for_deletion(plDevice* ptDevice, plBindGroupHandle tHandle)
     }
     else
     {
-        pl_log_warn(gptLog, uLogChannelGraphics, "double bind group deletion");
+        PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "double bind group deletion");
     }
 }
 
@@ -360,7 +360,7 @@ pl_queue_bind_group_layout_for_deletion(plDevice* ptDevice, plBindGroupLayoutHan
     }
     else
     {
-        pl_log_warn(gptLog, uLogChannelGraphics, "double bind group layout deletion");
+        PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "double bind group layout deletion");
     }
 }
 
@@ -376,7 +376,7 @@ pl_queue_sampler_for_deletion(plDevice* ptDevice, plSamplerHandle tHandle)
     }
     else
     {
-        pl_log_warn(gptLog, uLogChannelGraphics, "double sampler deletion");
+        PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "double sampler deletion");
     }
 }
 
@@ -724,7 +724,7 @@ pl__get_new_buffer_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtBuffersCold[uBufferIndex]._uGeneration,
         .uIndex = uBufferIndex
     };
-    pl_log_trace_f(gptLog, uLogChannelGraphics, "create buffer %u", tHandle.uIndex);
+    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "create buffer %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -746,7 +746,7 @@ pl__get_new_texture_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtTexturesCold[uTextureIndex]._uGeneration,
         .uIndex = uTextureIndex
     };
-    pl_log_trace_f(gptLog, uLogChannelGraphics, "create texture %u", tHandle.uIndex);
+    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "create texture %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -768,7 +768,7 @@ pl__get_new_sampler_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtSamplersCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
-    pl_log_trace_f(gptLog, uLogChannelGraphics, "create sampler %u", tHandle.uIndex);
+    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "create sampler %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -832,7 +832,7 @@ pl__get_new_shader_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtShadersCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
-    pl_log_trace_f(gptLog, uLogChannelGraphics, "create shader %u", tHandle.uIndex);
+    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "create shader %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -854,7 +854,7 @@ pl__get_new_compute_shader_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtComputeShadersCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
-    pl_log_trace_f(gptLog, uLogChannelGraphics, "create compute shader %u", tHandle.uIndex);
+    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "create compute shader %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -876,7 +876,7 @@ pl__get_new_render_pass_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtRenderPassesCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
-    pl_log_trace_f(gptLog, uLogChannelGraphics, "create render pass %u", tHandle.uIndex);
+    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "create render pass %u", tHandle.uIndex);
     return tHandle;
 }
 
@@ -898,7 +898,7 @@ pl__get_new_render_pass_layout_handle(plDevice* ptDevice)
         .uGeneration = ++ptDevice->sbtRenderPassLayoutsCold[uResourceIndex]._uGeneration,
         .uIndex = uResourceIndex
     };
-    pl_log_trace_f(gptLog, uLogChannelGraphics, "create render pass layout %u", tHandle.uIndex);
+    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "create render pass layout %u", tHandle.uIndex);
     return tHandle;
 }
 

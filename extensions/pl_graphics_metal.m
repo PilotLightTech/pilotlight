@@ -2013,7 +2013,7 @@ pl_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
 static void
 pl_begin_frame(plDevice* ptDevice)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     // Wait until the inflight command buffer has completed its work
     // gptGraphics->tSwapchain.uCurrentImageIndex = gptGraphics->uCurrentFrameIndex;
@@ -2022,13 +2022,13 @@ pl_begin_frame(plDevice* ptDevice)
     [ptFrame->tFrameBoundaryEvent waitUntilSignaledValue:ptFrame->uNextValue timeoutMS:10000];
 
     pl__garbage_collect(ptDevice); 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static bool
 pl_acquire_swapchain_image(plSwapchain* ptSwapchain)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plDevice* ptDevice = ptSwapchain->ptDevice;
 
@@ -2047,7 +2047,7 @@ pl_acquire_swapchain_image(plSwapchain* ptSwapchain)
             ptMetalRenderPass->atRenderPassDescriptors[gptGraphics->uCurrentFrameIndex].sbptRenderPassDescriptor[0].colorAttachments[ptMetalRenderPass->uResolveIndex].resolveTexture = gptGraphics->tCurrentDrawable.texture;
     }
 
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }
 
@@ -2660,7 +2660,7 @@ pl_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandl
 static void
 pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAreas)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
@@ -2933,7 +2933,7 @@ pl_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea* atAr
             }
         }
     }
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 static void
@@ -3467,7 +3467,7 @@ pl__metal_pipeline_stage_flags(plPipelineStageFlags tFlags)
 static void
 pl__garbage_collect(plDevice* ptDevice)
 {
-    pl_begin_cpu_sample(gptProfile, 0, __FUNCTION__);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
     plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
 
@@ -3577,7 +3577,7 @@ pl__garbage_collect(plDevice* ptDevice)
             [ptDevice->sbtBuffersHot[iBufferIndex].tBuffer release];
             ptDevice->sbtBuffersHot[iBufferIndex].tBuffer = nil;
             pl_sb_push(ptDevice->sbtBufferFreeIndices, iBufferIndex);
-            pl_log_debug_f(gptLog, uLogChannelGraphics, "Delete buffer %u for deletion frame %llu", iBufferIndex, gptIO->ulFrameCount);
+            PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "Delete buffer %u for deletion frame %llu", iBufferIndex, gptIO->ulFrameCount);
             pl_sb_del(ptGarbage->sbtBuffers, i);
             i--;
         }
@@ -3608,7 +3608,7 @@ pl__garbage_collect(plDevice* ptDevice)
     // pl_sb_reset(ptGarbage->sbtMemory);
     // pl_sb_reset(ptGarbage->sbtBuffers);
     pl_sb_reset(ptGarbage->sbtBindGroups);
-    pl_end_cpu_sample(gptProfile, 0);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -3738,7 +3738,7 @@ pl_destroy_texture(plDevice* ptDevice, plTextureHandle tHandle)
     pl_sb_push(ptDevice->sbtTextureFreeIndices, tHandle.uIndex);
     ptDevice->sbtTexturesCold[tHandle.uIndex]._uGeneration++;
 
-    pl_log_debug_f(gptLog, uLogChannelGraphics, "destroy texture %s immediately (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
+    PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "destroy texture %s immediately (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
 
     plMetalTexture* ptMetalTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
     [ptMetalTexture->tTexture release];
@@ -3815,7 +3815,7 @@ pl_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 void
 pl_destroy_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
 {
-    pl_log_trace_f(gptLog, uLogChannelGraphics, "destroy sampler %u immediately", tHandle.uIndex);
+    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy sampler %u immediately", tHandle.uIndex);
     [ptDevice->sbtSamplersHot[tHandle.uIndex].tSampler release];
     ptDevice->sbtSamplersHot[tHandle.uIndex].tSampler = nil;
     ptDevice->sbtSamplersCold[tHandle.uIndex]._uGeneration++;

@@ -63,7 +63,7 @@ plEntity
 pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plScriptComponent** pptCompOut)
 {
 
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created script: '%s'", pcFile);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created script: '%s'", pcFile);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcFile);
     plScriptComponent* ptScript =  gptECS->add_component(ptLibrary, gptScriptCtx->tComponentType, tNewEntity);
     ptScript->tFlags = tFlags;
@@ -86,7 +86,7 @@ pl_ecs_create_script(plComponentLibrary* ptLibrary, const char* pcFile, plScript
 void
 pl_ecs_attach_script(plComponentLibrary* ptLibrary, const char* pcFile, plScriptFlags tFlags, plEntity tEntity, plScriptComponent** pptCompOut)
 {
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "attach script: '%s'", pcFile);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "attach script: '%s'", pcFile);
     plScriptComponent* ptScript = gptECS->add_component(ptLibrary, gptScriptCtx->tComponentType, tEntity);
     ptScript->tFlags = tFlags;
     strncpy(ptScript->acFile, pcFile, PL_MAX_NAME_LENGTH);

@@ -300,7 +300,7 @@ plEntity
 pl_ecs_create_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed mesh";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created mesh: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created mesh: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
     plMeshComponent* ptCompOut = gptECS->add_component(ptLibrary, gptMeshCtx->tMeshComponentType, tNewEntity);
 
@@ -313,7 +313,7 @@ plEntity
 pl_ecs_create_sphere_mesh(plComponentLibrary* ptLibrary, const char* pcName, float fRadius, uint32_t uLatitudeBands, uint32_t uLongitudeBands, plMeshComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed sphere mesh";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created sphere mesh: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created sphere mesh: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
     plMeshComponent* ptMesh = gptECS->add_component(ptLibrary, gptMeshCtx->tMeshComponentType, tNewEntity);
 
@@ -380,7 +380,7 @@ plEntity
 pl_ecs_create_cube_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed cube mesh";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created cube mesh: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created cube mesh: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
     plMeshComponent* ptMesh = gptECS->add_component(ptLibrary, gptMeshCtx->tMeshComponentType, tNewEntity);
 
@@ -506,7 +506,7 @@ plEntity
 pl_ecs_create_plane_mesh(plComponentLibrary* ptLibrary, const char* pcName, plMeshComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed plane mesh";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created plane mesh: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created plane mesh: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
     plMeshComponent* ptMesh = gptECS->add_component(ptLibrary, gptMeshCtx->tMeshComponentType, tNewEntity);
 

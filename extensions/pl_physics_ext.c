@@ -382,7 +382,7 @@ pl_physics_initialize(plPhysicsEngineSettings tSettings)
     };
     gptPhysicsCtx->uLogChannel = gptLog->add_channel("Physics", tLogInit);
 
-    pl_log_info(gptLog, gptPhysicsCtx->uLogChannel, "Physics ext initialized");
+    PL_LOG_INFO_API(gptLog, gptPhysicsCtx->uLogChannel, "Physics ext initialized");
 }
 
 void

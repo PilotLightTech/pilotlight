@@ -59,7 +59,7 @@ plEntity
 pl_ecs_create_material(plComponentLibrary* ptLibrary, const char* pcName, plMaterialComponent** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed material";
-    pl_log_debug_f(gptLog, gptECS->get_log_channel(), "created material: '%s'", pcName);
+    PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created material: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
     plMaterialComponent* ptCompOut = gptECS->add_component(ptLibrary, gptMaterialCtx->tComponentType, tNewEntity);
