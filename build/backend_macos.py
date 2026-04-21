@@ -342,7 +342,7 @@ def generate_build(name, user_options = None):
                 helper.print_line('${YELLOW}Step: ' + settings.target_name +'${NC}')
                 helper.print_line('${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}')
                 helper.print_line('${CYAN}Compiling and Linking...${NC}')
-                helper.add_line('clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./' + settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension +'"')
+                helper.add_line('clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./' + settings.output_directory + '/lib' + settings.output_binary + settings.output_binary_extension +'"')
                 helper.add_spacing()
 
                 # check build status

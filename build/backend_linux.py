@@ -278,7 +278,7 @@ def generate_build(name, user_options = None):
 
             helper.add_raw('PL_STATIC_LINK_LIBRARIES="')
             for link in settings.static_link_libraries:
-                helper.add_raw('-l:' + link + '.a ')
+                helper.add_raw('-l' + link + ' ')
             helper.add_raw('"\n')
 
             helper.add_raw('PL_DYNAMIC_LINK_LIBRARIES="')
@@ -328,7 +328,7 @@ def generate_build(name, user_options = None):
                 helper.print_line('${YELLOW}Step: ' + settings.target_name +'${NC}')
                 helper.print_line('${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}')
                 helper.print_line('${CYAN}Compiling and Linking...${NC}')
-                helper.add_line('gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./' + settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension +'"')
+                helper.add_line('gcc -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINKER_FLAGS -o "./' + settings.output_directory + '/lib' + settings.output_binary + settings.output_binary_extension +'"')
                 helper.add_spacing()
 
                 # check build status
@@ -374,7 +374,7 @@ def generate_build(name, user_options = None):
             if settings.target_type == pl.TargetType.STATIC_LIBRARY:
                 helper.add_spacing()
                 helper.add_comment('combine object files into a static lib')
-                helper.add_line('ar rcs ./' + settings.output_directory + '/' + settings.output_binary + '.a ./' + settings.output_directory + '/*.o')
+                helper.add_line('ar rcs ./' + settings.output_directory + '/lib' + settings.output_binary + '.a ./' + settings.output_directory + '/*.o')
                 helper.add_line('rm ./' + settings.output_directory + '/*.o')
                 helper.add_spacing()
             helper.add_spacing()
