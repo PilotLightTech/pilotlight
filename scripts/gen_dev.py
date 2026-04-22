@@ -50,7 +50,7 @@ with pl.project("pilotlight"):
     # project wide settings
     pl.set_output_directory(output_directory)
     pl.add_link_directories(output_directory)
-    pl.add_include_directories("../editor", "../src", "../shaders", "../libs", "../extensions", output_directory, "../dependencies/stb",
+    pl.add_include_directories("../internal/editor", "../src", "../shaders", "../libs", "../extensions", output_directory, "../dependencies/stb",
                                "../dependencies/cgltf", "../dependencies/imgui", '../dependencies/glfw/include')
     pl.add_definitions("PL_UNITY_BUILD")
 
@@ -330,7 +330,7 @@ with pl.project("pilotlight"):
 
     with pl.target("app", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.add_source_files("../editor/app.c")
+        pl.add_source_files("../internal/editor/app.c")
         pl.set_output_binary("app")
 
         def add_app():
@@ -672,7 +672,7 @@ with pl.project("pilotlight"):
 
     with pl.target("editor", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.add_source_files("../editor/editor.cpp")
+        pl.add_source_files("../internal/editor/editor.cpp")
         pl.set_output_binary("editor")
 
         # default config
