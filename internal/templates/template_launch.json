@@ -1,0 +1,39 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "(Windows) Launch",
+      "type": "cppvsdbg",
+      "program": "${workspaceFolder}/out/pilot_light.exe",
+      "console": "integratedTerminal",
+      "request": "launch",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/out/",
+      "environment": []
+    },
+    {
+      "name": "(Linux) Launch",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/out/pilot_light",
+      "args": [],
+      "cwd": "${workspaceFolder}/out",
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/bin/gdb"
+    },
+    {
+        "name": "(MacOS) Launch",
+        "type": "cppdbg",
+        "targetArchitecture": "arm64",
+        "program": "${workspaceFolder}/out/pilot_light",
+        "externalConsole": false,
+        "MIMode": "lldb",
+        "request": "launch",
+        "args": [],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}/out/",
+        "environment": []
+    }
+  ]
+}

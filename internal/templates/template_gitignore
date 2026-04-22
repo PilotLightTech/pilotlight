@@ -1,0 +1,22 @@
+
+# directories
+.vs/
+.idea/
+data/
+out/
+out-temp/
+shader-temp/
+cache/
+
+# python
+scripts/__pycache__/
+
+# debug files
+src/*.pdb
+
+# build scripts
+src/build.bat
+src/build.sh
+
+# misc
+.DS_Store
