@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 import glob
+import subprocess
 
 target_directory = "../../project"
 
@@ -14,19 +15,23 @@ if len(sys.argv) > 1:
     for i in range(2, len(sys.argv)):
         if sys.argv[i] == "cpp":
             cpp = True
-
-        if sys.argv[i] == "api":
+        elif sys.argv[i] == "api":
             api = True
+        else:
+            target_directory = sys.argv[i]
 
 if os.path.isdir(target_directory + "/dependencies"):
     newProject = False
-    print("Updating Project")
+    print("Updating Existing Project")
     shutil.rmtree(target_directory + "/dependencies")
 
 if not os.path.isdir(target_directory):
     os.mkdir(target_directory)
     os.mkdir(target_directory + "/src")
     os.mkdir(target_directory + "/scripts")
+    os.mkdir(target_directory + "/shaders")
+    os.mkdir(target_directory + "/docs")
+    os.mkdir(target_directory + "/tests")
     os.mkdir(target_directory + "/.vscode")
 
 os.mkdir(target_directory + "/dependencies")
@@ -72,7 +77,7 @@ shutil.copytree("../dependencies/stb", target_directory + "/dependencies/stb")
 shutil.copytree("../shaders", target_directory + "/dependencies/pilotlight/shaders")
 
 if newProject:
-    print("New Project")
+    print("Generating New Project")
     if cpp and api:
         shutil.copy("../internal/templates/gen_build_cpp_api.py", target_directory + "/scripts/gen_build.py")
         shutil.copy("../internal/templates/template_app_api.cpp", target_directory + "/src/app.cpp")
@@ -86,6 +91,12 @@ if newProject:
         shutil.copy("../internal/templates/gen_build_c.py", target_directory + "/scripts/gen_build.py")
         shutil.copy("../internal/templates/template_app.c", target_directory + "/src/app.c")
 
+    shutil.copy("../internal/templates/template_README.md", target_directory + "/README.md")
     shutil.copy("../internal/templates/template_gitignore", target_directory + "/.gitignore")
     shutil.copy("../internal/templates/template_c_cpp_properties.json", target_directory + "/.vscode/c_cpp_properties.json")
     shutil.copy("../internal/templates/template_launch.json", target_directory + "/.vscode/launch.json")
+
+    os.chdir(target_directory)
+    os.chdir("scripts")
+    subprocess.run([os.path.basename(sys.executable), "gen_build.py"])
+

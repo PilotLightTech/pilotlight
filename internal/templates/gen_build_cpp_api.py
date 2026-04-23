@@ -664,14 +664,6 @@ with pl.project("pilotlight"):
 # where to output build scripts
 working_directory = os.path.dirname(os.path.abspath(__file__)) + "/../src"
 
-if plat.system() == "Windows":
-    win32.generate_build(working_directory + '/' + "build.bat")
-elif plat.system() == "Darwin":
-    apple.generate_build(working_directory + '/' + "build.sh")
-elif plat.system() == "Linux":
-    linux.generate_build(working_directory + '/' + "build.sh")
-
-if len(sys.argv)  == 1:
-    win32.generate_build(working_directory + '/' + "build_win32.bat")
-    apple.generate_build(working_directory + '/' + "build_macos.sh")
-    linux.generate_build(working_directory + '/' + "build_linux.sh")
+win32.generate_build(working_directory + '/' + "build_win32.bat")
+apple.generate_build(working_directory + '/' + "build_macos.sh")
+linux.generate_build(working_directory + '/' + "build_linux.sh")

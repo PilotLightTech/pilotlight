@@ -5,6 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/src",
+                "${workspaceFolder}/shaders",
                 "${workspaceFolder}/dependencies/stb",
                 "${workspaceFolder}/dependencies/cgltf",
                 "${workspaceFolder}/dependencies/imgui",

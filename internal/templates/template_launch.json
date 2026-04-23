@@ -7,7 +7,7 @@
       "program": "${workspaceFolder}/out/pilot_light.exe",
       "console": "integratedTerminal",
       "request": "launch",
-      "args": [],
+      "args": ["-a", "app"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/out/",
       "environment": []
@@ -17,23 +17,23 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/out/pilot_light",
-      "args": [],
+      "args": ["-a", "app"],
       "cwd": "${workspaceFolder}/out",
       "MIMode": "gdb",
       "miDebuggerPath": "/usr/bin/gdb"
     },
     {
-        "name": "(MacOS) Launch",
-        "type": "cppdbg",
-        "targetArchitecture": "arm64",
-        "program": "${workspaceFolder}/out/pilot_light",
-        "externalConsole": false,
-        "MIMode": "lldb",
-        "request": "launch",
-        "args": [],
-        "stopAtEntry": false,
-        "cwd": "${workspaceFolder}/out/",
-        "environment": []
+      "name": "(MacOS) Launch",
+      "type": "cppdbg",
+      "targetArchitecture": "arm64",
+      "program": "${workspaceFolder}/out/pilot_light",
+      "externalConsole": false,
+      "MIMode": "lldb",
+      "request": "launch",
+      "args": ["-a", "app"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/out/",
+      "environment": []
     }
   ]
 }

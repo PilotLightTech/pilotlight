@@ -186,12 +186,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // initialize shader extension (we are doing this ourselves so we can add additional shader directories)
     static const plShaderOptions tDefaultShaderOptions = {
         .apcIncludeDirectories = {
-            "../dependencies/pilotlight/shaders/"
+            "../dependencies/pilotlight/shaders/",
+            "../shaders/"
         },
         .apcDirectories = {
-            "../dependencies/pilotlight/shaders/"
+            "../dependencies/pilotlight/shaders/",
+            "/shaders/"
         },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
+        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
     };
     gptShader->initialize(&tDefaultShaderOptions);
     gptStarter->finalize();
