@@ -64,6 +64,7 @@ Index of this file:
 #include "pl_terrain_ext.c"
 #include "pl_freelist_ext.c"
 #include "pl_image_ops_ext.c"
+#include "pl_gjk_ext.c"
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -430,6 +431,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptVoxel             = pl_get_api_latest(ptApiRegistry, plVoxelI);
     gptAudio             = pl_get_api_latest(ptApiRegistry, plAudioI);
     gptStage             = pl_get_api_latest(ptApiRegistry, plStageI);
+    gptGjk               = pl_get_api_latest(ptApiRegistry, plGjkI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);
@@ -479,6 +481,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_load_path_ext(ptApiRegistry, bReload);
     pl_load_audio_ext(ptApiRegistry, bReload);
     pl_load_stage_ext(ptApiRegistry, bReload);
+    pl_load_gjk_ext(ptApiRegistry, bReload);
 }
 
 void
@@ -529,6 +532,7 @@ pl_unload_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_unload_voxel_ext(ptApiRegistry, bReload);
     pl_unload_audio_ext(ptApiRegistry, bReload);
     pl_unload_stage_ext(ptApiRegistry, bReload);
+    pl_unload_gjk_ext(ptApiRegistry, bReload);
 }
 
 //-----------------------------------------------------------------------------

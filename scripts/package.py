@@ -74,6 +74,7 @@ extension_headers = [
     "pl_freelist_ext.h",
     "pl_image_ops_ext.h",
     "pl_unity_ext.h",
+    "pl_gjk_ext.h",
 ]
 
 # extension binaries
@@ -123,6 +124,7 @@ extensions = [
     "pl_audio_ext",
     "pl_freelist_ext",
     "pl_image_ops_ext",
+    "pl_gjk_ext",
     "pl_ui_ext"
 ]
 
