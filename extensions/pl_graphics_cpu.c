@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] internal enums
 // [SECTION] defines
 // [SECTION] internal structs
 // [SECTION] opaque structs
@@ -22,6 +23,46 @@ Index of this file:
 #include "pl_string.h"
 #include "pl_memory.h"
 #include "pl_graphics_internal.h"
+
+//-----------------------------------------------------------------------------
+// [SECTION] internal enums
+//-----------------------------------------------------------------------------
+
+typedef enum _plCommandBufferState
+{
+    PL_COMMAND_BUFFER_STATE_INITIAL,
+    PL_COMMAND_BUFFER_STATE_RECORDING,
+    PL_COMMAND_BUFFER_STATE_EXECUTABLE,
+    PL_COMMAND_BUFFER_STATE_PENDING,
+    PL_COMMAND_BUFFER_STATE_INVALID
+} plCommandBufferState;
+
+typedef enum _plCommandType
+{
+    PL_COMMAND_TYPE_DRAW,
+    PL_COMMAND_TYPE_DRAW_INDEXED,
+    PL_COMMAND_TYPE_DRAW_STREAM,
+    PL_COMMAND_TYPE_BIND_SHADER,
+    PL_COMMAND_TYPE_BIND_COMPUTE_SHADER,
+    PL_COMMAND_TYPE_BIND_VERTEX_BUFFER,
+    PL_COMMAND_TYPE_BIND_GRAPHICS_BIND_GROUPS,
+    PL_COMMAND_TYPE_BIND_COMPUTE_BIND_GROUPS,
+    PL_COMMAND_TYPE_SET_VIEWPORT,
+    PL_COMMAND_TYPE_SET_SCISSOR_REGION,
+    PL_COMMAND_TYPE_SET_DEPTH_BIAS,
+    PL_COMMAND_TYPE_DISPATCH,
+    PL_COMMAND_TYPE_COPY_BUFFER,
+    PL_COMMAND_TYPE_COPY_BUFFER_TO_TEXTURE,
+    PL_COMMAND_TYPE_COPY_TEXTURE_TO_BUFFER,
+    PL_COMMAND_TYPE_COPY_TEXTURE,
+    PL_COMMAND_TYPE_GENERATE_MIPMAPS,
+    PL_COMMAND_TYPE_SET_TEXTURE_USAGE,
+    PL_COMMAND_TYPE_PIPELINE_BARRIER,
+    PL_COMMAND_TYPE_RESET_EVENT,
+    PL_COMMAND_TYPE_SET_EVENT,
+    PL_COMMAND_TYPE_WAIT_FOR_EVENTS,
+    PL_COMMAND_TYPE_NEXT_SUBPASS,
+} plCommandType;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -102,6 +143,12 @@ typedef struct _plCpuShader
     size_t                   szSpecializationSize;
 } plCpuShader;
 
+typedef struct _plCommandEntry
+{
+    plCommandType tType;
+    plCommandEntry* ptNext;
+} plCommandEntry;
+
 typedef struct _plCpuComputeShader
 {
     // VkPipelineLayout         tPipelineLayout;
@@ -118,10 +165,13 @@ typedef struct _plCpuComputeShader
 
 typedef struct _plCommandBuffer
 {
-    plDevice*          ptDevice; // for convience
-    plBeginCommandInfo tBeginInfo;
-    plCommandPool*     ptPool; // parent pool
-    plCommandBuffer*   ptNext; // for linked list
+    plDevice*            ptDevice; // for convience
+    plBeginCommandInfo   tBeginInfo;
+    plCommandPool*       ptPool; // parent pool
+    plCommandBufferState tState;
+    plCommandEntry*      ptFirstEntry;
+    plCommandEntry*      ptLastEntry;
+    plCommandBuffer*     ptNext; // for linked list
 } plCommandBuffer;
 
 typedef struct _plRenderEncoder
@@ -151,6 +201,8 @@ typedef struct _plCommandPool
     // VkCommandBuffer* sbtPendingCommandBuffers; // recently submitted command buffers
     plCommandBuffer* ptCommandBufferFreeList;  // free list of command buffers
     plPoolAllocator* ptCommandPoolList;
+
+    plTempAllocator  tCommandArena; // for recording commands to before playing back
 
     size_t           szBufferSize;
     void*            ptCommandPoolBuffer; // TODO: does this need to be a void pointer?  
@@ -535,6 +587,15 @@ pl_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle
 void
 pl_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginCommandInfo* ptBeginInfo)
 {
+    ptCommandBuffer->tState = PL_COMMAND_BUFFER_STATE_RECORDING;
+    ptCommandBuffer->ptFirstEntry = NULL;
+    ptCommandBuffer->ptLastEntry = NULL;
+
+    // Allocate from arena: sizeof(plCommandEntry) + sizeof(plCommandData*)
+    // Set the entry type
+    // Get pointer to data by casting past the entry
+    // Fill in the data
+    // Link onto the list
 }
 
 plRenderEncoder*
@@ -893,7 +954,6 @@ pl_return_command_buffer(plCommandBuffer* ptCmdBuffer)
         return;
     }
 
-    memset(ptCmdBuffer, 0, sizeof(plCommandBuffer));
     pl_pool_allocator_free(ptCmdBuffer->ptPool->ptCommandPoolList, ptCmdBuffer);
 }
 
@@ -933,8 +993,8 @@ pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
     size_t szBufferSize = 0;
     pl_pool_allocator_init(ptPool->ptCommandPoolList, 100, sizeof(plCommandBuffer), 0, &szBufferSize, NULL); 
 
-    ptPool->ptCommandPoolBuffer = PL_ALLOC(sizeof(szBufferSize));
-    memset(ptPool->ptCommandPoolBuffer, 0, sizeof(szBufferSize));
+    ptPool->ptCommandPoolBuffer = PL_ALLOC(szBufferSize);
+    memset(ptPool->ptCommandPoolBuffer, 0, szBufferSize);
 
     pl_pool_allocator_init(ptPool->ptCommandPoolList, 100, sizeof(plCommandBuffer), 0, &szBufferSize, ptPool->ptCommandPoolBuffer);
     ptPool->szBufferSize = szBufferSize;
@@ -945,6 +1005,7 @@ pl_create_command_pool(plDevice* ptDevice, const plCommandPoolDesc* ptDesc)
 void
 pl_cleanup_command_pool(plCommandPool* ptPool)
 {
+    pl_temp_allocator_free(&ptPool->tCommandArena);
     PL_FREE(ptPool->ptCommandPoolList);
     PL_FREE(ptPool->ptCommandPoolBuffer);
     PL_FREE(ptPool);
@@ -963,6 +1024,8 @@ pl_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags tFlags)
     pl_pool_allocator_init(ptPool->ptCommandPoolList, 100, sizeof(plCommandBuffer), 0, &ptPool->szBufferSize, ptPool->ptCommandPoolBuffer);
     memset(ptPool->ptCommandPoolBuffer, 0, ptPool->szBufferSize);
 
+    pl_temp_allocator_reset(&ptPool->tCommandArena);
+
 }
 
 void
@@ -975,7 +1038,7 @@ pl_reset_command_buffer(plCommandBuffer* ptCommandBuffer)
         return;
     }
 
-    memset(ptCommandBuffer, 0, sizeof(plCommandBuffer));
+    ptCommandBuffer->tState = PL_COMMAND_BUFFER_STATE_INITIAL;
 }
 
 plCommandBuffer*
@@ -989,9 +1052,12 @@ pl_request_command_buffer(plCommandPool* ptPool, const char* pcDebugName)
         return NULL;
     }
 
+    ptCommandBuffer->ptPool = ptPool;
+    ptCommandBuffer->tState = PL_COMMAND_BUFFER_STATE_INITIAL;
+
     return ptCommandBuffer;
 
-    // TODO: question for Johnny was there a plan for this? 
+    // TODO: johnny had in place not sure of its use
     // plCommandBuffer* ptCommandBuffer = ptPool->ptCommandBufferFreeList;
     // if (ptCommandBuffer)
     // {
