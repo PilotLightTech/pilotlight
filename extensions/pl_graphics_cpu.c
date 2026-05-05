@@ -25,6 +25,12 @@ Index of this file:
 #include "pl_graphics_internal.h"
 
 //-----------------------------------------------------------------------------
+// [SECTION] forward declarations & basic types
+//-----------------------------------------------------------------------------
+
+typedef struct _plCommandEntry plCommandEntry;
+
+//-----------------------------------------------------------------------------
 // [SECTION] internal enums
 //-----------------------------------------------------------------------------
 
@@ -145,7 +151,7 @@ typedef struct _plCpuShader
 
 typedef struct _plCommandEntry
 {
-    plCommandType tType;
+    plCommandType   tType;
     plCommandEntry* ptNext;
 } plCommandEntry;
 
