@@ -88,9 +88,6 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
             ptCamera->fFieldOfView = gfOriginalFOV;
         }
 
-        if(gptIO->is_key_down(PL_KEY_MOD_SHIFT))
-            fCameraTravelSpeed *= 10.0f;
-
         if(gptIO->get_mouse_wheel() > 0.0f)
             fCameraTravelSpeed *= 2.0f;
         else if(gptIO->get_mouse_wheel() < 0.0f)
