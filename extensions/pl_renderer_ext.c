@@ -1126,6 +1126,20 @@ pl_renderer_create_scene(plSceneInit tInit)
     ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, NULL, &gptData->tRenderPassLayout);
     ptScene->tTerrainShader = gptShaderVariant->get_shader("terrain", NULL, NULL, NULL, &gptData->tRenderPassLayout);
     ptScene->tTerrainShadowShader = gptShaderVariant->get_shader("terrain_shadow", NULL, NULL, NULL, &gptData->tDepthRenderPassLayout);
+
+    plGraphicsState tTerrainVariantTemp = {
+        .ulDepthWriteEnabled  = 1,
+        .ulDepthMode          = PL_COMPARE_MODE_GREATER,
+        .ulCullMode           = PL_CULL_MODE_NONE,
+        .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+        .ulStencilRef         = 0xff,
+        .ulStencilMask        = 0xff,
+        .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+        .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+        .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
+        .ulWireframe          = 1
+    };
+    ptScene->tTerrainWireframeShader = gptShaderVariant->get_shader("terrain", &tTerrainVariantTemp, NULL, NULL, &gptData->tRenderPassLayout);
     
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -1178,44 +1192,6 @@ pl_renderer_create_scene(plSceneInit tInit)
 
         gptGfx->update_bind_group(gptData->ptDevice, ptScene->atShadowBG[i], &tShadowBGData);
     }
-
-
-#if 0
-    plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
-
-    plTerrainProcessTileInfo tTile = {
-        .iTreeDepth    = 6,
-        .fMaxHeight    = 500.0f,
-        .fMinHeight    = 0.0f,
-        .fMaxBaseError = 0.1f,
-        .tCenter = {0}
-    };
-    plTerrainProcessInfo tTerrainInfo = {
-        .fMetersPerPixel = 5.0f,
-        .uHorizontalTiles = 1,
-        .uVerticalTiles = 1,
-        .uSize = 1024,
-        .uTileCount = 1,
-        .atTiles = &tTile
-    };
-
-    sprintf(tTile.acOutputFile, "/assets/terrain.chu");
-    sprintf(tTile.acHeightMapFile, "/assets/terrain.png");
-
-    gptTerrain->process(&tTerrainInfo);
-    ptScene->ptTerrain = pl_renderer_create_terrain(ptCmdBuffer, &tTerrainInfo);
-        
-    gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
-
-    plTerrainTexture tTerrainTexture = {
-        .pcPath = "/textures/grass.png",
-        .fMetersPerPixel = 0.01f,
-        .tCenter = {0.0f, 0.0f}
-    };
-    pl_terrain_set_texture(ptScene, ptScene->ptTerrain, &tTerrainTexture);
-#endif
-
-    // create semaphores
     return ptScene;
 }
 
@@ -1360,8 +1336,6 @@ pl_renderer_cleanup_scene(plScene* ptScene)
     gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tIndexBuffer);
     gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tStorageBuffer);
 
-    if(ptScene->ptTerrain)
-        pl_renderer_cleanup_terrain(ptScene->ptTerrain);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tShadowTexture);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tShadowRenderPass);
     gptGfx->queue_render_pass_for_deletion(gptData->ptDevice, ptScene->tFirstShadowRenderPass);
@@ -1430,6 +1404,12 @@ pl_renderer_cleanup_scene(plScene* ptScene)
 
     PL_FREE(ptScene);
     ptScene = NULL;
+}
+
+void
+pl_renderer_set_terrain(plScene* ptScene, plTerrain* ptTerrain)
+{
+    ptScene->ptTerrain = ptTerrain;
 }
 
 plView*
@@ -2699,6 +2679,21 @@ pl_renderer_reload_scene_shaders(plScene* ptScene)
     ptScene->tTerrainShader = gptShaderVariant->get_shader("terrain", NULL, NULL, NULL, &gptData->tRenderPassLayout);
     ptScene->tTerrainShadowShader = gptShaderVariant->get_shader("terrain_shadow", NULL, NULL, NULL, &gptData->tDepthRenderPassLayout);
     
+    plGraphicsState tTerrainVariantTemp = {
+        .ulDepthWriteEnabled  = 1,
+        .ulDepthMode          = PL_COMPARE_MODE_GREATER,
+        .ulCullMode           = PL_CULL_MODE_NONE,
+        .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
+        .ulStencilRef         = 0xff,
+        .ulStencilMask        = 0xff,
+        .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
+        .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+        .ulStencilOpPass      = PL_STENCIL_OP_KEEP,
+        .ulWireframe          = 1
+    };
+    ptScene->tTerrainWireframeShader = gptShaderVariant->get_shader("terrain", &tTerrainVariantTemp, NULL, NULL, &gptData->tRenderPassLayout);
+    
+
     gptShader->set_options(&tOriginalOptions);
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
@@ -3781,13 +3776,18 @@ pl_renderer_render_view(plView* ptView, plCamera* ptCamera, plCamera* ptCullCame
     {
         const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
+        plShaderHandle tTerrainShader = ptScene->tTerrainShader;
+
+        if(ptScene->ptTerrain->tRuntimeOptions.tFlags & PL_TERRAIN_FLAGS_WIREFRAME)
+            tTerrainShader = ptScene->tTerrainWireframeShader;
+
         gptGfx->set_depth_bias(ptMainEncoder, 0.0f, 0.0f, 0.0f);
-        gptGfx->bind_shader(ptMainEncoder, ptScene->tTerrainShader);
+        gptGfx->bind_shader(ptMainEncoder, tTerrainShader);
         gptGfx->bind_vertex_buffer(ptMainEncoder, ptScene->ptTerrain->tVertexBuffer);
         plBindGroupHandle atBindGroups[] = {ptScene->atSceneBindGroups[uFrameIdx], ptView->atDeferredBG1[uFrameIdx]};
         gptGfx->bind_graphics_bind_groups(
             ptMainEncoder,
-            ptScene->tTerrainShader,
+            tTerrainShader,
             0, 2,
             atBindGroups,
             0, NULL
@@ -4913,6 +4913,10 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi.get_ecs_type_key_object             = pl_renderer_get_ecs_type_key_object;
     tApi.run_skin_update_system              = pl_renderer_run_skin_update_system;
     tApi.run_object_update_system            = pl_renderer_run_object_update_system;
+    tApi.create_terrain                      = pl_renderer_create_terrain;
+    tApi.cleanup_terrain                     = pl_renderer_cleanup_terrain;
+    tApi.set_terrain                         = pl_renderer_set_terrain;
+    tApi.get_terrain_runtime_options         = pl_renderer_get_terrain_runtime_options;
     pl_set_api(ptApiRegistry, plRendererI, &tApi);
 
     // core apis

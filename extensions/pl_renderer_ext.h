@@ -53,7 +53,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 // [SECTION] header mess
 //-----------------------------------------------------------------------------
-
+ 
 #ifndef PL_RENDERER_EXT_H
 #define PL_RENDERER_EXT_H
 
@@ -72,6 +72,7 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 #define PL_MAX_SHADOW_CASCADES 4
+#define PL_MAX_TERRAIN_ELEVATION_ZONES 3
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -93,6 +94,12 @@ typedef struct _plRendererRuntimeOptions plRendererRuntimeOptions;
 typedef struct _plScene                  plScene; // opaque type
 typedef struct _plView                   plView;  // opaque type
 
+// terrain types
+typedef struct _plTerrain plTerrain; // opaque type
+typedef struct _plTerrainRuntimeOptions plTerrainRuntimeOptions;
+typedef struct _plTerrainMaterialLayer plTerrainMaterialLayer;
+typedef struct _plTerrainElevationZone plTerrainElevationZone;
+
 // ecs components
 typedef struct _plObjectComponent           plObjectComponent;
 typedef struct _plSkinComponent             plSkinComponent;
@@ -104,22 +111,24 @@ typedef int plLightFlags;
 typedef int plEnvironmentProbeFlags;
 typedef int plObjectFlags;
 typedef int plTonemapMode;
+typedef int plTerrainFlags;
 
 // external 
-typedef struct _plWindow           plWindow;           // pl_platform_ext.h
-typedef struct _plGraphics         plGraphics;         // pl_graphics_ext.h
-typedef struct _plDevice           plDevice;           // pl_graphics_ext.h
-typedef struct _plDeviceInfo       plDeviceInfo;       // pl_graphics_ext.h
-typedef struct _plDrawList3D       plDrawList3D;       // pl_draw_ext.h
-typedef struct _plCommandBuffer    plCommandBuffer;    // pl_graphics_ext.h
-typedef struct _plCommandPool      plCommandPool;      // pl_graphics_ext.h
-typedef struct _plSwapchain        plSwapchain;        // pl_graphics_ext.h
-typedef union  plTextureHandle     plTextureHandle;    // pl_graphics_ext.h
-typedef struct _plRenderEncoder    plRenderEncoder;    // pl_graphics_ext.h
-typedef union  plRenderPassHandle  plRenderPassHandle; // pl_graphics_ext.h
-typedef union  plBindGroupHandle   plBindGroupHandle;  // pl_graphics_ext.h
-typedef struct _plComponentLibrary plComponentLibrary; // pl_ecs_ext.h
-typedef struct _plCamera           plCamera;           // pl_camera_ext.h
+typedef struct _plWindow             plWindow;             // pl_platform_ext.h
+typedef struct _plGraphics           plGraphics;           // pl_graphics_ext.h
+typedef struct _plDevice             plDevice;             // pl_graphics_ext.h
+typedef struct _plDeviceInfo         plDeviceInfo;         // pl_graphics_ext.h
+typedef struct _plDrawList3D         plDrawList3D;         // pl_draw_ext.h
+typedef struct _plCommandBuffer      plCommandBuffer;      // pl_graphics_ext.h
+typedef struct _plCommandPool        plCommandPool;        // pl_graphics_ext.h
+typedef struct _plSwapchain          plSwapchain;          // pl_graphics_ext.h
+typedef union  plTextureHandle       plTextureHandle;      // pl_graphics_ext.h
+typedef struct _plRenderEncoder      plRenderEncoder;      // pl_graphics_ext.h
+typedef union  plRenderPassHandle    plRenderPassHandle;   // pl_graphics_ext.h
+typedef union  plBindGroupHandle     plBindGroupHandle;    // pl_graphics_ext.h
+typedef struct _plComponentLibrary   plComponentLibrary;   // pl_ecs_ext.h
+typedef struct _plCamera             plCamera;             // pl_camera_ext.h
+typedef struct _plTerrainProcessInfo plTerrainProcessInfo; // pl_terrain_ext.h
 typedef void* plTextureId;                             // pl_ui_ext.h
 
 // external enums & flags
@@ -142,6 +151,12 @@ PL_API void              pl_renderer_cleanup   (void);
 // scenes
 PL_API plScene*          pl_renderer_create_scene (plSceneInit);
 PL_API void              pl_renderer_cleanup_scene(plScene*);
+PL_API void              pl_renderer_set_terrain(plScene*, plTerrain*);
+
+// terrain
+PL_API plTerrain*               pl_renderer_create_terrain(plCommandBuffer*, plTerrainProcessInfo*);
+PL_API void                     pl_renderer_cleanup_terrain(plTerrain*);
+PL_API plTerrainRuntimeOptions* pl_renderer_get_terrain_runtime_options(plTerrain*);
 
 // scene composition
 PL_API void              pl_renderer_load_skybox_from_panorama    (plScene*, const char* path, int resolution);
@@ -262,10 +277,14 @@ typedef struct _plRendererI
     void                      (*run_skin_update_system)             (plComponentLibrary*);
     void                      (*run_light_update_system)            (plComponentLibrary*);
     void                      (*run_environment_probe_update_system)(plComponentLibrary*);
-    plEcsTypeKey              (*get_ecs_type_key_object)           (void);
-    plEcsTypeKey              (*get_ecs_type_key_skin)             (void);
-    plEcsTypeKey              (*get_ecs_type_key_light)            (void);
-    plEcsTypeKey              (*get_ecs_type_key_environment_probe)(void);
+    plEcsTypeKey              (*get_ecs_type_key_object)            (void);
+    plEcsTypeKey              (*get_ecs_type_key_skin)              (void);
+    plEcsTypeKey              (*get_ecs_type_key_light)             (void);
+    plEcsTypeKey              (*get_ecs_type_key_environment_probe) (void);
+    plTerrain*                (*create_terrain)                     (plCommandBuffer*, plTerrainProcessInfo*);
+    void                      (*cleanup_terrain)                    (plTerrain*);
+    void                      (*set_terrain)                        (plScene*, plTerrain*);
+    plTerrainRuntimeOptions*  (*get_terrain_runtime_options)        (plTerrain*);
 } plRendererI;
 
 //-----------------------------------------------------------------------------
@@ -340,9 +359,48 @@ typedef struct _plRendererRuntimeOptions
 
 } plRendererRuntimeOptions;
 
+typedef struct _plTerrainMaterialLayer
+{
+    plVec4           tBaseColor;      // default/debug fallback
+    // plResourceHandle tAlbedoTexture;  // optional
+    // plResourceHandle tNormalTexture;  // optional
+    // plResourceHandle tAOMRTexture;    // optional
+
+    float            fUVScale;        // default: 1.0f
+    float            fRoughness;      // default: 1.0f
+    float            fMetalness;      // default: 0.0f
+    float            fAO;             // default: 1.0f
+} plTerrainMaterialLayer;
+
+typedef struct _plTerrainElevationZone
+{
+    float fMinElevation;
+    float fMaxElevation;
+    float fBlendSize;
+
+    plTerrainMaterialLayer tFlatMaterial;
+    plTerrainMaterialLayer tSteepMaterial;
+} plTerrainElevationZone;
+
+typedef struct _plTerrainRuntimeOptions
+{
+    plTerrainFlags         tFlags;
+    float                  fTau;
+    float                  fSlopeStart;
+    float                  fSlopeEnd;
+    plTerrainElevationZone atElevationZones[PL_MAX_TERRAIN_ELEVATION_ZONES];
+} plTerrainRuntimeOptions;
+
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
+
+enum _plTerrainFlags
+{
+    PL_TERRAIN_FLAGS_NONE        = 0,
+    PL_TERRAIN_FLAGS_WIREFRAME   = 1 << 0,
+    PL_TERRAIN_FLAGS_SHOW_LEVELS = 1 << 1
+};
 
 enum _plLightFlags
 {

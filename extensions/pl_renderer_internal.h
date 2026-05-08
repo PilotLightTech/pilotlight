@@ -146,9 +146,6 @@ typedef struct _plMemCpyJobData         plMemCpyJobData;
 typedef struct _plOBB                   plOBB;
 typedef struct _plEnvironmentProbeData  plEnvironmentProbeData;
 
-// terrain
-typedef struct _plTerrain plTerrain;
-
 // shader variants
 typedef struct _plShaderVariant plShaderVariant;
 typedef struct _plComputeShaderVariant plComputeShaderVariant;
@@ -156,7 +153,6 @@ typedef struct _plComputeShaderVariant plComputeShaderVariant;
 // enums & flags
 typedef int plDrawableFlags;
 typedef int plSceneInternalFlags;
-typedef int plTerrainFlags;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -178,13 +174,6 @@ enum _plSceneInternalFlags
     PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED = 1 << 1,
     PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED        = 1 << 2,
     PL_SCENE_INTERNAL_FLAG_OBJECT_COUNT_DIRTY    = 1 << 3,
-};
-
-enum _plTerrainFlags
-{
-    PL_TERRAIN_FLAGS_NONE        = 0,
-    PL_TERRAIN_FLAGS_WIREFRAME   = 1 << 0,
-    PL_TERRAIN_FLAGS_SHOW_LEVELS = 1 << 1
 };
 
 //-----------------------------------------------------------------------------
@@ -434,6 +423,7 @@ typedef struct _plScene
     plShaderHandle tPointLightingShader;
     plShaderHandle tTerrainShader;
     plShaderHandle tTerrainShadowShader;
+    plShaderHandle tTerrainWireframeShader;
 
     // render passes
     plRenderPassHandle tFirstShadowRenderPass;

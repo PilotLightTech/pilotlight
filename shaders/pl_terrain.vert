@@ -62,10 +62,10 @@ void main()
     tShaderOut.tColor.rgb = atColors[tDynamicData.tData.iLevel % 8];
     tShaderOut.tColor.a = 1.0;
 
-    if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_WIREFRAME))
-    {
-        tShaderOut.tColor.rgb += vec3(0.3);
-    }
+    // if(bool(tDynamicData.tData.tFlags & PL_TERRAIN_SHADER_FLAGS_WIREFRAME))
+    // {
+    //     // tShaderOut.tColor.rgb += vec3(0.3);
+    // }
 
     // tShaderOut.tColor = vec4(1.0);
 }

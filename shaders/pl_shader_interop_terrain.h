@@ -27,11 +27,36 @@ PL_END_ENUM
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+PL_BEGIN_STRUCT(plGpuTerrainMaterialLayer)
+    vec4   tBaseColor;
+    // vec4   tParams;
+    // x = uv scale
+    // y = roughness
+    // z = metalness
+    // w = ao
+
+    // uint uAlbedoTextureIndex;
+    // uint uNormalTextureIndex;
+    // uint uAOMRTextureIndex;
+    // uint uFlags;
+PL_END_STRUCT(plGpuTerrainMaterialLayer)
+
+PL_BEGIN_STRUCT(plGpuTerrainElevationZone)
+    vec4 tElevation;
+    // x = min elevation
+    // y = max elevation
+    // z = blend size
+    // w = unused
+
+    plGpuTerrainMaterialLayer tFlatMaterial;
+    plGpuTerrainMaterialLayer tSteepMaterial;
+PL_END_STRUCT(plGpuTerrainElevationZone)
+
 PL_BEGIN_STRUCT(plGpuDynTerrainData)
 
     int iLevel;
     int tFlags;
-    uint uTextureIndex;
+    uint _uUnused0;
     uint uGlobalIndex;
 
     vec4 tUVInfo;
@@ -40,6 +65,13 @@ PL_BEGIN_STRUCT(plGpuDynTerrainData)
     int  iPointLightCount;
     int  iSpotLightCount;
     int  iDirectionLightCount;
+
+    float    fSlopeStart;
+    float    fSlopeEnd;
+    float    fPadding0;
+    float    fPadding1;
+
+    plGpuTerrainElevationZone atElevationZones[3];
 
 PL_END_STRUCT(plGpuDynTerrainData)
 

@@ -178,6 +178,9 @@ typedef struct _plAppData
     plScene* ptScene;
     plView*  ptView;
     plView*  ptSecondaryView;
+    
+    // terrain
+    plTerrain* ptTerrain;
 
     // drawing
     plDrawLayer2D* ptDrawLayer;
@@ -437,7 +440,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create main camera
     plCamera* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3_d(fXOffset -4.012, fYOffset + 2.984, fZOffset-1.109), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 650.0f, true, &ptMainCamera);
+    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", pl_create_vec3_d(fXOffset -4.012, fYOffset + 2.984, fZOffset-1.109), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 6500.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, PL_PI_2);
     gptCamera->update(ptMainCamera);
     gptScript->attach(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
@@ -551,6 +554,34 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // temporary draw layer for submitting fullscreen quad of offscreen render
     ptAppData->ptDrawLayer = gptDraw->request_2d_layer(gptUI->get_draw_list());
 
+#if 0
+    plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
+
+    plTerrainProcessTileInfo tTile = {
+        .iTreeDepth    = 6,
+        .fMaxHeight    = 2000.0f,
+        .fMinHeight    = -40.0f,
+        .fMaxBaseError = 3.0f,
+        .tCenter = {0}
+    };
+    plTerrainProcessInfo tTerrainInfo = {
+        .fMetersPerPixel = 20.0f,
+        .uHorizontalTiles = 1,
+        .uVerticalTiles = 1,
+        .uSize = 4096,
+        .uTileCount = 1,
+        .atTiles = &tTile
+    };
+
+    sprintf(tTile.acOutputFile, "/assets/mountains.chu");
+    sprintf(tTile.acHeightMapFile, "/assets/mountains.png");
+
+    gptTerrain->process(&tTerrainInfo);
+    ptAppData->ptTerrain = gptRenderer->create_terrain(ptCmdBuffer, &tTerrainInfo);
+    gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
+    gptRenderer->set_terrain(ptAppData->ptScene, ptAppData->ptTerrain);
+#endif
+
     return ptAppData;
 }
 
@@ -569,6 +600,8 @@ pl_app_shutdown(plAppData* ptAppData)
     // gptTerrain->cleanup();
 
 
+    if(ptAppData->ptTerrain)
+        gptRenderer->cleanup_terrain(ptAppData->ptTerrain);
     gptConfig->set_bool("bEditorAttached", ptAppData->bEditorAttached);
     gptConfig->set_bool("bShowEntityWindow", ptAppData->bShowEntityWindow);
     gptConfig->set_bool("bPhysicsDebugDraw", ptAppData->bPhysicsDebugDraw);
@@ -973,6 +1006,48 @@ pl__show_editor_window(plAppData* ptAppData)
             }
 
             gptUI->vertical_spacing();
+
+            if(ptAppData->ptTerrain)
+            {
+                if(gptUI->tree_node("Terrain", 0))
+                {
+                    plTerrainRuntimeOptions* ptRuntimeOptions = gptRenderer->get_terrain_runtime_options(ptAppData->ptTerrain);
+                    gptUI->slider_float("fTau", &ptRuntimeOptions->fTau, 0.0f, 1.0f, 0);
+
+                    bool bWireframe = ptRuntimeOptions->tFlags & PL_TERRAIN_FLAGS_WIREFRAME;
+                    bool bShowLevels = ptRuntimeOptions->tFlags & PL_TERRAIN_FLAGS_SHOW_LEVELS;
+
+                    if(gptUI->checkbox("Wireframe", &bWireframe))
+                    {
+                        if(bWireframe) ptRuntimeOptions->tFlags |= PL_TERRAIN_FLAGS_WIREFRAME;
+                        else           ptRuntimeOptions->tFlags &= ~PL_TERRAIN_FLAGS_WIREFRAME;
+                    }
+
+                    if(gptUI->checkbox("Show Levels", &bShowLevels))
+                    {
+                        if(bShowLevels) ptRuntimeOptions->tFlags |= PL_TERRAIN_FLAGS_SHOW_LEVELS;
+                        else           ptRuntimeOptions->tFlags &= ~PL_TERRAIN_FLAGS_SHOW_LEVELS;
+                    }
+
+                    gptUI->slider_float("fSlopeStart", &ptRuntimeOptions->fSlopeStart, 0.0f, 1.0f, 0);
+                    gptUI->slider_float("fSlopeEnd", &ptRuntimeOptions->fSlopeEnd, 0.0f, 1.0f, 0);
+
+                    for(uint32_t i = 0; i < PL_MAX_TERRAIN_ELEVATION_ZONES; i++)
+                    {
+                        gptUI->push_id_uint(i);
+                        gptUI->text("Zone %u", i);
+                        gptUI->input_float("fMinElevation", &ptRuntimeOptions->atElevationZones[i].fMinElevation, NULL, 0);
+                        gptUI->input_float("fMaxElevation", &ptRuntimeOptions->atElevationZones[i].fMaxElevation, NULL, 0);
+                        gptUI->input_float("fBlendSize", &ptRuntimeOptions->atElevationZones[i].fBlendSize, NULL, 0);
+                        gptUI->input_float4("Flat Material", ptRuntimeOptions->atElevationZones[i].tFlatMaterial.tBaseColor.d, NULL, 0);
+                        gptUI->input_float4("Steep Material", ptRuntimeOptions->atElevationZones[i].tSteepMaterial.tBaseColor.d, NULL, 0);
+                        gptUI->pop_id();
+                    }
+
+                    gptUI->tree_pop();
+                }
+
+            }
 
             const float pfWidths[] = {150.0f, 150.0f};
             gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfWidths);
