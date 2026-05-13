@@ -13,8 +13,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_JSON_VERSION    "1.0.3"
-#define PL_JSON_VERSION_NUM 10003
+#define PL_JSON_VERSION    "1.0.4"
+#define PL_JSON_VERSION_NUM 10004
 
 /*
 Index of this file:
@@ -864,6 +864,10 @@ pl_load_json(const char* pcJson, plJsonObject** pptJsonOut)
                     if(tNewJsonObject.tType == PL_JSON_TYPE_ARRAY)
                     {
                         uCurrentTokenIndex++;
+                        if(tNewJsonObject.uChildCount == 0) // empty array fix
+                        {
+                            pl_sb_json_pop(sbtObjectStack);
+                        }
                     }
                 }
                 break;
