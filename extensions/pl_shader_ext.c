@@ -27,6 +27,7 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #include "pl_platform_ext.h" // file api
 #include "pl_log_ext.h"
+#include "pl_profile_ext.h"
 #include "pl_screen_log_ext.h"
 #include "pl_vfs_ext.h"
 #include "pl_string_intern_ext.h"
@@ -49,6 +50,7 @@ Index of this file:
     static const plScreenLogI*    gptScreenLog = NULL;
     static const plVfsI*          gptVfs       = NULL;
     static const plStringInternI* gptString    = NULL;
+    static const plProfileI*      gptProfile    = NULL;
 #endif
 
 #include "pl_ds.h"
@@ -156,6 +158,8 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
 
     if(gptShaderCtx->bInitialized)
         return true;
+
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     gptShaderCtx->ptStringRepo = gptString->create_repository();
 
@@ -266,6 +270,8 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
     gptScreenLog->add_message_ex(0, 5.0, PL_COLOR_32_CYAN, 1.0f, "%s", "initialized SPIR-V Cross");
     #endif
     #endif
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }
 
@@ -871,6 +877,7 @@ pl_load_shader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptMemory = pl_get_api_latest(ptApiRegistry, plMemoryI);
     gptScreenLog = pl_get_api_latest(ptApiRegistry, plScreenLogI);
     gptVfs = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
     if(bReload)

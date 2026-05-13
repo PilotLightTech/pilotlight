@@ -30,6 +30,7 @@ Index of this file:
 #include "pl_platform_ext.h"
 #include "pl_dxt_ext.h"
 #include "pl_dds_ext.h"
+#include "pl_profile_ext.h"
 
 // libs
 #include "pl_string.h"
@@ -62,6 +63,7 @@ Index of this file:
     static const plDxtI*           gptDxt           = NULL;
     static const plFileI*          gptFile          = NULL;
     static const plPakI*           gptPak           = NULL;
+    static const plProfileI*       gptProfile       = NULL;
 #endif
 
 // libs
@@ -160,6 +162,8 @@ void pl_resource_make_resident(plResourceHandle);
 void
 pl_resource_initialize(plResourceManagerInit tDesc)
 {
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+
     if(tDesc.uMaxTextureResolution == 0)
         tDesc.uMaxTextureResolution = 1024;
 
@@ -187,6 +191,8 @@ pl_resource_initialize(plResourceManagerInit tDesc)
     // for resource handles
     pl_sb_push(gptResourceManager->sbtResourceGenerations, 4194303);
     pl_sb_add(gptResourceManager->sbtResources);
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
@@ -1180,6 +1186,7 @@ pl_load_resource_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptDxt           = pl_get_api_latest(ptApiRegistry, plDxtI);
         gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
         gptPak           = pl_get_api_latest(ptApiRegistry, plPakI);
+        gptProfile       = pl_get_api_latest(ptApiRegistry, plProfileI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

@@ -26,6 +26,7 @@ Index of this file:
 #include "pl_stats_ext.h"
 #include "pl_shader_ext.h"
 #include "pl_vfs_ext.h"
+#include "pl_profile_ext.h"
 
 // libs
 #include "pl_json.h"
@@ -46,10 +47,11 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static const plGraphicsI* gptGfx    = NULL;
-    static const plStatsI*    gptStats  = NULL;
-    static const plShaderI*   gptShader = NULL;
-    static const plVfsI*      gptVfs    = NULL;
+    static const plGraphicsI* gptGfx     = NULL;
+    static const plStatsI*    gptStats   = NULL;
+    static const plShaderI*   gptShader  = NULL;
+    static const plVfsI*      gptVfs     = NULL;
+    static const plProfileI*  gptProfile = NULL;
 
 #endif
 
@@ -374,6 +376,15 @@ pl_shader_variant_load_manifest(const char* pcPath)
     if(!gptVfs->does_file_exist(pcPath))
         return false;
 
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+
+    pl_sb_reserve(gptShaderVariantCtx->sbtShaderMeta, 64);
+    pl_sb_reserve(gptShaderVariantCtx->sbtMetaVariants, 64);
+    pl_sb_reserve(gptShaderVariantCtx->sbtShaderDesc, 64);
+    pl_sb_reserve(gptShaderVariantCtx->sbtBindGroupLayouts, 64);
+    pl_sb_reserve(gptShaderVariantCtx->sbtComputeMeta, 64);
+    pl_sb_reserve(gptShaderVariantCtx->sbtComputeMetaVariants, 64);
+
     plTempAllocator tTempAllocator = {0};
 
     size_t szImageFileSize = gptVfs->get_file_size_str(pcPath);
@@ -387,6 +398,8 @@ pl_shader_variant_load_manifest(const char* pcPath)
     plJsonObject* ptRootJsonObject = NULL;
     pl_load_json(pucBuffer, &ptRootJsonObject);
 
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "bind group layouts");
+
     // load bind group layouts
     uint32_t uHighBindGroupLayoutCount = 0;
     plJsonObject* ptHighBindGroupLayouts = pl_json_array_member(ptRootJsonObject, "bind group layouts", &uHighBindGroupLayoutCount);
@@ -399,6 +412,7 @@ pl_shader_variant_load_manifest(const char* pcPath)
         if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer))
         {
             pl_temp_allocator_free(&tTempAllocator);
+            PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
             return false;
         }
 
@@ -414,6 +428,9 @@ pl_shader_variant_load_manifest(const char* pcPath)
         plBindGroupLayoutHandle tHandle = gptGfx->create_bind_group_layout(gptShaderVariantCtx->ptDevice, &tLayout);
         gptShaderVariantCtx->sbtBindGroupLayouts[uVariantIndex] = tHandle;
     }
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "compute shaders");
 
     // load compute shaders
     uint32_t uComputeShaderCount = 0;
@@ -435,7 +452,6 @@ pl_shader_variant_load_manifest(const char* pcPath)
             if(pl_json_member_exist(ptBindGroupLayout, "pcName"))
             {
 
-
                 if(pl_json_member_exist(ptBindGroupLayout, "atBufferBindings") ||
                     pl_json_member_exist(ptBindGroupLayout, "atSamplerBindings") ||
                     pl_json_member_exist(ptBindGroupLayout, "atTextureBindings"))
@@ -447,6 +463,7 @@ pl_shader_variant_load_manifest(const char* pcPath)
                         if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer))
                         {
                             pl_temp_allocator_free(&tTempAllocator);
+                            PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
                             return false;
                         }
 
@@ -465,6 +482,9 @@ pl_shader_variant_load_manifest(const char* pcPath)
             }
         }
     }
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "bind group layout prepass");
 
     // bind group layout prepass
     for(uint32_t uShaderIndex = 0; uShaderIndex < uShaderCount; uShaderIndex++)
@@ -491,6 +511,7 @@ pl_shader_variant_load_manifest(const char* pcPath)
                         if(pl_hm32_has_key_str(&gptShaderVariantCtx->tBindGroupLayoutsHashmap, acNameBuffer))
                         {
                             pl_temp_allocator_free(&tTempAllocator);
+                            PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
                             return false;
                         }
 
@@ -519,6 +540,7 @@ pl_shader_variant_load_manifest(const char* pcPath)
         if(pl_hm32_has_key_str(&gptShaderVariantCtx->tComputeHashmap, acNameBuffer))
         {
             pl_temp_allocator_free(&tTempAllocator);
+            PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
             return false;
         }
 
@@ -612,6 +634,9 @@ pl_shader_variant_load_manifest(const char* pcPath)
         gptShaderVariantCtx->sbtComputeMeta[uVariantIndex] = tShader;
     }
 
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "graphics shaders");
+
     // load graphics shaders
     for(uint32_t uShaderIndex = 0; uShaderIndex < uShaderCount; uShaderIndex++)
     {
@@ -622,6 +647,7 @@ pl_shader_variant_load_manifest(const char* pcPath)
         if(pl_hm32_has_key_str(&gptShaderVariantCtx->tGraphicsHashmap, acNameBuffer))
         {
             pl_temp_allocator_free(&tTempAllocator);
+            PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
             return false;
         }
 
@@ -815,11 +841,14 @@ pl_shader_variant_load_manifest(const char* pcPath)
         }
         gptShaderVariantCtx->sbtMetaVariants[uVariantIndex] = tInfo;
         gptShaderVariantCtx->sbtShaderDesc[uVariantIndex] = tShaderDesc;
-    }   
+    }
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 
     pl_unload_json(&ptRootJsonObject);
     PL_FREE(pucBuffer);
     pl_temp_allocator_free(&tTempAllocator);
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }
 
@@ -1241,10 +1270,11 @@ pl_load_shader_variant_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plShaderVariantI, &tApi);
 
     #ifndef PL_UNITY_BUILD
-        gptGfx    = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-        gptStats  = pl_get_api_latest(ptApiRegistry, plStatsI);
-        gptShader = pl_get_api_latest(ptApiRegistry, plShaderI);
-        gptVfs    = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptStats   = pl_get_api_latest(ptApiRegistry, plStatsI);
+        gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
+        gptVfs     = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptProfile = pl_get_api_latest(ptApiRegistry, plProfileI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

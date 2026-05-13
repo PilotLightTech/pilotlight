@@ -154,6 +154,8 @@ static plStarterContext* gptStarterCtx = NULL;
 void
 pl_starter_initialize(plStarterInit tInit)
 {
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+
     gptStarterCtx->tFlags = tInit.tFlags;
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_CONSOLE_EXT)
@@ -309,6 +311,8 @@ pl_starter_initialize(plStarterInit tInit)
         gptDraw->set_font_atlas(ptAtlas);
         gptStarterCtx->ptDefaultFont = gptDraw->add_default_font(ptAtlas);
     }
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
 void
