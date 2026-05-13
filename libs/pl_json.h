@@ -869,6 +869,15 @@ pl_load_json(const char* pcJson, plJsonObject** pptJsonOut)
                             pl_sb_json_pop(sbtObjectStack);
                         }
                     }
+                    else if (tNewJsonObject.tType == PL_JSON_TYPE_OBJECT)
+                    {
+                        uCurrentTokenIndex++;
+                        if(tNewJsonObject.uChildCount == 0) // empty object fix
+                        {
+                            pl_sb_json_pop(sbtObjectStack);
+                        }
+                    }
+                    
                 }
                 break;
             }
