@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "demo.h"
 
 void
 pl__show_ui_demo_window(plAppData* ptAppData)

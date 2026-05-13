@@ -50,7 +50,7 @@ with pl.project("pilotlight"):
     # project wide settings
     pl.set_output_directory(output_directory)
     pl.add_link_directories(output_directory)
-    pl.add_include_directories("../internal/sandbox", "../src", "../shaders", "../libs", "../extensions", output_directory, "../dependencies/stb",
+    pl.add_include_directories("../internal/sandbox", "../internal/demo", "../src", "../shaders", "../libs", "../extensions", output_directory, "../dependencies/stb",
                                "../dependencies/cgltf", "../dependencies/imgui", '../dependencies/glfw/include')
     pl.add_definitions("PL_UNITY_BUILD")
 
@@ -667,13 +667,13 @@ with pl.project("pilotlight"):
                     pl.add_dynamic_link_libraries("spirv-cross-c-shared", "shaderc_shared", "pthread", "vulkan")
 
     #-----------------------------------------------------------------------------
-    # [SECTION] editor
+    # [SECTION] demo
     #-----------------------------------------------------------------------------
 
-    with pl.target("editor", pl.TargetType.DYNAMIC_LIBRARY, True):
+    with pl.target("demo", pl.TargetType.DYNAMIC_LIBRARY, True):
 
-        pl.add_source_files("../internal/sandbox/editor.cpp")
-        pl.set_output_binary("editor")
+        pl.add_source_files("../internal/demo/demo.cpp")
+        pl.set_output_binary("demo")
 
         # default config
         with pl.configuration("debug_experimental"):

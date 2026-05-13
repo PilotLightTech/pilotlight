@@ -142,6 +142,11 @@ const plRendererEditorI*    gptRendererEditor   = NULL;
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plSandboxSceneFile
+{
+    char acName[PL_MAX_PATH_LENGTH];
+} plSandboxSceneFile;
+
 typedef struct _plAppData
 {
 
@@ -157,6 +162,9 @@ typedef struct _plAppData
     bool bResize;
 
     // ui options
+    bool  bShowUiDemo;
+    bool  bShowUiDebug;
+    bool  bShowUiStyle;
     bool  bContinuousBVH;
     bool  bFrustumCulling;
     bool  bShowBVH;
@@ -193,14 +201,22 @@ typedef struct _plAppData
     // misc
     char* sbcTempBuffer;
     plComponentLibrary* ptComponentLibrary;
+
+    // scene file info
+    char acCurrentScene[PL_MAX_PATH_LENGTH];
+    plSandboxSceneFile* sbtSceneFiles;
 } plAppData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] helper forward declarations
 //-----------------------------------------------------------------------------
 
+void pl__show_init_window(plAppData*);
 void pl__show_editor_window(plAppData*);
 void pl__load_apis(plApiRegistryI*);
+void pl__refresh_files(plAppData*);
+void pl__load_scene(plAppData*, const char*);
+void pl__show_ui_demo_window(plAppData*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -421,190 +437,27 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptEcs->finalize();
     ptAppData->ptComponentLibrary = gptEcs->get_default_library();
 
+    // pl__load_scene(ptAppData, "../internal/sandbox/scene-sponza.json");
+
     plIO* ptIO = gptIO->get_io();
-    plSceneDesc tSceneInit = {
-        .ptComponentLibrary = ptAppData->ptComponentLibrary
-    };
-    ptAppData->ptScene = gptRenderer->create_scene(&tSceneInit);
-    plViewDesc tViewDesc = PL_ZERO_INIT;
-    tViewDesc.uWidth = (uint32_t)ptIO->tMainViewportSize.x;
-    tViewDesc.uHeight = (uint32_t)ptIO->tMainViewportSize.y;
-    ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc);
 
-    size_t szJsonFileSize = gptVfs->get_file_size_str("../internal/sandbox/scene-sponza.json");
-    uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
-    memset(puFileBuffer, 0, szJsonFileSize + 1);
-
-    plVfsFileHandle tHandle = gptVfs->open_file("../internal/sandbox/scene-sponza.json", PL_VFS_FILE_MODE_READ);
-    gptVfs->read_file(tHandle, puFileBuffer, &szJsonFileSize);
-    gptVfs->close_file(tHandle);
-
-    plJsonObject* ptRootJsonObject = NULL;
-    pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
-
-    plJsonObject* ptSceneObject = pl_json_member(ptRootJsonObject, "scene");
-
-    plJsonObject* ptCameraObject = pl_json_member(ptSceneObject, "camera");
-    plVec3d tCameraPosition = {0};
-    pl_json_double_array_member(ptCameraObject, "position", tCameraPosition.d, NULL);
-    float fYFov = pl_json_float_member(ptCameraObject, "yfov", PL_PI_3);
-    float fNearZ = pl_json_float_member(ptCameraObject, "near plane", 0.1f);
-    float fFarZ = pl_json_float_member(ptCameraObject, "far plane", 1000.0f);
-    float fYaw = pl_json_float_member(ptCameraObject, "yaw", 0.0f);
-    float fPitch = pl_json_float_member(ptCameraObject, "pitch", 0.0f);
-    plCamera* ptMainCamera = NULL;
-    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", tCameraPosition, fYFov, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, fNearZ, fFarZ, true, &ptMainCamera);
-    gptCamera->set_pitch_yaw(ptMainCamera, fPitch, fYaw);
-    gptCamera->update(ptMainCamera);
-    gptScript->attach(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
-
-    plJsonObject* ptSkyboxObject = pl_json_member(ptSceneObject, "skybox");
-    uint32_t uSkyboxResolution = pl_json_uint_member(ptSkyboxObject, "resolution", 1024);
-    char acSkyboxPath[128] = {0};
-    pl_json_string_member(ptSkyboxObject, "path", acSkyboxPath, 128);
-    gptRendererEcs->load_skybox_from_panorama(ptAppData->ptScene, acSkyboxPath, uSkyboxResolution);
-
-    uint32_t uProbeCount = 0;
-    plJsonObject* ptProbesObject = pl_json_array_member(ptSceneObject, "probes", &uProbeCount);
-    for(uint32_t i = 0; i < uProbeCount; i++)
+    for(int i = 0; i < ptIO->iArgc; i++)
     {
-        plJsonObject* ptProbeObject = pl_json_member_by_index(ptProbesObject, i);
-        plVec3 tProbePosition = {0};
-        pl_json_float_array_member(ptProbeObject, "position", tProbePosition.d, NULL);
+        if(strcmp(ptIO->apArgv[i], "-s") == 0)
+        {
+            pl_sprintf(ptAppData->acCurrentScene, "../internal/sandbox/scene-%s.json", ptIO->apArgv[i + 1]);
+            pl__load_scene(ptAppData, ptAppData->acCurrentScene);
+        }
 
-        plEnvironmentProbeComponent* ptProbe = NULL;
-        plEntity tProbeEntity = gptRendererEcs->create_environment_probe(ptAppData->ptComponentLibrary, "Probe", tProbePosition, &ptProbe);
-        ptProbe->fRange = pl_json_float_member(ptProbeObject, "range", 30.0);
-        ptProbe->uResolution = pl_json_uint_member(ptProbeObject, "resolution", 128);
-        ptProbe->uSamples = pl_json_uint_member(ptProbeObject, "samples", 512);
-        ptProbe->uInterval = pl_json_uint_member(ptProbeObject, "interval", 1);
-        ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
-        gptRendererEcs->add_probes_to_scene(ptAppData->ptScene, 1, &tProbeEntity);
     }
-
-    uint32_t uLightCount = 0;
-    plJsonObject* ptLightsObject = pl_json_array_member(ptSceneObject, "lights", &uLightCount);
-    for(uint32_t i = 0; i < uLightCount; i++)
-    {
-        plJsonObject* ptLightObject = pl_json_member_by_index(ptLightsObject,i);
-        plLightComponent* ptLight = NULL;
-
-        char acType[32] = {0};
-        pl_json_string_member(ptLightObject, "type", acType, 32);
-
-        plVec3 tDirection = {0.0f, -1.0f, 0.0f};
-        plVec3 tPosition = {0};
-
-        if(acType[0] != 'p')
-            pl_json_float_array_member(ptLightObject, "direction", tDirection.d, NULL);
-
-        if(acType[0] != 'd')
-            pl_json_float_array_member(ptLightObject, "position", tPosition.d, NULL);
-
-        plVec3 tColor = {1.0f, 1.0f, 1.0f};
-        pl_json_float_array_member(ptLightObject, "color", tColor.d, NULL);
-
-        char acName[128] = {0};
-        pl_json_string_member(ptLightObject, "name", acName, 128);
-
-
-
-        plEntity tLight = {0};
-
-        if(acType[0] == 'd')
-        {
-            tLight = gptRendererEcs->create_directional_light(ptAppData->ptComponentLibrary, acName, tDirection, &ptLight);
-            ptLight->uCascadeCount = pl_json_uint_member(ptLightObject, "cascades", 4);
-            ptLight->fShadowLambda = pl_json_float_member(ptLightObject, "shadow lambda", 0.6f);
-        }
-        else if(acType[0] == 'p')
-        {
-            tLight = gptRendererEcs->create_point_light(ptAppData->ptComponentLibrary, acName, tPosition, &ptLight);
-        }
-        else if(acType[0] == 's')
-        {
-            tLight = gptRendererEcs->create_spot_light(ptAppData->ptComponentLibrary, acName, tPosition, tDirection, &ptLight);
-            ptLight->fInnerConeAngle = pl_json_float_member(ptLightObject, "inner cone angle", 0.0f);
-            ptLight->fOuterConeAngle = pl_json_float_member(ptLightObject, "outer cone angle", PL_PI_4 / 2);
-        }
-        ptLight->fRadius = pl_json_float_member(ptLightObject, "radius", 0.25f);
-        ptLight->fRange = pl_json_float_member(ptLightObject, "range", 5.0f);
-        ptLight->tColor = tColor;
-        ptLight->fIntensity = pl_json_float_member(ptLightObject, "intensity", 1.0f);
-        ptLight->uShadowResolution = pl_json_uint_member(ptLightObject, "shadow resolution", 512);
-        ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
-
-        if(acType[0] != 'd')
-        {
-            plTransformComponent* ptSLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tLight);
-            ptSLightTransform->tTranslation = tPosition;
-        }
-
-        gptRendererEcs->add_lights_to_scene(ptAppData->ptScene, 1, &tLight);
-    }
-
-    plModelLoaderData tLoaderData = {0};
-    uint32_t uModelCount = 0;
-    plJsonObject* ptModelsObject = pl_json_array_member(ptSceneObject, "models", &uModelCount);
-    for(uint32_t i = 0; i < uModelCount; i++)
-    {
-        plJsonObject* ptModelObject = pl_json_member_by_index(ptModelsObject, i);
-        plVec3 tScale = {1.0f, 1.0f, 1.0f};
-        plVec3 tTranslation = {0};
-        plVec4 tRotation = {0};
-        pl_json_float_array_member(ptModelObject, "scale", tScale.d, NULL);
-        pl_json_float_array_member(ptModelObject, "translation", tTranslation.d, NULL);
-        pl_json_float_array_member(ptModelObject, "rotation", tRotation.d, NULL);
-
-        plMat4 tTransformation = pl_rotation_translation_scale(tRotation, tTranslation, tScale);
-
-        char acModelPath[256] = {0};
-        pl_json_string_member(ptModelObject, "path", acModelPath, 256);
-        gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, acModelPath, &tTransformation, &tLoaderData);
-    }
-    
-    pl_unload_json(&ptRootJsonObject);
-    PL_FREE(puFileBuffer);
-
-    bool bResult = gptRendererEcs->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData.uObjectCount, tLoaderData.atObjects);
-
-    gptModelLoader->free_data(&tLoaderData);
 
     // give starter extension chance to do its work now
     gptStarter->finalize();
 
+    pl__refresh_files(ptAppData);
+
     // temporary draw layer for submitting fullscreen quad of offscreen render
     ptAppData->ptDrawLayer = gptDraw->request_2d_layer(gptUI->get_draw_list());
-
-    gptRendererEditor->rebuild_scene_bvh(ptAppData->ptScene);
-
-#if 0
-    plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
-
-    plTerrainProcessTileInfo tTile = {
-        .iTreeDepth    = 6,
-        .fMaxHeight    = 2000.0f,
-        .fMinHeight    = -40.0f,
-        .fMaxBaseError = 3.0f,
-        .tCenter = {0}
-    };
-    plTerrainProcessInfo tTerrainInfo = {
-        .fMetersPerPixel = 20.0f,
-        .uHorizontalTiles = 1,
-        .uVerticalTiles = 1,
-        .uSize = 4096,
-        .uTileCount = 1,
-        .atTiles = &tTile
-    };
-
-    sprintf(tTile.acOutputFile, "/assets/mountains.chu");
-    sprintf(tTile.acHeightMapFile, "/assets/mountains.png");
-
-    gptTerrain->process(&tTerrainInfo);
-    ptAppData->ptTerrain = gptRendererTerrain->create(ptCmdBuffer, &tTerrainInfo);
-    gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
-    gptRendererTerrain->set(ptAppData->ptScene, ptAppData->ptTerrain);
-#endif
 
     gptProfile->end_sample(0);
     gptProfile->end_frame();
@@ -630,6 +483,7 @@ pl_app_shutdown(plAppData* ptAppData)
 {
     gptJobs->cleanup();
     pl_sb_free(ptAppData->sbcTempBuffer);
+    pl_sb_free(ptAppData->sbtSceneFiles);
 
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
@@ -654,8 +508,8 @@ pl_app_shutdown(plAppData* ptAppData)
     gptShader->cleanup();
     gptConsole->cleanup();
 
-    gptRenderer->destroy_view(ptAppData->ptView);
-    gptRenderer->destroy_scene(ptAppData->ptScene);
+    if(ptAppData->ptView)  gptRenderer->destroy_view(ptAppData->ptView);
+    if(ptAppData->ptScene) gptRenderer->destroy_scene(ptAppData->ptScene);
     
     gptEcs->cleanup();
     gptRenderer->cleanup();
@@ -699,19 +553,6 @@ pl_app_update(plAppData* ptAppData)
 
     gptRenderer->begin_frame();
 
-    // static bool bFirstFrame = true;
-    // if(bFirstFrame)
-    // {
-    //     plMaterialComponent* ptMaterials = NULL;
-    //     const plEntity* ptMaterialEntities = NULL;
-    //     const uint32_t uMaterialCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptMaterial->get_ecs_type_key(), (void**)&ptMaterials, &ptMaterialEntities);
-    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[0]);
-    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[1]);
-    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[2]);
-    //     gptRenderer->update_scene_material(ptAppData->ptScene, ptMaterialEntities[3]);
-    //     bFirstFrame = false;
-    // }
-
     if(ptAppData->bResize)
     {
         // gptOS->sleep(32);
@@ -729,7 +570,7 @@ pl_app_update(plAppData* ptAppData)
 
     plVec2 tMousePos = gptIO->get_mouse_pos();
 
-    if(!gptUI->wants_mouse_capture() && !gptGizmo->active())
+    if(ptAppData->ptScene && !gptUI->wants_mouse_capture() && !gptGizmo->active())
     {
         static plVec2 tClickPos = {0};
         if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_LEFT, false))
@@ -748,112 +589,129 @@ pl_app_update(plAppData* ptAppData)
     }
 
     // run ecs system
-    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Run ECS");
-    gptScript->run_update_system(ptAppData->ptComponentLibrary);
-    gptAnimation->run_animation_update_system(ptAppData->ptComponentLibrary, ptIO->fDeltaTime);
-    gptPhysics->update(ptIO->fDeltaTime, ptAppData->ptComponentLibrary);
-    gptEcs->run_transform_update_system(ptAppData->ptComponentLibrary);
-    gptEcs->run_hierarchy_update_system(ptAppData->ptComponentLibrary);
-    gptRendererEcs->run_light_update_system(ptAppData->ptComponentLibrary);
-    gptCamera->run_ecs(ptAppData->ptComponentLibrary);
-    gptAnimation->run_inverse_kinematics_update_system(ptAppData->ptComponentLibrary);
-    gptRendererEcs->run_skin_update_system(ptAppData->ptComponentLibrary);
-    gptRendererEcs->run_object_update_system(ptAppData->ptComponentLibrary);
-    gptRendererEcs->run_environment_probe_update_system(ptAppData->ptComponentLibrary); // run after object update
-    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
-
-    plEntity tNextEntity = {0};
-    if(gptRendererEditor->get_hovered_entity(ptAppData->ptView, &tNextEntity))
+    if(ptAppData->ptScene)
     {
-        
-        if(tNextEntity.uData == 0)
-        {
-            ptAppData->tSelectedEntity.uData = UINT64_MAX;
-            gptRendererEditor->outline_entities(ptAppData->ptScene, 0, NULL);
-        }
-        else if(ptAppData->tSelectedEntity.uData != tNextEntity.uData)
-        {
-            gptScreenLog->add_message_ex(565168477883, 5.0, PL_COLOR_32_RED, 1.0f, "Selected Entity {%u, %u}", tNextEntity.uIndex, tNextEntity.uGeneration);
-            gptRendererEditor->outline_entities(ptAppData->ptScene, 1, &tNextEntity);
-            ptAppData->tSelectedEntity = tNextEntity;
-            gptPhysics->set_angular_velocity(ptAppData->ptComponentLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
-            gptPhysics->set_linear_velocity(ptAppData->ptComponentLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
-        }
+        PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "Run ECS");
+        gptScript->run_update_system(ptAppData->ptComponentLibrary);
+        gptAnimation->run_animation_update_system(ptAppData->ptComponentLibrary, ptIO->fDeltaTime);
+        gptPhysics->update(ptIO->fDeltaTime, ptAppData->ptComponentLibrary);
+        gptEcs->run_transform_update_system(ptAppData->ptComponentLibrary);
+        gptEcs->run_hierarchy_update_system(ptAppData->ptComponentLibrary);
+        gptRendererEcs->run_light_update_system(ptAppData->ptComponentLibrary);
+        gptCamera->run_ecs(ptAppData->ptComponentLibrary);
+        gptAnimation->run_inverse_kinematics_update_system(ptAppData->ptComponentLibrary);
+        gptRendererEcs->run_skin_update_system(ptAppData->ptComponentLibrary);
+        gptRendererEcs->run_object_update_system(ptAppData->ptComponentLibrary);
+        gptRendererEcs->run_environment_probe_update_system(ptAppData->ptComponentLibrary); // run after object update
+        PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 
-    }
 
-    if(gptIO->is_key_pressed(PL_KEY_M, true))
-        gptGizmo->next_mode();
-
-    if(ptAppData->bShowEntityWindow)
-    {
-        if(gptEcsTools->show_window(ptAppData->ptComponentLibrary, &ptAppData->tSelectedEntity, ptAppData->ptScene, &ptAppData->bShowEntityWindow))
+        plEntity tNextEntity = {0};
+        if(gptRendererEditor->get_hovered_entity(ptAppData->ptView, &tNextEntity))
         {
-            if(ptAppData->tSelectedEntity.uData == UINT64_MAX)
+            
+            if(tNextEntity.uData == 0)
             {
+                ptAppData->tSelectedEntity.uData = UINT64_MAX;
                 gptRendererEditor->outline_entities(ptAppData->ptScene, 0, NULL);
             }
-            else
+            else if(ptAppData->tSelectedEntity.uData != tNextEntity.uData)
             {
-                gptRendererEditor->outline_entities(ptAppData->ptScene, 1, &ptAppData->tSelectedEntity);
+                gptScreenLog->add_message_ex(565168477883, 5.0, PL_COLOR_32_RED, 1.0f, "Selected Entity {%u, %u}", tNextEntity.uIndex, tNextEntity.uGeneration);
+                gptRendererEditor->outline_entities(ptAppData->ptScene, 1, &tNextEntity);
+                ptAppData->tSelectedEntity = tNextEntity;
+                gptPhysics->set_angular_velocity(ptAppData->ptComponentLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
+                gptPhysics->set_linear_velocity(ptAppData->ptComponentLibrary, tNextEntity, pl_create_vec3(0, 0, 0));
+            }
+
+        }
+
+        if(gptIO->is_key_pressed(PL_KEY_M, true))
+            gptGizmo->next_mode();
+
+        if(ptAppData->bShowEntityWindow)
+        {
+            if(gptEcsTools->show_window(ptAppData->ptComponentLibrary, &ptAppData->tSelectedEntity, ptAppData->ptScene, &ptAppData->bShowEntityWindow))
+            {
+                if(ptAppData->tSelectedEntity.uData == UINT64_MAX)
+                {
+                    gptRendererEditor->outline_entities(ptAppData->ptScene, 0, NULL);
+                }
+                else
+                {
+                    gptRendererEditor->outline_entities(ptAppData->ptScene, 1, &ptAppData->tSelectedEntity);
+                }
             }
         }
-    }
 
-    if(ptAppData->tSelectedEntity.uIndex != UINT32_MAX)
-    {
-        plDrawList3D* ptGizmoDrawlist =  gptRendererEditor->get_gizmo_drawlist(ptAppData->ptView);
-        plObjectComponent* ptSelectedObject = (plObjectComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptRendererEcs->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
-        plTransformComponent* ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSelectedEntity);
-        plTransformComponent* ptParentTransform = NULL;
-        plHierarchyComponent* ptHierarchyComp = (plHierarchyComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_hierarchy(), ptAppData->tSelectedEntity);
-        if(ptHierarchyComp)
+
+        if(ptAppData->tSelectedEntity.uIndex != UINT32_MAX)
         {
-            ptParentTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptHierarchyComp->tParent);
+            plDrawList3D* ptGizmoDrawlist =  gptRendererEditor->get_gizmo_drawlist(ptAppData->ptView);
+            plObjectComponent* ptSelectedObject = (plObjectComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptRendererEcs->get_ecs_type_key_object(), ptAppData->tSelectedEntity);
+            plTransformComponent* ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSelectedEntity);
+            plTransformComponent* ptParentTransform = NULL;
+            plHierarchyComponent* ptHierarchyComp = (plHierarchyComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_hierarchy(), ptAppData->tSelectedEntity);
+            if(ptHierarchyComp)
+            {
+                ptParentTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptHierarchyComp->tParent);
+            }
+            if(ptSelectedTransform)
+            {
+                gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, (plVec2){0}, (plVec2){1.0f, 1.0f});
+            }
+            else if(ptSelectedObject)
+            {
+                ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptSelectedObject->tTransform);
+                gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, (plVec2){0}, (plVec2){1.0f, 1.0f});
+            }
         }
-        if(ptSelectedTransform)
+
+        if(ptAppData->bPhysicsDebugDraw)
         {
-            gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, (plVec2){0}, (plVec2){1.0f, 1.0f});
+            plDrawList3D* ptDrawlist = gptRendererDebug->get_drawlist(ptAppData->ptView);
+            gptPhysics->draw(ptAppData->ptComponentLibrary, ptDrawlist);
         }
-        else if(ptSelectedObject)
+
+        // debug rendering
+        if(ptAppData->bShowDebugLights)
         {
-            ptSelectedTransform = (plTransformComponent*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), ptSelectedObject->tTransform);
-            gptGizmo->gizmo(ptGizmoDrawlist, ptCamera, ptSelectedTransform, ptParentTransform, (plVec2){0}, (plVec2){1.0f, 1.0f});
+            plLightComponent* ptLights = NULL;
+            const uint32_t uLightCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptRendererEcs->get_ecs_type_key_light(), (void**)&ptLights, NULL);
+            gptRendererDebug->draw_lights(ptAppData->ptView, ptLights, uLightCount);
         }
+
+        if(ptAppData->bDrawAllBoundingBoxes)
+            gptRendererDebug->draw_all_bound_boxes(ptAppData->ptView);
+
+        if(ptAppData->bShowBVH)
+            gptRendererDebug->draw_bvh(ptAppData->ptView);
+
+        // render scene
+        gptRenderer->prepare_scene(ptAppData->ptScene);
+        gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
+        plRenderViewDesc tViewDesc0 = {
+            .ptCamera = ptCamera,
+            .ptCullCamera = ptAppData->bFrustumCulling ? ptCamera : NULL
+        };
+        gptRenderer->render_view(ptAppData->ptView, &tViewDesc0);
+
     }
-
-    if(ptAppData->bPhysicsDebugDraw)
-    {
-        plDrawList3D* ptDrawlist = gptRendererDebug->get_drawlist(ptAppData->ptView);
-        gptPhysics->draw(ptAppData->ptComponentLibrary, ptDrawlist);
-    }
-
-    // debug rendering
-    if(ptAppData->bShowDebugLights)
-    {
-        plLightComponent* ptLights = NULL;
-        const uint32_t uLightCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptRendererEcs->get_ecs_type_key_light(), (void**)&ptLights, NULL);
-        gptRendererDebug->draw_lights(ptAppData->ptView, ptLights, uLightCount);
-    }
-
-    if(ptAppData->bDrawAllBoundingBoxes)
-        gptRendererDebug->draw_all_bound_boxes(ptAppData->ptView);
-
-    if(ptAppData->bShowBVH)
-        gptRendererDebug->draw_bvh(ptAppData->ptView);
-
-    // render scene
-    gptRenderer->prepare_scene(ptAppData->ptScene);
-    gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
-    plRenderViewDesc tViewDesc0 = {
-        .ptCamera = ptCamera,
-        .ptCullCamera = ptAppData->bFrustumCulling ? ptCamera : NULL
-    };
-    gptRenderer->render_view(ptAppData->ptView, &tViewDesc0);
 
     // main "editor" debug window
-    if(ptAppData->bShowPilotLightTool)
+    if(ptAppData->ptScene && ptAppData->bShowPilotLightTool)
         pl__show_editor_window(ptAppData);
+    else
+        pl__show_init_window(ptAppData);
+
+    if(ptAppData->bShowUiDemo)
+        pl__show_ui_demo_window(ptAppData);
+
+    if(ptAppData->bShowUiStyle)
+        gptUI->show_style_editor_window(&ptAppData->bShowUiStyle);
+
+    if(ptAppData->bShowUiDebug)
+        gptUI->show_debug_window(&ptAppData->bShowUiDebug);
 
     // add full screen quad for offscreen render
     if(ptAppData->ptScene)
@@ -884,6 +742,41 @@ pl_app_update(plAppData* ptAppData)
 //-----------------------------------------------------------------------------
 
 void
+pl__show_init_window(plAppData* ptAppData)
+{
+    plIO* ptIO = gptIO->get_io();
+    plUiWindowFlags tWindowFlags = PL_UI_WINDOW_FLAGS_NONE;
+    if(ptAppData->bEditorAttached)
+    {
+        tWindowFlags = PL_UI_WINDOW_FLAGS_NO_TITLE_BAR | PL_UI_WINDOW_FLAGS_NO_RESIZE | PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR;
+        gptUI->set_next_window_pos(pl_create_vec2(0, 0), PL_UI_COND_ALWAYS);
+        gptUI->set_next_window_size(pl_create_vec2(600.0f, ptIO->tMainViewportSize.y), PL_UI_COND_ALWAYS);
+    }
+
+    if(gptUI->begin_window("Scene Selection", NULL, tWindowFlags))
+    {
+        gptUI->text("Select a Scene");
+        gptUI->layout_static(0.0f, 75.0f, 1);
+        if(gptUI->button("Refresh")) pl__refresh_files(ptAppData);
+        gptUI->layout_dynamic(0.0f, 1);
+        
+        gptUI->dummy((plVec2){100.0f, 25.0f});
+        gptUI->separator_text("Scenes");
+        bool bPlaceHolder = false;
+        for(uint32_t i = 0; i < pl_sb_size(ptAppData->sbtSceneFiles); i++)
+        {
+            if(gptUI->selectable(ptAppData->sbtSceneFiles[i].acName, &bPlaceHolder, 0))
+            {
+                pl_sprintf(ptAppData->acCurrentScene, "../internal/sandbox/scene-%s.json", ptAppData->sbtSceneFiles[i].acName);
+                pl__load_scene(ptAppData, ptAppData->acCurrentScene);
+            }
+        }
+
+        gptUI->end_window();
+    }
+}
+
+void
 pl__show_editor_window(plAppData* ptAppData)
 {
     plIO* ptIO = gptIO->get_io();
@@ -909,6 +802,7 @@ pl__show_editor_window(plAppData* ptAppData)
     gptRenderer->get_fog_options(ptAppData->ptScene, &tFogOptions);
 
     bool bReloadShaders = false;
+    bool bReloadScene = false;
 
     plTerrainRuntimeOptions* ptRuntimeOptions = gptRendererTerrain->get_runtime_options(ptAppData->ptTerrain);
 
@@ -960,20 +854,24 @@ pl__show_editor_window(plAppData* ptAppData)
         {
             plScreenLogFlags tScreenLogFlags = gptScreenLog->get_flags();
 
-            // if(gptUI->button("Add Model 0"))
-            // {
-            //     plModelLoaderData tLoaderData = {0};
-            //     plMat4 tModelTranslation = pl_mat4_translate_xyz(0.0f, 0.0f, 0.0f);
-            //     gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, "/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", &tModelTranslation, &tLoaderData);
+            if(gptUI->button("Reload Scene"))
+            {
+                gptRenderer->destroy_view(ptAppData->ptView);
+                gptRenderer->destroy_scene(ptAppData->ptScene);
+                ptAppData->ptView = NULL;
+                ptAppData->ptScene = NULL;
+                pl__load_scene(ptAppData, ptAppData->acCurrentScene);
+                bReloadScene = true;
+            }
 
-            //     plMaterialComponent* ptMaterials = NULL;
-            //     const plEntity* ptMaterialEntities = NULL;
-            //     const uint32_t uMaterialCount = gptEcs->get_components(ptAppData->ptComponentLibrary, gptMaterial->get_ecs_type_key(), (void**)&ptMaterials, &ptMaterialEntities);
-            //     gptRenderer->add_materials_to_scene(ptAppData->ptScene, uMaterialCount, ptMaterialEntities);
-
-            //     bool bResult = gptRenderer->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData.uObjectCount, tLoaderData.atObjects);
-            //     gptModelLoader->free_data(&tLoaderData);
-            // }
+            if(gptUI->button("Unload Scene"))
+            {
+                gptRenderer->destroy_view(ptAppData->ptView);
+                gptRenderer->destroy_scene(ptAppData->ptScene);
+                ptAppData->ptView = NULL;
+                ptAppData->ptScene = NULL;
+                pl__refresh_files(ptAppData);
+            }
 
             bool bHideScreenLog = tScreenLogFlags & PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES;
             if(gptUI->checkbox("Hide Screen Log", &bHideScreenLog))
@@ -1281,6 +1179,9 @@ pl__show_editor_window(plAppData* ptAppData)
         }
         if(gptUI->begin_collapsing_header(ICON_FA_USER_GEAR " User Interface", 0))
         {
+            gptUI->checkbox("UI Demo", &ptAppData->bShowUiDemo);
+            gptUI->checkbox("UI Debug", &ptAppData->bShowUiDebug);
+            gptUI->checkbox("UI Style", &ptAppData->bShowUiStyle);
             gptUI->end_collapsing_header();
         }
 
@@ -1298,14 +1199,17 @@ pl__show_editor_window(plAppData* ptAppData)
         gptUI->end_window();
     }
 
-    gptRenderer->set_tonemap_options(ptAppData->ptView, &tTonemapOptions);
-    gptRenderer->set_lighting_options(ptAppData->ptScene, &tLightingOptions);
-    gptRendererEditor->set_scene_options(ptAppData->ptScene, &tEditorSceneOptions);
-    gptRendererEditor->set_view_options(ptAppData->ptView, &tEditorViewOptions);
-    gptRenderer->set_bloom_options(ptAppData->ptView, &tBloomOptions);
-    gptRenderer->set_fog_options(ptAppData->ptScene, &tFogOptions);
-    gptRenderer->set_shadow_options(ptAppData->ptScene, &tShadowOptions);
-    gptRendererDebug->set_scene_options(ptAppData->ptScene, &tDebugOptions);
+    if(!bReloadScene)
+    {
+        gptRenderer->set_tonemap_options(ptAppData->ptView, &tTonemapOptions);
+        gptRenderer->set_lighting_options(ptAppData->ptScene, &tLightingOptions);
+        gptRendererEditor->set_scene_options(ptAppData->ptScene, &tEditorSceneOptions);
+        gptRendererEditor->set_view_options(ptAppData->ptView, &tEditorViewOptions);
+        gptRenderer->set_bloom_options(ptAppData->ptView, &tBloomOptions);
+        gptRenderer->set_fog_options(ptAppData->ptScene, &tFogOptions);
+        gptRenderer->set_shadow_options(ptAppData->ptScene, &tShadowOptions);
+        gptRendererDebug->set_scene_options(ptAppData->ptScene, &tDebugOptions);
+    }
 
     if(bReloadShaders)
     {
@@ -1358,6 +1262,1121 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptRendererEcs      = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
     gptRendererDebug    = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
     gptRendererEditor   = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
+}
+
+void
+pl__refresh_files(plAppData* ptAppData)
+{
+    pl_sb_reset(ptAppData->sbtSceneFiles);
+    plDirectoryInfo tDirectoryInfo = {0};
+    gptFile->get_directory_info("../internal/sandbox/", &tDirectoryInfo);
+    pl_sb_reserve(ptAppData->sbtSceneFiles, tDirectoryInfo.uFileCount);
+    for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
+    {
+        if(tDirectoryInfo.sbtEntries[i].tType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+        {
+            char acExtensionBuffer[16] = {0};
+            char acFileNameOnly[PL_MAX_PATH_LENGTH] = {0};
+            pl_str_get_file_extension(tDirectoryInfo.sbtEntries[i].acName, acExtensionBuffer, 16);
+            if(pl_str_equal("json", acExtensionBuffer))
+            {
+                pl_str_get_file_name_only(tDirectoryInfo.sbtEntries[i].acName, acFileNameOnly, 128);
+                pl_sb_add(ptAppData->sbtSceneFiles);
+                strncpy(pl_sb_back(ptAppData->sbtSceneFiles).acName, &acFileNameOnly[6], PL_MAX_PATH_LENGTH);
+            }
+        }
+    }
+    gptFile->cleanup_directory_info(&tDirectoryInfo);
+}
+
+void
+pl__load_scene(plAppData* ptAppData, const char* pcPath)
+{
+    plIO* ptIO = gptIO->get_io();
+
+    gptEcs->reset_library(ptAppData->ptComponentLibrary);
+
+    plSceneDesc tSceneInit = {
+        .ptComponentLibrary = ptAppData->ptComponentLibrary
+    };
+    ptAppData->ptScene = gptRenderer->create_scene(&tSceneInit);
+    plViewDesc tViewDesc = PL_ZERO_INIT;
+    tViewDesc.uWidth = (uint32_t)ptIO->tMainViewportSize.x;
+    tViewDesc.uHeight = (uint32_t)ptIO->tMainViewportSize.y;
+    ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc);
+
+    plRendererEditorSceneOptions tEditorSceneOptions = PL_ZERO_INIT;
+    plRendererEditorViewOptions tEditorViewOptions = PL_ZERO_INIT;
+    plRendererDebugSceneOptions tDebugOptions = PL_ZERO_INIT;
+    plRendererTonemapOptions tTonemapOptions = PL_ZERO_INIT;
+    plRendererLightingOptions tLightingOptions = PL_ZERO_INIT;
+    plRendererShadowOptions tShadowOptions = PL_ZERO_INIT;
+    plRendererBloomOptions tBloomOptions = PL_ZERO_INIT;
+    plRendererFogOptions tFogOptions = PL_ZERO_INIT;
+    
+    gptRenderer->get_bloom_options(ptAppData->ptView, &tBloomOptions);
+    gptRenderer->get_shadow_options(ptAppData->ptScene, &tShadowOptions);
+    gptRenderer->get_lighting_options(ptAppData->ptScene, &tLightingOptions);
+    gptRenderer->get_tonemap_options(ptAppData->ptView, &tTonemapOptions);
+    gptRendererEditor->get_scene_options(ptAppData->ptScene, &tEditorSceneOptions);
+    gptRendererEditor->get_view_options(ptAppData->ptView, &tEditorViewOptions);
+    gptRendererDebug->get_scene_options(ptAppData->ptScene, &tDebugOptions);
+    gptRenderer->get_fog_options(ptAppData->ptScene, &tFogOptions);
+
+    size_t szJsonFileSize = gptVfs->get_file_size_str(pcPath);
+    uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
+    memset(puFileBuffer, 0, szJsonFileSize + 1);
+
+    plVfsFileHandle tHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tHandle, puFileBuffer, &szJsonFileSize);
+    gptVfs->close_file(tHandle);
+
+    plJsonObject* ptRootJsonObject = NULL;
+    pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
+
+    plJsonObject* ptSceneObject = pl_json_member(ptRootJsonObject, "scene");
+
+    plJsonObject* ptEditorObject = pl_json_member(ptSceneObject, "editor");
+    ptAppData->bShowPilotLightTool = pl_json_bool_member(ptEditorObject, "show", true);
+    ptAppData->bShowBVH = pl_json_bool_member(ptEditorObject, "show bvh", false);
+    ptAppData->bFrustumCulling = pl_json_bool_member(ptEditorObject, "frustum culling", true);
+    ptAppData->bMSAA = pl_json_bool_member(ptEditorObject, "ui msaa", true);
+    ptAppData->bShowDebugLights = pl_json_bool_member(ptEditorObject, "show debug lights", true);
+    ptAppData->bDrawAllBoundingBoxes = pl_json_bool_member(ptEditorObject, "show bounding boxes", false);
+    ptAppData->bContinuousBVH = pl_json_bool_member(ptEditorObject, "continuous bvh", false);
+    ptAppData->bPhysicsDebugDraw = pl_json_bool_member(ptEditorObject, "show physics debug", false);
+    tDebugOptions.bWireframe = pl_json_bool_member(ptEditorObject, "wireframe", false);
+    tDebugOptions.bShowOrigin = pl_json_bool_member(ptEditorObject, "show origin", false);
+    tDebugOptions.bShowProbes = pl_json_bool_member(ptEditorObject, "show probes", false);
+    tEditorViewOptions.bShowSkybox = pl_json_bool_member(ptEditorObject, "show skybox", true);
+    tEditorViewOptions.bShowGrid = pl_json_bool_member(ptEditorObject, "show grid", false);
+    tEditorViewOptions.bShowSelectedBoundingBox = pl_json_bool_member(ptEditorObject, "show selection bounding box", false);
+    tEditorViewOptions.fGridCellSize = pl_json_float_member(ptEditorObject, "grid cell size", 0.025f);
+    tEditorViewOptions.fGridMinPixelsBetweenCells = pl_json_float_member(ptEditorObject, "grid min pixels between cells", 2.0f);
+    pl_json_float_array_member(ptEditorObject, "grid color thin", tEditorViewOptions.tGridColorThin.d, NULL);
+    pl_json_float_array_member(ptEditorObject, "grid color thick", tEditorViewOptions.tGridColorThick.d, NULL);
+
+    plJsonObject* ptRendererObject = pl_json_member(ptSceneObject, "renderer");
+
+    plJsonObject* ptLightingObject = pl_json_member(ptRendererObject, "lighting");
+
+    bool bIbl = pl_json_bool_member(ptLightingObject, "ibl", true);
+    bool bNormalMapping = pl_json_bool_member(ptLightingObject, "normal mapping", true);
+    bool bPunctualLights = pl_json_bool_member(ptLightingObject, "punctual lights", true);
+
+    if(bIbl) tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
+    else     tLightingOptions.tFlags &= ~PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
+
+    if(bNormalMapping) tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
+    else               tLightingOptions.tFlags &= ~PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
+
+    if(bPunctualLights) tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
+    else                tLightingOptions.tFlags &= ~PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
+
+    plJsonObject* ptShadowsObject = pl_json_member(ptRendererObject, "shadows");
+    tShadowOptions.fSlopeDepthBias = pl_json_float_member(ptShadowsObject, "slope depth bias", -1.750f);
+    tShadowOptions.fConstantDepthBias = pl_json_float_member(ptShadowsObject, "depth bias", -1.250f);
+    tShadowOptions.fMaxShadowRange = pl_json_float_member(ptShadowsObject, "max range", 100.0f);
+    bool bPcf = pl_json_bool_member(ptShadowsObject, "pcf", false);
+    if(bPcf) tShadowOptions.tFlags |= PL_RENDERER_SHADOW_FLAGS_PCF;
+    else     tShadowOptions.tFlags &= ~PL_RENDERER_SHADOW_FLAGS_PCF;
+
+    plJsonObject* ptBloomObject = pl_json_member(ptRendererObject, "bloom");
+    if(ptBloomObject)
+    {
+        bool bActive = pl_json_bool_member(ptBloomObject, "active", true);
+        if(bActive) tBloomOptions.tFlags = PL_RENDERER_BLOOM_FLAGS_ACTIVE;
+        tBloomOptions.fStrength = pl_json_float_member(ptBloomObject, "strength", 0.05f);
+        tBloomOptions.fRadius = pl_json_float_member(ptBloomObject, "radius", 1.5f);
+        tBloomOptions.uChainLength = pl_json_uint_member(ptBloomObject, "chain length", 5);
+    }
+
+    plJsonObject* ptTonemapObject = pl_json_member(ptRendererObject, "tonemap");
+    if(ptTonemapObject)
+    {
+        tTonemapOptions.fBrightness = pl_json_float_member(ptTonemapObject, "brightness", 0.0f);
+        tTonemapOptions.fContrast = pl_json_float_member(ptTonemapObject, "contrast", 1.0f);
+        tTonemapOptions.fSaturation = pl_json_float_member(ptTonemapObject, "saturation", 1.0f);
+        tTonemapOptions.fExposure = pl_json_float_member(ptTonemapObject, "exposure", 1.0f);
+
+        char acTonemapMode[64] = {0};
+        pl_json_string_member(ptTonemapObject, "mode", acTonemapMode, 64);
+        if(acTonemapMode[16] == 'S')      tTonemapOptions.tMode = PL_TONEMAP_MODE_SIMPLE;
+        else if(acTonemapMode[16] == 'R') tTonemapOptions.tMode = PL_TONEMAP_MODE_REINHARD;
+        else if(acTonemapMode[16] == 'K') tTonemapOptions.tMode = PL_TONEMAP_MODE_KHRONOS_PBR_NEUTRAL;
+        else if(acTonemapMode[16] == 'K') tTonemapOptions.tMode = PL_TONEMAP_MODE_KHRONOS_PBR_NEUTRAL;
+        else if(acTonemapMode[21] == 'N') tTonemapOptions.tMode = PL_TONEMAP_MODE_ACES_NARKOWICZ;
+        else if(acTonemapMode[26] == 'E') tTonemapOptions.tMode = PL_TONEMAP_MODE_ACES_HILL_EXPOSURE_BOOST;
+        else                              tTonemapOptions.tMode = PL_TONEMAP_MODE_ACES_HILL;
+    }
+
+    plJsonObject* ptFogObject = pl_json_member(ptRendererObject, "fog");
+    if(ptFogObject)
+    {
+        bool bActive = pl_json_bool_member(ptFogObject, "active", true);
+        if(bActive) tFogOptions.tFlags = PL_RENDERER_FOG_FLAGS_ACTIVE;
+        tFogOptions.fStart = pl_json_float_member(ptFogObject, "start", 1.0f);
+        tFogOptions.fCutOffDistance = pl_json_float_member(ptFogObject, "cut off distance", 1000.0f);
+        tFogOptions.fDensity = pl_json_float_member(ptFogObject, "density", 0.1f);
+        tFogOptions.fHeight = pl_json_float_member(ptFogObject, "height", 0.0f);
+        tFogOptions.fMaxOpacity = pl_json_float_member(ptFogObject, "max opacity", 0.1f);
+        tFogOptions.fHeightFalloff = pl_json_float_member(ptFogObject, "height falloff", 0.1f);
+        pl_json_float_array_member(ptFogObject, "color", tFogOptions.tColor.d, NULL);
+
+        char acFogMode[32] = {0};
+        pl_json_string_member(ptFogObject, "mode", acFogMode, 32);
+
+        tFogOptions.tMode = PL_RENDERER_FOG_MODE_LINEAR;
+        if(acFogMode[21] == 'E')
+            tFogOptions.tMode = PL_RENDERER_FOG_MODE_EXPONENTIAL;
+    }
+
+    gptRenderer->set_tonemap_options(ptAppData->ptView, &tTonemapOptions);
+    gptRenderer->set_lighting_options(ptAppData->ptScene, &tLightingOptions);
+    gptRendererEditor->set_scene_options(ptAppData->ptScene, &tEditorSceneOptions);
+    gptRendererEditor->set_view_options(ptAppData->ptView, &tEditorViewOptions);
+    gptRenderer->set_bloom_options(ptAppData->ptView, &tBloomOptions);
+    gptRenderer->set_fog_options(ptAppData->ptScene, &tFogOptions);
+    gptRenderer->set_shadow_options(ptAppData->ptScene, &tShadowOptions);
+    gptRendererDebug->set_scene_options(ptAppData->ptScene, &tDebugOptions);
+    gptRendererEditor->reload_scene_shaders(ptAppData->ptScene);
+
+    plJsonObject* ptCameraObject = pl_json_member(ptSceneObject, "camera");
+    plVec3d tCameraPosition = {0};
+    pl_json_double_array_member(ptCameraObject, "position", tCameraPosition.d, NULL);
+    float fYFov = pl_json_float_member(ptCameraObject, "yfov", PL_PI_3);
+    float fNearZ = pl_json_float_member(ptCameraObject, "near plane", 0.1f);
+    float fFarZ = pl_json_float_member(ptCameraObject, "far plane", 1000.0f);
+    float fYaw = pl_json_float_member(ptCameraObject, "yaw", 0.0f);
+    float fPitch = pl_json_float_member(ptCameraObject, "pitch", 0.0f);
+    plCamera* ptMainCamera = NULL;
+    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptComponentLibrary, "main camera", tCameraPosition, fYFov, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, fNearZ, fFarZ, true, &ptMainCamera);
+    gptCamera->set_pitch_yaw(ptMainCamera, fPitch, fYaw);
+    gptCamera->update(ptMainCamera);
+    gptScript->attach(ptAppData->ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptAppData->tMainCamera, NULL);
+
+    plJsonObject* ptSkyboxObject = pl_json_member(ptSceneObject, "skybox");
+    uint32_t uSkyboxResolution = pl_json_uint_member(ptSkyboxObject, "resolution", 1024);
+    char acSkyboxPath[128] = {0};
+    pl_json_string_member(ptSkyboxObject, "path", acSkyboxPath, 128);
+    gptRendererEcs->load_skybox_from_panorama(ptAppData->ptScene, acSkyboxPath, uSkyboxResolution);
+
+    uint32_t uProbeCount = 0;
+    plJsonObject* ptProbesObject = pl_json_array_member(ptSceneObject, "probes", &uProbeCount);
+    for(uint32_t i = 0; i < uProbeCount; i++)
+    {
+        plJsonObject* ptProbeObject = pl_json_member_by_index(ptProbesObject, i);
+        bool bActive = pl_json_bool_member(ptProbeObject, "active", true);
+        if(!bActive)
+            continue;
+
+        plVec3 tProbePosition = {0};
+        pl_json_float_array_member(ptProbeObject, "position", tProbePosition.d, NULL);
+
+        plEnvironmentProbeComponent* ptProbe = NULL;
+        plEntity tProbeEntity = gptRendererEcs->create_environment_probe(ptAppData->ptComponentLibrary, "Probe", tProbePosition, &ptProbe);
+        ptProbe->fRange = pl_json_float_member(ptProbeObject, "range", 30.0);
+        ptProbe->uResolution = pl_json_uint_member(ptProbeObject, "resolution", 128);
+        ptProbe->uSamples = pl_json_uint_member(ptProbeObject, "samples", 512);
+        ptProbe->uInterval = pl_json_uint_member(ptProbeObject, "interval", 1);
+
+        char acFlag0[64] = {0};
+        char acFlag1[64] = {0};
+        char acFlag2[64] = {0};
+        char acFlag3[64] = {0};
+        char* aacFlags[4] = {acFlag0, acFlag1, acFlag2, acFlag3};
+        uint32_t auLengths[4] = {64, 64, 64, 64};
+        uint32_t uFlagCount = 0;
+        pl_json_string_array_member(ptProbeObject, "flags", aacFlags, &uFlagCount, auLengths);
+        for(uint32_t k = 0; k < uFlagCount; k++)
+        {
+            if(aacFlags[k][27] == 'I')      ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+            else if(aacFlags[k][27] == 'R') ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
+            else if(aacFlags[k][27] == 'D') ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+            else if(aacFlags[k][27] == 'P') ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX;
+        }
+
+        gptRendererEcs->add_probes_to_scene(ptAppData->ptScene, 1, &tProbeEntity);
+    }
+
+    uint32_t uLightCount = 0;
+    plJsonObject* ptLightsObject = pl_json_array_member(ptSceneObject, "lights", &uLightCount);
+    for(uint32_t i = 0; i < uLightCount; i++)
+    {
+        plJsonObject* ptLightObject = pl_json_member_by_index(ptLightsObject,i);
+
+        bool bActive = pl_json_bool_member(ptLightObject, "active", true);
+        if(!bActive)
+            continue;
+        plLightComponent* ptLight = NULL;
+
+        char acType[32] = {0};
+        pl_json_string_member(ptLightObject, "type", acType, 32);
+
+        plVec3 tDirection = {0.0f, -1.0f, 0.0f};
+        plVec3 tPosition = {0};
+
+        if(acType[0] != 'p')
+            pl_json_float_array_member(ptLightObject, "direction", tDirection.d, NULL);
+
+        if(acType[0] != 'd')
+            pl_json_float_array_member(ptLightObject, "position", tPosition.d, NULL);
+
+        plVec3 tColor = {1.0f, 1.0f, 1.0f};
+        pl_json_float_array_member(ptLightObject, "color", tColor.d, NULL);
+
+        char acName[128] = {0};
+        pl_json_string_member(ptLightObject, "name", acName, 128);
+
+        plEntity tLight = {0};
+
+        if(acType[0] == 'd')
+        {
+            tLight = gptRendererEcs->create_directional_light(ptAppData->ptComponentLibrary, acName, tDirection, &ptLight);
+            ptLight->uCascadeCount = pl_json_uint_member(ptLightObject, "cascades", 4);
+            ptLight->fShadowLambda = pl_json_float_member(ptLightObject, "shadow lambda", 0.6f);
+        }
+        else if(acType[0] == 'p')
+        {
+            tLight = gptRendererEcs->create_point_light(ptAppData->ptComponentLibrary, acName, tPosition, &ptLight);
+        }
+        else if(acType[0] == 's')
+        {
+            tLight = gptRendererEcs->create_spot_light(ptAppData->ptComponentLibrary, acName, tPosition, tDirection, &ptLight);
+            ptLight->fInnerConeAngle = pl_json_float_member(ptLightObject, "inner cone angle", 0.0f);
+            ptLight->fOuterConeAngle = pl_json_float_member(ptLightObject, "outer cone angle", PL_PI_4 / 2);
+        }
+        ptLight->fRadius = pl_json_float_member(ptLightObject, "radius", 0.25f);
+        ptLight->fRange = pl_json_float_member(ptLightObject, "range", 5.0f);
+        ptLight->tColor = tColor;
+        ptLight->fIntensity = pl_json_float_member(ptLightObject, "intensity", 1.0f);
+        ptLight->uShadowResolution = pl_json_uint_member(ptLightObject, "shadow resolution", 512);
+
+        char acFlag0[64] = {0};
+        char acFlag1[64] = {0};
+        char* aacFlags[2] = {acFlag0, acFlag1};
+        uint32_t auLengths[] = {64, 64};
+        uint32_t uFlagCount = 0;
+        pl_json_string_array_member(ptLightObject, "flags", aacFlags, &uFlagCount, auLengths);
+        for(uint32_t k = 0; k < uFlagCount; k++)
+        {
+            if(aacFlags[k][14] == 'C')      ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
+            else if(aacFlags[k][14] == 'V') ptLight->tFlags |= PL_LIGHT_FLAG_VISUALIZER;
+        }
+
+        if(acType[0] != 'd')
+        {
+            plTransformComponent* ptSLightTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptComponentLibrary, gptEcs->get_ecs_type_key_transform(), tLight);
+            ptSLightTransform->tTranslation = tPosition;
+        }
+
+        gptRendererEcs->add_lights_to_scene(ptAppData->ptScene, 1, &tLight);
+    }
+
+    plModelLoaderData tLoaderData = {0};
+    uint32_t uModelCount = 0;
+    plJsonObject* ptModelsObject = pl_json_array_member(ptSceneObject, "models", &uModelCount);
+    for(uint32_t i = 0; i < uModelCount; i++)
+    {
+        plJsonObject* ptModelObject = pl_json_member_by_index(ptModelsObject, i);
+        plVec3 tScale = {1.0f, 1.0f, 1.0f};
+        plVec3 tTranslation = {0};
+        plVec4 tRotation = {0};
+        pl_json_float_array_member(ptModelObject, "scale", tScale.d, NULL);
+        pl_json_float_array_member(ptModelObject, "translation", tTranslation.d, NULL);
+        pl_json_float_array_member(ptModelObject, "rotation", tRotation.d, NULL);
+
+        plMat4 tTransformation = pl_rotation_translation_scale(tRotation, tTranslation, tScale);
+
+        char acModelPath[256] = {0};
+        pl_json_string_member(ptModelObject, "path", acModelPath, 256);
+
+        bool bActive = pl_json_bool_member(ptModelObject, "active", true);
+        if(bActive)
+            gptModelLoader->load_gltf(ptAppData->ptComponentLibrary, acModelPath, &tTransformation, &tLoaderData);
+    }
+    
+    pl_unload_json(&ptRootJsonObject);
+    PL_FREE(puFileBuffer);
+
+    bool bResult = gptRendererEcs->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData.uObjectCount, tLoaderData.atObjects);
+
+#if 0
+    plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
+
+    plTerrainProcessTileInfo tTile = {
+        .iTreeDepth    = 6,
+        .fMaxHeight    = 2000.0f,
+        .fMinHeight    = -40.0f,
+        .fMaxBaseError = 3.0f,
+        .tCenter = {0}
+    };
+    plTerrainProcessInfo tTerrainInfo = {
+        .fMetersPerPixel = 20.0f,
+        .uHorizontalTiles = 1,
+        .uVerticalTiles = 1,
+        .uSize = 4096,
+        .uTileCount = 1,
+        .atTiles = &tTile
+    };
+
+    sprintf(tTile.acOutputFile, "/assets/mountains.chu");
+    sprintf(tTile.acHeightMapFile, "/assets/mountains.png");
+
+    gptTerrain->process(&tTerrainInfo);
+    ptAppData->ptTerrain = gptRendererTerrain->create(ptCmdBuffer, &tTerrainInfo);
+    gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
+    gptRendererTerrain->set(ptAppData->ptScene, ptAppData->ptTerrain);
+#endif
+
+    gptModelLoader->free_data(&tLoaderData);
+
+    if(ptAppData->bMSAA)
+        gptStarter->activate_msaa();
+    else
+        gptStarter->deactivate_msaa();
+
+    gptRendererEditor->rebuild_scene_bvh(ptAppData->ptScene);
+}
+
+void
+pl__show_ui_demo_window(plAppData* ptAppData)
+{
+    if(gptUI->begin_window("UI Demo", &ptAppData->bShowUiDemo, PL_UI_WINDOW_FLAGS_HORIZONTAL_SCROLLBAR))
+    {
+
+        static const float pfRatios0[] = {1.0f};
+        gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios0);
+
+        if(gptUI->begin_collapsing_header("Help", 0))
+        {
+            gptUI->text("Under construction");
+            gptUI->end_collapsing_header();
+        }
+    
+        if(gptUI->begin_collapsing_header("Window Options", 0))
+        {
+            gptUI->text("Under construction");
+            gptUI->end_collapsing_header();
+        }
+
+        if(gptUI->begin_collapsing_header("Widgets", 0))
+        {
+            if(gptUI->tree_node("Basic", 0))
+            {
+
+                gptUI->layout_static(0.0f, 100, 2);
+                gptUI->button("Button");
+                gptUI->checkbox("Checkbox", NULL);
+
+                gptUI->layout_dynamic(0.0f, 2);
+                gptUI->button("Button");
+                gptUI->checkbox("Checkbox", NULL);
+
+                gptUI->layout_dynamic(0.0f, 1);
+                static char buff[64] = {'c', 'a', 'a'};
+                gptUI->input_text("label 0", buff, 64, 0);
+                static char buff2[64] = {'c', 'c', 'c'};
+                gptUI->input_text_hint("label 1", "hint", buff2, 64, 0);
+
+                static float fValue = 3.14f;
+                static int iValue117 = 117;
+
+                gptUI->input_float("label 2", &fValue, "%0.3f", 0);
+                gptUI->input_int("label 3", &iValue117, 0);
+
+                static int iValue = 0;
+                gptUI->layout_row_begin(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3);
+
+                gptUI->layout_row_push(0.33f);
+                gptUI->radio_button("Option 1", &iValue, 0);
+
+                gptUI->layout_row_push(0.33f);
+                gptUI->radio_button("Option 2", &iValue, 1);
+
+                gptUI->layout_row_push(0.34f);
+                gptUI->radio_button("Option 3", &iValue, 2);
+
+                gptUI->layout_row_end();
+
+                const float pfRatios[] = {1.0f};
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+                gptUI->separator();
+                gptUI->labeled_text("Label", "Value");
+                static int iValue1 = 0;
+                static float fValue1 = 23.0f;
+                static float fValue2 = 100.0f;
+                static int iValue2 = 3;
+                gptUI->slider_float("float slider 1", &fValue1, 0.0f, 100.0f, 0);
+                gptUI->slider_float("float slider 2", &fValue2, -50.0f, 100.0f, 0);
+                gptUI->slider_int("int slider 1", &iValue1, 0, 10, 0);
+                gptUI->slider_int("int slider 2", &iValue2, -5, 10, 0);
+                gptUI->drag_float("float drag", &fValue2, 1.0f, -100.0f, 100.0f, 0);
+                static int aiIntArray[4] = {0};
+                gptUI->input_int2("input int 2", aiIntArray, 0);
+                gptUI->input_int3("input int 3", aiIntArray, 0);
+                gptUI->input_int4("input int 4", aiIntArray, 0);
+
+                static float afFloatArray[4] = {0};
+                gptUI->input_float2("input float 2", afFloatArray, "%0.3f", 0);
+                gptUI->input_float3("input float 3", afFloatArray, "%0.3f", 0);
+                gptUI->input_float4("input float 4", afFloatArray, "%0.3f", 0);
+
+                if(gptUI->menu_item("Menu item 0", NULL, false, true))
+                {
+                    printf("menu item 0\n");
+                }
+
+                if(gptUI->menu_item("Menu item selected", "CTRL+M", true, true))
+                {
+                    printf("menu item selected\n");
+                }
+
+                if(gptUI->menu_item("Menu item disabled", NULL, false, false))
+                {
+                    printf("menu item disabled\n");
+                }
+
+                static bool bMenuSelection = false;
+                if(gptUI->menu_item_toggle("Menu item toggle", NULL, &bMenuSelection, true))
+                {
+                    printf("menu item toggle\n");
+                }
+
+                if(gptUI->begin_menu("menu (not ready)", true))
+                {
+
+                    if(gptUI->menu_item("Menu item 0", NULL, false, true))
+                    {
+                        printf("menu item 0\n");
+                    }
+
+                    if(gptUI->menu_item("Menu item selected", "CTRL+M", true, true))
+                    {
+                        printf("menu item selected\n");
+                    }
+
+                    if(gptUI->menu_item("Menu item disabled", NULL, false, false))
+                    {
+                        printf("menu item disabled\n");
+                    }
+                    if(gptUI->begin_menu("sub menu", true))
+                    {
+
+                        if(gptUI->menu_item("Menu item 0", NULL, false, true))
+                        {
+                            printf("menu item 0\n");
+                        }
+                        gptUI->end_menu();
+                    }
+                    gptUI->end_menu();
+                }
+
+
+                static uint32_t uComboSelect = 0;
+                static const char* apcCombo[] = {
+                    "Tomato",
+                    "Onion",
+                    "Carrot",
+                    "Lettuce",
+                    "Fish"
+                };
+                bool abCombo[5] = {0};
+                abCombo[uComboSelect] = true;
+                if(gptUI->begin_combo("Combo", apcCombo[uComboSelect], PL_UI_COMBO_FLAGS_NONE))
+                {
+                    for(uint32_t i = 0; i < 5; i++)
+                    {
+                        if(gptUI->selectable(apcCombo[i], &abCombo[i], 0))
+                        {
+                            uComboSelect = i;
+                            gptUI->close_current_popup();
+                        }
+                    }
+                    gptUI->end_combo();
+                }
+
+                const float pfRatios22[] = {200.0f, 120.0f};
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2, pfRatios22);
+                gptUI->button("Hover me!");
+                if(gptUI->was_last_item_hovered())
+                {
+                    gptUI->begin_tooltip();
+                    gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios22);
+                    gptUI->text("I'm a tooltip!");
+                    gptUI->end_tooltip();
+                }
+                gptUI->button("Just a button");
+
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("Selectables", 0))
+            {
+                static bool bSelectable0 = false;
+                static bool bSelectable1 = false;
+                static bool bSelectable2 = false;
+                gptUI->selectable("Selectable 1", &bSelectable0, 0);
+                gptUI->selectable("Selectable 2", &bSelectable1, 0);
+                gptUI->selectable("Selectable 3", &bSelectable2, 0);
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("Combo", 0))
+            {
+                plUiComboFlags tComboFlags = PL_UI_COMBO_FLAGS_NONE;
+
+                static bool bComboHeightSmall = false;
+                static bool bComboHeightRegular = false;
+                static bool bComboHeightLarge = false;
+                static bool bComboNoArrow = false;
+
+                gptUI->checkbox("PL_UI_COMBO_FLAGS_HEIGHT_SMALL", &bComboHeightSmall);
+                gptUI->checkbox("PL_UI_COMBO_FLAGS_HEIGHT_REGULAR", &bComboHeightRegular);
+                gptUI->checkbox("PL_UI_COMBO_FLAGS_HEIGHT_LARGE", &bComboHeightLarge);
+                gptUI->checkbox("PL_UI_COMBO_FLAGS_NO_ARROW_BUTTON", &bComboNoArrow);
+
+                if(bComboHeightSmall)   tComboFlags |= PL_UI_COMBO_FLAGS_HEIGHT_SMALL;
+                if(bComboHeightRegular) tComboFlags |= PL_UI_COMBO_FLAGS_HEIGHT_REGULAR;
+                if(bComboHeightLarge)   tComboFlags |= PL_UI_COMBO_FLAGS_HEIGHT_LARGE;
+                if(bComboNoArrow)       tComboFlags |= PL_UI_COMBO_FLAGS_NO_ARROW_BUTTON;
+
+                static uint32_t uComboSelect = 0;
+                static const char* apcCombo[] = {
+                    "Tomato",
+                    "Onion",
+                    "Carrot",
+                    "Lettuce",
+                    "Fish",
+                    "Beef",
+                    "Chicken",
+                    "Cereal",
+                    "Wheat",
+                    "Cane",
+                };
+                bool abCombo[10] = {0};
+                abCombo[uComboSelect] = true;
+                if(gptUI->begin_combo("Combo", apcCombo[uComboSelect], tComboFlags))
+                {
+                    for(uint32_t i = 0; i < 10; i++)
+                    {
+                        if(gptUI->selectable(apcCombo[i], &abCombo[i], 0))
+                        {
+                            uComboSelect = i;
+                            gptUI->close_current_popup();
+                        }
+                    }
+                    gptUI->end_combo();
+                }
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("Plotting", 0))
+            {
+                gptUI->progress_bar(0.75f, pl_create_vec2(-1.0f, 0.0f), NULL);
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("Trees", 0))
+            {
+                
+                if(gptUI->tree_node("Root Node", 0))
+                {
+                    if(gptUI->tree_node("Child 1", 0))
+                    {
+                        gptUI->button("Press me");
+                        gptUI->tree_pop();
+                    }
+                    if(gptUI->tree_node("Child 2", 0))
+                    {
+                        gptUI->button("Press me");
+                        gptUI->tree_pop();
+                    }
+                    gptUI->tree_pop();
+                }
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("Tabs", 0))
+            {
+                if(gptUI->begin_tab_bar("Tabs1", 0))
+                {
+                    if(gptUI->begin_tab("Tab 0", 0))
+                    {
+                        static bool bSelectable0 = false;
+                        static bool bSelectable1 = false;
+                        static bool bSelectable2 = false;
+                        gptUI->selectable("Selectable 1", &bSelectable0, 0);
+                        gptUI->selectable("Selectable 2", &bSelectable1, 0);
+                        gptUI->selectable("Selectable 3", &bSelectable2, 0);
+                        gptUI->end_tab();
+                    }
+
+                    if(gptUI->begin_tab("Tab 1", 0))
+                    {
+                        static int iValue = 0;
+                        gptUI->radio_button("Option 1", &iValue, 0);
+                        gptUI->radio_button("Option 2", &iValue, 1);
+                        gptUI->radio_button("Option 3", &iValue, 2);
+                        gptUI->end_tab();
+                    }
+
+                    if(gptUI->begin_tab("Tab 2", 0))
+                    {
+                        if(gptUI->begin_child("CHILD2", 0, 0))
+                        {
+                            const float pfRatios3[] = {600.0f};
+                            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios3);
+
+                            for(uint32_t i = 0; i < 25; i++)
+                                gptUI->text("Long text is happening11111111111111111111111111111111111111111111111111111111123456789");
+                            gptUI->end_child();
+                        }
+                        
+                        gptUI->end_tab();
+                    }
+                    gptUI->end_tab_bar();
+                }
+                gptUI->tree_pop();
+            }
+            gptUI->end_collapsing_header();
+        }
+
+        if(gptUI->begin_collapsing_header("Scrolling", 0))
+        {
+            const float pfRatios2[] = {0.5f, 0.50f};
+            const float pfRatios3[] = {600.0f};
+
+            gptUI->layout_static(0.0f, 200, 1);
+            static bool bUseClipper = true;
+            gptUI->checkbox("Use Clipper", &bUseClipper);
+            
+            gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 300.0f, 2, pfRatios2);
+            if(gptUI->begin_child("CHILD", 0, 0))
+            {
+
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
+
+
+                if(bUseClipper)
+                {
+                    plUiClipper tClipper = {1000000};
+                    while(gptUI->step_clipper(&tClipper))
+                    {
+                        for(uint32_t i = tClipper.uDisplayStart; i < tClipper.uDisplayEnd; i++)
+                        {
+                            gptUI->text("%u Label", i);
+                            gptUI->text("%u Value", i);
+                        } 
+                    }
+                }
+                else
+                {
+                    for(uint32_t i = 0; i < 1000000; i++)
+                    {
+                            gptUI->text("%u Label", i);
+                            gptUI->text("%u Value", i);
+                    }
+                }
+
+
+                gptUI->end_child();
+            }
+            
+
+            if(gptUI->begin_child("CHILD2", 0, 0))
+            {
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 1, pfRatios3);
+
+                for(uint32_t i = 0; i < 25; i++)
+                    gptUI->text("Long text is happening11111111111111111111111111111111111111111111111111111111123456789");
+
+                gptUI->end_child();
+            }
+            
+
+            gptUI->end_collapsing_header();
+        }
+
+        if(gptUI->begin_collapsing_header("Layout Systems", 0))
+        {
+            gptUI->text("General Notes");
+            gptUI->text("  - systems ordered by increasing flexibility");
+            gptUI->separator();
+
+            if(gptUI->tree_node("System 1 - simple dynamic", 0))
+            {
+                static int iWidgetCount = 5;
+                static float fWidgetHeight = 0.0f;
+                gptUI->separator_text("Notes");
+                gptUI->text("  - wraps (i.e. will add rows)");
+                gptUI->text("  - evenly spaces widgets based on available space");
+                gptUI->text("  - height of 0.0f sets row height equal to minimum height");
+                gptUI->text("    of maximum height widget");
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Options");
+                gptUI->slider_int("Widget Count", &iWidgetCount, 1, 10, 0);
+                gptUI->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Example");
+                gptUI->layout_dynamic(fWidgetHeight, (uint32_t)iWidgetCount);
+                gptUI->vertical_spacing();
+                for(int i = 0; i < iWidgetCount * 2; i++)
+                {
+                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
+                    gptUI->button(ptAppData->sbcTempBuffer);
+                    pl_sb_reset(ptAppData->sbcTempBuffer);
+                }
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("System 2 - simple static", 0))
+            {
+                static int iWidgetCount = 5;
+                static float fWidgetWidth = 100.0f;
+                static float fWidgetHeight = 0.0f;
+                gptUI->separator_text("Notes");
+                gptUI->text("  - wraps (i.e. will add rows)");
+                gptUI->text("  - provides each widget with the same specified width");
+                gptUI->text("  - height of 0.0f sets row height equal to minimum height");
+                gptUI->text("    of maximum height widget");
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Options");
+                gptUI->slider_int("Widget Count", &iWidgetCount, 1, 10, 0);
+                gptUI->slider_float("Width", &fWidgetWidth, 50.0f, 500.0f, 0);
+                gptUI->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Example");
+                gptUI->layout_static(fWidgetHeight, fWidgetWidth, (uint32_t)iWidgetCount);
+                gptUI->vertical_spacing();
+                for(int i = 0; i < iWidgetCount * 2; i++)
+                {
+                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
+                    gptUI->button(ptAppData->sbcTempBuffer);
+                    pl_sb_reset(ptAppData->sbcTempBuffer);
+                }
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("System 3 - single system row", 0))
+            {
+                static bool bDynamicRow = false;
+                static int iWidgetCount = 2;
+                static float afWidgetStaticWidths[4] = {
+                    100.0f, 100.0f, 100.0f, 100.0f
+                };
+                static float afWidgetDynamicWidths[4] = {
+                    0.25f, 0.25f, 0.25f, 0.25f
+                };
+
+                static float fWidgetHeight = 0.0f;
+
+                gptUI->separator_text("Notes");
+                gptUI->text("  - does not wrap (i.e. will not add rows)");
+                gptUI->text("  - allows user to change widget widths individually");
+                gptUI->text("  - widths interpreted as ratios of available width when");
+                gptUI->text("    using PL_UI_LAYOUT_ROW_TYPE_DYNAMIC");
+                gptUI->text("  - widths interpreted as pixel width when using PL_UI_LAYOUT_ROW_TYPE_STATIC");
+                gptUI->text("  - height of 0.0f sets row height equal to minimum height");
+                gptUI->text("    of maximum height widget");
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Options");
+                gptUI->checkbox("Dynamic", &bDynamicRow);
+                gptUI->slider_int("Widget Count", &iWidgetCount, 1, 4, 0);
+                gptUI->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
+
+                if(bDynamicRow)
+                {
+                    for(int i = 0; i < iWidgetCount; i++)
+                    {
+                        gptUI->push_id_uint((uint32_t)i);
+                        gptUI->slider_float("Widget Width", &afWidgetDynamicWidths[i], 0.05f, 1.2f, 0);
+                        gptUI->pop_id();
+                    }
+                }
+                else
+                {
+                    for(int i = 0; i < iWidgetCount; i++)
+                    {
+                        gptUI->push_id_uint((uint32_t)i);
+                        gptUI->slider_float("Widget Width", &afWidgetStaticWidths[i], 50.0f, 500.0f, 0);
+                        gptUI->pop_id();
+                    }
+                }
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Example");
+                gptUI->layout_row_begin(bDynamicRow ? PL_UI_LAYOUT_ROW_TYPE_DYNAMIC : PL_UI_LAYOUT_ROW_TYPE_STATIC, fWidgetHeight, (uint32_t)iWidgetCount);
+                float* afWidgetWidths = bDynamicRow ? afWidgetDynamicWidths : afWidgetStaticWidths;
+                for(int i = 0; i < iWidgetCount; i++)
+                {
+                    gptUI->layout_row_push(afWidgetWidths[i]);
+                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
+                    gptUI->button(ptAppData->sbcTempBuffer);
+                    pl_sb_reset(ptAppData->sbcTempBuffer);
+                }
+                gptUI->layout_row_end();
+                gptUI->vertical_spacing();
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("System 4 - single system row (array form)", 0))
+            {
+                static bool bDynamicRow = false;
+                static int iWidgetCount = 2;
+                static float afWidgetStaticWidths[4] = {
+                    100.0f, 100.0f, 100.0f, 100.0f
+                };
+                static float afWidgetDynamicWidths[4] = {
+                    0.25f, 0.25f, 0.25f, 0.25f
+                };
+
+                static float fWidgetHeight = 0.0f;
+
+                gptUI->separator_text("Notes");
+                gptUI->text("  - same as System 3 but array form");
+                gptUI->text("  - wraps (i.e. will add rows)");
+                gptUI->text("  - allows user to change widget widths individually");
+                gptUI->text("  - widths interpreted as ratios of available width when");
+                gptUI->text("    using PL_UI_LAYOUT_ROW_TYPE_DYNAMIC");
+                gptUI->text("  - widths interpreted as pixel width when using PL_UI_LAYOUT_ROW_TYPE_STATIC");
+                gptUI->text("  - height of 0.0f sets row height equal to minimum height");
+                gptUI->text("    of maximum height widget");
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Options");
+                gptUI->checkbox("Dynamic", &bDynamicRow);
+                gptUI->slider_int("Widget Count", &iWidgetCount, 1, 4, 0);
+                gptUI->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
+
+                if(bDynamicRow)
+                {
+                    for(int i = 0; i < iWidgetCount; i++)
+                    {
+                        gptUI->push_id_uint((uint32_t)i);
+                        gptUI->slider_float("Widget Width", &afWidgetDynamicWidths[i], 0.05f, 1.2f, 0);
+                        gptUI->pop_id();
+                    }
+                }
+                else
+                {
+                    for(int i = 0; i < iWidgetCount; i++)
+                    {
+                        gptUI->push_id_uint((uint32_t)i);
+                        gptUI->slider_float("Widget Width", &afWidgetStaticWidths[i], 50.0f, 500.0f, 0);
+                        gptUI->pop_id();
+                    }
+                }
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Example");
+                float* afWidgetWidths = bDynamicRow ? afWidgetDynamicWidths : afWidgetStaticWidths;
+                gptUI->layout_row(bDynamicRow ? PL_UI_LAYOUT_ROW_TYPE_DYNAMIC : PL_UI_LAYOUT_ROW_TYPE_STATIC, fWidgetHeight, (uint32_t)iWidgetCount, afWidgetWidths);
+                for(int i = 0; i < iWidgetCount * 2; i++)
+                {
+                    pl_sb_sprintf(ptAppData->sbcTempBuffer, "Button %d", i);
+                    gptUI->button(ptAppData->sbcTempBuffer);
+                    pl_sb_reset(ptAppData->sbcTempBuffer);
+                }
+                gptUI->vertical_spacing();
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("System 5 - template", 0))
+            {
+                static int iWidgetCount = 6;
+                static float fWidgetHeight = 0.0f;
+
+                gptUI->separator_text("Notes");
+                gptUI->text("  - most complex and second most flexible system");
+                gptUI->text("  - wraps (i.e. will add rows)");
+                gptUI->text("  - allows user to change widget systems individually");
+                gptUI->text("    - dynamic: changes based on available space");
+                gptUI->text("    - variable: same as dynamic but minimum width specified by user");
+                gptUI->text("    - static: pixel width explicitely specified by user");
+                gptUI->text("  - height of 0.0f sets row height equal to minimum height");
+                gptUI->text("    of maximum height widget");
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Options");
+                gptUI->slider_float("Height", &fWidgetHeight, 0.0f, 100.0f, 0);
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Example 0");
+
+                gptUI->layout_template_begin(fWidgetHeight);
+                gptUI->layout_template_push_dynamic();
+                gptUI->layout_template_push_variable(150.0f);
+                gptUI->layout_template_push_static(150.0f);
+                gptUI->layout_template_end();
+                gptUI->button("dynamic##0");
+                gptUI->button("variable 150.0f##0");
+                gptUI->button("static 150.0f##0");
+                gptUI->checkbox("dynamic##1", NULL);
+                gptUI->checkbox("variable 150.0f##1", NULL);
+                gptUI->checkbox("static 150.0f##1", NULL);
+                gptUI->vertical_spacing();
+
+                gptUI->layout_dynamic(0.0f, 1);
+                gptUI->separator_text("Example 1");
+                gptUI->layout_template_begin(fWidgetHeight);
+                gptUI->layout_template_push_static(150.0f);
+                gptUI->layout_template_push_variable(150.0f);
+                gptUI->layout_template_push_dynamic();
+                gptUI->layout_template_end();
+                gptUI->button("static 150.0f##2");
+                gptUI->button("variable 150.0f##2");
+                gptUI->button("dynamic##2");
+                gptUI->checkbox("static 150.0f##3", NULL);
+                gptUI->checkbox("variable 150.0f##3", NULL);
+                gptUI->checkbox("dynamic##3", NULL);
+
+                gptUI->layout_dynamic(0.0f, 1);
+                gptUI->separator_text("Example 2");
+                gptUI->layout_template_begin(fWidgetHeight);
+                gptUI->layout_template_push_variable(150.0f);
+                gptUI->layout_template_push_variable(300.0f);
+                gptUI->layout_template_push_dynamic();
+                gptUI->layout_template_end();
+                gptUI->button("variable 150.0f##4");
+                gptUI->button("variable 300.0f##4");
+                gptUI->button("dynamic##4");
+                gptUI->checkbox("static 150.0f##5", NULL);
+                gptUI->button("variable 300.0f##5");
+                gptUI->checkbox("dynamic##5", NULL);
+                
+                gptUI->vertical_spacing();
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("System 6 - space", 0))
+            {
+                gptUI->separator_text("Notes");
+                gptUI->text("  - most flexible system");
+                gptUI->vertical_spacing();
+
+                gptUI->separator_text("Example - static");
+
+                gptUI->layout_space_begin(PL_UI_LAYOUT_ROW_TYPE_STATIC, 500.0f, UINT32_MAX);
+
+                gptUI->layout_space_push(0.0f, 0.0f, 100.0f, 100.0f);
+                gptUI->button("w100 h100");
+
+                gptUI->layout_space_push(105.0f, 105.0f, 300.0f, 100.0f);
+                gptUI->button("x105 y105 w300 h100");
+
+                gptUI->layout_space_end();
+
+                gptUI->layout_dynamic(0.0f, 1);
+                gptUI->separator_text("Example - dynamic");
+
+                gptUI->layout_space_begin(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 300.0f, 2);
+
+                gptUI->layout_space_push(0.0f, 0.0f, 0.5f, 0.5f);
+                gptUI->button("x0 y0 w0.5 h0.5");
+
+                gptUI->layout_space_push(0.5f, 0.5f, 0.5f, 0.5f);
+                gptUI->button("x0.5 y0.5 w0.5 h0.5");
+
+                gptUI->layout_space_end();
+
+                gptUI->tree_pop();
+            }
+
+            if(gptUI->tree_node("Misc. Testing", 0))
+            {
+                const float pfRatios[] = {1.0f};
+                const float pfRatios2[] = {0.5f, 0.5f};
+                const float pfRatios3[] = {0.5f * 0.5f, 0.25f * 0.5f, 0.25f * 0.5f};
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2, pfRatios2);
+                if(gptUI->begin_collapsing_header("Information", 0))
+                {
+                    gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                    gptUI->text("Graphics Backend: %s", gptGfx->get_backend_string());
+
+                    gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 3, pfRatios3);
+                    if(gptUI->begin_collapsing_header("sub0", 0))
+                    {
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->begin_collapsing_header("sub1", 0))
+                    {
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->end_collapsing_header();
+                    }
+                    if(gptUI->begin_collapsing_header("sub2", 0))
+                    {
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+                        gptUI->end_collapsing_header();
+                    }
+
+                    gptUI->end_collapsing_header();
+                }
+                if(gptUI->begin_collapsing_header("App Options", 0))
+                {
+                    gptUI->checkbox("Freeze Culling Camera", NULL);
+                    int iCascadeCount  = 2;
+                    gptUI->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0);
+
+                    gptUI->end_collapsing_header();
+                }
+                
+                if(gptUI->begin_collapsing_header("Graphics", 0))
+                {
+                    gptUI->checkbox("Freeze Culling Camera", NULL);
+                    int iCascadeCount  = 2;
+                    gptUI->slider_int("Sunlight Cascades", &iCascadeCount, 1, 4, 0);
+
+                    gptUI->end_collapsing_header();
+                }
+                if(gptUI->begin_tab_bar("tab bar2", 0))
+                {
+                    if(gptUI->begin_tab("tab0000000000", 0))
+                    {
+                        gptUI->checkbox("Entities", NULL);
+                        gptUI->end_tab();
+                    }
+                    if(gptUI->begin_tab("tab1", 0))
+                    {
+                        gptUI->checkbox("Profiling", NULL);
+                        gptUI->checkbox("Profiling", NULL);
+                        gptUI->checkbox("Profiling", NULL);
+                        gptUI->checkbox("Profiling", NULL);
+                        gptUI->end_tab();
+                    }
+                    gptUI->end_tab_bar();
+                }
+
+                gptUI->layout_row(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 1, pfRatios);
+                if(gptUI->begin_collapsing_header("Tools", 0))
+                {
+                    gptUI->checkbox("Device Memory Analyzer", NULL);
+                    gptUI->checkbox("Device Memory Analyzer", NULL);
+                    gptUI->end_collapsing_header();
+                }
+
+                if(gptUI->begin_collapsing_header("Debug", 0))
+                {
+                    gptUI->button("resize");
+                    gptUI->checkbox("Always Resize", NULL);
+                    gptUI->end_collapsing_header();
+                }
+
+                gptUI->tree_pop();
+            }
+            gptUI->end_collapsing_header();
+        }
+        gptUI->end_window();
+    }
 }
 
 //-----------------------------------------------------------------------------

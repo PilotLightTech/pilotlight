@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "demo.h"
 
 void
 pl__camera_update_imgui(plCamera* ptCamera)

@@ -39,7 +39,7 @@ with pl.project("pilotlight_examples"):
     pl.add_link_directories("../out")
     pl.add_definitions("_USE_MATH_DEFINES", "PL_PROFILING_ON", "PL_ALLOW_HOT_RELOAD", "PL_ENABLE_VALIDATION_LAYERS", "PL_CONFIG_DEBUG")
     pl.add_include_directories("../examples", "../internal/sandbox", "../src", "../shaders", "../libs", "../extensions", "../out",
-                               "../dependencies/stb", "../dependencies/imgui")
+                               "../internal/demo", "../dependencies/stb", "../dependencies/imgui")
         
     #-----------------------------------------------------------------------------
     # [SECTION] examples

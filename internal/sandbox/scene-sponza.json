@@ -1,19 +1,46 @@
 {
     "scene": {
+        "editor": {
+            "show": true,
+            "wireframe": false,
+            "continuous bvh": false,
+            "show bvh": false,
+            "show skybox": true,
+            "show debug lights": true,
+            "show physics debug": false,
+            "show bounding boxes": false,
+            "show origin": false,
+            "show probes": true,
+            "show selection bounding box": false,
+            "frustum culling": true,
+            "ui msaa": true,
+            "show grid": false,
+            "grid cell size": 0.025,
+            "grid min pixels between cells": 2.0,
+            "grid color thin": [0.5, 0.5, 0.5, 1.0],
+            "grid color thick": [0.75, 0.75, 0.75, 1.0]
+        },
         "renderer": {
-            "ibl": true,
+            "lighting": {
+                "ibl": true,
+                "normal mapping": true,
+                "punctual lights": true
+            },
             "shadows": {
                 "pcf": true,
+                "max range": 100.0,
                 "depth bias": -1.250,
                 "slope depth bias": -1.750
             },
             "bloom": {
+                "active" : false,
                 "strength": 0.05,
                 "radius": 1.5,
                 "chain length": 5
             },
             "fog": {
-                "mode": "exponential",
+                "active" : false,
+                "mode": "PL_RENDERER_FOG_MODE_EXPONENTIAL",
                 "start": 1.0,
                 "cut off distance": 1000.0,
                 "color": [1.0, 1.0, 1.0],
@@ -23,7 +50,7 @@
                 "height falloff": 0.1
             },
             "tonemap": {
-                "mode": "khronos pbr neutral",
+                "mode": "PL_TONEMAP_MODE_KHRONOS_PBR_NEUTRAL",
                 "exposure": 1.0,
                 "brightness": 0.0,
                 "contrast": 1.0,
@@ -44,6 +71,7 @@
         },
         "probes": [
             {
+                "active": true,
                 "position": [0.0, 3.0, 0.0],
                 "range": 30.0,
                 "resolution": 128,
@@ -54,12 +82,14 @@
         ],
         "models": [
             {
+                "active": true,
                 "path": "/models/gltf/humanoid/model.gltf",
                 "scale": [1.0, 1.0, 1.0],
                 "translation": [0.0, 0.0, 0.0],
                 "rotation": [0.0, 0.0, 0.0, 0.0]
             },
             {
+                "active": true,
                 "path": "/gltf/Sponza/glTF/Sponza.gltf",
                 "scale": [1.0, 1.0, 1.0],
                 "translation": [0.0, 0.0, 0.0],
@@ -68,6 +98,7 @@
         ],
         "lights": [
             {
+                "active": true,
                 "name": "direction light",
                 "type": "direction",
                 "direction": [0.425, -1.0, -0.384],
@@ -79,16 +110,18 @@
                 "flags": ["PL_LIGHT_FLAG_CAST_SHADOW", "PL_LIGHT_FLAG_VISUALIZER"]
             },
             {
+                "active": true,
                 "name": "point light 0",
                 "type": "point",
                 "position": [9.316, 1.497, -1.042],
                 "color": [0.0, 1.0, 0.0],
                 "intensity": 1.0,
-                "range": 5.0,
+                "range": 10.0,
                 "shadow resolution": 512,
                 "flags": ["PL_LIGHT_FLAG_CAST_SHADOW", "PL_LIGHT_FLAG_VISUALIZER"]
             },
             {
+                "active": true,
                 "name": "spot light 0",
                 "type": "spot",
                 "position": [0.0, 3.27, -1.5],

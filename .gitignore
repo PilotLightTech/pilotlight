@@ -12,6 +12,7 @@ game/
 app/
 cache/
 
+internal/demo/model-index.json
 internal/sandbox/model-index.json
 
 # python
@@ -20,6 +21,7 @@ scripts/__pycache__/
 
 # debug files
 internal/sandbox/*.pdb
+internal/demo/*.pdb
 src/*.pdb
 examples/*.pdb
 tests/*.pdb

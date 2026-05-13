@@ -1,5 +1,5 @@
 /*
-   editor.cpp
+   demo.cpp
 
    Notes:
      * absolute mess
@@ -22,7 +22,7 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "editor.h"
+#include "demo.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -327,7 +327,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
     ImGuiIO& tImGuiIO = ImGui::GetIO();
     tImGuiIO.IniFilename = nullptr;
-    ImGui::LoadIniSettingsFromDisk("../internal/sandbox/pl_imgui.ini");
+    ImGui::LoadIniSettingsFromDisk("../internal/demo/pl_imgui.ini");
     tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf", 16.0f);
     auto tImGuiFontConfig = ImFontConfig();
     tImGuiFontConfig.MergeMode = true;
@@ -598,7 +598,7 @@ pl_app_update(plAppData* ptAppData)
         if(ImGui::BeginMenu("File", true))
         {
             if(ImGui::MenuItem("Save Layout"))
-                ImGui::SaveIniSettingsToDisk("../internal/sandbox/pl_imgui.ini");
+                ImGui::SaveIniSettingsToDisk("../internal/demo/pl_imgui.ini");
             ImGui::EndMenu();
         }
         if(ImGui::BeginMenu("Edit", false))
@@ -781,13 +781,13 @@ pl__find_models(plAppData* ptAppData)
         pl_sb_push(ptAppData->sbtTestModels, tModel);
     }
 
-    if(gptVfs->does_file_exist("../internal/sandbox/model-index.json"))
+    if(gptVfs->does_file_exist("../internal/demo/model-index.json"))
     {
-        size_t szJsonFileSize = gptVfs->get_file_size_str("../internal/sandbox/model-index.json");
+        size_t szJsonFileSize = gptVfs->get_file_size_str("../internal/demo/model-index.json");
         uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
         memset(puFileBuffer, 0, szJsonFileSize + 1);
 
-        plVfsFileHandle tHandle = gptVfs->open_file("../internal/sandbox/model-index.json", PL_VFS_FILE_MODE_READ);
+        plVfsFileHandle tHandle = gptVfs->open_file("../internal/demo/model-index.json", PL_VFS_FILE_MODE_READ);
         gptVfs->read_file(tHandle, puFileBuffer, &szJsonFileSize);
         gptVfs->close_file(tHandle);
 
@@ -1477,9 +1477,9 @@ pl__create_scene(plAppData* ptAppData)
 // [SECTION] unity build
 //-----------------------------------------------------------------------------
 
-#include "editor_camera.cpp"
-#include "editor_entities.cpp"
-#include "editor_ui_demo.cpp"
+#include "demo_camera.cpp"
+#include "demo_entities.cpp"
+#include "demo_ui_demo.cpp"
 
 #ifdef PL_USE_STB_SPRINTF
     #define STB_SPRINTF_IMPLEMENTATION
