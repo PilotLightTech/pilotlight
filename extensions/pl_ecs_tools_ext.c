@@ -37,7 +37,8 @@ static const plMemoryI*   gptMemory = NULL;
 static const plEcsI*      gptECS      = NULL;
 static const plAnimationI*  gptAnimation = NULL;
 static const plUiI*       gptUI       = NULL;
-static const plRendererI* gptRenderer = NULL;
+static const plRendererEcsI* gptRendererEcs = NULL;
+static const plRendererEditorI* gptRendererEditor = NULL;
 static const plPhysicsI*  gptPhysics = NULL;
 static const plCameraI*   gptCamera = NULL;
 static const plMeshI*     gptMesh = NULL;
@@ -135,15 +136,15 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
 
         const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
         const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
-        const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
+        const plEcsTypeKey tObjectComponentType = gptRendererEcs->get_ecs_type_key_object();
         const plEcsTypeKey tHierarchyComponentType = gptECS->get_ecs_type_key_hierarchy();
         const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
-        const plEcsTypeKey tSkinComponentType = gptRenderer->get_ecs_type_key_skin();
+        const plEcsTypeKey tSkinComponentType = gptRendererEcs->get_ecs_type_key_skin();
         const plEcsTypeKey tCameraComponentType = gptCamera->get_ecs_type_key();
         const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
         const plEcsTypeKey tInverseKinematicsComponentType = gptAnimation->get_ecs_type_key_inverse_kinematics();
-        const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
-        const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
+        const plEcsTypeKey tLightComponentType = gptRendererEcs->get_ecs_type_key_light();
+        const plEcsTypeKey tEnvironmentProbeComponentType = gptRendererEcs->get_ecs_type_key_environment_probe();
         const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
         const plEcsTypeKey tScriptComponentType = gptScript->get_ecs_type_key();
         const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
@@ -880,10 +881,10 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                     }
 
                     if(gptUI->button("Update Material"))
-                        gptRenderer->update_scene_material(ptScene, *ptSelectedEntity);
+                        gptRendererEcs->update_scene_materials(ptScene, 1, ptSelectedEntity);
 
                     if(bShadersModified)
-                        gptRenderer->reload_scene_shaders(ptScene);
+                        gptRendererEditor->reload_scene_shaders(ptScene);
 
                     static const char* apcBlendModeNames[] = 
                     {
@@ -937,9 +938,9 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                 {
                     if(gptUI->tree_node("Joints", 0))
                     {
-                        for(uint32_t i = 0; i < pl_sb_size(ptSkinComp->sbtJoints); i++)
+                        for(uint32_t i = 0; i < ptSkinComp->uJointCount; i++)
                         {
-                            plTagComponent* ptJointTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptSkinComp->sbtJoints[i]);
+                            plTagComponent* ptJointTagComp = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_tag(), ptSkinComp->atJoints[i]);
                             gptUI->text("%s", ptJointTagComp->acName);  
                         }
                         gptUI->tree_pop();
@@ -1043,16 +1044,17 @@ pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plEcsToolsI, &tApi);
 
     #ifndef PL_UNITY_BUILD
-        gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptRenderer  = pl_get_api_latest(ptApiRegistry, plRendererI);
-        gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
-        gptECS       = pl_get_api_latest(ptApiRegistry, plEcsI);
-        gptPhysics   = pl_get_api_latest(ptApiRegistry, plPhysicsI);
-        gptCamera    = pl_get_api_latest(ptApiRegistry, plCameraI);
-        gptAnimation = pl_get_api_latest(ptApiRegistry, plAnimationI);
-        gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
-        gptMaterial  = pl_get_api_latest(ptApiRegistry, plMaterialI);
-        gptScript    = pl_get_api_latest(ptApiRegistry, plScriptI);
+        gptMemory         = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptRendererEcs    = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
+        gptRendererEditor = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
+        gptUI             = pl_get_api_latest(ptApiRegistry, plUiI);
+        gptECS            = pl_get_api_latest(ptApiRegistry, plEcsI);
+        gptPhysics        = pl_get_api_latest(ptApiRegistry, plPhysicsI);
+        gptCamera         = pl_get_api_latest(ptApiRegistry, plCameraI);
+        gptAnimation      = pl_get_api_latest(ptApiRegistry, plAnimationI);
+        gptMesh           = pl_get_api_latest(ptApiRegistry, plMeshI);
+        gptMaterial       = pl_get_api_latest(ptApiRegistry, plMaterialI);
+        gptScript         = pl_get_api_latest(ptApiRegistry, plScriptI);
     #endif
 
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);

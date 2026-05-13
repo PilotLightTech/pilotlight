@@ -47,7 +47,6 @@ static const struct _plBVHI*               gptBvh              = 0;
 static const struct _plCameraI*            gptCamera           = 0;
 static const struct _plResourceI*          gptResource         = 0;
 static const struct _plEcsI*               gptECS              = 0;
-static const struct _plRendererI*          gptRenderer         = 0;
 static const struct _plEcsToolsI*          gptEcsTools         = 0;
 static const struct _plGizmoI*             gptGizmo            = 0;
 static const struct _plPhysicsI*           gptPhysics          = 0;
@@ -69,6 +68,11 @@ static const struct _plVoxelI*             gptVoxel            = 0;
 static const struct _plAudioI*             gptAudio            = 0;
 static const struct _plStageI*             gptStage            = 0;
 static const struct _plGjkI*               gptGjk              = 0;
+static const struct _plRendererI*          gptRenderer         = 0;
+static const struct _plRendererTerrainI*   gptRendererTerrain  = 0;
+static const struct _plRendererEcsI*       gptRendererEcs      = 0;
+static const struct _plRendererDebugI*     gptRendererDebug    = 0;
+static const struct _plRendererEditorI*    gptRendererEditor   = 0;
 
 // context
 static struct _plIO* gptIO = 0;

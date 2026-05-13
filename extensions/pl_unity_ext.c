@@ -401,7 +401,6 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptResource          = pl_get_api_latest(ptApiRegistry, plResourceI);
     gptProfile           = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog               = pl_get_api_latest(ptApiRegistry, plLogI);
-    gptRenderer          = pl_get_api_latest(ptApiRegistry, plRendererI);
     gptEcsTools          = pl_get_api_latest(ptApiRegistry, plEcsToolsI);
     gptConsole           = pl_get_api_latest(ptApiRegistry, plConsoleI);
     gptGizmo             = pl_get_api_latest(ptApiRegistry, plGizmoI);
@@ -432,6 +431,11 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptAudio             = pl_get_api_latest(ptApiRegistry, plAudioI);
     gptStage             = pl_get_api_latest(ptApiRegistry, plStageI);
     gptGjk               = pl_get_api_latest(ptApiRegistry, plGjkI);
+    gptRenderer          = pl_get_api_latest(ptApiRegistry, plRendererI);
+    gptRendererTerrain   = pl_get_api_latest(ptApiRegistry, plRendererTerrainI);
+    gptRendererEcs       = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
+    gptRendererDebug     = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
+    gptRendererEditor    = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);

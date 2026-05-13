@@ -99,7 +99,6 @@ the API is complete. It just means we won't break what currently exists.
 * Camera              v0.3.0 (pl_camera_ext.h)
 * Gizmo               v0.1.0 (pl_gizmo_ext.h)
 * Model Loader        v0.2.1 (pl_model_loader_ext.h)
-* Renderer            v0.3.0 (pl_renderer_ext.h)
 * Dear ImGui          v0.1.0 (pl_dear_imgui_ext.h)
 * Animation           v0.1.0 (pl_animation_ext.h)
 * Material            v0.1.0 (pl_material_ext.h)
@@ -107,6 +106,11 @@ the API is complete. It just means we won't break what currently exists.
 * Free List           v0.1.0 (pl_freelist_ext.h)
 * Image Ops           v0.1.0 (pl_image_ops_ext.h)
 * Stage               v0.1.0 (pl_stage_ext.h)
+* Renderer            v0.3.0 (pl_renderer_ext.h)
+* Renderer Terrain    v0.1.0 (pl_renderer_ext.h)
+* Renderer Ecs        v0.1.0 (pl_renderer_ext.h)
+* Renderer Debug      v0.1.0 (pl_renderer_ext.h)
+* Renderer Editor     v0.1.0 (pl_renderer_ext.h)
 
 ## Placeholder Extensions
 * Voxel Ops           v0.0.0 (pl_voxel_ext.h)

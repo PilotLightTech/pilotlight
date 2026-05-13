@@ -78,8 +78,8 @@ static void pl__make_unresident  (plTerrain*, plTerrainChunk*);
 static bool pl__terrain_load(plTerrain* ptTerrain, plTerrainProcessInfo* ptInfo);
 void pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk);
 
-static void pl__render_chunk(plScene*, plTerrain*, plCamera*, plRenderEncoder*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP, uint32_t);
-static void pl__render_chunk_shadow(plScene*, plTerrain*, plCamera*, plRenderEncoder*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP, uint32_t);
+static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plRenderEncoder*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP, uint32_t);
+static void pl__render_chunk_shadow(plScene*, plTerrain*, const plCamera*, plRenderEncoder*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP, uint32_t);
 
 static void pl__free_chunk_until(plTerrain* P, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed);
 
@@ -100,7 +100,7 @@ static inline bool pl__is_leaf_resident(const plTerrainChunk* c)
 //-----------------------------------------------------------------------------
 
 plTerrain*
-pl_renderer_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainProcessInfo* ptInfo)
+pl_renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plTerrainProcessInfo* ptInfo)
 {
     plTerrain* ptTerrain = PL_ALLOC(sizeof(plTerrain));
     memset(ptTerrain, 0, sizeof(plTerrain));
@@ -117,6 +117,9 @@ pl_renderer_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainProcessInfo* p
     ptTerrain->tRuntimeOptions.atElevationZones[0].fBlendSize = 30.0f;
     ptTerrain->tRuntimeOptions.atElevationZones[0].tFlatMaterial.tBaseColor = (plVec4){0.66f, 0.598f, 0.402f, 1.0f};
     ptTerrain->tRuntimeOptions.atElevationZones[0].tSteepMaterial.tBaseColor = (plVec4){0.20f, 0.18f, 0.16f, 1.0f};
+
+    ptTerrain->tRuntimeOptions.fTerrainShadowConstantDepthBias = -100.0f;
+    ptTerrain->tRuntimeOptions.fTerrainShadowSlopeDepthBias = -10.0f;
 
     ptTerrain->tRuntimeOptions.atElevationZones[1].fMinElevation = 20.0f;
     ptTerrain->tRuntimeOptions.atElevationZones[1].fMaxElevation = 1000.0f;
@@ -195,13 +198,13 @@ pl_renderer_create_terrain(plCommandBuffer* ptCmdBuffer, plTerrainProcessInfo* p
 }
 
 PL_API plTerrainRuntimeOptions*
-pl_renderer_get_terrain_runtime_options(plTerrain* ptTerrain)
+pl_renderer_terrain_get_runtime_options(plTerrain* ptTerrain)
 {
     return &ptTerrain->tRuntimeOptions;
 }
 
 void
-pl_renderer_cleanup_terrain(plTerrain* ptTerrain)
+pl_renderer_terrain_destroy(plTerrain* ptTerrain)
 {
     plDevice* ptDevice = gptData->ptDevice;
 
@@ -613,7 +616,7 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 }
 
 static void
-pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, plCamera* ptCamera , plRenderEncoder* ptEncoder, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP, uint32_t uGlobalIndex)
+pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plRenderEncoder* ptEncoder, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP, uint32_t uGlobalIndex)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -724,7 +727,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, plCamera* ptCamera , pl
 }
 
 static void
-pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, plCamera* ptCamera , plRenderEncoder* ptEncoder, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP, uint32_t uGlobalIndex)
+pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera , plRenderEncoder* ptEncoder, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP, uint32_t uGlobalIndex)
 {
     PL_ASSERT(ptChunk != NULL);
 

@@ -310,7 +310,7 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
 //-----------------------------------------------------------------------------
 
 static bool
-pl__renderer_sat_visibility_test(plCamera* ptCamera, const plAABB* ptAABB)
+pl__renderer_sat_visibility_test(const plCamera* ptCamera, const plAABB* ptAABB)
 {
     const float fTanFov = tanf(0.5f * ptCamera->fFieldOfView);
 
@@ -867,7 +867,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
     const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptScene->sbuShadowForwardDrawables);
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
-    uint32_t uCameraBufferIndex = 0;
+    // uint32_t uCameraBufferIndex = 0;
     for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
     {
         
@@ -885,11 +885,13 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
         if(ptLight->tType == PL_LIGHT_TYPE_POINT)
         {
 
-            if(gptData->tRuntimeOptions.bMultiViewportShadows)
+            const uint32_t uCameraBufferIndex = ptScene->sbtPointLights[ptData->uLightIndex].uShadowBufferOffset / sizeof(plMat4);
+
+            if(ptScene->tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT)
             {
 
                 gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
-                gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
+                gptGfx->set_depth_bias(ptEncoder, ptScene->tShadowOptions.fConstantDepthBias, 0.0f, ptScene->tShadowOptions.fSlopeDepthBias);
                 *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
                 for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                 {
@@ -1075,7 +1077,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                 {
 
                     gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
-                    gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
+                    gptGfx->set_depth_bias(ptEncoder, ptScene->tShadowOptions.fConstantDepthBias, 0.0f, ptScene->tShadowOptions.fSlopeDepthBias);
                     *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
                     for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                     {
@@ -1197,14 +1199,15 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                     gptGfx->draw_stream(ptEncoder, 1, &tArea);
                 }
             }
-            uCameraBufferIndex+=6;
         }
 
         else if(ptLight->tType == PL_LIGHT_TYPE_SPOT)
         {
 
+            const uint32_t uCameraBufferIndex = ptScene->sbtSpotLights[ptData->uLightIndex].uShadowBufferOffset / sizeof(plMat4);
+
             gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
-            gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
+            gptGfx->set_depth_bias(ptEncoder, ptScene->tShadowOptions.fConstantDepthBias, 0.0f, ptScene->tShadowOptions.fSlopeDepthBias);
             *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
@@ -1314,7 +1317,6 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
             };
 
             gptGfx->draw_stream(ptEncoder, 1, &tArea);
-            uCameraBufferIndex++;
         }
     }
 
@@ -1322,7 +1324,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
 }
 
 static void
-pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, plScene* ptScene, uint32_t uViewHandle, uint32_t uProbeIndex, plCamera* ptSceneCamera, plCSMInfo tInfo, plDrawList3D* ptDrawlist)
+pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, plScene* ptScene, uint32_t uViewHandle, uint32_t uProbeIndex, const plCamera* ptSceneCamera, plCSMInfo tInfo, plDrawList3D* ptDrawlist)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -1352,7 +1354,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
     // TODO: we shouldn't have to check all rects, optimize this
 
-    float fShadowFarZ = pl_min(ptSceneCamera->fFarZ, gptData->tRuntimeOptions.fMaxShadowRange);
+    float fShadowFarZ = pl_min(ptSceneCamera->fFarZ, ptScene->tShadowOptions.fMaxShadowRange);
 
     const uint32_t uAtlasRectCount = pl_sb_size(ptScene->sbtShadowRects);
     for(uint32_t uRectIndex = 0; uRectIndex < uAtlasRectCount; uRectIndex++)
@@ -1604,7 +1606,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                 };
                 gptGfx->set_viewport(ptEncoder, &tViewport);
                 gptGfx->set_scissor_region(ptEncoder, &tScissor);
-                gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fTerrainShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fTerrainShadowSlopeDepthBias);
+                gptGfx->set_depth_bias(ptEncoder, ptScene->ptTerrain->tRuntimeOptions.fTerrainShadowConstantDepthBias, 0.0f, ptScene->ptTerrain->tRuntimeOptions.fTerrainShadowSlopeDepthBias);
                 gptGfx->bind_shader(ptEncoder, ptScene->tTerrainShadowShader);
                 gptGfx->bind_vertex_buffer(ptEncoder, ptScene->ptTerrain->tVertexBuffer);
                 plBindGroupHandle atBindGroups[] = {ptScene->atSceneBindGroups[uFrameIdx], tInfo.tBindGroup};
@@ -1669,10 +1671,10 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
         const uint32_t uCascadeCount = tInfo.bAltMode ? 1 : ptLight->uCascadeCount; // probe only needs single cascade
 
-        if(gptData->tRuntimeOptions.bMultiViewportShadows)
+        if(ptScene->tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT)
         {
             gptGfx->reset_draw_stream(ptStream, uOpaqueDrawableCount + uTransparentDrawableCount);
-            gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
+            gptGfx->set_depth_bias(ptEncoder, ptScene->tShadowOptions.fConstantDepthBias, 0.0f, ptScene->tShadowOptions.fSlopeDepthBias);
             *gptData->pdDrawCalls += (double)uOpaqueDrawableCount;
             for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
             {
@@ -1830,7 +1832,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             {
 
                 gptGfx->reset_draw_stream(ptStream, uOpaqueDrawableCount + uTransparentDrawableCount);
-                gptGfx->set_depth_bias(ptEncoder, gptData->tRuntimeOptions.fShadowConstantDepthBias, 0.0f, gptData->tRuntimeOptions.fShadowSlopeDepthBias);
+                gptGfx->set_depth_bias(ptEncoder, ptScene->tShadowOptions.fConstantDepthBias, 0.0f, ptScene->tShadowOptions.fSlopeDepthBias);
                 *gptData->pdDrawCalls += (double)uOpaqueDrawableCount;
                 for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
                 {
@@ -2331,9 +2333,14 @@ pl__renderer_add_drawable_data_to_global_buffer(plScene* ptScene, uint32_t uDraw
         };
 
         plSkinComponent* ptSkinComponent = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tSkinComponentType, ptMesh->tSkinComponent);
-        pl_sb_reset(ptSkinComponent->sbtTextureData);
-        pl_sb_resize(ptSkinComponent->sbtTextureData, pl_sb_size(ptSkinComponent->sbtJoints) * 8);
-        tSkinData.ptFreeListNode = gptFreeList->get_node(&ptScene->tSkinBufferFreeList, pl_sb_size(ptSkinComponent->sbtJoints) * 8 * sizeof(plMat4));
+        if(ptSkinComponent->_atTextureData)
+        {
+            PL_FREE(ptSkinComponent->_atTextureData);
+            ptSkinComponent->_atTextureData = NULL;
+        }
+        ptSkinComponent->_atTextureData = PL_ALLOC(ptSkinComponent->uJointCount * 8 * sizeof(plMat4));
+        memset(ptSkinComponent->_atTextureData, 0, ptSkinComponent->uJointCount * 8 * sizeof(plMat4));
+        tSkinData.ptFreeListNode = gptFreeList->get_node(&ptScene->tSkinBufferFreeList, ptSkinComponent->uJointCount * 8 * sizeof(plMat4));
 
         int aiSpecializationData[] = {(int)ulVertexStreamMask, (int)uSkinStride, (int)ptMesh->ulVertexStreamMask, (int)uDestStride};
         tSkinData.tShader = gptShaderVariant->get_compute_shader("skinning", aiSpecializationData);
@@ -3453,7 +3460,7 @@ pl__render_view_deferred_lighting_pass(plScene* ptScene, plRenderEncoder* ptScen
     const uint32_t uSpotLightCount = pl_sb_size(ptScene->sbtSpotLightData);
     const uint32_t uDirectionLightCount = pl_sb_size(ptScene->sbtDirectionLightData);
 
-    if(gptData->tRuntimeOptions.bPunctualLighting)
+    if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS)
     {
         gptGfx->reset_draw_stream(ptStream, uPointLightCount + uSpotLightCount);
         for(uint32_t uLightIndex = 0; uLightIndex < uPointLightCount; uLightIndex++)
@@ -3559,7 +3566,7 @@ pl__render_view_deferred_lighting_pass(plScene* ptScene, plRenderEncoder* ptScen
 
     const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
 
-    if(uProbeCount > 0 && !ptInfo->bProbe && gptData->tRuntimeOptions.bImageBasedLighting)
+    if(uProbeCount > 0 && !ptInfo->bProbe && ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)
     {
         gptGfx->push_render_debug_group(ptSceneEncoder, "Probes", (plVec4){0.33f, 0.02f, 0.20f, 1.0f});
         gptGfx->reset_draw_stream(ptStream, 1);
@@ -3886,7 +3893,7 @@ pl__render_view_transmission_pass(plView* ptView, plRenderEncoder* ptSceneEncode
 }
 
 static void
-pl__render_view_grid_pass(plView* ptView, plRenderEncoder* ptSceneEncoder, plCamera* ptCamera)
+pl__render_view_grid_pass(plView* ptView, plRenderEncoder* ptSceneEncoder, const plCamera* ptCamera)
 {
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
@@ -3913,8 +3920,6 @@ pl__render_view_grid_pass(plView* ptView, plRenderEncoder* ptSceneEncoder, plCam
         }
     };
 
-    ptView->bShowGrid = false; // resubmitted every frame
-
     plShaderHandle tGridShader = gptShaderVariant->get_shader("grid", NULL, NULL, NULL, &gptData->tTransparentRenderPassLayout);
     gptGfx->bind_shader(ptSceneEncoder, tGridShader);
 
@@ -3922,10 +3927,10 @@ pl__render_view_grid_pass(plView* ptView, plRenderEncoder* ptSceneEncoder, plCam
     plGpuDynGrid* ptGridDynamicData = (plGpuDynGrid*)tGridDynamicBinding.pcData;
     const float fGridFactor = pl_squaref(ptCamera->fFarZ) - pl_squaref(ptCamera->tPos.y);
     ptGridDynamicData->fGridSize = fGridFactor > 0.0f ? sqrtf(fGridFactor) : 100.0f;
-    ptGridDynamicData->fGridCellSize = gptData->tRuntimeOptions.fGridCellSize;
-    ptGridDynamicData->fGridMinPixelsBetweenCells = gptData->tRuntimeOptions.fGridMinPixelsBetweenCells;
-    ptGridDynamicData->tGridColorThin = gptData->tRuntimeOptions.tGridColorThin;
-    ptGridDynamicData->tGridColorThick = gptData->tRuntimeOptions.tGridColorThick;
+    ptGridDynamicData->fGridCellSize = ptView->tEditorOptions.fGridCellSize;
+    ptGridDynamicData->fGridMinPixelsBetweenCells = ptView->tEditorOptions.fGridMinPixelsBetweenCells;
+    ptGridDynamicData->tGridColorThin = ptView->tEditorOptions.tGridColorThin;
+    ptGridDynamicData->tGridColorThick = ptView->tEditorOptions.tGridColorThick;
     ptGridDynamicData->tViewDirection.xyz = ptCamera->_tForwardVec;
     ptGridDynamicData->fCameraXPos = ptCamera->tPos.x;
     ptGridDynamicData->fCameraZPos = ptCamera->tPos.z;
@@ -3945,7 +3950,7 @@ pl__render_view_grid_pass(plView* ptView, plRenderEncoder* ptSceneEncoder, plCam
 }
 
 static void
-pl__render_view_debug_pass(plView* ptView, plCamera* ptCamera, plCamera* ptCullCamera)
+pl__render_view_debug_pass(plView* ptView, const plCamera* ptCamera, const plCamera* ptCullCamera)
 {
     const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
@@ -3954,7 +3959,7 @@ pl__render_view_debug_pass(plView* ptView, plCamera* ptCamera, plCamera* ptCullC
 
     // bounding boxes
     const uint32_t uOutlineDrawableCount = pl_sb_size(ptScene->sbtOutlinedEntities);
-    if(uOutlineDrawableCount > 0 && gptData->tRuntimeOptions.bShowSelectedBoundingBox)
+    if(uOutlineDrawableCount > 0 && ptView->tEditorOptions.bShowSelectedBoundingBox)
     {
         const plVec4 tOutlineColor = (plVec4){0.0f, (float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 1.0f};
         for(uint32_t i = 0; i < uOutlineDrawableCount; i++)
@@ -3965,7 +3970,7 @@ pl__render_view_debug_pass(plView* ptView, plCamera* ptCamera, plCamera* ptCullC
         }
     }
 
-    if(gptData->tRuntimeOptions.bShowOrigin)
+    if(ptScene->tDebugOptions.bShowOrigin)
     {
         const plMat4 tTransform = pl_identity_mat4();
         gptDraw->add_3d_transform(ptView->pt3DDrawList, &tTransform, 10.0f, (plDrawLineOptions){.fThickness = 0.02f});
@@ -4182,7 +4187,7 @@ pl__render_view_jfa_pass(plView* ptView)
 
     // find next power of 2
     uint32_t uJumpDistance = 1;
-    uint32_t uHalfWidth = gptData->tRuntimeOptions.uOutlineWidth / 2;
+    uint32_t uHalfWidth = ptView->tEditorOptions.uOutlineWidth / 2;
     if (uHalfWidth && !(uHalfWidth & (uHalfWidth - 1))) 
         uJumpDistance = uHalfWidth;
     while(uJumpDistance < uHalfWidth)
@@ -4263,7 +4268,7 @@ pl__render_view_jfa_pass(plView* ptView)
 }
 
 static void
-pl__render_view_outline_pass(plView* ptView, plCamera* ptCamera)
+pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -4317,10 +4322,10 @@ pl__render_view_outline_pass(plView* ptView, plCamera* ptCamera)
 
     plGpuDynPost* ptDynamicData = (plGpuDynPost*)tDynamicBinding.pcData;
     const plVec4 tOutlineColor = (plVec4){(float)sin(gptIOI->get_io()->dTime * 3.0) * 0.25f + 0.75f, 0.0f, 0.0f, 1.0f};
-    ptDynamicData->fTargetWidth = (float)gptData->tRuntimeOptions.uOutlineWidth * tOutlineColor.r + 1.0f;
+    ptDynamicData->fTargetWidth = (float)ptView->tEditorOptions.uOutlineWidth * tOutlineColor.r + 1.0f;
     ptDynamicData->tOutlineColor = tOutlineColor;
     plVec2 tUVScale = {0};
-    pl_renderer_get_view_texture(ptView, &tUVScale);
+    pl_renderer_get_view_color_bind_group(ptView, &tUVScale);
     ptDynamicData->fXScale = tUVScale.x;
     ptDynamicData->fYScale = tUVScale.y;
 
@@ -4366,7 +4371,7 @@ pl__render_view_bloom_pass(plView* ptView)
     plDevice*      ptDevice  = gptData->ptDevice;
     plScene*       ptScene   = ptView->ptParentScene;
 
-    for(uint32_t i = 0; i < gptData->tRuntimeOptions.uBloomChainLength - 1; i++)
+    for(uint32_t i = 0; i < ptView->tBloomOptions.uChainLength - 1; i++)
     {
 
         const int sourceMip = i;
@@ -4463,10 +4468,10 @@ pl__render_view_bloom_pass(plView* ptView)
         gptGfx->return_command_buffer(ptPostCmdBuffer);
     }
 
-    for(uint32_t i = 0; i < gptData->tRuntimeOptions.uBloomChainLength - 1; i++)
+    for(uint32_t i = 0; i < ptView->tBloomOptions.uChainLength - 1; i++)
     {
 
-        const int targetMip = gptData->tRuntimeOptions.uBloomChainLength - 2 - i;
+        const int targetMip = ptView->tBloomOptions.uChainLength - 2 - i;
         const int sourceMip = targetMip + 1;
 
         const plBindGroupDesc tTonemapBGDesc = {
@@ -4532,8 +4537,8 @@ pl__render_view_bloom_pass(plView* ptView)
 
         plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
         plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
-        ptTonemapData->bloomStrength = gptData->tRuntimeOptions.fBloomStrength;
-        ptTonemapData->blurRadius = gptData->tRuntimeOptions.fBloomRadius;
+        ptTonemapData->bloomStrength = ptView->tBloomOptions.fStrength;
+        ptTonemapData->blurRadius = ptView->tBloomOptions.fRadius;
         ptTonemapData->isLowestMip = i == 0 ? 1 : 0;
 
         plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_upsample", NULL);
@@ -4631,8 +4636,8 @@ pl__render_view_bloom_pass(plView* ptView)
 
         plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
         plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
-        ptTonemapData->bloomStrength = gptData->tRuntimeOptions.fBloomStrength;
-        ptTonemapData->blurRadius = gptData->tRuntimeOptions.fBloomRadius;
+        ptTonemapData->bloomStrength = ptView->tBloomOptions.fStrength;
+        ptTonemapData->blurRadius = ptView->tBloomOptions.fRadius;
 
         plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("bloom_apply", NULL);
         gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);
@@ -4699,11 +4704,11 @@ pl__render_view_tonemap_pass(plView* ptView)
 
     plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
     plGpuDynTonemap* ptTonemapData = (plGpuDynTonemap*)tTonemapDynamicBinding.pcData;
-    ptTonemapData->iMode = gptData->tRuntimeOptions.tTonemapMode;
-    ptTonemapData->fExposure = gptData->tRuntimeOptions.fExposure;
-    ptTonemapData->fBrightness = gptData->tRuntimeOptions.fBrightness;
-    ptTonemapData->fContrast = gptData->tRuntimeOptions.fContrast;
-    ptTonemapData->fSaturation = gptData->tRuntimeOptions.fSaturation;
+    ptTonemapData->iMode = ptView->tTonemapOptions.tMode;
+    ptTonemapData->fExposure = ptView->tTonemapOptions.fExposure;
+    ptTonemapData->fBrightness = ptView->tTonemapOptions.fBrightness;
+    ptTonemapData->fContrast = ptView->tTonemapOptions.fContrast;
+    ptTonemapData->fSaturation = ptView->tTonemapOptions.fSaturation;
 
     plComputeShaderHandle tTonemapShader = gptShaderVariant->get_compute_shader("tonemap", NULL);
     gptGfx->bind_compute_shader(ptPostEncoder, tTonemapShader);

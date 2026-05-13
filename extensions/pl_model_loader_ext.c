@@ -51,13 +51,14 @@ Index of this file:
         #define PL_DS_FREE(x)                       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
     #endif
 
-    static const plResourceI*  gptResource  = NULL;
-    static const plEcsI*       gptECS       = NULL;
-    static const plAnimationI* gptAnimation = NULL;
-    static const plRendererI*  gptRenderer  = NULL;
-    static const plMeshI*      gptMesh      = NULL;
-    static const plVfsI*       gptVfs       = NULL;
-    static const plMaterialI*  gptMaterial  = NULL;
+    static const plResourceI*    gptResource    = NULL;
+    static const plEcsI*         gptECS         = NULL;
+    static const plAnimationI*   gptAnimation   = NULL;
+    static const plRendererI*    gptRenderer    = NULL;
+    static const plRendererEcsI* gptRendererEcs = NULL;
+    static const plMeshI*        gptMesh        = NULL;
+    static const plVfsI*         gptVfs         = NULL;
+    static const plMaterialI*    gptMaterial    = NULL;
 #endif
 
 #define CGLTF_MALLOC(x) gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
@@ -118,7 +119,7 @@ pl_model_loader_load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVe
     gptVfs->close_file(tHandle);
 
     // create ECS object component
-    plEntity tEntity = gptRenderer->create_object(ptLibrary, pcPath, NULL);
+    plEntity tEntity = gptRendererEcs->create_object(ptLibrary, pcPath, NULL);
 
     // retrieve actual components
     plMeshComponent*      ptMesh          = gptECS->get_component(ptLibrary, gptMesh->get_ecs_type_key_mesh(), tEntity);
@@ -306,10 +307,13 @@ pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, con
         const cgltf_skin* ptSkin = &ptGltfData->skins[szSkinIndex];
 
         plSkinComponent* ptSkinComponent = NULL;
-        plEntity tSkinEntity = gptRenderer->create_skin(ptLibrary, ptSkin->name, &ptSkinComponent);
+        plEntity tSkinEntity = gptRendererEcs->create_skin(ptLibrary, ptSkin->name, &ptSkinComponent);
         plTransformComponent* ptSkinTransform = gptECS->add_component(ptLibrary, gptECS->get_ecs_type_key_transform(), tSkinEntity);
-        pl_sb_resize(ptSkinComponent->sbtJoints, (uint32_t)ptSkin->joints_count);
-        pl_sb_resize(ptSkinComponent->sbtInverseBindMatrices, (uint32_t)ptSkin->joints_count);
+
+        ptSkinComponent->atJoints = PL_ALLOC(ptSkin->joints_count * (sizeof(plEntity) + sizeof(plMat4)));
+        memset(ptSkinComponent->atJoints, 0, ptSkin->joints_count * (sizeof(plEntity) + sizeof(plMat4)));
+        ptSkinComponent->atInverseBindMatrices = (plMat4*)&ptSkinComponent->atJoints[ptSkin->joints_count];
+        ptSkinComponent->uJointCount = (uint32_t)ptSkin->joints_count;
 
 
         if(ptSkin->joints[0]->name && pl_str_contains(ptSkin->joints[0]->name, "mixamorig"))
@@ -320,7 +324,7 @@ pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, con
                 const cgltf_node* ptJointNode = ptSkin->joints[szJointIndex];
 
                 plEntity tTransformEntity = gptECS->create_transform(ptLibrary, ptJointNode->name, NULL);
-                ptSkinComponent->sbtJoints[szJointIndex] = tTransformEntity;
+                ptSkinComponent->atJoints[szJointIndex] = tTransformEntity;
                 pl_hm_insert(&tLoadingData.tJointHashmap, (uint64_t)ptJointNode, tTransformEntity.uData);
                 pl__load_mixamorig(ptJointNode, ptHumanoid, tTransformEntity);
             }
@@ -331,7 +335,7 @@ pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, con
             {
                 const cgltf_node* ptJointNode = ptSkin->joints[szJointIndex];
                 plEntity tTransformEntity = gptECS->create_transform(ptLibrary, ptJointNode->name, NULL);
-                ptSkinComponent->sbtJoints[szJointIndex] = tTransformEntity;
+                ptSkinComponent->atJoints[szJointIndex] = tTransformEntity;
                 pl_hm_insert(&tLoadingData.tJointHashmap, (uint64_t)ptJointNode, tTransformEntity.uData);
             }
         }
@@ -339,7 +343,7 @@ pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, con
         {
             const cgltf_buffer_view* ptInverseBindMatrixView = ptSkin->inverse_bind_matrices->buffer_view;
             const char* pcBufferData = ptInverseBindMatrixView->buffer->data;
-            memcpy(ptSkinComponent->sbtInverseBindMatrices, &pcBufferData[ptInverseBindMatrixView->offset], sizeof(plMat4) * ptSkin->joints_count);
+            memcpy(ptSkinComponent->atInverseBindMatrices, &pcBufferData[ptInverseBindMatrixView->offset], sizeof(plMat4) * ptSkin->joints_count);
         }
         pl_hm_insert(&tLoadingData.tSkinHashmap, (uint64_t)ptSkin, tSkinEntity.uData);
     }
@@ -1172,7 +1176,7 @@ pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfL
         gptECS->attach_component(ptLibrary, tNewEntity, tParentEntity);
 
     // check if node has attached mesh
-    const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
+    const plEcsTypeKey tObjectComponentType = gptRendererEcs->get_ecs_type_key_object();
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
     if(ptNode->mesh)
@@ -1267,14 +1271,15 @@ pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     pl_set_api(ptApiRegistry, plModelLoaderI, &tApi);
 
     #ifndef PL_UNITY_BUILD
-        gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
-        gptECS       = pl_get_api_latest(ptApiRegistry, plEcsI);
-        gptResource  = pl_get_api_latest(ptApiRegistry, plResourceI);
-        gptAnimation = pl_get_api_latest(ptApiRegistry, plAnimationI);
-        gptRenderer  = pl_get_api_latest(ptApiRegistry, plRendererI);
-        gptMesh      = pl_get_api_latest(ptApiRegistry, plMeshI);
-        gptVfs       = pl_get_api_latest(ptApiRegistry, plVfsI);
-        gptMaterial  = pl_get_api_latest(ptApiRegistry, plMaterialI);
+        gptMemory      = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptECS         = pl_get_api_latest(ptApiRegistry, plEcsI);
+        gptResource    = pl_get_api_latest(ptApiRegistry, plResourceI);
+        gptAnimation   = pl_get_api_latest(ptApiRegistry, plAnimationI);
+        gptRenderer    = pl_get_api_latest(ptApiRegistry, plRendererI);
+        gptMesh        = pl_get_api_latest(ptApiRegistry, plMeshI);
+        gptVfs         = pl_get_api_latest(ptApiRegistry, plVfsI);
+        gptMaterial    = pl_get_api_latest(ptApiRegistry, plMaterialI);
+        gptRendererEcs = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
     #endif
 }
 

@@ -25,15 +25,15 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
     plComponentLibrary* ptLibrary = ptAppData->ptCompLibrary;
     const plEcsTypeKey tTransformComponentType = gptEcs->get_ecs_type_key_transform();
     const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
-    const plEcsTypeKey tObjectComponentType = gptRenderer->get_ecs_type_key_object();
+    const plEcsTypeKey tObjectComponentType = gptRendererEcs->get_ecs_type_key_object();
     const plEcsTypeKey tHierarchyComponentType = gptEcs->get_ecs_type_key_hierarchy();
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
-    const plEcsTypeKey tSkinComponentType = gptRenderer->get_ecs_type_key_skin();
+    const plEcsTypeKey tSkinComponentType = gptRendererEcs->get_ecs_type_key_skin();
     const plEcsTypeKey tCameraComponentType = gptCamera->get_ecs_type_key();
     const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
     const plEcsTypeKey tInverseKinematicsComponentType = gptAnimation->get_ecs_type_key_inverse_kinematics();
-    const plEcsTypeKey tLightComponentType = gptRenderer->get_ecs_type_key_light();
-    const plEcsTypeKey tEnvironmentProbeComponentType = gptRenderer->get_ecs_type_key_environment_probe();
+    const plEcsTypeKey tLightComponentType = gptRendererEcs->get_ecs_type_key_light();
+    const plEcsTypeKey tEnvironmentProbeComponentType = gptRendererEcs->get_ecs_type_key_environment_probe();
     const plEcsTypeKey tHumanoidComponentType = gptAnimation->get_ecs_type_key_humanoid();
     const plEcsTypeKey tScriptComponentType = gptScript->get_ecs_type_key();
     const plEcsTypeKey tRigidBodyComponentType = gptPhysics->get_ecs_type_key_rigid_body_physics();
@@ -482,7 +482,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
 
 
                 if(bMaterialModified)
-                    gptRenderer->update_scene_material(ptScene, tEntity);
+                    gptRendererEcs->update_scene_materials(ptScene, 1, &tEntity);
 
                 static const char* apcBlendModeNames[] = 
                 {
@@ -538,9 +538,9 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
             {
                 if(ImGui::TreeNode("Joints"))
                 {
-                    for(uint32_t i = 0; i < pl_sb_size(ptSkinComp->sbtJoints); i++)
+                    for(uint32_t i = 0; i < ptSkinComp->uJointCount; i++)
                     {
-                        plTagComponent* ptJointTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptSkinComp->sbtJoints[i]);
+                        plTagComponent* ptJointTagComp = (plTagComponent*)gptEcs->get_component(ptLibrary, gptEcs->get_ecs_type_key_tag(), ptSkinComp->atJoints[i]);
                         ImGui::Text("%s", ptJointTagComp->acName);  
                     }
                     ImGui::TreePop();

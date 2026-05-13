@@ -180,8 +180,6 @@ enum _plSceneInternalFlags
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-
-
 typedef struct _plOBB
 {
     plVec3 tCenter;
@@ -313,10 +311,6 @@ typedef struct _plView
 
     plGpuDirectionLightShadow* sbtDLightShadowData;
 
-    // per frame options (reset every frame)
-    bool bShowSkybox;
-    bool bShowGrid;
-
     // bind groups
     plBindGroupHandle atPickBindGroup[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle tLightingBindGroup;
@@ -378,6 +372,11 @@ typedef struct _plView
     plDrawList3D* pt3DDrawList;
     plDrawList3D* pt3DSelectionDrawList;
 
+    // view based options
+    plRendererDebugViewOptions tDebugOptions;
+    plRendererEditorViewOptions tEditorOptions;
+    plRendererBloomOptions tBloomOptions;
+    plRendererTonemapOptions tTonemapOptions;
 } plView;
 
 typedef struct _plScene
@@ -516,6 +515,13 @@ typedef struct _plScene
 
     // terrain
     plTerrain* ptTerrain;
+
+    // scene based options
+    plRendererEditorSceneOptions tEditorOptions;
+    plRendererLightingOptions tLightingOptions;
+    plRendererDebugSceneOptions tDebugOptions;
+    plRendererShadowOptions tShadowOptions;
+    plRendererFogOptions tFogOptions;
 } plScene;
 
 typedef struct _plRefRendererData
@@ -571,9 +577,6 @@ typedef struct _plRefRendererData
     // dynamic buffer system
     plDynamicDataBlock tCurrentDynamicDataBlock;
 
-    // graphics options
-    plRendererRuntimeOptions tRuntimeOptions;
-
     // stats
     double* pdDrawCalls;
 
@@ -587,7 +590,7 @@ typedef struct _plRefRendererData
 typedef struct _plCullData
 {
     plScene* ptScene;
-    plCamera* ptCullCamera;
+    const plCamera* ptCullCamera;
     plDrawable* atDrawables;
 } plCullData;
 
@@ -621,7 +624,7 @@ static plBufferHandle  pl__renderer_create_cached_staging_buffer(const plBufferD
 static plBufferHandle  pl__renderer_create_local_buffer         (const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
 
 // culling
-static bool pl__renderer_sat_visibility_test(plCamera*, const plAABB*);
+static bool pl__renderer_sat_visibility_test(const plCamera*, const plAABB*);
 
 typedef struct _plCSMInfo
 {
@@ -636,7 +639,7 @@ typedef struct _plCSMInfo
 // scene render helpers
 static void pl__renderer_perform_skinning(plCommandBuffer*, plScene*);
 static bool pl__renderer_pack_shadow_atlas(plScene*);
-static void pl__renderer_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, plScene*, uint32_t, uint32_t, plCamera*, plCSMInfo, plDrawList3D*);
+static void pl__renderer_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, plScene*, uint32_t, uint32_t, const plCamera*, plCSMInfo, plDrawList3D*);
 static void pl__renderer_generate_shadow_maps(plRenderEncoder*, plCommandBuffer*, plScene*);
 
 static uint64_t pl_renderer__add_material_to_scene(plScene* ptScene, plEntity tMaterial);
