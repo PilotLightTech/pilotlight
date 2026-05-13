@@ -2957,6 +2957,7 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
 void
 pl_renderer_ecs_add_probes_to_scene(plScene* ptScene, uint32_t uCount, const plEntity* atProbes)
 {
+    ptScene->uLastProbeAddFrame = gptIO->ulFrameCount;
     for(uint32_t i = 0; i < uCount; i++)
         pl__renderer_create_probe_data(ptScene, atProbes[i]);
     pl_renderer_ecs_add_drawable_objects_to_scene(ptScene, uCount, atProbes);
@@ -3359,7 +3360,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
     ptShadowDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->atSpotLightShadowDataBuffer[uFrameIdx]);
     memcpy(ptShadowDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtSpotLightShadowData, sizeof(plGpuSpotLightShadow) * pl_sb_size(ptScene->sbtSpotLightShadowData));
     
-    if(uFrameIdx == 0 && gptIO->ulFrameCount > 1) // multiple frames in flight may fight
+    if(uFrameIdx == 0 && gptIO->ulFrameCount - ptScene->uLastProbeAddFrame > 3) // multiple frames in flight may fight
     {
         const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
         for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
@@ -3393,6 +3394,9 @@ pl_renderer_prepare_scene(plScene* ptScene)
             {
                 continue;
             }
+
+            if(ptProbe->uDirtyFaces == 0 && (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY))
+                ptProbe->uDirtyFaces = 6;
 
             plTransformComponent* ptProbeTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptProbe->tEntity);
 

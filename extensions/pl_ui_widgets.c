@@ -547,7 +547,7 @@ pl_ui_selectable(const char* pcText, bool* bpValue, plUiSelectableFlags tFlags)
 {
 
     // temporary hack
-    static bool bDummyState = true;
+    static bool bDummyState = false;
     if(bpValue == NULL) bpValue = &bDummyState;
 
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;

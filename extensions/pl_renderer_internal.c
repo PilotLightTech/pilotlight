@@ -4950,7 +4950,14 @@ pl__renderer_update_probes(plScene* ptScene)
 
         ptProbe->uCurrentFace = (ptProbe->uCurrentFace + ptProbeComp->uInterval) % 6;
 
-        if(ptProbe->uCurrentFace == 0)
+        if(ptProbe->uDirtyFaces == 0)
             ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+        else
+        {
+            uint32_t uMaxDirty = pl_min(ptProbe->uDirtyFaces, ptProbeComp->uInterval);
+            ptProbe->uDirtyFaces -= uMaxDirty;
+            if(ptProbe->uDirtyFaces == 0)
+                ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+        }
     }
 }

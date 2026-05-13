@@ -300,6 +300,7 @@ typedef struct _plEnvironmentProbeData
 
     // intervals
     uint32_t uCurrentFace;
+    uint32_t uDirtyFaces;
     int iMips;
 } plEnvironmentProbeData;
 
@@ -512,6 +513,7 @@ typedef struct _plScene
     plEnvironmentProbeData* sbtProbeData;
     plSkinData*             sbtSkinData;
     uint32_t                uNextTransformIndex;
+    uint64_t                uLastProbeAddFrame;
 
     // terrain
     plTerrain* ptTerrain;
