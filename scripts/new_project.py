@@ -70,10 +70,10 @@ for file in glob.glob("../extensions/*.m"):
 for file in glob.glob("../extensions/*internal.h"):
     shutil.copy(file, target_directory + "/dependencies/pilotlight/src/")
 
-shutil.copytree("../dependencies/cgltf", target_directory + "/dependencies/cgltf")
-shutil.copytree("../dependencies/glfw", target_directory + "/dependencies/glfw")
-shutil.copytree("../dependencies/imgui", target_directory + "/dependencies/imgui")
-shutil.copytree("../dependencies/stb", target_directory + "/dependencies/stb")
+shutil.copytree("../thirdparty/cgltf", target_directory + "/dependencies/cgltf")
+shutil.copytree("../thirdparty/glfw", target_directory + "/dependencies/glfw")
+shutil.copytree("../thirdparty/imgui", target_directory + "/dependencies/imgui")
+shutil.copytree("../thirdparty/stb", target_directory + "/dependencies/stb")
 shutil.copytree("../shaders", target_directory + "/dependencies/pilotlight/shaders")
 
 if newProject:

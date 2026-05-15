@@ -3,9 +3,6 @@ import os
 from urllib.request import urlretrieve
 from zipfile import ZipFile
 
-if not os.path.isdir('../data'):
-    os.mkdir('../data')
-
 def reporthook(blocknum, blocksize, totalsize):
     bytesread = blocknum * blocksize
     if totalsize > 0:
@@ -23,9 +20,28 @@ def download_zip(url, filename, description):
     print("Download finished")
     print("Extracting")
     zip = ZipFile(filename, 'r')
-    zip.extractall("../data/")
+    zip.extractall("../assets/")
     zip.close()
     os.remove(filename)
 
-download_zip('https://github.com/PilotLightTech/pilotlight-assets/archive/refs/heads/master.zip', '../data/pilotlight-assets.zip', "test assets")
-download_zip('https://github.com/KhronosGroup/glTF-Sample-Assets/archive/refs/heads/main.zip', '../data/gltf-sample-assets.zip', "sample gltf assets")
+development_assets = False
+gltf_assets = False
+
+if len(sys.argv) > 1:
+    target_directory = sys.argv[1]
+    for i in range(1, len(sys.argv)):
+        print(sys.argv[i])
+        if sys.argv[i] == "development":
+            development_assets = True
+        elif sys.argv[i] == "gltf":
+            gltf_assets = True
+        else:
+            target_directory = sys.argv[i]
+
+if development_assets:
+    download_zip('https://github.com/PilotLightTech/pilotlight-assets/archive/refs/heads/master.zip', '../assets/pilotlight-assets.zip', "test assets")
+    os.rename('../assets/pilotlight-assets-master', '../assets/development')
+
+if gltf_assets:
+    download_zip('https://github.com/KhronosGroup/glTF-Sample-Assets/archive/refs/heads/main.zip', '../assets/gltf-sample-assets.zip', "sample gltf assets")
+    os.rename('../assets/glTF-Sample-Assets-main', '../assets/gltf-samples')

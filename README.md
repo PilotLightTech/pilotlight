@@ -35,10 +35,9 @@ Information for developers can be found in the [wiki](https://github.com/PilotLi
 * [contributing](https://github.com/PilotLightTech/pilotlight/wiki/Contributing)
 * [style guide](https://github.com/PilotLightTech/pilotlight/wiki/Style-Guide)
 
-A template application can be found [here](https://git.pilotlight.tech/pilotlight/pl-template).
-
 ## Folder Structure
-* <ins>dependencies</ins> - Contains any third party libraries.
+* <ins>assets</ins> - Contains assets for development.
+* <ins>thirdparty</ins> - Contains any third party libraries.
 * <ins>docs</ins> - Contains documentation for the project.
 * <ins>examples</ins> - Contains small complete examples that utilize stable APIs & extensions
 * <ins>extensions</ins> - Contains extensions (most functionality is provided through these extensions).

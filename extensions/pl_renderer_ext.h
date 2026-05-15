@@ -501,6 +501,7 @@ typedef struct _plRendererDebugSceneOptions
     bool bWireframe;
     bool bShowOrigin;
     bool bShowProbes;
+    bool bShowProbeRange;
     plShaderDebugMode tShaderDebugMode;
 } plRendererDebugSceneOptions;
 

@@ -15,6 +15,11 @@ cache/
 internal/demo/model-index.json
 internal/sandbox/model-index.json
 
+# assets
+assets/development
+assets/gltf-samples
+assets/*.zip
+
 # python
 build/__pycache__/
 scripts/__pycache__/

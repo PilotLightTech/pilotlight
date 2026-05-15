@@ -176,7 +176,7 @@ shutil.copy("../libs/pl_string.h", target_directory + "/include/pl_string.h")
 shutil.copy("../libs/pl_test.h", target_directory + "/include/pl_test.h")
 
 # copy stb libs
-shutil.copy("../dependencies/stb/stb_sprintf.h", target_directory + "/include/stb_sprintf.h")
+shutil.copy("../thirdparty/stb/stb_sprintf.h", target_directory + "/include/stb_sprintf.h")
 
 # copy extension binary
 for extension in extensions:

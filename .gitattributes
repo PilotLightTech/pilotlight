@@ -24,4 +24,4 @@
 *.lib binary
 
 # vendored code
-dependencies/* linguist-vendored
+thirdparty/* linguist-vendored

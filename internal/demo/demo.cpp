@@ -159,12 +159,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData = (plAppData*)PL_ALLOC(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
 
-    gptVfs->mount_directory("/models", "../data/pilotlight-assets-master/models", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/gltf-models", "../data/glTF-Sample-Assets-main/Models", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/fonts", "../data/pilotlight-assets-master/fonts", PL_VFS_MOUNT_FLAGS_NONE);
-    gptVfs->mount_directory("/environments", "../data/pilotlight-assets-master/environments", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/gltf-samples", "../assets/gltf-samples/Models", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/environments", "../assets/development/environments", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/shaders", "../shaders", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/shader-temp", "../shader-temp", PL_VFS_MOUNT_FLAGS_NONE);
+    gptVfs->mount_directory("/assets", "../assets", PL_VFS_MOUNT_FLAGS_NONE);
     gptFile->create_directory("../shader-temp");
 
     // defaults
@@ -292,7 +291,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tFontConfig0.uVOverSampling = 1;
     tFontConfig0.ptRanges = &tFontRange;
     tFontConfig0.uRangeCount = 1;
-    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "/fonts/Cousine-Regular.ttf");
+    ptAppData->tDefaultFont = gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig0, "/assets/core/fonts/Cousine-Regular.ttf");
 
     plFontRange tIconRange = PL_ZERO_INIT;
     tIconRange.iFirstCodePoint = ICON_MIN_FA;
@@ -306,7 +305,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tFontConfig1.ptMergeFont    = ptAppData->tDefaultFont;
     tFontConfig1.ptRanges       = &tIconRange;
     tFontConfig1.uRangeCount    = 1;
-    gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "/fonts/fa-solid-900.otf");
+    gptDraw->add_font_from_file_ttf(gptDraw->get_current_font_atlas(), tFontConfig1, "/assets/core/fonts/fa-solid-900.otf");
     gptStarter->set_default_font(ptAppData->tDefaultFont);
     gptUI->set_default_font(ptAppData->tDefaultFont);
 
@@ -328,11 +327,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ImGuiIO& tImGuiIO = ImGui::GetIO();
     tImGuiIO.IniFilename = nullptr;
     ImGui::LoadIniSettingsFromDisk("../internal/demo/pl_imgui.ini");
-    tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/Cousine-Regular.ttf", 16.0f);
+    tImGuiIO.Fonts->AddFontFromFileTTF("../assets/core/fonts/Cousine-Regular.ttf", 16.0f);
     auto tImGuiFontConfig = ImFontConfig();
     tImGuiFontConfig.MergeMode = true;
     static ImWchar atFontRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA};
-    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../data/pilotlight-assets-master/fonts/fa-solid-900.otf", 16.0f, &tImGuiFontConfig, atFontRanges);
+    tImGuiIO.FontDefault = tImGuiIO.Fonts->AddFontFromFileTTF("../assets/core/fonts/fa-solid-900.otf", 16.0f, &tImGuiFontConfig, atFontRanges);
     return ptAppData;
 }
 
@@ -759,35 +758,33 @@ pl_app_update(plAppData* ptAppData)
 void
 pl__find_models(plAppData* ptAppData)
 {
-    if(gptVfs->does_file_exist("/models/gltf/humanoid/model.gltf"))
     {
         plTestModel tModel = PL_ZERO_INIT;
         tModel.uVariantCount = 1;
         tModel.bSelected = true;
         strcpy(tModel.acName, "Fembot");
         strcpy(tModel.acVariants[0].acType, "glTF");
-        strcpy(tModel.acVariants[0].acFilePath, "/models/gltf/humanoid/model.gltf");
+        strcpy(tModel.acVariants[0].acFilePath, "/assets/core/models/gltf/model.gltf");
         pl_sb_push(ptAppData->sbtTestModels, tModel);
     }
 
-    if(gptVfs->does_file_exist("/models/gltf/humanoid/floor.gltf"))
     {
         plTestModel tModel = PL_ZERO_INIT;
         tModel.uVariantCount = 1;
         tModel.bSelected = true;
         strcpy(tModel.acName, "Floor");
         strcpy(tModel.acVariants[0].acType, "glTF");
-        strcpy(tModel.acVariants[0].acFilePath, "/models/gltf/humanoid/floor.gltf");
+        strcpy(tModel.acVariants[0].acFilePath, "/assets/core/models/gltf/floor.gltf");
         pl_sb_push(ptAppData->sbtTestModels, tModel);
     }
 
-    if(gptVfs->does_file_exist("../internal/demo/model-index.json"))
+    if(gptVfs->does_file_exist("/gltf-samples/model-index.json"))
     {
-        size_t szJsonFileSize = gptVfs->get_file_size_str("../internal/demo/model-index.json");
+        size_t szJsonFileSize = gptVfs->get_file_size_str("/gltf-samples/model-index.json");
         uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
         memset(puFileBuffer, 0, szJsonFileSize + 1);
 
-        plVfsFileHandle tHandle = gptVfs->open_file("../internal/demo/model-index.json", PL_VFS_FILE_MODE_READ);
+        plVfsFileHandle tHandle = gptVfs->open_file("/gltf-samples/model-index.json", PL_VFS_FILE_MODE_READ);
         gptVfs->read_file(tHandle, puFileBuffer, &szJsonFileSize);
         gptVfs->close_file(tHandle);
 
@@ -822,86 +819,7 @@ pl__find_models(plAppData* ptAppData)
             for(uint32_t j = 0; j < tTestModel.uVariantCount; j++)
             {
                 pl_json_string_member(ptVariantsObject, tTestModel.acVariants[j].acType, tTestModel.acVariants[j].acName, 128);
-                pl_sprintf(tTestModel.acVariants[j].acFilePath, "%s", tTestModel.acVariants[j].acName);
-            }
-
-            char acTag0[64] = {0};
-            char acTag1[64] = {0};
-            char acTag2[64] = {0};
-            char acTag3[64] = {0};
-            char acTag4[64] = {0};
-
-            char* acTags[] = {
-                acTag0,
-                acTag1,
-                acTag2,
-                acTag3,
-                acTag4,
-            };
-            uint32_t uTagCount = 0;
-            uint32_t uTagLength = 64;
-            pl_json_string_array_member(ptVariantsObject, "tags", acTags, &uTagCount, &uTagLength);
-
-            for(uint32_t j = 0; j < uTagCount; j++)
-            {
-                if(pl_str_equal(acTags[j], "core"))
-                    tTestModel.bCore = true;
-                if(pl_str_equal(acTags[j], "extensions"))
-                    tTestModel.bExtension = true;
-                if(pl_str_equal(acTags[j], "testing"))
-                    tTestModel.bTesting = true;
-            }
-
-            pl_sb_push(ptAppData->sbtTestModels, tTestModel);
-        }
-
-        pl_unload_json(&ptRootJsonObject);
-
-        PL_FREE(puFileBuffer);
-    }
-
-    if(gptVfs->does_file_exist("/gltf-models/model-index.json"))
-    {
-        size_t szJsonFileSize = gptVfs->get_file_size_str("/gltf-models/model-index.json");
-        uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
-        memset(puFileBuffer, 0, szJsonFileSize + 1);
-
-        plVfsFileHandle tHandle = gptVfs->open_file("/gltf-models/model-index.json", PL_VFS_FILE_MODE_READ);
-        gptVfs->read_file(tHandle, puFileBuffer, &szJsonFileSize);
-        gptVfs->close_file(tHandle);
-
-        plJsonObject* ptRootJsonObject = nullptr;
-        pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
-
-        plJsonObject* ptModelList = pl_json_member_by_index(ptRootJsonObject, 0);
-
-        uint32_t uTestModelCount = 0;
-        pl_json_member_list(ptModelList, nullptr, &uTestModelCount, nullptr);
-
-        pl_sb_reserve(ptAppData->sbtTestModels, pl_sb_size(ptAppData->sbtTestModels) + uTestModelCount);
-
-        for(uint32_t i = 0; i < uTestModelCount; i++)
-        {
-            plJsonObject* ptModelObject = pl_json_member_by_index(ptModelList, i);
-
-            plTestModel tTestModel = {0};
-
-            pl_json_string_member(ptModelObject, "label", tTestModel.acLabel, 256);
-            pl_json_string_member(ptModelObject, "name", tTestModel.acName, 128);
-
-            plJsonObject* ptVariantsObject = pl_json_member(ptModelObject, "variants");
-
-            char* acVariantNames[8] = {0};
-            for(uint32_t j = 0; j < 8; j++)
-            { 
-                acVariantNames[j] = tTestModel.acVariants[j].acType;
-            }
-            pl_json_member_list(ptVariantsObject, acVariantNames, &tTestModel.uVariantCount, nullptr);
-
-            for(uint32_t j = 0; j < tTestModel.uVariantCount; j++)
-            {
-                pl_json_string_member(ptVariantsObject, tTestModel.acVariants[j].acType, tTestModel.acVariants[j].acName, 128);
-                pl_sprintf(tTestModel.acVariants[j].acFilePath, "/gltf-models/%s/%s/%s", tTestModel.acName, tTestModel.acVariants[j].acType, tTestModel.acVariants[j].acName);
+                pl_sprintf(tTestModel.acVariants[j].acFilePath, "/gltf-samples/%s/%s/%s", tTestModel.acName, tTestModel.acVariants[j].acType, tTestModel.acVariants[j].acName);
             }
 
             char acTag0[64] = {0};

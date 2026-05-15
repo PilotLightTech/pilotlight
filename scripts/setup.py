@@ -27,10 +27,10 @@ includes = [
     "${workspaceFolder}/src",
     "${workspaceFolder}/libs",
     "${workspaceFolder}/extensions",
-    "${workspaceFolder}/dependencies/stb",
-    "${workspaceFolder}/dependencies/cgltf",
-    "${workspaceFolder}/dependencies/imgui",
-    "${workspaceFolder}/dependencies/glfw",
+    "${workspaceFolder}/thirdparty/stb",
+    "${workspaceFolder}/thirdparty/cgltf",
+    "${workspaceFolder}/thirdparty/imgui",
+    "${workspaceFolder}/thirdparty/glfw",
     "${env:VK_SDK_PATH}/Include"
 ]
 

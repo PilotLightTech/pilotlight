@@ -107,7 +107,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -148,7 +148,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -189,7 +189,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -230,7 +230,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -270,7 +270,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -310,7 +310,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -350,7 +350,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -390,7 +390,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -430,7 +430,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -470,7 +470,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -510,7 +510,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -550,7 +550,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -590,7 +590,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_DEBUG -D_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC --debug -g "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -690,7 +690,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -731,7 +731,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "
@@ -772,7 +772,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -813,7 +813,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -853,7 +853,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -893,7 +893,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -933,7 +933,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -973,7 +973,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1013,7 +1013,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1053,7 +1053,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1093,7 +1093,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES=""
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1133,7 +1133,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=gnu11 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm "
@@ -1173,7 +1173,7 @@ if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_CPU_BACKEND -DPL_CONFIG_RELEASE -DNDEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../dependencies/stb "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb "
 PL_LINK_DIRECTORIES="-L/usr/lib/x86_64-linux-gnu -Wl,-rpath,/usr/lib/x86_64-linux-gnu "
 PL_COMPILER_FLAGS="-std=c++14 -fPIC "
 PL_LINKER_FLAGS="-ldl -lm -lstdc++ "

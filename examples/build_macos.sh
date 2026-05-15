@@ -90,8 +90,6 @@ else
     rm -f ../out/example_basic_4_*.dylib
     rm -f ../out/example_basic_5.dylib
     rm -f ../out/example_basic_5_*.dylib
-    rm -f ../out/example_basic_wip_0.dylib
-    rm -f ../out/example_basic_wip_0_*.dylib
     rm -f ../out/example_gfx_0.dylib
     rm -f ../out/example_gfx_0_*.dylib
     rm -f ../out/example_gfx_1.dylib
@@ -108,7 +106,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -150,7 +148,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -192,7 +190,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -234,7 +232,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -276,7 +274,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -318,7 +316,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -356,53 +354,11 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_wip_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
-PL_LINKER_FLAGS=""
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
-PL_SOURCES="example_basic_wip_0.c "
-PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: example_basic_wip_0${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_wip_0.dylib"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -444,7 +400,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -486,7 +442,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -528,7 +484,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -570,7 +526,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -656,8 +612,6 @@ else
     rm -f ../out/example_basic_4_*.dylib
     rm -f ../out/example_basic_5.dylib
     rm -f ../out/example_basic_5_*.dylib
-    rm -f ../out/example_basic_wip_0.dylib
-    rm -f ../out/example_basic_wip_0_*.dylib
     rm -f ../out/example_gfx_0.dylib
     rm -f ../out/example_gfx_0_*.dylib
     rm -f ../out/example_gfx_1.dylib
@@ -674,7 +628,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -716,7 +670,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -758,7 +712,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -800,7 +754,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -842,7 +796,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -884,7 +838,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -922,53 +876,11 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
-#~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_wip_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~
-
-PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
-PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
-PL_LINKER_FLAGS=""
-PL_STATIC_LINK_LIBRARIES=""
-PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
-PL_SOURCES="example_basic_wip_0.c "
-PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
-
-# add flags for specific hardware
-if [[ "$ARCH" == "arm64" ]]; then
-    PL_COMPILER_FLAGS+="-arch arm64 "
-else
-    PL_COMPILER_FLAGS+="-arch x86_64 "
-fi
-
-# run compiler (and linker)
-echo
-echo ${YELLOW}Step: example_basic_wip_0${NC}
-echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
-echo ${CYAN}Compiling and Linking...${NC}
-clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_basic_wip_0.dylib"
-
-# check build status
-if [ $? -ne 0 ]
-then
-    PL_RESULT=${BOLD}${RED}Failed.${NC}
-    PL_BUILD_STATUS=1
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-popd >/dev/null
-exit 1
-fi
-
-# print results
-echo ${CYAN}Results: ${NC} ${PL_RESULT}
-echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
-
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -1010,7 +922,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -1052,7 +964,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -1094,7 +1006,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -1136,7 +1048,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
 PL_LINKER_FLAGS=""
@@ -1218,7 +1130,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c++14 --debug -g -fmodules -ObjC++ -fPIC "
 PL_LINKER_FLAGS="-lstdc++ -ldl -lm "
@@ -1300,7 +1212,7 @@ fi
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
-PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../dependencies/stb -I../dependencies/imgui "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="-std=c++14 -fmodules -ObjC++ -fPIC "
 PL_LINKER_FLAGS=""
