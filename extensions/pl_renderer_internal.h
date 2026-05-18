@@ -64,6 +64,8 @@ Index of this file:
 #include "pl_freelist_ext.h"
 #include "pl_collision_ext.h"
 #include "pl_image_ops_ext.h"
+#include "pl_script_ext.h"
+#include "pl_model_loader_ext.h"
 
 // shader interop
 #include "pl_shader_interop_renderer.h"
@@ -126,6 +128,8 @@ Index of this file:
     static const plStageI*            gptStage            = NULL;
     static const plFreeListI*         gptFreeList         = NULL;
     static const plImageOpsI*         gptImageOps         = NULL;
+    static const plScriptI*           gptScript           = NULL;
+    static const plModelLoaderI*      gptModelLoader      = NULL;
     
 #endif
 

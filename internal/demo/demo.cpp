@@ -764,7 +764,7 @@ pl__find_models(plAppData* ptAppData)
         tModel.bSelected = true;
         strcpy(tModel.acName, "Fembot");
         strcpy(tModel.acVariants[0].acType, "glTF");
-        strcpy(tModel.acVariants[0].acFilePath, "/assets/core/models/gltf/model.gltf");
+        strcpy(tModel.acVariants[0].acFilePath, "/assets/core/models/gltf/humanoid.gltf");
         pl_sb_push(ptAppData->sbtTestModels, tModel);
     }
 
@@ -1059,7 +1059,7 @@ pl__show_editor_window(plAppData* ptAppData)
                     ptAppData->ptView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc0);
                     ptAppData->ptSecondaryView = gptRenderer->create_view(ptAppData->ptScene, &tViewDesc1);
 
-                    plModelLoaderData tLoaderData0 = {0};
+                    
 
                     uint32_t uTestModelCount = pl_sb_size(ptAppData->sbtTestModels);
                     for(uint32_t i = 0; i < uTestModelCount; i++)
@@ -1070,15 +1070,17 @@ pl__show_editor_window(plAppData* ptAppData)
                             {
                                 if(ptAppData->sbtTestModels[i].acVariants[j].acType[4] != '-')
                                 {
-                                    gptModelLoader->load_gltf(ptAppData->ptCompLibrary, ptAppData->sbtTestModels[i].acVariants[j].acFilePath, nullptr, &tLoaderData0);
+                                    plModelInstanceHandle tHandle = gptModelLoader->load_gltf(ptAppData->ptCompLibrary, ptAppData->sbtTestModels[i].acVariants[j].acFilePath, nullptr);
+                                    const plModelLoaderData* ptLoaderData = gptModelLoader->get_objects(tHandle);
+                                    gptRendererEcs->add_drawable_objects_to_scene(ptAppData->ptScene, ptLoaderData->uObjectCount, ptLoaderData->atObjects);
+                                    gptModelLoader->free_data(tHandle);
                                     break;
                                 }
                             }
                         }
                     }
 
-                    gptRendererEcs->add_drawable_objects_to_scene(ptAppData->ptScene, tLoaderData0.uObjectCount, tLoaderData0.atObjects);
-                    gptModelLoader->free_data(&tLoaderData0);
+
                 }
 
             }

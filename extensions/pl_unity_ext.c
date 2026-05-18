@@ -436,6 +436,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptRendererEcs       = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
     gptRendererDebug     = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
     gptRendererEditor    = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
+    gptModelLoader       = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
     gptIO = gptIOI->get_io();
 
     pl_load_log_ext(ptApiRegistry, bReload);

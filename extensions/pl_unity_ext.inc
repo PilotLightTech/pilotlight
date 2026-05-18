@@ -73,6 +73,7 @@ static const struct _plRendererTerrainI*   gptRendererTerrain  = 0;
 static const struct _plRendererEcsI*       gptRendererEcs      = 0;
 static const struct _plRendererDebugI*     gptRendererDebug    = 0;
 static const struct _plRendererEditorI*    gptRendererEditor   = 0;
+static const struct _plModelLoaderI*       gptModelLoader      = 0;
 
 // context
 static struct _plIO* gptIO = 0;

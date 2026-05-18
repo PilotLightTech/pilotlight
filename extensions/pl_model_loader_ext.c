@@ -75,13 +75,32 @@ Index of this file:
 
 typedef struct _plGltfLoadingData
 {
-    plComponentLibrary* ptLibrary;
-    plHashMap64         tNodeHashmap;
-    plHashMap64         tJointHashmap;
-    plHashMap64         tSkinHashmap;
-    plHashMap64         tMaterialHashMap;
-    plEntity*           sbtMaterialEntities;
+    plComponentLibrary*   ptLibrary;
+    plHashMap64           tNodeHashmap;
+    plHashMap64           tJointHashmap;
+    plHashMap64           tSkinHashmap;
+    plHashMap64           tMaterialHashMap;
+    plEntity*             sbtMaterialEntities;
+    plModelInstanceHandle tHandle;
+    char*                 sbtPathBuffer;
 } plGltfLoadingData;
+
+typedef struct _plModelLoadedData
+{
+    plModelLoaderData tData;
+    plHashMap64       tAnimationHashmap; // name to animation entity data
+    plHashMap64       tNodePathHashmap;  // name to entity data
+    plHashMap64       tMaterialHashmap;  // name to entity data
+} plModelLoadedData;
+
+typedef struct _plModelLoaderContext
+{
+    plModelLoadedData* sbtModels;
+    uint32_t*          sbtModelGenerations;
+    uint32_t*          sbtModelFreeIndices;
+} plModelLoaderContext;
+
+static plModelLoaderContext* gptModelLoaderCtx = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal API
@@ -91,7 +110,7 @@ typedef struct _plGltfLoadingData
 static void pl__load_gltf_texture(const char* pcPath, plTextureSlot tSlot, const cgltf_texture_view* ptTexture, const char* pcDirectory, const cgltf_material* ptMaterial, plMaterialComponent* ptMaterialOut);
 static void pl__refr_load_material(const char* pcPath, const char* pcDirectory, plMaterialComponent* ptMaterial, const cgltf_material* ptGltfMaterial);
 static void pl__refr_load_attributes(plMeshComponent* ptMesh, const cgltf_primitive* ptPrimitive);
-static void pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfLoadingData* ptSceneData, const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode);
+static void pl__refr_load_gltf_object(const char* pcPath, plModelInstanceHandle, plGltfLoadingData* ptSceneData, const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode);
 static void pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animation* ptAnimation);
 
 //-----------------------------------------------------------------------------
@@ -99,24 +118,74 @@ static void pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const c
 //-----------------------------------------------------------------------------
 
 void
-pl_model_loader_free_data(plModelLoaderData* ptData)
+pl_model_loader_free_data(plModelInstanceHandle tHandle)
 {
-    pl_sb_free(ptData->atObjects);
-    ptData->uObjectCount = 0;
-    ptData->atObjects = NULL;
+
+    pl_sb_free(gptModelLoaderCtx->sbtModels[tHandle.uIndex].tData.atObjects);
+    pl_hm64_free(&gptModelLoaderCtx->sbtModels[tHandle.uIndex].tAnimationHashmap);
+    pl_hm64_free(&gptModelLoaderCtx->sbtModels[tHandle.uIndex].tNodePathHashmap);
+    pl_hm64_free(&gptModelLoaderCtx->sbtModels[tHandle.uIndex].tMaterialHashmap);
+    gptModelLoaderCtx->sbtModels[tHandle.uIndex].tData.uObjectCount = 0;
+    gptModelLoaderCtx->sbtModels[tHandle.uIndex].tData.atObjects = NULL;
+    gptModelLoaderCtx->sbtModelGenerations[tHandle.uIndex]++;
+    pl_sb_push(gptModelLoaderCtx->sbtModelFreeIndices, tHandle.uIndex);
 }
 
 bool
-pl_model_loader_load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, const plMat4* ptTransform, plModelLoaderData* ptDataOut)
+pl_model_loader_get_animation_by_name(plModelInstanceHandle tHandle, const char* pcName, plEntity* ptEntityOut)
 {
+    if(!pl_hm64_has_key_str(&gptModelLoaderCtx->sbtModels[tHandle.uIndex].tAnimationHashmap, pcName))
+        return false;
+
+    (*ptEntityOut).uData = pl_hm64_lookup_str(&gptModelLoaderCtx->sbtModels[tHandle.uIndex].tAnimationHashmap, pcName);
+    return true;
+}
+
+bool
+pl_model_loader_get_node_by_path(plModelInstanceHandle tHandle, const char* pcPath, plEntity* ptEntityOut)
+{
+    if(!pl_hm64_has_key_str(&gptModelLoaderCtx->sbtModels[tHandle.uIndex].tNodePathHashmap, pcPath))
+        return false;
+
+    (*ptEntityOut).uData = pl_hm64_lookup_str(&gptModelLoaderCtx->sbtModels[tHandle.uIndex].tNodePathHashmap, pcPath);
+    return true;
+}
+
+bool
+pl_model_loader_get_material_by_name(plModelInstanceHandle tHandle, const char* pcName, plEntity* ptEntityOut)
+{
+    if(!pl_hm64_has_key_str(&gptModelLoaderCtx->sbtModels[tHandle.uIndex].tMaterialHashmap, pcName))
+        return false;
+
+    (*ptEntityOut).uData = pl_hm64_lookup_str(&gptModelLoaderCtx->sbtModels[tHandle.uIndex].tMaterialHashmap, pcName);
+    return true;
+}
+
+plModelInstanceHandle
+pl_model_loader_load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVec4 tColor, const plMat4* ptTransform)
+{
+
+    plModelInstanceHandle tHandle = {0};
+    if(pl_sb_size(gptModelLoaderCtx->sbtModelFreeIndices) > 0)
+    {
+        tHandle.uIndex = pl_sb_pop(gptModelLoaderCtx->sbtModelFreeIndices);
+        
+    }
+    else
+    {
+        tHandle.uIndex = pl_sb_size(gptModelLoaderCtx->sbtModels);
+        pl_sb_add(gptModelLoaderCtx->sbtModels);
+        pl_sb_push(gptModelLoaderCtx->sbtModelGenerations, 0);
+    }
+    tHandle.uGeneration = gptModelLoaderCtx->sbtModelGenerations[tHandle.uIndex];
 
     // read in STL file
     size_t szFileSize = gptVfs->get_file_size_str(pcPath);
     uint8_t* pcBuffer = PL_ALLOC(szFileSize);
     memset(pcBuffer, 0, szFileSize);
-    plVfsFileHandle tHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
-    gptVfs->read_file(tHandle, pcBuffer, &szFileSize);
-    gptVfs->close_file(tHandle);
+    plVfsFileHandle tFileHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tFileHandle, pcBuffer, &szFileSize);
+    gptVfs->close_file(tFileHandle);
 
     // create ECS object component
     plEntity tEntity = gptRendererEcs->create_object(ptLibrary, pcPath, NULL);
@@ -164,9 +233,9 @@ pl_model_loader_load_stl(plComponentLibrary* ptLibrary, const char* pcPath, plVe
         if(ptMesh->ptVertexPositions[i].z < ptMesh->tAABB.tMin.z) ptMesh->tAABB.tMin.z = ptMesh->ptVertexPositions[i].z;
     }
 
-    pl_sb_push(ptDataOut->atObjects, tEntity);
-    ptDataOut->uObjectCount = pl_sb_size(ptDataOut->atObjects);
-    return true;
+    pl_sb_push(gptModelLoaderCtx->sbtModels[tHandle.uIndex].tData.atObjects, tEntity);
+    gptModelLoaderCtx->sbtModels[tHandle.uIndex].tData.uObjectCount = pl_sb_size(gptModelLoaderCtx->sbtModels[tHandle.uIndex].tData.atObjects);
+    return tHandle;
 }
 
 static void
@@ -278,10 +347,28 @@ pl__load_mixamorig(const cgltf_node* ptJointNode, plHumanoidComponent* ptHumanoi
         ptHumanoid->atBones[PL_HUMANOID_BONE_RIGHT_TOES] = tTransformEntity;
 }
 
-bool
-pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* ptTransform, plModelLoaderData* ptDataOut)
+plModelInstanceHandle
+pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, const plMat4* ptTransform)
 {
-    plGltfLoadingData tLoadingData = {.ptLibrary = ptLibrary};
+
+    plModelInstanceHandle tHandle = {0};
+    if(pl_sb_size(gptModelLoaderCtx->sbtModelFreeIndices) > 0)
+    {
+        tHandle.uIndex = pl_sb_pop(gptModelLoaderCtx->sbtModelFreeIndices);
+        
+    }
+    else
+    {
+        tHandle.uIndex = pl_sb_size(gptModelLoaderCtx->sbtModels);
+        pl_sb_add(gptModelLoaderCtx->sbtModels);
+        pl_sb_push(gptModelLoaderCtx->sbtModelGenerations, 0);
+    }
+    tHandle.uGeneration = gptModelLoaderCtx->sbtModelGenerations[tHandle.uIndex];
+
+    plGltfLoadingData tLoadingData = {
+        .ptLibrary = ptLibrary,
+        .tHandle   = tHandle
+    };
     cgltf_options tGltfOptions = {0};
     cgltf_data* ptGltfData = NULL;
 
@@ -289,9 +376,9 @@ pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, con
     size_t szFileSize = gptVfs->get_file_size_str(pcPath);
     uint8_t* pcBuffer = PL_ALLOC(szFileSize);
     memset(pcBuffer, 0, szFileSize);
-    plVfsFileHandle tHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
-    gptVfs->read_file(tHandle, pcBuffer, &szFileSize);
-    gptVfs->close_file(tHandle);
+    plVfsFileHandle tFileHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tFileHandle, pcBuffer, &szFileSize);
+    gptVfs->close_file(tFileHandle);
 
     char acDirectory[1024] = {0};
     pl_str_get_directory(pcPath, acDirectory, 1024);
@@ -299,7 +386,7 @@ pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, con
     cgltf_result tGltfResult = cgltf_parse(&tGltfOptions, pcBuffer, szFileSize, &ptGltfData);
     PL_ASSERT(tGltfResult == cgltf_result_success);
 
-    tGltfResult = cgltf_load_buffers(&tGltfOptions, ptGltfData, gptVfs->get_real_path(tHandle));
+    tGltfResult = cgltf_load_buffers(&tGltfOptions, ptGltfData, gptVfs->get_real_path(tFileHandle));
     PL_ASSERT(tGltfResult == cgltf_result_success);
 
     for(size_t szSkinIndex = 0; szSkinIndex < ptGltfData->skins_count; szSkinIndex++)
@@ -353,6 +440,7 @@ pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, con
         const cgltf_scene* ptGScene = &ptGltfData->scenes[i];
         for(size_t j = 0; j < ptGScene->nodes_count; j++)
         {
+            pl_sb_reset(tLoadingData.sbtPathBuffer);
             const cgltf_node* ptNode = ptGScene->nodes[j];
             plEntity tRoot = {UINT32_MAX, UINT32_MAX};
             if(ptTransform)
@@ -361,8 +449,14 @@ pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, con
                 tRoot = gptECS->create_transform(ptLibrary, "load transform", &ptTransformComponent);
                 ptTransformComponent->tWorld = *ptTransform;
                 pl_decompose_matrix(&ptTransformComponent->tWorld, &ptTransformComponent->tScale, &ptTransformComponent->tRotation, &ptTransformComponent->tTranslation);
+                pl_sb_sprintf(tLoadingData.sbtPathBuffer, "%s", "/load transform");
             }
-            pl__refr_load_gltf_object(pcPath, ptDataOut, &tLoadingData, acDirectory, tRoot, ptNode);
+            else
+            {
+                pl_sb_sprintf(tLoadingData.sbtPathBuffer, "%s", "/");
+            }
+              
+            pl__refr_load_gltf_object(pcPath, tHandle, &tLoadingData, acDirectory, tRoot, ptNode);
         }
     }
 
@@ -377,10 +471,17 @@ pl_model_loader_load_gltf(plComponentLibrary* ptLibrary, const char* pcPath, con
     pl_hm_free(&tLoadingData.tSkinHashmap);
     pl_hm_free(&tLoadingData.tMaterialHashMap);
     pl_sb_free(tLoadingData.sbtMaterialEntities);
-    ptDataOut->uObjectCount = pl_sb_size(ptDataOut->atObjects);
+    pl_sb_free(tLoadingData.sbtPathBuffer);
+    gptModelLoaderCtx->sbtModels[tHandle.uIndex].tData.uObjectCount = pl_sb_size(gptModelLoaderCtx->sbtModels[tHandle.uIndex].tData.atObjects);
     cgltf_free(ptGltfData);
     PL_FREE(pcBuffer);
-    return true;
+    return tHandle;
+}
+
+const plModelLoaderData*
+pl_model_loader_get_objects(plModelInstanceHandle tHandle)
+{
+    return &gptModelLoaderCtx->sbtModels[tHandle.uIndex].tData;
 }
 
 //-----------------------------------------------------------------------------
@@ -1011,6 +1112,7 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
 
     plAnimationComponent* ptAnimationComp = NULL;
     plEntity tAnimationEntity = gptAnimation->create(ptLibrary, ptAnimation->name, (uint32_t)ptAnimation->channels_count, &ptAnimationComp);
+    pl_hm64_insert_str(&gptModelLoaderCtx->sbtModels[ptSceneData->tHandle.uIndex].tAnimationHashmap, ptAnimation->name, tAnimationEntity.uData);
 
     // load channels
     for(size_t i = 0; i < ptAnimation->channels_count; i++)
@@ -1125,9 +1227,12 @@ pl__refr_load_gltf_animation(plGltfLoadingData* ptSceneData, const cgltf_animati
 }
 
 static void
-pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfLoadingData* ptSceneData, const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode)
+pl__refr_load_gltf_object(const char* pcPath, plModelInstanceHandle tModelHandle, plGltfLoadingData* ptSceneData, const char* pcDirectory, plEntity tParentEntity, const cgltf_node* ptNode)
 {
     plComponentLibrary* ptLibrary = ptSceneData->ptLibrary;
+    uint32_t uResetPoint = pl_sb_size(ptSceneData->sbtPathBuffer);
+    pl_sb_pop(ptSceneData->sbtPathBuffer);
+    pl_sb_sprintf(ptSceneData->sbtPathBuffer, "/%s", ptNode->name);
 
     plEntity tNewEntity = {UINT32_MAX, UINT32_MAX};
     plEntity tSkinEntity = {UINT32_MAX, UINT32_MAX};
@@ -1140,7 +1245,7 @@ pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfL
     }
 
     const uint64_t ulObjectIndex = pl_hm_lookup(&ptSceneData->tJointHashmap, (uint64_t)ptNode);
-    if(ulObjectIndex != UINT64_MAX)
+    if(ulObjectIndex != UINT64_MAX) // can't remember why we do this, please comment next time we are here
     {
         tNewEntity.uData = ulObjectIndex;
         ptTransform = gptECS->get_component(ptLibrary, gptECS->get_ecs_type_key_transform(), tNewEntity);
@@ -1150,6 +1255,8 @@ pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfL
         tNewEntity = gptECS->create_transform(ptLibrary, ptNode->name, &ptTransform);
     }
     pl_hm_insert(&ptSceneData->tNodeHashmap, (uint64_t)ptNode, tNewEntity.uData);
+
+    pl_hm64_insert_str(&gptModelLoaderCtx->sbtModels[ptSceneData->tHandle.uIndex].tNodePathHashmap, ptSceneData->sbtPathBuffer, tNewEntity.uData);
 
     // transform defaults
     ptTransform->tWorld       = pl_identity_mat4();
@@ -1242,9 +1349,13 @@ pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfL
                     ptMesh->tMaterial = gptMaterial->create(ptLibrary, ptPrimitive->material->name, &ptMaterial);
                     pl_sb_push(ptSceneData->sbtMaterialEntities, ptMesh->tMaterial);
                     pl__refr_load_material(pcPath, pcDirectory, ptMaterial, ptPrimitive->material);
+                    if(ptPrimitive->material->name)
+                    {
+                        pl_hm64_insert_str(&gptModelLoaderCtx->sbtModels[ptSceneData->tHandle.uIndex].tMaterialHashmap, ptPrimitive->material->name, ptMesh->tMaterial.uData);
+                    }
                 }
 
-                pl_sb_push(ptData->atObjects, tNewObject);
+                pl_sb_push(gptModelLoaderCtx->sbtModels[tModelHandle.uIndex].tData.atObjects, tNewObject);
             }
         }
     }
@@ -1252,8 +1363,11 @@ pl__refr_load_gltf_object(const char* pcPath, plModelLoaderData* ptData, plGltfL
     // recurse through children
     for(size_t i = 0; i < ptNode->children_count; i++)
     {
-        pl__refr_load_gltf_object(pcPath, ptData, ptSceneData, pcDirectory, tNewEntity, ptNode->children[i]);
+        pl__refr_load_gltf_object(pcPath, tModelHandle, ptSceneData, pcDirectory, tNewEntity, ptNode->children[i]);
     }
+
+    uResetPoint = pl_sb_size(ptSceneData->sbtPathBuffer) - uResetPoint;
+    pl_sb_pop_n(ptSceneData->sbtPathBuffer, uResetPoint);
 }
 
 //-----------------------------------------------------------------------------
@@ -1264,9 +1378,13 @@ void
 pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plModelLoaderI tApi = {
-        .load_stl  = pl_model_loader_load_stl,
-        .load_gltf = pl_model_loader_load_gltf,
-        .free_data = pl_model_loader_free_data
+        .load_stl              = pl_model_loader_load_stl,
+        .load_gltf             = pl_model_loader_load_gltf,
+        .get_objects           = pl_model_loader_get_objects,
+        .get_animation_by_name = pl_model_loader_get_animation_by_name,
+        .get_material_by_name  = pl_model_loader_get_material_by_name,
+        .get_node_by_path      = pl_model_loader_get_node_by_path,
+        .free_data             = pl_model_loader_free_data
     };
     pl_set_api(ptApiRegistry, plModelLoaderI, &tApi);
 
@@ -1281,6 +1399,20 @@ pl_load_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptMaterial    = pl_get_api_latest(ptApiRegistry, plMaterialI);
         gptRendererEcs = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
     #endif
+
+    const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
+
+    if(bReload)
+    {
+        gptModelLoaderCtx = ptDataRegistry->get_data("plModelLoaderContext");
+    }
+    else  // first load
+    {
+        static plModelLoaderContext tCtx = {0};
+        gptModelLoaderCtx = &tCtx;
+        ptDataRegistry->set_data("plModelLoaderContext", gptModelLoaderCtx);
+        pl_sb_push(gptModelLoaderCtx->sbtModelGenerations, UINT32_MAX);
+    }
 }
 
 void
@@ -1288,6 +1420,14 @@ pl_unload_model_loader_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     if(bReload)
         return;
+
+    if(gptModelLoaderCtx)
+    {
+        pl_sb_free(gptModelLoaderCtx->sbtModelFreeIndices);
+        pl_sb_free(gptModelLoaderCtx->sbtModelGenerations);
+        pl_sb_free(gptModelLoaderCtx->sbtModels);
+        gptModelLoaderCtx = NULL;
+    }
         
     const plModelLoaderI* ptApi = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
     ptApiRegistry->remove_api(ptApi);

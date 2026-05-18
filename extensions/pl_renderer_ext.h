@@ -108,6 +108,7 @@ typedef struct _plViewDesc                   plViewDesc;
 typedef struct _plRenderViewDesc             plRenderViewDesc;
 typedef struct _plScene                      plScene; // opaque type
 typedef struct _plView                       plView;  // opaque type
+typedef struct _plTestWorldData              plTestWorldData;
 
 // terrain types
 typedef struct _plTerrain plTerrain; // opaque type
@@ -134,21 +135,22 @@ typedef int plRendererFogFlags;
 typedef int plRendererFogMode;
 
 // external 
-typedef struct _plWindow             plWindow;             // pl_platform_ext.h
-typedef struct _plGraphics           plGraphics;           // pl_graphics_ext.h
-typedef struct _plDevice             plDevice;             // pl_graphics_ext.h
-typedef struct _plDeviceInfo         plDeviceInfo;         // pl_graphics_ext.h
-typedef struct _plDrawList3D         plDrawList3D;         // pl_draw_ext.h
-typedef struct _plCommandBuffer      plCommandBuffer;      // pl_graphics_ext.h
-typedef struct _plCommandPool        plCommandPool;        // pl_graphics_ext.h
-typedef struct _plSwapchain          plSwapchain;          // pl_graphics_ext.h
-typedef union  plTextureHandle       plTextureHandle;      // pl_graphics_ext.h
-typedef struct _plRenderEncoder      plRenderEncoder;      // pl_graphics_ext.h
-typedef union  plRenderPassHandle    plRenderPassHandle;   // pl_graphics_ext.h
-typedef union  plBindGroupHandle     plBindGroupHandle;    // pl_graphics_ext.h
-typedef struct _plComponentLibrary   plComponentLibrary;   // pl_ecs_ext.h
-typedef struct _plCamera             plCamera;             // pl_camera_ext.h
-typedef struct _plTerrainProcessInfo plTerrainProcessInfo; // pl_terrain_ext.h
+typedef struct _plWindow              plWindow;             // pl_platform_ext.h
+typedef struct _plGraphics            plGraphics;           // pl_graphics_ext.h
+typedef struct _plDevice              plDevice;             // pl_graphics_ext.h
+typedef struct _plDeviceInfo          plDeviceInfo;         // pl_graphics_ext.h
+typedef struct _plDrawList3D          plDrawList3D;         // pl_draw_ext.h
+typedef struct _plCommandBuffer       plCommandBuffer;      // pl_graphics_ext.h
+typedef struct _plCommandPool         plCommandPool;        // pl_graphics_ext.h
+typedef struct _plSwapchain           plSwapchain;          // pl_graphics_ext.h
+typedef union  plTextureHandle        plTextureHandle;      // pl_graphics_ext.h
+typedef struct _plRenderEncoder       plRenderEncoder;      // pl_graphics_ext.h
+typedef union  plRenderPassHandle     plRenderPassHandle;   // pl_graphics_ext.h
+typedef union  plBindGroupHandle      plBindGroupHandle;    // pl_graphics_ext.h
+typedef struct _plComponentLibrary    plComponentLibrary;   // pl_ecs_ext.h
+typedef union _plModelInstanceHandle  plModelInstanceHandle;// pl_model_loader_ext.h
+typedef struct _plCamera              plCamera;             // pl_camera_ext.h
+typedef struct _plTerrainProcessInfo  plTerrainProcessInfo; // pl_terrain_ext.h
 typedef void* plTextureId;                                 // pl_ui_ext.h
 
 // external enums & flags
@@ -175,6 +177,10 @@ PL_API void pl_renderer_cleanup   (void);
 // scenes
 PL_API plScene* pl_renderer_create_scene (const plSceneDesc*);
 PL_API void     pl_renderer_destroy_scene(plScene*);
+
+// testing
+PL_API bool pl_renderer_load_test_world(const char* path, plComponentLibrary*, plTestWorldData*);
+PL_API void pl_renderer_unload_test_world(plTestWorldData*);
 
 // views
 PL_API plView*           pl_renderer_create_view     (plScene*, const plViewDesc*);
@@ -332,6 +338,10 @@ typedef struct _plRendererI
     void (*set_bloom_options)  (plView*, const plRendererBloomOptions*);
     void (*get_tonemap_options)(plView*, plRendererTonemapOptions* out);
     void (*set_tonemap_options)(plView*, const plRendererTonemapOptions*);
+
+    bool (*load_test_world)  (const char* path, plComponentLibrary*, plTestWorldData*);
+    void (*unload_test_world)(plTestWorldData*);
+
 } plRendererI;
 
 typedef struct _plRendererEcsI
@@ -562,6 +572,22 @@ typedef struct _plTerrainRuntimeOptions
     float                  fTerrainShadowConstantDepthBias;
     float                  fTerrainShadowSlopeDepthBias;
 } plTerrainRuntimeOptions;
+
+typedef struct _plTestWorldData
+{
+    plScene* ptScene;
+    plView*  ptView;
+
+    plEntity tMainCamera;
+    bool bMSAA;
+    bool bShowPilotLightTool;
+    bool bContinuousBVH;
+    bool bPhysicsDebugDraw;
+    bool bShowBVH;
+    bool bFrustumCulling;
+    bool bShowDebugLights;
+    bool bDrawAllBoundingBoxes;
+} plTestWorldData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums

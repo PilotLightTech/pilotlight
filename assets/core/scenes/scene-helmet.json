@@ -83,9 +83,22 @@
             }
         }
     },
+    "assets": {
+        "models": {
+            "helmet":{
+                "path": "/assets/core/models/gltf/DamagedHelmet.glb"
+            },
+            "floor":{
+                "path": "/assets/core/models/gltf/floor.gltf"
+            }
+        },
+        "environments": {
+            "sky": "/assets/core/environments/sky.hdr"
+        }
+    },
     "scene": {
         "skybox": {
-            "path": "/assets/core/environments/sky.hdr",
+            "environment": "sky",
             "resolution": 1024
         },
         "probes": [
@@ -102,7 +115,7 @@
         "entities": [
             {
                 "active": true,
-                "model": "/assets/core/models/gltf/DamagedHelmet.glb",
+                "model": "helmet",
                 "transform": {
                     "scale": [1.0, 1.0, 1.0],
                     "translation": [0.0, 3.0, 0.0],
@@ -111,7 +124,7 @@
             },
             {
                 "active": true,
-                "model": "/assets/core/models/gltf/floor.gltf",
+                "model": "floor",
                 "transform": {
                     "scale": [1.0, 1.0, 1.0],
                     "translation": [0.0, 0.0, 0.0],

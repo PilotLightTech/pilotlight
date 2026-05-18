@@ -17,6 +17,7 @@ Index of this file:
 #include "pl_renderer_internal.h"
 #include "pl_renderer_terrain.c"
 #include "pl_renderer_internal.c"
+#include "pl_json.h"
 
 
 //-----------------------------------------------------------------------------
@@ -4991,6 +4992,425 @@ pl_renderer_ecs_run_environment_probe_update_system(plComponentLibrary* ptLibrar
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0); 
 }
 
+void
+pl_renderer_unload_test_world(plTestWorldData* ptData)
+{
+    pl_renderer_destroy_view(ptData->ptView);
+    pl_renderer_destroy_scene(ptData->ptScene);
+    ptData->ptView = NULL;
+    ptData->ptScene = NULL;
+}
+
+bool
+pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentLibrary, plTestWorldData* ptDataOut)
+{
+    size_t szJsonFileSize = gptVfs->get_file_size_str(pcPath);
+    uint8_t* puFileBuffer = (uint8_t*)PL_ALLOC(szJsonFileSize + 1);
+    memset(puFileBuffer, 0, szJsonFileSize + 1);
+
+    plVfsFileHandle tFileHandle = gptVfs->open_file(pcPath, PL_VFS_FILE_MODE_READ);
+    gptVfs->read_file(tFileHandle, puFileBuffer, &szJsonFileSize);
+    gptVfs->close_file(tFileHandle);
+
+    plJsonObject* ptRootJsonObject = NULL;
+    pl_load_json((const char*)puFileBuffer, &ptRootJsonObject);
+
+    plJsonObject* ptAppObject = pl_json_member(ptRootJsonObject, "app");
+
+    plJsonObject* ptAssetsObject = pl_json_member(ptRootJsonObject, "assets");
+    plJsonObject* ptModelsObject = pl_json_member(ptAssetsObject, "models");
+    plJsonObject* ptEnvironmentsObject = pl_json_member(ptAssetsObject, "environments");
+
+    plIO* ptIO = gptIOI->get_io();
+
+    gptECS->reset_library(ptComponentLibrary);
+
+    plSceneDesc tSceneInit = {
+        .ptComponentLibrary = ptComponentLibrary
+    };
+
+    ptDataOut->bShowPilotLightTool = pl_json_bool_member(ptAppObject, "bShowPilotLightTool", true);
+    ptDataOut->bContinuousBVH = pl_json_bool_member(ptAppObject, "bContinuousBVH", false);
+    ptDataOut->bPhysicsDebugDraw = pl_json_bool_member(ptAppObject, "bPhysicsDebugDraw", false);
+    ptDataOut->bShowBVH = pl_json_bool_member(ptAppObject, "bShowBVH", false);
+    ptDataOut->bFrustumCulling = pl_json_bool_member(ptAppObject, "bFrustumCulling", true);
+    ptDataOut->bShowDebugLights = pl_json_bool_member(ptAppObject, "bShowDebugLights", true);
+    ptDataOut->bDrawAllBoundingBoxes = pl_json_bool_member(ptAppObject, "bDrawAllBoundingBoxes", false);
+    tSceneInit.szIndexBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szIndexBufferSize", 64000000);
+    tSceneInit.szVertexBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szVertexBufferSize", 64000000);
+    tSceneInit.szDataBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szDataBufferSize", 64000000);
+    tSceneInit.szMaterialBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szMaterialBufferSize", 8000000);
+    tSceneInit.szSkinBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szSkinBufferSize", 8000000);
+
+    ptDataOut->ptScene = pl_renderer_create_scene(&tSceneInit);
+    plViewDesc tViewDesc = PL_ZERO_INIT;
+    tViewDesc.uWidth = (uint32_t)ptIO->tMainViewportSize.x;
+    tViewDesc.uHeight = (uint32_t)ptIO->tMainViewportSize.y;
+    ptDataOut->ptView = pl_renderer_create_view(ptDataOut->ptScene, &tViewDesc);
+
+    plRendererEditorSceneOptions tEditorSceneOptions = PL_ZERO_INIT;
+    plRendererEditorViewOptions tEditorViewOptions = PL_ZERO_INIT;
+    plRendererDebugSceneOptions tDebugOptions = PL_ZERO_INIT;
+    plRendererTonemapOptions tTonemapOptions = PL_ZERO_INIT;
+    plRendererLightingOptions tLightingOptions = PL_ZERO_INIT;
+    plRendererShadowOptions tShadowOptions = PL_ZERO_INIT;
+    plRendererBloomOptions tBloomOptions = PL_ZERO_INIT;
+    plRendererFogOptions tFogOptions = PL_ZERO_INIT;
+    
+    pl_renderer_get_bloom_options(ptDataOut->ptView, &tBloomOptions);
+    pl_renderer_get_shadow_options(ptDataOut->ptScene, &tShadowOptions);
+    pl_renderer_get_lighting_options(ptDataOut->ptScene, &tLightingOptions);
+    pl_renderer_get_tonemap_options(ptDataOut->ptView, &tTonemapOptions);
+    pl_renderer_editor_get_scene_options(ptDataOut->ptScene, &tEditorSceneOptions);
+    pl_renderer_editor_get_view_options(ptDataOut->ptView, &tEditorViewOptions);
+    pl_renderer_debug_get_scene_options(ptDataOut->ptScene, &tDebugOptions);
+    pl_renderer_get_fog_options(ptDataOut->ptScene, &tFogOptions);
+
+    plJsonObject* ptSceneObject = pl_json_member(ptRootJsonObject, "scene");
+    plJsonObject* ptViewObject = pl_json_member(ptRootJsonObject, "view");
+    plJsonObject* ptEditorObject = pl_json_member(ptRootJsonObject, "editor");
+    plJsonObject* ptDebugObject = pl_json_member(ptRootJsonObject, "debug");
+
+    ptDataOut->bMSAA = pl_json_bool_member(ptEditorObject, "bMSAA", true);
+    tDebugOptions.bWireframe = pl_json_bool_member(ptDebugObject, "bWireframe", false);
+    tDebugOptions.bShowOrigin = pl_json_bool_member(ptDebugObject, "bShowOrigin", false);
+    tDebugOptions.bShowProbes = pl_json_bool_member(ptDebugObject, "bShowProbes", false);
+    tDebugOptions.bShowProbeRange = pl_json_bool_member(ptDebugObject, "bShowProbeRange", false);
+    tEditorViewOptions.bShowSkybox = pl_json_bool_member(ptEditorObject, "bShowSkybox", true);
+    tEditorViewOptions.bShowGrid = pl_json_bool_member(ptEditorObject, "bShowGrid", false);
+    tEditorViewOptions.bShowSelectedBoundingBox = pl_json_bool_member(ptEditorObject, "bShowSelectedBoundingBox", false);
+    tEditorViewOptions.fGridCellSize = pl_json_float_member(ptEditorObject, "fGridCellSize", 0.025f);
+    tEditorViewOptions.fGridMinPixelsBetweenCells = pl_json_float_member(ptEditorObject, "fGridMinPixelsBetweenCells", 2.0f);
+    pl_json_float_array_member(ptEditorObject, "tGridColorThin", tEditorViewOptions.tGridColorThin.d, NULL);
+    pl_json_float_array_member(ptEditorObject, "tGridColorThick", tEditorViewOptions.tGridColorThick.d, NULL);
+
+    plJsonObject* ptRendererObject = pl_json_member(ptViewObject, "renderer");
+
+    plJsonObject* ptLightingObject = pl_json_member(ptRendererObject, "lighting");
+
+    {
+        char acFlag0[64] = {0};
+        char acFlag1[64] = {0};
+        char acFlag2[64] = {0};
+        char* aacFlags[] = {acFlag0, acFlag1, acFlag2};
+        uint32_t auLengths[] = {64, 64, 64};
+        uint32_t uFlagCount = 0;
+        pl_json_string_array_member(ptLightingObject, "tFlags", aacFlags, &uFlagCount, auLengths);
+        for(uint32_t k = 0; k < uFlagCount; k++)
+        {
+            if(aacFlags[k][27] == 'I')      tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
+            else if(aacFlags[k][27] == 'N') tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING;
+            else if(aacFlags[k][27] == 'P') tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
+        }
+    }
+
+    plJsonObject* ptShadowsObject = pl_json_member(ptRendererObject, "shadows");
+    tShadowOptions.fSlopeDepthBias = pl_json_float_member(ptShadowsObject, "fSlopeDepthBias", -1.750f);
+    tShadowOptions.fConstantDepthBias = pl_json_float_member(ptShadowsObject, "fConstantDepthBias", -1.250f);
+    tShadowOptions.fMaxShadowRange = pl_json_float_member(ptShadowsObject, "fMaxShadowRange", 100.0f);
+
+    tShadowOptions.tFlags &= ~PL_RENDERER_SHADOW_FLAGS_PCF;
+    tShadowOptions.tFlags &= ~PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
+    {
+        char acFlag0[64] = {0};
+        char acFlag1[64] = {0};
+        char* aacFlags[] = {acFlag0, acFlag1};
+        uint32_t auLengths[] = {64, 64};
+        uint32_t uFlagCount = 0;
+        pl_json_string_array_member(ptShadowsObject, "tFlags", aacFlags, &uFlagCount, auLengths);
+        for(uint32_t k = 0; k < uFlagCount; k++)
+        {
+            if(aacFlags[k][25] == 'P')      tShadowOptions.tFlags |= PL_RENDERER_SHADOW_FLAGS_PCF;
+            else if(aacFlags[k][25] == 'M') tShadowOptions.tFlags |= PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
+        }
+    }
+
+    plJsonObject* ptBloomObject = pl_json_member(ptRendererObject, "bloom");
+    if(ptBloomObject)
+    {
+        bool bActive = pl_json_bool_member(ptBloomObject, "active", true);
+        if(bActive) tBloomOptions.tFlags = PL_RENDERER_BLOOM_FLAGS_ACTIVE;
+        tBloomOptions.fStrength = pl_json_float_member(ptBloomObject, "fStrength", 0.05f);
+        tBloomOptions.fRadius = pl_json_float_member(ptBloomObject, "fRadius", 1.5f);
+        tBloomOptions.uChainLength = pl_json_uint_member(ptBloomObject, "uChainLength", 5);
+    }
+
+    plJsonObject* ptTonemapObject = pl_json_member(ptRendererObject, "tonemap");
+    if(ptTonemapObject)
+    {
+        tTonemapOptions.fBrightness = pl_json_float_member(ptTonemapObject, "fBrightness", 0.0f);
+        tTonemapOptions.fContrast = pl_json_float_member(ptTonemapObject, "fContrast", 1.0f);
+        tTonemapOptions.fSaturation = pl_json_float_member(ptTonemapObject, "fSaturation", 1.0f);
+        tTonemapOptions.fExposure = pl_json_float_member(ptTonemapObject, "fExposure", 1.0f);
+
+        char acTonemapMode[64] = {0};
+        pl_json_string_member(ptTonemapObject, "tMode", acTonemapMode, 64);
+        if(acTonemapMode[16] == 'S')      tTonemapOptions.tMode = PL_TONEMAP_MODE_SIMPLE;
+        else if(acTonemapMode[16] == 'R') tTonemapOptions.tMode = PL_TONEMAP_MODE_REINHARD;
+        else if(acTonemapMode[16] == 'K') tTonemapOptions.tMode = PL_TONEMAP_MODE_KHRONOS_PBR_NEUTRAL;
+        else if(acTonemapMode[16] == 'K') tTonemapOptions.tMode = PL_TONEMAP_MODE_KHRONOS_PBR_NEUTRAL;
+        else if(acTonemapMode[21] == 'N') tTonemapOptions.tMode = PL_TONEMAP_MODE_ACES_NARKOWICZ;
+        else if(acTonemapMode[26] == 'E') tTonemapOptions.tMode = PL_TONEMAP_MODE_ACES_HILL_EXPOSURE_BOOST;
+        else                              tTonemapOptions.tMode = PL_TONEMAP_MODE_ACES_HILL;
+    }
+
+    plJsonObject* ptFogObject = pl_json_member(ptRendererObject, "fog");
+    if(ptFogObject)
+    {
+        bool bActive = pl_json_bool_member(ptFogObject, "active", true);
+        if(bActive) tFogOptions.tFlags = PL_RENDERER_FOG_FLAGS_ACTIVE;
+        tFogOptions.fStart = pl_json_float_member(ptFogObject, "fStart", 1.0f);
+        tFogOptions.fCutOffDistance = pl_json_float_member(ptFogObject, "fCutOffDistance", 1000.0f);
+        tFogOptions.fDensity = pl_json_float_member(ptFogObject, "fDensity", 0.1f);
+        tFogOptions.fHeight = pl_json_float_member(ptFogObject, "fHeight", 0.0f);
+        tFogOptions.fMaxOpacity = pl_json_float_member(ptFogObject, "fMaxOpacity", 0.1f);
+        tFogOptions.fHeightFalloff = pl_json_float_member(ptFogObject, "fHeightFalloff", 0.1f);
+        pl_json_float_array_member(ptFogObject, "tColor", tFogOptions.tColor.d, NULL);
+
+        char acFogMode[32] = {0};
+        pl_json_string_member(ptFogObject, "tMode", acFogMode, 32);
+
+        tFogOptions.tMode = PL_RENDERER_FOG_MODE_LINEAR;
+        if(acFogMode[21] == 'E')
+            tFogOptions.tMode = PL_RENDERER_FOG_MODE_EXPONENTIAL;
+    }
+
+    pl_renderer_set_tonemap_options(ptDataOut->ptView, &tTonemapOptions);
+    pl_renderer_set_lighting_options(ptDataOut->ptScene, &tLightingOptions);
+    pl_renderer_editor_set_scene_options(ptDataOut->ptScene, &tEditorSceneOptions);
+    pl_renderer_editor_set_view_options(ptDataOut->ptView, &tEditorViewOptions);
+    pl_renderer_set_bloom_options(ptDataOut->ptView, &tBloomOptions);
+    pl_renderer_set_fog_options(ptDataOut->ptScene, &tFogOptions);
+    pl_renderer_set_shadow_options(ptDataOut->ptScene, &tShadowOptions);
+    pl_renderer_debug_set_scene_options(ptDataOut->ptScene, &tDebugOptions);
+    pl_renderer_editor_reload_scene_shaders(ptDataOut->ptScene);
+
+    plJsonObject* ptCameraObject = pl_json_member(ptViewObject, "camera");
+    plVec3d tCameraPosition = {0};
+    pl_json_double_array_member(ptCameraObject, "tPosition", tCameraPosition.d, NULL);
+    float fYFov = pl_json_float_member(ptCameraObject, "fYFov", PL_PI_3);
+    float fNearZ = pl_json_float_member(ptCameraObject, "fNearZ", 0.1f);
+    float fFarZ = pl_json_float_member(ptCameraObject, "fFarZ", 1000.0f);
+    float fYaw = pl_json_float_member(ptCameraObject, "fYaw", 0.0f);
+    float fPitch = pl_json_float_member(ptCameraObject, "fPitch", 0.0f);
+    plCamera* ptMainCamera = NULL;
+    ptDataOut->tMainCamera = gptCamera->create_perspective(ptComponentLibrary, "main camera", tCameraPosition, fYFov, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, fNearZ, fFarZ, true, &ptMainCamera);
+    gptCamera->set_pitch_yaw(ptMainCamera, fPitch, fYaw);
+    gptCamera->update(ptMainCamera);
+    gptScript->attach(ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptDataOut->tMainCamera, NULL);
+
+    plJsonObject* ptSkyboxObject = pl_json_member(ptSceneObject, "skybox");
+    if(ptSkyboxObject)
+    {
+        uint32_t uSkyboxResolution = pl_json_uint_member(ptSkyboxObject, "resolution", 1024);
+        char acSkyboxAlias[128] = {0};
+        
+        pl_json_string_member(ptSkyboxObject, "environment", acSkyboxAlias, 128);
+
+        plJsonObject* ptEnvironmentObject = pl_json_member(ptEnvironmentsObject, acSkyboxAlias);
+
+        if(ptEnvironmentObject)
+        {
+            const char* acSkyboxPath = pl_json_as_string(ptEnvironmentObject);
+            pl_renderer_ecs_load_skybox_from_panorama(ptDataOut->ptScene, acSkyboxPath, uSkyboxResolution);
+        }
+    }
+
+    uint32_t uProbeCount = 0;
+    plJsonObject* ptProbesObject = pl_json_array_member(ptSceneObject, "probes", &uProbeCount);
+    for(uint32_t i = 0; i < uProbeCount; i++)
+    {
+        plJsonObject* ptProbeObject = pl_json_member_by_index(ptProbesObject, i);
+        bool bActive = pl_json_bool_member(ptProbeObject, "active", true);
+        if(!bActive)
+            continue;
+
+        plVec3 tProbePosition = {0};
+        pl_json_float_array_member(ptProbeObject, "tPosition", tProbePosition.d, NULL);
+
+        plEnvironmentProbeComponent* ptProbe = NULL;
+        plEntity tProbeEntity = pl_renderer_ecs_create_environment_probe(ptComponentLibrary, "Probe", tProbePosition, &ptProbe);
+        ptProbe->fRange = pl_json_float_member(ptProbeObject, "fRange", 30.0);
+        ptProbe->uResolution = pl_json_uint_member(ptProbeObject, "uResolution", 128);
+        ptProbe->uSamples = pl_json_uint_member(ptProbeObject, "uSamples", 512);
+        ptProbe->uInterval = pl_json_uint_member(ptProbeObject, "uInterval", 1);
+
+        char acFlag0[64] = {0};
+        char acFlag1[64] = {0};
+        char acFlag2[64] = {0};
+        char acFlag3[64] = {0};
+        char* aacFlags[4] = {acFlag0, acFlag1, acFlag2, acFlag3};
+        uint32_t auLengths[4] = {64, 64, 64, 64};
+        uint32_t uFlagCount = 0;
+        pl_json_string_array_member(ptProbeObject, "tFlags", aacFlags, &uFlagCount, auLengths);
+        for(uint32_t k = 0; k < uFlagCount; k++)
+        {
+            if(aacFlags[k][27] == 'I')      ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
+            else if(aacFlags[k][27] == 'R') ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
+            else if(aacFlags[k][27] == 'D') ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+            else if(aacFlags[k][27] == 'P') ptProbe->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX;
+        }
+
+        pl_renderer_ecs_add_probes_to_scene(ptDataOut->ptScene, 1, &tProbeEntity);
+    }
+
+    uint32_t uLightCount = 0;
+    plJsonObject* ptLightsObject = pl_json_array_member(ptSceneObject, "lights", &uLightCount);
+    for(uint32_t i = 0; i < uLightCount; i++)
+    {
+        plJsonObject* ptLightObject = pl_json_member_by_index(ptLightsObject,i);
+
+        bool bActive = pl_json_bool_member(ptLightObject, "active", true);
+        if(!bActive)
+            continue;
+        plLightComponent* ptLight = NULL;
+
+        char acType[32] = {0};
+        pl_json_string_member(ptLightObject, "type", acType, 32);
+
+        plVec3 tDirection = {0.0f, -1.0f, 0.0f};
+        plVec3 tPosition = {0};
+
+        if(acType[0] != 'p')
+            pl_json_float_array_member(ptLightObject, "tDirection", tDirection.d, NULL);
+
+        if(acType[0] != 'd')
+            pl_json_float_array_member(ptLightObject, "tPosition", tPosition.d, NULL);
+
+        plVec3 tColor = {1.0f, 1.0f, 1.0f};
+        pl_json_float_array_member(ptLightObject, "tColor", tColor.d, NULL);
+
+        char acName[128] = {0};
+        pl_json_string_member(ptLightObject, "name", acName, 128);
+
+        plEntity tLight = {0};
+
+        if(acType[0] == 'd')
+        {
+            tLight = pl_renderer_ecs_create_directional_light(ptComponentLibrary, acName, tDirection, &ptLight);
+            ptLight->uCascadeCount = pl_json_uint_member(ptLightObject, "uCascadeCount", 4);
+            ptLight->fShadowLambda = pl_json_float_member(ptLightObject, "fShadowLambda", 0.6f);
+        }
+        else if(acType[0] == 'p')
+        {
+            tLight = pl_renderer_ecs_create_point_light(ptComponentLibrary, acName, tPosition, &ptLight);
+        }
+        else if(acType[0] == 's')
+        {
+            tLight = pl_renderer_ecs_create_spot_light(ptComponentLibrary, acName, tPosition, tDirection, &ptLight);
+            ptLight->fInnerConeAngle = pl_json_float_member(ptLightObject, "fInnerConeAngle", 0.0f);
+            ptLight->fOuterConeAngle = pl_json_float_member(ptLightObject, "fOuterConeAngle", PL_PI_4 / 2);
+        }
+        ptLight->fRadius = pl_json_float_member(ptLightObject, "fRadius", 0.25f);
+        ptLight->fRange = pl_json_float_member(ptLightObject, "fRange", 5.0f);
+        ptLight->tColor = tColor;
+        ptLight->fIntensity = pl_json_float_member(ptLightObject, "fIntensity", 1.0f);
+        ptLight->uShadowResolution = pl_json_uint_member(ptLightObject, "uShadowResolution", 512);
+
+        char acFlag0[64] = {0};
+        char acFlag1[64] = {0};
+        char* aacFlags[2] = {acFlag0, acFlag1};
+        uint32_t auLengths[] = {64, 64};
+        uint32_t uFlagCount = 0;
+        pl_json_string_array_member(ptLightObject, "tFlags", aacFlags, &uFlagCount, auLengths);
+        for(uint32_t k = 0; k < uFlagCount; k++)
+        {
+            if(aacFlags[k][14] == 'C')      ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
+            else if(aacFlags[k][14] == 'V') ptLight->tFlags |= PL_LIGHT_FLAG_VISUALIZER;
+        }
+
+        if(acType[0] != 'd')
+        {
+            plTransformComponent* ptSLightTransform = (plTransformComponent* )gptECS->add_component(ptComponentLibrary, gptECS->get_ecs_type_key_transform(), tLight);
+            ptSLightTransform->tTranslation = tPosition;
+        }
+
+        pl_renderer_ecs_add_lights_to_scene(ptDataOut->ptScene, 1, &tLight);
+    }
+
+    uint32_t uEntityCount = 0;
+    plJsonObject* ptEntitesObject = pl_json_array_member(ptSceneObject, "entities", &uEntityCount);
+    for(uint32_t i = 0; i < uEntityCount; i++)
+    {
+        plJsonObject* ptEntityObject = pl_json_member_by_index(ptEntitesObject, i);
+
+        plVec4 tColor = {0.0f, 1.0f, 0.0f, 1.0f};
+        pl_json_float_array_member(ptEntitesObject, "tColor", tColor.d, NULL);
+
+        plVec3 tScale = {1.0f, 1.0f, 1.0f};
+        plVec3 tTranslation = {0};
+        plVec4 tRotation = {0.0f, 0.0f, 0.0f, 1.0f};
+        plJsonObject* ptTransformObject = pl_json_member(ptEntityObject, "transform");
+        if(ptTransformObject)
+        {
+            pl_json_float_array_member(ptTransformObject, "scale", tScale.d, NULL);
+            pl_json_float_array_member(ptTransformObject, "translation", tTranslation.d, NULL);
+            pl_json_float_array_member(ptTransformObject, "rotation", tRotation.d, NULL);
+        }
+
+        plMat4 tTransformation = pl_rotation_translation_scale(tRotation, tTranslation, tScale);
+
+        char acModelAlias[256] = {0};
+        pl_json_string_member(ptEntityObject, "model", acModelAlias, 256);
+
+
+        plJsonObject* ptModelObject = pl_json_member(ptModelsObject, acModelAlias);
+
+        if(ptModelObject)
+        {
+            char acModelPath[256] = {0};
+            pl_json_string_member(ptModelObject, "path", acModelPath, 256);
+
+            char acModelExtension[16] = {0};
+            pl_str_get_file_extension(acModelPath, acModelExtension, 16);
+
+            bool bActive = pl_json_bool_member(ptEntityObject, "active", true);
+
+            plModelInstanceHandle tHandle = {0};
+
+            if(bActive && (acModelExtension[0] == 'g' || acModelExtension[0] == 'G'))
+                tHandle = gptModelLoader->load_gltf(ptComponentLibrary, acModelPath, &tTransformation);
+            else if(bActive && (acModelExtension[0] == 's' || acModelExtension[0] == 's'))
+                tHandle = gptModelLoader->load_stl(ptComponentLibrary, acModelPath, tColor, &tTransformation);
+
+            const plModelLoaderData* ptLoaderData = gptModelLoader->get_objects(tHandle);
+            bool bResult = pl_renderer_ecs_add_drawable_objects_to_scene(ptDataOut->ptScene, ptLoaderData->uObjectCount, ptLoaderData->atObjects);
+
+            plJsonObject* ptAnimationObject = pl_json_member(ptEntityObject, "animation");
+            if(ptAnimationObject)
+            {
+                char acAnimationName[64] = {0};
+                pl_json_string_member(ptAnimationObject, "clip", acAnimationName, 64);
+
+                plEntity tAnimation = {0};
+                bool bAnimationFound = gptModelLoader->get_animation_by_name(tHandle, acAnimationName, &tAnimation);
+
+                if(bAnimationFound)
+                {
+                    plAnimationComponent* ptAnimation = gptECS->get_component(ptComponentLibrary,
+                        gptAnimation->get_ecs_type_key_animation(), tAnimation);
+                    char acFlag0[64] = {0};
+                    char acFlag1[64] = {0};
+                    char* aacFlags[2] = {acFlag0, acFlag1};
+                    uint32_t auLengths[] = {64, 64};
+                    uint32_t uFlagCount = 0;
+                    pl_json_string_array_member(ptAnimationObject, "tFlags", aacFlags, &uFlagCount, auLengths);
+                    for(uint32_t k = 0; k < uFlagCount; k++)
+                    {
+                        if(aacFlags[k][18] == 'P')      ptAnimation->tFlags |= PL_ANIMATION_FLAG_PLAYING;
+                        else if(aacFlags[k][18] == 'L') ptAnimation->tFlags |= PL_ANIMATION_FLAG_LOOPED;
+                    }
+                }
+            }
+            gptModelLoader->free_data(tHandle);
+        }
+    }
+    
+    pl_unload_json(&ptRootJsonObject);
+    PL_FREE(puFileBuffer);
+    return true;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -5021,6 +5441,8 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     tApi0.get_bloom_options             = pl_renderer_get_bloom_options;
     tApi0.set_tonemap_options           = pl_renderer_set_tonemap_options;
     tApi0.get_tonemap_options           = pl_renderer_get_tonemap_options;
+    tApi0.load_test_world               = pl_renderer_load_test_world;
+    tApi0.unload_test_world             = pl_renderer_unload_test_world;
 
     plRendererTerrainI tApi1 = {0};
     tApi1.create              = pl_renderer_terrain_create;
@@ -5115,6 +5537,8 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptFreeList         = pl_get_api_latest(ptApiRegistry, plFreeListI);
         gptCollision        = pl_get_api_latest(ptApiRegistry, plCollisionI);
         gptImageOps         = pl_get_api_latest(ptApiRegistry, plImageOpsI);
+        gptScript           = pl_get_api_latest(ptApiRegistry, plScriptI);
+        gptModelLoader      = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
     #endif
 
     if(bReload)
@@ -5157,5 +5581,13 @@ pl_unload_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         #include "stb_sprintf.h"
         #undef STB_SPRINTF_IMPLEMENTATION
     #endif
+
+    #define PL_JSON_IMPLEMENTATION
+    #include "pl_json.h"
+    #undef PL_JSON_IMPLEMENTATION
+
+    #define PL_STRING_IMPLEMENTATION
+    #include "pl_string.h"
+    #undef PL_STRING_IMPLEMENTATION
 
 #endif
