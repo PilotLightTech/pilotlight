@@ -4397,6 +4397,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
             };
             PL_LOG_DEBUG_API_F(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
             ptBufferInfo->uVertexBufferSize = (uint32_t)tBufferDesc.szByteSize;
+            ptBufferInfo->uVertexBufferOffset = 0;
 
             ptBufferInfo->tVertexBuffer = pl__create_staging_buffer(&tBufferDesc, "3d draw vtx buffer", uFrameIdx);
         }
@@ -4487,7 +4488,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
             };
             PL_LOG_DEBUG_API_F(gptLog, uLogChannelDrawBackend, "Grow \"%s\" %u to %u frame %llu", tBufferDesc.pcDebugName, ptBufferInfo->uVertexBufferSize, (uint32_t)tBufferDesc.szByteSize, gptIO->ulFrameCount);
             ptBufferInfo->uVertexBufferSize = (uint32_t)tBufferDesc.szByteSize;
-
+            ptBufferInfo->uVertexBufferOffset = 0;
             ptBufferInfo->tVertexBuffer = pl__create_staging_buffer(&tBufferDesc, "draw vtx buffer", uFrameIdx);
         }
 
@@ -4808,7 +4809,7 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
             .tFragmentShader = gptShader->load_glsl("pl_draw_3d.frag", "main", NULL, NULL),
             .tVertexShader   = gptShader->load_glsl("pl_draw_3d_line.vert", "main", NULL, NULL),
             .tGraphicsState = {
-                .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE,
+                .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE ? 1 : 0,
                 .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? (tFlags & PL_DRAW_FLAG_REVERSE_Z_DEPTH ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_LESS) : PL_COMPARE_MODE_ALWAYS,
                 .ulCullMode           = ulCullMode,
                 .ulWireframe          = 0,

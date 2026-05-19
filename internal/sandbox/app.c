@@ -92,6 +92,7 @@ const plGraphicsI*          gptGfx              = NULL;
 const plToolsI*             gptTools            = NULL;
 const plEcsI*               gptEcs              = NULL;
 const plCameraI*            gptCamera           = NULL;
+const plCameraEcsI*         gptCameraEcs        = NULL;
 const plModelLoaderI*       gptModelLoader      = NULL;
 const plJobI*               gptJobs             = NULL;
 const plDrawI*              gptDraw             = NULL;
@@ -413,7 +414,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptEcs->initialize((plEcsInit){0});
     gptRendererEcs->register_system();
     gptScript->register_ecs_system();
-    gptCamera->register_ecs_system();
+    gptCameraEcs->register_ecs_system();
     gptAnimation->register_ecs_system();
     gptMesh->register_ecs_system();
     gptPhysics->register_ecs_system();
@@ -519,7 +520,7 @@ pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     plIO* ptIO = gptIO->get_io();
     if(ptAppData->tTestWorld.ptScene)
-        gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCamera->get_ecs_type_key(), ptAppData->tTestWorld.tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
+        gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tTestWorld.tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
     ptAppData->bResize = true;
     gptStarter->resize();
 }
@@ -554,7 +555,7 @@ pl_app_update(plAppData* ptAppData)
     // update statistics
     gptShaderVariant->update_stats();
 
-    plCamera* ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCamera->get_ecs_type_key(), ptAppData->tTestWorld.tMainCamera);
+    plCamera* ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tTestWorld.tMainCamera);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~selection stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -588,7 +589,7 @@ pl_app_update(plAppData* ptAppData)
         gptEcs->run_transform_update_system(ptAppData->ptComponentLibrary);
         gptEcs->run_hierarchy_update_system(ptAppData->ptComponentLibrary);
         gptRendererEcs->run_light_update_system(ptAppData->ptComponentLibrary);
-        gptCamera->run_ecs(ptAppData->ptComponentLibrary);
+        gptCameraEcs->run_ecs(ptAppData->ptComponentLibrary);
         gptAnimation->run_inverse_kinematics_update_system(ptAppData->ptComponentLibrary);
         gptRendererEcs->run_skin_update_system(ptAppData->ptComponentLibrary);
         gptRendererEcs->run_object_update_system(ptAppData->ptComponentLibrary);
@@ -766,6 +767,34 @@ pl__show_init_window(plAppData* ptAppData)
                     gptStarter->deactivate_msaa();
 
                 gptRendererEditor->rebuild_scene_bvh(ptAppData->tTestWorld.ptScene);
+
+                #if 0
+                    plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
+
+                    plTerrainProcessTileInfo tTile = {
+                        .iTreeDepth    = 6,
+                        .fMaxHeight    = 2000.0f,
+                        .fMinHeight    = -40.0f,
+                        .fMaxBaseError = 3.0f,
+                        .tCenter = {0}
+                    };
+                    plTerrainProcessInfo tTerrainInfo = {
+                        .fMetersPerPixel = 20.0f,
+                        .uHorizontalTiles = 1,
+                        .uVerticalTiles = 1,
+                        .uSize = 4096,
+                        .uTileCount = 1,
+                        .atTiles = &tTile
+                    };
+
+                    sprintf(tTile.acOutputFile, "/cache/mountains.chu");
+                    sprintf(tTile.acHeightMapFile, "/assets/core/textures/mountains.png");
+
+                    gptTerrain->process(&tTerrainInfo);
+                    ptAppData->ptTerrain = gptRendererTerrain->create(ptCmdBuffer, &tTerrainInfo);
+                    gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
+                    gptRendererTerrain->set(ptAppData->tTestWorld.ptScene, ptAppData->ptTerrain);
+                #endif
             }
         }
 
@@ -1225,6 +1254,7 @@ pl__load_apis(plApiRegistryI* ptApiRegistry)
     gptTools            = pl_get_api_latest(ptApiRegistry, plToolsI);
     gptEcs              = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptCamera           = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptCameraEcs        = pl_get_api_latest(ptApiRegistry, plCameraEcsI);
     gptRenderer         = pl_get_api_latest(ptApiRegistry, plRendererI);
     gptJobs             = pl_get_api_latest(ptApiRegistry, plJobI);
     gptModelLoader      = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
@@ -1368,37 +1398,6 @@ pl__verify_scene(plAppData* ptAppData, const char* pcPath)
     PL_FREE(puFileBuffer);
     return bResult;
 }
-
-
-
-#if 0
-    plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
-
-    plTerrainProcessTileInfo tTile = {
-        .iTreeDepth    = 6,
-        .fMaxHeight    = 2000.0f,
-        .fMinHeight    = -40.0f,
-        .fMaxBaseError = 3.0f,
-        .tCenter = {0}
-    };
-    plTerrainProcessInfo tTerrainInfo = {
-        .fMetersPerPixel = 20.0f,
-        .uHorizontalTiles = 1,
-        .uVerticalTiles = 1,
-        .uSize = 4096,
-        .uTileCount = 1,
-        .atTiles = &tTile
-    };
-
-    sprintf(tTile.acOutputFile, "/assets/mountains.chu");
-    sprintf(tTile.acHeightMapFile, "/assets/mountains.png");
-
-    gptTerrain->process(&tTerrainInfo);
-    ptAppData->ptTerrain = gptRendererTerrain->create(ptCmdBuffer, &tTerrainInfo);
-    gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
-    gptRendererTerrain->set(ptAppData->ptScene, ptAppData->ptTerrain);
-#endif
-// }
 
 void
 pl__show_ui_demo_window(plAppData* ptAppData)
