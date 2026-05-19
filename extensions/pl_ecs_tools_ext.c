@@ -41,6 +41,7 @@ static const plRendererEcsI* gptRendererEcs = NULL;
 static const plRendererEditorI* gptRendererEditor = NULL;
 static const plPhysicsI*  gptPhysics = NULL;
 static const plCameraI*   gptCamera = NULL;
+static const plCameraEcsI*   gptCameraEcs = NULL;
 static const plMeshI*     gptMesh = NULL;
 static const plMaterialI* gptMaterial = NULL;
 static const plScriptI*   gptScript = NULL;
@@ -140,7 +141,7 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
         const plEcsTypeKey tHierarchyComponentType = gptECS->get_ecs_type_key_hierarchy();
         const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
         const plEcsTypeKey tSkinComponentType = gptRendererEcs->get_ecs_type_key_skin();
-        const plEcsTypeKey tCameraComponentType = gptCamera->get_ecs_type_key();
+        const plEcsTypeKey tCameraComponentType = gptCameraEcs->get_ecs_type_key();
         const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
         const plEcsTypeKey tInverseKinematicsComponentType = gptAnimation->get_ecs_type_key_inverse_kinematics();
         const plEcsTypeKey tLightComponentType = gptRendererEcs->get_ecs_type_key_light();
@@ -1051,6 +1052,7 @@ pl_load_ecs_tools_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptECS            = pl_get_api_latest(ptApiRegistry, plEcsI);
         gptPhysics        = pl_get_api_latest(ptApiRegistry, plPhysicsI);
         gptCamera         = pl_get_api_latest(ptApiRegistry, plCameraI);
+        gptCameraEcs      = pl_get_api_latest(ptApiRegistry, plCameraEcsI);
         gptAnimation      = pl_get_api_latest(ptApiRegistry, plAnimationI);
         gptMesh           = pl_get_api_latest(ptApiRegistry, plMeshI);
         gptMaterial       = pl_get_api_latest(ptApiRegistry, plMaterialI);

@@ -45,7 +45,8 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plCameraI_version {0, 3, 0}
+#define plCameraI_version    {0, 4, 0}
+#define plCameraEcsI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -79,6 +80,10 @@ typedef uint32_t                   plEcsTypeKey;       // pl_ecs_ext.h
 PL_API void pl_load_camera_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_camera_ext(plApiRegistryI*, bool reload);
 
+// init helpers
+PL_API void pl_camera_init_perspective (plCamera*, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ);
+PL_API void pl_camera_init_orthographic(plCamera*, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
+
 // operations
 PL_API void pl_camera_set_fov        (plCamera*, float fYFov);
 PL_API void pl_camera_set_clip_planes(plCamera*, float fNearZ, float fFarZ);
@@ -93,13 +98,13 @@ PL_API void pl_camera_update         (plCamera*);
 //----------------------------ECS INTEGRATION----------------------------------
 
 // entity helpers
-PL_API plEntity pl_camera_create_perspective (plComponentLibrary*, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera**);
-PL_API plEntity pl_camera_create_orthographic(plComponentLibrary*, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera**);
+PL_API plEntity pl_camera_ecs_create_perspective (plComponentLibrary*, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera**);
+PL_API plEntity pl_camera_ecs_create_orthographic(plComponentLibrary*, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera**);
 
 // system setup/shutdown/etc
-PL_API void         pl_camera_register_ecs_system(void);
-PL_API void         pl_camera_run_ecs            (plComponentLibrary*);
-PL_API plEcsTypeKey pl_camera_get_ecs_type_key   (void);
+PL_API void         pl_camera_ecs_register_ecs_system(void);
+PL_API void         pl_camera_ecs_run_ecs            (plComponentLibrary*);
+PL_API plEcsTypeKey pl_camera_ecs_get_ecs_type_key   (void);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -107,6 +112,9 @@ PL_API plEcsTypeKey pl_camera_get_ecs_type_key   (void);
 
 typedef struct _plCameraI
 {
+    void (*init_perspective)(plCamera*, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ);
+    void (*init_orthographic)(plCamera*, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
+
     // operations
     void (*set_fov)        (plCamera*, float fYFov);
     void (*set_clip_planes)(plCamera*, float fNearZ, float fFarZ);
@@ -118,6 +126,10 @@ typedef struct _plCameraI
     void (*look_at)        (plCamera*, plVec3d tEye, plVec3d tTarget);
     void (*update)         (plCamera*);
 
+} plCameraI;
+
+typedef struct _plCameraEcsI
+{
     //----------------------------ECS INTEGRATION----------------------------------
 
     // entity helpers
@@ -129,7 +141,7 @@ typedef struct _plCameraI
     void         (*run_ecs)            (plComponentLibrary*);
     plEcsTypeKey (*get_ecs_type_key)   (void);
 
-} plCameraI;
+} plCameraEcsI;
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs

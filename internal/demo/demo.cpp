@@ -58,6 +58,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptTools         = pl_get_api_latest(ptApiRegistry, plToolsI);
         gptEcs           = pl_get_api_latest(ptApiRegistry, plEcsI);
         gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
+        gptCameraEcs     = pl_get_api_latest(ptApiRegistry, plCameraEcsI);
         gptRenderer      = pl_get_api_latest(ptApiRegistry, plRendererI);
         gptJobs          = pl_get_api_latest(ptApiRegistry, plJobI);
         gptModelLoader   = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
@@ -118,6 +119,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptTools         = pl_get_api_latest(ptApiRegistry, plToolsI);
     gptEcs           = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptCamera        = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptCameraEcs     = pl_get_api_latest(ptApiRegistry, plCameraEcsI);
     gptRenderer      = pl_get_api_latest(ptApiRegistry, plRendererI);
     gptJobs          = pl_get_api_latest(ptApiRegistry, plJobI);
     gptModelLoader   = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
@@ -255,7 +257,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptRendererEcs->register_system();
     gptScript->register_ecs_system();
     gptAnimation->register_ecs_system();
-    gptCamera->register_ecs_system();
+    gptCameraEcs->register_ecs_system();
     gptMesh->register_ecs_system();
     gptPhysics->register_ecs_system();
     gptMaterial->register_ecs_system();
@@ -425,11 +427,11 @@ pl_app_update(plAppData* ptAppData)
 
     if(ptAppData->ptScene)
     {
-        gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCamera->get_ecs_type_key(), ptAppData->tMainCamera), (ptIO->tMainViewportSize.x * ptAppData->tView0Scale.x) / (ptIO->tMainViewportSize.y * ptAppData->tView0Scale.y));
+        gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera), (ptIO->tMainViewportSize.x * ptAppData->tView0Scale.x) / (ptIO->tMainViewportSize.y * ptAppData->tView0Scale.y));
 
-        plCamera*  ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCamera->get_ecs_type_key(), ptAppData->tMainCamera);
-        plCamera*  ptCullCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCamera->get_ecs_type_key(), ptAppData->tCullCamera);
-        plCamera*  ptSecondaryCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCamera->get_ecs_type_key(), ptAppData->tSecondaryCamera);
+        plCamera*  ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera);
+        plCamera*  ptCullCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tCullCamera);
+        plCamera*  ptSecondaryCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tSecondaryCamera);
         gptCamera->update(ptCullCamera);
         gptCamera->update(ptSecondaryCamera);
 
@@ -460,7 +462,7 @@ pl_app_update(plAppData* ptAppData)
         gptEcs->run_transform_update_system(ptAppData->ptCompLibrary);
         gptEcs->run_hierarchy_update_system(ptAppData->ptCompLibrary);
         gptRendererEcs->run_light_update_system(ptAppData->ptCompLibrary);
-        gptCamera->run_ecs(ptAppData->ptCompLibrary);
+        gptCameraEcs->run_ecs(ptAppData->ptCompLibrary);
         gptAnimation->run_inverse_kinematics_update_system(ptAppData->ptCompLibrary);
         gptRendererEcs->run_skin_update_system(ptAppData->ptCompLibrary);
         gptRendererEcs->run_object_update_system(ptAppData->ptCompLibrary);
@@ -699,7 +701,7 @@ pl_app_update(plAppData* ptAppData)
         if(ptAppData->ptScene)
         {
 
-            plCamera* ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCamera->get_ecs_type_key(), ptAppData->tMainCamera);
+            plCamera* ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera);
             if(ptAppData->bMainViewHovered)
                 pl__camera_update_imgui(ptCamera);
 
@@ -725,7 +727,7 @@ pl_app_update(plAppData* ptAppData)
         if(ImGui::Begin("Secondary View", &ptAppData->bSecondaryViewActive, ImGuiWindowFlags_NoDocking))
         {
             ImVec2 tContextSize = ImGui::GetContentRegionAvail();
-            gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCamera->get_ecs_type_key(), ptAppData->tSecondaryCamera), tContextSize.x / tContextSize.y);
+            gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tSecondaryCamera), tContextSize.x / tContextSize.y);
 
             ImTextureRef tTexture = ImTextureRef(gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, tTextureHandle));
             ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUV.x, tUV.y));
@@ -921,8 +923,8 @@ pl__show_editor_window(plAppData* ptAppData)
             {
                 if(ImGui::Checkbox("Freeze Culling Camera", &ptAppData->bFreezeCullCamera))
                 {
-                    plCamera*  ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCamera->get_ecs_type_key(), ptAppData->tMainCamera);
-                    plCamera*  ptCullCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCamera->get_ecs_type_key(), ptAppData->tCullCamera);
+                    plCamera*  ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera);
+                    plCamera*  ptCullCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tCullCamera);
                     *ptCullCamera = *ptCamera;
                 }
             }
@@ -1334,19 +1336,19 @@ pl__create_scene(plAppData* ptAppData)
 
     // create main camera
     plCamera* ptMainCamera = nullptr;
-    ptAppData->tMainCamera = gptCamera->create_perspective(ptAppData->ptCompLibrary, "main camera", pl_create_vec3_d(-4.7, 4.2, -3.256), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
+    ptAppData->tMainCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "main camera", pl_create_vec3_d(-4.7, 4.2, -3.256), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
     gptCamera->update(ptMainCamera);
 
     // create cull camera
     plCamera* ptCullCamera = nullptr;
-    ptAppData->tCullCamera = gptCamera->create_perspective(ptAppData->ptCompLibrary, "cull camera", pl_create_vec3_d(0, 0, 5.0), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
+    ptAppData->tCullCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "cull camera", pl_create_vec3_d(0, 0, 5.0), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
     gptCamera->set_pitch_yaw(ptCullCamera, 0.0f, PL_PI);
     gptCamera->update(ptCullCamera);
 
     // create secondary camera
     plCamera* ptSecondaryCamera = nullptr;
-    ptAppData->tSecondaryCamera = gptCamera->create_perspective(ptAppData->ptCompLibrary, "secondary camera", pl_create_vec3_d(-4.7, 4.2, -3.256), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
+    ptAppData->tSecondaryCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "secondary camera", pl_create_vec3_d(-4.7, 4.2, -3.256), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
     gptCamera->set_pitch_yaw(ptSecondaryCamera, -0.1f, 0.911f);
     gptCamera->update(ptSecondaryCamera);
     plTransformComponent* ptSecondaryCameraTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptCompLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSecondaryCamera);

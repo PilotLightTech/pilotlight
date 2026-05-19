@@ -45,6 +45,7 @@ static const struct _plConfigI*            gptConfig           = 0;
 static const struct _plCollisionI*         gptCollision        = 0;
 static const struct _plBVHI*               gptBvh              = 0;
 static const struct _plCameraI*            gptCamera           = 0;
+static const struct _plCameraEcsI*         gptCameraEcs        = 0;
 static const struct _plResourceI*          gptResource         = 0;
 static const struct _plEcsI*               gptECS              = 0;
 static const struct _plEcsToolsI*          gptEcsTools         = 0;

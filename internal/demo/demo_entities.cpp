@@ -29,7 +29,7 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
     const plEcsTypeKey tHierarchyComponentType = gptEcs->get_ecs_type_key_hierarchy();
     const plEcsTypeKey tMaterialComponentType = gptMaterial->get_ecs_type_key();
     const plEcsTypeKey tSkinComponentType = gptRendererEcs->get_ecs_type_key_skin();
-    const plEcsTypeKey tCameraComponentType = gptCamera->get_ecs_type_key();
+    const plEcsTypeKey tCameraComponentType = gptCameraEcs->get_ecs_type_key();
     const plEcsTypeKey tAnimationComponentType = gptAnimation->get_ecs_type_key_animation();
     const plEcsTypeKey tInverseKinematicsComponentType = gptAnimation->get_ecs_type_key_inverse_kinematics();
     const plEcsTypeKey tLightComponentType = gptRendererEcs->get_ecs_type_key_light();

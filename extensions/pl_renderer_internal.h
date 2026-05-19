@@ -119,6 +119,7 @@ Index of this file:
 
     // experimental
     static const plCameraI*           gptCamera           = NULL;
+    static const plCameraEcsI*        gptCameraEcs        = NULL;
     static const plBVHI*              gptBvh              = NULL;
     static const plAnimationI*        gptAnimation        = NULL;
     static const plMeshI*             gptMesh             = NULL;

@@ -56,7 +56,7 @@ the API is complete. It just means we won't break what currently exists.
 * Log                 v2.0.0 (pl_log_ext.h)
 * Config              v1.2.0 (pl_config_ext.h)
 * Console             v1.1.0 (pl_console_ext.h)
-* Draw                v2.1.0 (pl_draw_ext.h)
+* Draw                v2.1.1 (pl_draw_ext.h)
 * DXT                 v1.1.0 (pl_dxt_ext.h)
 * GPU Allocators      v1.1.0 (pl_gpu_allocators_ext.h)
 * Graphics            v1.8.0 (pl_graphics_ext.h)
@@ -96,7 +96,8 @@ the API is complete. It just means we won't break what currently exists.
 ## Unstable Extensions
 
 * ECS Tools           v0.1.0 (pl_ecs_tools_ext.h)
-* Camera              v0.3.0 (pl_camera_ext.h)
+* Camera              v0.4.0 (pl_camera_ext.h)
+* Camera ECS          v0.1.0 (pl_camera_ext.h)
 * Gizmo               v0.1.0 (pl_gizmo_ext.h)
 * Model Loader        v0.3.0 (pl_model_loader_ext.h)
 * Dear ImGui          v0.1.0 (pl_dear_imgui_ext.h)

@@ -92,6 +92,7 @@ const plGraphicsI*          gptGfx              = nullptr;
 const plToolsI*             gptTools            = nullptr;
 const plEcsI*               gptEcs              = nullptr;
 const plCameraI*            gptCamera           = nullptr;
+const plCameraEcsI*         gptCameraEcs        = nullptr;
 const plRendererI*          gptRenderer         = nullptr;
 const plModelLoaderI*       gptModelLoader      = nullptr;
 const plJobI*               gptJobs             = nullptr;

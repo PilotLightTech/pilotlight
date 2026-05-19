@@ -35,6 +35,7 @@ Index of this file:
 const plIOI*     gptIO     = NULL;
 const plEcsI*    gptEcs = NULL;
 const plCameraI* gptCamera = NULL;
+const plCameraEcsI* gptCameraEcs = NULL;
 const plUiI*     gptUi     = NULL;
 const plGizmoI*  gptGizmo  = NULL;
 
@@ -47,7 +48,7 @@ static float gfOriginalFOV = 0.0f;
 static void
 pl_script_setup(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
-    plCamera* ptCamera = gptEcs->get_component(ptLibrary, gptCamera->get_ecs_type_key(), tEntity);
+    plCamera* ptCamera = gptEcs->get_component(ptLibrary, gptCameraEcs->get_ecs_type_key(), tEntity);
     gfOriginalFOV = ptCamera->fFieldOfView;
 }
 
@@ -58,7 +59,7 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
     if(gptGizmo->active())
         return;
 
-    plCamera* ptCamera = gptEcs->get_component(ptLibrary, gptCamera->get_ecs_type_key(), tEntity);
+    plCamera* ptCamera = gptEcs->get_component(ptLibrary, gptCameraEcs->get_ecs_type_key(), tEntity);
 
     if(gfOriginalFOV == 0.0f)
     {
@@ -159,11 +160,12 @@ PL_EXPORT void
 pl_load_script(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     // load apis
-    gptEcs    = pl_get_api_latest(ptApiRegistry, plEcsI);
-    gptCamera = pl_get_api_latest(ptApiRegistry, plCameraI);
-    gptIO     = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptUi     = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptGizmo  = pl_get_api_latest(ptApiRegistry, plGizmoI);
+    gptEcs       = pl_get_api_latest(ptApiRegistry, plEcsI);
+    gptCamera    = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptCameraEcs = pl_get_api_latest(ptApiRegistry, plCameraEcsI);
+    gptIO        = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptUi        = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptGizmo     = pl_get_api_latest(ptApiRegistry, plGizmoI);
 
     const plScriptInterface tApi = {
         .setup = pl_script_setup,

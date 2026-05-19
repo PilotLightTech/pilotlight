@@ -398,6 +398,7 @@ pl_load_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptUI                = pl_get_api_latest(ptApiRegistry, plUiI);
     gptECS               = pl_get_api_latest(ptApiRegistry, plEcsI);
     gptCamera            = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptCameraEcs         = pl_get_api_latest(ptApiRegistry, plCameraEcsI);
     gptResource          = pl_get_api_latest(ptApiRegistry, plResourceI);
     gptProfile           = pl_get_api_latest(ptApiRegistry, plProfileI);
     gptLog               = pl_get_api_latest(ptApiRegistry, plLogI);

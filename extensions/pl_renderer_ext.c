@@ -5194,7 +5194,7 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     float fYaw = pl_json_float_member(ptCameraObject, "fYaw", 0.0f);
     float fPitch = pl_json_float_member(ptCameraObject, "fPitch", 0.0f);
     plCamera* ptMainCamera = NULL;
-    ptDataOut->tMainCamera = gptCamera->create_perspective(ptComponentLibrary, "main camera", tCameraPosition, fYFov, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, fNearZ, fFarZ, true, &ptMainCamera);
+    ptDataOut->tMainCamera = gptCameraEcs->create_perspective(ptComponentLibrary, "main camera", tCameraPosition, fYFov, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, fNearZ, fFarZ, true, &ptMainCamera);
     gptCamera->set_pitch_yaw(ptMainCamera, fPitch, fYaw);
     gptCamera->update(ptMainCamera);
     gptScript->attach(ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptDataOut->tMainCamera, NULL);
@@ -5519,6 +5519,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptRect             = pl_get_api_latest(ptApiRegistry, plRectPackI);
         gptECS              = pl_get_api_latest(ptApiRegistry, plEcsI);
         gptCamera           = pl_get_api_latest(ptApiRegistry, plCameraI);
+        gptCameraEcs        = pl_get_api_latest(ptApiRegistry, plCameraEcsI);
         gptDraw             = pl_get_api_latest(ptApiRegistry, plDrawI);
         gptGfx              = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptResource         = pl_get_api_latest(ptApiRegistry, plResourceI);
