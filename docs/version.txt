@@ -44,14 +44,14 @@ the API is complete. It just means we won't break what currently exists.
 * Data Structures   v1.0.1 (pl_ds.h)
 * Json              v1.0.4 (pl_json.h)
 * Logging           v1.0.1 (pl_log.h)
-* Math              v1.2.1 (pl_math.h)
+* Math              v1.2.2 (pl_math.h)
 * Memory Allocators v1.1.2 (pl_memory.h)
 * Profiling         v1.0.0 (pl_profile.h)
 * Stl               v1.0.0 (pl_stl.h)
 * String            v1.1.2 (pl_string.h)
 * Testing           v1.0.0 (pl_test.h)
 
-## Stable Extensions
+## Stable APIs
 
 * Log                 v2.0.0 (pl_log_ext.h)
 * Config              v1.2.0 (pl_config_ext.h)

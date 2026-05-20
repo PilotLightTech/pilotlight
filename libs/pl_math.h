@@ -14,8 +14,8 @@
 */
 
 // library version (format XYYZZ)
-#define PL_MATH_VERSION    "1.2.1"
-#define PL_MATH_VERSION_NUM 10201
+#define PL_MATH_VERSION    "1.2.2"
+#define PL_MATH_VERSION_NUM 10202
 
 /*
 Index of this file:
@@ -306,6 +306,9 @@ typedef union _plMat4d
     };
     double d[16];
 } plMat4d;
+
+typedef plVec4  plQuat;
+typedef plVec4d plQuatd;
 
 //-----------------------------------------------------------------------------
 // [SECTION] primitive types
@@ -644,8 +647,8 @@ static inline plMat4 pl_mat4_rotate_vec3          (float angle, plVec3);
 static inline plMat4 pl_mat4_rotate_xyz           (float angle, float x, float y, float z);
 static inline plMat4 pl_mat4_scale_xyz            (float x, float y, float z);
 static inline plMat4 pl_mat4_scale_vec3           (plVec3);
-static inline plMat4 pl_mat4_rotate_quat          (plVec4 q);
-static inline plMat4 pl_rotation_translation_scale(plVec4 q, plVec3 t, plVec3 s);
+static inline plMat4 pl_mat4_rotate_quat          (plQuat q);
+static inline plMat4 pl_rotation_translation_scale(plQuat q, plVec3 t, plVec3 s);
 
 // transforms (optimized for orthogonal matrices)
 static inline plMat4 pl_mat4t_invert(const plMat4*);
@@ -686,8 +689,8 @@ static inline plMat4d pl_mat4_rotate_vec3_d          (double angle, plVec3d);
 static inline plMat4d pl_mat4_rotate_xyz_d           (double angle, double x, double y, double z);
 static inline plMat4d pl_mat4_scale_xyz_d            (double x, double y, double z);
 static inline plMat4d pl_mat4_scale_vec3_d           (plVec3d);
-static inline plMat4d pl_mat4_rotate_quat_d          (plVec4d q);
-static inline plMat4d pl_rotation_translation_scale_d(plVec4d q, plVec3d t, plVec3d s);
+static inline plMat4d pl_mat4_rotate_quat_d          (plQuatd q);
+static inline plMat4d pl_rotation_translation_scale_d(plQuatd q, plVec3d t, plVec3d s);
 
 // transforms (optimized for orthogonal matrices)
 static inline plMat4d pl_mat4t_invert_d(const plMat4d*);
@@ -697,27 +700,27 @@ static inline plMat4d pl_mul_mat4t_d   (const plMat4d*, const plMat4d*);
 // [SECTION] quaternion ops (single precision)
 //-----------------------------------------------------------------------------
 
-static inline plVec3 pl_mul_quat_vec3     (plVec3 v, plVec4 q);
-static inline plVec4 pl_mul_quat          (plVec4 q1, plVec4 q2);
-static inline plVec4 pl_quat_rotation     (float angle, float x, float y, float z);
-static inline plVec4 pl_quat_rotation_vec3(float angle, plVec3 axis);
-static inline plVec4 pl_norm_quat         (plVec4 q);
-static inline plVec4 pl_quat_slerp        (plVec4 q1, plVec4 q2, float t);
-static inline float  pl_quat_decompose    (plVec4 q, plVec3* axisOut);
-static inline void   pl_decompose_matrix  (const plMat4*, plVec3* s, plVec4* q, plVec3* t);
+static inline plVec3 pl_mul_quat_vec3     (plVec3 v, plQuat q);
+static inline plQuat pl_mul_quat          (plQuat q1, plQuat q2);
+static inline plQuat pl_quat_rotation     (float angle, float x, float y, float z);
+static inline plQuat pl_quat_rotation_vec3(float angle, plVec3 axis);
+static inline plQuat pl_norm_quat         (plQuat q);
+static inline plQuat pl_quat_slerp        (plQuat q1, plQuat q2, float t);
+static inline float  pl_quat_decompose    (plQuat q, plVec3* axisOut);
+static inline void   pl_decompose_matrix  (const plMat4*, plVec3* s, plQuat* q, plVec3* t);
 
 //-----------------------------------------------------------------------------
 // [SECTION] quaternion ops (double precision)
 //-----------------------------------------------------------------------------
 
-static inline plVec3d pl_mul_quat_vec3_d     (plVec3d v, plVec4d q);
-static inline plVec4d pl_mul_quat_d          (plVec4d q1, plVec4d q2);
-static inline plVec4d pl_quat_rotation_d     (double angle, double x, double y, double z);
-static inline plVec4d pl_quat_rotation_vec3_d(double angle, plVec3d axis);
-static inline plVec4d pl_norm_quat_d         (plVec4d q);
-static inline plVec4d pl_quat_slerp_d        (plVec4d q1, plVec4d q2, double t);
-static inline double  pl_quat_decompose_d    (plVec4d q, plVec3d* axisOut);
-static inline void    pl_decompose_matrix_d  (const plMat4d*, plVec3d* s, plVec4d* q, plVec3d* t);
+static inline plVec3d pl_mul_quat_vec3_d     (plVec3d v, plQuatd q);
+static inline plQuatd pl_mul_quat_d          (plQuatd q1, plQuatd q2);
+static inline plQuatd pl_quat_rotation_d     (double angle, double x, double y, double z);
+static inline plQuatd pl_quat_rotation_vec3_d(double angle, plVec3d axis);
+static inline plQuatd pl_norm_quat_d         (plQuatd q);
+static inline plQuatd pl_quat_slerp_d        (plQuatd q1, plQuatd q2, double t);
+static inline double  pl_quat_decompose_d    (plQuatd q, plVec3d* axisOut);
+static inline void    pl_decompose_matrix_d  (const plMat4d*, plVec3d* s, plQuatd* q, plVec3d* t);
 
 //-----------------------------------------------------------------------------
 // [SECTION] rect ops
@@ -1476,7 +1479,7 @@ pl_mat4_scale_vec3(plVec3 tVec)
 }
 
 static inline plMat4
-pl_mat4_rotate_quat(plVec4 tQ)
+pl_mat4_rotate_quat(plQuat tQ)
 {
     const float x2 = tQ.x * tQ.x;
     const float y2 = tQ.y * tQ.y;
@@ -1507,7 +1510,7 @@ pl_mat4_rotate_quat(plVec4 tQ)
 }
 
 static inline plMat4
-pl_rotation_translation_scale(plVec4 tQ, plVec3 tV, plVec3 tS)
+pl_rotation_translation_scale(plQuat tQ, plVec3 tV, plVec3 tS)
 {
 
     const plMat4 tScale = pl_mat4_scale_vec3(tS);
@@ -1585,38 +1588,38 @@ pl_mul_mat4t(const plMat4* ptLeft, const plMat4* ptRight)
 }
 
 static inline plVec3
-pl_mul_quat_vec3(plVec3 tV, plVec4 tQ)
+pl_mul_quat_vec3(plVec3 tV, plQuat tQ)
 {
     return pl_add_vec3(pl_add_vec3(pl_mul_vec3_scalarf(tV, tQ.w * tQ.w - (tQ.x * tQ.x + tQ.y * tQ.y + tQ.z * tQ.z)), pl_mul_vec3_scalarf(tQ.xyz, pl_dot_vec3(tV, tQ.xyz) * 2.0f)), pl_mul_vec3_scalarf(pl_cross_vec3(tQ.xyz, tV), tQ.w * 2.0f));
 }
 
-static inline plVec4
-pl_mul_quat(plVec4 tQ1, plVec4 tQ2)
+static inline plQuat
+pl_mul_quat(plQuat tQ1, plQuat tQ2)
 {
     return pl_create_vec4(tQ1.w * tQ2.x + tQ1.x * tQ2.w + tQ1.y * tQ2.z - tQ1.z * tQ2.y, tQ1.w * tQ2.y - tQ1.x * tQ2.z + tQ1.y * tQ2.w + tQ1.z * tQ2.x, tQ1.w * tQ2.z + tQ1.x * tQ2.y - tQ1.y * tQ2.x + tQ1.z * tQ2.w, tQ1.w * tQ2.w - tQ1.x * tQ2.x - tQ1.y * tQ2.y - tQ1.z * tQ2.z);
 }
 
-static inline plVec4
+static inline plQuat
 pl_quat_rotation(float fAngle, float fX, float fY, float fZ)
 {
     const float fSin2 = sinf(0.5f * fAngle);
     return pl_create_vec4(fSin2 * fX, fSin2 * fY, fSin2 * fZ, cosf(0.5f * fAngle));
 }
 
-static inline plVec4
+static inline plQuat
 pl_quat_rotation_vec3(float fAngle, plVec3 tAxis)
 {
     return pl_quat_rotation(fAngle, tAxis.x, tAxis.y, tAxis.z);
 }
 
-static inline plVec4
-pl_norm_quat(plVec4 tQ)
+static inline plQuat
+pl_norm_quat(plQuat tQ)
 {
     return pl_norm_vec4(tQ);
 }
 
-static inline plVec4
-pl_quat_slerp(plVec4 tQ1, plVec4 tQ2, float fT)
+static inline plQuat
+pl_quat_slerp(plQuat tQ1, plQuat tQ2, float fT)
 {
 
 	// from https://glmatrix.net/docs/quat.js.html
@@ -1680,7 +1683,7 @@ pl_quat_slerp(plVec4 tQ1, plVec4 tQ2, float fT)
 }
 
 static inline float
-pl_quat_decompose(plVec4 tQ, plVec3* ptAxisOut)
+pl_quat_decompose(plQuat tQ, plVec3* ptAxisOut)
 {
     const float fAngle = 2.0f * acosf(tQ.w);
     if(fAngle != 0.0f)
@@ -1694,7 +1697,7 @@ pl_quat_decompose(plVec4 tQ, plVec3* ptAxisOut)
 }
 
 static inline void
-pl_decompose_matrix(const plMat4* ptM, plVec3* ptS, plVec4* ptQ, plVec3* ptT)
+pl_decompose_matrix(const plMat4* ptM, plVec3* ptS, plQuat* ptQ, plVec3* ptT)
 {
     // method borrowed from blender source
 
@@ -2420,7 +2423,7 @@ pl_mat4_scale_vec3_d(plVec3d tVec)
 }
 
 static inline plMat4d
-pl_mat4_rotate_quat_d(plVec4d tQ)
+pl_mat4_rotate_quat_d(plQuatd tQ)
 {
     const double x2 = tQ.x * tQ.x;
     const double y2 = tQ.y * tQ.y;
@@ -2451,7 +2454,7 @@ pl_mat4_rotate_quat_d(plVec4d tQ)
 }
 
 static inline plMat4d
-pl_rotation_translation_scale_d(plVec4d tQ, plVec3d tV, plVec3d tS)
+pl_rotation_translation_scale_d(plQuatd tQ, plVec3d tV, plVec3d tS)
 {
 
     const plMat4d tScale = pl_mat4_scale_vec3_d(tS);
@@ -2529,38 +2532,38 @@ pl_mul_mat4t_d(const plMat4d* ptLeft, const plMat4d* ptRight)
 }
 
 static inline plVec3d
-pl_mul_quat_vec3_d(plVec3d tV, plVec4d tQ)
+pl_mul_quat_vec3_d(plVec3d tV, plQuatd tQ)
 {
     return pl_add_vec3_d(pl_add_vec3_d(pl_mul_vec3_scalard(tV, tQ.w * tQ.w - (tQ.x * tQ.x + tQ.y * tQ.y + tQ.z * tQ.z)), pl_mul_vec3_scalard(tQ.xyz, pl_dot_vec3_d(tV, tQ.xyz) * 2.0)), pl_mul_vec3_scalard(pl_cross_vec3_d(tQ.xyz, tV), tQ.w * 2.0));
 }
 
-static inline plVec4d
-pl_mul_quat_d(plVec4d tQ1, plVec4d tQ2)
+static inline plQuatd
+pl_mul_quat_d(plQuatd tQ1, plQuatd tQ2)
 {
     return pl_create_vec4_d(tQ1.w * tQ2.x + tQ1.x * tQ2.w + tQ1.y * tQ2.z - tQ1.z * tQ2.y, tQ1.w * tQ2.y - tQ1.x * tQ2.z + tQ1.y * tQ2.w + tQ1.z * tQ2.x, tQ1.w * tQ2.z + tQ1.x * tQ2.y - tQ1.y * tQ2.x + tQ1.z * tQ2.w, tQ1.w * tQ2.w - tQ1.x * tQ2.x - tQ1.y * tQ2.y - tQ1.z * tQ2.z);
 }
 
-static inline plVec4d
+static inline plQuatd
 pl_quat_rotation_d(double dAngle, double dX, double dY, double dZ)
 {
     const double dSin2 = sin(0.5 * dAngle);
     return pl_create_vec4_d(dSin2 * dX, dSin2 * dY, dSin2 * dZ, cos(0.5 * dAngle));
 }
 
-static inline plVec4d
+static inline plQuatd
 pl_quat_rotation_vec3_d(double dAngle, plVec3d tAxis)
 {
     return pl_quat_rotation_d(dAngle, tAxis.x, tAxis.y, tAxis.z);
 }
 
-static inline plVec4d
-pl_norm_quat_d(plVec4d tQ)
+static inline plQuatd
+pl_norm_quat_d(plQuatd tQ)
 {
     return pl_norm_vec4_d(tQ);
 }
 
-static inline plVec4d
-pl_quat_slerp_d(plVec4d tQ1, plVec4d tQ2, double dT)
+static inline plQuatd
+pl_quat_slerp_d(plQuatd tQ1, plQuatd tQ2, double dT)
 {
 
 	// from https://glmatrix.net/docs/quat.js.html
@@ -2624,7 +2627,7 @@ pl_quat_slerp_d(plVec4d tQ1, plVec4d tQ2, double dT)
 }
 
 static inline double
-pl_quat_decompose_d(plVec4d tQ, plVec3d* ptAxisOut)
+pl_quat_decompose_d(plQuatd tQ, plVec3d* ptAxisOut)
 {
     const double dAngle = 2.0 * acos(tQ.w);
     if(dAngle != 0.0)
@@ -2638,7 +2641,7 @@ pl_quat_decompose_d(plVec4d tQ, plVec3d* ptAxisOut)
 }
 
 static inline void
-pl_decompose_matrix_d(const plMat4d* ptM, plVec3d* ptS, plVec4d* ptQ, plVec3d* ptT)
+pl_decompose_matrix_d(const plMat4d* ptM, plVec3d* ptS, plQuatd* ptQ, plVec3d* ptT)
 {
     // method borrowed from blender source
 
