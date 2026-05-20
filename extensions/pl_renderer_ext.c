@@ -3404,27 +3404,25 @@ pl_renderer_prepare_scene(plScene* ptScene)
             plCamera atEnvironmentCamera[6] = {0};
 
             const plVec3 atPitchYawRoll[6] = {
-                { 0.0f,    PL_PI_2 },
-                { 0.0f,    -PL_PI_2 },
-                { PL_PI_2,    PL_PI },
-                { -PL_PI_2,    PL_PI },
-                { PL_PI,    0.0f, PL_PI },
-                { 0.0f,    0.0f },
+                {    0.0f,  PL_PI_2,  0.0f },
+                {    0.0f, -PL_PI_2,  0.0f },
+                {  PL_PI_2,   PL_PI,  0.0f },
+                { -PL_PI_2,   PL_PI,  0.0f },
+                {    PL_PI,    0.0f, PL_PI },
+                {     0.0f,    0.0f,  0.0f },
             };
 
             for(uint32_t uFace = 0; uFace < 6; uFace++)
             {
-
-                atEnvironmentCamera[uFace] = (plCamera){
-                    .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-                    .tPosDouble   = {(double)ptProbeTransform->tTranslation.x, (double)ptProbeTransform->tTranslation.y, (double)ptProbeTransform->tTranslation.z},
-                    .fNearZ       = 0.26f,
-                    .fFarZ        = ptProbeComp->fRange,
-                    .fFieldOfView = PL_PI_2,
-                    .fAspectRatio = 1.0f,
-                    .fRoll        = atPitchYawRoll[uFace].z
-                };
-                gptCamera->set_pitch_yaw(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y);
+                gptCamera->init(&atEnvironmentCamera[uFace]);
+                atEnvironmentCamera[uFace].eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
+                atEnvironmentCamera[uFace].eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
+                atEnvironmentCamera[uFace].tPosition   = (plVec3d){(double)ptProbeTransform->tTranslation.x, (double)ptProbeTransform->tTranslation.y, (double)ptProbeTransform->tTranslation.z};
+                atEnvironmentCamera[uFace].fNearZ       = 0.26f;
+                atEnvironmentCamera[uFace].fFarZ        = ptProbeComp->fRange;
+                atEnvironmentCamera[uFace].fYFov        = PL_PI_2;
+                atEnvironmentCamera[uFace].fAspectRatio = 1.0f;
+                gptCamera->set_pitch_yaw_roll(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y, atPitchYawRoll[uFace].z);
                 gptCamera->update(&atEnvironmentCamera[uFace]);
 
                 const plBeginCommandInfo tBeginCSMInfo = {
@@ -3462,7 +3460,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
 
                 const plGpuViewData tProbeBindGroupBuffer = {
                     .tViewportSize         = {.x = ptProbe->tTargetSize.x, .y = ptProbe->tTargetSize.y, .z = 1.0f, .w = 1.0f},
-                    .tCameraPos            = atEnvironmentCamera[uFace].tPos,
+                    .tCameraPos            = atEnvironmentCamera[uFace].tPositionF,
                     .fCameraRange          = atEnvironmentCamera[uFace].fFarZ - atEnvironmentCamera[uFace].fNearZ,
                     .fCameraNearZ          = atEnvironmentCamera[uFace].fNearZ,
                     .tCameraProjection     = atEnvironmentCamera[uFace].tProjMat,
@@ -3534,9 +3532,9 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
     ptView->tData.tFogColor = ptScene->tFogOptions.tColor;
     ptView->tData.fFogLinearParam0 = 1.0f / (ptView->tData.fFogCutOffDistance - ptView->tData.fFogStart);
     ptView->tData.fFogLinearParam1 = -ptView->tData.fFogStart / (ptView->tData.fFogCutOffDistance - ptView->tData.fFogStart);
-    ptView->tData.tCameraPos.xyz = ptCamera->tPos;
+    ptView->tData.tCameraPos.xyz = ptCamera->tPositionF;
     
-    const float fFogDensity = -(float)(ptView->tData.fFogHeightFalloff * (ptCamera->tPos.y - ptView->tData.fFogHeight));
+    const float fFogDensity = -(float)(ptView->tData.fFogHeightFalloff * (ptCamera->tPositionF.y - ptView->tData.fFogHeight));
     ptView->tData.tFogDensity = (plVec3){ptScene->tFogOptions.fDensity, fFogDensity, ptScene->tFogOptions.fDensity * expf(fFogDensity)};
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~generate CSMs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3695,7 +3693,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
     const plGpuViewData tBindGroupBuffer = {
         .tViewportSize         = {.xy = ptView->tTargetSize, .ignored0_ = 1.0f, .ignored1_ = 1.0f},
-        .tCameraPos            = ptCamera->tPos,
+        .tCameraPos            = ptCamera->tPositionF,
         .fCameraRange          = ptCamera->fFarZ - ptCamera->fNearZ,
         .fCameraNearZ          = ptCamera->fNearZ,
         .tCameraProjection     = ptCamera->tProjMat,
@@ -3800,8 +3798,6 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     
     if(ptScene->ptTerrain)
     {
-        const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-
         plShaderHandle tTerrainShader = ptScene->tTerrainShader;
 
         if(ptScene->ptTerrain->tRuntimeOptions.tFlags & PL_TERRAIN_FLAGS_WIREFRAME)
@@ -3819,9 +3815,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
             0, NULL
         );
 
-
         for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
-            pl__render_chunk(ptScene, ptScene->ptTerrain, ptCamera, ptMainEncoder, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &tMVP, 0);
+            pl__render_chunk(ptScene, ptScene->ptTerrain, ptCamera, ptMainEncoder, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &ptCamera->tViewProjMat, 0);
     }
     gptGfx->pop_render_debug_group(ptMainEncoder);
 
@@ -3846,7 +3841,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
     if(ptScene->tSkyboxTexture.uIndex != 0 && ptView->tEditorOptions.bShowSkybox)
     {
-        plMat4 tTransformMat = pl_mat4_translate_vec3(ptCamera->tPos);
+        plMat4 tTransformMat = pl_mat4_translate_vec3(ptCamera->tPositionF);
         pl__render_view_skybox_pass(ptScene, ptMainEncoder, ptView->atViewBG[uFrameIdx], &tTransformMat, &tArea, 0);
     }
     
@@ -5194,8 +5189,16 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     float fYaw = pl_json_float_member(ptCameraObject, "fYaw", 0.0f);
     float fPitch = pl_json_float_member(ptCameraObject, "fPitch", 0.0f);
     plCamera* ptMainCamera = NULL;
-    ptDataOut->tMainCamera = gptCameraEcs->create_perspective(ptComponentLibrary, "main camera", tCameraPosition, fYFov, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, fNearZ, fFarZ, true, &ptMainCamera);
-    gptCamera->set_pitch_yaw(ptMainCamera, fPitch, fYaw);
+    plCameraPerspectiveDesc tCameraDesc = {
+        .fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y,
+        .fYFov = fYFov,
+        .fNearZ = fNearZ,
+        .fFarZ = fFarZ,
+        .eDepthMode = PL_CAMERA_DEPTH_MODE_REVERSE_Z
+    };
+    ptDataOut->tMainCamera = gptCameraEcs->create_perspective(ptComponentLibrary, "main camera", &tCameraDesc, &ptMainCamera);
+    gptCamera->set_position(ptMainCamera, tCameraPosition);
+    gptCamera->set_pitch_yaw_roll(ptMainCamera, fPitch, fYaw, 0.0f);
     gptCamera->update(ptMainCamera);
     gptScript->attach(ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptDataOut->tMainCamera, NULL);
 

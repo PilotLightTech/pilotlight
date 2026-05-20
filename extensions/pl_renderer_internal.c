@@ -312,7 +312,7 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
 static bool
 pl__renderer_sat_visibility_test(const plCamera* ptCamera, const plAABB* ptAABB)
 {
-    const float fTanFov = tanf(0.5f * ptCamera->fFieldOfView);
+    const float fTanFov = tanf(0.5f * ptCamera->fYFov);
 
     const float fZNear = ptCamera->fNearZ;
     const float fZFar = ptCamera->fFarZ;
@@ -802,14 +802,15 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
 
             plMat4 atCamViewProjs[6] = {0};
 
-            plCamera tShadowCamera = {
-                .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-                .tPosDouble   = {(double)ptLight->tPosition.x, (double)ptLight->tPosition.y, (double)ptLight->tPosition.z},
-                .fNearZ       = ptLight->fRadius,
-                .fFarZ        = ptLight->fRange,
-                .fFieldOfView = PL_PI_2,
-                .fAspectRatio = 1.0f
-            };
+            plCamera tShadowCamera = {0};
+            gptCamera->init(&tShadowCamera);
+            tShadowCamera.eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
+            tShadowCamera.eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
+            tShadowCamera.tPosition   = (plVec3d){(double)ptLight->tPosition.x, (double)ptLight->tPosition.y, (double)ptLight->tPosition.z};
+            tShadowCamera.fNearZ       = ptLight->fRadius;
+            tShadowCamera.fFarZ        = ptLight->fRange;
+            tShadowCamera.fYFov        = PL_PI_2;
+            tShadowCamera.fAspectRatio = 1.0f;
 
             const plVec2 atPitchYaw[6] = {
                 {0.0, 0.0},
@@ -823,7 +824,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
             for(uint32_t i = 0; i < 6; i++)
             {
 
-                gptCamera->set_pitch_yaw(&tShadowCamera, atPitchYaw[i].x, atPitchYaw[i].y);
+                gptCamera->set_pitch_yaw_roll(&tShadowCamera, atPitchYaw[i].x, atPitchYaw[i].y, 0.0f);
                 gptCamera->update(&tShadowCamera);
                 atCamViewProjs[i] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
                 ptShadowData->viewProjMat[i] = atCamViewProjs[i];
@@ -843,17 +844,18 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
 
             plMat4 tCamViewProjs = {0};
 
-            plCamera tShadowCamera = {
-                .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-                .tPosDouble   = {(double)ptLight->tPosition.x, (double)ptLight->tPosition.y, (double)ptLight->tPosition.z},
-                .fNearZ       = ptLight->fRadius,
-                .fFarZ        = ptLight->fRange,
-                .fFieldOfView = ptLight->fOuterConeAngle * 2.0f,
-                .fAspectRatio = 1.0f
-            };
+            plCamera tShadowCamera = {0};
+            gptCamera->init(&tShadowCamera);
+            tShadowCamera.eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
+            tShadowCamera.eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
+            tShadowCamera.tPosition   = (plVec3d){(double)ptLight->tPosition.x, (double)ptLight->tPosition.y, (double)ptLight->tPosition.z};
+            tShadowCamera.fNearZ       = ptLight->fRadius;
+            tShadowCamera.fFarZ        = ptLight->fRange;
+            tShadowCamera.fYFov        = ptLight->fOuterConeAngle * 2.0f;
+            tShadowCamera.fAspectRatio = 1.0f;
 
             plVec3 tDirection = pl_norm_vec3(ptLight->tDirection);
-            gptCamera->look_at(&tShadowCamera, pl__to_double_vec(ptLight->tPosition), pl__to_double_vec(pl_add_vec3(ptLight->tPosition, tDirection)));
+            gptCamera->look_at(&tShadowCamera, pl__to_double_vec(ptLight->tPosition), pl__to_double_vec(pl_add_vec3(ptLight->tPosition, tDirection)), (plVec3){0.0f, 1.0f, 0.0f});
             gptCamera->update(&tShadowCamera);
             tCamViewProjs = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
             ptShadowData->viewProjMat = tCamViewProjs;
@@ -1338,7 +1340,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
     const uint32_t uLightCount = pl_sb_size(ptScene->sbtDirectionLights);
 
-    const float g = 1.0f / tanf(ptSceneCamera->fFieldOfView / 2.0f);
+    const float g = 1.0f / tanf(ptSceneCamera->fYFov / 2.0f);
     const float s = ptSceneCamera->fAspectRatio;
 
     // common calculations
@@ -1554,12 +1556,12 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             plVec3 tSnappedCenterWS = tSnappedCenterWS4.xyz;
 
             // final shadow camera
-            plCamera tShadowCamera = {
-                .tType = PL_CAMERA_TYPE_ORTHOGRAPHIC_REVERSE_Z
-            };
-
-            tShadowCamera.tPosDouble = pl__to_double_vec(tSnappedCenterWS);
-            tShadowCamera.tPos = tSnappedCenterWS;
+            plCamera tShadowCamera = {0};
+            gptCamera->init(&tShadowCamera);
+            tShadowCamera.eProjectionType = PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC;
+            tShadowCamera.eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
+            tShadowCamera.tPosition = pl__to_double_vec(tSnappedCenterWS);
+            tShadowCamera.tPositionF = tSnappedCenterWS;
             tShadowCamera.fWidth  = fDim;
             tShadowCamera.fHeight = fDim;
             tShadowCamera.fNearZ  = fNearZ;
@@ -1588,8 +1590,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
             if(ptScene->ptTerrain)
             {
-                const plMat4 tMVP = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
-
+   
                 plScissor tScissor = {
                         .iOffsetX = (int)(ptRect->iX + uCascade * ptLight->uShadowResolution),
                         .iOffsetY = ptRect->iY,
@@ -1629,7 +1630,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
 
                 for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
-                    pl__render_chunk_shadow(ptScene, ptScene->ptTerrain, &tShadowCamera, ptEncoder, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &tMVP, 0);
+                    pl__render_chunk_shadow(ptScene, ptScene->ptTerrain, &tShadowCamera, ptEncoder, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &tShadowCamera.tViewProjMat, 0);
             }
         }
 
@@ -3898,8 +3899,6 @@ pl__render_view_grid_pass(plView* ptView, plRenderEncoder* ptSceneEncoder, const
     plDevice*      ptDevice  = gptData->ptDevice;
     plDrawStream*  ptStream  = &gptData->tDrawStream;
 
-    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-
     const plVec2 tDimensions = ptView->tTargetSize;
     plDrawArea tArea = {
         .ptDrawStream = ptStream,
@@ -3925,16 +3924,16 @@ pl__render_view_grid_pass(plView* ptView, plRenderEncoder* ptSceneEncoder, const
 
     plDynamicBinding tGridDynamicBinding = pl__allocate_dynamic_data(ptDevice);
     plGpuDynGrid* ptGridDynamicData = (plGpuDynGrid*)tGridDynamicBinding.pcData;
-    const float fGridFactor = pl_squaref(ptCamera->fFarZ) - pl_squaref(ptCamera->tPos.y);
+    const float fGridFactor = pl_squaref(ptCamera->fFarZ) - pl_squaref(ptCamera->tPositionF.y);
     ptGridDynamicData->fGridSize = fGridFactor > 0.0f ? sqrtf(fGridFactor) : 100.0f;
     ptGridDynamicData->fGridCellSize = ptView->tEditorOptions.fGridCellSize;
     ptGridDynamicData->fGridMinPixelsBetweenCells = ptView->tEditorOptions.fGridMinPixelsBetweenCells;
     ptGridDynamicData->tGridColorThin = ptView->tEditorOptions.tGridColorThin;
     ptGridDynamicData->tGridColorThick = ptView->tEditorOptions.tGridColorThick;
-    ptGridDynamicData->tViewDirection.xyz = ptCamera->_tForwardVec;
-    ptGridDynamicData->fCameraXPos = ptCamera->tPos.x;
-    ptGridDynamicData->fCameraZPos = ptCamera->tPos.z;
-    ptGridDynamicData->tCameraViewProjection = tMVP;
+    ptGridDynamicData->tViewDirection.xyz = ptCamera->tForwardVec;
+    ptGridDynamicData->fCameraXPos = ptCamera->tPositionF.x;
+    ptGridDynamicData->fCameraZPos = ptCamera->tPositionF.z;
+    ptGridDynamicData->tCameraViewProjection = ptCamera->tViewProjMat;
     
     gptGfx->bind_graphics_bind_groups(ptSceneEncoder, tGridShader, 0, 0, NULL, 1, &tGridDynamicBinding);
 
@@ -3952,7 +3951,6 @@ pl__render_view_grid_pass(plView* ptView, plRenderEncoder* ptSceneEncoder, const
 static void
 pl__render_view_debug_pass(plView* ptView, const plCamera* ptCamera, const plCamera* ptCullCamera)
 {
-    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plScene* ptScene = ptView->ptParentScene;
     const plVec2 tDimensions = ptView->tTargetSize;
@@ -3982,9 +3980,9 @@ pl__render_view_debug_pass(plView* ptView, const plCamera* ptCamera, const plCam
             .fAspectRatio = ptCullCamera->fAspectRatio,
             .fFarZ        = ptCullCamera->fFarZ,
             .fNearZ       = ptCullCamera->fNearZ,
-            .fYFov        = ptCullCamera->fFieldOfView
+            .fYFov        = ptCullCamera->fYFov
         };
-        gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tTransformMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
+        gptDraw->add_3d_frustum(ptView->pt3DSelectionDrawList, &ptCullCamera->tInvViewMat, tFrustumDesc, (plDrawLineOptions){.uColor = PL_COLOR_32_YELLOW, .fThickness = 0.02f});
     }
 
     const plBeginCommandInfo tPostBeginInfo = {
@@ -3998,8 +3996,8 @@ pl__render_view_debug_pass(plView* ptView, const plCamera* ptCamera, const plCam
 
     plRenderEncoder* ptSceneEncoder = gptGfx->begin_render_pass(ptPostCmdBuffer, ptView->tFinalRenderPass, NULL);
     gptGfx->set_depth_bias(ptSceneEncoder, 0.0f, 0.0f, 0.0f);
-    gptDraw->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
-    gptDraw->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &tMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
+    gptDraw->submit_3d_drawlist(ptView->pt3DDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &ptCamera->tViewProjMat, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
+    gptDraw->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptSceneEncoder, tDimensions.x, tDimensions.y, &ptCamera->tViewProjMat, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
     gptGfx->end_render_pass(ptSceneEncoder);
 
     gptGfx->end_command_recording(ptPostCmdBuffer);
@@ -4273,7 +4271,6 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
-    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
 
     const plBeginCommandInfo tOutlineBeginInfo = {
         .uWaitSemaphoreCount   = 1,
@@ -4340,7 +4337,7 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
     gptGfx->draw(ptEncoder, 1, &tDraw);
 
     // gptDraw->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE, 1);
-    gptDraw->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptEncoder, tDimensions.x, tDimensions.y, &tMVP, 0, 1);
+    gptDraw->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptEncoder, tDimensions.x, tDimensions.y, &ptCamera->tViewProjMat, 0, 1);
     // gptDraw->submit_3d_drawlist(ptView->pt3DDrawList, ptEncoder, tDimensions.x, tDimensions.y, ptMVP, PL_DRAW_FLAG_REVERSE_Z_DEPTH | PL_DRAW_FLAG_DEPTH_TEST, 1);
     // gptDraw->submit_3d_drawlist(ptView->pt3DSelectionDrawList, ptEncoder, tDimensions.x, tDimensions.y, ptMVP, 0, 1);
 
@@ -4759,12 +4756,12 @@ pl__renderer_update_probes(plScene* ptScene)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~common data~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plVec3 atPitchYawRoll[6] = {
-        { 0.0f,    PL_PI_2 },
-        { 0.0f,    -PL_PI_2 },
-        { PL_PI_2,    PL_PI },
-        { -PL_PI_2,    PL_PI },
-        { PL_PI,    0.0f, PL_PI },
-        { 0.0f,    0.0f },
+        {    0.0f,  PL_PI_2,  0.0f },
+        {    0.0f, -PL_PI_2,  0.0f },
+        {  PL_PI_2,   PL_PI,  0.0f },
+        { -PL_PI_2,   PL_PI,  0.0f },
+        {    PL_PI,    0.0f, PL_PI },
+        {     0.0f,    0.0f,  0.0f },
     };
 
     const plBindGroupUpdateSamplerData tSkyboxBG1SamplerData = {
@@ -4814,17 +4811,15 @@ pl__renderer_update_probes(plScene* ptScene)
 
         for(uint32_t uFace = 0; uFace < 6; uFace++)
         {
-
-            atEnvironmentCamera[uFace] = (plCamera){
-                .tType        = PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-                .tPosDouble   = {(double)ptProbeTransform->tTranslation.x, (double)ptProbeTransform->tTranslation.y, (double)ptProbeTransform->tTranslation.z},
-                .fNearZ       = 0.26f,
-                .fFarZ        = ptProbeComp->fRange,
-                .fFieldOfView = PL_PI_2,
-                .fAspectRatio = 1.0f,
-                .fRoll        = atPitchYawRoll[uFace].z
-            };
-            gptCamera->set_pitch_yaw(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y);
+            gptCamera->init(&atEnvironmentCamera[uFace]);
+            atEnvironmentCamera[uFace].eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
+            atEnvironmentCamera[uFace].eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
+            atEnvironmentCamera[uFace].tPosition   = (plVec3d){(double)ptProbeTransform->tTranslation.x, (double)ptProbeTransform->tTranslation.y, (double)ptProbeTransform->tTranslation.z};
+            atEnvironmentCamera[uFace].fNearZ       = 0.26f;
+            atEnvironmentCamera[uFace].fFarZ        = ptProbeComp->fRange;
+            atEnvironmentCamera[uFace].fYFov        = PL_PI_2;
+            atEnvironmentCamera[uFace].fAspectRatio = 1.0f;
+            gptCamera->set_pitch_yaw_roll(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y, atPitchYawRoll[uFace].z);
             gptCamera->update(&atEnvironmentCamera[uFace]);
         }
 

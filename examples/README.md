@@ -106,9 +106,11 @@ Demonstrates:
 ### Example 3 - Graphics Extension 3 With API Registry (example_gfx_3.c)
 Demonstrates:
 * starter extension
+* camera extension
 * drawing extension (2D & 3D)
 
 ### Example 4 - Graphics Extension 4 With API Registry (example_gfx_4.c)
 Demonstrates:
 * starter extension
+* camera extension
 * render passes

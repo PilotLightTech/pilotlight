@@ -68,146 +68,269 @@ pl__wrap_angle(float tTheta)
     return fMod;
 }
 
+static inline plVec4
+pl__quat_from_pitch_yaw_roll(float fPitch, float fYaw, float fRoll)
+{
+    static const plVec3 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f};
+    static const plVec3 tOriginalUpVec      = { 0.0f, 1.0f, 0.0f};
+    static const plVec3 tOriginalForwardVec = { 0.0f, 0.0f, 1.0f};
+
+    const plVec4 qPitch = pl_quat_rotation_vec3(fPitch, tOriginalRightVec);
+    const plVec4 qYaw   = pl_quat_rotation_vec3(fYaw, tOriginalUpVec);
+    const plVec4 qRoll  = pl_quat_rotation_vec3(fRoll, tOriginalForwardVec);
+
+    // Match old matrix order: rotY * rotX * rotZ
+    return pl_norm_quat(pl_mul_quat(qYaw, pl_mul_quat(qPitch, qRoll)));
+}
+
+static inline plVec4
+pl__quat_from_mat3_basis(plVec3 right, plVec3 up, plVec3 forward)
+{
+    // This assumes the basis is stored as columns:
+    //
+    // [ right.x   up.x   forward.x ]
+    // [ right.y   up.y   forward.y ]
+    // [ right.z   up.z   forward.z ]
+    //
+    // Standard matrix-to-quat conversion.
+
+    const float m00 = right.x;
+    const float m01 = up.x;
+    const float m02 = forward.x;
+
+    const float m10 = right.y;
+    const float m11 = up.y;
+    const float m12 = forward.y;
+
+    const float m20 = right.z;
+    const float m21 = up.z;
+    const float m22 = forward.z;
+
+    plVec4 q = {0};
+
+    const float trace = m00 + m11 + m22;
+
+    if(trace > 0.0f)
+    {
+        const float s = sqrtf(trace + 1.0f) * 2.0f;
+        q.w = 0.25f * s;
+        q.x = (m21 - m12) / s;
+        q.y = (m02 - m20) / s;
+        q.z = (m10 - m01) / s;
+    }
+    else if((m00 > m11) && (m00 > m22))
+    {
+        const float s = sqrtf(1.0f + m00 - m11 - m22) * 2.0f;
+        q.w = (m21 - m12) / s;
+        q.x = 0.25f * s;
+        q.y = (m01 + m10) / s;
+        q.z = (m02 + m20) / s;
+    }
+    else if(m11 > m22)
+    {
+        const float s = sqrtf(1.0f + m11 - m00 - m22) * 2.0f;
+        q.w = (m02 - m20) / s;
+        q.x = (m01 + m10) / s;
+        q.y = 0.25f * s;
+        q.z = (m12 + m21) / s;
+    }
+    else
+    {
+        const float s = sqrtf(1.0f + m22 - m00 - m11) * 2.0f;
+        q.w = (m10 - m01) / s;
+        q.x = (m02 + m20) / s;
+        q.y = (m12 + m21) / s;
+        q.z = 0.25f * s;
+    }
+
+    return pl_norm_quat(q);
+}
+
+//-----------------------------------------------------------------------------
+// [SECTION] public api
+//-----------------------------------------------------------------------------
+
 void
 pl_camera_update(plCamera* ptCamera)
 {
-    ptCamera->tPos.x = (float)ptCamera->tPosDouble.x;
-    ptCamera->tPos.y = (float)ptCamera->tPosDouble.y;
-    ptCamera->tPos.z = (float)ptCamera->tPosDouble.z;
+    ptCamera->tPositionF.x = (float)ptCamera->tPosition.x;
+    ptCamera->tPositionF.y = (float)ptCamera->tPosition.y;
+    ptCamera->tPositionF.z = (float)ptCamera->tPosition.z;
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    // world space
-    static const plVec4 tOriginalUpVec      = {0.0f, 1.0f, 0.0f, 0.0f};
-    static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, 1.0f, 0.0f};
-    static const plVec4 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f, 0.0f};
-
-    const plMat4 tXRotMat         = pl_mat4_rotate_vec3(ptCamera->fPitch, tOriginalRightVec.xyz);
-    const plMat4 tYRotMat         = pl_mat4_rotate_vec3(ptCamera->fYaw, tOriginalUpVec.xyz);
-    const plMat4 tZRotMat         = pl_mat4_rotate_vec3(ptCamera->fRoll, tOriginalForwardVec.xyz);
-    const plMat4 tTranslate       = pl_mat4_translate_vec3(ptCamera->tPos);
-    const plMat4 tTranslateDouble = pl_identity_mat4();
-
-    // rotations: rotY * rotX * rotZ
-    plMat4 tRotations = pl_mul_mat4t(&tXRotMat, &tZRotMat);
-    tRotations        = pl_mul_mat4t(&tYRotMat, &tRotations);
-
-    // update camera vectors
-    ptCamera->_tRightVec   = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalRightVec)).xyz;
-    ptCamera->_tUpVec      = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalUpVec)).xyz;
-    ptCamera->_tForwardVec = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalForwardVec)).xyz;
-
-    // update camera transform: translate * rotate
-    ptCamera->tTransformMat       = pl_mul_mat4t(&tTranslate, &tRotations);
-    ptCamera->tTransformMatDouble = pl_mul_mat4t(&tTranslateDouble, &tRotations);
-
-    // update camera view matrix
-    ptCamera->tViewMat       = pl_mat4t_invert(&ptCamera->tTransformMat);
-    ptCamera->tViewMatDouble = pl_mat4t_invert(&ptCamera->tTransformMatDouble);
-
-    // flip x & y so camera looks down +z and remains right handed (+x to the right)
-    const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
-    ptCamera->tViewMat       = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
-    ptCamera->tViewMatDouble = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMatDouble);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    switch(ptCamera->tType)
+    if(ptCamera->eDirtyFlags & PL_CAMERA_DIRTY_FLAGS_VIEW)
     {
-        case PL_CAMERA_TYPE_PERSPECTIVE:
-        {
-            const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
-            ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
-            ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
-            ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
-            ptCamera->tProjMat.col[2].w = 1.0f;
-            ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
-            ptCamera->tProjMat.col[3].w = 0.0f;  
-            break;
-        }
+    
+        static const plVec4 tOriginalXVec       = {1.0f, 0.0f, 0.0f, 0.0f};
+        static const plVec4 tOriginalUpVec      = {0.0f, 1.0f, 0.0f, 0.0f};
+        static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, 1.0f, 0.0f};
 
-        case PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z:
-        {
-            const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
-            ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
-            ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
-            ptCamera->tProjMat.col[2].z = ptCamera->fNearZ / (ptCamera->fNearZ - ptCamera->fFarZ);
-            ptCamera->tProjMat.col[2].w = 1.0f;
-            ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
-            ptCamera->tProjMat.col[3].w = 0.0f;  
-            break;
-        }
+        const plMat4 tTranslate       = pl_mat4_translate_vec3(ptCamera->tPositionF);
+        const plMat4 tTranslateDouble = pl_identity_mat4();
 
-        case PL_CAMERA_TYPE_ORTHOGRAPHIC:
-        {
-            ptCamera->tProjMat.col[0].x = 2.0f / ptCamera->fWidth;
-            ptCamera->tProjMat.col[1].y = 2.0f / ptCamera->fHeight;
-            ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
-            ptCamera->tProjMat.col[3].w = 1.0f;
-            break;
-        }
+        ptCamera->tRotation = pl_norm_quat(ptCamera->tRotation);
 
-        case PL_CAMERA_TYPE_ORTHOGRAPHIC_REVERSE_Z:
-        {
-            ptCamera->tProjMat.col[0].x = 2.0f / ptCamera->fWidth;
-            ptCamera->tProjMat.col[1].y = 2.0f / ptCamera->fHeight;
-            ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
-            ptCamera->tProjMat.col[3].z = -ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
-            ptCamera->tProjMat.col[3].w = 1.0f;
-            break;
-        }
+        // Proper camera/world basis from quaternion.
+        const plVec3 tCameraX = pl_norm_vec3(pl_mul_quat_vec3(tOriginalXVec.xyz,       ptCamera->tRotation));
+        const plVec3 tCameraY = pl_norm_vec3(pl_mul_quat_vec3(tOriginalUpVec.xyz,      ptCamera->tRotation));
+        const plVec3 tCameraZ = pl_norm_vec3(pl_mul_quat_vec3(tOriginalForwardVec.xyz, ptCamera->tRotation));
 
-        default:
-        {
-            PL_ASSERT(false && "Unknown camera component type");
-            break;
-        }
+        // Public/convenience vectors.
+        // Preserve your old convention: "right" was rot * (-X), not matrix column 0.
+        ptCamera->tRightVec   = pl_mul_vec3_scalarf(tCameraX, -1.0f);
+        ptCamera->tUpVec      = tCameraY;
+        ptCamera->tForwardVec = tCameraZ;
+
+        plMat4 tRotations = pl_identity_mat4();
+
+        // IMPORTANT:
+        // Use +X, +Y, +Z basis here. This keeps determinant +1.
+        tRotations.col[0].x = tCameraX.x;
+        tRotations.col[0].y = tCameraX.y;
+        tRotations.col[0].z = tCameraX.z;
+        tRotations.col[0].w = 0.0f;
+
+        tRotations.col[1].x = tCameraY.x;
+        tRotations.col[1].y = tCameraY.y;
+        tRotations.col[1].z = tCameraY.z;
+        tRotations.col[1].w = 0.0f;
+
+        tRotations.col[2].x = tCameraZ.x;
+        tRotations.col[2].y = tCameraZ.y;
+        tRotations.col[2].z = tCameraZ.z;
+        tRotations.col[2].w = 0.0f;
+
+        tRotations.col[3].x = 0.0f;
+        tRotations.col[3].y = 0.0f;
+        tRotations.col[3].z = 0.0f;
+        tRotations.col[3].w = 1.0f;
+
+        ptCamera->tInvViewMat    = pl_mul_mat4t(&tTranslate,       &tRotations);
+        ptCamera->tInvViewMatNoTranslation = pl_mul_mat4t(&tTranslateDouble, &tRotations);
+
+        ptCamera->tViewMat    = pl_mat4t_invert(&ptCamera->tInvViewMat);
+        ptCamera->tViewMatNoTranslation = pl_mat4t_invert(&ptCamera->tInvViewMatNoTranslation);
+
+        const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
+
+        ptCamera->tViewMat    = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
+        ptCamera->tViewMatNoTranslation = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMatNoTranslation);
     }
+
+    if(ptCamera->eDirtyFlags & PL_CAMERA_DIRTY_FLAGS_PROJECTION)
+    {
+        //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        switch(ptCamera->eProjectionType)
+        {
+            case PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE:
+            {
+                const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fYFov / 2.0f);
+                ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
+                ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
+
+                ptCamera->tProjMat.col[2].w = 1.0f;
+                ptCamera->tProjMat.col[3].w = 0.0f;
+
+                if(ptCamera->eDepthMode == PL_CAMERA_DEPTH_MODE_STANDARD)
+                {
+                    ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
+                    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
+                }
+                else if(ptCamera->eDepthMode == PL_CAMERA_DEPTH_MODE_REVERSE_Z)
+                {
+                    ptCamera->tProjMat.col[2].z = ptCamera->fNearZ / (ptCamera->fNearZ - ptCamera->fFarZ);
+                    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
+                }
+                break;
+            }
+
+            case PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC:
+            {
+                ptCamera->tProjMat.col[0].x = 2.0f / ptCamera->fWidth;
+                ptCamera->tProjMat.col[1].y = 2.0f / ptCamera->fHeight;
+                ptCamera->tProjMat.col[3].w = 1.0f;
+
+                if(ptCamera->eDepthMode == PL_CAMERA_DEPTH_MODE_STANDARD)
+                {
+                    ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
+                }
+                else if(ptCamera->eDepthMode == PL_CAMERA_DEPTH_MODE_REVERSE_Z)
+                {
+                    ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
+                    ptCamera->tProjMat.col[3].z = -ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
+                }
+                break;
+            }
+
+            default:
+            {
+                PL_ASSERT(false && "Unknown camera component type");
+                break;
+            }
+        }
+
+        ptCamera->tInvProjMat = pl_mat4t_invert(&ptCamera->tProjMat);
+    }
+
+    if(ptCamera->eDirtyFlags != PL_CAMERA_DIRTY_FLAGS_NONE)
+    {
+        ptCamera->tViewProjMat = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
+        ptCamera->tInvViewProjMat = pl_mat4t_invert(&ptCamera->tViewProjMat);
+    }
+
+    ptCamera->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_NONE;
 }
 
 void
-pl_camera_init_perspective(plCamera* ptCamera, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ)
+pl_camera_init(plCamera* ptCamera)
 {
-    *ptCamera = (plCamera){0};
-    ptCamera->tType        = bReverseZ ? PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z : PL_CAMERA_TYPE_PERSPECTIVE;
-    ptCamera->tPos         = (plVec3){(float)tPos.x, (float)tPos.y, (float)tPos.z};
-    ptCamera->tPosDouble   = tPos;
-    ptCamera->fNearZ       = fNearZ;
-    ptCamera->fFarZ        = fFarZ;
-    ptCamera->fFieldOfView = fYFov;
-    ptCamera->fAspectRatio = fAspect;
-    pl_camera_update(ptCamera);
+    ptCamera->tRotation       = (plVec4){0.0f, 0.0f, 0.0f, 1.0f};
+    ptCamera->tPositionF            = (plVec3){0};
+    ptCamera->tPosition      = (plVec3d){0};
+    ptCamera->eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
+    ptCamera->eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
+    ptCamera->fNearZ          = 0.1f;
+    ptCamera->fFarZ           = 1000.0f;
+    ptCamera->fYFov    = PL_PI / 4.0f;
+    ptCamera->fAspectRatio    = 16.0f / 9.0f;
+    ptCamera->eDirtyFlags     = PL_CAMERA_DIRTY_FLAGS_ALL;
 }
 
 void
-pl_camera_init_orthographic(plCamera* ptCamera, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ)
+pl_camera_set_perspective(plCamera* ptCamera, const plCameraPerspectiveDesc* ptDesc)
 {
-    *ptCamera = (plCamera){0};
-    ptCamera->tType      = PL_CAMERA_TYPE_ORTHOGRAPHIC;
-    ptCamera->tPos       = (plVec3){(float)tPos.x, (float)tPos.y, (float)tPos.z};
-    ptCamera->tPosDouble = tPos;
-    ptCamera->fNearZ     = fNearZ;
-    ptCamera->fFarZ      = fFarZ;
-    ptCamera->fWidth     = fWidth;
-    ptCamera->fHeight    = fHeight;
-    pl_camera_update(ptCamera);
+    ptCamera->eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
+    ptCamera->eDepthMode      = ptDesc->eDepthMode;
+    ptCamera->fNearZ       = ptDesc->fNearZ;
+    ptCamera->fFarZ        = ptDesc->fFarZ;
+    ptCamera->fYFov = ptDesc->fYFov;
+    ptCamera->fAspectRatio = ptDesc->fAspectRatio;
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_ALL;
+}
+
+void
+pl_camera_set_orthographic(plCamera* ptCamera, const plCameraOrthographicDesc* ptDesc)
+{
+    ptCamera->eProjectionType = PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC;
+    ptCamera->eDepthMode      = ptDesc->eDepthMode;
+    ptCamera->fNearZ     = ptDesc->fNearZ;
+    ptCamera->fFarZ      = ptDesc->fFarZ;
+    ptCamera->fWidth     = ptDesc->fWidth;
+    ptCamera->fHeight    = ptDesc->fHeight;
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_ALL;
 }
 
 plEntity
-pl_camera_ecs_create_perspective(plComponentLibrary* ptLibrary, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera** pptCompOut)
+pl_camera_ecs_create_perspective(plComponentLibrary* ptLibrary, const char* pcName, const plCameraPerspectiveDesc* ptDesc, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
-    const plCamera tCamera = {
-        .tType        = bReverseZ ? PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z : PL_CAMERA_TYPE_PERSPECTIVE,
-        .tPos         = {(float)tPos.x, (float)tPos.y, (float)tPos.z},
-        .tPosDouble   = tPos,
-        .fNearZ       = fNearZ,
-        .fFarZ        = fFarZ,
-        .fFieldOfView = fYFov,
-        .fAspectRatio = fAspect
-    };
+    plCamera tCamera = {0};
+    pl_camera_init(&tCamera);
+    pl_camera_set_perspective(&tCamera, ptDesc);
 
     plCamera* ptCamera = gptECS->add_component(ptLibrary, gptCameraCtx->uManagerIndex, tNewEntity);
     *ptCamera = tCamera;
@@ -220,21 +343,15 @@ pl_camera_ecs_create_perspective(plComponentLibrary* ptLibrary, const char* pcNa
 }
 
 plEntity
-pl_camera_ecs_create_orthographic(plComponentLibrary* ptLibrary, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera** pptCompOut)
+pl_camera_ecs_create_orthographic(plComponentLibrary* ptLibrary, const char* pcName, const plCameraOrthographicDesc* ptDesc, plCamera** pptCompOut)
 {
     pcName = pcName ? pcName : "unnamed camera";
     PL_LOG_DEBUG_API_F(gptLog, gptECS->get_log_channel(), "created camera: '%s'", pcName);
     plEntity tNewEntity = gptECS->create_entity(ptLibrary, pcName);
 
-    const plCamera tCamera = {
-        .tType      = PL_CAMERA_TYPE_ORTHOGRAPHIC,
-        .tPos       = {(float)tPos.x, (float)tPos.y, (float)tPos.z},
-        .tPosDouble = tPos,
-        .fNearZ     = fNearZ,
-        .fFarZ      = fFarZ,
-        .fWidth     = fWidth,
-        .fHeight    = fHeight
-    };
+    plCamera tCamera = {0};
+    pl_camera_init(&tCamera);
+    pl_camera_set_orthographic(&tCamera, ptDesc);
 
     plCamera* ptCamera = gptECS->add_component(ptLibrary, gptCameraCtx->uManagerIndex, tNewEntity);
     *ptCamera = tCamera;
@@ -264,9 +381,10 @@ pl_camera_ecs_run_ecs(plComponentLibrary* ptLibrary)
         {
             plCamera* ptCamera = &ptComponents[i];
             plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, tTransformComponentType, tEntity);
-            ptCamera->tPosDouble.x = (double)ptTransform->tWorld.col[3].x;
-            ptCamera->tPosDouble.y = (double)ptTransform->tWorld.col[3].y;
-            ptCamera->tPosDouble.z = (double)ptTransform->tWorld.col[3].z;
+            ptCamera->tPosition.x = (double)ptTransform->tWorld.col[3].x;
+            ptCamera->tPosition.y = (double)ptTransform->tWorld.col[3].y;
+            ptCamera->tPosition.z = (double)ptTransform->tWorld.col[3].z;
+            ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
 
             pl_camera_update(ptCamera);
         }
@@ -274,10 +392,20 @@ pl_camera_ecs_run_ecs(plComponentLibrary* ptLibrary)
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
-void
-pl_camera_set_fov(plCamera* ptCamera, float fYFov)
+PL_API void
+pl_camera_set_viewport(plCamera* ptCamera, float fWidth, float fHeight)
 {
-    ptCamera->fFieldOfView = fYFov;
+    ptCamera->fWidth = fWidth;
+    ptCamera->fHeight = fHeight;
+    ptCamera->fAspectRatio = fWidth / fHeight;
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_PROJECTION;
+}
+
+void
+pl_camera_set_y_fov(plCamera* ptCamera, float fYFov)
+{
+    ptCamera->fYFov = fYFov;
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_PROJECTION;
 }
 
 void
@@ -285,67 +413,178 @@ pl_camera_set_clip_planes(plCamera* ptCamera, float fNearZ, float fFarZ)
 {
     ptCamera->fNearZ = fNearZ;
     ptCamera->fFarZ = fFarZ;
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_PROJECTION;
 }
 
 void
-pl_camera_set_aspect(plCamera* ptCamera, float fAspect)
+pl_camera_set_depth_mode(plCamera* ptCamera, plCameraDepthMode eMode)
 {
-    ptCamera->fAspectRatio = fAspect;
+    ptCamera->eDepthMode = eMode;
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_PROJECTION;
 }
 
 void
-pl_camera_set_pos(plCamera* ptCamera, double dX, double dY, double dZ)
+pl_camera_set_position(plCamera* ptCamera, plVec3d tPositionF)
 {
-    ptCamera->tPosDouble.x = dX;
-    ptCamera->tPosDouble.y = dY;
-    ptCamera->tPosDouble.z = dZ;
-    ptCamera->tPos.x = (float)ptCamera->tPosDouble.x;
-    ptCamera->tPos.y = (float)ptCamera->tPosDouble.y;
-    ptCamera->tPos.z = (float)ptCamera->tPosDouble.z;
+    ptCamera->tPosition = tPositionF;
+    ptCamera->tPositionF.x = (float)ptCamera->tPosition.x;
+    ptCamera->tPositionF.y = (float)ptCamera->tPosition.y;
+    ptCamera->tPositionF.z = (float)ptCamera->tPosition.z;
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
 }
 
 void
-pl_camera_set_pitch_yaw(plCamera* ptCamera, float fPitch, float fYaw)
+pl_camera_set_rotation(plCamera* ptCamera, plQuat tRotation)
 {
+    ptCamera->tRotation = pl_norm_quat(tRotation);
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
+}
+
+void
+pl_camera_set_transform(plCamera* ptCamera, plVec3d tPosition, plQuat tRotation)
+{
+    pl_camera_set_rotation(ptCamera, tRotation);
+    pl_camera_set_position(ptCamera, tPosition);
+}
+
+void
+pl_camera_set_pitch_yaw_roll(plCamera* ptCamera, float fPitch, float fYaw, float fRoll)
+{
+    // ptCamera->fPitch = pl_clampf(0.995f * -PL_PI_2, fPitch, 0.995f * PL_PI_2);
     ptCamera->fPitch = fPitch;
-    ptCamera->fYaw = fYaw;
+    ptCamera->fYaw   = pl__wrap_angle(fYaw);
+    ptCamera->fRoll  = fRoll;
+
+    ptCamera->tRotation = pl__quat_from_pitch_yaw_roll(
+        ptCamera->fPitch,
+        ptCamera->fYaw,
+        ptCamera->fRoll
+    );
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
 }
 
 void
-pl_camera_translate(plCamera* ptCamera, double dDx, double dDy, double dDz)
+pl_camera_translate(plCamera* ptCamera, plVec3d tDelta)
 {
-    plVec3 tRightChange = pl_mul_vec3_scalarf(ptCamera->_tRightVec, (float)dDx);
-    plVec3 tForwardChange = pl_mul_vec3_scalarf(ptCamera->_tForwardVec, (float)dDz);
-    ptCamera->tPosDouble = pl_add_vec3_d(ptCamera->tPosDouble, (plVec3d){.x = (double)tRightChange.x,   .y = (double)tRightChange.y,   .z = (double)tRightChange.z});
-    ptCamera->tPosDouble = pl_add_vec3_d(ptCamera->tPosDouble, (plVec3d){.x = (double)tForwardChange.x, .y = (double)tForwardChange.y, .z = (double)tForwardChange.z});
-    ptCamera->tPosDouble.y += dDy;
+    ptCamera->tPosition = pl_add_vec3_d(ptCamera->tPosition, tDelta);
 
-    ptCamera->tPos.x = (float)ptCamera->tPosDouble.x;
-    ptCamera->tPos.y = (float)ptCamera->tPosDouble.y;
-    ptCamera->tPos.z = (float)ptCamera->tPosDouble.z;
+    ptCamera->tPositionF.x = (float)ptCamera->tPosition.x;
+    ptCamera->tPositionF.y = (float)ptCamera->tPosition.y;
+    ptCamera->tPositionF.z = (float)ptCamera->tPosition.z;
+
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
 }
 
 void
-pl_camera_rotate(plCamera* ptCamera, float fDPitch, float fDYaw)
+pl_camera_translate_local(plCamera* ptCamera, plVec3d tDelta)
+{
+    if(ptCamera->eDirtyFlags & PL_CAMERA_DIRTY_FLAGS_VIEW)
+        pl_camera_update(ptCamera);
+
+    plVec3 tRightChange   = pl_mul_vec3_scalarf(ptCamera->tRightVec,   (float)tDelta.x);
+    plVec3 tForwardChange = pl_mul_vec3_scalarf(ptCamera->tForwardVec, (float)tDelta.z);
+    plVec3 tUpChange      = pl_mul_vec3_scalarf(ptCamera->tUpVec,      (float)tDelta.y);
+
+    ptCamera->tPosition = pl_add_vec3_d(ptCamera->tPosition, (plVec3d){
+        .x = (double)tRightChange.x + (double)tForwardChange.x + (double)tUpChange.x,
+        .y = (double)tRightChange.y + (double)tForwardChange.y + (double)tUpChange.y,
+        .z = (double)tRightChange.z + (double)tForwardChange.z + (double)tUpChange.z
+    });
+
+    ptCamera->tPositionF.x = (float)ptCamera->tPosition.x;
+    ptCamera->tPositionF.y = (float)ptCamera->tPosition.y;
+    ptCamera->tPositionF.z = (float)ptCamera->tPosition.z;
+
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
+}
+
+void
+pl_camera_rotate_euler(plCamera* ptCamera, float fDPitch, float fDYaw, float fRoll)
 {
     ptCamera->fPitch += fDPitch;
-    ptCamera->fYaw += fDYaw;
+    ptCamera->fYaw   += fDYaw;
+    ptCamera->fRoll  += fRoll;
 
-    ptCamera->fYaw = pl__wrap_angle(ptCamera->fYaw);
+    ptCamera->fYaw   = pl__wrap_angle(ptCamera->fYaw);
     ptCamera->fPitch = pl_clampf(0.995f * -PL_PI_2, ptCamera->fPitch, 0.995f * PL_PI_2);
+
+    ptCamera->tRotation = pl__quat_from_pitch_yaw_roll(
+        ptCamera->fPitch,
+        ptCamera->fYaw,
+        ptCamera->fRoll
+    );
+
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
 }
 
 void
-pl_camera_look_at(plCamera* ptCamera, plVec3d tEye, plVec3d tTarget)
+pl_camera_rotate_local(plCamera* ptCamera, float fDPitch, float fDYaw, float fRoll)
 {
-    const plVec3d tDirection = pl_norm_vec3_d(pl_sub_vec3_d(tTarget, tEye));
-    ptCamera->fYaw = (float)atan2(tDirection.x, tDirection.z);
-    ptCamera->fPitch = (float)asin(tDirection.y);
-    ptCamera->tPosDouble = tEye;
+    static const plVec3 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f};
+    static const plVec3 tOriginalUpVec      = { 0.0f, 1.0f, 0.0f};
+    static const plVec3 tOriginalForwardVec = { 0.0f, 0.0f, 1.0f};
 
-    ptCamera->tPos.x = (float)ptCamera->tPosDouble.x;
-    ptCamera->tPos.y = (float)ptCamera->tPosDouble.y;
-    ptCamera->tPos.z = (float)ptCamera->tPosDouble.z;
+    const plVec4 qPitch = pl_quat_rotation_vec3(fDPitch, tOriginalRightVec);
+    const plVec4 qYaw   = pl_quat_rotation_vec3(fDYaw, tOriginalUpVec);
+    const plVec4 qRoll  = pl_quat_rotation_vec3(fRoll, tOriginalForwardVec);
+
+    const plVec4 qDelta = pl_norm_quat(pl_mul_quat(qYaw, pl_mul_quat(qPitch, qRoll)));
+
+    ptCamera->tRotation = pl_norm_quat(pl_mul_quat(qDelta, ptCamera->tRotation));
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
+}
+
+void
+pl_camera_look_at(plCamera* ptCamera, plVec3d tEye, plVec3d tTarget, plVec3 tUp)
+{
+    // const plVec3d tDirection = pl_norm_vec3_d(pl_sub_vec3_d(tTarget, tEye));
+    // ptCamera->fYaw = (float)atan2(tDirection.x, tDirection.z);
+    // ptCamera->fPitch = (float)asin(tDirection.y);
+    // ptCamera->tPosition = tEye;
+
+    // ptCamera->tPositionF.x = (float)ptCamera->tPosition.x;
+    // ptCamera->tPositionF.y = (float)ptCamera->tPosition.y;
+    // ptCamera->tPositionF.z = (float)ptCamera->tPosition.z;
+
+    // ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
+
+    plVec3d tForwardD = pl_norm_vec3_d(pl_sub_vec3_d(tTarget, tEye));
+
+    plVec3 tForward = {
+        (float)tForwardD.x,
+        (float)tForwardD.y,
+        (float)tForwardD.z
+    };
+
+    tForward = pl_norm_vec3(tForward);
+    tUp = pl_norm_vec3(tUp);
+
+    // Avoid degenerate up vector.
+    if(fabsf(pl_dot_vec3(tForward, tUp)) > 0.999f)
+        tUp = (plVec3){0.0f, 1.0f, 0.0f};
+
+    // Because your camera's "right" basis is -X, this cross order matters.
+    // Test this with identity camera and a simple target.
+    plVec3 tRight = pl_norm_vec3(pl_cross_vec3(tUp, tForward));
+    tUp = pl_norm_vec3(pl_cross_vec3(tForward, tRight));
+
+    // Your original camera basis has right = -X.
+    // If the camera appears mirrored, negate tRight here.
+    // tRight = pl_mul_vec3_scalarf(tRight, -1.0f);
+
+    ptCamera->tRotation = pl__quat_from_mat3_basis(tRight, tUp, tForward);
+
+    ptCamera->tPosition = tEye;
+    ptCamera->tPositionF.x = (float)tEye.x;
+    ptCamera->tPositionF.y = (float)tEye.y;
+    ptCamera->tPositionF.z = (float)tEye.z;
+
+    // Optional: keep debug/controller Euler values approximately in sync.
+    ptCamera->fYaw   = (float)atan2(tForward.x, tForward.z);
+    ptCamera->fPitch = (float)asin(tForward.y);
+    ptCamera->fRoll  = 0.0f;
+
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_VIEW;
 }
 
 void
@@ -372,17 +611,23 @@ void
 pl_load_camera_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plCameraI tApi0 = {
-        .init_perspective  = pl_camera_init_perspective,
-        .init_orthographic = pl_camera_init_orthographic,
-        .set_fov           = pl_camera_set_fov,
-        .set_clip_planes   = pl_camera_set_clip_planes,
-        .set_aspect        = pl_camera_set_aspect,
-        .set_pos           = pl_camera_set_pos,
-        .set_pitch_yaw     = pl_camera_set_pitch_yaw,
-        .translate         = pl_camera_translate,
-        .rotate            = pl_camera_rotate,
-        .update            = pl_camera_update,
-        .look_at           = pl_camera_look_at,
+        .init                = pl_camera_init,
+        .set_perspective     = pl_camera_set_perspective,
+        .set_orthographic    = pl_camera_set_orthographic,
+        .set_y_fov           = pl_camera_set_y_fov,
+        .set_clip_planes     = pl_camera_set_clip_planes,
+        .set_depth_mode      = pl_camera_set_depth_mode,
+        .set_viewport        = pl_camera_set_viewport,
+        .set_position        = pl_camera_set_position,
+        .set_rotation        = pl_camera_set_rotation,
+        .set_transform       = pl_camera_set_transform,
+        .set_pitch_yaw_roll  = pl_camera_set_pitch_yaw_roll,
+        .translate           = pl_camera_translate,
+        .translate_local     = pl_camera_translate_local,
+        .rotate_euler        = pl_camera_rotate_euler,
+        .rotate_local        = pl_camera_rotate_local,
+        .update              = pl_camera_update,
+        .look_at             = pl_camera_look_at,
     };
     pl_set_api(ptApiRegistry, plCameraI, &tApi0);
 

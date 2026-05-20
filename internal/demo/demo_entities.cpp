@@ -551,16 +551,16 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
             { 
                 ImGui::LabelText("Near Z", "%+0.3f", ptCameraComp->fNearZ);
                 ImGui::LabelText("Far Z", "%+0.3f", ptCameraComp->fFarZ);
-                ImGui::LabelText("Vertical Field of View", "%+0.3f", ptCameraComp->fFieldOfView);
+                ImGui::LabelText("Vertical Field of View", "%+0.3f", ptCameraComp->fYFov);
                 ImGui::LabelText("Aspect Ratio", "%+0.3f", ptCameraComp->fAspectRatio);
                 ImGui::LabelText("Pitch", "%+0.3f", ptCameraComp->fPitch);
                 ImGui::LabelText("Yaw", "%+0.3f", ptCameraComp->fYaw);
                 ImGui::LabelText("Roll", "%+0.3f", ptCameraComp->fRoll);
-                ImGui::LabelText("Position", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tPos.x, ptCameraComp->tPos.y, ptCameraComp->tPos.z);
-                ImGui::LabelText("Up", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tUpVec.x, ptCameraComp->_tUpVec.y, ptCameraComp->_tUpVec.z);
-                ImGui::LabelText("Forward", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tForwardVec.x, ptCameraComp->_tForwardVec.y, ptCameraComp->_tForwardVec.z);
-                ImGui::LabelText("Right", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->_tRightVec.x, ptCameraComp->_tRightVec.y, ptCameraComp->_tRightVec.z);
-                ImGui::InputFloat3("Position", ptCameraComp->tPos.d);
+                ImGui::LabelText("Position", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tPositionF.x, ptCameraComp->tPositionF.y, ptCameraComp->tPositionF.z);
+                ImGui::LabelText("Up", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tUpVec.x, ptCameraComp->tUpVec.y, ptCameraComp->tUpVec.z);
+                ImGui::LabelText("Forward", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tForwardVec.x, ptCameraComp->tForwardVec.y, ptCameraComp->tForwardVec.z);
+                ImGui::LabelText("Right", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tRightVec.x, ptCameraComp->tRightVec.y, ptCameraComp->tRightVec.z);
+                ImGui::InputFloat3("Position", ptCameraComp->tPositionF.d);
                 ImGui::InputFloat("Near Z Plane", &ptCameraComp->fNearZ);
                 ImGui::InputFloat("Far Z Plane", &ptCameraComp->fFarZ);
             }

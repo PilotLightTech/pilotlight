@@ -10,7 +10,7 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] forward declarations & basic types
 // [SECTION] public api
-// [SECTION] public api struct
+// [SECTION] public api structs
 // [SECTION] structs
 // [SECTION] enums
 */
@@ -45,7 +45,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plCameraI_version    {0, 4, 0}
+#define plCameraI_version    {1, 0, 0}
 #define plCameraEcsI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
@@ -55,17 +55,21 @@ extern "C" {
 #include "pl.inc"
 #include <stdint.h>  // uint*_t
 #include <stdbool.h> // bool
-#include "pl_math.h" // plVec3, plMat4
+#include "pl_math.h" // plVec3, plMat4, plQuat
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
 //-----------------------------------------------------------------------------
 
-// ecs components
-typedef struct _plCamera plCamera;
+// basic types
+typedef struct _plCamera                 plCamera;
+typedef struct _plCameraPerspectiveDesc  plCameraPerspectiveDesc;
+typedef struct _plCameraOrthographicDesc plCameraOrthographicDesc;
 
 // enums & flags
-typedef int plCameraType;
+typedef int plCameraProjectionType;
+typedef int plCameraDepthMode;
+typedef int plCameraDirtyFlags;
 
 // external
 typedef union  _plEntity           plEntity;           // pl_ecs_ext.h
@@ -80,26 +84,40 @@ typedef uint32_t                   plEcsTypeKey;       // pl_ecs_ext.h
 PL_API void pl_load_camera_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_camera_ext(plApiRegistryI*, bool reload);
 
-// init helpers
-PL_API void pl_camera_init_perspective (plCamera*, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ);
-PL_API void pl_camera_init_orthographic(plCamera*, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
+// lifecycle
+PL_API void pl_camera_init(plCamera*);
 
-// operations
-PL_API void pl_camera_set_fov        (plCamera*, float fYFov);
-PL_API void pl_camera_set_clip_planes(plCamera*, float fNearZ, float fFarZ);
-PL_API void pl_camera_set_aspect     (plCamera*, float fAspect);
-PL_API void pl_camera_set_pos        (plCamera*, double x, double y, double z);
-PL_API void pl_camera_set_pitch_yaw  (plCamera*, float fPitch, float fYaw);
-PL_API void pl_camera_translate      (plCamera*, double dX, double dY, double dZ);
-PL_API void pl_camera_rotate         (plCamera*, float fDPitch, float fDYaw);
-PL_API void pl_camera_look_at        (plCamera*, plVec3d tEye, plVec3d tTarget);
-PL_API void pl_camera_update         (plCamera*);
+// projection
+PL_API void pl_camera_set_perspective (plCamera*, const plCameraPerspectiveDesc*);
+PL_API void pl_camera_set_orthographic(plCamera*, const plCameraOrthographicDesc*);
+PL_API void pl_camera_set_viewport    (plCamera*, float width, float height);
+PL_API void pl_camera_set_y_fov       (plCamera*, float fov);
+PL_API void pl_camera_set_clip_planes (plCamera*, float nearZ, float narZ);
+PL_API void pl_camera_set_depth_mode  (plCamera*, plCameraDepthMode);
+
+// pose
+PL_API void pl_camera_set_position (plCamera*, plVec3d);
+PL_API void pl_camera_set_rotation (plCamera*, plQuat);
+PL_API void pl_camera_set_transform(plCamera*, plVec3d position, plQuat rotation);
+
+// movement
+PL_API void pl_camera_translate      (plCamera*, plVec3d delta);
+PL_API void pl_camera_translate_local(plCamera*, plVec3d delta);
+PL_API void pl_camera_rotate_local   (plCamera*, float pitch, float yaw, float roll);
+PL_API void pl_camera_look_at        (plCamera*, plVec3d eye, plVec3d target, plVec3 up);
+
+// convenience controller helpers
+PL_API void pl_camera_set_pitch_yaw_roll(plCamera*, float pitch, float yaw, float roll);
+PL_API void pl_camera_rotate_euler      (plCamera*, float pitch, float yaw, float roll);
+
+// derived data
+PL_API void pl_camera_update (plCamera*);
 
 //----------------------------ECS INTEGRATION----------------------------------
 
 // entity helpers
-PL_API plEntity pl_camera_ecs_create_perspective (plComponentLibrary*, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera**);
-PL_API plEntity pl_camera_ecs_create_orthographic(plComponentLibrary*, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera**);
+PL_API plEntity pl_camera_ecs_create_perspective (plComponentLibrary*, const char* name, const plCameraPerspectiveDesc*, plCamera**);
+PL_API plEntity pl_camera_ecs_create_orthographic(plComponentLibrary*, const char* name, const plCameraOrthographicDesc*, plCamera**);
 
 // system setup/shutdown/etc
 PL_API void         pl_camera_ecs_register_ecs_system(void);
@@ -107,25 +125,39 @@ PL_API void         pl_camera_ecs_run_ecs            (plComponentLibrary*);
 PL_API plEcsTypeKey pl_camera_ecs_get_ecs_type_key   (void);
 
 //-----------------------------------------------------------------------------
-// [SECTION] public api struct
+// [SECTION] public api structs
 //-----------------------------------------------------------------------------
 
 typedef struct _plCameraI
 {
-    void (*init_perspective)(plCamera*, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ);
-    void (*init_orthographic)(plCamera*, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ);
+    // lifecycle
+    void (*init)(plCamera*);
 
-    // operations
-    void (*set_fov)        (plCamera*, float fYFov);
-    void (*set_clip_planes)(plCamera*, float fNearZ, float fFarZ);
-    void (*set_aspect)     (plCamera*, float fAspect);
-    void (*set_pos)        (plCamera*, double x, double y, double z);
-    void (*set_pitch_yaw)  (plCamera*, float fPitch, float fYaw);
-    void (*translate)      (plCamera*, double dX, double dY, double dZ);
-    void (*rotate)         (plCamera*, float fDPitch, float fDYaw);
-    void (*look_at)        (plCamera*, plVec3d tEye, plVec3d tTarget);
-    void (*update)         (plCamera*);
+    // projection
+    void (*set_perspective) (plCamera*, const plCameraPerspectiveDesc*);
+    void (*set_orthographic)(plCamera*, const plCameraOrthographicDesc*);
+    void (*set_viewport)    (plCamera*, float width, float height);
+    void (*set_y_fov)       (plCamera*, float fov);
+    void (*set_clip_planes) (plCamera*, float nearZ, float farZ);
+    void (*set_depth_mode)  (plCamera*, plCameraDepthMode);
 
+    // pose
+    void (*set_position) (plCamera*, plVec3d);
+    void (*set_rotation) (plCamera*, plQuat);
+    void (*set_transform)(plCamera*, plVec3d position, plQuat rotation);
+
+    // movement
+    void (*translate)      (plCamera*, plVec3d delta);
+    void (*translate_local)(plCamera*, plVec3d delta);
+    void (*rotate_local)   (plCamera*, float pitch, float yaw, float roll);
+    void (*look_at)        (plCamera*, plVec3d eye, plVec3d target, plVec3 up);
+
+    // convenience controller helpers
+    void (*set_pitch_yaw_roll)(plCamera*, float pitch, float yaw, float roll);
+    void (*rotate_euler)      (plCamera*, float pitch, float yaw, float roll);
+
+    // derived data
+    void (*update)(plCamera*);
 } plCameraI;
 
 typedef struct _plCameraEcsI
@@ -133,8 +165,8 @@ typedef struct _plCameraEcsI
     //----------------------------ECS INTEGRATION----------------------------------
 
     // entity helpers
-    plEntity (*create_perspective) (plComponentLibrary*, const char* pcName, plVec3d tPos, float fYFov, float fAspect, float fNearZ, float fFarZ, bool bReverseZ, plCamera**);
-    plEntity (*create_orthographic)(plComponentLibrary*, const char* pcName, plVec3d tPos, float fWidth, float fHeight, float fNearZ, float fFarZ, plCamera**);
+    plEntity (*create_perspective) (plComponentLibrary*, const char* name, const plCameraPerspectiveDesc*, plCamera**);
+    plEntity (*create_orthographic)(plComponentLibrary*, const char* name, const plCameraOrthographicDesc*, plCamera**);
 
     // system setup/shutdown/etc
     void         (*register_ecs_system)(void);
@@ -147,48 +179,97 @@ typedef struct _plCameraEcsI
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
+typedef struct _plCameraPerspectiveDesc
+{
+    plCameraDepthMode eDepthMode;
+    float             fYFov;
+    float             fAspectRatio;
+    float             fNearZ;
+    float             fFarZ;
+} plCameraPerspectiveDesc;
+
+typedef struct _plCameraOrthographicDesc
+{
+    plCameraDepthMode eDepthMode;
+    float             fWidth;
+    float             fHeight;
+    float             fNearZ;
+    float             fFarZ;
+} plCameraOrthographicDesc;
+
 typedef struct _plCamera
 {
-    plCameraType tType;
-    plVec3       tPos;
-    plVec3d      tPosDouble;
-    float        fNearZ;
-    float        fFarZ;
-    float        fFieldOfView;
-    float        fAspectRatio;        // width/height
-    float        fWidth;              // for orthographic
-    float        fHeight;             // for orthographic
-    plMat4       tViewMat;            // cached
-    plMat4       tProjMat;            // cached
-    plMat4       tTransformMat;       // cached
-    plMat4       tViewMatDouble;      // cached
-    plMat4       tTransformMatDouble; // cached
+    // projection
+    plCameraProjectionType eProjectionType;
+    plCameraDepthMode      eDepthMode;
+    float                  fNearZ;
+    float                  fFarZ;
 
-    // rotations
+    // perspective
+    float fYFov;
+    float fAspectRatio; // width/height
+
+    // orthographic
+    float fWidth;
+    float fHeight;
+
+    // pose
+    plVec3d tPosition;
+    plQuat  tRotation;
+
+    // cached float pose
+    plVec3 tPositionF;
+    
+    // cached matrices
+    plMat4 tViewMat;                 // world to camera/view
+    plMat4 tProjMat;                 // view to clip
+    plMat4 tViewProjMat;             // world to clip
+    plMat4 tInvViewMat;              // camera/view to world
+    plMat4 tInvProjMat;              // clip to view
+    plMat4 tInvViewProjMat;          // clip to world
+    plMat4 tViewMatNoTranslation;    // view matrix using camera-relative origin
+    plMat4 tInvViewMatNoTranslation; // inverse view matrix using camera-relative origin
+
+    // convenience rotations
     float fPitch; // rotation about right vector
     float fYaw;   // rotation about up vector
     float fRoll;  // rotation about forward vector
 
+    // cached orientation vectors
+    plVec3 tUpVec;
+    plVec3 tForwardVec;
+    plVec3 tRightVec;
+
     // [INTERNAL]
-    
-    // direction vectors
-    plVec3       _tUpVec;
-    plVec3       _tForwardVec;
-    plVec3       _tRightVec;
+    plCameraDirtyFlags eDirtyFlags;
 } plCamera;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
 
-enum _plCameraType
+enum _plCameraProjectionType
 {
-    PL_CAMERA_TYPE_PERSPECTIVE,
-    PL_CAMERA_TYPE_PERSPECTIVE_REVERSE_Z,
-    PL_CAMERA_TYPE_ORTHOGRAPHIC,
-    PL_CAMERA_TYPE_ORTHOGRAPHIC_REVERSE_Z,
+    PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE,
+    PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC,
 
-    PL_CAMERA_TYPE_COUNT
+    PL_CAMERA_PROJECTION_TYPE_COUNT
+};
+
+enum _plCameraDepthMode
+{
+    PL_CAMERA_DEPTH_MODE_STANDARD,
+    PL_CAMERA_DEPTH_MODE_REVERSE_Z,
+
+    PL_CAMERA_DEPTH_MODE_COUNT
+};
+
+enum _plCameraDirtyFlags
+{
+    PL_CAMERA_DIRTY_FLAGS_NONE       = 0,
+    PL_CAMERA_DIRTY_FLAGS_VIEW       = 1 << 0,
+    PL_CAMERA_DIRTY_FLAGS_PROJECTION = 1 << 1,
+    PL_CAMERA_DIRTY_FLAGS_ALL        = PL_CAMERA_DIRTY_FLAGS_VIEW | PL_CAMERA_DIRTY_FLAGS_PROJECTION
 };
 
 #ifdef __cplusplus

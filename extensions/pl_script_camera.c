@@ -49,7 +49,7 @@ static void
 pl_script_setup(plComponentLibrary* ptLibrary, plEntity tEntity)
 {
     plCamera* ptCamera = gptEcs->get_component(ptLibrary, gptCameraEcs->get_ecs_type_key(), tEntity);
-    gfOriginalFOV = ptCamera->fFieldOfView;
+    gfOriginalFOV = ptCamera->fYFov;
 }
 
 static void
@@ -63,7 +63,7 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
 
     if(gfOriginalFOV == 0.0f)
     {
-        gfOriginalFOV = ptCamera->fFieldOfView;
+        gfOriginalFOV = ptCamera->fYFov;
     }
 
     plIO* ptIO = gptIO->get_io();
@@ -82,11 +82,11 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
 
         if(gptIO->is_mouse_clicked(PL_MOUSE_BUTTON_RIGHT, false))
         {
-            gfOriginalFOV = ptCamera->fFieldOfView;
+            gfOriginalFOV = ptCamera->fYFov;
         }
         else if(gptIO->is_mouse_released(PL_MOUSE_BUTTON_RIGHT))
         {
-            ptCamera->fFieldOfView = gfOriginalFOV;
+            ptCamera->fYFov = gfOriginalFOV;
         }
 
         if(gptIO->get_mouse_wheel() > 0.0f)
@@ -102,32 +102,32 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
         
         if(bRMB)
         {
-            if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
-            if(gptIO->is_key_down(PL_KEY_S)) gptCamera->translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
-            if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-            if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+            if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate_local(ptCamera,  (plVec3d){0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime});
+            if(gptIO->is_key_down(PL_KEY_S)) gptCamera->translate_local(ptCamera,  (plVec3d){0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime});
+            if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate_local(ptCamera, (plVec3d){-fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
+            if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate_local(ptCamera, (plVec3d){fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
 
             // world space
-            if(gptIO->is_key_down(PL_KEY_Q)) { gptCamera->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
-            if(gptIO->is_key_down(PL_KEY_E)) { gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+            if(gptIO->is_key_down(PL_KEY_Q)) { gptCamera->translate(ptCamera,  (plVec3d){0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f}); }
+            if(gptIO->is_key_down(PL_KEY_E)) { gptCamera->translate(ptCamera,  (plVec3d){0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f}); }
 
             if(gptIO->is_key_down(PL_KEY_Z))
             {
-                ptCamera->fFieldOfView += 0.25f * (PL_PI / 180.0f);
-                ptCamera->fFieldOfView = pl_minf(ptCamera->fFieldOfView, 2.96706f);
+                ptCamera->fYFov += 0.25f * (PL_PI / 180.0f);
+                ptCamera->fYFov = pl_minf(ptCamera->fYFov, 2.96706f);
             }
             if(gptIO->is_key_down(PL_KEY_C))
             {
-                ptCamera->fFieldOfView -= 0.25f * (PL_PI / 180.0f);
+                ptCamera->fYFov -= 0.25f * (PL_PI / 180.0f);
 
-                ptCamera->fFieldOfView = pl_maxf(ptCamera->fFieldOfView, 0.03f);
+                ptCamera->fYFov = pl_maxf(ptCamera->fYFov, 0.03f);
             }
         }
 
         if(bLMB && gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_RIGHT, 1.0f))
         {
             const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_RIGHT, 1.0f);
-            gptCamera->translate(ptCamera,  tMouseDelta.x * fCameraTravelSpeed * ptIO->fDeltaTime, -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime, 0.0f);
+            gptCamera->translate_local(ptCamera,  (plVec3d){tMouseDelta.x * fCameraTravelSpeed * ptIO->fDeltaTime, -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime, 0.0f});
             gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_RIGHT);
             gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }
@@ -135,16 +135,16 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
         else if(gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_RIGHT, 1.0f))
         {
             const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_RIGHT, 1.0f);
-            gptCamera->rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
+            gptCamera->rotate_euler(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed, 0.0f);
             gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_RIGHT);
         }
 
         else if(bLMB)
         {
             const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
-            gptCamera->rotate(ptCamera,  0.0f,  -tMouseDelta.x * fCameraRotationSpeed);
-            ptCamera->tPosDouble.x += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * sinf(ptCamera->fYaw));
-            ptCamera->tPosDouble.z += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * cosf(ptCamera->fYaw));
+            gptCamera->rotate_euler(ptCamera,  0.0f,  -tMouseDelta.x * fCameraRotationSpeed, 0.0f);
+            ptCamera->tPosition.x += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * sinf(ptCamera->fYaw));
+            ptCamera->tPosition.z += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * cosf(ptCamera->fYaw));
             gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }
     }

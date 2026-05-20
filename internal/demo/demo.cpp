@@ -427,7 +427,7 @@ pl_app_update(plAppData* ptAppData)
 
     if(ptAppData->ptScene)
     {
-        gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera), (ptIO->tMainViewportSize.x * ptAppData->tView0Scale.x) / (ptIO->tMainViewportSize.y * ptAppData->tView0Scale.y));
+        gptCamera->set_viewport((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera), (ptIO->tMainViewportSize.x * ptAppData->tView0Scale.x), (ptIO->tMainViewportSize.y * ptAppData->tView0Scale.y));
 
         plCamera*  ptCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tMainCamera);
         plCamera*  ptCullCamera = (plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tCullCamera);
@@ -561,11 +561,11 @@ pl_app_update(plAppData* ptAppData)
             tFrustumDesc.fAspectRatio = ptSecondaryCamera->fAspectRatio;
             tFrustumDesc.fFarZ        = ptSecondaryCamera->fFarZ;
             tFrustumDesc.fNearZ       = ptSecondaryCamera->fNearZ;
-            tFrustumDesc.fYFov        = ptSecondaryCamera->fFieldOfView;
+            tFrustumDesc.fYFov        = ptSecondaryCamera->fYFov;
             plDrawLineOptions tDrawCamOptions = {};
             tDrawCamOptions.uColor = PL_COLOR_32_YELLOW;
             tDrawCamOptions.fThickness = 0.02f;
-            gptDraw->add_3d_frustum(gptRendererDebug->get_drawlist(ptAppData->ptView), &ptSecondaryCamera->tTransformMat, tFrustumDesc, tDrawCamOptions);
+            gptDraw->add_3d_frustum(gptRendererDebug->get_drawlist(ptAppData->ptView), &ptSecondaryCamera->tInvViewMat, tFrustumDesc, tDrawCamOptions);
         }
     
         // render scene
@@ -727,7 +727,7 @@ pl_app_update(plAppData* ptAppData)
         if(ImGui::Begin("Secondary View", &ptAppData->bSecondaryViewActive, ImGuiWindowFlags_NoDocking))
         {
             ImVec2 tContextSize = ImGui::GetContentRegionAvail();
-            gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tSecondaryCamera), tContextSize.x / tContextSize.y);
+            gptCamera->set_viewport((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tSecondaryCamera), tContextSize.x, tContextSize.y);
 
             ImTextureRef tTexture = ImTextureRef(gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, tTextureHandle));
             ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUV.x, tUV.y));
@@ -1335,21 +1335,42 @@ pl__create_scene(plAppData* ptAppData)
     ptAppData->ptScene = gptRenderer->create_scene(&tSceneInit);
 
     // create main camera
+    plCameraPerspectiveDesc tMainCameraDesc = {};
+    tMainCameraDesc.fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y;
+    tMainCameraDesc.fYFov = PL_PI_3;
+    tMainCameraDesc.fNearZ = 0.1f;
+    tMainCameraDesc.fFarZ = 48.0f;
+    tMainCameraDesc.eDepthMode = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
     plCamera* ptMainCamera = nullptr;
-    ptAppData->tMainCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "main camera", pl_create_vec3_d(-4.7, 4.2, -3.256), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 48.0f, true, &ptMainCamera);
-    gptCamera->set_pitch_yaw(ptMainCamera, 0.0f, 0.911f);
+    ptAppData->tMainCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "main camera", &tMainCameraDesc, &ptMainCamera);
+    gptCamera->set_position(ptMainCamera, pl_create_vec3_d(-4.7, 4.2, -3.256));
+    gptCamera->set_pitch_yaw_roll(ptMainCamera, 0.0f, 0.911f, 0.0f);
     gptCamera->update(ptMainCamera);
 
     // create cull camera
+    plCameraPerspectiveDesc tCullCameraDesc = {};
+    tCullCameraDesc.fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y;
+    tCullCameraDesc.fYFov = PL_PI_3;
+    tCullCameraDesc.fNearZ = 0.1f;
+    tCullCameraDesc.fFarZ = 25.0f;
+    tCullCameraDesc.eDepthMode = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
     plCamera* ptCullCamera = nullptr;
-    ptAppData->tCullCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "cull camera", pl_create_vec3_d(0, 0, 5.0), PL_PI_3, ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y, 0.1f, 25.0f, true, &ptCullCamera);
-    gptCamera->set_pitch_yaw(ptCullCamera, 0.0f, PL_PI);
+    ptAppData->tCullCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "cull camera", &tCullCameraDesc, &ptCullCamera);
+    gptCamera->set_position(ptCullCamera, pl_create_vec3_d(0, 0, 5.0));
+    gptCamera->set_pitch_yaw_roll(ptCullCamera, 0.0f, PL_PI, 0.0f);
     gptCamera->update(ptCullCamera);
 
     // create secondary camera
+    plCameraPerspectiveDesc tSecondaryCameraDesc = {};
+    tSecondaryCameraDesc.fAspectRatio = 1.0f;
+    tSecondaryCameraDesc.fYFov = PL_PI_3;
+    tSecondaryCameraDesc.fNearZ = 0.1f;
+    tSecondaryCameraDesc.fFarZ = 20.0f;
+    tSecondaryCameraDesc.eDepthMode = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
     plCamera* ptSecondaryCamera = nullptr;
-    ptAppData->tSecondaryCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "secondary camera", pl_create_vec3_d(-4.7, 4.2, -3.256), PL_PI_3, 1.0f, 0.1f, 20.0f, true, &ptSecondaryCamera);
-    gptCamera->set_pitch_yaw(ptSecondaryCamera, -0.1f, 0.911f);
+    ptAppData->tSecondaryCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "secondary camera", &tSecondaryCameraDesc, &ptSecondaryCamera);
+    gptCamera->set_position(ptSecondaryCamera, pl_create_vec3_d(-4.7, 4.2, -3.256));
+    gptCamera->set_pitch_yaw_roll(ptSecondaryCamera, -0.1f, 0.911f, 0.0f);
     gptCamera->update(ptSecondaryCamera);
     plTransformComponent* ptSecondaryCameraTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptCompLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSecondaryCamera);
     ptSecondaryCameraTransform->tTranslation = pl_create_vec3(-4.7f, 4.2f, -3.256f);

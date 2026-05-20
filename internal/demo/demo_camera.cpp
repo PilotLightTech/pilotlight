@@ -5,7 +5,7 @@ pl__camera_update_imgui(plCamera* ptCamera)
 {
     static float gfOriginalFOV = 0.0f;
     if(gfOriginalFOV == 0.0f)
-        gfOriginalFOV = ptCamera->fFieldOfView;
+        gfOriginalFOV = ptCamera->fYFov;
 
     if(gptGizmo->active())
         return;
@@ -29,11 +29,11 @@ pl__camera_update_imgui(plCamera* ptCamera)
 
         if(ImGui::IsMouseClicked(ImGuiMouseButton_Right, false))
         {
-            gfOriginalFOV = ptCamera->fFieldOfView;
+            gfOriginalFOV = ptCamera->fYFov;
         }
         else if(ImGui::IsMouseReleased(ImGuiMouseButton_Right))
         {
-            ptCamera->fFieldOfView = gfOriginalFOV;
+            ptCamera->fYFov = gfOriginalFOV;
         }
 
         if(ImGui::IsKeyDown(ImGuiMod_Shift))
@@ -44,32 +44,32 @@ pl__camera_update_imgui(plCamera* ptCamera)
         
         if(bRMB)
         {
-            if(ImGui::IsKeyDown(ImGuiKey_W)) gptCamera->translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
-            if(ImGui::IsKeyDown(ImGuiKey_S)) gptCamera->translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
-            if(ImGui::IsKeyDown(ImGuiKey_A)) gptCamera->translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-            if(ImGui::IsKeyDown(ImGuiKey_D)) gptCamera->translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+            if(ImGui::IsKeyDown(ImGuiKey_W)) gptCamera->translate(ptCamera, {  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime});
+            if(ImGui::IsKeyDown(ImGuiKey_S)) gptCamera->translate(ptCamera, {  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime});
+            if(ImGui::IsKeyDown(ImGuiKey_A)) gptCamera->translate(ptCamera, { -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
+            if(ImGui::IsKeyDown(ImGuiKey_D)) gptCamera->translate(ptCamera, {  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
 
             // world space
-            if(ImGui::IsKeyDown(ImGuiKey_Q)) { gptCamera->translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
-            if(ImGui::IsKeyDown(ImGuiKey_E)) { gptCamera->translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+            if(ImGui::IsKeyDown(ImGuiKey_Q)) { gptCamera->translate(ptCamera, {0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f}); }
+            if(ImGui::IsKeyDown(ImGuiKey_E)) { gptCamera->translate(ptCamera, {0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f}); }
 
             if(ImGui::IsKeyDown(ImGuiKey_Z))
             {
-                ptCamera->fFieldOfView += 0.25f * (PL_PI / 180.0f);
-                ptCamera->fFieldOfView = pl_minf(ptCamera->fFieldOfView, 2.96706f);
+                ptCamera->fYFov += 0.25f * (PL_PI / 180.0f);
+                ptCamera->fYFov = pl_minf(ptCamera->fYFov, 2.96706f);
             }
             if(ImGui::IsKeyDown(ImGuiKey_C))
             {
-                ptCamera->fFieldOfView -= 0.25f * (PL_PI / 180.0f);
+                ptCamera->fYFov -= 0.25f * (PL_PI / 180.0f);
 
-                ptCamera->fFieldOfView = pl_maxf(ptCamera->fFieldOfView, 0.03f);
+                ptCamera->fYFov = pl_maxf(ptCamera->fYFov, 0.03f);
             }
         }
 
         if(bLMB && ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f))
         {
             const ImVec2 tMouseDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right, 1.0f);
-            gptCamera->translate(ptCamera,  tMouseDelta.x * fCameraTravelSpeed * ptIO->fDeltaTime, -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime, 0.0f);
+            gptCamera->translate_local(ptCamera, { tMouseDelta.x * fCameraTravelSpeed * ptIO->fDeltaTime, -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime, 0.0f});
             ImGui::ResetMouseDragDelta(ImGuiMouseButton_Right);
             ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
         }
@@ -77,16 +77,16 @@ pl__camera_update_imgui(plCamera* ptCamera)
         else if(ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f))
         {
             const ImVec2 tMouseDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right, 1.0f);
-            gptCamera->rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
+            gptCamera->rotate_euler(ptCamera, -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed, 0.0f);
             ImGui::ResetMouseDragDelta(ImGuiMouseButton_Right);
         }
 
         else if(bLMB)
         {
             const ImVec2 tMouseDelta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 1.0f);
-            gptCamera->rotate(ptCamera,  0.0f,  -tMouseDelta.x * fCameraRotationSpeed);
-            ptCamera->tPosDouble.x += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * sinf(ptCamera->fYaw));
-            ptCamera->tPosDouble.z += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * cosf(ptCamera->fYaw));
+            gptCamera->rotate_euler(ptCamera,  0.0f,  -tMouseDelta.x * fCameraRotationSpeed, 0.0f);
+            ptCamera->tPosition.x += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * sinf(ptCamera->fYaw));
+            ptCamera->tPosition.z += (double)(-tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime * cosf(ptCamera->fYaw));
             ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
         }
     }

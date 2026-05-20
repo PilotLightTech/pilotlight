@@ -1,4 +1,4 @@
-v0.9.1 WIP
+v0.9.1
 
 -----------------------------------------------------------------------------
                              Versioning
@@ -83,8 +83,9 @@ the API is complete. It just means we won't break what currently exists.
 * ECS                 v1.1.0 (pl_ecs_ext.h)
 * DDS                 v1.1.0 (pl_dds_ext.h)
 * Resource            v1.5.0 (pl_resource_ext.h)
+* Camera              v1.0.0 (pl_camera_ext.h)
 
-## Nearly Stable Extensions
+## Nearly Stable APIs
 
 * Bvh                 v0.2.0 (pl_bvh_ext.h)
 * Physics             v0.2.0 (pl_physics_ext.h)
@@ -93,10 +94,9 @@ the API is complete. It just means we won't break what currently exists.
 * Mesh Builder        v0.1.0 (pl_mesh_ext.h)
 * Shader Variant      v0.2.0 (pl_shader_variant_ext.h)
 
-## Unstable Extensions
+## Unstable APIs
 
 * ECS Tools           v0.1.0 (pl_ecs_tools_ext.h)
-* Camera              v0.4.0 (pl_camera_ext.h)
 * Camera ECS          v0.1.0 (pl_camera_ext.h)
 * Gizmo               v0.1.0 (pl_gizmo_ext.h)
 * Model Loader        v0.3.0 (pl_model_loader_ext.h)
@@ -113,7 +113,7 @@ the API is complete. It just means we won't break what currently exists.
 * Renderer Debug      v0.1.0 (pl_renderer_ext.h)
 * Renderer Editor     v0.1.0 (pl_renderer_ext.h)
 
-## Placeholder Extensions
+## Placeholder APIs
 * Voxel Ops           v0.0.0 (pl_voxel_ext.h)
 * Path Finding        v0.0.0 (pl_path_ext.h)
 * Audio               v0.0.0 (pl_audio_ext.h)

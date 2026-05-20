@@ -126,7 +126,7 @@ pl_gizmo_gizmo(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCom
         plVec3* ptCenter = &ptSelectedTransform->tWorld.col[3].xyz;
         if(gptGizmoCtx->tState == PL_GIZMO_STATE_DEFAULT)
         {
-            gptGizmoCtx->fCaptureScale = pl_length_vec3(pl_sub_vec3(*ptCenter, ptCamera->tPos)) * 0.75f;
+            gptGizmoCtx->fCaptureScale = pl_length_vec3(pl_sub_vec3(*ptCenter, ptCamera->tPositionF)) * 0.75f;
         }
 
         switch(gptGizmoCtx->tSelectionMode)
@@ -230,11 +230,11 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTrans
     float fYDistanceAlong = 0.0f;
     float fZDistanceAlong = 0.0f;
 
-    const plVec3 tDirVec = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos));
+    const plVec3 tDirVec = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF));
 
-    bool bXSelected = pl__does_line_intersect_cylinder(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), *ptCenter, (plVec3){1.0f, 0.0f, 0.0f}, fArrowRadius, fLength, &fXDistanceAlong);
-    bool bYSelected = pl__does_line_intersect_cylinder(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), *ptCenter, (plVec3){0.0f, 1.0f, 0.0f}, fArrowRadius, fLength, &fYDistanceAlong);
-    bool bZSelected = pl__does_line_intersect_cylinder(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), *ptCenter, (plVec3){0.0f, 0.0f, 1.0f}, fArrowRadius, fLength, &fZDistanceAlong);
+    bool bXSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){1.0f, 0.0f, 0.0f}, fArrowRadius, fLength, &fXDistanceAlong);
+    bool bYSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){0.0f, 1.0f, 0.0f}, fArrowRadius, fLength, &fYDistanceAlong);
+    bool bZSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){0.0f, 0.0f, 1.0f}, fArrowRadius, fLength, &fZDistanceAlong);
     
     plVec3 tYZIntersectionPoint = {0};
     plVec3 tXZIntersectionPoint = {0};
@@ -255,9 +255,9 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTrans
         .fOffset    = ptCenter->z
     };
 
-    bool bYZSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tYZPlane, &tYZIntersectionPoint);
-    bool bXZSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tXZPlane, &tXZIntersectionPoint);
-    bool bXYSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tXYPlane, &tXYIntersectionPoint);
+    bool bYZSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tYZPlane, &tYZIntersectionPoint);
+    bool bXZSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tXZPlane, &tXZIntersectionPoint);
+    bool bXYSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tXYPlane, &tXYIntersectionPoint);
 
     bYZSelected = bYZSelected && 
         (tYZIntersectionPoint.y < ptCenter->y + fLength * 0.375f) &&
@@ -280,12 +280,12 @@ pl__gizmo_translation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTrans
     if(gptGizmoCtx->tState == PL_GIZMO_STATE_DEFAULT)
     {
         const float apf[6] = {
-            bXSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x + fXDistanceAlong, ptCenter->y, ptCenter->z}, ptCamera->tPos)) : FLT_MAX,
-            bYSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y + fYDistanceAlong, ptCenter->z}, ptCamera->tPos)) : FLT_MAX,
-            bZSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fZDistanceAlong}, ptCamera->tPos)) : FLT_MAX,
-            bYZSelected ? pl_length_vec3(pl_sub_vec3(tYZIntersectionPoint, ptCamera->tPos)) : FLT_MAX,
-            bXZSelected ? pl_length_vec3(pl_sub_vec3(tXZIntersectionPoint, ptCamera->tPos)) : FLT_MAX,
-            bXYSelected ? pl_length_vec3(pl_sub_vec3(tXYIntersectionPoint, ptCamera->tPos)) : FLT_MAX
+            bXSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x + fXDistanceAlong, ptCenter->y, ptCenter->z}, ptCamera->tPositionF)) : FLT_MAX,
+            bYSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y + fYDistanceAlong, ptCenter->z}, ptCamera->tPositionF)) : FLT_MAX,
+            bZSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fZDistanceAlong}, ptCamera->tPositionF)) : FLT_MAX,
+            bYZSelected ? pl_length_vec3(pl_sub_vec3(tYZIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX,
+            bXZSelected ? pl_length_vec3(pl_sub_vec3(tXZIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX,
+            bXYSelected ? pl_length_vec3(pl_sub_vec3(tXYIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX
         };
 
         bool bSomethingSelected = bXSelected || bYSelected || bZSelected || bYZSelected || bXZSelected || bXYSelected;
@@ -671,11 +671,11 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransfor
         .fOffset    = ptCenter->z
     };
 
-    const plVec3 tDirVec = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos));
+    const plVec3 tDirVec = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF));
 
-    bool bXSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tYZPlane, &tXIntersectionPoint);
-    bool bYSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tXZPlane, &tYIntersectionPoint);
-    bool bZSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tDirVec, &tXYPlane, &tZIntersectionPoint);
+    bool bXSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tYZPlane, &tXIntersectionPoint);
+    bool bYSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tXZPlane, &tYIntersectionPoint);
+    bool bZSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tDirVec, &tXYPlane, &tZIntersectionPoint);
 
     plVec4 tXColor = (plVec4){1.0f, 0.0f, 0.0f, 1.0f};
     plVec4 tYColor = (plVec4){0.0f, 1.0f, 0.0f, 1.0f};
@@ -693,9 +693,9 @@ pl__gizmo_rotation(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransfor
 
         bool bSomethingSelected = bXSelected || bYSelected || bZSelected;
         const float apf[3] = {
-            bXSelected ? pl_length_vec3(pl_sub_vec3(tXIntersectionPoint, ptCamera->tPos)) : FLT_MAX,
-            bYSelected ? pl_length_vec3(pl_sub_vec3(tYIntersectionPoint, ptCamera->tPos)) : FLT_MAX,
-            bZSelected ? pl_length_vec3(pl_sub_vec3(tZIntersectionPoint, ptCamera->tPos)) : FLT_MAX
+            bXSelected ? pl_length_vec3(pl_sub_vec3(tXIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX,
+            bYSelected ? pl_length_vec3(pl_sub_vec3(tYIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX,
+            bZSelected ? pl_length_vec3(pl_sub_vec3(tZIntersectionPoint, ptCamera->tPositionF)) : FLT_MAX
         };
 
         bXSelected = false;
@@ -969,17 +969,17 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
     float fZDistanceAlong = 0.0f;
     plVec3 tXYZIntersectionPoint = {0};
 
-    bool bXSelected = pl__does_line_intersect_cylinder(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), *ptCenter, (plVec3){1.0f, 0.0f, 0.0f}, fArrowRadius, fLength, &fXDistanceAlong);
-    bool bYSelected = pl__does_line_intersect_cylinder(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), *ptCenter, (plVec3){0.0f, 1.0f, 0.0f}, fArrowRadius, fLength, &fYDistanceAlong);
-    bool bZSelected = pl__does_line_intersect_cylinder(ptCamera->tPos, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos)), *ptCenter, (plVec3){0.0f, 0.0f, 1.0f}, fArrowRadius, fLength, &fZDistanceAlong);
+    bool bXSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){1.0f, 0.0f, 0.0f}, fArrowRadius, fLength, &fXDistanceAlong);
+    bool bYSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){0.0f, 1.0f, 0.0f}, fArrowRadius, fLength, &fYDistanceAlong);
+    bool bZSelected = pl__does_line_intersect_cylinder(ptCamera->tPositionF, pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF)), *ptCenter, (plVec3){0.0f, 0.0f, 1.0f}, fArrowRadius, fLength, &fZDistanceAlong);
     
-    plVec3 tCameraDir = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPos));
+    plVec3 tCameraDir = pl_norm_vec3(pl_sub_vec3(tNDC.xyz, ptCamera->tPositionF));
 
     const plPlane tPlane = {
         .tDirection = tCameraDir,
         .fOffset    = pl_dot_vec3(tCameraDir, *ptCenter)
     };
-    bool bXYZSelected = gptCollision->intersect_ray_plane(ptCamera->tPos, tCameraDir, &tPlane, &tXYZIntersectionPoint);
+    bool bXYZSelected = gptCollision->intersect_ray_plane(ptCamera->tPositionF, tCameraDir, &tPlane, &tXYZIntersectionPoint);
 
     if(gptGizmoCtx->tState != PL_GIZMO_STATE_DEFAULT)
     {
@@ -1010,10 +1010,10 @@ pl__gizmo_scale(plDrawList3D* ptGizmoDrawlist, plCamera* ptCamera, plTransformCo
         bXYZSelected = bXYZSelected && fXYZDistance < fAxisRadius * 4;
 
         const float apf[4] = {
-            bXSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x + fXDistanceAlong, ptCenter->y, ptCenter->z}, ptCamera->tPos)) : FLT_MAX,
-            bYSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y + fYDistanceAlong, ptCenter->z}, ptCamera->tPos)) : FLT_MAX,
-            bZSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fZDistanceAlong}, ptCamera->tPos)) : FLT_MAX,
-            bXYZSelected ? pl_length_vec3(pl_sub_vec3(*ptCenter, ptCamera->tPos)) - fAxisRadius * 4: FLT_MAX
+            bXSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x + fXDistanceAlong, ptCenter->y, ptCenter->z}, ptCamera->tPositionF)) : FLT_MAX,
+            bYSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y + fYDistanceAlong, ptCenter->z}, ptCamera->tPositionF)) : FLT_MAX,
+            bZSelected ? pl_length_vec3(pl_sub_vec3((plVec3){ptCenter->x, ptCenter->y, ptCenter->z + fZDistanceAlong}, ptCamera->tPositionF)) : FLT_MAX,
+            bXYZSelected ? pl_length_vec3(pl_sub_vec3(*ptCenter, ptCamera->tPositionF)) - fAxisRadius * 4: FLT_MAX
         };
 
         bool bSomethingSelected = bXSelected || bYSelected || bZSelected | bXYZSelected;

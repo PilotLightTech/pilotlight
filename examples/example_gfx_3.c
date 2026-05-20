@@ -4,6 +4,7 @@
      - demonstrates loading extensions
      - demonstrates hot reloading
      - demonstrates starter extension
+     - demonstrates camera extension
      - demonstrates drawing extension (2D & 3D)
 */
 
@@ -12,12 +13,10 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] structs
 // [SECTION] apis
-// [SECTION] helper function declarations
 // [SECTION] pl_app_load
 // [SECTION] pl_app_shutdown
 // [SECTION] pl_app_resize
 // [SECTION] pl_app_update
-// [SECTION] helper function definitions
 */
 
 //-----------------------------------------------------------------------------
@@ -34,32 +33,11 @@ Index of this file:
 #include "pl_graphics_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_starter_ext.h"
+#include "pl_camera_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
-
-typedef struct _plCamera
-{
-    plVec3 tPos;
-    float  fNearZ;
-    float  fFarZ;
-    float  fFieldOfView;
-    float  fAspectRatio;  // width/height
-    plMat4 tViewMat;      // cached
-    plMat4 tProjMat;      // cached
-    plMat4 tTransformMat; // cached
-
-    // rotations
-    float fPitch; // rotation about right vector
-    float fYaw;   // rotation about up vector
-    float fRoll;  // rotation about forward vector
-
-    // direction vectors
-    plVec3 _tUpVec;
-    plVec3 _tForwardVec;
-    plVec3 _tRightVec;
-} plCamera;
 
 typedef struct _plAppData
 {
@@ -80,16 +58,7 @@ const plWindowI*      gptWindows     = NULL;
 const plGraphicsI*    gptGfx         = NULL;
 const plDrawI*        gptDraw        = NULL;
 const plStarterI*     gptStarter     = NULL;
-
-//-----------------------------------------------------------------------------
-// [SECTION] helper function declarations
-//-----------------------------------------------------------------------------
-
-// camera helpers
-void camera_translate(plCamera*, float fDx, float fDy, float fDz);
-void camera_rotate   (plCamera*, float fDPitch, float fDYaw);
-void camera_rotate   (plCamera*, float fDPitch, float fDYaw);
-void camera_update   (plCamera*);
+const plCameraI*      gptCamera      = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -116,6 +85,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
         gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
 
         return ptAppData;
     }
@@ -140,6 +110,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
     gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
     gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -174,16 +145,18 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->pt3dDrawlist = gptDraw->request_3d_drawlist();
 
     // create camera
-    ptAppData->tCamera = (plCamera){
-        .tPos         = {5.0f, 10.0f, 10.0f},
+    gptCamera->init(&ptAppData->tCamera);
+    plCameraPerspectiveDesc tCameraDesc = {
         .fNearZ       = 0.01f,
         .fFarZ        = 50.0f,
-        .fFieldOfView = PL_PI_3,
+        .fYFov        = PL_PI_3,
         .fAspectRatio = 1.0f,
-        .fYaw         = PL_PI + PL_PI_4,
-        .fPitch       = -PL_PI_4,
+        .eDepthMode   = PL_CAMERA_DEPTH_MODE_STANDARD
     };
-    camera_update(&ptAppData->tCamera);
+    gptCamera->set_perspective(&ptAppData->tCamera, &tCameraDesc);
+    gptCamera->set_position(&ptAppData->tCamera, (plVec3d){5.0, 10.0, 10.0});
+    gptCamera->set_pitch_yaw_roll(&ptAppData->tCamera, -PL_PI_4, PL_PI + PL_PI_4, 0.0f);
+    gptCamera->update(&ptAppData->tCamera);
 
     // return app memory
     return ptAppData;
@@ -211,7 +184,7 @@ pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
     gptStarter->resize();
 
     plIO* ptIO = gptIO->get_io();
-    ptAppData->tCamera.fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y;
+    gptCamera->set_viewport(&ptAppData->tCamera, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y);
 }
 
 //-----------------------------------------------------------------------------
@@ -233,22 +206,22 @@ pl_app_update(plAppData* ptAppData)
     plCamera* ptCamera = &ptAppData->tCamera;
 
     // camera space
-    if(gptIO->is_key_down(PL_KEY_W)) camera_translate(ptCamera,  0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime);
-    if(gptIO->is_key_down(PL_KEY_S)) camera_translate(ptCamera,  0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime);
-    if(gptIO->is_key_down(PL_KEY_A)) camera_translate(ptCamera, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
-    if(gptIO->is_key_down(PL_KEY_D)) camera_translate(ptCamera,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f);
+    if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate_local(ptCamera, (plVec3d){ 0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime});
+    if(gptIO->is_key_down(PL_KEY_S)) gptCamera->translate_local(ptCamera, (plVec3d){ 0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime});
+    if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate_local(ptCamera, (plVec3d){-fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
+    if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate_local(ptCamera, (plVec3d){ fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
 
     // world space
-    if(gptIO->is_key_down(PL_KEY_F)) { camera_translate(ptCamera,  0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
-    if(gptIO->is_key_down(PL_KEY_R)) { camera_translate(ptCamera,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f); }
+    if(gptIO->is_key_down(PL_KEY_F)) { gptCamera->translate(ptCamera, (plVec3d){ 0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f }); }
+    if(gptIO->is_key_down(PL_KEY_R)) { gptCamera->translate(ptCamera, (plVec3d){ 0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f }); }
 
     if(gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
     {
         const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
-        camera_rotate(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed);
+        gptCamera->rotate_euler(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed, 0.0f);
         gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
     }
-    camera_update(ptCamera);
+    gptCamera->update(ptCamera);
 
     // 3d drawing API usage
     const plMat4 tOrigin = pl_identity_mat4();
@@ -280,14 +253,12 @@ pl_app_update(plAppData* ptAppData)
     // start main pass & return the encoder being used
     plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
 
-    const plMat4 tMVP = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-
     // submit 3d drawlist
     gptDraw->submit_3d_drawlist(ptAppData->pt3dDrawlist,
         ptEncoder,
         ptIO->tMainViewportSize.x,
         ptIO->tMainViewportSize.y,
-        &tMVP,
+        &ptAppData->tCamera.tViewProjMat,
         PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE,
         gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
 
@@ -296,80 +267,4 @@ pl_app_update(plAppData* ptAppData)
 
     // must be the last function called when using the starter extension
     gptStarter->end_frame(); 
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] helper function declarations
-//-----------------------------------------------------------------------------
-
-static inline float
-wrap_angle(float tTheta)
-{
-    static const float f2Pi = 2.0f * PL_PI;
-    const float fMod = fmodf(tTheta, f2Pi);
-    if (fMod > PL_PI)       return fMod - f2Pi;
-    else if (fMod < -PL_PI) return fMod + f2Pi;
-    return fMod;
-}
-
-void
-camera_translate(plCamera* ptCamera, float fDx, float fDy, float fDz)
-{
-    ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tRightVec, fDx));
-    ptCamera->tPos = pl_add_vec3(ptCamera->tPos, pl_mul_vec3_scalarf(ptCamera->_tForwardVec, fDz));
-    ptCamera->tPos.y += fDy;
-}
-
-void
-camera_rotate(plCamera* ptCamera, float fDPitch, float fDYaw)
-{
-    ptCamera->fPitch += fDPitch;
-    ptCamera->fYaw += fDYaw;
-
-    ptCamera->fYaw = wrap_angle(ptCamera->fYaw);
-    ptCamera->fPitch = pl_clampf(0.995f * -PL_PI_2, ptCamera->fPitch, 0.995f * PL_PI_2);
-}
-
-void
-camera_update(plCamera* ptCamera)
-{
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // world space
-    static const plVec4 tOriginalUpVec      = {0.0f, 1.0f, 0.0f, 0.0f};
-    static const plVec4 tOriginalForwardVec = {0.0f, 0.0f, 1.0f, 0.0f};
-    static const plVec4 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f, 0.0f};
-
-    const plMat4 tXRotMat   = pl_mat4_rotate_vec3(ptCamera->fPitch, tOriginalRightVec.xyz);
-    const plMat4 tYRotMat   = pl_mat4_rotate_vec3(ptCamera->fYaw, tOriginalUpVec.xyz);
-    const plMat4 tZRotMat   = pl_mat4_rotate_vec3(ptCamera->fRoll, tOriginalForwardVec.xyz);
-    const plMat4 tTranslate = pl_mat4_translate_vec3((plVec3){ptCamera->tPos.x, ptCamera->tPos.y, ptCamera->tPos.z});
-
-    // rotations: rotY * rotX * rotZ
-    plMat4 tRotations = pl_mul_mat4t(&tXRotMat, &tZRotMat);
-    tRotations        = pl_mul_mat4t(&tYRotMat, &tRotations);
-
-    // update camera vectors
-    ptCamera->_tRightVec   = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalRightVec)).xyz;
-    ptCamera->_tUpVec      = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalUpVec)).xyz;
-    ptCamera->_tForwardVec = pl_norm_vec4(pl_mul_mat4_vec4(&tRotations, tOriginalForwardVec)).xyz;
-
-    // update camera transform: translate * rotate
-    ptCamera->tTransformMat = pl_mul_mat4t(&tTranslate, &tRotations);
-
-    // update camera view matrix
-    ptCamera->tViewMat   = pl_mat4t_invert(&ptCamera->tTransformMat);
-
-    // flip x & y so camera looks down +z and remains right handed (+x to the right)
-    const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
-    ptCamera->tViewMat   = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~update projection~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fFieldOfView / 2.0f);
-    ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
-    ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
-    ptCamera->tProjMat.col[2].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
-    ptCamera->tProjMat.col[2].w = 1.0f;
-    ptCamera->tProjMat.col[3].z = -ptCamera->fNearZ * ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
-    ptCamera->tProjMat.col[3].w = 0.0f;  
 }

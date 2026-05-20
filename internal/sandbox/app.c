@@ -520,7 +520,7 @@ pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     plIO* ptIO = gptIO->get_io();
     if(ptAppData->tTestWorld.ptScene)
-        gptCamera->set_aspect((plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tTestWorld.tMainCamera), ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y);
+        gptCamera->set_viewport((plCamera*)gptEcs->get_component(ptAppData->ptComponentLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tTestWorld.tMainCamera), ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y);
     ptAppData->bResize = true;
     gptStarter->resize();
 }

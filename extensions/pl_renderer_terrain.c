@@ -628,8 +628,8 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     if(!pl__renderer_sat_visibility_test(ptCamera, &tAABB))
         return;
 
-    plVec3 tClosestPoint = gptCollision->point_closest_point_aabb(ptCamera->tPos, tAABB);
-    float fDistance = fabsf(pl_length_vec3(pl_sub_vec3(tClosestPoint, ptCamera->tPos)));
+    plVec3 tClosestPoint = gptCollision->point_closest_point_aabb(ptCamera->tPositionF, tAABB);
+    float fDistance = fabsf(pl_length_vec3(pl_sub_vec3(tClosestPoint, ptCamera->tPositionF)));
 
     pl__request_residency(ptTerrain, ptChunk);
 
@@ -637,7 +637,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         return;
     
     float fViewportWidth = gptIOI->get_io()->tMainViewportSize.x;
-    float fHorizontalFieldOfView = 2.0f * atanf(tanf(0.5f * ptCamera->fFieldOfView) * ptCamera->fAspectRatio);
+    float fHorizontalFieldOfView = 2.0f * atanf(tanf(0.5f * ptCamera->fYFov) * ptCamera->fAspectRatio);
 
     float fK = fViewportWidth / (2.0f * tanf(0.5f * fHorizontalFieldOfView));
 
@@ -742,8 +742,8 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
     // if(!pl__renderer_sat_visibility_test(ptCamera, &tAABB))
     //     return;
 
-    plVec3 tClosestPoint = gptCollision->point_closest_point_aabb(ptCamera->tPos, tAABB);
-    float fDistance = fabsf(pl_length_vec3(pl_sub_vec3(tClosestPoint, ptCamera->tPos)));
+    plVec3 tClosestPoint = gptCollision->point_closest_point_aabb(ptCamera->tPositionF, tAABB);
+    float fDistance = fabsf(pl_length_vec3(pl_sub_vec3(tClosestPoint, ptCamera->tPositionF)));
 
     pl__request_residency(ptTerrain, ptChunk);
 
@@ -751,7 +751,7 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
         return;
     
     float fViewportWidth = gptIOI->get_io()->tMainViewportSize.x;
-    float fHorizontalFieldOfView = 2.0f * atanf(tanf(0.5f * ptCamera->fFieldOfView) * ptCamera->fAspectRatio);
+    float fHorizontalFieldOfView = 2.0f * atanf(tanf(0.5f * ptCamera->fYFov) * ptCamera->fAspectRatio);
 
     float fK = fViewportWidth / (2.0f * tanf(0.5f * fHorizontalFieldOfView));
 
