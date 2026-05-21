@@ -103,11 +103,11 @@ PL_API void pl_camera_set_transform(plCamera*, plVec3d position, plQuat rotation
 // movement
 PL_API void pl_camera_translate      (plCamera*, plVec3d delta);
 PL_API void pl_camera_translate_local(plCamera*, plVec3d delta);
-PL_API void pl_camera_rotate_local   (plCamera*, float pitch, float yaw, float roll);
 PL_API void pl_camera_look_at        (plCamera*, plVec3d eye, plVec3d target, plVec3 up);
 
 // convenience controller helpers
-PL_API void pl_camera_set_pitch_yaw_roll(plCamera*, float pitch, float yaw, float roll);
+PL_API void pl_camera_rotate_euler_local(plCamera*, float pitch, float yaw, float roll);
+PL_API void pl_camera_set_euler         (plCamera*, float pitch, float yaw, float roll);
 PL_API void pl_camera_rotate_euler      (plCamera*, float pitch, float yaw, float roll);
 
 // derived data
@@ -149,11 +149,11 @@ typedef struct _plCameraI
     // movement
     void (*translate)      (plCamera*, plVec3d delta);
     void (*translate_local)(plCamera*, plVec3d delta);
-    void (*rotate_local)   (plCamera*, float pitch, float yaw, float roll);
     void (*look_at)        (plCamera*, plVec3d eye, plVec3d target, plVec3 up);
 
     // convenience controller helpers
-    void (*set_pitch_yaw_roll)(plCamera*, float pitch, float yaw, float roll);
+    void (*rotate_euler_local)(plCamera*, float pitch, float yaw, float roll);
+    void (*set_euler)         (plCamera*, float pitch, float yaw, float roll);
     void (*rotate_euler)      (plCamera*, float pitch, float yaw, float roll);
 
     // derived data

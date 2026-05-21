@@ -3422,7 +3422,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
                 atEnvironmentCamera[uFace].fFarZ        = ptProbeComp->fRange;
                 atEnvironmentCamera[uFace].fYFov        = PL_PI_2;
                 atEnvironmentCamera[uFace].fAspectRatio = 1.0f;
-                gptCamera->set_pitch_yaw_roll(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y, atPitchYawRoll[uFace].z);
+                gptCamera->set_euler(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y, atPitchYawRoll[uFace].z);
                 gptCamera->update(&atEnvironmentCamera[uFace]);
 
                 const plBeginCommandInfo tBeginCSMInfo = {
@@ -5198,7 +5198,7 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     };
     ptDataOut->tMainCamera = gptCameraEcs->create_perspective(ptComponentLibrary, "main camera", &tCameraDesc, &ptMainCamera);
     gptCamera->set_position(ptMainCamera, tCameraPosition);
-    gptCamera->set_pitch_yaw_roll(ptMainCamera, fPitch, fYaw, 0.0f);
+    gptCamera->set_euler(ptMainCamera, fPitch, fYaw, 0.0f);
     gptCamera->update(ptMainCamera);
     gptScript->attach(ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptDataOut->tMainCamera, NULL);
 

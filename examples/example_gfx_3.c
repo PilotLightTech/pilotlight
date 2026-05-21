@@ -155,7 +155,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     };
     gptCamera->set_perspective(&ptAppData->tCamera, &tCameraDesc);
     gptCamera->set_position(&ptAppData->tCamera, (plVec3d){5.0, 10.0, 10.0});
-    gptCamera->set_pitch_yaw_roll(&ptAppData->tCamera, -PL_PI_4, PL_PI + PL_PI_4, 0.0f);
+    gptCamera->set_euler(&ptAppData->tCamera, -PL_PI_4, PL_PI + PL_PI_4, 0.0f);
     gptCamera->update(&ptAppData->tCamera);
 
     // return app memory

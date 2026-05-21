@@ -1344,7 +1344,7 @@ pl__create_scene(plAppData* ptAppData)
     plCamera* ptMainCamera = nullptr;
     ptAppData->tMainCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "main camera", &tMainCameraDesc, &ptMainCamera);
     gptCamera->set_position(ptMainCamera, pl_create_vec3_d(-4.7, 4.2, -3.256));
-    gptCamera->set_pitch_yaw_roll(ptMainCamera, 0.0f, 0.911f, 0.0f);
+    gptCamera->set_euler(ptMainCamera, 0.0f, 0.911f, 0.0f);
     gptCamera->update(ptMainCamera);
 
     // create cull camera
@@ -1357,7 +1357,7 @@ pl__create_scene(plAppData* ptAppData)
     plCamera* ptCullCamera = nullptr;
     ptAppData->tCullCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "cull camera", &tCullCameraDesc, &ptCullCamera);
     gptCamera->set_position(ptCullCamera, pl_create_vec3_d(0, 0, 5.0));
-    gptCamera->set_pitch_yaw_roll(ptCullCamera, 0.0f, PL_PI, 0.0f);
+    gptCamera->set_euler(ptCullCamera, 0.0f, PL_PI, 0.0f);
     gptCamera->update(ptCullCamera);
 
     // create secondary camera
@@ -1370,7 +1370,7 @@ pl__create_scene(plAppData* ptAppData)
     plCamera* ptSecondaryCamera = nullptr;
     ptAppData->tSecondaryCamera = gptCameraEcs->create_perspective(ptAppData->ptCompLibrary, "secondary camera", &tSecondaryCameraDesc, &ptSecondaryCamera);
     gptCamera->set_position(ptSecondaryCamera, pl_create_vec3_d(-4.7, 4.2, -3.256));
-    gptCamera->set_pitch_yaw_roll(ptSecondaryCamera, -0.1f, 0.911f, 0.0f);
+    gptCamera->set_euler(ptSecondaryCamera, -0.1f, 0.911f, 0.0f);
     gptCamera->update(ptSecondaryCamera);
     plTransformComponent* ptSecondaryCameraTransform = (plTransformComponent* )gptEcs->add_component(ptAppData->ptCompLibrary, gptEcs->get_ecs_type_key_transform(), ptAppData->tSecondaryCamera);
     ptSecondaryCameraTransform->tTranslation = pl_create_vec3(-4.7f, 4.2f, -3.256f);

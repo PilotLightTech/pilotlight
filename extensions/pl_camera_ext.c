@@ -448,7 +448,7 @@ pl_camera_set_transform(plCamera* ptCamera, plVec3d tPosition, plQuat tRotation)
 }
 
 void
-pl_camera_set_pitch_yaw_roll(plCamera* ptCamera, float fPitch, float fYaw, float fRoll)
+pl_camera_set_euler(plCamera* ptCamera, float fPitch, float fYaw, float fRoll)
 {
     // ptCamera->fPitch = pl_clampf(0.995f * -PL_PI_2, fPitch, 0.995f * PL_PI_2);
     ptCamera->fPitch = fPitch;
@@ -518,7 +518,7 @@ pl_camera_rotate_euler(plCamera* ptCamera, float fDPitch, float fDYaw, float fRo
 }
 
 void
-pl_camera_rotate_local(plCamera* ptCamera, float fDPitch, float fDYaw, float fRoll)
+pl_camera_rotate_euler_local(plCamera* ptCamera, float fDPitch, float fDYaw, float fRoll)
 {
     static const plVec3 tOriginalRightVec   = {-1.0f, 0.0f, 0.0f};
     static const plVec3 tOriginalUpVec      = { 0.0f, 1.0f, 0.0f};
@@ -621,11 +621,11 @@ pl_load_camera_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .set_position        = pl_camera_set_position,
         .set_rotation        = pl_camera_set_rotation,
         .set_transform       = pl_camera_set_transform,
-        .set_pitch_yaw_roll  = pl_camera_set_pitch_yaw_roll,
+        .set_euler  = pl_camera_set_euler,
         .translate           = pl_camera_translate,
         .translate_local     = pl_camera_translate_local,
         .rotate_euler        = pl_camera_rotate_euler,
-        .rotate_local        = pl_camera_rotate_local,
+        .rotate_euler_local        = pl_camera_rotate_euler_local,
         .update              = pl_camera_update,
         .look_at             = pl_camera_look_at,
     };

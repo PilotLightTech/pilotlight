@@ -824,7 +824,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
             for(uint32_t i = 0; i < 6; i++)
             {
 
-                gptCamera->set_pitch_yaw_roll(&tShadowCamera, atPitchYaw[i].x, atPitchYaw[i].y, 0.0f);
+                gptCamera->set_euler(&tShadowCamera, atPitchYaw[i].x, atPitchYaw[i].y, 0.0f);
                 gptCamera->update(&tShadowCamera);
                 atCamViewProjs[i] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
                 ptShadowData->viewProjMat[i] = atCamViewProjs[i];
@@ -4819,7 +4819,7 @@ pl__renderer_update_probes(plScene* ptScene)
             atEnvironmentCamera[uFace].fFarZ        = ptProbeComp->fRange;
             atEnvironmentCamera[uFace].fYFov        = PL_PI_2;
             atEnvironmentCamera[uFace].fAspectRatio = 1.0f;
-            gptCamera->set_pitch_yaw_roll(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y, atPitchYawRoll[uFace].z);
+            gptCamera->set_euler(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y, atPitchYawRoll[uFace].z);
             gptCamera->update(&atEnvironmentCamera[uFace]);
         }
 
