@@ -5200,7 +5200,9 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     gptCamera->set_position(ptMainCamera, tCameraPosition);
     gptCamera->set_euler(ptMainCamera, fPitch, fYaw, 0.0f);
     gptCamera->update(ptMainCamera);
+    #ifndef PL_LANGUAGE_PYTHON
     gptScript->attach(ptComponentLibrary, "pl_script_camera", PL_SCRIPT_FLAG_PLAYING | PL_SCRIPT_FLAG_RELOADABLE, ptDataOut->tMainCamera, NULL);
+    #endif
 
     plJsonObject* ptSkyboxObject = pl_json_member(ptSceneObject, "skybox");
     if(ptSkyboxObject)
