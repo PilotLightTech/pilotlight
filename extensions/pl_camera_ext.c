@@ -285,8 +285,9 @@ pl_camera_update(plCamera* ptCamera)
 void
 pl_camera_init(plCamera* ptCamera)
 {
+    memset(ptCamera, 0, sizeof(plCamera));
     ptCamera->tRotation       = (plVec4){0.0f, 0.0f, 0.0f, 1.0f};
-    ptCamera->tPositionF            = (plVec3){0};
+    ptCamera->tPositionF      = (plVec3){0};
     ptCamera->tPosition      = (plVec3d){0};
     ptCamera->eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
     ptCamera->eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;

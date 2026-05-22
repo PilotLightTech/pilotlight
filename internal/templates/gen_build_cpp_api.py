@@ -594,7 +594,6 @@ with pl.project("pilotlight"):
     
         pl.add_source_files("../dependencies/pilotlight/src/pl_main_glfw.cpp")
         pl.set_output_binary("pilot_light")
-        pl.add_definitions("PL_EXPERIMENTAL")
 
         # default config
         with pl.configuration("debug"):

@@ -1,4 +1,4 @@
-v0.9.2
+v0.9.3 WIP
 
 -----------------------------------------------------------------------------
                              Versioning
@@ -83,7 +83,7 @@ the API is complete. It just means we won't break what currently exists.
 * ECS                 v1.1.0 (pl_ecs_ext.h)
 * DDS                 v1.1.0 (pl_dds_ext.h)
 * Resource            v1.5.0 (pl_resource_ext.h)
-* Camera              v1.0.0 (pl_camera_ext.h)
+* Camera              v1.0.1 (pl_camera_ext.h)
 
 ## Nearly Stable APIs
 
