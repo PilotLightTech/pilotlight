@@ -5,6 +5,7 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
+- v0.9.2 (2026-05-21)(camera     v1.0.0)  -last minute refactors
 - v0.9.1 (2026-05-20)                     -rename "dependencies" to "thirdparty"
                       (camera     v1.0.0) -split camera into camera & camera ecs. Stabilized camera!
                       (pl_json.h  v1.0.4) -fix issue with empty objects & arrays
