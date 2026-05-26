@@ -45,7 +45,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plCameraI_version    {1, 0, 1}
+#define plCameraI_version    {1, 0, 2}
 #define plCameraEcsI_version {0, 1, 0}
 
 //-----------------------------------------------------------------------------
@@ -88,12 +88,13 @@ PL_API void pl_unload_camera_ext(plApiRegistryI*, bool reload);
 PL_API void pl_camera_init(plCamera*);
 
 // projection
-PL_API void pl_camera_set_perspective (plCamera*, const plCameraPerspectiveDesc*);
-PL_API void pl_camera_set_orthographic(plCamera*, const plCameraOrthographicDesc*);
-PL_API void pl_camera_set_viewport    (plCamera*, float width, float height);
-PL_API void pl_camera_set_y_fov       (plCamera*, float fov);
-PL_API void pl_camera_set_clip_planes (plCamera*, float nearZ, float narZ);
-PL_API void pl_camera_set_depth_mode  (plCamera*, plCameraDepthMode);
+PL_API void pl_camera_set_perspective       (plCamera*, const plCameraPerspectiveDesc*);
+PL_API void pl_camera_set_orthographic      (plCamera*, const plCameraOrthographicDesc*);
+PL_API void pl_camera_set_viewport          (plCamera*, float width, float height);
+PL_API void pl_camera_set_orthographic_size (plCamera*, float width, float height);
+PL_API void pl_camera_set_y_fov             (plCamera*, float fov);
+PL_API void pl_camera_set_clip_planes       (plCamera*, float nearZ, float narZ);
+PL_API void pl_camera_set_depth_mode        (plCamera*, plCameraDepthMode);
 
 // pose
 PL_API void pl_camera_set_position (plCamera*, plVec3d);
@@ -134,12 +135,13 @@ typedef struct _plCameraI
     void (*init)(plCamera*);
 
     // projection
-    void (*set_perspective) (plCamera*, const plCameraPerspectiveDesc*);
-    void (*set_orthographic)(plCamera*, const plCameraOrthographicDesc*);
-    void (*set_viewport)    (plCamera*, float width, float height);
-    void (*set_y_fov)       (plCamera*, float fov);
-    void (*set_clip_planes) (plCamera*, float nearZ, float farZ);
-    void (*set_depth_mode)  (plCamera*, plCameraDepthMode);
+    void (*set_perspective)       (plCamera*, const plCameraPerspectiveDesc*);
+    void (*set_orthographic)      (plCamera*, const plCameraOrthographicDesc*);
+    void (*set_viewport)          (plCamera*, float width, float height);
+    void (*set_orthographic_size) (plCamera*, float width, float height);
+    void (*set_y_fov)             (plCamera*, float fov);
+    void (*set_clip_planes)       (plCamera*, float nearZ, float farZ);
+    void (*set_depth_mode)        (plCamera*, plCameraDepthMode);
 
     // pose
     void (*set_position) (plCamera*, plVec3d);

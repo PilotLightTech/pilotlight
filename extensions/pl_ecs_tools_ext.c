@@ -953,7 +953,25 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                 { 
                     gptUI->labeled_text("Near Z", "%+0.3f", ptCameraComp->fNearZ);
                     gptUI->labeled_text("Far Z", "%+0.3f", ptCameraComp->fFarZ);
-                    gptUI->labeled_text("Vertical Field of View", "%+0.3f", ptCameraComp->fYFov);
+                    if(gptUI->radio_button("Projection: Perspective", &ptCameraComp->eProjectionType, PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE))
+                    {
+                        ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
+                    }
+                    if(gptUI->radio_button("Projection: Orthographic", &ptCameraComp->eProjectionType, PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC))
+                    {
+                        ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
+                    }
+                    if(gptUI->radio_button("Depth Mode: Standard", &ptCameraComp->eDepthMode, PL_CAMERA_DEPTH_MODE_STANDARD))
+                    {
+                        gptCamera->set_depth_mode(ptCameraComp, PL_CAMERA_DEPTH_MODE_STANDARD);
+                        ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
+                        
+                    }
+                    if(gptUI->radio_button("Depth Mode: Reverse Z", &ptCameraComp->eDepthMode, PL_CAMERA_DEPTH_MODE_REVERSE_Z))
+                    {
+                        gptCamera->set_depth_mode(ptCameraComp, PL_CAMERA_DEPTH_MODE_REVERSE_Z);
+                        ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
+                    }
                     gptUI->labeled_text("Aspect Ratio", "%+0.3f", ptCameraComp->fAspectRatio);
                     gptUI->labeled_text("Pitch", "%+0.3f", ptCameraComp->fPitch);
                     gptUI->labeled_text("Yaw", "%+0.3f", ptCameraComp->fYaw);
@@ -962,9 +980,23 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                     gptUI->labeled_text("Up", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tUpVec.x, ptCameraComp->tUpVec.y, ptCameraComp->tUpVec.z);
                     gptUI->labeled_text("Forward", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tForwardVec.x, ptCameraComp->tForwardVec.y, ptCameraComp->tForwardVec.z);
                     gptUI->labeled_text("Right", "(%+0.3f, %+0.3f, %+0.3f)", ptCameraComp->tRightVec.x, ptCameraComp->tRightVec.y, ptCameraComp->tRightVec.z);
+
+                    if(ptCameraComp->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
+                    {
+                        gptUI->labeled_text("Vertical Field of View", "%+0.3f", ptCameraComp->fYFov);
+                        gptUI->labeled_text("Aspect Ratio", "%+0.3f", ptCameraComp->fAspectRatio);
+                    }
+                    else
+                    {
+                        gptUI->input_float("Width", &ptCameraComp->fWidth, NULL, 0);
+                        gptUI->input_float("Height", &ptCameraComp->fHeight, NULL, 0);
+                    }
+
                     gptUI->input_float3("Position", ptCameraComp->tPositionF.d, NULL, 0);
                     gptUI->input_float("Near Z Plane", &ptCameraComp->fNearZ, NULL, 0);
                     gptUI->input_float("Far Z Plane", &ptCameraComp->fFarZ, NULL, 0);
+                    
+                    
                     gptUI->end_collapsing_header();
                 }
 

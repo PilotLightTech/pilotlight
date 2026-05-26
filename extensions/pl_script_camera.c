@@ -104,8 +104,8 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
         {
             if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate_local(ptCamera,  (plVec3d){0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime});
             if(gptIO->is_key_down(PL_KEY_S)) gptCamera->translate_local(ptCamera,  (plVec3d){0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime});
-            if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate_local(ptCamera, (plVec3d){-fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
-            if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate_local(ptCamera, (plVec3d){fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
+            if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate_local(ptCamera, (plVec3d){fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
+            if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate_local(ptCamera, (plVec3d){-fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
 
             // world space
             if(gptIO->is_key_down(PL_KEY_Q)) { gptCamera->translate(ptCamera,  (plVec3d){0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f}); }
@@ -115,19 +115,20 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
             {
                 ptCamera->fYFov += 0.25f * (PL_PI / 180.0f);
                 ptCamera->fYFov = pl_minf(ptCamera->fYFov, 2.96706f);
+                gptCamera->set_y_fov(ptCamera, ptCamera->fYFov);
             }
             if(gptIO->is_key_down(PL_KEY_C))
             {
                 ptCamera->fYFov -= 0.25f * (PL_PI / 180.0f);
-
                 ptCamera->fYFov = pl_maxf(ptCamera->fYFov, 0.03f);
+                gptCamera->set_y_fov(ptCamera, ptCamera->fYFov);
             }
         }
 
         if(bLMB && gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_RIGHT, 1.0f))
         {
             const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_RIGHT, 1.0f);
-            gptCamera->translate_local(ptCamera,  (plVec3d){tMouseDelta.x * fCameraTravelSpeed * ptIO->fDeltaTime, -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime, 0.0f});
+            gptCamera->translate_local(ptCamera,  (plVec3d){-tMouseDelta.x * fCameraTravelSpeed * ptIO->fDeltaTime, -tMouseDelta.y * fCameraTravelSpeed * ptIO->fDeltaTime, 0.0f});
             gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_RIGHT);
             gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
         }

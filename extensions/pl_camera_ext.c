@@ -178,7 +178,8 @@ pl_camera_update(plCamera* ptCamera)
 
         // Public/convenience vectors.
         // Preserve your old convention: "right" was rot * (-X), not matrix column 0.
-        ptCamera->tRightVec   = pl_mul_vec3_scalarf(tCameraX, -1.0f);
+        // ptCamera->tRightVec   = pl_mul_vec3_scalarf(tCameraX, -1.0f);
+        ptCamera->tRightVec   = tCameraX;
         ptCamera->tUpVec      = tCameraY;
         ptCamera->tForwardVec = tCameraZ;
 
@@ -212,10 +213,10 @@ pl_camera_update(plCamera* ptCamera)
         ptCamera->tViewMat    = pl_mat4t_invert(&ptCamera->tInvViewMat);
         ptCamera->tViewMatNoTranslation = pl_mat4t_invert(&ptCamera->tInvViewMatNoTranslation);
 
-        const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
+        // const plMat4 tFlipXY = pl_mat4_scale_xyz(-1.0f, -1.0f, 1.0f);
 
-        ptCamera->tViewMat    = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
-        ptCamera->tViewMatNoTranslation = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMatNoTranslation);
+        // ptCamera->tViewMat    = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMat);
+        // ptCamera->tViewMatNoTranslation = pl_mul_mat4t(&tFlipXY, &ptCamera->tViewMatNoTranslation);
     }
 
     if(ptCamera->eDirtyFlags & PL_CAMERA_DIRTY_FLAGS_PROJECTION)
@@ -226,8 +227,8 @@ pl_camera_update(plCamera* ptCamera)
             case PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE:
             {
                 const float fInvtanHalfFovy = 1.0f / tanf(ptCamera->fYFov / 2.0f);
-                ptCamera->tProjMat.col[0].x = fInvtanHalfFovy / ptCamera->fAspectRatio;
-                ptCamera->tProjMat.col[1].y = fInvtanHalfFovy;
+                ptCamera->tProjMat.col[0].x = -fInvtanHalfFovy / ptCamera->fAspectRatio;
+                ptCamera->tProjMat.col[1].y = -fInvtanHalfFovy;
 
                 ptCamera->tProjMat.col[2].w = 1.0f;
                 ptCamera->tProjMat.col[3].w = 0.0f;
@@ -247,18 +248,22 @@ pl_camera_update(plCamera* ptCamera)
 
             case PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC:
             {
-                ptCamera->tProjMat.col[0].x = 2.0f / ptCamera->fWidth;
-                ptCamera->tProjMat.col[1].y = 2.0f / ptCamera->fHeight;
+                ptCamera->tProjMat.col[0].x = -2.0f / ptCamera->fWidth;
+                ptCamera->tProjMat.col[1].y = -2.0f / ptCamera->fHeight;
+                ptCamera->tProjMat.col[2].w = 0.0f;
                 ptCamera->tProjMat.col[3].w = 1.0f;
 
                 if(ptCamera->eDepthMode == PL_CAMERA_DEPTH_MODE_STANDARD)
                 {
-                    ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
+                    // z_view: -near -> 0, -far -> 1
+                    ptCamera->tProjMat.col[2].z = -1.0f / (ptCamera->fNearZ - ptCamera->fFarZ);
+                    ptCamera->tProjMat.col[3].z = ptCamera->fNearZ / (ptCamera->fNearZ - ptCamera->fFarZ);
                 }
                 else if(ptCamera->eDepthMode == PL_CAMERA_DEPTH_MODE_REVERSE_Z)
                 {
-                    ptCamera->tProjMat.col[2].z = 1 / (ptCamera->fFarZ - ptCamera->fNearZ);
-                    ptCamera->tProjMat.col[3].z = -ptCamera->fFarZ / (ptCamera->fNearZ - ptCamera->fFarZ);
+                    // z_view: -near -> 1, -far -> 0
+                    ptCamera->tProjMat.col[2].z = -1.0f / (ptCamera->fFarZ - ptCamera->fNearZ);
+                    ptCamera->tProjMat.col[3].z = ptCamera->fFarZ / (ptCamera->fFarZ - ptCamera->fNearZ);
                 }
                 break;
             }
@@ -293,8 +298,10 @@ pl_camera_init(plCamera* ptCamera)
     ptCamera->eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
     ptCamera->fNearZ          = 0.1f;
     ptCamera->fFarZ           = 1000.0f;
-    ptCamera->fYFov    = PL_PI / 4.0f;
+    ptCamera->fYFov           = PL_PI / 4.0f;
     ptCamera->fAspectRatio    = 16.0f / 9.0f;
+    ptCamera->fWidth          = 16.0f;
+    ptCamera->fHeight         = 9.0f;
     ptCamera->eDirtyFlags     = PL_CAMERA_DIRTY_FLAGS_ALL;
 }
 
@@ -393,12 +400,19 @@ pl_camera_ecs_run_ecs(plComponentLibrary* ptLibrary)
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
-PL_API void
+void
 pl_camera_set_viewport(plCamera* ptCamera, float fWidth, float fHeight)
+{
+    ptCamera->fAspectRatio = fWidth / fHeight;
+    ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_PROJECTION;
+    ptCamera->fWidth = ptCamera->fAspectRatio * ptCamera->fHeight;
+}
+
+void
+pl_camera_set_orthographic_size(plCamera* ptCamera, float fWidth, float fHeight)
 {
     ptCamera->fWidth = fWidth;
     ptCamera->fHeight = fHeight;
-    ptCamera->fAspectRatio = fWidth / fHeight;
     ptCamera->eDirtyFlags |= PL_CAMERA_DIRTY_FLAGS_PROJECTION;
 }
 
@@ -612,23 +626,24 @@ void
 pl_load_camera_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plCameraI tApi0 = {
-        .init                = pl_camera_init,
-        .set_perspective     = pl_camera_set_perspective,
-        .set_orthographic    = pl_camera_set_orthographic,
-        .set_y_fov           = pl_camera_set_y_fov,
-        .set_clip_planes     = pl_camera_set_clip_planes,
-        .set_depth_mode      = pl_camera_set_depth_mode,
-        .set_viewport        = pl_camera_set_viewport,
-        .set_position        = pl_camera_set_position,
-        .set_rotation        = pl_camera_set_rotation,
-        .set_transform       = pl_camera_set_transform,
-        .set_euler  = pl_camera_set_euler,
-        .translate           = pl_camera_translate,
-        .translate_local     = pl_camera_translate_local,
-        .rotate_euler        = pl_camera_rotate_euler,
-        .rotate_euler_local        = pl_camera_rotate_euler_local,
-        .update              = pl_camera_update,
-        .look_at             = pl_camera_look_at,
+        .init                   = pl_camera_init,
+        .set_perspective        = pl_camera_set_perspective,
+        .set_orthographic       = pl_camera_set_orthographic,
+        .set_y_fov              = pl_camera_set_y_fov,
+        .set_clip_planes        = pl_camera_set_clip_planes,
+        .set_depth_mode         = pl_camera_set_depth_mode,
+        .set_viewport           = pl_camera_set_viewport,
+        .set_orthographic_size  = pl_camera_set_orthographic_size,
+        .set_position           = pl_camera_set_position,
+        .set_rotation           = pl_camera_set_rotation,
+        .set_transform          = pl_camera_set_transform,
+        .set_euler              = pl_camera_set_euler,
+        .translate              = pl_camera_translate,
+        .translate_local        = pl_camera_translate_local,
+        .rotate_euler           = pl_camera_rotate_euler,
+        .rotate_euler_local     = pl_camera_rotate_euler_local,
+        .update                 = pl_camera_update,
+        .look_at                = pl_camera_look_at,
     };
     pl_set_api(ptApiRegistry, plCameraI, &tApi0);
 

@@ -208,8 +208,8 @@ pl_app_update(plAppData* ptAppData)
     // camera space
     if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate_local(ptCamera, (plVec3d){ 0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime});
     if(gptIO->is_key_down(PL_KEY_S)) gptCamera->translate_local(ptCamera, (plVec3d){ 0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime});
-    if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate_local(ptCamera, (plVec3d){-fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
-    if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate_local(ptCamera, (plVec3d){ fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
+    if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate_local(ptCamera, (plVec3d){ fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
+    if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate_local(ptCamera, (plVec3d){-fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
 
     // world space
     if(gptIO->is_key_down(PL_KEY_F)) { gptCamera->translate(ptCamera, (plVec3d){ 0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f }); }
