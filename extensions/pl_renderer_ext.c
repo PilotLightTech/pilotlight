@@ -2528,8 +2528,6 @@ pl_renderer_ecs_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, 
             };
             gptGfx->update_bind_group(ptDevice, ptScene->tSkyboxBindGroup, &tBGData1);
         }
-
-        pl__renderer_add_skybox_drawable(ptScene);
     }
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -3465,6 +3463,8 @@ pl_renderer_prepare_scene(plScene* ptScene)
                     .fCameraNearZ          = atEnvironmentCamera[uFace].fNearZ,
                     .tCameraProjection     = atEnvironmentCamera[uFace].tProjMat,
                     .tCameraView           = atEnvironmentCamera[uFace].tViewMat,
+                    .fAspectRatio          = atEnvironmentCamera[uFace].fAspectRatio,
+                    .tInvViewMatNoTranslation = atEnvironmentCamera[uFace].tInvViewMatNoTranslation,
                     .tCameraProjectionInv  = pl_mat4_invert(&atEnvironmentCamera[uFace].tProjMat),
                     .tCameraViewInv        = pl_mat4_invert(&atEnvironmentCamera[uFace].tViewMat),
                     .tCameraViewProjection = pl_mul_mat4(&atEnvironmentCamera[uFace].tProjMat, &atEnvironmentCamera[uFace].tViewMat)
@@ -3668,6 +3668,11 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         .ptCullCamera = ptCullCamera,
         .atDrawables  = ptScene->sbtDrawables
     };
+    // pl__camera_build_perspective_frustum(ptCullCamera, &tCullData.tFrustum);
+    if(ptCullCamera && ptCullCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
+        pl__camera_build_perspective_frustum(ptCullCamera, &tCullData.tFrustum);
+    else if(ptCullCamera)
+        pl_camera_build_orthographic_frustum(ptCullCamera, &tCullData.tFrustum);
 
     if(ptCullCamera)
     {
@@ -3697,8 +3702,11 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
         .fCameraRange          = ptCamera->fFarZ - ptCamera->fNearZ,
         .fCameraNearZ          = ptCamera->fNearZ,
         .tCameraProjection     = ptCamera->tProjMat,
+        .fAspectRatio          = ptCamera->fAspectRatio,
+        .iCameraProjectType    = ptCamera->eProjectionType,
+        .tInvViewMatNoTranslation = ptCamera->tInvViewMatNoTranslation,
         .tCameraProjectionInv  = pl_mat4_invert(&ptCamera->tProjMat),
-        .tCameraViewInv        = pl_mat4_invert(&ptCamera->tViewMat),
+        .tCameraViewInv        = ptCamera->tInvViewMat,
         .tCameraView           = ptCamera->tViewMat,
         .tCameraViewProjection = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat)
     };
@@ -5188,15 +5196,36 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     float fFarZ = pl_json_float_member(ptCameraObject, "fFarZ", 1000.0f);
     float fYaw = pl_json_float_member(ptCameraObject, "fYaw", 0.0f);
     float fPitch = pl_json_float_member(ptCameraObject, "fPitch", 0.0f);
+    float fWidth = pl_json_float_member(ptCameraObject, "fWidth", ptIO->tMainViewportSize.x / 100.0f);
+    float fHeight = pl_json_float_member(ptCameraObject, "fHeight", ptIO->tMainViewportSize.y / 100.0f);
+
     plCamera* ptMainCamera = NULL;
-    plCameraPerspectiveDesc tCameraDesc = {
-        .fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y,
-        .fYFov = fYFov,
-        .fNearZ = fNearZ,
-        .fFarZ = fFarZ,
-        .eDepthMode = PL_CAMERA_DEPTH_MODE_REVERSE_Z
-    };
-    ptDataOut->tMainCamera = gptCameraEcs->create_perspective(ptComponentLibrary, "main camera", &tCameraDesc, &ptMainCamera);
+    char acProjectionType[64] = {0};
+    strncpy(acProjectionType, "PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE", 64);
+    pl_json_string_member(ptCameraObject, "eProjectionType", acProjectionType, 64);
+    if(acProjectionType[26] == 'P')
+    {
+        plCameraPerspectiveDesc tCameraDesc = {
+            .fAspectRatio = ptIO->tMainViewportSize.x / ptIO->tMainViewportSize.y,
+            .fYFov = fYFov,
+            .fNearZ = fNearZ,
+            .fFarZ = fFarZ,
+            .eDepthMode = PL_CAMERA_DEPTH_MODE_REVERSE_Z
+        };
+        ptDataOut->tMainCamera = gptCameraEcs->create_perspective(ptComponentLibrary, "main camera", &tCameraDesc, &ptMainCamera);
+    }
+    else
+    {
+        plCameraOrthographicDesc tCameraDesc = {
+            .fHeight = fHeight,
+            .fWidth = fWidth,
+            .fNearZ = fNearZ,
+            .fFarZ = fFarZ,
+            .eDepthMode = PL_CAMERA_DEPTH_MODE_REVERSE_Z
+        };
+        ptDataOut->tMainCamera = gptCameraEcs->create_orthographic(ptComponentLibrary, "main camera", &tCameraDesc, &ptMainCamera);
+    }
+
     gptCamera->set_position(ptMainCamera, tCameraPosition);
     gptCamera->set_euler(ptMainCamera, fPitch, fYaw, 0.0f);
     gptCamera->update(ptMainCamera);
@@ -5545,6 +5574,7 @@ pl_load_renderer_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         gptImageOps         = pl_get_api_latest(ptApiRegistry, plImageOpsI);
         gptScript           = pl_get_api_latest(ptApiRegistry, plScriptI);
         gptModelLoader      = pl_get_api_latest(ptApiRegistry, plModelLoaderI);
+        gptGjk              = pl_get_api_latest(ptApiRegistry, plGjkI);
     #endif
 
     if(bReload)

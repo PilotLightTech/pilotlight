@@ -7,7 +7,6 @@ Index of this file:
 // [SECTION] includes
 // [SECTION] job system tasks
 // [SECTION] resource creation helpers
-// [SECTION] culling
 // [SECTION] scene render helpers
 */
 
@@ -27,6 +26,106 @@ pl__to_double_vec(plVec3 tVec)
     return (plVec3d){(double)tVec.x, (double)tVec.y, (double)tVec.z};
 }
 
+static plPlane
+pl_make_plane_from_point_normal(plVec3 tPoint, plVec3 tNormal)
+{
+    tNormal = pl_norm_vec3(tNormal);
+
+    plPlane tPlane = {0};
+    tPlane.tDirection = tNormal;
+    tPlane.fOffset = pl_dot_vec3(tNormal, tPoint);
+    return tPlane;
+}
+
+static void
+pl_camera_build_orthographic_frustum(const plCamera* ptCamera, plFrustum* ptFrustum)
+{
+    plVec3 C = ptCamera->tPositionF;
+    plVec3 F = pl_norm_vec3(ptCamera->tForwardVec);
+    plVec3 R = pl_norm_vec3(ptCamera->tRightVec);
+    plVec3 U = pl_norm_vec3(ptCamera->tUpVec);
+
+    float fHalfWidth  = ptCamera->fWidth  * 0.5f;
+    float fHalfHeight = ptCamera->fHeight * 0.5f;
+
+    plVec3 LeftPoint   = pl_sub_vec3(C, pl_mul_vec3_scalarf(R, fHalfWidth));
+    plVec3 RightPoint  = pl_add_vec3(C, pl_mul_vec3_scalarf(R, fHalfWidth));
+    plVec3 TopPoint    = pl_add_vec3(C, pl_mul_vec3_scalarf(U, fHalfHeight));
+    plVec3 BottomPoint = pl_sub_vec3(C, pl_mul_vec3_scalarf(U, fHalfHeight));
+
+    plVec3 NearPoint = pl_add_vec3(C, pl_mul_vec3_scalarf(F, ptCamera->fNearZ));
+    plVec3 FarPoint  = pl_add_vec3(C, pl_mul_vec3_scalarf(F, ptCamera->fFarZ));
+
+    // Inward-facing normals using your working perspective convention.
+    plVec3 NLeft   = R;
+    plVec3 NRight  = pl_mul_vec3_scalarf(R, -1.0f);
+
+    // These are the important ones relative to my previous version:
+    // top should point inward/down, bottom should point inward/up.
+    //
+    // If your perspective top/bottom needed flipping, this is the orthographic
+    // equivalent that should match it.
+    plVec3 NTop    = U;
+    plVec3 NBottom = pl_mul_vec3_scalarf(U, -1.0f);
+
+    plVec3 NNear = F;
+    plVec3 NFar  = pl_mul_vec3_scalarf(F, -1.0f);
+
+    ptFrustum->atPlanes[0] = pl_make_plane_from_point_normal(LeftPoint,   NLeft);
+    ptFrustum->atPlanes[1] = pl_make_plane_from_point_normal(RightPoint,  NRight);
+    ptFrustum->atPlanes[2] = pl_make_plane_from_point_normal(TopPoint,    NTop);
+    ptFrustum->atPlanes[3] = pl_make_plane_from_point_normal(BottomPoint, NBottom);
+    ptFrustum->atPlanes[4] = pl_make_plane_from_point_normal(NearPoint,   NNear);
+    ptFrustum->atPlanes[5] = pl_make_plane_from_point_normal(FarPoint,    NFar);
+}
+
+static void
+pl__camera_build_perspective_frustum(const plCamera* ptCamera, plFrustum* ptFrustum)
+{
+    plVec3 C = ptCamera->tPositionF;
+    plVec3 F = pl_norm_vec3(ptCamera->tForwardVec);
+    plVec3 R = pl_norm_vec3(ptCamera->tRightVec);
+    plVec3 U = pl_norm_vec3(ptCamera->tUpVec);
+
+    float fTanY = tanf(ptCamera->fYFov * 0.5f);
+    float fTanX = fTanY * ptCamera->fAspectRatio;
+
+    // Direction to frustum edge centers.
+    plVec3 LDir = pl_norm_vec3(pl_sub_vec3(F, pl_mul_vec3_scalarf(R, fTanX)));
+    plVec3 RDir = pl_norm_vec3(pl_add_vec3(F, pl_mul_vec3_scalarf(R, fTanX)));
+    plVec3 TDir = pl_norm_vec3(pl_add_vec3(F, pl_mul_vec3_scalarf(U, fTanY)));
+    plVec3 BDir = pl_norm_vec3(pl_sub_vec3(F, pl_mul_vec3_scalarf(U, fTanY)));
+
+    // Side plane normals, pointing inward.
+    //
+    // These assume:
+    //   R = camera right
+    //   U = camera up
+    //   F = camera forward
+    //
+    // and inside test is dot(n, p) + d >= 0.
+    plVec3 NLeft   = pl_norm_vec3(pl_cross_vec3(LDir, U));
+    plVec3 NRight  = pl_norm_vec3(pl_cross_vec3(U, RDir));
+    plVec3 NTop    = pl_norm_vec3(pl_cross_vec3(R, TDir));
+    plVec3 NBottom = pl_norm_vec3(pl_cross_vec3(BDir, R));
+
+    plVec3 NearPoint = pl_add_vec3(C, pl_mul_vec3_scalarf(F, ptCamera->fNearZ));
+    plVec3 FarPoint  = pl_add_vec3(C, pl_mul_vec3_scalarf(F, ptCamera->fFarZ));
+
+    plVec3 NNear = F;
+    plVec3 NFar  = pl_mul_vec3_scalarf(F, -1.0f);
+
+    NTop = pl_mul_vec3_scalarf(NTop, -1.0f);
+    NBottom = pl_mul_vec3_scalarf(NBottom, -1.0f);
+    ptFrustum->atPlanes[0] = pl_make_plane_from_point_normal(C,         NLeft);
+    ptFrustum->atPlanes[1] = pl_make_plane_from_point_normal(C,         NRight);
+    ptFrustum->atPlanes[2] = pl_make_plane_from_point_normal(C,         NTop);
+    ptFrustum->atPlanes[3] = pl_make_plane_from_point_normal(C,         NBottom);
+    ptFrustum->atPlanes[4] = pl_make_plane_from_point_normal(NearPoint, NNear);
+    ptFrustum->atPlanes[5] = pl_make_plane_from_point_normal(FarPoint,  NFar);
+}
+
+
 static void
 pl__renderer_cull_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
 {
@@ -40,7 +139,7 @@ pl__renderer_cull_job(plInvocationData tInvoData, void* pData, void* pGroupShare
     {
         if(ptCullData->atDrawables[tInvoData.uGlobalIndex].uInstanceCount == 1) // ignore instanced
         {
-            if(pl__renderer_sat_visibility_test(ptCullData->ptCullCamera, &ptObject->tAABB))
+            if(gptGjk->pen(pl_gjk_support_aabb, &ptObject->tAABB, pl_gjk_support_frustum, &ptCullData->tFrustum, NULL))
             {
                 ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
             }
@@ -303,257 +402,6 @@ pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName,
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created local buffer %s %u", pcName, uIdentifier);
     PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created local buffer %s %u", pcName, uIdentifier);
     return tHandle;
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] culling
-//-----------------------------------------------------------------------------
-
-static bool
-pl__renderer_sat_visibility_test(const plCamera* ptCamera, const plAABB* ptAABB)
-{
-    const float fTanFov = tanf(0.5f * ptCamera->fYFov);
-
-    const float fZNear = ptCamera->fNearZ;
-    const float fZFar = ptCamera->fFarZ;
-
-    // half width, half height
-    const float fXNear = ptCamera->fAspectRatio * ptCamera->fNearZ * fTanFov;
-    const float fYNear = ptCamera->fNearZ * fTanFov;
-
-    // consider four adjacent corners of the AABB
-    plVec3 atCorners[] = {
-        {ptAABB->tMin.x, ptAABB->tMin.y, ptAABB->tMin.z},
-        {ptAABB->tMax.x, ptAABB->tMin.y, ptAABB->tMin.z},
-        {ptAABB->tMin.x, ptAABB->tMax.y, ptAABB->tMin.z},
-        {ptAABB->tMin.x, ptAABB->tMin.y, ptAABB->tMax.z},
-    };
-
-    // transform corners
-    for (size_t i = 0; i < 4; i++)
-        atCorners[i] = pl_mul_mat4_vec3(&ptCamera->tViewMat, atCorners[i]);
-
-    // Use transformed atCorners to calculate center, axes and extents
-
-    plOBB tObb = {
-        .atAxes = {
-            pl_sub_vec3(atCorners[1], atCorners[0]),
-            pl_sub_vec3(atCorners[2], atCorners[0]),
-            pl_sub_vec3(atCorners[3], atCorners[0])
-        },
-    };
-
-    tObb.tCenter = pl_add_vec3(atCorners[0], pl_mul_vec3_scalarf((pl_add_vec3(tObb.atAxes[0], pl_add_vec3(tObb.atAxes[1], tObb.atAxes[2]))), 0.5f));
-    tObb.tExtents = (plVec3){ pl_length_vec3(tObb.atAxes[0]), pl_length_vec3(tObb.atAxes[1]), pl_length_vec3(tObb.atAxes[2]) };
-
-    // normalize
-    tObb.atAxes[0] = pl_div_vec3_scalarf(tObb.atAxes[0], tObb.tExtents.x);
-    tObb.atAxes[1] = pl_div_vec3_scalarf(tObb.atAxes[1], tObb.tExtents.y);
-    tObb.atAxes[2] = pl_div_vec3_scalarf(tObb.atAxes[2], tObb.tExtents.z);
-    tObb.tExtents = pl_mul_vec3_scalarf(tObb.tExtents, 0.5f);
-
-    // axis along frustum
-    {
-        // Projected center of our OBB
-        const float fMoC = tObb.tCenter.z;
-
-        // Projected size of OBB
-        float fRadius = 0.0f;
-        for (size_t i = 0; i < 3; i++)
-            fRadius += fabsf(tObb.atAxes[i].z) * tObb.tExtents.d[i];
-
-        const float fObbMin = fMoC - fRadius;
-        const float fObbMax = fMoC + fRadius;
-
-        if (fObbMin > fZFar || fObbMax < fZNear)
-            return false;
-    }
-
-
-    // other normals of frustum
-    {
-        const plVec3 atM[] = {
-            { fZNear, 0.0f, fXNear }, // Left Plane
-            { -fZNear, 0.0f, fXNear }, // Right plane
-            { 0.0, -fZNear, fYNear }, // Top plane
-            { 0.0, fZNear, fYNear }, // Bottom plane
-        };
-        for (size_t m = 0; m < 4; m++)
-        {
-            const float fMoX = fabsf(atM[m].x);
-            const float fMoY = fabsf(atM[m].y);
-            const float fMoZ = atM[m].z;
-            const float fMoC = pl_dot_vec3(atM[m], tObb.tCenter);
-
-            float fObbRadius = 0.0f;
-            for (size_t i = 0; i < 3; i++)
-                fObbRadius += fabsf(pl_dot_vec3(atM[m], tObb.atAxes[i])) * tObb.tExtents.d[i];
-
-            const float fObbMin = fMoC - fObbRadius;
-            const float fObbMax = fMoC + fObbRadius;
-
-            const float fP = fXNear * fMoX + fYNear * fMoY;
-
-            float fTau0 = fZNear * fMoZ - fP;
-            float fTau1 = fZNear * fMoZ + fP;
-
-            if (fTau0 < 0.0f)
-                fTau0 *= fZFar / fZNear;
-
-            if (fTau1 > 0.0f)
-                fTau1 *= fZFar / fZNear;
-
-            if (fObbMin > fTau1 || fObbMax < fTau0)
-                return false;
-        }
-    }
-
-    // OBB axes
-    {
-        for (size_t m = 0; m < 3; m++)
-        {
-            const plVec3* ptM = &tObb.atAxes[m];
-            const float fMoX = fabsf(ptM->x);
-            const float fMoY = fabsf(ptM->y);
-            const float fMoZ = ptM->z;
-            const float fMoC = pl_dot_vec3(*ptM, tObb.tCenter);
-
-            const float fObbRadius = tObb.tExtents.d[m];
-
-            const float fObbMin = fMoC - fObbRadius;
-            const float fObbMax = fMoC + fObbRadius;
-
-            // frustum projection
-            const float fP = fXNear * fMoX + fYNear * fMoY;
-            float fTau0 = fZNear * fMoZ - fP;
-            float fTau1 = fZNear * fMoZ + fP;
-
-            if (fTau0 < 0.0f)
-                fTau0 *= fZFar / fZNear;
-
-            if (fTau1 > 0.0f)
-                fTau1 *= fZFar / fZNear;
-
-            if (fObbMin > fTau1 || fObbMax < fTau0)
-                return false;
-        }
-    }
-
-    // cross products between the edges
-    // first R x A_i
-    {
-        for (size_t m = 0; m < 3; m++)
-        {
-            const plVec3 tM = { 0.0f, -tObb.atAxes[m].z, tObb.atAxes[m].y };
-            const float fMoX = 0.0f;
-            const float fMoY = fabsf(tM.y);
-            const float fMoZ = tM.z;
-            const float fMoC = tM.y * tObb.tCenter.y + tM.z * tObb.tCenter.z;
-
-            float fObbRadius = 0.0f;
-            for (size_t i = 0; i < 3; i++)
-                fObbRadius += fabsf(pl_dot_vec3(tM, tObb.atAxes[i])) * tObb.tExtents.d[i];
-
-            const float fObbMin = fMoC - fObbRadius;
-            const float fObbMax = fMoC + fObbRadius;
-
-            // frustum projection
-            const float fP = fXNear * fMoX + fYNear * fMoY;
-            float fTau0 = fZNear * fMoZ - fP;
-            float fTau1 = fZNear * fMoZ + fP;
-
-            if (fTau0 < 0.0f)
-                fTau0 *= fZFar / fZNear;
-
-            if (fTau1 > 0.0f)
-                fTau1 *= fZFar / fZNear;
-
-            if (fObbMin > fTau1 || fObbMax < fTau0)
-                return false;
-        }
-    }
-
-    // U x A_i
-    {
-        for (size_t m = 0; m < 3; m++)
-        {
-            const plVec3 tM = { tObb.atAxes[m].z, 0.0f, -tObb.atAxes[m].x };
-            const float fMoX = fabsf(tM.x);
-            const float fMoY = 0.0f;
-            const float fMoZ = tM.z;
-            const float fMoC = tM.x * tObb.tCenter.x + tM.z * tObb.tCenter.z;
-
-            float fObbRadius = 0.0f;
-            for (size_t i = 0; i < 3; i++)
-                fObbRadius += fabsf(pl_dot_vec3(tM, tObb.atAxes[i])) * tObb.tExtents.d[i];
-
-            const float fObbMin = fMoC - fObbRadius;
-            const float fObbMax = fMoC + fObbRadius;
-
-            // frustum projection
-            const float fP = fXNear * fMoX + fYNear * fMoY;
-            float fTau0 = fZNear * fMoZ - fP;
-            float fTau1 = fZNear * fMoZ + fP;
-
-            if (fTau0 < 0.0f)
-                fTau0 *= fZFar / fZNear;
-
-            if (fTau1 > 0.0f)
-                fTau1 *= fZFar / fZNear;
-
-            if (fObbMin > fTau1 || fObbMax < fTau0)
-                return false;
-        }
-    }
-
-    // frustum Edges X Ai
-    {
-        for (size_t obb_edge_idx = 0; obb_edge_idx < 3; obb_edge_idx++)
-        {
-            const plVec3 atM[] = {
-                pl_cross_vec3((plVec3){-fXNear, 0.0f, fZNear}, tObb.atAxes[obb_edge_idx]), // Left Plane
-                pl_cross_vec3((plVec3){ fXNear, 0.0f, fZNear }, tObb.atAxes[obb_edge_idx]), // Right plane
-                pl_cross_vec3((plVec3){ 0.0f, fYNear, fZNear }, tObb.atAxes[obb_edge_idx]), // Top plane
-                pl_cross_vec3((plVec3){ 0.0, -fYNear, fZNear }, tObb.atAxes[obb_edge_idx]) // Bottom plane
-            };
-
-            for (size_t m = 0; m < 4; m++)
-            {
-                const float fMoX = fabsf(atM[m].x);
-                const float fMoY = fabsf(atM[m].y);
-                const float fMoZ = atM[m].z;
-
-                const float fEpsilon = 1e-4f;
-                if (fMoX < fEpsilon && fMoY < fEpsilon && fabsf(fMoZ) < fEpsilon) continue;
-
-                const float fMoC = pl_dot_vec3(atM[m], tObb.tCenter);
-
-                float fObbRadius = 0.0f;
-                for (size_t i = 0; i < 3; i++)
-                    fObbRadius += fabsf(pl_dot_vec3(atM[m], tObb.atAxes[i])) * tObb.tExtents.d[i];
-
-                const float fObbMin = fMoC - fObbRadius;
-                const float fObbMax = fMoC + fObbRadius;
-
-                // frustum projection
-                const float fP = fXNear * fMoX + fYNear * fMoY;
-                float fTau0 = fZNear * fMoZ - fP;
-                float fTau1 = fZNear * fMoZ + fP;
-
-                if (fTau0 < 0.0f)
-                    fTau0 *= fZFar / fZNear;
-
-                if (fTau1 > 0.0f)
-                    fTau1 *= fZFar / fZNear;
-
-                if (fObbMin > fTau1 || fObbMax < fTau0)
-                    return false;
-            }
-        }
-    }
-
-    // no intersections detected
-    return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -1478,14 +1326,14 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
             // scene camera space
             plVec3 atCameraCorners2[] = {
-                { -fLastSplitDist * s / g,  fLastSplitDist / g, fLastSplitDist },
-                { -fLastSplitDist * s / g, -fLastSplitDist / g, fLastSplitDist },
                 {  fLastSplitDist * s / g, -fLastSplitDist / g, fLastSplitDist },
                 {  fLastSplitDist * s / g,  fLastSplitDist / g, fLastSplitDist },
-                { -fSplitDist * s / g,  fSplitDist / g, fSplitDist },
-                { -fSplitDist * s / g, -fSplitDist / g, fSplitDist },
+                { -fLastSplitDist * s / g,  fLastSplitDist / g, fLastSplitDist },
+                { -fLastSplitDist * s / g, -fLastSplitDist / g, fLastSplitDist },
                 {  fSplitDist * s / g, -fSplitDist / g, fSplitDist },
                 {  fSplitDist * s / g,  fSplitDist / g, fSplitDist },
+                { -fSplitDist * s / g,  fSplitDist / g, fSplitDist },
+                { -fSplitDist * s / g, -fSplitDist / g, fSplitDist },
             };
 
             // convert to world space
@@ -1542,8 +1390,8 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
             // optional z padding for off-frustum casters
             const float fDepthPadding = 100.0f; // TODO: make option
-            const float fNearZ = fZMax + fDepthPadding;
-            const float fFarZ  = fZMin - fDepthPadding;
+            const float fNearZ = fZMin - fDepthPadding;
+            const float fFarZ  = fZMax + fDepthPadding;
 
             // reconstruct snapped world-space center from stable light space
             plVec3 tSnappedCenterLS = {
@@ -3294,80 +3142,6 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
-static void
-pl__renderer_add_skybox_drawable(plScene* ptScene)
-{
-    plFreeListNode* ptIndexBufferNode = gptFreeList->get_node(&ptScene->tIndexBufferFreeList, 36 * sizeof(uint32_t));
-    plFreeListNode* ptVertexBufferNode = gptFreeList->get_node(&ptScene->tVertexBufferFreeList, 8 * sizeof(plVec3));
-
-    const uint32_t uStartIndex = (uint32_t)(ptVertexBufferNode->uOffset / sizeof(plVec3));
-
-    uint32_t auIndexBuffer[] = {
-        uStartIndex + 0,
-        uStartIndex + 2,
-        uStartIndex + 1,
-        uStartIndex + 2,
-        uStartIndex + 3,
-        uStartIndex + 1,
-        uStartIndex + 1,
-        uStartIndex + 3,
-        uStartIndex + 5,
-        uStartIndex + 3,
-        uStartIndex + 7,
-        uStartIndex + 5,
-        uStartIndex + 2,
-        uStartIndex + 6,
-        uStartIndex + 3,
-        uStartIndex + 3,
-        uStartIndex + 6,
-        uStartIndex + 7,
-        uStartIndex + 4,
-        uStartIndex + 5,
-        uStartIndex + 7,
-        uStartIndex + 4,
-        uStartIndex + 7,
-        uStartIndex + 6,
-        uStartIndex + 0,
-        uStartIndex + 4,
-        uStartIndex + 2,
-        uStartIndex + 2,
-        uStartIndex + 4,
-        uStartIndex + 6,
-        uStartIndex + 0,
-        uStartIndex + 1,
-        uStartIndex + 4,
-        uStartIndex + 1,
-        uStartIndex + 5,
-        uStartIndex + 4,
-    };
-
-    const float fCubeSide = 1.0f;
-    plVec3 atVertexBuffer[] = {
-        {-fCubeSide, -fCubeSide, -fCubeSide},
-        { fCubeSide, -fCubeSide, -fCubeSide},
-        {-fCubeSide,  fCubeSide, -fCubeSide},
-        { fCubeSide,  fCubeSide, -fCubeSide},
-        {-fCubeSide, -fCubeSide,  fCubeSide},
-        { fCubeSide, -fCubeSide,  fCubeSide},
-        {-fCubeSide,  fCubeSide,  fCubeSide},
-        { fCubeSide,  fCubeSide,  fCubeSide}
-    };
-
-    const plDrawable tDrawable = {
-        .uIndexCount     = 36,
-        .uVertexCount    = 8,
-        .uIndexOffset    = (uint32_t)(ptIndexBufferNode->uOffset / sizeof(uint32_t)),
-        .uVertexOffset   = uStartIndex,
-        .uDataOffset     = pl_sb_size(ptScene->sbtVertexDataBuffer),
-        .uTransformIndex = ptScene->uNextTransformIndex++
-    };
-    ptScene->tSkyboxDrawable = tDrawable;
-
-    gptStage->stage_buffer_upload(ptScene->tIndexBuffer, ptIndexBufferNode->uOffset, auIndexBuffer, 36 * sizeof(uint32_t));
-    gptStage->stage_buffer_upload(ptScene->tVertexBuffer, ptVertexBufferNode->uOffset, atVertexBuffer, sizeof(plVec3) * 8);
-    gptStage->flush();
-}
-
 typedef struct _plGbufferFillPassInfo
 {
     uint32_t*         sbuVisibleDeferredEntities;
@@ -3680,12 +3454,8 @@ pl__render_view_skybox_pass(plScene* ptScene, plRenderEncoder* ptSceneEncoder, p
         .auDynamicBuffers = {
             tSkyboxDynamicData.uBufferHandle
         },
-        .atVertexBuffers = {
-            ptScene->tVertexBuffer,
-        },
-        .tIndexBuffer   = ptScene->tIndexBuffer,
-        .uIndexOffset   = ptScene->tSkyboxDrawable.uIndexOffset,
-        .uTriangleCount = ptScene->tSkyboxDrawable.uIndexCount / 3,
+        .uIndexOffset   = 0,
+        .uTriangleCount = 1,
         .atBindGroups = {
             ptScene->atSceneBindGroups[uFrameIdx],
             tViewBG,
@@ -4850,6 +4620,7 @@ pl__renderer_update_probes(plScene* ptScene)
                 .ptCullCamera = &atEnvironmentCamera[uFace],
                 .atDrawables  = ptScene->sbtDrawables
             };
+            pl__camera_build_perspective_frustum(&atEnvironmentCamera[uFace], &tCullData.tFrustum);
             
             plJobDesc tJobDesc = {
                 .task  = pl__renderer_cull_job,

@@ -66,6 +66,7 @@ Index of this file:
 #include "pl_image_ops_ext.h"
 #include "pl_script_ext.h"
 #include "pl_model_loader_ext.h"
+#include "pl_gjk_ext.h"
 
 // shader interop
 #include "pl_shader_interop_renderer.h"
@@ -131,6 +132,7 @@ Index of this file:
     static const plImageOpsI*         gptImageOps         = NULL;
     static const plScriptI*           gptScript           = NULL;
     static const plModelLoaderI*      gptModelLoader      = NULL;
+    static const plGjkI*              gptGjk              = NULL;
     
 #endif
 
@@ -483,7 +485,6 @@ typedef struct _plScene
 
     // drawables
     plDrawable tUnitSphereDrawable;
-    plDrawable tSkyboxDrawable;
     uint32_t*  sbuShadowDeferredDrawables; // shadow rendering (index into regular drawables)
     uint32_t*  sbuShadowForwardDrawables;  // shadow rendering (index into regular drawables)
     uint32_t*  sbuProbeDrawables;
@@ -599,6 +600,7 @@ typedef struct _plCullData
     plScene* ptScene;
     const plCamera* ptCullCamera;
     plDrawable* atDrawables;
+    plFrustum tFrustum;
 } plCullData;
 
 typedef struct _plMemCpyJobData
@@ -630,8 +632,8 @@ static plBufferHandle  pl__renderer_create_staging_buffer       (const plBufferD
 static plBufferHandle  pl__renderer_create_cached_staging_buffer(const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
 static plBufferHandle  pl__renderer_create_local_buffer         (const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
 
-// culling
-static bool pl__renderer_sat_visibility_test(const plCamera*, const plAABB*);
+static void pl__camera_build_perspective_frustum(const plCamera* ptCamera, plFrustum* ptFrustum);
+static void pl_camera_build_orthographic_frustum(const plCamera* ptCamera, plFrustum* ptFrustum);
 
 typedef struct _plCSMInfo
 {
@@ -658,9 +660,6 @@ static uint32_t                pl__renderer_get_bindless_texture_index(plScene*,
 static uint32_t                pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);
 static void                    pl__renderer_return_bindless_texture_index(plScene*, plTextureHandle);
 static void                    pl__renderer_return_bindless_cube_texture_index(plScene*, plTextureHandle);
-
-// drawable ops
-static void pl__renderer_add_skybox_drawable(plScene*);
 
 // environment probes
 static void pl__renderer_create_probe_data(plScene*, plEntity tProbeHandle);

@@ -33,6 +33,7 @@
     },
     "view": {
         "camera": {
+            "eProjectionType": "PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE",
             "tPosition": [-2.539, 4.003, 2.640],
             "fYFov": 1.04719755,
             "fNearZ": 0.1,

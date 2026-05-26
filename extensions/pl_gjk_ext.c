@@ -315,7 +315,8 @@ pl__epa(plGjkSupportFunc tFn1, const void* pShape1,
         }
 
         // add new vertex
-        if (iVertCount >= 64) break;
+        if (iVertCount >= 64)
+            break;
         int iNewVert = iVertCount++;
         atVerts[iNewVert] = tSupport;
 
@@ -409,19 +410,19 @@ pl_gjk_pen(plGjkSupportFunc tFn1, const void* pShape1, plGjkSupportFunc tFn2, co
     tDir = pl_mul_vec3_scalarf(atSimplex[0].tMinkowski, -1.0f);
 
     const int iMaxIterations = 64;
-    for (int ii = 0; ii < iMaxIterations; ii++) {
+    for (int ii = 0; ii < iMaxIterations; ii++)
+    {
         plGjkVertex tNewVert = pl__support_minkowski_diff(tFn1, pShape1, tFn2, pShape2, tDir);
 
-        if (pl_dot_vec3(tNewVert.tMinkowski, tDir) < 0.0f) {
+        if (pl_dot_vec3(tNewVert.tMinkowski, tDir) < 0.0f)
             return false;
-        }
 
         atSimplex[iSimplexCount++] = tNewVert;
 
-        if (pl__update_simplex(atSimplex, &iSimplexCount, &tDir)) {
-            if (ptInfoOut) {
+        if (pl__update_simplex(atSimplex, &iSimplexCount, &tDir))
+        {
+            if (ptInfoOut)
                 pl__epa(tFn1, pShape1, tFn2, pShape2, atSimplex, ptInfoOut);
-            }
             return true;
         }
     }

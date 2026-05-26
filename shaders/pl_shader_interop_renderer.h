@@ -232,6 +232,11 @@ PL_END_STRUCT(plGpuSceneData)
 
 PL_BEGIN_STRUCT(plGpuViewData)
 
+    float fAspectRatio;
+    float _fUnused0;
+    float _fUnused1;
+    int   iCameraProjectType;
+
     int iTransmissionFrameBufferIndex;
     float fCameraRange;
     float fCameraNearZ;
@@ -272,6 +277,8 @@ PL_BEGIN_STRUCT(plGpuViewData)
 
     mat4 tCameraViewProjection;
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+
+    mat4 tInvViewMatNoTranslation;
 
     // ~~~~~~~~~~~~~~~~xxx bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuViewData)

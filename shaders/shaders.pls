@@ -266,7 +266,7 @@
         },
         {
             "pcName": "skybox",
-            "tVertexShader":    { "file": "pl_skybox.vert"},
+            "tVertexShader":    { "file": "pl_full_screen.vert"},
             "tFragmentShader":  { "file": "pl_skybox.frag"},
             "tGraphicsState": {
                 "ulDepthWriteEnabled":  false,
@@ -282,13 +282,6 @@
                 "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
                 "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "atVertexBufferLayouts": [
-                {
-                    "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
-                    ]
-                }
-            ],
             "uSubpassIndex": 2,
             "atBlendStates": [
                 { "bBlendEnabled": false }
