@@ -75,7 +75,7 @@ the API is complete. It just means we won't break what currently exists.
 * Stats               v1.1.0 (pl_stats_ext.h)
 * String Interning    v2.0.0 (pl_string_intern_ext.h)
 * UI Tools            v1.1.0 (pl_tools_ext.h)
-* UI                  v1.1.0 (pl_ui_ext.h)
+* UI                  v1.2.0 (pl_ui_ext.h)
 * Pak Files           v1.2.0 (pl_pak_ext.h)
 * Date & Time         v1.1.0 (pl_datetime_ext.h)
 * Compression         v1.1.0 (pl_compress_ext.h)

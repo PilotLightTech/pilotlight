@@ -2692,6 +2692,7 @@ pl_load_ui_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .button                        = pl_ui_button,
         .selectable                    = pl_ui_selectable,
         .checkbox                      = pl_ui_checkbox,
+        .checkbox_flags                = pl_ui_checkbox_flags,
         .radio_button                  = pl_ui_radio_button,
         .image                         = pl_ui_image,
         .image_ex                      = pl_ui_image_ex,

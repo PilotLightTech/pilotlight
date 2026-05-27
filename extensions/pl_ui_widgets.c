@@ -814,6 +814,31 @@ pl_ui_checkbox(const char* pcText, bool* bpValue)
 }
 
 bool
+pl_ui_checkbox_flags(const char* pcText, int* piFlags, int iValue)
+{
+    bool bAllOn = (*piFlags & iValue) == iValue;
+    bool bAnyOn = (*piFlags & iValue) != 0;
+    bool bPressed = false;
+    if (!bAllOn && bAnyOn)
+    {
+        bPressed = pl_ui_checkbox(pcText, &bAllOn);
+    }
+    else
+    {
+        bPressed = pl_ui_checkbox(pcText, &bAllOn);
+
+    }
+    if (bPressed)
+    {
+        if (bAllOn)
+            *piFlags |= iValue;
+        else
+            *piFlags &= ~iValue;
+    }
+    return bPressed;
+}
+
+bool
 pl_ui_radio_button(const char* pcText, int* piValue, int iButtonValue)
 {
     plUiWindow* ptWindow = gptCtx->ptCurrentWindow;

@@ -55,7 +55,7 @@ extern "C" {
 // [SECTION] api
 //-----------------------------------------------------------------------------
 
-#define plUiI_version {1, 1, 0}
+#define plUiI_version {1, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -185,6 +185,7 @@ PL_API void pl_ui_set_next_window_collapse(bool collapsed, plUiConditionFlags);
 PL_API bool pl_ui_button          (const char* text);
 PL_API bool pl_ui_selectable      (const char* text, bool* value, plUiSelectableFlags);
 PL_API bool pl_ui_checkbox        (const char* text, bool* value);
+PL_API bool pl_ui_checkbox_flags  (const char* text, int* flags, int value);
 PL_API bool pl_ui_radio_button    (const char* text, int* valuePtr, int value);
 PL_API void pl_ui_image           (plTextureID, plVec2 size);
 PL_API void pl_ui_image_ex        (plTextureID, plVec2 size, plVec2 uv0, plVec2 uv1, plVec4 tintColor, plVec4 borderColor);
@@ -447,6 +448,7 @@ typedef struct _plUiI
     bool (*button)          (const char* text);
     bool (*selectable)      (const char* text, bool* value, plUiSelectableFlags);
     bool (*checkbox)        (const char* text, bool* value);
+    bool (*checkbox_flags)  (const char* text, int* flags, int value);
     bool (*radio_button)    (const char* text, int* valuePtr, int value);
     void (*image)           (plTextureID, plVec2 size);
     void (*image_ex)        (plTextureID, plVec2 size, plVec2 uv0, plVec2 uv1, plVec4 tintColor, plVec4 borderColor);

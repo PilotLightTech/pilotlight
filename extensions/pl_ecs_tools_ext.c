@@ -406,32 +406,9 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                 {
                     gptUI->text("File: %s", ptScriptComp->acFile);
 
-                    bool bPlaying = ptScriptComp->tFlags & PL_SCRIPT_FLAG_PLAYING;
-                    if(gptUI->checkbox("Playing", &bPlaying))
-                    {
-                        if(bPlaying)
-                        ptScriptComp->tFlags |= PL_SCRIPT_FLAG_PLAYING;
-                        else
-                        ptScriptComp->tFlags &= ~PL_SCRIPT_FLAG_PLAYING;
-                    }
-
-                    bool bPlayOnce = ptScriptComp->tFlags & PL_SCRIPT_FLAG_PLAY_ONCE;
-                    if(gptUI->checkbox("Play Once", &bPlayOnce))
-                    {
-                        if(bPlayOnce)
-                            ptScriptComp->tFlags |= PL_SCRIPT_FLAG_PLAY_ONCE;
-                        else
-                            ptScriptComp->tFlags &= ~PL_SCRIPT_FLAG_PLAY_ONCE;
-                    }
-
-                    bool bReloadable = ptScriptComp->tFlags & PL_SCRIPT_FLAG_RELOADABLE;
-                    if(gptUI->checkbox("Reloadable", &bReloadable))
-                    {
-                        if(bReloadable)
-                            ptScriptComp->tFlags |= PL_SCRIPT_FLAG_RELOADABLE;
-                        else
-                            ptScriptComp->tFlags &= ~PL_SCRIPT_FLAG_RELOADABLE;
-                    }
+                    gptUI->checkbox_flags("Playing", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_PLAYING);
+                    gptUI->checkbox_flags("Play Once", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_PLAY_ONCE);
+                    gptUI->checkbox_flags("Reloadable", &ptScriptComp->tFlags, PL_SCRIPT_FLAG_RELOADABLE);
                     gptUI->end_collapsing_header();
                 }
 
@@ -442,28 +419,16 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
 
                 if(ptRigidComp && gptUI->begin_collapsing_header("Rigid Body Physics", 0))
                 {
-                    bool bNoSleeping = ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING;
-                    if(gptUI->checkbox("No Sleeping", &bNoSleeping))
+                    if(gptUI->checkbox_flags("No Sleeping", &ptRigidComp->tFlags, PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING))
                     {
-                        if(bNoSleeping)
-                        {
-                            ptRigidComp->tFlags |= PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING;
+                        if(ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING)
                             gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
-                        }
-                        else
-                            ptRigidComp->tFlags &= ~PL_RIGID_BODY_PHYSICS_FLAG_NO_SLEEPING;
                     }
 
-                    bool bKinematic = ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC;
-                    if(gptUI->checkbox("Kinematic", &bKinematic))
+                    if(gptUI->checkbox_flags("Kinematic", &ptRigidComp->tFlags, PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC))
                     {
-                        if(bKinematic)
-                        {
-                            ptRigidComp->tFlags |= PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC;
+                        if(ptRigidComp->tFlags & PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC)
                             gptPhysics->wake_up_body(ptLibrary, *ptSelectedEntity);
-                        }
-                        else
-                            ptRigidComp->tFlags &= ~PL_RIGID_BODY_PHYSICS_FLAG_KINEMATIC;
                     }
                     gptUI->input_float("Mass", &ptRigidComp->fMass, "%g", 0);
                     gptUI->slider_float("Friction", &ptRigidComp->fFriction, 0.0f, 1.0f, 0);
@@ -533,37 +498,12 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
 
                 if(ptProbeComp && gptUI->begin_collapsing_header("Environment Probe", 0))
                 {
-                    bool bRealTime = ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
-                    if(gptUI->checkbox("Real Time", &bRealTime))
-                    {
-                        if(bRealTime)
-                            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
-                        else
-                            ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_REALTIME;
-                    }
-
-                    bool bIncludeSky = ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
-                    if(gptUI->checkbox("Include Sky", &bIncludeSky))
-                    {
-                        if(bIncludeSky)
-                            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
-                        else
-                            ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY;
-                    }
-
-                    bool bParallaxCorrection = ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX;
-                    if(gptUI->checkbox("Box Parallax Correction", &bParallaxCorrection))
-                    {
-                        if(bParallaxCorrection)
-                            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX;
-                        else
-                            ptProbeComp->tFlags &= ~PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX;
-                    }
+                    gptUI->checkbox_flags("Real Time", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_REALTIME);
+                    gptUI->checkbox_flags("Include Sky", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY);
+                    gptUI->checkbox_flags("Box Parallax Correction", &ptProbeComp->tFlags, PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX);
 
                     if(gptUI->button("Update"))
-                    {
                         ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
-                    }
                     gptUI->input_float("Range", &ptProbeComp->fRange, NULL, 0);
 
                     uint32_t auSamples[] = {
@@ -673,41 +613,17 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                     bool bObjectForeground = ptObjectComp->tFlags & PL_OBJECT_FLAGS_FOREGROUND;
                     bool bObjectUpdateRequired = false;
 
-                    if(gptUI->checkbox("Renderable", &bObjectRenderable))
-                    {
+                    if(gptUI->checkbox_flags("Renderable", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_RENDERABLE))
                         bObjectUpdateRequired = true;
-                        if(bObjectRenderable)
-                            ptObjectComp->tFlags |= PL_OBJECT_FLAGS_RENDERABLE;
-                        else
-                            ptObjectComp->tFlags &= ~PL_OBJECT_FLAGS_RENDERABLE;
-                    }
 
-                    if(gptUI->checkbox("Cast Shadow", &bObjectCastShadow))
-                    {
+                    if(gptUI->checkbox_flags("Cast Shadow", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_CAST_SHADOW))
                         bObjectUpdateRequired = true;
-                        if(bObjectCastShadow)
-                            ptObjectComp->tFlags |= PL_OBJECT_FLAGS_CAST_SHADOW;
-                        else
-                            ptObjectComp->tFlags &= ~PL_OBJECT_FLAGS_CAST_SHADOW;
-                    }
 
-                    if(gptUI->checkbox("Dynamic", &bObjectDynamic))
-                    {
+                    if(gptUI->checkbox_flags("Dynamic", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_DYNAMIC))
                         bObjectUpdateRequired = true;
-                        if(bObjectDynamic)
-                            ptObjectComp->tFlags |= PL_OBJECT_FLAGS_DYNAMIC;
-                        else
-                            ptObjectComp->tFlags &= ~PL_OBJECT_FLAGS_DYNAMIC;
-                    }
 
-                    if(gptUI->checkbox("Foreground", &bObjectForeground))
-                    {
+                    if(gptUI->checkbox_flags("Foreground", &ptObjectComp->tFlags, PL_OBJECT_FLAGS_FOREGROUND))
                         bObjectUpdateRequired = true;
-                        if(bObjectForeground)
-                            ptObjectComp->tFlags |= PL_OBJECT_FLAGS_FOREGROUND;
-                        else
-                            ptObjectComp->tFlags &= ~PL_OBJECT_FLAGS_FOREGROUND;
-                    }
                     // if(bObjectUpdateRequired)
                     //     gptRenderer->update_scene_objects(ptScene, 1, ptSelectedEntity);
                     gptUI->end_collapsing_header();
@@ -729,14 +645,7 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                     };
                     gptUI->labeled_text("Type", "%s", apcLightTypes[ptLightComp->tType]);
 
-                    bool bShowVisualizer = ptLightComp->tFlags & PL_LIGHT_FLAG_VISUALIZER;
-                    if(gptUI->checkbox("Visualizer", &bShowVisualizer))
-                    {
-                        if(bShowVisualizer)
-                            ptLightComp->tFlags |= PL_LIGHT_FLAG_VISUALIZER;
-                        else
-                            ptLightComp->tFlags &= ~PL_LIGHT_FLAG_VISUALIZER;
-                    }
+                    gptUI->checkbox_flags("Visualizer", &ptLightComp->tFlags, PL_LIGHT_FLAG_VISUALIZER);
 
                     gptUI->input_float3("Position", ptLightComp->tPosition.d, NULL, 0);
 
@@ -770,16 +679,9 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
 
                     gptUI->separator_text("Shadows");
 
-                    bool bCastShadow = ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW;
-                    if(gptUI->checkbox("Cast Shadow", &bCastShadow))
-                    {
-                        if(bCastShadow)
-                            ptLightComp->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW;
-                        else
-                            ptLightComp->tFlags &= ~PL_LIGHT_FLAG_CAST_SHADOW;
-                    }
+                    gptUI->checkbox_flags("Cast Shadow", &ptLightComp->tFlags, PL_LIGHT_FLAG_CAST_SHADOW);
 
-                    if(bCastShadow)
+                    if(ptLightComp->tFlags & PL_LIGHT_FLAG_CAST_SHADOW)
                     {
                         uint32_t auResolutions[] = {
                             128,
@@ -845,40 +747,28 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                     if(gptUI->input_float("Diffuse Transmission", &ptMaterialComp->fDiffuseTransmission, NULL, 0)) bMaterialModified = true;
                     if(gptUI->input_float("Transmission", &ptMaterialComp->fTransmissionFactor, NULL, 0)) bMaterialModified = true;
 
-                    bool bClearCoat = ptMaterialComp->tFlags & PL_MATERIAL_FLAG_CLEARCOAT;
-                    if(gptUI->checkbox("Clearcoat##1", &bClearCoat))
+                    if(gptUI->checkbox_flags("Clearcoat##1", &ptMaterialComp->tFlags, PL_MATERIAL_FLAG_CLEARCOAT))
                     {
                         bShadersModified = true;
                         bMaterialModified = true;
-                        if(bClearCoat) ptMaterialComp->tFlags |= PL_MATERIAL_FLAG_CLEARCOAT;
-                        else           ptMaterialComp->tFlags &= ~PL_MATERIAL_FLAG_CLEARCOAT;
                     }
 
-                    bool bVolume = ptMaterialComp->tFlags & PL_MATERIAL_FLAG_VOLUME;
-                    if(gptUI->checkbox("Volume", &bVolume))
+                    if(gptUI->checkbox_flags("Volume", &ptMaterialComp->tFlags, PL_MATERIAL_FLAG_VOLUME))
                     {
                         bShadersModified = true;
                         bMaterialModified = true;
-                        if(bVolume) ptMaterialComp->tFlags |= PL_MATERIAL_FLAG_VOLUME;
-                        else           ptMaterialComp->tFlags &= ~PL_MATERIAL_FLAG_VOLUME;
                     }
 
-                    bool bTransmission = ptMaterialComp->tFlags & PL_MATERIAL_FLAG_TRANSMISSION;
-                    if(gptUI->checkbox("Transmission##1", &bTransmission))
+                    if(gptUI->checkbox_flags("Transmission##1", &ptMaterialComp->tFlags, PL_MATERIAL_FLAG_TRANSMISSION))
                     {
                         bShadersModified = true;
                         bMaterialModified = true;
-                        if(bTransmission) ptMaterialComp->tFlags |= PL_MATERIAL_FLAG_TRANSMISSION;
-                        else           ptMaterialComp->tFlags &= ~PL_MATERIAL_FLAG_TRANSMISSION;
                     }
 
-                    bool bDiffuseTransmission = ptMaterialComp->tFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION;
-                    if(gptUI->checkbox("Diffuse Transmission##1", &bDiffuseTransmission))
+                    if(gptUI->checkbox_flags("Diffuse Transmission##1", &ptMaterialComp->tFlags, PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION))
                     {
                         bShadersModified = true;
                         bMaterialModified = true;
-                        if(bDiffuseTransmission) ptMaterialComp->tFlags |= PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION;
-                        else                     ptMaterialComp->tFlags &= ~PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION;
                     }
 
                     if(gptUI->button("Update Material"))
@@ -1002,22 +892,8 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
 
                 if(ptAnimationComp && gptUI->begin_collapsing_header("Animation", 0))
                 { 
-                    bool bPlaying = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_PLAYING;
-                    bool bLooped = ptAnimationComp->tFlags & PL_ANIMATION_FLAG_LOOPED;
-                    if(gptUI->checkbox("Playing", &bPlaying))
-                    {
-                        if(bPlaying)
-                            ptAnimationComp->tFlags |= PL_ANIMATION_FLAG_PLAYING;
-                        else
-                            ptAnimationComp->tFlags &= ~PL_ANIMATION_FLAG_PLAYING;
-                    }
-                    if(gptUI->checkbox("Looped", &bLooped))
-                    {
-                        if(bLooped)
-                            ptAnimationComp->tFlags |= PL_ANIMATION_FLAG_LOOPED;
-                        else
-                            ptAnimationComp->tFlags &= ~PL_ANIMATION_FLAG_LOOPED;
-                    }
+                    gptUI->checkbox_flags("Playing", &ptAnimationComp->tFlags, PL_ANIMATION_FLAG_PLAYING);
+                    gptUI->checkbox_flags("Looped", &ptAnimationComp->tFlags, PL_ANIMATION_FLAG_LOOPED);
                     gptUI->labeled_text("Start", "%0.3f s", ptAnimationComp->fStart);
                     gptUI->labeled_text("End", "%0.3f s", ptAnimationComp->fEnd);
                     // gptUI->labeled_text("Speed", "%0.3f s", ptAnimationComp->fSpeed);

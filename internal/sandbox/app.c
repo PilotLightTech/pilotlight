@@ -900,16 +900,8 @@ pl__show_editor_window(plAppData* ptAppData)
                 pl__refresh_files(ptAppData);
             }
 
-            bool bHideScreenLog = tScreenLogFlags & PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES;
-            if(gptUI->checkbox("Hide Screen Log", &bHideScreenLog))
-            {
-                if(bHideScreenLog)
-                    tScreenLogFlags |= PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES;
-                else
-                    tScreenLogFlags &= ~PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES;
+            if(gptUI->checkbox_flags("Hide Screen Log", &tScreenLogFlags, PL_SCREEN_LOG_FLAGS_HIDE_MESSAGES))
                 gptScreenLog->set_flags(tScreenLogFlags);
-            }
-
 
             gptUI->checkbox("Editor Attached", &ptAppData->bEditorAttached);
             gptUI->checkbox("Show Debug Lights", &ptAppData->tTestWorld.bShowDebugLights);
@@ -924,20 +916,8 @@ pl__show_editor_window(plAppData* ptAppData)
                     
                     gptUI->slider_float("fTau", &ptRuntimeOptions->fTau, 0.0f, 1.0f, 0);
 
-                    bool bWireframe = ptRuntimeOptions->tFlags & PL_TERRAIN_FLAGS_WIREFRAME;
-                    bool bShowLevels = ptRuntimeOptions->tFlags & PL_TERRAIN_FLAGS_SHOW_LEVELS;
-
-                    if(gptUI->checkbox("Wireframe", &bWireframe))
-                    {
-                        if(bWireframe) ptRuntimeOptions->tFlags |= PL_TERRAIN_FLAGS_WIREFRAME;
-                        else           ptRuntimeOptions->tFlags &= ~PL_TERRAIN_FLAGS_WIREFRAME;
-                    }
-
-                    if(gptUI->checkbox("Show Levels", &bShowLevels))
-                    {
-                        if(bShowLevels) ptRuntimeOptions->tFlags |= PL_TERRAIN_FLAGS_SHOW_LEVELS;
-                        else           ptRuntimeOptions->tFlags &= ~PL_TERRAIN_FLAGS_SHOW_LEVELS;
-                    }
+                    gptUI->checkbox_flags("Wireframe", &ptRuntimeOptions->tFlags, PL_TERRAIN_FLAGS_WIREFRAME);
+                    gptUI->checkbox_flags("Show Levels", &ptRuntimeOptions->tFlags, PL_TERRAIN_FLAGS_SHOW_LEVELS);
 
                     gptUI->slider_float("fSlopeStart", &ptRuntimeOptions->fSlopeStart, 0.0f, 1.0f, 0);
                     gptUI->slider_float("fSlopeEnd", &ptRuntimeOptions->fSlopeEnd, 0.0f, 1.0f, 0);
@@ -1035,30 +1015,15 @@ pl__show_editor_window(plAppData* ptAppData)
             
             if(gptUI->checkbox("Wireframe", &tDebugOptions.bWireframe)) bReloadShaders = true;
             
-
-            bool bImageBasedLighting = tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
-            bool bPunctualLighting = tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
             bool bNormalMapping = tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING;
-            if(gptUI->checkbox("Image Based Lighting", &bImageBasedLighting))
-            {
-                if(bImageBasedLighting) tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
-                else                    tLightingOptions.tFlags &= ~PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED;
+            if(gptUI->checkbox_flags("Image Based Lighting", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED))
                 bReloadShaders = true;
-            }
 
-            if(gptUI->checkbox("Punctual Lighting", &bPunctualLighting))
-            {
-                if(bPunctualLighting) tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
-                else                  tLightingOptions.tFlags &= ~PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
+            if(gptUI->checkbox_flags("Punctual Lighting", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS))
                 bReloadShaders = true;
-            }
             
-            if(gptUI->checkbox("Normal Mapping", &bNormalMapping))
-            {
-                if(bNormalMapping) tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING;
-                else               tLightingOptions.tFlags &= ~PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING;
+            if(gptUI->checkbox_flags("Normal Mapping", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING))
                 bReloadShaders = true;
-            }
 
             gptUI->checkbox("Show Probes", &tDebugOptions.bShowProbes);
             gptUI->checkbox("Show Probe Range", &tDebugOptions.bShowProbeRange);
@@ -1075,22 +1040,11 @@ pl__show_editor_window(plAppData* ptAppData)
             
             gptUI->slider_uint("Outline Width", &tEditorViewOptions.uOutlineWidth, 2, 50, 0);
 
-            bool bMultiViewportShadows = tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
-            bool bPcfShadows = tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF;
-
-            if(gptUI->checkbox("MultiViewport Shadows", &bMultiViewportShadows))
-            {
-                if(bMultiViewportShadows) tShadowOptions.tFlags |= PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
-                else                      tShadowOptions.tFlags &= ~PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
+            if(gptUI->checkbox_flags("MultiViewport Shadows", &tShadowOptions.tFlags, PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT))
                 bReloadShaders = true;
-            }
 
-            if(gptUI->checkbox("PCF Shadows", &bPcfShadows))
-            {
-                if(bPcfShadows) tShadowOptions.tFlags |= PL_RENDERER_SHADOW_FLAGS_PCF;
-                else            tShadowOptions.tFlags &= ~PL_RENDERER_SHADOW_FLAGS_PCF;
+            if(gptUI->checkbox_flags("PCF Shadows", &tShadowOptions.tFlags, PL_RENDERER_SHADOW_FLAGS_PCF))
                 bReloadShaders = true;
-            }
 
             gptUI->input_float("Depth Bias", &tShadowOptions.fConstantDepthBias, NULL, 0);
             gptUI->input_float("Slope Depth Bias", &tShadowOptions.fSlopeDepthBias, NULL, 0);
@@ -1134,25 +1088,20 @@ pl__show_editor_window(plAppData* ptAppData)
             gptUI->slider_float("Saturation", &tTonemapOptions.fSaturation, 0.0f, 2.0f, 0);
 
             gptUI->separator_text("Bloom");
-            bool bBloomActive = tBloomOptions.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE;
-            gptUI->checkbox("Bloom", &bBloomActive);
-            if(bBloomActive)
+            
+            gptUI->checkbox_flags("Bloom", &tBloomOptions.tFlags, PL_RENDERER_BLOOM_FLAGS_ACTIVE);
+            if(tBloomOptions.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE)
             {
                 gptUI->slider_float("Bloom Radius", &tBloomOptions.fRadius, 0.0f, 10.0f, 0);
                 gptUI->slider_float("Bloom Strength", &tBloomOptions.fStrength, 0.0f, 1.0f, 0);
                 gptUI->slider_uint("Bloom Chain", &tBloomOptions.uChainLength, 1, 10, 0);
-                tBloomOptions.tFlags |= PL_RENDERER_BLOOM_FLAGS_ACTIVE;
             }
-            else
-                tBloomOptions.tFlags &= ~PL_RENDERER_BLOOM_FLAGS_ACTIVE;
             
             gptUI->separator_text("Fog");
             
-            bool bFog = tFogOptions.tFlags & PL_RENDERER_FOG_FLAGS_ACTIVE;
-            gptUI->checkbox("Fog", &bFog);
-            if(bFog)
+            gptUI->checkbox_flags("Fog", &tFogOptions.tFlags, PL_RENDERER_FOG_FLAGS_ACTIVE);
+            if(tFogOptions.tFlags & PL_RENDERER_FOG_FLAGS_ACTIVE)
             {
-                tFogOptions.tFlags |= PL_RENDERER_FOG_FLAGS_ACTIVE;
                 gptUI->radio_button("Linear Fog", &tFogOptions.tMode, 0);
                 gptUI->radio_button("Exponential Fog", &tFogOptions.tMode, 1);
                 gptUI->slider_float("Fog Start", &tFogOptions.fStart, 0.0f, 100.0f, 0);
@@ -1166,8 +1115,6 @@ pl__show_editor_window(plAppData* ptAppData)
                     gptUI->slider_float("Fog Height Falloff", &tFogOptions.fHeightFalloff, 0.0f, 1.0f, 0);
                 }  
             }
-            else
-                tFogOptions.tFlags &= ~PL_RENDERER_FOG_FLAGS_ACTIVE;
             
             gptUI->end_collapsing_header();
         }
