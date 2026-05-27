@@ -194,7 +194,7 @@ PL_API plBindGroupHandle pl_renderer_get_view_color_bind_group(plView*, plVec2* 
 //   pl_renderer_prepare_view(...)  // once per visible view
 //   pl_renderer_render_view(...)
 PL_API bool pl_renderer_begin_frame  (void);
-PL_API void pl_renderer_prepare_scene(plScene*);
+PL_API void pl_renderer_prepare_scene(plScene*, const plCamera**, uint32_t cameraCount);
 PL_API void pl_renderer_prepare_view (plView*, const plCamera*);
 PL_API void pl_renderer_render_view  (plView*, const plRenderViewDesc*);
 
@@ -321,7 +321,7 @@ typedef struct _plRendererI
     //   prepare_view(...)  // once per visible view
     //   render_view(...)
     bool (*begin_frame)  (void);
-    void (*prepare_scene)(plScene*);
+    void (*prepare_scene)(plScene*, const plCamera**, uint32_t cameraCount);
     void (*prepare_view) (plView*, const plCamera*);
     void (*render_view)  (plView*, const plRenderViewDesc*);
 

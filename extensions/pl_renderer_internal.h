@@ -171,7 +171,8 @@ enum _plDrawableFlags
     PL_DRAWABLE_FLAG_FORWARD      = 1 << 0,
     PL_DRAWABLE_FLAG_DEFERRED     = 1 << 1,
     PL_DRAWABLE_FLAG_TRANSMISSION = 1 << 2,
-    PL_DRAWABLE_FLAG_PROBE        = 1 << 3
+    PL_DRAWABLE_FLAG_PROBE        = 1 << 3,
+    PL_DRAWABLE_FLAG_HAS_ALPHA    = 1 << 4, // for shadow pass
 };
 
 enum _plSceneInternalFlags
@@ -220,6 +221,11 @@ typedef struct _plSkinData
     int                   iDestVertexOffset;
     plFreeListNode*       ptFreeListNode;
 } plSkinData;
+
+typedef struct _plVisibleDrawable
+{
+    uint32_t uDrawableIndex;
+} plVisibleDrawable;
 
 typedef struct _plDrawable
 {
@@ -485,8 +491,6 @@ typedef struct _plScene
 
     // drawables
     plDrawable tUnitSphereDrawable;
-    uint32_t*  sbuShadowDeferredDrawables; // shadow rendering (index into regular drawables)
-    uint32_t*  sbuShadowForwardDrawables;  // shadow rendering (index into regular drawables)
     uint32_t*  sbuProbeDrawables;
 
     // SOA drawables
@@ -530,6 +534,10 @@ typedef struct _plScene
     plRendererDebugSceneOptions tDebugOptions;
     plRendererShadowOptions tShadowOptions;
     plRendererFogOptions tFogOptions;
+
+    // culling
+    plVisibleDrawable* sbtVisibleDrawables0;
+    plVisibleDrawable* sbtVisibleDrawables1;
 } plScene;
 
 typedef struct _plRefRendererData
@@ -601,6 +609,8 @@ typedef struct _plCullData
     const plCamera* ptCullCamera;
     plDrawable* atDrawables;
     plFrustum tFrustum;
+    plSphere tSphere;
+    plCone tCone;
 } plCullData;
 
 typedef struct _plMemCpyJobData
@@ -623,6 +633,8 @@ static plRefRendererData* gptData = NULL;
 
 // job system tasks
 static void pl__renderer_cull_job(plInvocationData, void*, void*);
+static void pl__renderer_cull_point_light_job(plInvocationData, void*, void*);
+static void pl__renderer_cull_spot_light_job(plInvocationData, void*, void*);
 
 // resource creation helpers
 static plTextureHandle pl__renderer_create_texture              (const plTextureDesc*, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
@@ -649,7 +661,7 @@ typedef struct _plCSMInfo
 static void pl__renderer_perform_skinning(plCommandBuffer*, plScene*);
 static bool pl__renderer_pack_shadow_atlas(plScene*);
 static void pl__renderer_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, plScene*, uint32_t, uint32_t, const plCamera*, plCSMInfo, plDrawList3D*);
-static void pl__renderer_generate_shadow_maps(plRenderEncoder*, plCommandBuffer*, plScene*);
+static void pl__renderer_generate_shadow_maps(plRenderEncoder*, plCommandBuffer*, plScene*, const plCamera** atCameras, uint32_t uCameraCount);
 
 static uint64_t pl_renderer__add_material_to_scene(plScene* ptScene, plEntity tMaterial);
 

@@ -1337,6 +1337,8 @@ pl_renderer_destroy_scene(plScene* ptScene)
     gptResource->clear();
 
     gptBvh->cleanup(&ptScene->tBvh);
+    pl_sb_free(ptScene->sbtVisibleDrawables0);
+    pl_sb_free(ptScene->sbtVisibleDrawables1);
     pl_sb_free(ptScene->sbtRegularShaders);
     pl_sb_free(ptScene->sbtShadowShaders);
     pl_sb_free(ptScene->sbtProbeShaders);
@@ -1350,8 +1352,6 @@ pl_renderer_destroy_scene(plScene* ptScene)
     pl_sb_free(ptScene->sbtPointLights);
     pl_sb_free(ptScene->sbtSpotLights);
     pl_sb_free(ptScene->sbtDirectionLights);
-    pl_sb_free(ptScene->sbuShadowDeferredDrawables);
-    pl_sb_free(ptScene->sbuShadowForwardDrawables);
     pl_sb_free(ptScene->sbtPointLightShadowData);
     pl_sb_free(ptScene->sbtSpotLightShadowData);
     pl_sb_free(ptScene->sbtPointLightData);
@@ -2672,8 +2672,6 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
     gptShader->set_options(&tNewDefaultShaderOptions);
 
     pl_sb_reset(ptScene->sbtOutlinedEntities);
-    pl_sb_reset(ptScene->sbuShadowForwardDrawables);
-    pl_sb_reset(ptScene->sbuShadowDeferredDrawables);
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
     if(ptScene->tLightingOptions.tFlags & PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED)    iSceneWideRenderingFlags |= PL_RENDERING_FLAG_USE_IBL;
@@ -2906,18 +2904,6 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
             ptScene->sbtShadowShaders[uDrawableIndex] = gptShaderVariant->get_shader("alphashadow", &tShadowVariant, aiVertexConstantData0, &aiForwardFragmentConstantData0[1], &gptData->tDepthRenderPassLayout);
         }
 
-        if(ptMaterial->tFlags & PL_MATERIAL_FLAG_CAST_SHADOW && ptObject->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW)
-        {
-            if(ptMaterial->tAlphaMode != PL_MATERIAL_ALPHA_MODE_OPAQUE)
-            {
-                pl_sb_push(ptScene->sbuShadowForwardDrawables, uDrawableIndex);
-            }
-            else
-            {
-                pl_sb_push(ptScene->sbuShadowDeferredDrawables, uDrawableIndex);
-            }
-        }
-
         if(ptMesh->tSkinComponent.uIndex == UINT32_MAX)
             continue;
 
@@ -3016,7 +3002,7 @@ pl_renderer_editor_get_hovered_entity(plView* ptView, plEntity* ptEntityOut)
 }
 
 void
-pl_renderer_prepare_scene(plScene* ptScene)
+pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t uCameraCount)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -3340,7 +3326,7 @@ pl_renderer_prepare_scene(plScene* ptScene)
     plRenderEncoder* ptShadowEncoder = gptGfx->begin_render_pass(ptShadowCmdBuffer, ptScene->tFirstShadowRenderPass, NULL);
     gptGfx->push_render_debug_group(ptShadowEncoder, "First Shadow", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
-    pl__renderer_generate_shadow_maps(ptShadowEncoder, ptShadowCmdBuffer, ptScene);
+    pl__renderer_generate_shadow_maps(ptShadowEncoder, ptShadowCmdBuffer, ptScene, atCameras, uCameraCount);
 
     gptGfx->pop_render_debug_group(ptShadowEncoder);
     gptGfx->end_render_pass(ptShadowEncoder);
@@ -4270,6 +4256,11 @@ pl_renderer_ecs_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObject
             if(ptMaterial->tAlphaMode == PL_MATERIAL_ALPHA_MODE_BLEND)
                 bForward = true;
 
+            if(ptMaterial->tAlphaMode != PL_MATERIAL_ALPHA_MODE_OPAQUE)
+            {
+                ptScene->sbtDrawables[uDrawableIndex].tFlags |= PL_DRAWABLE_FLAG_HAS_ALPHA;
+            }
+
             // use forward renderer if material is advanced (can't fit required properties in gbuffer)
             if(ptMaterial->tShaderType == PL_SHADER_TYPE_PBR_ADVANCED)
                 bForward = true;
@@ -4491,19 +4482,6 @@ pl_renderer_ecs_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObject
             };
             ptScene->sbtShadowShaders[uDrawableIndex] = gptShaderVariant->get_shader("alphashadow", &tShadowVariant, aiVertexConstantData0, &aiForwardFragmentConstantData0[1], &gptData->tDepthRenderPassLayout);
         }
-
-        if(ptMaterial->tFlags & PL_MATERIAL_FLAG_CAST_SHADOW && ptObject->tFlags & PL_OBJECT_FLAGS_CAST_SHADOW)
-        {
-            if(ptMaterial->tAlphaMode != PL_MATERIAL_ALPHA_MODE_OPAQUE)
-            {
-                pl_sb_push(ptScene->sbuShadowForwardDrawables, uDrawableIndex);
-            }
-            else
-            {
-                pl_sb_push(ptScene->sbuShadowDeferredDrawables, uDrawableIndex);
-            }
-        }
-
         ptScene->sbtDrawables[uDrawableIndex].tIndexBuffer = ptScene->sbtDrawables[uDrawableIndex].uIndexCount == 0 ? (plBufferHandle){0} : ptScene->tIndexBuffer;
     }
 

@@ -125,7 +125,6 @@ pl__camera_build_perspective_frustum(const plCamera* ptCamera, plFrustum* ptFrus
     ptFrustum->atPlanes[5] = pl_make_plane_from_point_normal(FarPoint,  NFar);
 }
 
-
 static void
 pl__renderer_cull_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
 {
@@ -140,6 +139,56 @@ pl__renderer_cull_job(plInvocationData tInvoData, void* pData, void* pGroupShare
         if(ptCullData->atDrawables[tInvoData.uGlobalIndex].uInstanceCount == 1) // ignore instanced
         {
             if(gptGjk->pen(pl_gjk_support_aabb, &ptObject->tAABB, pl_gjk_support_frustum, &ptCullData->tFrustum, NULL))
+            {
+                ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
+            }
+        }
+        else
+        {
+            ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
+        }
+    }
+}
+
+static void
+pl__renderer_cull_point_light_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
+{
+    plCullData* ptCullData = pData;
+    plScene* ptScene = ptCullData->ptScene;
+    plDrawable tDrawable = ptCullData->atDrawables[tInvoData.uGlobalIndex];
+    plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
+    ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = true;
+
+    if(ptObject->tFlags & PL_OBJECT_FLAGS_RENDERABLE)
+    {
+        if(ptCullData->atDrawables[tInvoData.uGlobalIndex].uInstanceCount == 1) // ignore instanced
+        {
+            if(gptGjk->pen(pl_gjk_support_aabb, &ptObject->tAABB, pl_gjk_support_sphere, &ptCullData->tSphere, NULL))
+            {
+                ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
+            }
+        }
+        else
+        {
+            ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
+        }
+    }
+}
+
+static void
+pl__renderer_cull_spot_light_job(plInvocationData tInvoData, void* pData, void* pGroupSharedMemory)
+{
+    plCullData* ptCullData = pData;
+    plScene* ptScene = ptCullData->ptScene;
+    plDrawable tDrawable = ptCullData->atDrawables[tInvoData.uGlobalIndex];
+    plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
+    ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = true;
+
+    if(ptObject->tFlags & PL_OBJECT_FLAGS_RENDERABLE)
+    {
+        if(ptCullData->atDrawables[tInvoData.uGlobalIndex].uInstanceCount == 1) // ignore instanced
+        {
+            if(gptGjk->pen(pl_gjk_support_aabb, &ptObject->tAABB, pl_gjk_support_cone, &ptCullData->tCone, NULL))
             {
                 ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
             }
@@ -616,7 +665,7 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
 }
 
 static void
-pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, plScene* ptScene)
+pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* ptCommandBuffer, plScene* ptScene, const plCamera** atCameras, uint32_t uCameraCount)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -642,6 +691,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
 
         if(ptLight->tType == PL_LIGHT_TYPE_POINT)
         {
+
             plGpuPointLightShadow* ptShadowData = &ptScene->sbtPointLightShadowData[ptScene->sbtPointLightData[ptData->uLightIndex].iShadowIndex];
             ptShadowData->iShadowMapTexIdx = ptScene->uShadowAtlasIndex;
             ptShadowData->fFactor = (float)ptLight->uShadowResolution / (float)ptScene->uShadowAtlasResolution;
@@ -713,9 +763,8 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
         }    
     }
 
-    const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptScene->sbuShadowDeferredDrawables);
-    const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptScene->sbuShadowForwardDrawables);
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
 
     // uint32_t uCameraBufferIndex = 0;
     for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
@@ -731,6 +780,110 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
         else if(ptData->tType == PL_LIGHT_TYPE_SPOT)        ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtSpotLights[ptData->uLightIndex].tEntity);
         else if(ptData->tType == PL_LIGHT_TYPE_DIRECTIONAL) ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[ptData->uLightIndex].tEntity);
 
+        if(ptData->tType == PL_LIGHT_TYPE_DIRECTIONAL)
+            continue;
+
+        bool bVisibleToAnyCamera = false;
+
+        for(uint32_t uCameraIndex = 0; uCameraIndex < uCameraCount; uCameraIndex++)
+        {
+            const plCamera* ptCamera = atCameras[uCameraIndex];
+
+            if(ptLight->tType == PL_LIGHT_TYPE_POINT)
+            {
+                plSphere tSphere = {
+                    .fRadius = ptLight->fRange,
+                    .tCenter = ptLight->tPosition
+                };
+
+                plFrustum tFrustum = {0};
+                if(ptCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
+                    pl__camera_build_perspective_frustum(ptCamera, &tFrustum);
+                else
+                    pl_camera_build_orthographic_frustum(ptCamera, &tFrustum);
+
+                if(gptGjk->pen(pl_gjk_support_frustum, &tFrustum, pl_gjk_support_sphere, &tSphere, NULL))
+                {
+                    bVisibleToAnyCamera = true;
+                }
+            }
+
+            else if(ptLight->tType == PL_LIGHT_TYPE_POINT)
+            {
+                plCone tCone = {
+                    .tTipPos = ptLight->tPosition,
+                    .fRadius = tanf(ptLight->fOuterConeAngle * 0.5f) * ptLight->fRange,
+                    .tBasePos = pl_add_vec3(ptLight->tPosition, pl_mul_vec3_scalarf(ptLight->tDirection, ptLight->fRange))
+                };
+
+                plFrustum tFrustum = {0};
+                if(ptCamera->eProjectionType == PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE)
+                    pl__camera_build_perspective_frustum(ptCamera, &tFrustum);
+                else
+                    pl_camera_build_orthographic_frustum(ptCamera, &tFrustum);
+
+                if(gptGjk->pen(pl_gjk_support_frustum, &tFrustum, pl_gjk_support_cone, &tCone, NULL))
+                {
+                    bVisibleToAnyCamera = true;
+                }
+            }
+        }
+
+        if(!bVisibleToAnyCamera)
+            continue;
+
+        plAtomicCounter* ptCullCounter = NULL;
+        pl_sb_reset(ptScene->sbtVisibleDrawables0);
+        pl_sb_reset(ptScene->sbtVisibleDrawables1);
+
+        plCullData tCullData = {
+            .ptScene      = ptScene,
+            .atDrawables  = ptScene->sbtDrawables,
+            .tSphere      = {
+                .fRadius = ptLight->fRange,
+                .tCenter = ptLight->tPosition
+            },
+            .tCone = {
+                .tTipPos = ptLight->tPosition,
+                .fRadius = tanf(ptLight->fOuterConeAngle * 0.5f) * ptLight->fRange,
+                .tBasePos = pl_add_vec3(ptLight->tPosition, pl_mul_vec3_scalarf(ptLight->tDirection, ptLight->fRange))
+            }
+        };
+
+        plJobDesc tJobDesc = {
+            .pData = &tCullData
+        };
+        if(ptLight->tType == PL_LIGHT_TYPE_POINT)
+            tJobDesc.task = pl__renderer_cull_point_light_job;
+        else if(ptLight->tType == PL_LIGHT_TYPE_SPOT)
+            tJobDesc.task = pl__renderer_cull_spot_light_job;
+
+        gptJob->dispatch_batch(uDrawableCount, 0, tJobDesc, &ptCullCounter);
+        gptJob->wait_for_counter(ptCullCounter);
+
+        pl_sb_reserve(ptScene->sbtVisibleDrawables0, uDrawableCount);
+        pl_sb_reserve(ptScene->sbtVisibleDrawables1, uDrawableCount);
+        for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
+        {
+            const plDrawable tDrawable = ptScene->sbtDrawables[uDrawableIndex];
+            if(!tDrawable.bCulled)
+            {
+                plVisibleDrawable tVisibleDrawable = {
+                    .uDrawableIndex = uDrawableIndex
+                };
+                if(tDrawable.tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
+                {
+                    pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
+                }
+                else
+                {
+                    pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
+                }
+            }
+        }
+
+        const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptScene->sbtVisibleDrawables0);
+        const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptScene->sbtVisibleDrawables1);
 
         if(ptLight->tType == PL_LIGHT_TYPE_POINT)
         {
@@ -745,7 +898,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                 *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
                 for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                 {
-                    const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowDeferredDrawables[i]];
+                    const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
 
                     if(tDrawable.uInstanceCount != 0)
                     {
@@ -790,7 +943,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                 *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
                 for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                 {
-                    const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowForwardDrawables[i]];
+                    const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
 
                     if(tDrawable.uInstanceCount != 0)
                     {
@@ -808,7 +961,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
 
                         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                         {
-                            .tShader        = ptScene->sbtShadowShaders[ptScene->sbuShadowForwardDrawables[i]],
+                            .tShader        = ptScene->sbtShadowShaders[ptScene->sbtVisibleDrawables1[i].uDrawableIndex],
                             .auDynamicBuffers = {
                                 tDynamicBinding.uBufferHandle
                             },
@@ -931,7 +1084,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                     *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
                     for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                     {
-                        const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowDeferredDrawables[i]];
+                        const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
 
                         if(tDrawable.uInstanceCount != 0)
                         {
@@ -975,7 +1128,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                     *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
                     for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                     {
-                        const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowForwardDrawables[i]];
+                        const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
                         if(tDrawable.uInstanceCount != 0)
                         {
                             plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
@@ -991,7 +1144,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
 
                             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                             {
-                                .tShader        = ptScene->sbtShadowShaders[ptScene->sbuShadowForwardDrawables[i]],
+                                .tShader        = ptScene->sbtShadowShaders[ptScene->sbtVisibleDrawables1[i].uDrawableIndex],
                                 .auDynamicBuffers = {
                                     tDynamicBinding.uBufferHandle
                                 },
@@ -1061,7 +1214,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
             *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
             for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
-                const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowDeferredDrawables[i]];
+                const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
                 if(tDrawable.uInstanceCount != 0)
                 {
                     plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
@@ -1104,7 +1257,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
             *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
             for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
             {
-                const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowForwardDrawables[i]];
+                const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
                 if(tDrawable.uInstanceCount != 0)
                 {
                     plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
@@ -1120,7 +1273,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
 
                     pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                     {
-                        .tShader        = ptScene->sbtShadowShaders[ptScene->sbuShadowForwardDrawables[i]],
+                        .tShader        = ptScene->sbtShadowShaders[ptScene->sbtVisibleDrawables1[i].uDrawableIndex],
                         .auDynamicBuffers = {
                             tDynamicBinding.uBufferHandle
                         },
@@ -1494,8 +1647,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
     // const uint32_t uIndexingOffset = uInitialOffset / (sizeof(plMat4) * PL_MAX_SHADOW_CASCADES);
 
-    const uint32_t uOpaqueDrawableCount = pl_sb_size(ptScene->sbuShadowDeferredDrawables);
-    const uint32_t uTransparentDrawableCount = pl_sb_size(ptScene->sbuShadowForwardDrawables);
+    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
@@ -1520,14 +1672,60 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
         const uint32_t uCascadeCount = tInfo.bAltMode ? 1 : ptLight->uCascadeCount; // probe only needs single cascade
 
+        plAtomicCounter* ptCullCounter = NULL;
+        pl_sb_reset(ptScene->sbtVisibleDrawables0);
+        pl_sb_reset(ptScene->sbtVisibleDrawables1);
+        plCullData tCullData = {
+            .ptScene      = ptScene,
+            .atDrawables  = ptScene->sbtDrawables,
+            .tSphere = {
+                .fRadius = ptSceneCamera->fFarZ - ptSceneCamera->fNearZ,
+                .tCenter = pl_add_vec3(pl_mul_vec3_scalarf(ptSceneCamera->tForwardVec, 0.6f * (ptSceneCamera->fFarZ - ptSceneCamera->fNearZ)), ptSceneCamera->tPositionF),
+            }
+        };
+
+        plJobDesc tJobDesc = {
+            .pData = &tCullData,
+            .task = pl__renderer_cull_point_light_job,
+        };
+
+        gptJob->dispatch_batch(uDrawableCount, 0, tJobDesc, &ptCullCounter);
+        gptJob->wait_for_counter(ptCullCounter);
+
+        pl_sb_reserve(ptScene->sbtVisibleDrawables0, uDrawableCount);
+        pl_sb_reserve(ptScene->sbtVisibleDrawables1, uDrawableCount);
+
+        for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
+        {
+            const plDrawable tDrawable = ptScene->sbtDrawables[uDrawableIndex];
+            if(!tDrawable.bCulled)
+            {
+                plVisibleDrawable tVisibleDrawable = {
+                    .uDrawableIndex = uDrawableIndex
+                };
+                if(tDrawable.tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
+                {
+                    pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
+                }
+                else
+                {
+                    pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
+                }
+            }
+        }
+
+        const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptScene->sbtVisibleDrawables0);
+        const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptScene->sbtVisibleDrawables1);
+
+
         if(ptScene->tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT)
         {
-            gptGfx->reset_draw_stream(ptStream, uOpaqueDrawableCount + uTransparentDrawableCount);
+            gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
             gptGfx->set_depth_bias(ptEncoder, ptScene->tShadowOptions.fConstantDepthBias, 0.0f, ptScene->tShadowOptions.fSlopeDepthBias);
-            *gptData->pdDrawCalls += (double)uOpaqueDrawableCount;
-            for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
+            *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
+            for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
             {
-                const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowDeferredDrawables[i]];
+                const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
 
                 if(tDrawable.uInstanceCount != 0)
                 {
@@ -1568,10 +1766,10 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                 }
             }
 
-            *gptData->pdDrawCalls += (double)uTransparentDrawableCount;
-            for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
+            *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
+            for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
             {
-                const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowForwardDrawables[i]];
+                const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
                 if(tDrawable.uInstanceCount != 0)
                 {
                     plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
@@ -1587,7 +1785,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
                     pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                     {
-                        .tShader        = ptScene->sbtShadowShaders[ptScene->sbuShadowForwardDrawables[i]],
+                        .tShader        = ptScene->sbtShadowShaders[ptScene->sbtVisibleDrawables1[i].uDrawableIndex],
                         .auDynamicBuffers = {
                             tDynamicBinding.uBufferHandle
                         },
@@ -1680,12 +1878,12 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
             for(uint32_t uCascade = 0; uCascade < uCascadeCount; uCascade++)
             {
 
-                gptGfx->reset_draw_stream(ptStream, uOpaqueDrawableCount + uTransparentDrawableCount);
+                gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
                 gptGfx->set_depth_bias(ptEncoder, ptScene->tShadowOptions.fConstantDepthBias, 0.0f, ptScene->tShadowOptions.fSlopeDepthBias);
-                *gptData->pdDrawCalls += (double)uOpaqueDrawableCount;
-                for(uint32_t i = 0; i < uOpaqueDrawableCount; i++)
+                *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
+                for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
                 {
-                    const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowDeferredDrawables[i]];
+                    const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
 
                     if(tDrawable.uInstanceCount != 0)
                     {
@@ -1726,10 +1924,10 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                     }
                 }
 
-                *gptData->pdDrawCalls += (double)uTransparentDrawableCount;
-                for(uint32_t i = 0; i < uTransparentDrawableCount; i++)
+                *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
+                for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
                 {
-                    const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuShadowForwardDrawables[i]];
+                    const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
 
                     if(tDrawable.uInstanceCount != 0)
                     {
@@ -1746,7 +1944,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
 
                         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                         {
-                            .tShader        = ptScene->sbtShadowShaders[ptScene->sbuShadowForwardDrawables[i]],
+                            .tShader        = ptScene->sbtShadowShaders[ptScene->sbtVisibleDrawables1[i].uDrawableIndex],
                             .auDynamicBuffers = {
                                 tDynamicBinding.uBufferHandle
                             },

@@ -679,7 +679,7 @@ pl_app_update(plAppData* ptAppData)
             gptRendererDebug->draw_bvh(ptAppData->tTestWorld.ptView);
 
         // render scene
-        gptRenderer->prepare_scene(ptAppData->tTestWorld.ptScene);
+        gptRenderer->prepare_scene(ptAppData->tTestWorld.ptScene, &ptCamera, 1);
         gptRenderer->prepare_view(ptAppData->tTestWorld.ptView, ptCamera);
         plRenderViewDesc tViewDesc0 = {
             .ptCamera = ptCamera,

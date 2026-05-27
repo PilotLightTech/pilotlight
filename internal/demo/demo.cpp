@@ -569,7 +569,8 @@ pl_app_update(plAppData* ptAppData)
         }
     
         // render scene
-        gptRenderer->prepare_scene(ptAppData->ptScene);
+        const plCamera* atCameras[] = {ptCamera, ptSecondaryCamera};
+        gptRenderer->prepare_scene(ptAppData->ptScene, atCameras, ptAppData->bSecondaryViewActive ? 2 : 1);
         gptRenderer->prepare_view(ptAppData->ptView, ptCamera);
         if(ptAppData->bSecondaryViewActive)
             gptRenderer->prepare_view(ptAppData->ptSecondaryView, ptSecondaryCamera);
