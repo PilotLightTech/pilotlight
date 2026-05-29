@@ -257,7 +257,7 @@ pl_starter_initialize(plStarterInit tInit)
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
         const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {(float)tInfo.uWidth + 400.0f, (float)tInfo.uHeight + 400.0f, 1},
+            .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
             .tFormat       = tInfo.tFormat,
             .uLayers       = 1,
             .uMips         = 1,
@@ -439,10 +439,10 @@ pl_starter_resize(void)
 
         plTexture* ptTexture = gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
-        if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.tSampleCount != tInfo.tSampleCount)
+        // if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.tSampleCount != tInfo.tSampleCount)
         {
-            tNewDimensions.x += 400.0f;
-            tNewDimensions.y += 400.0f;
+            // tNewDimensions.x += 400.0f;
+            // tNewDimensions.y += 400.0f;
             gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
             const plTextureDesc tDepthTextureDesc = {
@@ -1012,7 +1012,7 @@ pl_starter_create_device(plSurface* ptSurface)
     const plDeviceInit tDeviceInit = {
         .uDeviceIdx               = iBestDvcIdx,
         .ptSurface                = ptSurface,
-        .szDynamicBufferBlockSize = 134217728
+        .szDynamicBufferBlockSize = 134217728 / 2
     };
     plDevice* ptDevice = gptGfx->create_device(&tDeviceInit);
     gptDataRegistry->set_data("device", ptDevice); // used by debug extension
@@ -1096,7 +1096,7 @@ pl__starter_activate_msaa(void)
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
         const plTextureDesc tDepthTextureDesc = {
-            .tDimensions   = {(float)tInfo.uWidth + 400.0f, (float)tInfo.uHeight + 400.0f, 1},
+            .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
             .tFormat       = tInfo.tFormat,
             .uLayers       = 1,
             .uMips         = 1,
@@ -1128,11 +1128,12 @@ pl__starter_activate_msaa(void)
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
         gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
+        plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
         plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {
-                gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x + 400.0f,
-                gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y + 400.0f,
+                (float)tInfo.uWidth + 400.0f,
+                (float)tInfo.uHeight + 400.0f,
                 1},
             .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
