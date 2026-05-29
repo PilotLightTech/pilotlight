@@ -663,7 +663,6 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         plDevice* ptDevice = gptData->ptDevice;
         plDynamicBinding tDynamicBinding =  pl__allocate_dynamic_data(ptDevice);
         plGpuDynTerrainData* ptDynamic = (plGpuDynTerrainData*)tDynamicBinding.pcData;
-        sizeof(plGpuDynTerrainData);
 
         ptDynamic->iLevel          = (int)ptChunk->uLevel;
         ptDynamic->tFlags          = ptTerrain->tRuntimeOptions.tFlags;

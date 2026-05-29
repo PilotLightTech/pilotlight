@@ -209,17 +209,17 @@ PL_API void pl_ui_labeled_text_v(const char* label, const char* fmt, va_list arg
 PL_API bool pl_ui_input_text     (const char* label, char* buffer, size_t bufferSize, plUiInputTextFlags);
 PL_API bool pl_ui_input_text_hint(const char* label, const char* hint, char* buffer, size_t bufferSize, plUiInputTextFlags);
 PL_API bool pl_ui_input_float    (const char* label, float* value, const char* fmt, plUiInputTextFlags);
-PL_API bool pl_ui_input_float2   (const char* label, float value[2], const char* fmt, plUiInputTextFlags);
-PL_API bool pl_ui_input_float3   (const char* label, float value[3], const char* fmt, plUiInputTextFlags);
-PL_API bool pl_ui_input_float4   (const char* label, float value[4], const char* fmt, plUiInputTextFlags);
+PL_API bool pl_ui_input_float2   (const char* label, float* values, const char* fmt, plUiInputTextFlags);
+PL_API bool pl_ui_input_float3   (const char* label, float* values, const char* fmt, plUiInputTextFlags);
+PL_API bool pl_ui_input_float4   (const char* label, float* values, const char* fmt, plUiInputTextFlags);
 PL_API bool pl_ui_input_int      (const char* label, int* value, plUiInputTextFlags);
-PL_API bool pl_ui_input_int2     (const char* label, int value[2], plUiInputTextFlags);
-PL_API bool pl_ui_input_int3     (const char* label, int value[3], plUiInputTextFlags);
-PL_API bool pl_ui_input_int4     (const char* label, int value[4], plUiInputTextFlags);
+PL_API bool pl_ui_input_int2     (const char* label, int* values, plUiInputTextFlags);
+PL_API bool pl_ui_input_int3     (const char* label, int* values, plUiInputTextFlags);
+PL_API bool pl_ui_input_int4     (const char* label, int* values, plUiInputTextFlags);
 PL_API bool pl_ui_input_uint     (const char* label, uint32_t* value, plUiInputTextFlags);
-PL_API bool pl_ui_input_uint2    (const char* label, uint32_t value[2], plUiInputTextFlags);
-PL_API bool pl_ui_input_uint3    (const char* label, uint32_t value[3], plUiInputTextFlags);
-PL_API bool pl_ui_input_uint4    (const char* label, uint32_t value[4], plUiInputTextFlags);
+PL_API bool pl_ui_input_uint2    (const char* label, uint32_t* values, plUiInputTextFlags);
+PL_API bool pl_ui_input_uint3    (const char* label, uint32_t* values, plUiInputTextFlags);
+PL_API bool pl_ui_input_uint4    (const char* label, uint32_t* values, plUiInputTextFlags);
 
 // sliders
 PL_API bool pl_ui_slider_float  (const char* label, float* value, float minValue, float maxValue, plUiSliderFlags);
@@ -472,17 +472,17 @@ typedef struct _plUiI
     bool (*input_text)     (const char* label, char* buffer, size_t bufferSize, plUiInputTextFlags);
     bool (*input_text_hint)(const char* label, const char* hint, char* buffer, size_t bufferSize, plUiInputTextFlags);
     bool (*input_float)    (const char* label, float* value, const char* fmt, plUiInputTextFlags);
-    bool (*input_float2)   (const char* label, float value[2], const char* fmt, plUiInputTextFlags);
-    bool (*input_float3)   (const char* label, float value[3], const char* fmt, plUiInputTextFlags);
-    bool (*input_float4)   (const char* label, float value[4], const char* fmt, plUiInputTextFlags);
+    bool (*input_float2)   (const char* label, float* values, const char* fmt, plUiInputTextFlags);
+    bool (*input_float3)   (const char* label, float* values, const char* fmt, plUiInputTextFlags);
+    bool (*input_float4)   (const char* label, float* values, const char* fmt, plUiInputTextFlags);
     bool (*input_int)      (const char* label, int* value, plUiInputTextFlags);
-    bool (*input_int2)     (const char* label, int value[2], plUiInputTextFlags);
-    bool (*input_int3)     (const char* label, int value[3], plUiInputTextFlags);
-    bool (*input_int4)     (const char* label, int value[4], plUiInputTextFlags);
+    bool (*input_int2)     (const char* label, int* values, plUiInputTextFlags);
+    bool (*input_int3)     (const char* label, int* values, plUiInputTextFlags);
+    bool (*input_int4)     (const char* label, int* values, plUiInputTextFlags);
     bool (*input_uint)     (const char* label, uint32_t* value, plUiInputTextFlags);
-    bool (*input_uint2)    (const char* label, uint32_t value[2], plUiInputTextFlags);
-    bool (*input_uint3)    (const char* label, uint32_t value[3], plUiInputTextFlags);
-    bool (*input_uint4)    (const char* label, uint32_t value[4], plUiInputTextFlags);
+    bool (*input_uint2)    (const char* label, uint32_t* values, plUiInputTextFlags);
+    bool (*input_uint3)    (const char* label, uint32_t* values, plUiInputTextFlags);
+    bool (*input_uint4)    (const char* label, uint32_t* values, plUiInputTextFlags);
 
     // sliders
     bool (*slider_float)  (const char* label, float* value, float minValue, float maxValue, plUiSliderFlags);

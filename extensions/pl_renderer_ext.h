@@ -435,11 +435,12 @@ typedef struct _plRendererSettings
 typedef struct _plSceneDesc
 {
     plComponentLibrary* ptComponentLibrary;
-    size_t              szIndexBufferSize;    // default: 64000000
-    size_t              szVertexBufferSize;   // default: 64000000
-    size_t              szDataBufferSize;     // default: 64000000
-    size_t              szMaterialBufferSize; // default:  8000000
-    size_t              szSkinBufferSize;     // default:  8000000
+    size_t              szIndexBufferSize;      // default: 64000000
+    size_t              szVertexBufferSize;     // default: 64000000
+    size_t              szDataBufferSize;       // default: 64000000
+    size_t              szMaterialBufferSize;   // default:  8000000
+    size_t              szSkinBufferSize;       // default:  8000000
+    uint32_t            uShadowAtlasResolution; // default:    16384
 } plSceneDesc;
 
 typedef struct _plViewDesc

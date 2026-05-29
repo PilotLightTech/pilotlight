@@ -768,6 +768,8 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 bool
 pl__handle_osx_event(NSEvent* event, NSView* view)
 {
+    if(gptIOI->add_mouse_pos_event == NULL)
+        return true;
     if (event.type == NSEventTypeLeftMouseDown || event.type == NSEventTypeRightMouseDown || event.type == NSEventTypeOtherMouseDown)
     {
         int button = (int)[event buttonNumber];
