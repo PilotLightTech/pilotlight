@@ -285,6 +285,9 @@ pl_stage_stage_texture_upload(plTextureHandle tDestination, const plBufferImageC
 void
 pl_stage_flush(void)
 {
+    if(pl_sb_size(gptStageCtx->sbtTextureUploadRequests) == 0 && pl_sb_size(gptStageCtx->sbtBufferUploadRequests) == 0)
+        return;
+
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStageCtx->ptCmdPool, "upload staging now");
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
@@ -572,6 +575,8 @@ pl_stage_new_frame(void)
         }
         pl_sb_reset(gptStageCtx->sbtBlocks);
     }
+
+    pl_stage_flush();
 }
 
 bool

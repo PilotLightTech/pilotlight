@@ -61,7 +61,7 @@ typedef struct _plDevice plDevice;
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plGPUAllocatorsI_version {1, 1, 0}
+#define plGPUAllocatorsI_version {1, 1, 1}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api

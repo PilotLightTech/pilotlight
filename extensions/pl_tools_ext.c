@@ -939,200 +939,273 @@ pl__show_device_memory(bool* bValue)
         else
             gptUI->text("Host Memory: %llu bytes", (double)szHostMemoryInUse);
 
-        const plDeviceMemoryAllocatorI atAllocators[] = {
-            *gptGpuAllocators->get_local_buddy_allocator(gptDebugCtx->ptDevice),
-            *gptGpuAllocators->get_local_dedicated_allocator(gptDebugCtx->ptDevice),
-            *gptGpuAllocators->get_staging_uncached_buddy_allocator(gptDebugCtx->ptDevice),
-            *gptGpuAllocators->get_staging_uncached_allocator(gptDebugCtx->ptDevice),
-            *gptGpuAllocators->get_staging_cached_allocator(gptDebugCtx->ptDevice)
-        };
+        gptUI->layout_dynamic(0.0f, 1);
 
-        const char* apcAllocatorNames[] = {
-            "Device Memory: Local Buddy",
-            "Device Memory: Local Dedicated",
-            "Device Memory: Staging Uncached Buddy",
-            "Device Memory: Staging Uncached",
-            "Device Memory: Staging Cached"
-        };
-
-        gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tButtonColor);
-        gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tButtonColor);
-        gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tButtonColor);
-        for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 5; uAllocatorIndex++)
+        if(gptUI->begin_tab_bar("Memory Tabs", 0))
         {
-            uint32_t uBlockCount = 0;
-            uint32_t uRangeCount = 0;
-            plDeviceMemoryAllocation* sbtBlocks = gptGpuAllocators->get_blocks(&atAllocators[uAllocatorIndex], &uBlockCount);
-            plDeviceAllocationRange* sbtRanges = gptGpuAllocators->get_ranges(&atAllocators[uAllocatorIndex], &uRangeCount);
-            if(uBlockCount > 0)
+            if(gptUI->begin_tab("Allocators", 0))
             {
+                const plDeviceMemoryAllocatorI atAllocators[] = {
+                    *gptGpuAllocators->get_local_buddy_allocator(gptDebugCtx->ptDevice),
+                    *gptGpuAllocators->get_local_dedicated_allocator(gptDebugCtx->ptDevice),
+                    *gptGpuAllocators->get_staging_uncached_buddy_allocator(gptDebugCtx->ptDevice),
+                    *gptGpuAllocators->get_staging_uncached_allocator(gptDebugCtx->ptDevice),
+                    *gptGpuAllocators->get_staging_cached_allocator(gptDebugCtx->ptDevice)
+                };
 
-                gptUI->layout_dynamic(0.0f, 1);
-                gptUI->separator_text(apcAllocatorNames[uAllocatorIndex]);
+                const char* apcAllocatorNames[] = {
+                    "Device Memory: Local Buddy",
+                    "Device Memory: Local Dedicated",
+                    "Device Memory: Staging Uncached Buddy",
+                    "Device Memory: Staging Uncached",
+                    "Device Memory: Staging Cached"
+                };
 
-                gptUI->layout_template_begin(30.0f);
-                gptUI->layout_template_push_static(150.0f);
-                gptUI->layout_template_push_variable(300.0f);
-                gptUI->layout_template_end();
-
-                float fWidth0 = -1.0f;
-                float fHeight0 = -1.0f;
-                uint64_t ulHoveredBlock = UINT64_MAX;
-
-                const uint64_t ulMaxBlockSize = gptGpuAllocators->get_buddy_block_size();
-
-                uint32_t iCurrentBlock = 0;
-
-                for(uint32_t i = 0; i < uBlockCount; i++)
+                gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tButtonColor);
+                gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tButtonColor);
+                gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tButtonColor);
+                for(uint32_t uAllocatorIndex = 0; uAllocatorIndex < 5; uAllocatorIndex++)
                 {
-                    plDeviceMemoryAllocation* ptBlock = &sbtBlocks[i];
-                    if(ptBlock->ulSize == 0)
-                        continue;
-
-                    char* pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "Block %u: %0.1fMB##%u", iCurrentBlock, ((double)ptBlock->ulSize)/1000000.0, uAllocatorIndex);
-                    char* pcTempBuffer1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "Block %u##%u", iCurrentBlock, uAllocatorIndex);
-
-                    gptUI->button(pcTempBuffer0);
-                    
-                    plVec2 tCursor0 = gptUI->get_cursor_pos();
-
-                    if(fHeight0 == -1.0f)
+                    uint32_t uBlockCount = 0;
+                    uint32_t uRangeCount = 0;
+                    plDeviceMemoryAllocation* sbtBlocks = gptGpuAllocators->get_blocks(&atAllocators[uAllocatorIndex], &uBlockCount);
+                    plDeviceAllocationRange* sbtRanges = gptGpuAllocators->get_ranges(&atAllocators[uAllocatorIndex], &uRangeCount);
+                    if(uBlockCount > 0)
                     {
-                        fWidth0  = tCursor0.x;
-                        fHeight0 = tCursor0.y;
-                    }
 
-                    const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
-                    const float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
+                        gptUI->layout_dynamic(0.0f, 1);
+                        gptUI->separator_text(apcAllocatorNames[uAllocatorIndex]);
 
-                    if(ptBlock->uHandle == 0)
-                        gptDraw->add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth - 6.0f, 30.0f + tCursor0.y}, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tAvailableColor), .fThickness = 1.0f});
-                    else
-                        gptDraw->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tAvailableColor)});
-                    gptUI->invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
-                    if(gptUI->was_last_item_hovered())
-                    {
-                        ulHoveredBlock = (uint64_t)i;
-                    }
-                    pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
+                        gptUI->layout_template_begin(30.0f);
+                        gptUI->layout_template_push_static(150.0f);
+                        gptUI->layout_template_push_variable(300.0f);
+                        gptUI->layout_template_end();
 
-                    iCurrentBlock++;
-                }
+                        float fWidth0 = -1.0f;
+                        float fHeight0 = -1.0f;
+                        uint64_t ulHoveredBlock = UINT64_MAX;
 
-                for(uint32_t i = 0; i < uRangeCount; i++)
-                {
+                        const uint64_t ulMaxBlockSize = gptGpuAllocators->get_buddy_block_size();
 
-                    plDeviceAllocationRange* ptRange = &sbtRanges[i];
-                    plDeviceMemoryAllocation* ptBlock = &sbtBlocks[ptRange->ulBlockIndex];
+                        uint32_t iCurrentBlock = 0;
 
-                    if(ptRange->ulUsedSize == 0 || ptRange->ulUsedSize == UINT64_MAX)
-                        continue;
-                    
-                    const float fWidthAvailable = tWindowEnd.x - fWidth0;
-                    // const float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
-                    const float fStartPos       = fWidth0 + fWidthAvailable * ((float)ptRange->ulOffset) / (float)ulMaxBlockSize;
-                    const float fUsedWidth      = fWidthAvailable * ((float)ptRange->ulUsedSize) / (float)ulMaxBlockSize;
-                    const float fAvailableWidth = fWidthAvailable * ((float)ptRange->ulTotalSize) / (float)ulMaxBlockSize;
-
-                    const float fYPos = fHeight0 + 34.0f * (float)ptRange->ulBlockIndex;
-                    gptDraw->add_rect_rounded_filled(ptFgLayer, (plVec2){fStartPos, fYPos}, (plVec2){fStartPos + fAvailableWidth, 30.0f + fYPos}, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tWastedColor)});
-                    gptDraw->add_rect_rounded_filled(ptFgLayer, (plVec2){fStartPos, fYPos}, (plVec2){fStartPos + fUsedWidth, 30.0f + fYPos}, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tUsedColor)});
-
-                    if(ptRange->ulBlockIndex == ulHoveredBlock)
-                    {
-                        const plRect tHitBox = pl_calculate_rect((plVec2){fStartPos, fYPos}, (plVec2){fAvailableWidth, 30});
-                        if(pl_rect_contains_point(&tHitBox, tMousePos))
+                        for(uint32_t i = 0; i < uBlockCount; i++)
                         {
-                            gptDraw->add_rect(ptFgLayer, tHitBox.tMin, tHitBox.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tWhiteColor), .fThickness = 1.0f});
-                            gptUI->begin_tooltip();
-                            float fMaxWidth = gptDraw->calculate_text_size(ptRange->acName, (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x + 25.0f;
-                            gptUI->layout_static(0.0f, pl_max(fMaxWidth, 300), 1);
-                            gptUI->text(ptRange->acName);
-                            gptUI->text("Offset:          %lu", ptRange->ulOffset);
-                            gptUI->text("Requested Size:  %lu", ptRange->ulUsedSize);
-                            gptUI->text("Allocated Size:  %lu", ptRange->ulTotalSize);
-                            gptUI->text("Wasted:          %lu", ptRange->ulTotalSize - ptRange->ulUsedSize);
-                            gptUI->end_tooltip();
+                            plDeviceMemoryAllocation* ptBlock = &sbtBlocks[i];
+                            // if(ptBlock->ulSize == 0)
+                            //     continue;
+
+                            char* pcTempBuffer1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "Block %u##%u", iCurrentBlock, uAllocatorIndex);
+
+                            char* pcTempBuffer0 = NULL;
+                            if(ptBlock->ulSize > 1000000000)
+                                pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "Block %u: %3.1fGB", iCurrentBlock, ((double)ptBlock->ulSize)/1000000000.0);
+                            else if(ptBlock->ulSize > 1000000)
+                                pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "Block %u: %3.1fMB", iCurrentBlock, ((double)ptBlock->ulSize)/1000000.0);
+                            else if(ptBlock->ulSize > 1000)
+                                pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "Block %u: %3.1fKB", iCurrentBlock, ((double)ptBlock->ulSize)/1000.0);
+                            else
+                                pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "Block %u: %luB", iCurrentBlock, ptBlock->ulSize);
+
+                            gptUI->button(pcTempBuffer0);
+                            
+                            plVec2 tCursor0 = gptUI->get_cursor_pos();
+
+                            if(fHeight0 == -1.0f)
+                            {
+                                fWidth0  = tCursor0.x;
+                                fHeight0 = tCursor0.y;
+                            }
+
+                            const float fWidthAvailable = tWindowEnd.x - tCursor0.x;
+                            float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
+                            fTotalWidth = pl_max(fTotalWidth, 1.0f);
+
+                            if(ptBlock->uHandle == UINT64_MAX)
+                                gptDraw->add_rect(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth - 6.0f, 30.0f + tCursor0.y}, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tAvailableColor), .fThickness = 1.0f});
+                            else
+                                gptDraw->add_rect_filled(ptFgLayer, tCursor0, (plVec2){tCursor0.x + fTotalWidth, 30.0f + tCursor0.y}, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tAvailableColor)});
+                            gptUI->invisible_button(pcTempBuffer1, (plVec2){fTotalWidth, 30.0f});
+                            if(gptUI->was_last_item_hovered())
+                            {
+                                ulHoveredBlock = (uint64_t)i;
+                            }
+                            pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
+
+                            iCurrentBlock++;
+                        }
+
+                        for(uint32_t i = 0; i < uRangeCount; i++)
+                        {
+
+                            plDeviceAllocationRange* ptRange = &sbtRanges[i];
+                            plDeviceMemoryAllocation* ptBlock = &sbtBlocks[ptRange->ulBlockIndex];
+
+                            if(ptRange->ulBlockIndex == 1 && uAllocatorIndex == 0)
+                            {
+                                int a = 5;
+                            }
+
+                            if(ptRange->ulUsedSize == 0 || ptRange->ulUsedSize == UINT64_MAX)
+                                continue;
+                            
+                            const float fWidthAvailable = tWindowEnd.x - fWidth0;
+                            // const float fTotalWidth = fWidthAvailable * ((float)ptBlock->ulSize) / (float)ulMaxBlockSize;
+                            const float fStartPos       = fWidth0 + fWidthAvailable * ((float)ptRange->ulOffset) / (float)ulMaxBlockSize;
+                            const float fUsedWidth      = fWidthAvailable * ((float)ptRange->ulUsedSize) / (float)ulMaxBlockSize;
+                            const float fAvailableWidth = fWidthAvailable * ((float)ptRange->ulTotalSize) / (float)ulMaxBlockSize;
+
+                            const float fYPos = fHeight0 + 34.0f * (float)ptRange->ulBlockIndex;
+                            gptDraw->add_rect_rounded_filled(ptFgLayer, (plVec2){fStartPos, fYPos}, (plVec2){fStartPos + fAvailableWidth, 30.0f + fYPos}, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tWastedColor)});
+                            gptDraw->add_rect_rounded_filled(ptFgLayer, (plVec2){fStartPos, fYPos}, (plVec2){fStartPos + fUsedWidth, 30.0f + fYPos}, 0.0f, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_VEC4(tUsedColor)});
+
+                            if(ptRange->ulBlockIndex == ulHoveredBlock)
+                            {
+                                const plRect tHitBox = pl_calculate_rect((plVec2){fStartPos, fYPos}, (plVec2){fAvailableWidth, 30});
+                                if(pl_rect_contains_point(&tHitBox, tMousePos))
+                                {
+
+                                    char* pcTempBuffer0 = NULL;
+                                    char* pcTempBuffer1 = NULL;
+
+
+                                    if(ptRange->ulUsedSize > 1000000000)
+                                        pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fGB ##%u", ((double)ptRange->ulUsedSize)/1000000000.0, i);
+                                    else if(ptRange->ulUsedSize > 1000000)
+                                        pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fMB ##%u", ((double)ptRange->ulUsedSize)/1000000.0, i);
+                                    else if(ptRange->ulUsedSize > 1000)
+                                        pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fKB ##%u", ((double)ptRange->ulUsedSize)/1000.0, i);
+                                    else
+                                        pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%lu ##%u", ptRange->ulUsedSize, i);
+
+                                    if(ptRange->ulTotalSize > 1000000000)
+                                        pcTempBuffer1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fGB ##%u", ((double)ptRange->ulTotalSize)/1000000000.0, i);
+                                    else if(ptRange->ulTotalSize > 1000000)
+                                        pcTempBuffer1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fMB ##%u", ((double)ptRange->ulTotalSize)/1000000.0, i);
+                                    else if(ptRange->ulTotalSize > 1000)
+                                        pcTempBuffer1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fKB ##%u", ((double)ptRange->ulTotalSize)/1000.0, i);
+                                    else
+                                        pcTempBuffer1 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%lu ##%u", ptRange->ulTotalSize, i);
+
+
+                                    gptDraw->add_rect(ptFgLayer, tHitBox.tMin, tHitBox.tMax, (plDrawLineOptions){.uColor = PL_COLOR_32_VEC4(tWhiteColor), .fThickness = 1.0f});
+                                    gptUI->begin_tooltip();
+                                    float fMaxWidth = gptDraw->calculate_text_size(ptRange->acName, (plDrawTextOptions){.ptFont = gptUI->get_default_font()}).x + 25.0f;
+                                    gptUI->layout_static(0.0f, pl_max(fMaxWidth, 300), 1);
+                                    gptUI->text(ptRange->acName);
+                                    gptUI->text("Offset:          %lu", ptRange->ulOffset);
+                                    gptUI->text("Requested Size:  %s", pcTempBuffer0);
+                                    gptUI->text("Allocated Size:  %s", pcTempBuffer1);
+                                    gptUI->text("Wasted:          %lu", ptRange->ulTotalSize - ptRange->ulUsedSize);
+                                    gptUI->end_tooltip();
+
+                                    pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
-
-        gptUI->pop_theme_color(3);
-
-        gptUI->layout_dynamic(0.0f, 1);
-        gptUI->separator_text("Blocks");
-
-        uint32_t uAllocationCount = 0;
-        const plDeviceMemoryAllocation* sbtAllocations = gptGfx->get_allocations(gptDebugCtx->ptDevice, &uAllocationCount);
-        const plVec2 tCursorPos = gptUI->get_cursor_pos();
-
-        const double dReferenceWidth = (double)gptUI->get_window_size().x - 50.0;
-        gptUI->layout_dynamic(tWindowEnd.y - tCursorPos.y - 20.0f, 1);
-
-        static const plVec4 tGPUColor    = {0.0f, 0.5f, 0.0f, 1.0f};
-        static const plVec4 tCPUColor    = {0.0f, 0.5f, 0.5f, 1.0f};
-        static const plVec4 tGPUCPUColor = {0.5f, 0.0f, 0.5f, 1.0f};
-
-        if(gptUI->begin_child("Memory Blocks", 0, 0))
-        {
-            
-
-            for(uint32_t i = 0; i < uAllocationCount; i++)
-            {
-                float fWidth = (float)(dReferenceWidth * ((double)sbtAllocations[i].ulSize) / (268435456.0 * 2.0));
-                fWidth = pl_maxf(fWidth, 150.0f);
-                gptUI->layout_row_begin(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2);
-                gptUI->layout_row_push(fWidth);
-
-
-                if(sbtAllocations[i].tMemoryFlags == PL_MEMORY_GPU)
-                {
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tGPUColor);
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tGPUColor);
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tGPUColor);
-                }
-                else if(sbtAllocations[i].tMemoryFlags == PL_MEMORY_GPU_CPU)
-                {
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tGPUCPUColor);
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tGPUCPUColor);
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tGPUCPUColor);
-                }
-                else if(sbtAllocations[i].tMemoryFlags == PL_MEMORY_CPU)
-                {
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tCPUColor);
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tCPUColor);
-                    gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tCPUColor);
-                }
-
-                char* pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fMB ##%u", ((double)sbtAllocations[i].ulSize)/1000000.0, i);
-    
-                gptUI->button(pcTempBuffer0);
-                gptUI->layout_row_push(200.0f);
-                
-                if(sbtAllocations[i].tMemoryFlags == PL_MEMORY_GPU)
-                    gptUI->text("Device Local");
-                else if(sbtAllocations[i].tMemoryFlags == PL_MEMORY_GPU_CPU)
-                    gptUI->text("Host Visible");
-                else
-                    gptUI->text("Host Cached");
-
-                if(gptUI->was_last_item_hovered())
-                {
-                    gptUI->begin_tooltip();
-                    gptUI->text(sbtAllocations[i].pcName);
-                    gptUI->end_tooltip();
-                }
-
-                gptUI->layout_row_end();
-        
-                pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
 
                 gptUI->pop_theme_color(3);
+                gptUI->end_tab();
             }
 
-            gptUI->end_child();
+            if(gptUI->begin_tab("All Blocks", 0))
+            {
+
+                gptUI->layout_dynamic(0.0f, 2);
+                
+                static plMemoryFlags tFlagMasks = PL_MEMORY_FLAGS_DEVICE_LOCAL | PL_MEMORY_FLAGS_HOST_VISIBLE
+                    | PL_MEMORY_FLAGS_HOST_COHERENT | PL_MEMORY_FLAGS_HOST_CACHED;
+
+                gptUI->checkbox_flags("PL_MEMORY_FLAGS_DEVICE_LOCAL", &tFlagMasks, PL_MEMORY_FLAGS_DEVICE_LOCAL);
+                gptUI->checkbox_flags("PL_MEMORY_FLAGS_HOST_VISIBLE", &tFlagMasks, PL_MEMORY_FLAGS_HOST_VISIBLE);
+                gptUI->checkbox_flags("PL_MEMORY_FLAGS_HOST_COHERENT", &tFlagMasks, PL_MEMORY_FLAGS_HOST_COHERENT);
+                gptUI->checkbox_flags("PL_MEMORY_FLAGS_HOST_CACHED", &tFlagMasks, PL_MEMORY_FLAGS_HOST_CACHED);
+
+                gptUI->layout_dynamic(0.0f, 1);
+                gptUI->separator_text("Blocks");
+
+                plVec2 tCursorPos = gptUI->get_cursor_pos();
+
+                gptUI->layout_dynamic(tWindowEnd.y - tCursorPos.y - 20.0f, 1);
+
+                if(gptUI->begin_child("Memory Blocks", 0, 0))
+                {
+
+                    uint32_t uAllocationCount = 0;
+                    const plDeviceMemoryAllocation* sbtAllocations = gptGfx->get_allocations(gptDebugCtx->ptDevice, &uAllocationCount);
+                    tCursorPos = gptUI->get_cursor_pos();
+
+                    const double dReferenceWidth = (double)gptUI->get_window_size().x - 50.0;
+                    gptUI->layout_dynamic(tWindowEnd.y - tCursorPos.y - 20.0f, 1);
+
+                    static const plVec4 tGPUColor = {0.5f, 0.5f, 0.0f, 1.0f};
+                    static const plVec4 tCPUColor = {0.0f, 0.5f, 0.5f, 1.0f};
+
+                    for(uint32_t i = 0; i < uAllocationCount; i++)
+                    {
+
+                        if(!(sbtAllocations[i].tMemoryFlags & tFlagMasks))
+                            continue;
+
+                        float fWidth = (float)(dReferenceWidth * ((double)sbtAllocations[i].ulSize) / (268435456.0 * 2.0));
+                        fWidth = pl_maxf(fWidth, 70.0f);
+                        gptUI->layout_row_begin(PL_UI_LAYOUT_ROW_TYPE_STATIC, 0.0f, 2);
+                        gptUI->layout_row_push(fWidth);
+
+
+                        if(sbtAllocations[i].tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL)
+                        {
+                            gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tGPUColor);
+                            gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tGPUColor);
+                            gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tGPUColor);
+                        }
+                        else
+                        {
+                            gptUI->push_theme_color(PL_UI_COLOR_BUTTON, tCPUColor);
+                            gptUI->push_theme_color(PL_UI_COLOR_BUTTON_ACTIVE, tCPUColor);
+                            gptUI->push_theme_color(PL_UI_COLOR_BUTTON_HOVERED, tCPUColor);
+                        }
+
+                        char* pcTempBuffer0 = NULL;
+                        if(sbtAllocations[i].ulSize > 1000000000)
+                            pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fGB ##%u", ((double)sbtAllocations[i].ulSize)/1000000000.0, i);
+                        else if(sbtAllocations[i].ulSize > 1000000)
+                            pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fMB ##%u", ((double)sbtAllocations[i].ulSize)/1000000.0, i);
+                        else if(sbtAllocations[i].ulSize > 1000)
+                            pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%0.1fKB ##%u", ((double)sbtAllocations[i].ulSize)/1000.0, i);
+                        else
+                            pcTempBuffer0 = pl_temp_allocator_sprintf(&gptDebugCtx->tTempAllocator, "%lu ##%u", sbtAllocations[i].ulSize, i);
+
+                        gptUI->button(pcTempBuffer0);
+                        gptUI->layout_row_push(200.0f);
+                        gptUI->text("%s", sbtAllocations[i].acName);
+
+                        if(gptUI->was_last_item_hovered())
+                        {
+                            gptUI->begin_tooltip();
+                            gptUI->text(sbtAllocations[i].acName);
+                            gptUI->text("Size: %s", pcTempBuffer0);
+                            if(sbtAllocations[i].tMemoryFlags & PL_MEMORY_FLAGS_DEVICE_LOCAL) gptUI->text("PL_MEMORY_FLAGS_DEVICE_LOCAL");
+                            if(sbtAllocations[i].tMemoryFlags & PL_MEMORY_FLAGS_HOST_VISIBLE) gptUI->text("PL_MEMORY_FLAGS_HOST_VISIBLE");
+                            if(sbtAllocations[i].tMemoryFlags & PL_MEMORY_FLAGS_HOST_COHERENT) gptUI->text("PL_MEMORY_FLAGS_HOST_COHERENT");
+                            if(sbtAllocations[i].tMemoryFlags & PL_MEMORY_FLAGS_HOST_CACHED) gptUI->text("PL_MEMORY_FLAGS_HOST_CACHED");
+                            gptUI->end_tooltip();
+                        }
+
+                        gptUI->layout_row_end();
+                
+                        pl_temp_allocator_reset(&gptDebugCtx->tTempAllocator);
+
+                        gptUI->pop_theme_color(3);
+                    }
+                    gptUI->end_child();
+                }
+                gptUI->end_tab();
+            }
+
+            gptUI->end_tab_bar();
         }
 
         gptUI->end_window();

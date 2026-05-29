@@ -100,6 +100,72 @@ pl__add_node_to_freelist(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_
     ptNode->ulUsedSize = 0;
     ptData->sbtNodes[uNode].uNextNode = ptData->auFreeList[uLevel];
     ptData->auFreeList[uLevel] = uNode;
+
+    if(uLevel == 0)
+    {
+        const uint32_t uNodesPerBlock = (1 << PL_DEVICE_LOCAL_LEVELS) - 1;
+        uint64_t uBlockIndex = ptNode->ulBlockIndex;
+        uint32_t uNodeCount = pl_sb_size(ptData->sbtNodes);
+        uint32_t uFinalNodeIndex = 0;
+        plDeviceMemoryAllocation* ptBlock = &ptData->sbtBlocks[uBlockIndex];
+        bool bUpdateBlockIndices = false;
+        for(uint32_t i = 0; i < uNodeCount; i++)
+        {
+            plDeviceAllocationRange* ptIntermediateNode = &ptData->sbtNodes[i];
+            if(ptIntermediateNode->ulBlockIndex == uBlockIndex && ptIntermediateNode->ulUsedSize == 0 && ptIntermediateNode->ulTotalSize == ptBlock->ulSize )
+            {
+                // check if found sub node, block must not be completely free
+                if(ptIntermediateNode->ulUsedSize == 0 && ptIntermediateNode->ulTotalSize != ptBlock->ulSize)
+                    return;
+
+                // check if root node is free (so block can be freed)
+                if(ptIntermediateNode->ulUsedSize == 0 && ptIntermediateNode->ulTotalSize == ptBlock->ulSize)
+                {
+                    ptData->auFreeList[0] = ptData->sbtNodes[ptData->auFreeList[0]].uNextNode;   
+                    uFinalNodeIndex = ptIntermediateNode->uNodeIndex; // should be start of ranges
+                    pl_sb_del_n(ptData->sbtNodes, ptIntermediateNode->uNodeIndex, uNodesPerBlock);
+
+                    // printf("FREEING %llu\n", ptData->sbtBlocks[uBlockIndex].ulSize);
+
+                    gptGfx->free_memory(ptData->ptDevice, &ptData->sbtBlocks[uBlockIndex]);
+                    memset(&ptData->sbtBlocks[uBlockIndex], 0, sizeof(plDeviceMemoryAllocation));
+                    pl_sb_del(ptData->sbtBlocks, uBlockIndex);
+                    bUpdateBlockIndices = true;
+                    break;
+                }
+            }
+        }
+
+        if(bUpdateBlockIndices) // block was removed
+        {
+            uNodeCount = pl_sb_size(ptData->sbtNodes);
+            for(uint32_t i = 0; i < uNodeCount; i++)
+            {
+                ptNode = &ptData->sbtNodes[i];
+
+                if(ptNode->uNextNode != UINT32_MAX && ptNode->uNextNode >= uFinalNodeIndex) // update linked list
+                {
+                    ptNode->uNextNode -= uNodesPerBlock;
+                }
+
+                if(ptNode->ulBlockIndex > uBlockIndex) // update block & node indices
+                {
+                    ptNode->ulBlockIndex--;
+                    ptNode->uNodeIndex = i;
+                }
+                else if(ptNode->ulBlockIndex == uBlockIndex)
+                {
+                    PL_ASSERT(false);
+                }
+            }
+
+            for(uint32_t i = 0; i < PL_DEVICE_LOCAL_LEVELS; i++)
+            {
+                if(ptData->auFreeList[i] != UINT32_MAX && ptData->auFreeList[i] >= uFinalNodeIndex)
+                    ptData->auFreeList[i] -= uNodesPerBlock;
+            }
+        }
+    }
 }
 
 static void
@@ -142,7 +208,7 @@ pl_create_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uMemoryT
     uint32_t uNode = UINT32_MAX;
 
     plDeviceMemoryAllocation tBlock = {
-        .uHandle      = 0,
+        .uHandle      = UINT64_MAX,
         .ulSize       = PL_DEVICE_BUDDY_BLOCK_SIZE,
         .ulMemoryType = uMemoryType
     };
@@ -158,6 +224,7 @@ pl_create_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uMemoryT
         uint64_t uCurrentOffset = 0;
         for(uint32_t i = 0; i < uLevelBlockCount; i++)
         {
+            ptData->sbtNodes[uNodeIndex].ulUsedSize   = UINT64_MAX;
             ptData->sbtNodes[uNodeIndex].uNodeIndex   = uNodeIndex;
             ptData->sbtNodes[uNodeIndex].uNextNode    = UINT32_MAX;
             ptData->sbtNodes[uNodeIndex].ulOffset     = uCurrentOffset;
@@ -183,7 +250,12 @@ pl__get_device_node(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uLevel, ui
         if(ptData->auFreeList[0] == UINT32_MAX)  // no nodes available
         {
             uNode = pl_create_device_node(ptInst, uMemoryType);
-            pl__add_node_to_freelist(ptData, 0, uNode);
+
+            // add to freelist
+            plDeviceAllocationRange* ptNode = &ptData->sbtNodes[uNode];
+            ptNode->ulUsedSize = 0;
+            ptData->sbtNodes[uNode].uNextNode = ptData->auFreeList[uLevel];
+            ptData->auFreeList[uLevel] = uNode;
         }
         else // nodes available
         {
@@ -303,16 +375,18 @@ pl__is_node_free(plDeviceAllocatorData* ptData, uint32_t uNode)
     return bFree;
 }
 
-static void
+static bool
 pl__coalesce_nodes(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_t uNode)
 {
     plDeviceAllocationRange* ptNode = &ptData->sbtNodes[uNode];
+
+    bool bResult = false;
 
     // just return node to freelist
     if(uLevel == 0)
     {
         pl__add_node_to_freelist(ptData, uLevel, uNode);
-        return;
+        return true;
     }
 
     bool bBothFree = false;
@@ -330,7 +404,7 @@ pl__coalesce_nodes(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_t uNod
                 pl__remove_node_from_freelist(ptData, uLevel, uRightNode);
             }
         }
-        else
+        else // right node
         {
             uLeftNode = uNode - 1;
             uRightNode = uNode;
@@ -345,6 +419,8 @@ pl__coalesce_nodes(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_t uNod
     {
         if(uNode % 2 == 1) // right node
         {
+            uLeftNode = uNode - 1;
+            uRightNode = uNode;
             if(pl__is_node_free(ptData, uLeftNode))
             {
                 bBothFree = true;
@@ -364,6 +440,9 @@ pl__coalesce_nodes(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_t uNod
     if(bBothFree) // need to coalese
     {
 
+        ptData->sbtNodes[uLeftNode].ulUsedSize = UINT64_MAX;
+        ptData->sbtNodes[uRightNode].ulUsedSize = UINT64_MAX;
+
         if(uLevel > 1)
         {
             // find parent node
@@ -371,27 +450,28 @@ pl__coalesce_nodes(plDeviceAllocatorData* ptData, uint32_t uLevel, uint32_t uNod
             const uint32_t uParentLevelBlockCount = (1 << (uLevel - 1));
             uint32_t uIndexInLevel = (uint32_t)(ptData->sbtNodes[uLeftNode].ulOffset / uSizeOfParentLevel);
             const uint32_t uParentNode = uLeftNode - uParentLevelBlockCount - uIndexInLevel;
-            pl__coalesce_nodes(ptData, uLevel - 1, uParentNode);
+            bResult = pl__coalesce_nodes(ptData, uLevel - 1, uParentNode);
         }
         else
         {
             // find parent node
             const uint32_t uParentNode = uLeftNode - 1;
             pl__add_node_to_freelist(ptData, 0, uParentNode);
+            bResult = true;
         }
-        ptNode->ulUsedSize = UINT64_MAX; // ignored
+        // ptNode->ulUsedSize = UINT64_MAX; // ignored
     }
     else
     {
         pl__add_node_to_freelist(ptData, uLevel, uNode);
     }
 
+    return bResult;
+
 }
 
 static plDeviceMemoryAllocation
-pl_allocate_dedicated(
-    struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
-    uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+pl_allocate_dedicated(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
@@ -407,10 +487,7 @@ pl_allocate_dedicated(
     };
 
     uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
-    if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
-        uBlockIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
-    else
-        pl_sb_add(ptData->sbtBlocks);
+    pl_sb_add(ptData->sbtBlocks);
 
     plDeviceAllocationRange tRange = {
         .ulOffset     = 0,
@@ -430,6 +507,7 @@ pl_free_dedicated(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocat
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
+    // find allocation
     uint32_t uBlockIndex = 0;
     uint32_t uNodeIndex = 0;
     for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
@@ -445,8 +523,17 @@ pl_free_dedicated(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocat
             break;
         }
     }
+
+    // update range block indices
+    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
+    {
+        plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
+        plDeviceMemoryAllocation* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
+
+        if(ptNode->ulBlockIndex > uBlockIndex)
+            ptNode->ulBlockIndex--;
+    }
     pl_sb_del_swap(ptData->sbtNodes, uNodeIndex);
-    pl_sb_push(ptData->sbtFreeBlockIndices, uBlockIndex);
 
     gptGfx->free_memory(ptData->ptDevice, &ptData->sbtBlocks[uBlockIndex]);
 
@@ -454,6 +541,7 @@ pl_free_dedicated(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocat
     ptAllocation->uHandle      = 0;
     ptAllocation->ulOffset     = 0;
     ptAllocation->ulSize       = 0;
+    pl_sb_del(ptData->sbtBlocks, uBlockIndex);
 }
 
 static inline uint32_t
@@ -473,9 +561,7 @@ pl__get_buddy_level(uint64_t ulSize)
 }
 
 static plDeviceMemoryAllocation
-pl_allocate_buddy(
-    struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
-    uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+pl_allocate_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
@@ -501,11 +587,14 @@ pl_allocate_buddy(
         .ptAllocator  = ptData->ptAllocator,
         .tMemoryFlags = PL_MEMORY_FLAGS_DEVICE_LOCAL
     };
+    ptBlock->tMemoryFlags = tAllocation.tMemoryFlags;
+    ptBlock->ptAllocator = tAllocation.ptAllocator;
+    strncpy(tAllocation.acName, pcName, 64);
 
     if(ulAlignment > 0)
         tAllocation.ulOffset = (((tAllocation.ulOffset) + ((ulAlignment)-1)) & ~((ulAlignment)-1));
 
-    if(tAllocation.uHandle == 0)
+    if(tAllocation.uHandle == UINT64_MAX)
     {
         ptBlock->uHandle = gptGfx->allocate_memory(ptData->ptDevice, PL_DEVICE_BUDDY_BLOCK_SIZE, PL_MEMORY_FLAGS_DEVICE_LOCAL, uTypeFilter, "Buddy Heap").uHandle;
         tAllocation.uHandle = (uint64_t)ptBlock->uHandle;
@@ -520,9 +609,11 @@ pl_free_buddy(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation*
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
     // find associated node
+    uint64_t uBlockIndex = 0;
     uint32_t uNodeIndex = 0;
     plDeviceAllocationRange* ptNode = NULL;
-    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
+    uint32_t uNodeCount = pl_sb_size(ptData->sbtNodes);
+    for(uint32_t i = 0; i < uNodeCount; i++)
     {
         plDeviceAllocationRange* ptIntermediateNode = &ptData->sbtNodes[i];
         plDeviceMemoryAllocation* ptBlock = &ptData->sbtBlocks[ptIntermediateNode->ulBlockIndex];
@@ -531,6 +622,7 @@ pl_free_buddy(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation*
             ptIntermediateNode->ulOffset == ptAllocation->ulOffset &&
             ptIntermediateNode->ulUsedSize == ptAllocation->ulSize)
         {
+            uBlockIndex = ptIntermediateNode->ulBlockIndex;
             ptNode = &ptData->sbtNodes[i];
             uNodeIndex = (uint32_t)i;
             break;
@@ -548,14 +640,46 @@ pl_free_buddy(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAllocation*
         }
     }
     uLevel = pl_minu(uLevel, PL_DEVICE_LOCAL_LEVELS - 1);
-    pl__coalesce_nodes(ptData, uLevel, uNodeIndex);
+
     strncpy(ptNode->acName, "not used", PL_MAX_NAME_LENGTH);
+    bool bFreeBlock = pl__coalesce_nodes(ptData, uLevel, uNodeIndex);
+
+    if(!bFreeBlock)
+    {
+    
+        const uint32_t uNodesPerBlock = (1 << PL_DEVICE_LOCAL_LEVELS) - 1;
+        uint32_t uStartIndex = uNodesPerBlock * (uint32_t)ptNode->ulBlockIndex;
+        bool bValid = false;
+        for(uint32_t i = 0; i < uNodesPerBlock; i++)
+        {
+            ptNode = &ptData->sbtNodes[uStartIndex + i];
+
+            if(ptNode->ulUsedSize >= 0 && ptNode->ulUsedSize != UINT64_MAX && ptNode->ulTotalSize != ptData->sbtBlocks[ptNode->ulBlockIndex].ulSize)
+            {
+                bValid = true;
+                break;
+            }
+        }
+
+        if(!bValid)
+        {
+            for(uint32_t i = 0; i < uNodesPerBlock; i++)
+            {
+                ptNode = &ptData->sbtNodes[uStartIndex + i];
+
+                if(ptNode->ulUsedSize > 0 && ptNode->ulUsedSize != UINT64_MAX && ptNode->ulTotalSize != ptData->sbtBlocks[ptNode->ulBlockIndex].ulSize)
+                {
+                    bValid = true;
+                    break;
+                }
+            }
+        }
+    }
+
 }
 
 static plDeviceMemoryAllocation
-pl_allocate_staging_uncached(
-    struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
-    uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+pl_allocate_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
@@ -572,10 +696,7 @@ pl_allocate_staging_uncached(
     };
 
     uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
-    if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
-        uBlockIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
-    else
-        pl_sb_add(ptData->sbtBlocks);
+    pl_sb_add(ptData->sbtBlocks);
 
     plDeviceAllocationRange tRange = {
         .ulOffset     = 0,
@@ -610,8 +731,17 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
             break;
         }
     }
+
+    // update range block indices
+    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
+    {
+        plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
+        plDeviceMemoryAllocation* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
+
+        if(ptNode->ulBlockIndex > uBlockIndex)
+            ptNode->ulBlockIndex--;
+    }
     pl_sb_del_swap(ptData->sbtNodes, uNodeIndex);
-    pl_sb_push(ptData->sbtFreeBlockIndices, uBlockIndex);
 
     gptGfx->free_memory(ptData->ptDevice, &ptData->sbtBlocks[uBlockIndex]);
 
@@ -619,12 +749,11 @@ pl_free_staging_uncached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
     ptAllocation->uHandle      = 0;
     ptAllocation->ulOffset     = 0;
     ptAllocation->ulSize       = 0;
+    pl_sb_del(ptData->sbtBlocks, uBlockIndex);
 }
 
 static plDeviceMemoryAllocation
-pl_allocate_staging_uncached_buddy(
-    struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter,
-    uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
+pl_allocate_staging_uncached_buddy(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
 {
     plDeviceAllocatorData* ptData = (plDeviceAllocatorData*)ptInst;
 
@@ -650,11 +779,13 @@ pl_allocate_staging_uncached_buddy(
         .ptAllocator  = ptData->ptAllocator,
         .tMemoryFlags = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT
     };
+    ptBlock->tMemoryFlags = tAllocation.tMemoryFlags;
+    ptBlock->ptAllocator = tAllocation.ptAllocator;
 
     if(ulAlignment > 0)
         tAllocation.ulOffset = (((tAllocation.ulOffset) + ((ulAlignment)-1)) & ~((ulAlignment)-1));
 
-    if(tAllocation.uHandle == 0)
+    if(tAllocation.uHandle == UINT64_MAX)
     {
         plDeviceMemoryAllocation tActualAllocation = gptGfx->allocate_memory(ptData->ptDevice, PL_DEVICE_BUDDY_BLOCK_SIZE, PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT, uTypeFilter, "Staging Uncached Buddy Heap");
         ptBlock->uHandle = tActualAllocation.uHandle;
@@ -685,10 +816,7 @@ pl_allocate_staging_cached(
     };
 
     uint32_t uBlockIndex = pl_sb_size(ptData->sbtBlocks);
-    if(pl_sb_size(ptData->sbtFreeBlockIndices) > 0)
-        uBlockIndex = pl_sb_pop(ptData->sbtFreeBlockIndices);
-    else
-        pl_sb_add(ptData->sbtBlocks);
+    pl_sb_add(ptData->sbtBlocks);
 
     plDeviceAllocationRange tRange = {
         .ulOffset     = 0,
@@ -723,8 +851,17 @@ pl_free_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAl
             break;
         }
     }
+
+    // update range block indices
+    for(uint32_t i = 0; i < pl_sb_size(ptData->sbtNodes); i++)
+    {
+        plDeviceAllocationRange* ptNode = &ptData->sbtNodes[i];
+        plDeviceMemoryAllocation* ptBlock = &ptData->sbtBlocks[ptNode->ulBlockIndex];
+
+        if(ptNode->ulBlockIndex > uBlockIndex)
+            ptNode->ulBlockIndex--;
+    }
     pl_sb_del_swap(ptData->sbtNodes, uNodeIndex);
-    pl_sb_push(ptData->sbtFreeBlockIndices, uBlockIndex);
 
     gptGfx->free_memory(ptData->ptDevice, &ptData->sbtBlocks[uBlockIndex]);
 
@@ -732,6 +869,7 @@ pl_free_staging_cached(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemoryAl
     ptAllocation->uHandle      = 0;
     ptAllocation->ulOffset     = 0;
     ptAllocation->ulSize       = 0;
+    pl_sb_del(ptData->sbtBlocks, uBlockIndex);
 }
 
 plDeviceMemoryAllocatorI*
@@ -747,7 +885,6 @@ pl_gpu_allocators_get_local_dedicated_allocator(plDevice* ptDevice)
 
         if(ptAllocator)
             ptAllocatorData = gptDataRegistry->get_data("LocalDedicatedAllocatorData");
-        
         else
         {
             static plDeviceMemoryAllocatorI gtAllocator = {0};
