@@ -201,6 +201,8 @@ typedef struct _plGraphics
     // per frame
     id<CAMetalDrawable> tCurrentDrawable;
     plRenderPassHandle* sbtMainRenderPassHandles;
+
+    bool bEncoderActive;
 } plGraphics;
 
 typedef struct _plDevice
@@ -1267,6 +1269,13 @@ pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptV
     return tHandle;
 }
 
+void
+pl_graphics_reset_dynamic_data_blocks(plDevice* ptDevice)
+{
+    plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
+    ptFrame->uCurrentBufferIndex = 0;
+}
+
 plDynamicDataBlock
 pl_graphics_allocate_dynamic_data_block(plDevice* ptDevice)
 {
@@ -1274,11 +1283,12 @@ pl_graphics_allocate_dynamic_data_block(plDevice* ptDevice)
 
 
     plMetalDynamicBuffer* ptDynamicBuffer = NULL;
+    const uint32_t uDynamicBufferCount = pl_sb_size(ptFrame->sbtDynamicBuffers);
 
     // first call this frame
-    if(ptFrame->uCurrentBufferIndex != 0)
+    // if(ptFrame->uCurrentBufferIndex != 0)
     {
-        if(pl_sb_size(ptFrame->sbtDynamicBuffers) <= ptFrame->uCurrentBufferIndex)
+        if(uDynamicBufferCount == 0 || uDynamicBufferCount <= ptFrame->uCurrentBufferIndex)
         {
             pl_sb_add(ptFrame->sbtDynamicBuffers);
             ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
@@ -1303,7 +1313,8 @@ pl_graphics_allocate_dynamic_data_block(plDevice* ptDevice)
         ._uBumpAmount    = ptDevice->tInit.szDynamicDataMaxSize,
         ._uCurrentOffset = 0
     };
-    ptFrame->uCurrentBufferIndex++;
+    if(uDynamicBufferCount > 0)
+        ptFrame->uCurrentBufferIndex++;
     return tBlock;
 }
 
@@ -1858,12 +1869,12 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
 
         tFrame.tFrameBoundaryEvent = [ptDevice->tDevice newSharedEvent];
 
-        pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
-        static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
-        pl_sprintf(atNameBuffer, "D-BUF-F%d-0", (int)i);
-        tFrame.sbtDynamicBuffers[0].tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, ptDevice->tInit.szDynamicBufferBlockSize, 0,atNameBuffer);
-        tFrame.sbtDynamicBuffers[0].tBuffer = [ptDevice->atHeaps[tFrame.sbtDynamicBuffers[0].tMemory.uHandle] newBufferWithLength:ptDevice->tInit.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
-        tFrame.sbtDynamicBuffers[0].tBuffer.label = [NSString stringWithUTF8String:pl_temp_allocator_sprintf(&tTempAllocator, "Dynamic Buffer: %u, 0", i)];
+        // pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
+        // static char atNameBuffer[PL_MAX_NAME_LENGTH] = {0};
+        // pl_sprintf(atNameBuffer, "D-BUF-F%d-0", (int)i);
+        // tFrame.sbtDynamicBuffers[0].tMemory = ptDevice->ptDynamicAllocator->allocate(ptDevice->ptDynamicAllocator->ptInst, 0, ptDevice->tInit.szDynamicBufferBlockSize, 0,atNameBuffer);
+        // tFrame.sbtDynamicBuffers[0].tBuffer = [ptDevice->atHeaps[tFrame.sbtDynamicBuffers[0].tMemory.uHandle] newBufferWithLength:ptDevice->tInit.szDynamicBufferBlockSize options:MTLResourceStorageModeShared offset:0];
+        // tFrame.sbtDynamicBuffers[0].tBuffer.label = [NSString stringWithUTF8String:pl_temp_allocator_sprintf(&tTempAllocator, "Dynamic Buffer: %u, 0", i)];
         pl_sb_push(ptDevice->sbtFrames, tFrame);
     }
     pl_temp_allocator_free(&tTempAllocator);
@@ -2020,7 +2031,7 @@ pl_graphics_begin_frame(plDevice* ptDevice)
     // Wait until the inflight command buffer has completed its work
     // gptGraphics->tSwapchain.uCurrentImageIndex = gptGraphics->uCurrentFrameIndex;
     plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
-    ptFrame->uCurrentBufferIndex = 0;
+    // ptFrame->uCurrentBufferIndex = 0;
     [ptFrame->tFrameBoundaryEvent waitUntilSignaledValue:ptFrame->uNextValue timeoutMS:10000];
 
     pl__garbage_collect(ptDevice); 
@@ -2107,6 +2118,7 @@ pl_graphics_present(plCommandBuffer* ptCommandBuffer, const plSubmitInfo* ptSubm
     [ptCommandBuffer->tCmdBuffer encodeSignalEvent:ptFrame->tFrameBoundaryEvent value:++ptFrame->uNextValue];
     [ptCommandBuffer->tCmdBuffer commit];
     gptGraphics->uCurrentFrameIndex = (gptGraphics->uCurrentFrameIndex + 1) % gptGraphics->uFramesInFlight;
+    ptDevice->sbtFrames[gptGraphics->uCurrentFrameIndex].uCurrentBufferIndex = 0;
 
     return true;
 }
@@ -2325,6 +2337,8 @@ pl_graphics_set_texture_usage_ex(plBlitEncoder* ptEncoder, plTextureHandle tHand
 plBlitEncoder*
 pl_graphics_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
 {
+    PL_ASSERT(gptGraphics->bEncoderActive == false);
+    gptGraphics->bEncoderActive = true;
     plBlitEncoder* ptEncoder = pl__get_new_blit_encoder();
     
     // plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
@@ -2342,6 +2356,7 @@ pl_graphics_end_blit_pass(plBlitEncoder* ptEncoder)
     }
     ptEncoder->bActive = false;
     pl__return_blit_encoder(ptEncoder);
+    gptGraphics->bEncoderActive = false;
 }
 
 void
@@ -3667,7 +3682,7 @@ pl_graphics_allocate_memory(plDevice* ptDevice, size_t szSize, plMemoryFlags tMe
     }
 
     [ptHeapDescriptor release];
-    tBlock.pcName = pcName;
+    strncpy(tBlock.acName, pcName, 64);
     pl_sb_push(ptDevice->sbtMemoryBlocks, tBlock);
     return tBlock;
 }

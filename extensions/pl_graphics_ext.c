@@ -1253,6 +1253,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .is_bind_group_layout_valid             = pl_graphics_is_bind_group_layout_valid,
         .update_bind_group                      = pl_graphics_update_bind_group,
         .allocate_dynamic_data_block            = pl_graphics_allocate_dynamic_data_block,
+        .reset_dynamic_data_blocks              = pl_graphics_reset_dynamic_data_blocks,
         .queue_buffer_for_deletion              = pl_graphics_queue_buffer_for_deletion,
         .queue_texture_for_deletion             = pl_graphics_queue_texture_for_deletion,
         .queue_bind_group_for_deletion          = pl_graphics_queue_bind_group_for_deletion,

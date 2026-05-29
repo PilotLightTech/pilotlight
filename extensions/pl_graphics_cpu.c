@@ -406,6 +406,11 @@ pl_graphics_bind_buffer_to_memory(plDevice* ptDevice, plBufferHandle tHandle, co
 
 }
 
+void
+pl_graphics_reset_dynamic_data_blocks(plDevice* ptDevice)
+{
+}
+
 plDynamicDataBlock
 pl_graphics_allocate_dynamic_data_block(plDevice* ptDevice)
 {

@@ -120,7 +120,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 8, 0}
+#define plGraphicsI_version {1, 9, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -334,7 +334,7 @@ typedef struct _plDeviceMemoryAllocation
     uint64_t                  ulSize;       // actual size of allocation
     char*                     pHostMapped;  // host mapped memory if host visible
     plDeviceMemoryAllocatorI* ptAllocator;  // if allocated from user allocator, this should be set so cleanup can delegate
-    const char*               pcName;
+    char                      acName[64];
 
         // [INTERNAL]
     uint64_t _uFrameBoundaryValueForDeletion;
@@ -566,6 +566,7 @@ PL_API plComputeShader*      pl_graphics_get_compute_shader               (plDev
 //     - do not store the plDynamicDataBlock returned from "allocate_dynamic_data_block"
 //       longer than a single frame (they are reset every frame)
 PL_API plDynamicDataBlock pl_graphics_allocate_dynamic_data_block(plDevice*); // do not store longer than a single frame (this ar)
+PL_API void               pl_graphics_reset_dynamic_data_blocks(plDevice*);
 // INLINED -> plDynamicBinding pl_allocate_dynamic_data(const plGraphicsI*,  plDevice*, plDynamicDataBlock*)
 
 // memory (only guaranteed 64 allocations, so suballocate)
@@ -798,6 +799,7 @@ typedef struct _plGraphicsI
     //     - do not store the plDynamicDataBlock returned from "allocate_dynamic_data_block"
     //       longer than a single frame (they are reset every frame)
     plDynamicDataBlock (*allocate_dynamic_data_block)(plDevice*); // do not store longer than a single frame (this ar)
+    void               (*reset_dynamic_data_blocks)(plDevice*);
     // INLINED -> plDynamicBinding pl_allocate_dynamic_data(const plGraphicsI*,  plDevice*, plDynamicDataBlock*)
 
     // memory (only guaranteed 64 allocations, so suballocate)
