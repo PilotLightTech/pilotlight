@@ -36,7 +36,7 @@
             "tPosition": [-2.539, 4.003, 2.640],
             "fYFov": 1.04719755,
             "fNearZ": 0.1,
-            "fFarZ": 50.0,
+            "fFarZ": 100.0,
             "fPitch": -0.395,
             "fYaw": 2.436
         },
@@ -55,7 +55,7 @@
                 ],
                 "fMaxShadowRange": 100.0,
                 "fConstantDepthBias": -1.250,
-                "fSlopeDepthBias": -1.750
+                "fSlopeDepthBias": -10.750
             },
             "bloom": {
                 "active" : false,

@@ -218,7 +218,9 @@ pl__renderer_create_local_texture(const plTextureDesc* ptDesc, const char* pcNam
     pl_temp_allocator_reset(&tTempAllocator);
 
     // choose allocator
-    plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalDedicatedAllocator;
+    plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
+    if(ptTexture->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
+        ptAllocator = gptData->ptLocalDedicatedAllocator;
 
     // allocate memory
     const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
@@ -605,7 +607,7 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
         for(uint32_t uView = 0; uView < uViewCount; uView++)
         {
             const plPackRect tPackRect = {
-                .iWidth  = (int)(ptLight->uShadowResolution * ptLight->uCascadeCount),
+                .iWidth  = (int)((ptLight->uShadowResolution) * ptLight->uCascadeCount),
                 .iHeight = (int)ptLight->uShadowResolution,
                 .iId     = (int)pl_sb_size(ptScene->sbtShadowRectData)
             };
@@ -875,7 +877,7 @@ pl__renderer_generate_shadow_maps(plRenderEncoder* ptEncoder, plCommandBuffer* p
                 {
                     pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
                 }
-                else
+                else if(!(tDrawable.tFlags & PL_DRAWABLE_FLAG_PROBE))
                 {
                     pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
                 }
@@ -1707,7 +1709,7 @@ pl__renderer_generate_cascaded_shadow_map(plRenderEncoder* ptEncoder, plCommandB
                 {
                     pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
                 }
-                else
+                else if(!(tDrawable.tFlags & PL_DRAWABLE_FLAG_PROBE))
                 {
                     pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
                 }
@@ -2077,8 +2079,35 @@ pl_renderer__add_material_to_scene(plScene* ptScene, plEntity tMaterial)
         if(ptMaterial->tFlags & PL_MATERIAL_FLAG_TRANSMISSION || ptMaterial->tFlags & PL_MATERIAL_FLAG_VOLUME || ptMaterial->tFlags & PL_MATERIAL_FLAG_DIFFUSE_TRANSMISSION)
             ptScene->tFlags |= PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED;
         pl_hm_insert(&ptScene->tMaterialHashmap, tMaterial.uData, uMaterialIndex);
+
+        gptStage->new_frame();
+
+        if(ptScene->uMaterialDirtyValue > 0)
+        {
+            if(gptStage->completed(ptScene->uMaterialDirtyValue))
+            {
+                const plEcsTypeKey tMeshComponentType = gptMesh->get_ecs_type_key_mesh();
+
+                const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
+                for(uint32_t i = 0; i < uDrawableCount; i++)
+                {
+                    plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtDrawables[i].tEntity);
+                    plMeshComponent* ptMesh = gptECS->get_component(ptScene->ptComponentLibrary, tMeshComponentType, ptObject->tMesh);
+
+                    if(pl_hm_has_key(&ptScene->tMaterialHashmap, ptMesh->tMaterial.uData))
+                    {
+                        uint32_t uMaterialIndex2 = (uint32_t)pl_hm_lookup(&ptScene->tMaterialHashmap, ptMesh->tMaterial.uData);
+                        ptScene->sbtDrawables[i].uMaterialIndex = (uint32_t)ptScene->sbtMaterialNodes[uMaterialIndex2]->uOffset / sizeof(plGpuMaterial);
+                    }
+                }
+                ptScene->uMaterialDirtyValue = 0;
+            }
+        }
+
         return uMaterialIndex;
     }
+
+
     return pl_hm_lookup(&ptScene->tMaterialHashmap, tMaterial.uData);
 }
 

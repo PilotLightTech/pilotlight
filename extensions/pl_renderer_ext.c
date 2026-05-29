@@ -847,44 +847,11 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
         ptScene->atFilterWorkingBuffers[i] = pl__renderer_create_local_buffer(&tInputBufferDesc, "filter buffer", i);
     }
 
-    // create probe material & mesh
-    plMaterialComponent* ptMaterial = NULL;
-    plEntity tMaterial = gptMaterial->create(ptScene->ptComponentLibrary, "environment probe material", &ptMaterial);
-    ptMaterial->tAlphaMode = PL_MATERIAL_ALPHA_MODE_OPAQUE;
-    ptMaterial->tShaderType = PL_SHADER_TYPE_PBR;
-    ptMaterial->tFlags |= PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW;
-    ptMaterial->tFlags &= ~PL_MATERIAL_FLAG_CAST_SHADOW;
-    ptMaterial->tBaseColor = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
-    ptMaterial->fRoughness = 0.0f;
-    ptMaterial->fMetalness = 1.0f;
-    pl_renderer__add_material_to_scene(ptScene, tMaterial);
-
-    plMeshComponent* ptMesh = NULL;
-    ptScene->tProbeMesh = gptMesh->create_sphere(ptScene->ptComponentLibrary, "environment probe mesh", 0.25f, 32, 32, &ptMesh);
-    ptMesh->tMaterial = tMaterial;
-
-    ptMesh = NULL;
-    ptScene->tUnitSphereMesh = gptMesh->create_sphere(ptScene->ptComponentLibrary, "unit sphere mesh", 1.0f, 16, 16, &ptMesh);
-
-    plFreeListNode* ptIndexBufferNode = gptFreeList->get_node(&ptScene->tIndexBufferFreeList, (uint32_t)ptMesh->szIndexCount * sizeof(uint32_t));
-    plFreeListNode* ptVertexBufferNode = gptFreeList->get_node(&ptScene->tVertexBufferFreeList, (uint32_t)ptMesh->szVertexCount * sizeof(plVec3));
-
-    const plDrawable tDrawable = {
-        .uIndexCount     = (uint32_t)ptMesh->szIndexCount,
-        .uVertexCount    = (uint32_t)ptMesh->szVertexCount,
-        .uIndexOffset    = (uint32_t)(ptIndexBufferNode->uOffset / sizeof(uint32_t)),
-        .uVertexOffset   = (uint32_t)(ptVertexBufferNode->uOffset / sizeof(plVec3)),
-        .uTransformIndex = ptScene->uNextTransformIndex++,
-        .uTriangleCount  = (uint32_t)ptMesh->szIndexCount / 3
-    };
-    ptScene->tUnitSphereDrawable = tDrawable;
-
-    gptStage->stage_buffer_upload(ptScene->tIndexBuffer, ptIndexBufferNode->uOffset, ptMesh->puIndices, sizeof(uint32_t) * ptMesh->szIndexCount);
-    gptStage->stage_buffer_upload(ptScene->tVertexBuffer, ptVertexBufferNode->uOffset, ptMesh->ptVertexPositions, sizeof(plVec3) * ptMesh->szVertexCount);
-    gptStage->flush();
-
     // create shadow atlas
-    ptScene->uShadowAtlasResolution = 1024 * 8 * 2;
+    ptScene->uShadowAtlasResolution = ptInit->uShadowAtlasResolution;
+    if(ptScene->uShadowAtlasResolution == 0)
+        ptScene->uShadowAtlasResolution = 1024 * 16;
+
     const plTextureDesc tShadowDepthTextureDesc = {
         .tDimensions   = {(float)ptScene->uShadowAtlasResolution, (float)ptScene->uShadowAtlasResolution, 1},
         .tFormat       = PL_FORMAT_D16_UNORM,
@@ -1180,6 +1147,43 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
         gptGfx->update_bind_group(gptData->ptDevice, ptScene->atShadowBG[i], &tShadowBGData);
     }
+
+    plMeshComponent* ptMesh = NULL;
+    ptScene->tProbeMesh = gptMesh->create_sphere(ptScene->ptComponentLibrary, "environment probe mesh", 0.25f, 32, 32, &ptMesh);
+    
+    ptMesh = NULL;
+    ptScene->tUnitSphereMesh = gptMesh->create_sphere(ptScene->ptComponentLibrary, "unit sphere mesh", 1.0f, 16, 16, &ptMesh);
+
+    plFreeListNode* ptIndexBufferNode = gptFreeList->get_node(&ptScene->tIndexBufferFreeList, (uint32_t)ptMesh->szIndexCount * sizeof(uint32_t));
+    plFreeListNode* ptVertexBufferNode = gptFreeList->get_node(&ptScene->tVertexBufferFreeList, (uint32_t)ptMesh->szVertexCount * sizeof(plVec3));
+
+    const plDrawable tDrawable = {
+        .uIndexCount     = (uint32_t)ptMesh->szIndexCount,
+        .uVertexCount    = (uint32_t)ptMesh->szVertexCount,
+        .uIndexOffset    = (uint32_t)(ptIndexBufferNode->uOffset / sizeof(uint32_t)),
+        .uVertexOffset   = (uint32_t)(ptVertexBufferNode->uOffset / sizeof(plVec3)),
+        .uTransformIndex = ptScene->uNextTransformIndex++,
+        .uTriangleCount  = (uint32_t)ptMesh->szIndexCount / 3
+    };
+    ptScene->tUnitSphereDrawable = tDrawable;
+
+    gptStage->stage_buffer_upload(ptScene->tIndexBuffer, ptIndexBufferNode->uOffset, ptMesh->puIndices, sizeof(uint32_t) * ptMesh->szIndexCount);
+    gptStage->stage_buffer_upload(ptScene->tVertexBuffer, ptVertexBufferNode->uOffset, ptMesh->ptVertexPositions, sizeof(plVec3) * ptMesh->szVertexCount);
+    gptStage->flush();
+
+    // create probe material & mesh
+    plMaterialComponent* ptMaterial = NULL;
+    plEntity tMaterial = gptMaterial->create(ptScene->ptComponentLibrary, "environment probe material", &ptMaterial);
+    ptMaterial->tAlphaMode = PL_MATERIAL_ALPHA_MODE_OPAQUE;
+    ptMaterial->tShaderType = PL_SHADER_TYPE_PBR;
+    ptMaterial->tFlags |= PL_MATERIAL_FLAG_CAST_RECEIVE_SHADOW;
+    ptMaterial->tFlags &= ~PL_MATERIAL_FLAG_CAST_SHADOW;
+    ptMaterial->tBaseColor = (plVec4){1.0f, 1.0f, 1.0f, 1.0f};
+    ptMaterial->fRoughness = 0.0f;
+    ptMaterial->fMetalness = 1.0f;
+    pl_renderer__add_material_to_scene(ptScene, tMaterial);
+    ptMesh = gptECS->get_component(ptScene->ptComponentLibrary, gptMesh->get_ecs_type_key_mesh(), ptScene->tProbeMesh);
+    ptMesh->tMaterial = tMaterial;
     return ptScene;
 }
 
@@ -1226,6 +1230,8 @@ pl_renderer_destroy_view(plView* ptView)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atDShadowCameraBuffers[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atDLightShadowDataBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atViewBuffers[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atView2Buffers[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atPickBuffer[i]);
@@ -1261,6 +1267,8 @@ pl_renderer_destroy_scene(plScene* ptScene)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];
             
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDShadowCameraBuffers);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDLightShadowDataBuffer);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
         if(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
@@ -1286,7 +1294,6 @@ pl_renderer_destroy_scene(plScene* ptScene)
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tViewBuffer);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tView2Buffer);
 
-
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tViewBG);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tGBufferBG);
 
@@ -1300,6 +1307,8 @@ pl_renderer_destroy_scene(plScene* ptScene)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atTransformBuffer[i]);
+        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atInstanceBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atDynamicSkinBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atSceneBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atPointLightBuffer[i]);
@@ -1309,8 +1318,6 @@ pl_renderer_destroy_scene(plScene* ptScene)
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[i]);
         gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptScene->atSceneBindGroups[i]);
-        // gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atDLightShadowDataBuffer[i]);
-        // gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atDShadowCameraBuffers[i]);
     }
     gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tGPUProbeDataBuffers);
     gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tMaterialDataBuffer);
@@ -3281,9 +3288,9 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plBeginCommandInfo tSkinningBeginInfo = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore()},
-        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value()},
+        .uWaitSemaphoreCount   = 2,
+        .atWaitSempahores      = {gptStarter->get_current_timeline_semaphore(), gptStarter->get_last_timeline_semaphore()},
+        .auWaitSemaphoreValues = {gptStarter->get_current_timeline_value(), gptStarter->get_last_timeline_value()},
     };
 
     plCommandBuffer* ptSkinningCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "skinning");
@@ -3910,6 +3917,16 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
     if(ptView->tBloomOptions.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE && pl_sb_size(ptView->sbtBloomDownChain) >= ptView->tBloomOptions.uChainLength)
         pl__render_view_bloom_pass(ptView);
+    else if(!(ptView->tBloomOptions.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE))
+    {
+        for(uint32_t i = 0; i < pl_sb_size(ptView->sbtBloomDownChain); i++)
+        {
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->sbtBloomDownChain[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->sbtBloomUpChain[i]);
+        }
+        pl_sb_reset(ptView->sbtBloomDownChain);
+        pl_sb_reset(ptView->sbtBloomUpChain);
+    }
 
     pl__render_view_tonemap_pass(ptView);
 
@@ -4283,7 +4300,8 @@ pl_renderer_ecs_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObject
 
         uint64_t uMaterialIndex = pl_renderer__add_material_to_scene(ptScene, ptMesh->tMaterial);
 
-        ptScene->sbtDrawables[uDrawableIndex].uMaterialIndex = (uint32_t)ptScene->sbtMaterialNodes[uMaterialIndex]->uOffset;
+        // ptScene->sbtDrawables[uDrawableIndex].uMaterialIndex = (uint32_t)ptScene->sbtMaterialNodes[uMaterialIndex]->uOffset/ sizeof(plGpuMaterial);
+        // (uint32_t)ptScene->sbtMaterialNodes[uMaterialIndex2]->uOffset / sizeof(plGpuMaterial);
 
         int iDataStride = 0;
         int iFlagCopy0 = (int)ptMesh->ulVertexStreamMask;
@@ -5022,6 +5040,7 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     tSceneInit.szDataBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szDataBufferSize", 64000000);
     tSceneInit.szMaterialBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szMaterialBufferSize", 8000000);
     tSceneInit.szSkinBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szSkinBufferSize", 8000000);
+    tSceneInit.uShadowAtlasResolution = (size_t)pl_json_uint_member(ptAppObject, "uShadowAtlasResolution", 4096 * 4);
 
     ptDataOut->ptScene = pl_renderer_create_scene(&tSceneInit);
     plViewDesc tViewDesc = PL_ZERO_INIT;
@@ -5052,7 +5071,7 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     plJsonObject* ptEditorObject = pl_json_member(ptRootJsonObject, "editor");
     plJsonObject* ptDebugObject = pl_json_member(ptRootJsonObject, "debug");
 
-    ptDataOut->bMSAA = pl_json_bool_member(ptEditorObject, "bMSAA", true);
+    ptDataOut->bMSAA = pl_json_bool_member(ptAppObject, "bMSAA", true);
     tDebugOptions.bWireframe = pl_json_bool_member(ptDebugObject, "bWireframe", false);
     tDebugOptions.bShowOrigin = pl_json_bool_member(ptDebugObject, "bShowOrigin", false);
     tDebugOptions.bShowProbes = pl_json_bool_member(ptDebugObject, "bShowProbes", false);

@@ -10,11 +10,12 @@
         "bDrawAllBoundingBoxes": false,
         "bFrustumCulling": true,
         "bMSAA": true,
-        "szIndexBufferSize": 64000000,
-        "szVertexBufferSize": 64000000,
-        "szDataBufferSize": 64000000,
-        "szMaterialBufferSize": 8000000,
-        "szSkinBufferSize": 8000000
+        "szIndexBufferSize": 32000000,
+        "szVertexBufferSize": 32000000,
+        "szDataBufferSize": 32000000,
+        "szMaterialBufferSize": 2000000,
+        "szSkinBufferSize": 2000000,
+        "uShadowAtlasResolution": 4096
     },
     "debug": {
         "bWireframe": false,
