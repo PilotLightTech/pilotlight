@@ -221,7 +221,6 @@ pl_starter_initialize(plStarterInit tInit)
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
-        plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {gptIOI->get_io()->tMainViewportSize.x + 400.0f, gptIOI->get_io()->tMainViewportSize.y + 400.0f, 1},
             .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
@@ -247,9 +246,6 @@ pl_starter_initialize(plStarterInit tInit)
             "depth texture memory");
 
         gptGfx->bind_texture_to_memory(ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
-        gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
-
-        pl_starter_return_blit_encoder(ptEncoder);
     }
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
@@ -262,7 +258,7 @@ pl_starter_initialize(plStarterInit tInit)
             .uLayers       = 1,
             .uMips         = 1,
             .tType         = PL_TEXTURE_TYPE_2D,
-            .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+            .tUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
             .pcDebugName   = "MSAA texture",
             .tSampleCount  = tSwapInit.tSampleCount
         };
@@ -282,8 +278,6 @@ pl_starter_initialize(plStarterInit tInit)
             "msaa texture memory");
 
         gptGfx->bind_texture_to_memory(ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
-        gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tResolveTexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
-
         pl_starter_return_blit_encoder(ptEncoder);
     }
     
@@ -380,7 +374,6 @@ pl_starter_resize(void)
 
         // begin blit pass, copy buffer, end pass
         ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-        gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     }
 
     plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
@@ -425,8 +418,6 @@ pl_starter_resize(void)
                 "depth texture memory");
 
             gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
-
-            gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
         }
     }
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
@@ -451,7 +442,7 @@ pl_starter_resize(void)
                 .uLayers       = 1,
                 .uMips         = 1,
                 .tType         = PL_TEXTURE_TYPE_2D,
-                .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
                 .pcDebugName   = "MSAA texture",
                 .tSampleCount  = tInfo.tSampleCount
             };
@@ -470,7 +461,6 @@ pl_starter_resize(void)
                 "msaa texture memory");
 
             gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
-            gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tResolveTexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
         }
 
     }
@@ -506,7 +496,6 @@ pl_starter_resize(void)
 
     if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER || gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
     {
-        gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptEncoder);
 
         // finish recording
@@ -960,8 +949,6 @@ pl_starter_get_blit_encoder(void)
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-
     return ptEncoder;
 }
 
@@ -970,7 +957,6 @@ pl_starter_return_blit_encoder(plBlitEncoder* ptEncoder)
 {
     plCommandBuffer* ptCommandBuffer = gptGfx->get_blit_encoder_command_buffer(ptEncoder);
 
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
@@ -1101,7 +1087,7 @@ pl__starter_activate_msaa(void)
             .uLayers       = 1,
             .uMips         = 1,
             .tType         = PL_TEXTURE_TYPE_2D,
-            .tUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+            .tUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
             .pcDebugName   = "MSAA texture",
             .tSampleCount  = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount
         };
@@ -1120,7 +1106,6 @@ pl__starter_activate_msaa(void)
             "msaa texture memory");
 
         gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
-        gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tResolveTexture, PL_TEXTURE_USAGE_COLOR_ATTACHMENT, 0);
 
         pl_starter_return_blit_encoder(ptEncoder);
     }
@@ -1158,7 +1143,6 @@ pl__starter_activate_msaa(void)
             "depth texture memory");
 
         gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
-        gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
 
         pl_starter_return_blit_encoder(ptEncoder);
         pl__starter_create_render_pass_with_msaa_and_depth();
@@ -1220,7 +1204,6 @@ pl__starter_deactivate_msaa(void)
             "depth texture memory");
 
         gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
-        gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
 
         pl_starter_return_blit_encoder(ptEncoder);
         pl__starter_create_render_pass_with_depth();
@@ -1271,7 +1254,6 @@ pl__starter_activate_depth_buffer(void)
         "depth texture memory");
 
     gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
-    gptGfx->set_texture_usage(ptEncoder, gptStarterCtx->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
 
     pl_starter_return_blit_encoder(ptEncoder);
 
@@ -1313,24 +1295,6 @@ pl__starter_create_render_pass(void)
                 .uRenderTargetCount = 1,
                 .auRenderTargets = {0}
             }
-        },
-        .atSubpassDependencies = {
-            {
-                .uSourceSubpass = UINT32_MAX,
-                .uDestinationSubpass = 0,
-                .tSourceStageMask = PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tSourceAccessMask = PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
-            {
-                .uSourceSubpass = 0,
-                .uDestinationSubpass = UINT32_MAX,
-                .tSourceStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tSourceAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
         }
     };
     gptStarterCtx->tRenderPassLayout = gptGfx->create_render_pass_layout(gptStarterCtx->ptDevice, &tMainRenderPassLayoutDesc);
@@ -1340,11 +1304,11 @@ pl__starter_create_render_pass(void)
         .tLayout = gptStarterCtx->tRenderPassLayout,
         .atColorTargets = {
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-                .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tLoadOp        = PL_LOAD_OP_CLEAR,
+                .tStoreOp       = PL_STORE_OP_STORE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+                .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
         .tDimensions = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y},
@@ -1374,24 +1338,6 @@ pl__starter_create_render_pass_with_msaa(void)
                 .uRenderTargetCount = 2,
                 .auRenderTargets = {0, 1}
             }
-        },
-        .atSubpassDependencies = {
-            {
-                .uSourceSubpass = UINT32_MAX,
-                .uDestinationSubpass = 0,
-                .tSourceStageMask = PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tSourceAccessMask = PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
-            {
-                .uSourceSubpass = 0,
-                .uDestinationSubpass = UINT32_MAX,
-                .tSourceStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tSourceAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
         }
     };
     gptStarterCtx->tRenderPassLayout = gptGfx->create_render_pass_layout(gptStarterCtx->ptDevice, &tMainRenderPassLayoutDesc);
@@ -1400,19 +1346,19 @@ pl__starter_create_render_pass_with_msaa(void)
     plRenderPassDesc tMainRenderPassDesc = {
         .tLayout = gptStarterCtx->tRenderPassLayout,
         .tResolveTarget = { // swapchain image
-            .tLoadOp       = PL_LOAD_OP_DONT_CARE,
-            .tStoreOp      = PL_STORE_OP_STORE,
-            .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-            .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
-            .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+            .tLoadOp        = PL_LOAD_OP_DONT_CARE,
+            .tStoreOp       = PL_STORE_OP_STORE,
+            .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+            .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
+            .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
         },
         .atColorTargets = { // msaa
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-                .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tLoadOp        = PL_LOAD_OP_CLEAR,
+                .tStoreOp       = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+                .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
         .tDimensions = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y},
@@ -1443,24 +1389,6 @@ pl__starter_create_render_pass_with_depth(void)
                 .uRenderTargetCount = 2,
                 .auRenderTargets = {0, 1}
             }
-        },
-        .atSubpassDependencies = {
-            {
-                .uSourceSubpass = UINT32_MAX,
-                .uDestinationSubpass = 0,
-                .tSourceStageMask = PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tSourceAccessMask = PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
-            {
-                .uSourceSubpass = 0,
-                .uDestinationSubpass = UINT32_MAX,
-                .tSourceStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tSourceAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
         }
     };
     gptStarterCtx->tRenderPassLayout = gptGfx->create_render_pass_layout(gptStarterCtx->ptDevice, &tMainRenderPassLayoutDesc);
@@ -1473,17 +1401,17 @@ pl__starter_create_render_pass_with_depth(void)
                 .tStoreOp        = PL_STORE_OP_DONT_CARE,
                 .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
                 .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
-                .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                .tPreviousUsage  = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .fClearZ         = gptStarterCtx->tFlags & PL_STARTER_FLAGS_REVERSE_Z ? 0.0f : 1.0f
         },
         .atColorTargets = {
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-                .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tLoadOp        = PL_LOAD_OP_CLEAR,
+                .tStoreOp       = PL_STORE_OP_STORE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+                .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
         .tDimensions = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y},
@@ -1495,7 +1423,6 @@ pl__starter_create_render_pass_with_depth(void)
 
     // begin blit pass, copy buffer, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
     uint32_t uImageCount = 0;
     plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptStarterCtx->ptSwapchain, &uImageCount);
@@ -1507,7 +1434,6 @@ pl__starter_create_render_pass_with_depth(void)
     }
     gptStarterCtx->tRenderPass = gptGfx->create_render_pass(gptStarterCtx->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
 
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
@@ -1535,24 +1461,6 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
                 .uRenderTargetCount = 3,
                 .auRenderTargets = {0, 1, 2}
             }
-        },
-        .atSubpassDependencies = {
-            {
-                .uSourceSubpass = UINT32_MAX,
-                .uDestinationSubpass = 0,
-                .tSourceStageMask = PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tSourceAccessMask = PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
-            {
-                .uSourceSubpass = 0,
-                .uDestinationSubpass = UINT32_MAX,
-                .tSourceStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tDestinationStageMask = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tSourceAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
         }
     };
     gptStarterCtx->tRenderPassLayout = gptGfx->create_render_pass_layout(gptStarterCtx->ptDevice, &tMainRenderPassLayoutDesc);
@@ -1565,24 +1473,24 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
                 .tStoreOp        = PL_STORE_OP_DONT_CARE,
                 .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
                 .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
-                .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                .tPreviousUsage  = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .fClearZ         = gptStarterCtx->tFlags & PL_STARTER_FLAGS_REVERSE_Z ? 0.0f : 1.0f
         },
         .tResolveTarget = { // swapchain image
-            .tLoadOp       = PL_LOAD_OP_DONT_CARE,
-            .tStoreOp      = PL_STORE_OP_STORE,
-            .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-            .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
-            .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+            .tLoadOp        = PL_LOAD_OP_DONT_CARE,
+            .tStoreOp       = PL_STORE_OP_STORE,
+            .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+            .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
+            .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
         },
         .atColorTargets = {
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-                .tNextUsage    = PL_TEXTURE_USAGE_PRESENT,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tLoadOp        = PL_LOAD_OP_CLEAR,
+                .tStoreOp       = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
+                .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
         .tDimensions = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y},
@@ -1594,7 +1502,6 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
 
     // begin blit pass, copy buffer, end pass
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
     uint32_t uImageCount = 0;
     plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptStarterCtx->ptSwapchain, &uImageCount);
@@ -1608,7 +1515,6 @@ pl__starter_create_render_pass_with_msaa_and_depth(void)
     }
     gptStarterCtx->tRenderPass = gptGfx->create_render_pass(gptStarterCtx->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
 
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording

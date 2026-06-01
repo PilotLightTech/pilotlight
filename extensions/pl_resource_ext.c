@@ -262,26 +262,14 @@ pl_resource_new_frame(void)
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "resource update");
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder,
-        PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER,
-        PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ,
-        PL_PIPELINE_STAGE_TRANSFER,
-        PL_ACCESS_TRANSFER_WRITE);
 
     for(uint32_t i = 0; i < uJobCount; i++)
     {
         const plTextureUploadJob* ptJob = &gptResourceManager->sbtTextureUploadJobs[i];
-        
-        gptGfx->set_texture_usage(ptBlitEncoder, ptJob->tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
         gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, ptJob->tTexture, 1, &ptJob->tBufferImageCopy);
         gptGfx->generate_mipmaps(ptBlitEncoder, ptJob->tTexture);
     }
 
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder,
-        PL_PIPELINE_STAGE_TRANSFER,
-        PL_ACCESS_TRANSFER_WRITE,
-        PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER,
-        PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptBlitEncoder);
     gptGfx->end_command_recording(ptCommandBuffer);
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
@@ -905,13 +893,6 @@ pl_resource_make_resident(plResourceHandle tHandle)
                 plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "resource update");
                 gptGfx->begin_command_recording(ptCommandBuffer, NULL);
                 plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-                gptGfx->pipeline_barrier_blit(ptBlitEncoder,
-                    PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER,
-                    PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ,
-                    PL_PIPELINE_STAGE_TRANSFER,
-                    PL_ACCESS_TRANSFER_WRITE);
-
-                gptGfx->set_texture_usage(ptBlitEncoder, ptResource->tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
 
                 plBufferImageCopy tBufferImageCopy = {
                     .uImageWidth = (uint32_t)ptTexture->tDesc.tDimensions.x,
@@ -924,11 +905,6 @@ pl_resource_make_resident(plResourceHandle tHandle)
                 gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, ptResource->tTexture, 1, &tBufferImageCopy);
                 gptGfx->generate_mipmaps(ptBlitEncoder, ptResource->tTexture);
 
-                gptGfx->pipeline_barrier_blit(ptBlitEncoder,
-                    PL_PIPELINE_STAGE_TRANSFER,
-                    PL_ACCESS_TRANSFER_WRITE,
-                    PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER,
-                    PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
                 gptGfx->end_blit_pass(ptBlitEncoder);
                 gptGfx->end_command_recording(ptCommandBuffer);
                 gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
@@ -938,13 +914,6 @@ pl_resource_make_resident(plResourceHandle tHandle)
                 gptGfx->reset_command_buffer(ptCommandBuffer);
                 gptGfx->begin_command_recording(ptCommandBuffer, NULL);
                 ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-                gptGfx->pipeline_barrier_blit(ptBlitEncoder,
-                    PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER,
-                    PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ,
-                    PL_PIPELINE_STAGE_TRANSFER,
-                    PL_ACCESS_TRANSFER_WRITE);
-
-                // gptGfx->set_texture_usage(ptBlitEncoder, tResource.tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
 
                 size_t szMipStagingOffset = szStagingOffset + tImageInfo.iWidth * tImageInfo.iHeight * 4 * iTextureFormatStride;
                 for(uint32_t uMipLevel = 1; uMipLevel < uMips; uMipLevel++)
@@ -964,12 +933,6 @@ pl_resource_make_resident(plResourceHandle tHandle)
                     gptGfx->copy_texture_to_buffer(ptBlitEncoder, ptResource->tTexture, gptResourceManager->tStagingBuffer.tStagingBufferHandle, 1, &tImageBufferCopy);
                     szMipStagingOffset += iCurrentWidth * iCurrentHeight * 4 * iTextureFormatStride;
                 }
-
-                gptGfx->pipeline_barrier_blit(ptBlitEncoder,
-                    PL_PIPELINE_STAGE_TRANSFER,
-                    PL_ACCESS_TRANSFER_WRITE,
-                    PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER,
-                    PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
                 gptGfx->end_blit_pass(ptBlitEncoder);
                 gptGfx->end_command_recording(ptCommandBuffer);
                 gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
@@ -1025,7 +988,8 @@ pl_resource_make_resident(plResourceHandle tHandle)
                     .uLayers     = 1,
                     .uMips       = tDDSReadInfo.uMips,
                     .tType       = PL_TEXTURE_TYPE_2D,
-                    .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+                    .tUsage      = PL_TEXTURE_USAGE_SAMPLED,
+                    .pcDebugName = sbtNameConcat
                 };
 
                 ptResource->tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, &ptTexture);
@@ -1065,7 +1029,6 @@ pl_resource_make_resident(plResourceHandle tHandle)
                 plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "resource update");
                 gptGfx->begin_command_recording(ptCommandBuffer, NULL);
                 plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-                gptGfx->set_texture_usage(ptBlitEncoder, ptResource->tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
 
                 puDdsFileData += gptDds->get_header_size();
                 for(uint32_t i = 0; i < tDDSReadInfo.uMips; i++)

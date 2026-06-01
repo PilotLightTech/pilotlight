@@ -584,6 +584,7 @@ pl__cleanup_common_graphics(void)
     while(ptCurrentComputeEncoder)
     {
         plComputeEncoder* ptNextEncoder = ptCurrentComputeEncoder->ptNext;
+        pl_sb_free(ptCurrentComputeEncoder->sbtTextures);
         PL_FREE(ptCurrentComputeEncoder);
         ptCurrentComputeEncoder = ptNextEncoder;
     }
@@ -996,6 +997,7 @@ pl__return_render_encoder(plRenderEncoder* ptEncoder)
 static void
 pl__return_compute_encoder(plComputeEncoder* ptEncoder)
 {
+    pl_sb_reset(ptEncoder->sbtTextures);
     ptEncoder->ptNext = gptGraphics->ptComputeEncoderFreeList;
     gptGraphics->ptComputeEncoderFreeList = ptEncoder;
 }
@@ -1220,8 +1222,6 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .end_compute_pass                       = pl_graphics_end_compute_pass,
         .begin_blit_pass                        = pl_graphics_begin_blit_pass,
         .end_blit_pass                          = pl_graphics_end_blit_pass,
-        .set_texture_usage                      = pl_graphics_set_texture_usage,
-        .set_texture_usage_ex                   = pl_graphics_set_texture_usage_ex,
         .draw_stream                            = pl_graphics_draw_stream,
         .draw                                   = pl_graphics_draw,
         .draw_indexed                           = pl_graphics_draw_indexed,
@@ -1354,6 +1354,11 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_metal_command_encoder        = pl_graphics_get_metal_command_encoder,
         .get_metal_texture                = pl_graphics_get_metal_texture,
         .get_metal_bind_group_texture     = pl_graphics_get_metal_bind_group_texture,
+        #endif
+
+        #ifndef PL_DISABLE_OBSOLETE
+        .set_texture_usage    = pl_graphics_set_texture_usage,
+        .set_texture_usage_ex = pl_graphics_set_texture_usage_ex,
         #endif
     };
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);

@@ -2557,13 +2557,6 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     // begin recording
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
     
-    // begin blit pass, copy texture, end pass
-    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-
-    gptGfx->set_texture_usage(ptEncoder, tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-
     const plBufferImageCopy tBufferImageCopy = {
         .uImageWidth = (uint32_t)ptAtlas->tAtlasSize.x,
         .uImageHeight = (uint32_t)ptAtlas->tAtlasSize.y,
@@ -2571,8 +2564,9 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
         .uLayerCount = 1
     };
 
+    // begin blit pass, copy texture, end pass
+    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
     gptGfx->copy_buffer_to_texture(ptEncoder, tStagingBuffer, tTexture, 1, &tBufferImageCopy);
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording

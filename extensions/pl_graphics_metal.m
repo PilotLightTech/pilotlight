@@ -57,6 +57,7 @@ typedef struct _plComputeEncoder
     id<MTLComputeCommandEncoder> tEncoder;
     plComputeEncoder*            ptNext;
     uint64_t                     uHeapUsageMask;
+    plTextureHandle*             sbtTextures;
 } plComputeEncoder;
 
 typedef struct _plBlitEncoder
@@ -911,6 +912,8 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
 
     if(tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
         ptTextureDescriptor.usage |= MTLTextureUsageShaderRead;
+    if(tDesc.tUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)
+        ptTextureDescriptor.usage |= MTLTextureUsageShaderRead;    
     if(tDesc.tUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
         ptTextureDescriptor.usage |= MTLTextureUsageRenderTarget;
     if(tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
@@ -2398,6 +2401,7 @@ pl_graphics_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResourc
 
     if(ptResources)
     {
+        // [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeBuffers | MTLBarrierScopeTextures];
         for(uint32_t i = 0; i < ptResources->uBufferCount; i++)
         {
             const plPassBufferResource* ptResource = &ptResources->atBuffers[i];
@@ -2450,6 +2454,7 @@ void
 pl_graphics_end_compute_pass(plComputeEncoder* ptEncoder)
 {
     plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
+    // [ptEncoder->tEncoder memoryBarrierWithScope:MTLBarrierScopeBuffers | MTLBarrierScopeTextures];
     [ptEncoder->tEncoder endEncoding];
     pl__return_compute_encoder(ptEncoder);
 }

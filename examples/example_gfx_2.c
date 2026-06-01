@@ -308,9 +308,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // bind memory
     gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tTexture, &tTextureAllocation);
 
-    // set the initial texture usage (this is a no-op in metal but does layout transition for vulkan)
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-
     // copy memory to mapped staging buffer
     memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[2048], pucImageData, iImageWidth * iImageHeight * 4);
 

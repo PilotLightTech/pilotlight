@@ -166,6 +166,7 @@ typedef struct _plRenderEncoder
 typedef struct _plComputeEncoder
 {
     plCommandBuffer*  ptCommandBuffer;
+    plTextureHandle*  sbtTextures;
     plComputeEncoder* ptNext; // for linked list
 } plComputeEncoder;
 
@@ -306,6 +307,9 @@ typedef struct _plDevice
 
     // memory blocks
     plDeviceMemoryAllocation* sbtMemoryBlocks;
+
+    VkCommandPool tCmdPool;
+    VkCommandBuffer tCmdBuffer;
 } plDevice;
 
 typedef struct _plGraphics
@@ -385,7 +389,6 @@ static void                     pl__free_staging_dynamic    (struct plDeviceMemo
 // misc helpers
 static VkFormat pl__find_supported_format       (plDevice*, VkFormatFeatureFlags, const VkFormat*, uint32_t uFormatCount);
 static bool     pl__format_has_stencil          (VkFormat);
-static void     pl__transition_image_layout     (VkCommandBuffer, VkImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask);
 static void     pl__create_swapchain            (uint32_t uWidth, uint32_t uHeight, plSwapchain *);
 static void     pl__fill_common_render_pass_data(plRenderPassLayoutDesc*, plRenderPassLayout*, plRenderPassCommonData* ptDataOut);
 
@@ -701,13 +704,24 @@ pl_graphics_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTe
     {
 
         // transition textures to acceptable layouts
-        VkImageLayout tLayout = ptRegions[i].tCurrentImageUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptRegions[i].tCurrentImageUsage);
         atSubResourceRanges[i].aspectMask = ptColdTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         atSubResourceRanges[i].baseMipLevel = ptRegions[i].uMipLevel;
         atSubResourceRanges[i].levelCount = 1;
         atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uBaseArrayLayer;
         atSubResourceRanges[i].layerCount = ptRegions[i].uLayerCount;
-        pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage, tLayout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+        VkImageMemoryBarrier tBarrier = {
+            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // assumed now
+            .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image               = ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage,
+            .subresourceRange    = atSubResourceRanges[i],
+            .srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
+        };
+        vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
 
         atCopyRegions[i].bufferOffset = ptRegions[i].szBufferOffset;
         atCopyRegions[i].bufferRowLength = ptRegions[i].uBufferRowLength;
@@ -726,8 +740,18 @@ pl_graphics_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTe
     // return textures to original layouts
     for (uint32_t i = 0; i < uRegionCount; i++)
     {
-        VkImageLayout tLayout = ptRegions[i].tCurrentImageUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptRegions[i].tCurrentImageUsage);
-        pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tLayout, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+        VkImageMemoryBarrier tBarrier = {
+            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // assumed for now
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image               = ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage,
+            .subresourceRange    = atSubResourceRanges[i],
+            .srcAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
+            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
+        };
+        vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
     }
 
     pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
@@ -774,14 +798,40 @@ pl_graphics_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, p
 
         if(uCurrentSrcBaseArrayLevel != atSubResourceRanges[i].baseArrayLayer || uCurrentSrcMipLevel != atSubResourceRanges[i].baseMipLevel)
         {
-            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tSrcHandle.uIndex].tImage, pl__vulkan_layout(ptRegions[i].tSourceImageUsage), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+            VkImageMemoryBarrier tBarrier = {
+                .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // assumed now
+                .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image               = ptDevice->sbtTexturesHot[tSrcHandle.uIndex].tImage,
+                .subresourceRange    = atSubResourceRanges[i],
+                .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT
+            };
+            vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+
+            
             uCurrentSrcBaseArrayLevel = atSubResourceRanges[i].baseArrayLayer;
             uCurrentSrcMipLevel = atSubResourceRanges[i].baseMipLevel;
         }
 
         if(uCurrentDestBaseArrayLevel != atSubResourceRanges[i + uRegionCount].baseArrayLayer || uCurrentDestMipLevel != atSubResourceRanges[i + uRegionCount].baseMipLevel)
         {
-            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tDstHandle.uIndex].tImage, pl__vulkan_layout(ptRegions[i].tDestinationImageUsage), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, atSubResourceRanges[i + uRegionCount], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            VkImageMemoryBarrier tBarrier = {
+                .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // assumed now
+                .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image               = ptDevice->sbtTexturesHot[tDstHandle.uIndex].tImage,
+                .subresourceRange    = atSubResourceRanges[i + uRegionCount],
+                .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT
+            };
+            vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+
             uCurrentDestBaseArrayLevel = atSubResourceRanges[i + uRegionCount].baseArrayLayer;
             uCurrentDestMipLevel = atSubResourceRanges[i + uRegionCount].baseMipLevel;
         }
@@ -827,13 +877,37 @@ pl_graphics_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, p
     {
         if(uCurrentSrcBaseArrayLevel != atSubResourceRanges[i].baseArrayLayer || uCurrentSrcMipLevel != atSubResourceRanges[i].baseMipLevel)
         {
-            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tSrcHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, pl__vulkan_layout(ptRegions[i].tSourceImageUsage), atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+            VkImageMemoryBarrier tBarrier = {
+                .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // assumed now
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image               = ptDevice->sbtTexturesHot[tSrcHandle.uIndex].tImage,
+                .subresourceRange    = atSubResourceRanges[i],
+                .srcAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
+                .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
+            };
+            vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+
             uCurrentSrcBaseArrayLevel = atSubResourceRanges[i].baseArrayLayer;
             uCurrentSrcMipLevel = atSubResourceRanges[i].baseMipLevel;
         }
         if(uCurrentDestBaseArrayLevel != atSubResourceRanges[i + uRegionCount].baseArrayLayer || uCurrentDestMipLevel != atSubResourceRanges[i + uRegionCount].baseMipLevel)
         {
-            pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tDstHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, pl__vulkan_layout(ptRegions[i].tDestinationImageUsage), atSubResourceRanges[i + uRegionCount], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+            VkImageMemoryBarrier tBarrier = {
+                .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // assumed now
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image               = ptDevice->sbtTexturesHot[tDstHandle.uIndex].tImage,
+                .subresourceRange    = atSubResourceRanges[i + uRegionCount],
+                .srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
+            };
+            vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+
             uCurrentDestBaseArrayLevel = atSubResourceRanges[i + uRegionCount].baseArrayLayer;
             uCurrentDestMipLevel = atSubResourceRanges[i + uRegionCount].baseMipLevel;
         }
@@ -866,7 +940,19 @@ pl_graphics_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
             .baseArrayLayer = 0,
             .layerCount     = ptTexture->tDesc.uLayers
         };
-        pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tSubResourceRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+
+        VkImageMemoryBarrier tBarrier0 = {
+            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // assumed for now
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image               = ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
+            .subresourceRange    = tSubResourceRange,
+            .srcAccessMask       = 0,
+            .dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT
+        };
+        vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier0);
 
         // for(uint32_t uArrayIndex = 0; uArrayIndex < ptTexture->tDesc.uLayers; uArrayIndex++)
         {
@@ -889,7 +975,18 @@ pl_graphics_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
                 {
                     tMipSubResourceRange.baseMipLevel = i - 1;
 
-                    pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+                    VkImageMemoryBarrier tBarrier1 = {
+                        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                        .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .image               = ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
+                        .subresourceRange    = tMipSubResourceRange,
+                        .srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+                        .dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT
+                    };
+                    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier1);
 
                     VkImageBlit tBlit = {
                         .srcOffsets[1] = {
@@ -929,10 +1026,18 @@ pl_graphics_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                         1, &tBlit, VK_FILTER_LINEAR);
 
-                    pl__transition_image_layout(ptCmdBuffer->tCmdBuffer,
-                        ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
-                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                        tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+                    VkImageMemoryBarrier tBarrier2 = {
+                        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                        .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .image               = ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
+                        .subresourceRange    = tMipSubResourceRange,
+                        .srcAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
+                        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
+                    };
+                    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier2);
 
                     if (iMipWidth > 1)
                         iMipWidth /= 2;
@@ -942,7 +1047,18 @@ pl_graphics_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
                 }
 
                 tMipSubResourceRange.baseMipLevel = ptTexture->tDesc.uMips - 1;
-                pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTexture.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tMipSubResourceRange, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+                VkImageMemoryBarrier tBarrier3 = {
+                    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                    .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .image               = ptDevice->sbtTexturesHot[tTexture.uIndex].tImage,
+                    .subresourceRange    = tMipSubResourceRange,
+                    .srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+                    .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
+                };
+                vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier3);
             }
             else
             {
@@ -1226,10 +1342,15 @@ pl_graphics_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, con
         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     };
 
+    static const VkImageLayout atTextureLayoutTypeLUT[] ={
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_IMAGE_LAYOUT_GENERAL,
+    };
+
     for (uint32_t i = 0; i < ptData->uTextureCount; i++)
     {
-
-        sbtImageDescInfos[i].imageLayout = ptData->atTextureBindings[i].tCurrentUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptData->atTextureBindings[i].tCurrentUsage);
+        sbtImageDescInfos[i].imageLayout = atTextureLayoutTypeLUT[ptData->atTextureBindings[i].tType - 1];
         sbtImageDescInfos[i].imageView = ptDevice->sbtTexturesHot[ptData->atTextureBindings[i].tTexture.uIndex].tImageView;
         sbtWrites[uCurrentWrite].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sbtWrites[uCurrentWrite].dstBinding = ptData->atTextureBindings[i].uSlot;
@@ -1344,56 +1465,21 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
 
     ptDevice->sbtTexturesHot[tHandle.uIndex] = tVulkanTexture;
     if (ptTextureOut)
-       * ptTextureOut = &ptDevice->sbtTexturesCold[tHandle.uIndex];
+       *ptTextureOut = &ptDevice->sbtTexturesCold[tHandle.uIndex];
+
     return tHandle;
 }
 
 void
 pl_graphics_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
-    plDevice* ptDevice = ptCmdBuffer->ptDevice;
-
-    plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tHandle);
-    plVulkanTexture* ptVulkanTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
-
-    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-
-    if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
-        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
-
-    VkImageSubresourceRange tRange = {
-        .baseMipLevel   = 0,
-        .levelCount     = ptTexture->tDesc.uMips,
-        .baseArrayLayer = 0,
-        .layerCount     = ptTexture->tDesc.uLayers,
-        .aspectMask     = tImageAspectFlags
-    };
-    pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptVulkanTexture->tImage, pl__vulkan_layout(tOldUsage), pl__vulkan_layout(tNewUsage), tRange, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "'set_texture_usage' is now a no-op & obsolete");
 }
 
 void
 pl_graphics_set_texture_usage_ex(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
-    plDevice* ptDevice = ptCmdBuffer->ptDevice;
-
-    plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tHandle);
-    plVulkanTexture* ptVulkanTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
-
-    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-
-    if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
-        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
-
-    VkImageSubresourceRange tRange = {
-        .baseMipLevel   = 0,
-        .levelCount     = ptTexture->tDesc.uMips,
-        .baseArrayLayer = 0,
-        .layerCount     = ptTexture->tDesc.uLayers,
-        .aspectMask     = tImageAspectFlags
-    };
-    pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptVulkanTexture->tImage, pl__vulkan_layout(tOldUsage), pl__vulkan_layout(tNewUsage), tRange, pl_vulkan_pipeline_stage_flags(tOldStages), pl_vulkan_pipeline_stage_flags(tNewStages));
+    PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "'set_texture_usage_ex' is now a no-op & obsolete");
 }
 
 void
@@ -1432,6 +1518,78 @@ pl_graphics_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, 
 
     };
     PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, gptGraphics->ptAllocationCallbacks, &ptVulkanTexture->tImageView));
+
+    const VkCommandBufferBeginInfo tBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = 0
+    };
+    PL_VULKAN(vkBeginCommandBuffer(ptDevice->tCmdBuffer, &tBeginInfo));
+
+    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
+        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+    VkImageSubresourceRange tRange = {
+        .baseMipLevel   = 0,
+        .levelCount     = ptTexture->tDesc.uMips,
+        .baseArrayLayer = 0,
+        .layerCount     = ptTexture->tDesc.uLayers,
+        .aspectMask     = tImageAspectFlags
+    };
+
+    VkImageMemoryBarrier tBarrier = {
+        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image               = ptVulkanTexture->tImage,
+        .subresourceRange    = tRange,
+    };
+    
+    if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        tBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    }
+    else if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        tBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    }
+    else if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        tBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    }
+
+    vkCmdPipelineBarrier(ptDevice->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+
+    // if(tImageInfo.mipLevels != 1)
+    // {
+    //     plCommandBuffer tCommandBuffer = {
+    //         .ptDevice = ptDevice,
+    //         .tCmdBuffer = ptDevice->tCmdBuffer
+    //     };
+    //     plBlitEncoder tEncoder = {
+    //         .ptCommandBuffer = &tCommandBuffer
+    //     };
+    //     pl_graphics_generate_mipmaps(&tEncoder, tHandle);
+    // }
+
+    VkSubmitInfo tSubmitInfo = {
+        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers    = &ptDevice->tCmdBuffer,
+    };
+    PL_VULKAN(vkEndCommandBuffer(ptDevice->tCmdBuffer));
+    PL_VULKAN(vkQueueSubmit(ptDevice->tGraphicsQueue, 1, &tSubmitInfo, VK_NULL_HANDLE));
+    PL_VULKAN(vkQueueWaitIdle(ptDevice->tGraphicsQueue));
+    vkResetCommandBuffer(ptDevice->tCmdBuffer, 0);
 }
 
 plTextureHandle
@@ -1992,7 +2150,7 @@ pl_graphics_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDes
             tCommonData.atAttachments[i].storeOp = pl__vulkan_store_op(ptDesc->tDepthTarget.tStoreOp);
             tCommonData.atAttachments[i].stencilLoadOp = pl__vulkan_load_op(ptDesc->tDepthTarget.tStencilLoadOp);
             tCommonData.atAttachments[i].stencilStoreOp = pl__vulkan_store_op(ptDesc->tDepthTarget.tStencilStoreOp);
-            tCommonData.atAttachments[i].initialLayout = pl__vulkan_layout(ptDesc->tDepthTarget.tCurrentUsage);
+            tCommonData.atAttachments[i].initialLayout = pl__vulkan_layout(ptDesc->tDepthTarget.tPreviousUsage);
             tCommonData.atAttachments[i].finalLayout = pl__vulkan_layout(ptDesc->tDepthTarget.tNextUsage);
         }
         else if (ptLayout->tDesc.atRenderTargets[i].bResolve)
@@ -2001,7 +2159,7 @@ pl_graphics_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDes
             tCommonData.atAttachments[i].storeOp = pl__vulkan_store_op(ptDesc->tResolveTarget.tStoreOp);
             tCommonData.atAttachments[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             tCommonData.atAttachments[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            tCommonData.atAttachments[i].initialLayout = pl__vulkan_layout(ptDesc->tResolveTarget.tCurrentUsage);
+            tCommonData.atAttachments[i].initialLayout = pl__vulkan_layout(ptDesc->tResolveTarget.tPreviousUsage);
             tCommonData.atAttachments[i].finalLayout = pl__vulkan_layout(ptDesc->tResolveTarget.tNextUsage);
         }
         else
@@ -2011,7 +2169,7 @@ pl_graphics_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDes
             tCommonData.atAttachments[i].storeOp = pl__vulkan_store_op(ptDesc->atColorTargets[uColorAttachmentCount].tStoreOp);
             tCommonData.atAttachments[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
             tCommonData.atAttachments[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            tCommonData.atAttachments[i].initialLayout = pl__vulkan_layout(ptDesc->atColorTargets[uColorAttachmentCount].tCurrentUsage);
+            tCommonData.atAttachments[i].initialLayout = pl__vulkan_layout(ptDesc->atColorTargets[uColorAttachmentCount].tPreviousUsage);
             tCommonData.atAttachments[i].finalLayout = pl__vulkan_layout(ptDesc->atColorTargets[uColorAttachmentCount].tNextUsage);
             uColorAttachmentCount++;
         }
@@ -3589,6 +3747,22 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
         //     ptDevice->tNullDynamicDecriptorSet = tFrame.sbtDynamicBuffers[0].tDescriptorSet;
     }
     pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
+
+    const VkCommandPoolCreateInfo tCommandPoolInfo = {
+        .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .queueFamilyIndex = ptDevice->iGraphicsQueueFamily,
+        .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+    };
+    PL_VULKAN(vkCreateCommandPool(ptDevice->tLogicalDevice, &tCommandPoolInfo, gptGraphics->ptAllocationCallbacks, &ptDevice->tCmdPool));
+
+    const VkCommandBufferAllocateInfo tAllocInfo = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool        = ptDevice->tCmdPool,
+        .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1
+    };
+    PL_VULKAN(vkAllocateCommandBuffers(ptDevice->tLogicalDevice, &tAllocInfo, &ptDevice->tCmdBuffer));
+
     return ptDevice;
 }
 
@@ -4024,6 +4198,7 @@ pl_graphics_cleanup_device(plDevice* ptDevice)
 
     vkDestroyDescriptorPool(ptDevice->tLogicalDevice, ptDevice->tDynamicBufferDescriptorPool, gptGraphics->ptAllocationCallbacks);
 
+    vkDestroyCommandPool(ptDevice->tLogicalDevice, ptDevice->tCmdPool, gptGraphics->ptAllocationCallbacks);
     vkDestroyDevice(ptDevice->tLogicalDevice, gptGraphics->ptAllocationCallbacks);
 
     if (gptGraphics->tDbgMessenger)
@@ -4079,6 +4254,21 @@ pl_graphics_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plPipelineStag
     };
 
     vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_pipeline_stage_flags(beforeStages), pl_vulkan_pipeline_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
+
+    // VkImageMemoryBarrier tBarrier = {
+    //     .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+    //     .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    //     .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
+    //     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    //     .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    //     .image               = ptVulkanTexture->tImage,
+    //     .subresourceRange    = tRange,
+    //     .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+    //     .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
+    // };
+
+    // vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+
 }
 
 void
@@ -4098,12 +4288,89 @@ pl_graphics_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResourc
 {
     plComputeEncoder* ptEncoder = pl__get_new_compute_encoder();
     ptEncoder->ptCommandBuffer = ptCmdBuffer;
+
+    if(ptResources)
+    {
+        
+        for(uint32_t i = 0; i < ptResources->uTextureCount; i++)
+        {
+            const plPassTextureResource* ptResource = &ptResources->atTextures[i];
+            const plTexture* ptTexture = &ptCmdBuffer->ptDevice->sbtTexturesCold[ptResource->tHandle.uIndex];
+            const plVulkanTexture* ptVulkanTexture = &ptCmdBuffer->ptDevice->sbtTexturesHot[ptResource->tHandle.uIndex];
+
+            // check if layout needed
+            if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
+            {
+                VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+                if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
+                    tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+                VkImageSubresourceRange tRange = {
+                    .baseMipLevel   = 0,
+                    .levelCount     = ptTexture->tDesc.uMips,
+                    .baseArrayLayer = 0,
+                    .layerCount     = ptTexture->tDesc.uLayers,
+                    .aspectMask     = tImageAspectFlags
+                };
+
+                VkImageMemoryBarrier tBarrier = {
+                    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                    .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
+                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                    .image               = ptVulkanTexture->tImage,
+                    .subresourceRange    = tRange,
+                    .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+                    .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
+                };
+
+                vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+
+                pl_sb_push(ptEncoder->sbtTextures, ptResource->tHandle);
+            }
+        }
+    }
+
     return ptEncoder;
 }
 
 void
 pl_graphics_end_compute_pass(plComputeEncoder* ptEncoder)
 {
+    for(uint32_t i = 0; i < pl_sb_size(ptEncoder->sbtTextures); i++)
+    {
+        const plTexture* ptTexture = &ptEncoder->ptCommandBuffer->ptDevice->sbtTexturesCold[ptEncoder->sbtTextures[i].uIndex];
+        const plVulkanTexture* ptVulkanTexture = &ptEncoder->ptCommandBuffer->ptDevice->sbtTexturesHot[ptEncoder->sbtTextures[i].uIndex];
+
+    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
+        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+        VkImageSubresourceRange tRange = {
+            .baseMipLevel   = 0,
+            .levelCount     = ptTexture->tDesc.uMips,
+            .baseArrayLayer = 0,
+            .layerCount     = ptTexture->tDesc.uLayers,
+            .aspectMask     = tImageAspectFlags
+        };
+
+        VkImageMemoryBarrier tBarrier = {
+            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .oldLayout           = 0,
+            .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image               = ptVulkanTexture->tImage,
+            .subresourceRange    = tRange,
+            .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
+        };
+
+        vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+    }
     pl__return_compute_encoder(ptEncoder);
 }
 
@@ -4531,13 +4798,24 @@ pl_graphics_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBuf
 
     for (uint32_t i = 0; i < uRegionCount; i++)
     {
-        VkImageLayout tLayout = ptRegions[i].tCurrentImageUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptRegions[i].tCurrentImageUsage);
         atSubResourceRanges[i].aspectMask = ptColdTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         atSubResourceRanges[i].baseMipLevel = ptRegions[i].uMipLevel;
         atSubResourceRanges[i].levelCount = 1;
         atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uBaseArrayLayer;
         atSubResourceRanges[i].layerCount = ptRegions[i].uLayerCount;
-        pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage, tLayout, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, atSubResourceRanges[i], VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+        VkImageMemoryBarrier tBarrier = {
+            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // assumed now
+            .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image               = ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage,
+            .subresourceRange    = atSubResourceRanges[i],
+            .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+            .dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT
+        };
+        vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
 
         atCopyRegions[i].bufferOffset = ptRegions[i].szBufferOffset;
         atCopyRegions[i].bufferRowLength = ptRegions[i].uBufferRowLength;
@@ -4557,8 +4835,18 @@ pl_graphics_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBuf
 
     for (uint32_t i = 0; i < uRegionCount; i++)
     {
-        VkImageLayout tLayout = ptRegions[i].tCurrentImageUsage == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : pl__vulkan_layout(ptRegions[i].tCurrentImageUsage);
-        pl__transition_image_layout(ptCmdBuffer->tCmdBuffer, ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tLayout, atSubResourceRanges[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+        VkImageMemoryBarrier tBarrier = {
+            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, // assumed for now
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image               = ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage,
+            .subresourceRange    = atSubResourceRanges[i],
+            .srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
+        };
+        vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
     }
 
     pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
@@ -4800,24 +5088,44 @@ pl__fill_common_render_pass_data(plRenderPassLayoutDesc* ptDesc, plRenderPassLay
         ptDataOut->atSubpasses[i].pInputAttachments = ptDataOut->atSubpassInputAttachmentReferences[i];
     }
 
-    for(uint32_t i = 0; i < PL_MAX_SUBPASSES; i++)
-    {
-        if(ptDesc->atSubpassDependencies[i].uSourceSubpass == 0 && ptDesc->atSubpassDependencies[i].uDestinationSubpass == 0)
-        {
-            break;
-        }
+    // TODO: be smart about this
 
+
+    ptDataOut->atSubpassDependencies[0] = (VkSubpassDependency){
+        .srcSubpass      = UINT32_MAX,
+        .dstSubpass      = 0,
+        .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+        .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+    };
+    ptDataOut->uDependencyCount++;
+
+    for(uint32_t i = 1; i < ptDesc->_uSubpassCount; i++)
+    {
         ptDataOut->atSubpassDependencies[i] = (VkSubpassDependency){
-            .srcSubpass      = ptDesc->atSubpassDependencies[i].uSourceSubpass,
-            .dstSubpass      = ptDesc->atSubpassDependencies[i].uDestinationSubpass,
-            .srcStageMask    = pl_vulkan_pipeline_stage_flags(ptDesc->atSubpassDependencies[i].tSourceStageMask),
-            .dstStageMask    = pl_vulkan_pipeline_stage_flags(ptDesc->atSubpassDependencies[i].tDestinationStageMask),
-            .srcAccessMask   = pl__vulkan_access_flags(ptDesc->atSubpassDependencies[i].tSourceAccessMask),
-            .dstAccessMask   = pl__vulkan_access_flags(ptDesc->atSubpassDependencies[i].tDestinationAccessMask),
+            .srcSubpass      = i - 1,
+            .dstSubpass      = i,
+            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+            .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+            .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask   = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
             .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
         };
         ptDataOut->uDependencyCount++;
     }
+
+    ptDataOut->atSubpassDependencies[ptDesc->_uSubpassCount] = (VkSubpassDependency){
+        .srcSubpass      = ptDesc->_uSubpassCount - 1,
+        .dstSubpass      = UINT32_MAX,
+        .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+        .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+    };
+    ptDataOut->uDependencyCount++;
 }
 
 static plDeviceMemoryAllocation
@@ -4883,116 +5191,6 @@ pl__format_has_stencil(VkFormat tFormat)
         default:
             return false;
     }
-}
-
-static void
-pl__transition_image_layout(VkCommandBuffer tCommandBuffer, VkImage tImage, VkImageLayout tOldLayout, VkImageLayout tNewLayout, VkImageSubresourceRange tSubresourceRange, VkPipelineStageFlags tSrcStageMask, VkPipelineStageFlags tDstStageMask)
-{
-    // VkCommandBuffer commandBuffer = mvBeginSingleTimeCommands();
-    VkImageMemoryBarrier tBarrier = {
-        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .oldLayout           = tOldLayout,
-        .newLayout           = tNewLayout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image               = tImage,
-        .subresourceRange    = tSubresourceRange,
-    };
-
-    // Source layouts (old)
-    // Source access mask controls actions that have to be finished on the old layout
-    // before it will be transitioned to the new layout
-    switch (tOldLayout)
-    {
-    case VK_IMAGE_LAYOUT_UNDEFINED:
-        // Image layout is undefined (or does not matter)
-        // Only valid as initial layout
-        // No flags required, listed only for completeness
-        tBarrier.srcAccessMask = 0;
-        break;
-
-    case VK_IMAGE_LAYOUT_PREINITIALIZED:
-        // Image is preinitialized
-        // Only valid as initial layout for linear images, preserves memory contents
-        // Make sure host writes have been finished
-        tBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-        break;
-
-    case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-        // Image is a color attachment
-        // Make sure any writes to the color buffer have been finished
-        tBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        break;
-
-    case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-        // Image is a depth/stencil attachment
-        // Make sure any writes to the depth/stencil buffer have been finished
-        tBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        break;
-
-    case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-        // Image is a transfer source
-        // Make sure any reads from the image have been finished
-        tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        break;
-
-    case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-        // Image is a transfer destination
-        // Make sure any writes to the image have been finished
-        tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        break;
-
-    case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-        // Image is read by a shader
-        // Make sure any shader reads from the image have been finished
-        tBarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        break;
-    default:
-        // Other source layouts aren't handled (yet)
-        break;
-    }
-
-    // Target layouts (new)
-    // Destination access mask controls the dependency for the new image layout
-    switch (tNewLayout)
-    {
-    case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-        // Image will be used as a transfer destination
-        // Make sure any writes to the image have been finished
-        tBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        break;
-
-    case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-        // Image will be used as a transfer source
-        // Make sure any reads from the image have been finished
-        tBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        break;
-
-    case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-        // Image will be used as a color attachment
-        // Make sure any writes to the color buffer have been finished
-        tBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        break;
-
-    case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-        // Image layout will be used as a depth/stencil attachment
-        // Make sure any writes to depth/stencil buffer have been finished
-        tBarrier.dstAccessMask = tBarrier.dstAccessMask | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        break;
-
-    case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-        // Image will be read in a shader (sampler, input attachment)
-        // Make sure any writes to the image have been finished
-        if (tBarrier.srcAccessMask == 0)
-            tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            // tBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-        tBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        break;
-    default:
-        // Other source layouts aren't handled (yet)
-        break;
-    }
-    vkCmdPipelineBarrier(tCommandBuffer, tSrcStageMask, tDstStageMask, 0, 0, NULL, 0, NULL, 1, &tBarrier);
 }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL

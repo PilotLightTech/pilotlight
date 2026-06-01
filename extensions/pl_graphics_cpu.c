@@ -35,15 +35,8 @@ typedef struct _plInternalDeviceAllocatorData
 
 typedef struct _plRenderPassCommonData
 {
-    uint32_t                uDependencyCount;
-    uint32_t                uColorAttachmentCount;
-    // VkAttachmentDescription atAttachments[PL_MAX_RENDER_TARGETS];
-    // VkSubpassDependency     atSubpassDependencies[PL_MAX_SUBPASSES];
-    // VkSubpassDescription    atSubpasses[PL_MAX_SUBPASSES];
-    // VkAttachmentReference   atSubpassColorAttachmentReferences[PL_MAX_RENDER_TARGETS][PL_MAX_SUBPASSES];
-    // VkAttachmentReference   atSubpassInputAttachmentReferences[PL_MAX_RENDER_TARGETS][PL_MAX_SUBPASSES];
-    // VkAttachmentReference   tDepthAttachmentReference;
-    // VkAttachmentReference   tResolveAttachmentReference;
+    uint32_t uDependencyCount;
+    uint32_t uColorAttachmentCount;
 } plRenderPassCommonData;
 
 typedef struct _plCpuDynamicBuffer
@@ -136,6 +129,7 @@ typedef struct _plComputeEncoder
 {
     plCommandBuffer*  ptCommandBuffer;
     plComputeEncoder* ptNext; // for linked list
+    plTextureHandle*  sbtTextures;
 } plComputeEncoder;
 
 typedef struct _plBlitEncoder

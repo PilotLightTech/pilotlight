@@ -205,11 +205,11 @@ pl__renderer_cull_spot_light_job(plInvocationData tInvoData, void* pData, void* 
 //-----------------------------------------------------------------------------
 
 static plTextureHandle
-pl__renderer_create_local_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage)
+pl__renderer_create_local_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier)
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
-    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
+    // plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
  
     // create texture
     plTempAllocator tTempAllocator = {0};
@@ -232,18 +232,6 @@ pl__renderer_create_local_texture(const plTextureDesc* ptDesc, const char* pcNam
     // bind memory
     gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
     pl_temp_allocator_free(&tTempAllocator);
-
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "load texture");
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-    plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-    gptGfx->set_texture_usage(ptBlitEncoder, tHandle, tInitialUsage, 0);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-    gptGfx->end_blit_pass(ptBlitEncoder);
-    gptGfx->end_command_recording(ptCommandBuffer);
-    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
 
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created local texture %s %u", pcName, uIdentifier);
     PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created local texture %s %u", pcName, uIdentifier);
@@ -251,12 +239,11 @@ pl__renderer_create_local_texture(const plTextureDesc* ptDesc, const char* pcNam
 }
 
 static plTextureHandle
-pl__renderer_create_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage)
+pl__renderer_create_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier)
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
-    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
- 
+
     // create texture
     plTempAllocator tTempAllocator = {0};
     plTexture* ptTexture = NULL;
@@ -278,18 +265,6 @@ pl__renderer_create_texture(const plTextureDesc* ptDesc, const char* pcName, uin
     // bind memory
     gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
     pl_temp_allocator_free(&tTempAllocator);
-
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "create texture");
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-    plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-    gptGfx->set_texture_usage(ptBlitEncoder, tHandle, tInitialUsage, 0);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-    gptGfx->end_blit_pass(ptBlitEncoder);
-    gptGfx->end_command_recording(ptCommandBuffer);
-    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
 
     gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created texture %s %u", pcName, uIdentifier);
     PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created texture %s %u", pcName, uIdentifier);
@@ -301,7 +276,6 @@ pl__renderer_create_texture_with_data(const plTextureDesc* ptDesc, const char* p
 {
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
-    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
  
     // create texture
     plTempAllocator tTempAllocator = {0};
@@ -324,19 +298,6 @@ pl__renderer_create_texture_with_data(const plTextureDesc* ptDesc, const char* p
     // bind memory
     gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
     pl_temp_allocator_free(&tTempAllocator);
-
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "create texture 2");
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-    plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
-    gptGfx->set_texture_usage(ptBlitEncoder, tHandle, PL_TEXTURE_USAGE_SAMPLED, 0);
-
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
-    gptGfx->end_blit_pass(ptBlitEncoder);
-    gptGfx->end_command_recording(ptCommandBuffer);
-    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
 
     // if data is presented, upload using staging buffer
     if(pData)
@@ -484,7 +445,6 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
 
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
         gptGfx->push_compute_debug_group(ptComputeEncoder, "Skinning Compute", (plVec4){1.0f, 0.0f, 1.0f, 1.0f});
-        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
         const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
         for(uint32_t i = 0; i < uSkinCount; i++)
         {
@@ -516,7 +476,6 @@ pl__renderer_perform_skinning(plCommandBuffer* ptCommandBuffer, plScene* ptScene
             gptGfx->bind_compute_shader(ptComputeEncoder, ptScene->sbtSkinData[i].tShader);
             gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
         }
-        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
         gptGfx->pop_compute_debug_group(ptComputeEncoder);
         gptGfx->end_compute_pass(ptComputeEncoder);
     }
@@ -2659,11 +2618,11 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
     gptGfx->update_bind_group(gptData->ptDevice, tProbeData.tDShadowBG, &tDShadowBGData);
 
     // textures
-    tProbeData.tRawOutputTexture        = pl__renderer_create_texture(&tRawOutputTextureCubeDesc,  "offscreen raw cube", 0, PL_TEXTURE_USAGE_SAMPLED);
-    tProbeData.tAlbedoTexture           = pl__renderer_create_texture(&tAlbedoTextureDesc, "albedo original", 0, PL_TEXTURE_USAGE_SAMPLED);
-    tProbeData.tNormalTexture           = pl__renderer_create_texture(&tNormalTextureDesc, "normal original", 0, PL_TEXTURE_USAGE_SAMPLED);
-    tProbeData.tAOMetalRoughnessTexture = pl__renderer_create_texture(&tEmmissiveTexDesc, "metalroughness original", 0, PL_TEXTURE_USAGE_SAMPLED);
-    tProbeData.tDepthTexture            = pl__renderer_create_texture(&tDepthTextureDesc,      "offscreen depth original", 0, PL_TEXTURE_USAGE_SAMPLED);
+    tProbeData.tRawOutputTexture        = pl__renderer_create_texture(&tRawOutputTextureCubeDesc,  "offscreen raw cube", 0);
+    tProbeData.tAlbedoTexture           = pl__renderer_create_texture(&tAlbedoTextureDesc, "albedo original", 0);
+    tProbeData.tNormalTexture           = pl__renderer_create_texture(&tNormalTextureDesc, "normal original", 0);
+    tProbeData.tAOMetalRoughnessTexture = pl__renderer_create_texture(&tEmmissiveTexDesc, "metalroughness original", 0);
+    tProbeData.tDepthTexture            = pl__renderer_create_texture(&tDepthTextureDesc,      "offscreen depth original", 0);
 
     plTextureViewDesc tAlbedoTextureViewDesc = {
         .tFormat     = tAlbedoTextureDesc.tFormat,
@@ -2796,45 +2755,45 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
                 .tStoreOp        = PL_STORE_OP_STORE,
                 .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
                 .tStencilStoreOp = PL_STORE_OP_STORE,
-                .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
+                .tPreviousUsage  = PL_TEXTURE_USAGE_SAMPLED,
                 .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
                 .fClearZ         = 0.0f
         },
         .atColorTargets = {
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tLoadOp        = PL_LOAD_OP_CLEAR,
+                .tStoreOp       = PL_STORE_OP_STORE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage     = PL_TEXTURE_USAGE_SAMPLED,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             },
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tLoadOp        = PL_LOAD_OP_CLEAR,
+                .tStoreOp       = PL_STORE_OP_STORE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage     = PL_TEXTURE_USAGE_SAMPLED,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             },
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tLoadOp        = PL_LOAD_OP_CLEAR,
+                .tStoreOp       = PL_STORE_OP_STORE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage     = PL_TEXTURE_USAGE_SAMPLED,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             },
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tLoadOp        = PL_LOAD_OP_CLEAR,
+                .tStoreOp       = PL_STORE_OP_STORE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage     = PL_TEXTURE_USAGE_SAMPLED,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             },
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-                .tNextUsage    = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 0.0f}
+                .tLoadOp        = PL_LOAD_OP_CLEAR,
+                .tStoreOp       = PL_STORE_OP_STORE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tNextUsage     = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 0.0f}
             }
         },
         .tDimensions = {.x = tProbeData.tTargetSize.x, .y = tProbeData.tTargetSize.y}
@@ -2847,17 +2806,17 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
                 .tStoreOp        = PL_STORE_OP_STORE,
                 .tStencilLoadOp  = PL_LOAD_OP_LOAD,
                 .tStencilStoreOp = PL_STORE_OP_STORE,
-                .tCurrentUsage   = PL_TEXTURE_USAGE_SAMPLED,
+                .tPreviousUsage  = PL_TEXTURE_USAGE_SAMPLED,
                 .tNextUsage      = PL_TEXTURE_USAGE_SAMPLED,
                 .fClearZ         = 0.0f
         },
         .atColorTargets = {
             {
-                .tLoadOp       = PL_LOAD_OP_LOAD,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tLoadOp        = PL_LOAD_OP_LOAD,
+                .tStoreOp       = PL_STORE_OP_STORE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage     = PL_TEXTURE_USAGE_SAMPLED,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
         .tDimensions = {.x = tProbeData.tTargetSize.x, .y = tProbeData.tTargetSize.y}
@@ -2876,9 +2835,10 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .uLayers     = 6,
         .uMips       = 1,
         .tType       = PL_TEXTURE_TYPE_CUBE,
-        .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+        .tUsage      = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "probe lambertian env"
     };
-    tProbeData.tLambertianEnvTexture = pl__renderer_create_texture(&tSpecularTextureDesc, "specular texture", 0, PL_TEXTURE_USAGE_SAMPLED);
+    tProbeData.tLambertianEnvTexture = pl__renderer_create_texture(&tSpecularTextureDesc, "specular texture", 0);
 
     const plTextureDesc tTextureDesc = {
         .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
@@ -2886,9 +2846,10 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .uLayers     = 6,
         .uMips       = (uint32_t)floorf(log2f((float)ptProbe->uResolution)) - 3, // guarantee final dispatch during filtering is 16 threads
         .tType       = PL_TEXTURE_TYPE_CUBE,
-        .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+        .tUsage      = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "probe tGGXEnvTexture"
     };
-    tProbeData.tGGXEnvTexture = pl__renderer_create_texture(&tTextureDesc, "ggx texture", 0, PL_TEXTURE_USAGE_SAMPLED);
+    tProbeData.tGGXEnvTexture = pl__renderer_create_texture(&tTextureDesc, "ggx texture", 0);
 
     tProbeData.uLambertianEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tLambertianEnvTexture);
     tProbeData.uGGXEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tGGXEnvTexture);
@@ -2977,9 +2938,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         };
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo1);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
         gptGfx->generate_mipmaps(ptBlitEncoder, ptProbe->tRawOutputTexture);
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptBlitEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
         const plSubmitInfo tSubmitInfo = {
@@ -3093,12 +3052,10 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         ptDynamicData->iCurrentMipLevel = 0;
 
         plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tPassResources);
-        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
         gptGfx->bind_compute_bind_groups(ptComputeEncoder, tCubeFilterDiffuseShader, 0, 2, atFullBindGroupHandles, 1, &tDynamicBinding);
         gptGfx->bind_compute_shader(ptComputeEncoder, tCubeFilterDiffuseShader);
         gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
-        gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
         gptGfx->end_compute_pass(ptComputeEncoder);
 
         gptGfx->pop_debug_group(ptCommandBuffer);
@@ -3120,7 +3077,6 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         };
         gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo1);
         plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
         for(uint32_t i = 0; i < 6; i++)
         {
@@ -3134,7 +3090,6 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             };
             gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[i], ptProbe->tLambertianEnvTexture, 1, &tBufferImageCopy);
         }
-        gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(ptBlitEncoder);
         gptGfx->end_command_recording(ptCommandBuffer);
         const plSubmitInfo tSubmitInfo = {
@@ -3203,11 +3158,9 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             ptDynamicData->iCurrentMipLevel = i;
 
             plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tInnerPassResources);
-            gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
             gptGfx->bind_compute_bind_groups(ptComputeEncoder, tCubeFilterSpecularShader, 0, 2, atFullBindGroupHandles, 1, &tDynamicBinding);
             gptGfx->bind_compute_shader(ptComputeEncoder, tCubeFilterSpecularShader);
             gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
-            gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
             gptGfx->end_compute_pass(ptComputeEncoder);
             gptGfx->end_command_recording(ptCommandBuffer);
             const plSubmitInfo tSubmitInfo = {
@@ -3226,7 +3179,6 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             };
             gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo2);
             plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
             for(uint32_t j = 0; j < 6; j++)
             {
@@ -3241,7 +3193,6 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
                 };
                 gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[j], ptProbe->tGGXEnvTexture, 1, &tBufferImageCopy);
             }
-            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
             gptGfx->end_blit_pass(ptBlitEncoder);
             gptGfx->end_command_recording(ptCommandBuffer);
             const plSubmitInfo tSubmitInfo0 = {
@@ -3314,11 +3265,9 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             ptDynamicData->iCurrentMipLevel = i;
 
             plComputeEncoder* ptComputeEncoder = gptGfx->begin_compute_pass(ptCommandBuffer, &tInnerPassResources);
-            gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
             gptGfx->bind_compute_bind_groups(ptComputeEncoder, tCubeFilterSheenShader, 0, 2, atFullBindGroupHandles, 1, &tDynamicBinding);
             gptGfx->bind_compute_shader(ptComputeEncoder, tCubeFilterSheenShader);
             gptGfx->dispatch(ptComputeEncoder, 1, &tDispach);
-            gptGfx->pipeline_barrier_compute(ptComputeEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ);
             gptGfx->end_compute_pass(ptComputeEncoder);
             gptGfx->end_command_recording(ptCommandBuffer);
             const plSubmitInfo tSubmitInfo = {
@@ -3337,7 +3286,6 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
             };
             gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo2);
             plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
             for(uint32_t j = 0; j < 6; j++)
             {
@@ -3352,7 +3300,6 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
                 };
                 gptGfx->copy_buffer_to_texture(ptBlitEncoder, ptScene->atFilterWorkingBuffers[j], ptProbe->tSheenEnvTexture, 1, &tBufferImageCopy);
             }
-            gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
             gptGfx->end_blit_pass(ptBlitEncoder);
             gptGfx->end_command_recording(ptCommandBuffer);
             const plSubmitInfo tSubmitInfo0 = {
@@ -3786,7 +3733,6 @@ pl__render_view_full_screen_blit(plView* ptView, const plBeginCommandInfo* ptSce
     gptGfx->begin_command_recording(ptSceneCmdBuffer, ptSceneBeginInfo);
 
     plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptSceneCmdBuffer);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
     plImageCopy tFrameCopy = {
 
@@ -3794,13 +3740,10 @@ pl__render_view_full_screen_blit(plView* ptView, const plBeginCommandInfo* ptSce
         .uSourceExtentY = (uint32_t)ptView->tTargetSize.y,
         .uSourceExtentZ = 1,
         .uSourceLayerCount = 1,
-        .tSourceImageUsage = PL_TEXTURE_USAGE_SAMPLED,
-        .tDestinationImageUsage = PL_TEXTURE_USAGE_SAMPLED,
         .uDestinationLayerCount = 1,
     };
     gptGfx->copy_texture(ptBlitEncoder, ptView->tRawOutputTexture, ptView->tTransmissionTexture, 1, &tFrameCopy);
     gptGfx->generate_mipmaps(ptBlitEncoder, ptView->tTransmissionTexture);
-    gptGfx->pipeline_barrier_blit(ptBlitEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptBlitEncoder);
     return ptSceneCmdBuffer;
 }
@@ -4222,9 +4165,24 @@ pl__render_view_jfa_pass(plView* ptView)
         gptGfx->begin_command_recording(ptJumpCmdBuffer, &tJumpBeginInfo);
 
         // begin main renderpass (directly to swapchain)
-        plComputeEncoder* ptJumpEncoder = gptGfx->begin_compute_pass(ptJumpCmdBuffer, NULL);
+        plPassTextureResource atTextureResources[] = {
+            {
+                .tHandle = ptView->atUVMaskTexture0,
+                .tStages = PL_SHADER_STAGE_COMPUTE,
+                .tUsage = PL_PASS_RESOURCE_USAGE_READ | PL_PASS_RESOURCE_USAGE_WRITE
+            },
+            {
+                .tHandle = ptView->atUVMaskTexture1,
+                .tStages = PL_SHADER_STAGE_COMPUTE,
+                .tUsage = PL_PASS_RESOURCE_USAGE_READ | PL_PASS_RESOURCE_USAGE_WRITE
+            }
+        };
+        plPassResources tResources = {
+            .atTextures = atTextureResources,
+            .uTextureCount = 2
+        };
+        plComputeEncoder* ptJumpEncoder = gptGfx->begin_compute_pass(ptJumpCmdBuffer, &tResources);
         gptGfx->push_compute_debug_group(ptJumpEncoder, "JFA", (plVec4){0.73f, 0.02f, 0.80f, 1.0f});
-        gptGfx->pipeline_barrier_compute(ptJumpEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
         ptView->uLastUVIndex = (i % 2 == 0) ? 1 : 0;
 
@@ -4241,7 +4199,6 @@ pl__render_view_jfa_pass(plView* ptView)
         gptGfx->dispatch(ptJumpEncoder, 1, &tDispach);
 
         // end render pass
-        gptGfx->pipeline_barrier_compute(ptJumpEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
         gptGfx->pop_compute_debug_group(ptJumpEncoder);
         gptGfx->end_compute_pass(ptJumpEncoder);
 
@@ -4383,14 +4340,12 @@ pl__render_view_bloom_pass(plView* ptView)
             { // target
                 .tTexture      = ptView->sbtBloomDownChain[targetMip],
                 .uSlot         = 0,
-                .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
+                .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE
             },
             { // source
                 .tTexture      = i == 0 ? ptView->tFinalTexture : ptView->sbtBloomDownChain[sourceMip],
                 .uSlot         = 1,
-                .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED
             }
         };
 
@@ -4416,13 +4371,20 @@ pl__render_view_bloom_pass(plView* ptView)
         plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "bloom_downsample");
         gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
 
-        plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-        gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
-        gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
+        plPassTextureResource atTextureResources[] = {
+            {
+                .tHandle = tTonemapTextureData[0].tTexture,
+                .tStages = PL_SHADER_STAGE_COMPUTE,
+                .tUsage = PL_PASS_RESOURCE_USAGE_READ | PL_PASS_RESOURCE_USAGE_WRITE
+            }
+        };
+        plPassResources tResources = {
+            .atTextures = atTextureResources,
+            .uTextureCount = 1
+        };
 
-        plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
+        plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, &tResources);
         gptGfx->push_compute_debug_group(ptPostEncoder, "bloom_downsample", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
-        gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
         plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
         plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
@@ -4442,13 +4404,8 @@ pl__render_view_bloom_pass(plView* ptView)
         };
         gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
 
-        gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
         gptGfx->pop_compute_debug_group(ptPostEncoder);
         gptGfx->end_compute_pass(ptPostEncoder);
-
-        plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-        gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-        gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
 
         gptGfx->end_command_recording(ptPostCmdBuffer);
 
@@ -4480,20 +4437,17 @@ pl__render_view_bloom_pass(plView* ptView)
             { // target
                 .tTexture      = ptView->sbtBloomUpChain[targetMip],
                 .uSlot         = 0,
-                .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
+                .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE
             },
             { // target previous mip
                 .tTexture      = ptView->sbtBloomUpChain[sourceMip],
                 .uSlot         = 1,
-                .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED
             },
             { // source
                 .tTexture      = ptView->sbtBloomDownChain[sourceMip],
                 .uSlot         = 2,
-                .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED
             }
         };
 
@@ -4519,15 +4473,20 @@ pl__render_view_bloom_pass(plView* ptView)
         plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "bloom_upsample");
         gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
 
-        plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+        plPassTextureResource atTextureResources[] = {
+            {
+                .tHandle = tTonemapTextureData[0].tTexture,
+                .tStages = PL_SHADER_STAGE_COMPUTE,
+                .tUsage = PL_PASS_RESOURCE_USAGE_READ | PL_PASS_RESOURCE_USAGE_WRITE
+            }
+        };
+        plPassResources tResources = {
+            .atTextures = atTextureResources,
+            .uTextureCount = 1
+        };
 
-        gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
-        
-        gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
-
-        plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
+        plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, &tResources);
         gptGfx->push_compute_debug_group(ptPostEncoder, "upscale", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
-        gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
         plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
         plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
@@ -4549,14 +4508,8 @@ pl__render_view_bloom_pass(plView* ptView)
         };
         gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
 
-        gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
         gptGfx->pop_compute_debug_group(ptPostEncoder);
         gptGfx->end_compute_pass(ptPostEncoder);
-
-        plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-        // gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[1].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-        gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-        gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
 
         gptGfx->end_command_recording(ptPostCmdBuffer);
 
@@ -4583,14 +4536,12 @@ pl__render_view_bloom_pass(plView* ptView)
             { // target
                 .tTexture      = ptView->tFinalTexture,
                 .uSlot         = 0,
-                .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_STORAGE,
+                .tType         = PL_TEXTURE_BINDING_TYPE_STORAGE
             },
             { // target previous mip
                 .tTexture      = ptView->sbtBloomUpChain[0],
                 .uSlot         = 1,
-                .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tType         = PL_TEXTURE_BINDING_TYPE_SAMPLED
             }
         };
 
@@ -4616,17 +4567,20 @@ pl__render_view_bloom_pass(plView* ptView)
         plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "bloom_apply");
         gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
 
-        plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
+        plPassTextureResource atTextureResources[] = {
+            {
+                .tHandle = tTonemapTextureData[0].tTexture,
+                .tStages = PL_SHADER_STAGE_COMPUTE,
+                .tUsage = PL_PASS_RESOURCE_USAGE_READ | PL_PASS_RESOURCE_USAGE_WRITE
+            }
+        };
+        plPassResources tResources = {
+            .atTextures = atTextureResources,
+            .uTextureCount = 1
+        };
 
-        gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
-        
-        // if(i > 0)
-            
-        gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
-
-        plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
+        plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, &tResources);
         gptGfx->push_compute_debug_group(ptPostEncoder, "bloom_apply", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
-        gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
         plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
         plGpuDynBloomData* ptTonemapData = (plGpuDynBloomData*)tTonemapDynamicBinding.pcData;
@@ -4647,14 +4601,8 @@ pl__render_view_bloom_pass(plView* ptView)
         };
         gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
 
-        gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
         gptGfx->pop_compute_debug_group(ptPostEncoder);
         gptGfx->end_compute_pass(ptPostEncoder);
-
-        plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-        // gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[1].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-        gptGfx->set_texture_usage(ptTonemapPrepEncoder0, tTonemapTextureData[0].tTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-        gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
 
         gptGfx->end_command_recording(ptPostCmdBuffer);
 
@@ -4688,13 +4636,20 @@ pl__render_view_tonemap_pass(plView* ptView)
     plCommandBuffer* ptPostCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "tonemap");
     gptGfx->begin_command_recording(ptPostCmdBuffer, &tPostBeginInfo);
 
-    plBlitEncoder* ptTonemapPrepEncoder0 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-    gptGfx->set_texture_usage(ptTonemapPrepEncoder0, ptView->tFinalTexture, PL_TEXTURE_USAGE_STORAGE, PL_TEXTURE_USAGE_SAMPLED);
-    gptGfx->end_blit_pass(ptTonemapPrepEncoder0);
+    plPassTextureResource atTextureResources[] = {
+        {
+            .tHandle = ptView->tFinalTexture,
+            .tStages = PL_SHADER_STAGE_COMPUTE,
+            .tUsage = PL_PASS_RESOURCE_USAGE_READ | PL_PASS_RESOURCE_USAGE_WRITE
+        }
+    };
+    plPassResources tResources = {
+        .atTextures = atTextureResources,
+        .uTextureCount = 1
+    };
 
-    plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, NULL);
+    plComputeEncoder* ptPostEncoder = gptGfx->begin_compute_pass(ptPostCmdBuffer, &tResources);
     gptGfx->push_compute_debug_group(ptPostEncoder, "Tonemap Compute", (plVec4){0.0f, 0.32f, 0.10f, 1.0f});
-    gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_READ, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE);
 
     plDynamicBinding tTonemapDynamicBinding = pl__allocate_dynamic_data(ptDevice);
     plGpuDynTonemap* ptTonemapData = (plGpuDynTonemap*)tTonemapDynamicBinding.pcData;
@@ -4718,13 +4673,8 @@ pl__render_view_tonemap_pass(plView* ptView)
     };
     gptGfx->dispatch(ptPostEncoder, 1, &tTonemapDispatch);
 
-    gptGfx->pipeline_barrier_compute(ptPostEncoder, PL_PIPELINE_STAGE_COMPUTE_SHADER, PL_ACCESS_SHADER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_FRAGMENT_SHADER, PL_ACCESS_SHADER_READ);
     gptGfx->pop_compute_debug_group(ptPostEncoder);
     gptGfx->end_compute_pass(ptPostEncoder);
-
-    plBlitEncoder* ptTonemapPrepEncoder1 = gptGfx->begin_blit_pass(ptPostCmdBuffer);
-    gptGfx->set_texture_usage(ptTonemapPrepEncoder1, ptView->tFinalTexture, PL_TEXTURE_USAGE_SAMPLED, PL_TEXTURE_USAGE_STORAGE);
-    gptGfx->end_blit_pass(ptTonemapPrepEncoder1);
 
     gptGfx->end_command_recording(ptPostCmdBuffer);
 

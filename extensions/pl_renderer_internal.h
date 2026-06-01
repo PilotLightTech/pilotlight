@@ -637,8 +637,8 @@ static void pl__renderer_cull_point_light_job(plInvocationData, void*, void*);
 static void pl__renderer_cull_spot_light_job(plInvocationData, void*, void*);
 
 // resource creation helpers
-static plTextureHandle pl__renderer_create_texture              (const plTextureDesc*, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
-static plTextureHandle pl__renderer_create_local_texture        (const plTextureDesc*, const char* pcName, uint32_t uIdentifier, plTextureUsage tInitialUsage);
+static plTextureHandle pl__renderer_create_texture              (const plTextureDesc*, const char* pcName, uint32_t uIdentifier);
+static plTextureHandle pl__renderer_create_local_texture        (const plTextureDesc*, const char* pcName, uint32_t uIdentifier);
 static plTextureHandle pl__renderer_create_texture_with_data    (const plTextureDesc*, const char* pcName, uint32_t uIdentifier, const void*, size_t);
 static plBufferHandle  pl__renderer_create_staging_buffer       (const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
 static plBufferHandle  pl__renderer_create_cached_staging_buffer(const plBufferDesc*, const char* pcName, uint32_t uIdentifier);

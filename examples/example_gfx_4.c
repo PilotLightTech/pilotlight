@@ -257,15 +257,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // a bind group for use to use for drawing
     ptAppData->tColorTextureBg = gptDraw->create_bind_group_for_texture(ptAppData->tColorTexture);
 
-    // begin blit pass, copy buffer, end pass
-    plBlitEncoder* ptEncoder = gptStarter->get_blit_encoder();
-
-    // set the initial texture usage (this is a no-op in metal but does layout transition for vulkan)
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tColorTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
-
-    gptStarter->return_blit_encoder(ptEncoder);
-
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~render pass stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // NOTE: even if you don't need to double buffer a texture, the number of
@@ -295,24 +286,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
                 .uRenderTargetCount = 2,
                 .auRenderTargets = {0, 1}, // these are indices into the render targets above (depth/resolve must be before colors)
             },
-        },
-        .atSubpassDependencies = { // this map directly in Vulkan
-            {
-                .uSourceSubpass         = UINT32_MAX,
-                .uDestinationSubpass    = 0,
-                .tSourceStageMask       = PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tDestinationStageMask  = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tSourceAccessMask      = PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
-            {
-                .uSourceSubpass         = 0,
-                .uDestinationSubpass    = UINT32_MAX,
-                .tSourceStageMask       = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS,
-                .tDestinationStageMask  = PL_PIPELINE_STAGE_FRAGMENT_SHADER | PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT | PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS | PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS | PL_PIPELINE_STAGE_COMPUTE_SHADER,
-                .tSourceAccessMask      = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-                .tDestinationAccessMask = PL_ACCESS_SHADER_READ | PL_ACCESS_COLOR_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE | PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ,
-            },
         }
     };
 
@@ -324,17 +297,17 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
                 .tStoreOp        = PL_STORE_OP_DONT_CARE,
                 .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
                 .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
-                .tCurrentUsage   = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                .tPreviousUsage  = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .fClearZ         = 1.0f
         },
         .atColorTargets = {
             {
-                .tLoadOp       = PL_LOAD_OP_CLEAR,
-                .tStoreOp      = PL_STORE_OP_STORE,
-                .tCurrentUsage = PL_TEXTURE_USAGE_SAMPLED,
-                .tNextUsage    = PL_TEXTURE_USAGE_SAMPLED,
-                .tClearColor   = {0.0f, 0.0f, 0.0f, 1.0f}
+                .tLoadOp        = PL_LOAD_OP_CLEAR,
+                .tStoreOp       = PL_STORE_OP_STORE,
+                .tPreviousUsage = PL_TEXTURE_USAGE_SAMPLED,
+                .tNextUsage     = PL_TEXTURE_USAGE_SAMPLED,
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             }
         },
         .tDimensions = {.x = ptAppData->tOffscreenSize.x, .y = ptAppData->tOffscreenSize.y}
@@ -515,8 +488,6 @@ resize_offscreen_resources(plAppData* ptAppData)
 {
     plDevice* ptDevice = gptStarter->get_device();
 
-    plBlitEncoder* ptEncoder = gptStarter->get_blit_encoder();
-
     const plTextureDesc tColorTextureDesc = {
         .tDimensions   = {ptAppData->tOffscreenSize.x, ptAppData->tOffscreenSize.y, 1},
         .tFormat       = PL_FORMAT_R32G32B32A32_FLOAT,
@@ -565,9 +536,6 @@ resize_offscreen_resources(plAppData* ptAppData)
     gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tColorTexture, &tColorAllocation);
     gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tDepthTexture, &tDepthAllocation);
     
-    // set initialial usage
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tColorTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
-    gptGfx->set_texture_usage(ptEncoder, ptAppData->tDepthTexture, PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT, 0);
 
     // update our previous allocated bind group
     const plBindGroupUpdateTextureData atBGTextureData[] = {
@@ -591,8 +559,6 @@ resize_offscreen_resources(plAppData* ptAppData)
         atAttachmentSets[i].atViewAttachments[0] = ptAppData->tDepthTexture;
         atAttachmentSets[i].atViewAttachments[1] = ptAppData->tColorTexture;
     }
-
-    gptStarter->return_blit_encoder(ptEncoder);
 
     // don't create new render pass, just update the attachments
     gptGfx->update_render_pass_attachments(ptDevice, ptAppData->tOffscreenRenderPass, ptAppData->tOffscreenSize, atAttachmentSets);

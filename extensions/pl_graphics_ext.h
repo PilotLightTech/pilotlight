@@ -120,7 +120,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 9, 0}
+#define plGraphicsI_version {1, 10, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -210,7 +210,6 @@ typedef struct _plRenderTarget          plRenderTarget;
 typedef struct _plColorTarget           plColorTarget;
 typedef struct _plDepthTarget           plDepthTarget;
 typedef struct _plSubpass               plSubpass;
-typedef struct _plSubpassDependency     plSubpassDependency;
 typedef struct _plRenderPassLayout      plRenderPassLayout;
 typedef struct _plRenderPassLayoutDesc  plRenderPassLayoutDesc;
 typedef struct _plRenderPassDesc        plRenderPassDesc;
@@ -470,8 +469,6 @@ PL_API plCommandBuffer*  pl_graphics_get_compute_encoder_command_buffer(plComput
 // blit encoder 
 PL_API plBlitEncoder*   pl_graphics_begin_blit_pass                (plCommandBuffer*); // do not store
 PL_API void             pl_graphics_end_blit_pass                  (plBlitEncoder*);
-PL_API void             pl_graphics_set_texture_usage              (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
-PL_API void             pl_graphics_set_texture_usage_ex           (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages);
 PL_API void             pl_graphics_copy_buffer_to_texture         (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
 PL_API void             pl_graphics_copy_texture_to_buffer         (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
 PL_API void             pl_graphics_copy_texture                   (plBlitEncoder*, plTextureHandle src, plTextureHandle dst, uint32_t regionCount, const plImageCopy*);
@@ -596,6 +593,13 @@ PL_API size_t       pl_graphics_get_data_type_size(plDataType);
 PL_API plBlendState pl_graphics_get_blend_state   (plBlendMode);
 PL_API uint32_t     pl_graphics_calculate_mip_count(uint32_t width, uint32_t height);
 
+//-------------------------------OBSOLETE--------------------------------------
+
+#ifndef PL_DISABLE_OBSOLETE
+PL_API void pl_graphics_set_texture_usage    (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
+PL_API void pl_graphics_set_texture_usage_ex (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages);
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
@@ -703,8 +707,6 @@ typedef struct _plGraphicsI
     // blit encoder 
     plBlitEncoder*   (*begin_blit_pass)                (plCommandBuffer*); // do not store
     void             (*end_blit_pass)                  (plBlitEncoder*);
-    void             (*set_texture_usage)              (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
-    void             (*set_texture_usage_ex)           (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages);
     void             (*copy_buffer_to_texture)         (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
     void             (*copy_texture_to_buffer)         (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
     void             (*copy_texture)                   (plBlitEncoder*, plTextureHandle src, plTextureHandle dst, uint32_t regionCount, const plImageCopy*);
@@ -858,6 +860,13 @@ typedef struct _plGraphicsI
     MTLRenderPassDescriptor*    (*get_metal_render_pass_descriptor)(plDevice*, plRenderPassHandle);
     id<MTLCommandBuffer>        (*get_metal_command_buffer)(plCommandBuffer*);
     id<MTLRenderCommandEncoder> (*get_metal_command_encoder)(plRenderEncoder*);
+    #endif
+
+    //-------------------------------OBSOLETE--------------------------------------
+    
+    #ifndef PL_DISABLE_OBSOLETE
+    void (*set_texture_usage)   (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
+    void (*set_texture_usage_ex)(plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages);
     #endif
 
 } plGraphicsI;
@@ -1017,7 +1026,10 @@ typedef struct _plBindGroupUpdateTextureData
     plTextureBindingType tType;
     uint32_t             uSlot;
     uint32_t             uIndex;
-    plTextureUsage       tCurrentUsage;
+
+    #ifndef PL_DISABLE_OBSOLETE
+        plTextureUsage tCurrentUsage;
+    #endif
 } plBindGroupUpdateTextureData;
 
 typedef struct _plBindGroupUpdateBufferData
@@ -1245,16 +1257,6 @@ typedef struct _plSubpass
     uint32_t _uColorAttachmentCount;
 } plSubpass;
 
-typedef struct _plSubpassDependency
-{
-    uint32_t             uSourceSubpass;      // set to UINT32_MAX for external
-    uint32_t             uDestinationSubpass; // set to UINT32_MAX for external
-    plPipelineStageFlags tSourceStageMask;
-    plPipelineStageFlags tDestinationStageMask;
-    plAccessFlags        tSourceAccessMask;
-    plAccessFlags        tDestinationAccessMask;
-} plSubpassDependency;
-
 typedef struct _plRenderTarget
 {
     plFormat      tFormat;
@@ -1263,15 +1265,30 @@ typedef struct _plRenderTarget
     bool          bDepth;
 } plRenderTarget;
 
+#ifndef PL_DISABLE_OBSOLETE
+    typedef struct _plSubpassDependency
+    {
+        uint32_t             uSourceSubpass;      // set to UINT32_MAX for external
+        uint32_t             uDestinationSubpass; // set to UINT32_MAX for external
+        plPipelineStageFlags tSourceStageMask;
+        plPipelineStageFlags tDestinationStageMask;
+        plAccessFlags        tSourceAccessMask;
+        plAccessFlags        tDestinationAccessMask;
+    } plSubpassDependency;
+#endif
+
 typedef struct _plRenderPassLayoutDesc
 {
-    plRenderTarget      atRenderTargets[PL_MAX_RENDER_TARGETS];
-    plSubpass           atSubpasses[PL_MAX_SUBPASSES];
-    plSubpassDependency atSubpassDependencies[PL_MAX_SUBPASSES];
-    const char*         pcDebugName; // default: "unnamed render pass layout"
+    plRenderTarget atRenderTargets[PL_MAX_RENDER_TARGETS];
+    plSubpass      atSubpasses[PL_MAX_SUBPASSES];
+    const char*    pcDebugName; // default: "unnamed render pass layout"
 
     // [INTERNAL]
     uint32_t _uSubpassCount;
+
+    #ifndef PL_DISABLE_OBSOLETE
+        plSubpassDependency atSubpassDependencies[PL_MAX_SUBPASSES];
+    #endif
 } plRenderPassLayoutDesc;
 
 typedef struct _plRenderPassLayout
@@ -1295,7 +1312,17 @@ typedef struct _plDepthTarget
     plStoreOp      tStoreOp;
     plLoadOp       tStencilLoadOp;
     plStoreOp      tStencilStoreOp;
-    plTextureUsage tCurrentUsage;
+
+    #ifndef PL_DISABLE_OBSOLETE
+    union
+    {
+        plTextureUsage tPreviousUsage;
+        plTextureUsage tCurrentUsage;
+    };
+    #else
+    plTextureUsage tPreviousUsage;
+    #endif
+
     plTextureUsage tNextUsage;
     float          fClearZ;
     uint32_t       uClearStencil;
@@ -1305,7 +1332,17 @@ typedef struct _plColorTarget
 {
     plLoadOp       tLoadOp;
     plStoreOp      tStoreOp;
-    plTextureUsage tCurrentUsage;
+
+    #ifndef PL_DISABLE_OBSOLETE
+    union
+    {
+        plTextureUsage tPreviousUsage;
+        plTextureUsage tCurrentUsage;
+    };
+    #else
+    plTextureUsage tPreviousUsage;
+    #endif
+
     plTextureUsage tNextUsage;
     plVec4         tClearColor;
 } plColorTarget;
@@ -1386,7 +1423,10 @@ typedef struct _plBufferImageCopy
     uint32_t       uLayerCount;
     uint32_t       uBufferRowLength;
     uint32_t       uBufferImageHeight;
-    plTextureUsage tCurrentImageUsage;
+
+    #ifndef PL_DISABLE_OBSOLETE
+        plTextureUsage tCurrentImageUsage;
+    #endif
 } plBufferImageCopy;
 
 typedef struct _plImageCopy
@@ -1401,8 +1441,7 @@ typedef struct _plImageCopy
     uint32_t       uSourceMipLevel;
     uint32_t       uSourceBaseArrayLayer;
     uint32_t       uSourceLayerCount;
-    plTextureUsage tSourceImageUsage;
-
+    
     // destination offset
     int            iDestinationOffsetX;
     int            iDestinationOffsetY;
@@ -1410,7 +1449,11 @@ typedef struct _plImageCopy
     uint32_t       uDestinationMipLevel;
     uint32_t       uDestinationBaseArrayLayer;
     uint32_t       uDestinationLayerCount;
-    plTextureUsage tDestinationImageUsage;
+
+    #ifndef PL_DISABLE_OBSOLETE
+        plTextureUsage tSourceImageUsage;
+        plTextureUsage tDestinationImageUsage;
+    #endif
 } plImageCopy; 
 
 typedef struct _plDrawArea

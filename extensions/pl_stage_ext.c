@@ -292,7 +292,6 @@ pl_stage_flush(void)
     gptGfx->begin_command_recording(ptCommandBuffer, NULL);
 
     plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
 
     uint32_t uRequestCount = pl_sb_size(gptStageCtx->sbtBufferUploadRequests);
     for(uint32_t i = 0; i < uRequestCount; i++)
@@ -309,7 +308,6 @@ pl_stage_flush(void)
     uRequestCount = pl_sb_size(gptStageCtx->sbtTextureUploadRequests);
     for(uint32_t i = 0; i < uRequestCount; i++)
     {
-        gptGfx->set_texture_usage(ptEncoder, gptStageCtx->sbtTextureUploadRequests[i].uDestinationTexture, PL_TEXTURE_USAGE_SAMPLED, 0);
         gptGfx->copy_buffer_to_texture(ptEncoder,
             gptStageCtx->sbtStageBlocks[gptStageCtx->sbtTextureUploadRequests[i].uBufferIndex].tBuffer,
             gptStageCtx->sbtTextureUploadRequests[i].uDestinationTexture,
@@ -319,8 +317,6 @@ pl_stage_flush(void)
             gptGfx->generate_mipmaps(ptEncoder, gptStageCtx->sbtTextureUploadRequests[i].uDestinationTexture);
     }
     pl_sb_reset(gptStageCtx->sbtTextureUploadRequests);
-
-    gptGfx->pipeline_barrier_blit(ptEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
     gptGfx->end_blit_pass(ptEncoder);
 
     // finish recording
@@ -368,7 +364,6 @@ pl_stage_queue_buffer_upload(plBufferHandle tDestination, uint64_t uOffset, cons
         gptGfx->begin_command_recording(gptStageCtx->ptCurrentCommandBuffer, &tSceneBeginInfo);
 
         gptStageCtx->ptCurrentEncoder = gptGfx->begin_blit_pass(gptStageCtx->ptCurrentCommandBuffer);
-        gptGfx->pipeline_barrier_blit(gptStageCtx->ptCurrentEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     }
 
     plStageBufferUploadRequest tRequest = {
@@ -461,7 +456,6 @@ pl_stage_queue_texture_upload(plTextureHandle tDestination, const plBufferImageC
         gptGfx->begin_command_recording(gptStageCtx->ptCurrentCommandBuffer, &tSceneBeginInfo);
 
         gptStageCtx->ptCurrentEncoder = gptGfx->begin_blit_pass(gptStageCtx->ptCurrentCommandBuffer);
-        gptGfx->pipeline_barrier_blit(gptStageCtx->ptCurrentEncoder, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE);
     }
 
     plStageTextureUploadRequest tRequest = {
@@ -540,7 +534,6 @@ pl_stage_new_frame(void)
 {
     if(gptStageCtx->ptCurrentCommandBuffer)
     {
-        gptGfx->pipeline_barrier_blit(gptStageCtx->ptCurrentEncoder, PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_TRANSFER_WRITE, PL_PIPELINE_STAGE_VERTEX_SHADER | PL_PIPELINE_STAGE_COMPUTE_SHADER | PL_PIPELINE_STAGE_TRANSFER, PL_ACCESS_SHADER_READ | PL_ACCESS_TRANSFER_READ);
         gptGfx->end_blit_pass(gptStageCtx->ptCurrentEncoder);
         gptGfx->end_command_recording(gptStageCtx->ptCurrentCommandBuffer);
 
