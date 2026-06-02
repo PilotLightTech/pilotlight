@@ -5,7 +5,16 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-- v0.9.3 (xxxx-xx-xx)(camera     v1.0.1)  -fix zero init issue
+- v0.9.3 (2026-06-02)(graphics   v1.10.0) -last version before 2.x with breaking changes
+                                          -remove necessity of subpass dependencies
+                                          -remove necessity of "set_texture_usage(...)"
+                     (camera     v1.0.1)  -fix camera zero init issues
+                     (ui         v1.2.0)  -add "checkbox_flags" widget
+                     (allocators v1.1.1)  -fix many allocator issues
+                     (renderer)           -fix metal sync issues
+                                          -move to gjk culling & add light culling
+                                          -add initial orthographic camera support
+                                          -fix render pass flags issues
 - v0.9.2 (2026-05-21)(camera     v1.0.0)  -last minute refactors
 - v0.9.1 (2026-05-20)                     -rename "dependencies" to "thirdparty"
                       (camera     v1.0.0) -split camera into camera & camera ecs. Stabilized camera!
