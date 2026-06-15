@@ -234,7 +234,7 @@ pl_animation_run_animation_update_system(plComponentLibrary* ptLibrary, float fD
             const plAnimationSampler* ptSampler = &ptAnimationComponent->atSamplers[ptChannel->uSamplerIndex];
             const plAnimationDataComponent* ptData = gptECS->get_component(ptLibrary, gptAnimationCtx->tAnimationDataComponentType, ptSampler->tData);
             plTransformComponent* ptTransform = gptECS->get_component(ptLibrary, gptAnimationCtx->tTransformComponentType, ptChannel->tTarget);
-            ptTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+            ptTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
 
             // wrap t around, so the animation loops.
             // make sure that t is never earlier than the first keyframe and never later then the last keyframe.
@@ -540,7 +540,7 @@ pl_animation_run_inverse_kinematics_update_system(plComponentLibrary* ptLibrary)
                     tParentID.uIndex = UINT32_MAX;
             }
 
-            ptTransforms[uChildIndex].tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+            ptTransforms[uChildIndex].eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
             ptTransforms[uChildIndex].tWorld = tWorldMatrix;
         }
 

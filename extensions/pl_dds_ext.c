@@ -286,9 +286,9 @@ pl__dds_fourcc(char a, char b, char c, char d)
 }
 
 static inline uint32_t
-pl__dds_block_size(plFormat tFormat)
+pl__dds_block_size(plFormat eFormat)
 {
-    switch(tFormat)
+    switch(eFormat)
     {
         case PL_FORMAT_BC1_RGBA_UNORM:
         case PL_FORMAT_BC1_RGBA_SRGB:
@@ -311,9 +311,9 @@ pl__dds_block_size(plFormat tFormat)
 }
 
 static inline uint32_t
-pl__dds_bits_per_element(plFormat tFormat)
+pl__dds_bits_per_element(plFormat eFormat)
 {
-    switch (tFormat)
+    switch (eFormat)
     {
         case PL_FORMAT_R32G32B32A32_FLOAT:
         case PL_FORMAT_R32G32B32A32_UINT:
@@ -395,9 +395,9 @@ pl__dds_bits_per_element(plFormat tFormat)
 }
 
 static inline DXGI_FORMAT
-pl__pl_to_dxgi_format(plFormat tFormat)
+pl__pl_to_dxgi_format(plFormat eFormat)
 {
-    switch(tFormat)
+    switch(eFormat)
     {
         case PL_FORMAT_R32G32B32A32_FLOAT: return DXGI_FORMAT_R32G32B32A32_FLOAT;  
         case PL_FORMAT_R32G32B32A32_UINT:  return DXGI_FORMAT_R32G32B32A32_UINT;   
@@ -467,9 +467,9 @@ pl__pl_to_dxgi_format(plFormat tFormat)
 }
 
 static inline plFormat
-pl__dxgi_to_pl_format(DXGI_FORMAT tFormat)
+pl__dxgi_to_pl_format(DXGI_FORMAT eFormat)
 {
-    switch(tFormat)
+    switch(eFormat)
     {
         case DXGI_FORMAT_R32G32B32A32_FLOAT:  return PL_FORMAT_R32G32B32A32_FLOAT;
         case DXGI_FORMAT_R32G32B32A32_UINT:   return PL_FORMAT_R32G32B32A32_UINT;
@@ -677,7 +677,7 @@ pl_dds_read_info(uint8_t* puBuffer, plDdsReadInfo* ptInfoOut)
         ptInfoOut->uOffset -= sizeof(plDdsHeaderDxt10);
 
     // figure out format
-    ptInfoOut->tFormat = PL_FORMAT_UNKNOWN;
+    ptInfoOut->eFormat = PL_FORMAT_UNKNOWN;
     if(!bDx10)
     {
         if(ptHeader->tHeader.ddspf.uFlags & DDPF_RGB)
@@ -690,39 +690,39 @@ pl_dds_read_info(uint8_t* puBuffer, plDdsReadInfo* ptInfoOut)
                         ptHeader->tHeader.ddspf.uGBitMask == 0x0000ff00 &&
                         ptHeader->tHeader.ddspf.uBBitMask == 0x00ff0000 &&
                         ptHeader->tHeader.ddspf.uABitMask == 0xff000000)
-                        ptInfoOut->tFormat = PL_FORMAT_R8G8B8A8_UNORM;
+                        ptInfoOut->eFormat = PL_FORMAT_R8G8B8A8_UNORM;
                     else if (ptHeader->tHeader.ddspf.uRBitMask == 0x00ff0000 &&
                         ptHeader->tHeader.ddspf.uGBitMask == 0x0000ff00 &&
                         ptHeader->tHeader.ddspf.uBBitMask == 0x000000ff &&
                         ptHeader->tHeader.ddspf.uABitMask == 0xff000000)
-                        ptInfoOut->tFormat = PL_FORMAT_B8G8R8A8_UNORM;
+                        ptInfoOut->eFormat = PL_FORMAT_B8G8R8A8_UNORM;
                     else if (ptHeader->tHeader.ddspf.uRBitMask == 0x00ff0000 &&
                         ptHeader->tHeader.ddspf.uGBitMask == 0x0000ff00 &&
                         ptHeader->tHeader.ddspf.uBBitMask == 0x000000ff &&
                         ptHeader->tHeader.ddspf.uABitMask == 0x00000000)
                     {
                         PL_ASSERT(false);
-                        // ptInfoOut->tFormat = DXGI_FORMAT_B8G8R8X8_UNORM;
-                        ptInfoOut->tFormat = PL_FORMAT_UNKNOWN;
+                        // ptInfoOut->eFormat = DXGI_FORMAT_B8G8R8X8_UNORM;
+                        ptInfoOut->eFormat = PL_FORMAT_UNKNOWN;
                     }
 
                     else if (ptHeader->tHeader.ddspf.uRBitMask == 0x0000ffff &&
                         ptHeader->tHeader.ddspf.uGBitMask == 0xffff0000 &&
                         ptHeader->tHeader.ddspf.uBBitMask == 0x00000000 &&
                         ptHeader->tHeader.ddspf.uABitMask == 0x00000000)
-                        ptInfoOut->tFormat = PL_FORMAT_R16G16_UNORM;
+                        ptInfoOut->eFormat = PL_FORMAT_R16G16_UNORM;
 
                     else if (ptHeader->tHeader.ddspf.uRBitMask == 0xffffffff &&
                         ptHeader->tHeader.ddspf.uGBitMask == 0x00000000 &&
                         ptHeader->tHeader.ddspf.uBBitMask == 0x00000000 &&
                         ptHeader->tHeader.ddspf.uABitMask == 0x00000000)
-                        ptInfoOut->tFormat = PL_FORMAT_R32_FLOAT;
+                        ptInfoOut->eFormat = PL_FORMAT_R32_FLOAT;
                     break;
                 }
 
                 case 24:
                 {
-                    ptInfoOut->tFormat = PL_FORMAT_UNKNOWN;
+                    ptInfoOut->eFormat = PL_FORMAT_UNKNOWN;
                     PL_ASSERT(false);
                     break;
                 }
@@ -731,16 +731,16 @@ pl_dds_read_info(uint8_t* puBuffer, plDdsReadInfo* ptInfoOut)
                 {
                     if (ptHeader->tHeader.ddspf.uRBitMask == 0x7c00 && ptHeader->tHeader.ddspf.uGBitMask == 0x03e0 &&
                         ptHeader->tHeader.ddspf.uBBitMask == 0x001f && ptHeader->tHeader.ddspf.uABitMask == 0x8000)
-                        ptInfoOut->tFormat = PL_FORMAT_B5G5R5A1_UNORM;
+                        ptInfoOut->eFormat = PL_FORMAT_B5G5R5A1_UNORM;
                     else if (ptHeader->tHeader.ddspf.uRBitMask == 0xf800 && ptHeader->tHeader.ddspf.uGBitMask == 0x07e0 &&
                         ptHeader->tHeader.ddspf.uBBitMask == 0x001f && ptHeader->tHeader.ddspf.uABitMask == 0x0000)
-                        ptInfoOut->tFormat = PL_FORMAT_B5G6R5_UNORM;
+                        ptInfoOut->eFormat = PL_FORMAT_B5G6R5_UNORM;
 
                     else if (ptHeader->tHeader.ddspf.uRBitMask == 0x0f00 && ptHeader->tHeader.ddspf.uGBitMask == 0x00f0 &&
                         ptHeader->tHeader.ddspf.uBBitMask == 0x000f && ptHeader->tHeader.ddspf.uABitMask == 0xf000)
                     {
-                        // ptInfoOut->tFormat = DXGI_FORMAT_B4G4R4A4_UNORM;
-                        ptInfoOut->tFormat = PL_FORMAT_UNKNOWN;
+                        // ptInfoOut->eFormat = DXGI_FORMAT_B4G4R4A4_UNORM;
+                        ptInfoOut->eFormat = PL_FORMAT_UNKNOWN;
                         PL_ASSERT(false);
                     }
                     break;
@@ -756,100 +756,100 @@ pl_dds_read_info(uint8_t* puBuffer, plDdsReadInfo* ptInfoOut)
             {
                 if (ptHeader->tHeader.ddspf.uRBitMask == 0x000000ff && ptHeader->tHeader.ddspf.uGBitMask == 0x00000000 &&
                     ptHeader->tHeader.ddspf.uBBitMask == 0x00000000 && ptHeader->tHeader.ddspf.uABitMask == 0x00000000)
-                    ptInfoOut->tFormat = PL_FORMAT_R8_UNORM;
+                    ptInfoOut->eFormat = PL_FORMAT_R8_UNORM;
                 else if (ptHeader->tHeader.ddspf.uRBitMask == 0x000000ff && ptHeader->tHeader.ddspf.uGBitMask == 0x0000ff00 &&
                     ptHeader->tHeader.ddspf.uBBitMask == 0x00000000 && ptHeader->tHeader.ddspf.uABitMask == 0x00000000)
-                    ptInfoOut->tFormat = PL_FORMAT_R8G8_UNORM;
+                    ptInfoOut->eFormat = PL_FORMAT_R8G8_UNORM;
             }
             else if (16 == ptHeader->tHeader.ddspf.uRGBBitCount)
             {
                 if (ptHeader->tHeader.ddspf.uRBitMask == 0x0000ffff && ptHeader->tHeader.ddspf.uGBitMask == 0x00000000 &&
                     ptHeader->tHeader.ddspf.uBBitMask == 0x00000000 && ptHeader->tHeader.ddspf.uABitMask == 0x00000000)
-                    ptInfoOut->tFormat = PL_FORMAT_R16_UNORM;
+                    ptInfoOut->eFormat = PL_FORMAT_R16_UNORM;
 
                 else if (ptHeader->tHeader.ddspf.uRBitMask == 0x000000ff && ptHeader->tHeader.ddspf.uGBitMask == 0x0000ff00 &&
                     ptHeader->tHeader.ddspf.uBBitMask == 0x00000000 && ptHeader->tHeader.ddspf.uABitMask == 0x00000000)
-                    ptInfoOut->tFormat = PL_FORMAT_R8G8_UNORM;
+                    ptInfoOut->eFormat = PL_FORMAT_R8G8_UNORM;
             }
         }
         else if (ptHeader->tHeader.ddspf.uFlags & DDPF_ALPHA)
         {
             if (ptHeader->tHeader.ddspf.uRGBBitCount == 8)
-                ptInfoOut->tFormat = PL_FORMAT_R8_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_R8_UNORM;
         }
         else if (ptHeader->tHeader.ddspf.uFlags & DDPF_FOURCC)
         {
             if (pl__dds_fourcc('D', 'X', 'T', '1') == ptHeader->tHeader.ddspf.uFourCC)
-                ptInfoOut->tFormat = PL_FORMAT_BC1_RGBA_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_BC1_RGBA_UNORM;
             else if (pl__dds_fourcc('D', 'X', 'T', '3') == ptHeader->tHeader.ddspf.uFourCC)
-                ptInfoOut->tFormat = PL_FORMAT_BC2_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_BC2_UNORM;
             else if (pl__dds_fourcc('D', 'X', 'T', '5') == ptHeader->tHeader.ddspf.uFourCC)
-                ptInfoOut->tFormat = PL_FORMAT_BC3_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_BC3_UNORM;
             else if (pl__dds_fourcc('D', 'X', 'T', '4') == ptHeader->tHeader.ddspf.uFourCC)
-                ptInfoOut->tFormat = PL_FORMAT_BC2_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_BC2_UNORM;
             else if (pl__dds_fourcc('A', 'T', 'I', '1') == ptHeader->tHeader.ddspf.uFourCC)
-                ptInfoOut->tFormat = PL_FORMAT_BC4_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_BC4_UNORM;
             else if (pl__dds_fourcc('B', 'C', '4', 'U') == ptHeader->tHeader.ddspf.uFourCC)
-                ptInfoOut->tFormat = PL_FORMAT_BC4_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_BC4_UNORM;
             else if (pl__dds_fourcc('B', 'C', '4', 'S') == ptHeader->tHeader.ddspf.uFourCC)
-                ptInfoOut->tFormat = PL_FORMAT_BC4_SNORM;
+                ptInfoOut->eFormat = PL_FORMAT_BC4_SNORM;
             else if (pl__dds_fourcc('A', 'T', 'I', '2') == ptHeader->tHeader.ddspf.uFourCC)
-                ptInfoOut->tFormat = PL_FORMAT_BC5_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_BC5_UNORM;
             else if (pl__dds_fourcc('B', 'C', '5', 'U') == ptHeader->tHeader.ddspf.uFourCC)
-                ptInfoOut->tFormat = PL_FORMAT_BC5_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_BC5_UNORM;
             else if (pl__dds_fourcc('B', 'C', '5', 'S') == ptHeader->tHeader.ddspf.uFourCC)
-                ptInfoOut->tFormat = PL_FORMAT_BC5_SNORM;
+                ptInfoOut->eFormat = PL_FORMAT_BC5_SNORM;
             else if (pl__dds_fourcc('R', 'G', 'B', 'G') == ptHeader->tHeader.ddspf.uFourCC)
             {
-                // ptInfoOut->tFormat = GI_FORMAT_R8G8_B8G8_UNORM;
-                ptInfoOut->tFormat = PL_FORMAT_UNKNOWN;
+                // ptInfoOut->eFormat = GI_FORMAT_R8G8_B8G8_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_UNKNOWN;
                 PL_ASSERT(false);
             }
             else if (pl__dds_fourcc('G', 'R', 'G', 'B') == ptHeader->tHeader.ddspf.uFourCC)
             {
-                // ptInfoOut->tFormat = GI_FORMAT_G8R8_G8B8_UNORM;
-                ptInfoOut->tFormat = PL_FORMAT_UNKNOWN;
+                // ptInfoOut->eFormat = GI_FORMAT_G8R8_G8B8_UNORM;
+                ptInfoOut->eFormat = PL_FORMAT_UNKNOWN;
                 PL_ASSERT(false);
             }
 
             else if (pl__dds_fourcc('Y', 'U', 'Y', '2') == ptHeader->tHeader.ddspf.uFourCC)
             {
-                // ptInfoOut->tFormat = GI_FORMAT_YUY2;
-                ptInfoOut->tFormat = PL_FORMAT_UNKNOWN;
+                // ptInfoOut->eFormat = GI_FORMAT_YUY2;
+                ptInfoOut->eFormat = PL_FORMAT_UNKNOWN;
                 PL_ASSERT(false);
             }
             else
             {
                 switch (ptHeader->tHeader.ddspf.uFourCC)
                 {
-                    case 36:  ptInfoOut->tFormat = PL_FORMAT_R16G16B16A16_UNORM; break;
-                    case 110: ptInfoOut->tFormat = PL_FORMAT_R16G16B16A16_SNORM; break;
-                    case 111: ptInfoOut->tFormat = PL_FORMAT_R16_FLOAT; break;
-                    case 112: ptInfoOut->tFormat = PL_FORMAT_R16G16_FLOAT; break;
-                    case 113: ptInfoOut->tFormat = PL_FORMAT_R16G16B16A16_FLOAT; break;
-                    case 114: ptInfoOut->tFormat = PL_FORMAT_R32_FLOAT; break;
-                    case 115: ptInfoOut->tFormat = PL_FORMAT_R32G32_FLOAT; break;
-                    case 116: ptInfoOut->tFormat = PL_FORMAT_R32G32B32A32_FLOAT; break;
+                    case 36:  ptInfoOut->eFormat = PL_FORMAT_R16G16B16A16_UNORM; break;
+                    case 110: ptInfoOut->eFormat = PL_FORMAT_R16G16B16A16_SNORM; break;
+                    case 111: ptInfoOut->eFormat = PL_FORMAT_R16_FLOAT; break;
+                    case 112: ptInfoOut->eFormat = PL_FORMAT_R16G16_FLOAT; break;
+                    case 113: ptInfoOut->eFormat = PL_FORMAT_R16G16B16A16_FLOAT; break;
+                    case 114: ptInfoOut->eFormat = PL_FORMAT_R32_FLOAT; break;
+                    case 115: ptInfoOut->eFormat = PL_FORMAT_R32G32_FLOAT; break;
+                    case 116: ptInfoOut->eFormat = PL_FORMAT_R32G32B32A32_FLOAT; break;
                 }
             }
         }
     }
     else
-        ptInfoOut->tFormat = pl__dxgi_to_pl_format(ptHeader->tHeader10.tDxgiFormat);
+        ptInfoOut->eFormat = pl__dxgi_to_pl_format(ptHeader->tHeader10.tDxgiFormat);
 
     if(bCubeMap)
-        ptInfoOut->tType = PL_TEXTURE_TYPE_CUBE;
+        ptInfoOut->eType = PL_TEXTURE_TYPE_CUBE;
     else if(ptInfoOut->uLayers > 1)
-        ptInfoOut->tType = PL_TEXTURE_TYPE_2D_ARRAY;
+        ptInfoOut->eType = PL_TEXTURE_TYPE_2D_ARRAY;
     else
-        ptInfoOut->tType = PL_TEXTURE_TYPE_2D;
+        ptInfoOut->eType = PL_TEXTURE_TYPE_2D;
 
     // not supported yet
     PL_ASSERT(b1D == false);
     PL_ASSERT(b3D == false);
 
-    const uint32_t uBlockSize = pl__dds_block_size(ptInfoOut->tFormat);
-    const uint32_t uBitsPerElement = pl__dds_bits_per_element(ptInfoOut->tFormat);
+    const uint32_t uBlockSize = pl__dds_block_size(ptInfoOut->eFormat);
+    const uint32_t uBitsPerElement = pl__dds_bits_per_element(ptInfoOut->eFormat);
 
     if(uBlockSize > 1)
     {
@@ -907,7 +907,7 @@ pl_dds_read_info(uint8_t* puBuffer, plDdsReadInfo* ptInfoOut)
     for(uint32_t i = 1; i < ptInfoOut->uMips; i++)
         ptInfoOut->atMipInfo[i].uOffset = ptInfoOut->atMipInfo[i - 1].uOffset + ptInfoOut->atMipInfo[i - 1].uSize;
 
-    return ptInfoOut->tFormat != PL_FORMAT_UNKNOWN;
+    return ptInfoOut->eFormat != PL_FORMAT_UNKNOWN;
 }
 
 void
@@ -928,11 +928,11 @@ pl_dds_write_info(uint8_t* puBuffer, const plDdsWriteInfo* ptInfo)
     tHeader.tHeader.ddspf.uFourCC = pl__dds_fourcc('D', 'X', '1', '0');
     tHeader.tHeader.uCaps = DDSCAPS_TEXTURE;
 
-    tHeader.tHeader10.tDxgiFormat = pl__pl_to_dxgi_format(ptInfo->tFormat);
+    tHeader.tHeader10.tDxgiFormat = pl__pl_to_dxgi_format(ptInfo->eFormat);
     tHeader.tHeader10.tResourceDimension = D3D10_RESOURCE_DIMENSION_TEXTURE2D;
     tHeader.tHeader10.uMiscFlags2 = DDS_ALPHA_MODE_UNKNOWN;
 
-    if (ptInfo->tType == PL_TEXTURE_TYPE_CUBE)
+    if (ptInfo->eType == PL_TEXTURE_TYPE_CUBE)
     {
         tHeader.tHeader10.uLayers = ptInfo->uLayers / 6;
         tHeader.tHeader.uCaps |= DDSCAPS_COMPLEX;

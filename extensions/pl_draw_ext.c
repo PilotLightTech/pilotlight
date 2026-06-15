@@ -160,12 +160,12 @@ typedef struct _plFontAtlas
 
 typedef struct _plPipelineEntry
 {
-    plRenderPassHandle tRenderPass;
+    // plRenderPassHandle tRenderPass;
     uint32_t           uMSAASampleCount;
     plShaderHandle     tRegularPipeline;
     plShaderHandle     tSecondaryPipeline;
     plDrawFlags        tFlags;
-    uint32_t           uSubpassIndex;
+    plRenderAttachmentInfo tFormatInfo;
 } plPipelineEntry;
 
 typedef struct _plBufferInfo
@@ -497,8 +497,27 @@ pl__add_3d_path(plDrawList3D* ptDrawlist, uint32_t uCount, const plVec3* atPoint
 
 // backend
 static plBufferHandle         pl__create_staging_buffer(const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
-static const plPipelineEntry* pl__get_3d_pipeline              (plRenderPassHandle, uint32_t uMSAASampleCount, plDrawFlags, uint32_t uSubpassIndex);
-static const plPipelineEntry* pl__get_2d_pipeline              (plRenderPassHandle, uint32_t uMSAASampleCount, uint32_t uSubpassIndex);
+static const plPipelineEntry* pl__get_3d_pipeline (uint32_t uMSAASampleCount, plDrawFlags, const plRenderAttachmentInfo* ptFormatInfo);
+static const plPipelineEntry* pl__get_2d_pipeline (uint32_t uMSAASampleCount, const plRenderAttachmentInfo* ptFormatInfo);
+
+static inline bool
+pl__format_info_equal(const plRenderAttachmentInfo* ptInfo0, const plRenderAttachmentInfo* ptInfo1)
+{
+    if(ptInfo0->eDepthFormat == ptInfo1->eDepthFormat
+        && ptInfo0->eStencilFormat == ptInfo1->eStencilFormat
+        && ptInfo0->uColorCount == ptInfo1->uColorCount)
+    {
+        for(uint32_t i = 0; i < ptInfo0->uColorCount; i++)
+        {
+            if(ptInfo0->aeColorFormats[i] != ptInfo1->aeColorFormats[i])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+    return false;
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -527,13 +546,13 @@ pl_draw_initialize(const plDrawInit* ptInit)
 
     // create initial buffers
     const plBufferDesc tIndexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_INDEX,
+        .eUsage      = PL_BUFFER_USAGE_INDEX,
         .szByteSize  = 4096,
         .pcDebugName = "Draw Ext Idx Buffer"
     };
 
     const plBufferDesc tVertexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_VERTEX,
+        .eUsage      = PL_BUFFER_USAGE_VERTEX,
         .szByteSize  = 4096,
         .pcDebugName = "Draw Ext Vtx Buffer"
     }; 
@@ -552,33 +571,33 @@ pl_draw_initialize(const plDrawInit* ptInit)
 
     // 2d
     const plSamplerDesc tSamplerDesc = {
-        .tMagFilter      = PL_FILTER_LINEAR,
-        .tMinFilter      = PL_FILTER_LINEAR,
+        .eMagFilter      = PL_FILTER_LINEAR,
+        .eMinFilter      = PL_FILTER_LINEAR,
         .fMinMip         = -1000.0f,
         .fMaxMip         = 1000.0f,
         .fMaxAnisotropy  = 1.0f,
-        .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
+        .eVAddressMode   = PL_ADDRESS_MODE_WRAP,
+        .eUAddressMode   = PL_ADDRESS_MODE_WRAP,
+        .eMipmapMode     = PL_MIPMAP_MODE_LINEAR,
         .pcDebugName     = "2D Drawing Font Sampler"
     };
     gptDrawCtx->tFontSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);
 
     const plSamplerDesc tNearSamplerDesc = {
-        .tMagFilter      = PL_FILTER_NEAREST,
-        .tMinFilter      = PL_FILTER_NEAREST,
+        .eMagFilter      = PL_FILTER_NEAREST,
+        .eMinFilter      = PL_FILTER_NEAREST,
         .fMinMip         = -1000.0f,
         .fMaxMip         = 1000.0f,
         .fMaxAnisotropy  = 1.0f,
-        .tVAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .tUAddressMode   = PL_ADDRESS_MODE_WRAP,
-        .tMipmapMode     = PL_MIPMAP_MODE_LINEAR,
+        .eVAddressMode   = PL_ADDRESS_MODE_WRAP,
+        .eUAddressMode   = PL_ADDRESS_MODE_WRAP,
+        .eMipmapMode     = PL_MIPMAP_MODE_LINEAR,
         .pcDebugName     = "2D Drawing Near Sampler"
     };
     gptDrawCtx->tNearSampler = gptGfx->create_sampler(ptDevice, &tNearSamplerDesc);
 
     const plBindGroupPoolDesc tPoolDesc = {
-        .tFlags = PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET,
+        .eFlags = PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET,
         .szSamplerBindings = 10,
         .szSampledTextureBindings = 10000
     };
@@ -586,14 +605,14 @@ pl_draw_initialize(const plDrawInit* ptInit)
 
     const plBindGroupLayoutDesc tSamplerBindGroupLayout = {
         .atSamplerBindings = {
-            {.uSlot =  0, .tStages = PL_SHADER_STAGE_FRAGMENT}
+            {.uSlot =  0, .eStages = PL_SHADER_STAGE_FRAGMENT}
         }
     };
     gptDrawCtx->tSamplerBindGroupLayout = gptGfx->create_bind_group_layout(ptDevice, &tSamplerBindGroupLayout);
 
     const plBindGroupLayoutDesc tDrawingBindGroup = {
         .atTextureBindings = { 
-            {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+            {.uSlot = 0, .eStages = PL_SHADER_STAGE_FRAGMENT, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         }
     };
     gptDrawCtx->tTextureBindGroupLayout = gptGfx->create_bind_group_layout(ptDevice, &tDrawingBindGroup);
@@ -606,13 +625,11 @@ pl_draw_initialize(const plDrawInit* ptInit)
         };
         gptDrawCtx->tFontSamplerBindGroup = gptGfx->create_bind_group(ptDevice, &tSamplerBindGroupDesc);
         gptDrawCtx->tCurrentSamplerBindGroup = gptDrawCtx->tFontSamplerBindGroup;
-        const plBindGroupUpdateSamplerData atSamplerData[] = {
-            { .uSlot = 0, .tSampler = gptDrawCtx->tFontSampler}
-        };
 
-        plBindGroupUpdateData tBGData0 = {
-            .uSamplerCount = 1,
-            .atSamplerBindings = atSamplerData,
+        const plBindGroupUpdateData tBGData0 = {
+            .atSamplerBindings = {
+                { .uSlot = 0, .tSampler = gptDrawCtx->tFontSampler}
+            }
         };
         gptGfx->update_bind_group(ptDevice, gptDrawCtx->tFontSamplerBindGroup, &tBGData0);
     }
@@ -624,13 +641,11 @@ pl_draw_initialize(const plDrawInit* ptInit)
             .pcDebugName = "near sampler bind group"
         };
         gptDrawCtx->tNearSamplerBindGroup = gptGfx->create_bind_group(ptDevice, &tSamplerBindGroupDesc);
-        const plBindGroupUpdateSamplerData atSamplerData[] = {
-            { .uSlot = 0, .tSampler = gptDrawCtx->tNearSampler}
-        };
 
-        plBindGroupUpdateData tBGData0 = {
-            .uSamplerCount = 1,
-            .atSamplerBindings = atSamplerData,
+        const plBindGroupUpdateData tBGData0 = {
+            .atSamplerBindings = {
+                { .uSlot = 0, .tSampler = gptDrawCtx->tNearSampler}
+            }
         };
         gptGfx->update_bind_group(ptDevice, gptDrawCtx->tNearSamplerBindGroup, &tBGData0);
     }
@@ -2522,11 +2537,11 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     // create texture
     const plTextureDesc tFontTextureDesc = {
         .tDimensions   = {ptAtlas->tAtlasSize.x, ptAtlas->tAtlasSize.y, 1},
-        .tFormat       = PL_FORMAT_R8G8B8A8_UNORM,
+        .eFormat       = PL_FORMAT_R8G8B8A8_UNORM,
         .uLayers       = 1,
         .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_SAMPLED,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName   = "2D Drawing Font Atlas"
     };
 
@@ -2546,7 +2561,7 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     gptGfx->bind_texture_to_memory(ptDevice, tTexture, &tAllocation);
 
     const plBufferDesc tBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
+        .eUsage      = PL_BUFFER_USAGE_TRANSFER,
         .szByteSize  = (size_t)(ptAtlas->tAtlasSize.x * ptAtlas->tAtlasSize.y * 4),
         .pcDebugName = "font staging buffer"
     };
@@ -2555,7 +2570,7 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, ptAtlas->pucPixelsAsRGBA32, tBufferDesc.szByteSize);
 
     // begin recording
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+    gptGfx->begin_command_recording(ptCommandBuffer);
     
     const plBufferImageCopy tBufferImageCopy = {
         .uImageWidth = (uint32_t)ptAtlas->tAtlasSize.x,
@@ -2565,9 +2580,9 @@ pl_draw_build_font_atlas(plCommandBuffer* ptCommandBuffer, plFontAtlas* ptAtlas)
     };
 
     // begin blit pass, copy texture, end pass
-    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    gptGfx->copy_buffer_to_texture(ptEncoder, tStagingBuffer, tTexture, 1, &tBufferImageCopy);
-    gptGfx->end_blit_pass(ptEncoder);
+    gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
+    gptGfx->copy_buffer_to_texture(ptCommandBuffer, tStagingBuffer, tTexture, 1, &tBufferImageCopy);
+    gptGfx->end_compute_pass(ptCommandBuffer);
 
     // finish recording
     gptGfx->end_command_recording(ptCommandBuffer);
@@ -4023,7 +4038,7 @@ pl_draw_create_bind_group_for_texture(plTextureHandle tTexture)
 {
     const plBindGroupLayoutDesc tDrawingBindGroup = {
         .atTextureBindings = { 
-            {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+            {.uSlot = 0, .eStages = PL_SHADER_STAGE_FRAGMENT, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         }
     };
     const plBindGroupDesc tSamplerBindGroupDesc = {
@@ -4033,16 +4048,14 @@ pl_draw_create_bind_group_for_texture(plTextureHandle tTexture)
     };
     plBindGroupHandle tBindGroup = gptGfx->create_bind_group(gptDrawCtx->ptDevice, &tSamplerBindGroupDesc);
 
-    const plBindGroupUpdateTextureData atBGTextureData[] = {
-        {
-            .tTexture = tTexture,
-            .uSlot    = 0,
-            .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED
-        }
-    };
     const plBindGroupUpdateData tBGData = {
-        .uTextureCount = 1,
-        .atTextureBindings = atBGTextureData
+            .atTextureBindings = {
+            {
+                .tTexture = tTexture,
+                .uSlot    = 0,
+                .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            }
+        }
     };
 
     gptGfx->update_bind_group(gptDrawCtx->ptDevice, tBindGroup, &tBGData);
@@ -4069,9 +4082,9 @@ pl_draw_use_linear_sampler(plDrawLayer2D* ptLayer)
 }
 
 void
-pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, uint32_t uMSAASampleCount)
+pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plCommandBuffer* ptCommandBuffer, float fWidth, float fHeight, uint32_t uMSAASampleCount, const plRenderAttachmentInfo* ptFormatInfo)
 {
-    gptGfx->set_depth_bias( ptEncoder, 0.0f, 0.0f, 0.0f);
+    gptGfx->set_depth_bias(ptCommandBuffer, 0.0f, 0.0f, 0.0f);
 
     // prepare drawlist
     uint32_t uGlobalIdxBufferIndexOffset = 0u;
@@ -4133,7 +4146,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
     if(pl_sb_size(ptDrawlist->sbtVertexBuffer) == 0u)
         return;
 
-    gptGfx->push_render_debug_group(ptEncoder, "2D Draw", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
+    gptGfx->push_debug_group(ptCommandBuffer, "2D Draw", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
     plDevice* ptDevice = gptDrawCtx->ptDevice;
 
@@ -4156,7 +4169,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
         gptGfx->queue_buffer_for_deletion(ptDevice, ptBufferInfo->tVertexBuffer);
 
         const plBufferDesc tBufferDesc = {
-            .tUsage     = PL_BUFFER_USAGE_VERTEX,
+            .eUsage     = PL_BUFFER_USAGE_VERTEX,
             .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
             .pcDebugName = "2D Draw Vertex Buffer"
         };
@@ -4186,7 +4199,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
         gptGfx->queue_buffer_for_deletion(ptDevice, gptDrawCtx->atIndexBuffer[uFrameIdx]);
 
         const plBufferDesc tBufferDesc = {
-            .tUsage     = PL_BUFFER_USAGE_INDEX,
+            .eUsage     = PL_BUFFER_USAGE_INDEX,
             .szByteSize = pl_max(gptDrawCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
             .pcDebugName = "Draw Index Buffer"
         };
@@ -4205,7 +4218,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
     const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex);
     const int32_t iIndexOffset = gptDrawCtx->auIndexBufferOffset[uFrameIdx] / sizeof(uint32_t);
 
-    const plPipelineEntry* ptEntry = pl__get_2d_pipeline(gptGfx->get_encoder_render_pass(ptEncoder), uMSAASampleCount, gptGfx->get_render_encoder_subpass(ptEncoder));
+    const plPipelineEntry* ptEntry = pl__get_2d_pipeline(uMSAASampleCount, ptFormatInfo);
 
     const plVec2 tClipScale = gptIOI->get_io()->tMainFramebufferScale;
 
@@ -4226,7 +4239,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
         plVec2 uTranslate;
     } plDrawDynamicData;
 
-    plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &gptDrawCtx->tCurrentDynamicDataBlock);
+    plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &gptDrawCtx->tCurrentDynamicDataBlock, sizeof(plDrawDynamicData));
 
     plDrawDynamicData* ptDynamicData = (plDrawDynamicData*)tDynamicBinding.pcData;
     ptDynamicData->uScale.x = fScale[0];
@@ -4242,9 +4255,9 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
         .fMaxDepth = 1.0f
     };
 
-    gptGfx->set_viewport(ptEncoder, &tViewport);
-    gptGfx->bind_vertex_buffer(ptEncoder, ptBufferInfo->tVertexBuffer);
-    gptGfx->bind_shader(ptEncoder, tCurrentShader);
+    gptGfx->set_viewport(ptCommandBuffer, &tViewport);
+    gptGfx->bind_vertex_buffer(ptCommandBuffer, ptBufferInfo->tVertexBuffer);
+    gptGfx->bind_shader(ptCommandBuffer, tCurrentShader);
 
     const uint32_t uCmdCount = pl_sb_size(ptDrawlist->sbtDrawCommands);
     for(uint32_t i = 0u; i < uCmdCount; i++)
@@ -4253,13 +4266,13 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
 
         if(cmd.bSdf && !bSdf)
         {
-            gptGfx->bind_shader(ptEncoder, ptEntry->tSecondaryPipeline);
+            gptGfx->bind_shader(ptCommandBuffer, ptEntry->tSecondaryPipeline);
             tCurrentShader = ptEntry->tSecondaryPipeline;
             bSdf = true;
         }
         else if(!cmd.bSdf && bSdf)
         {
-            gptGfx->bind_shader(ptEncoder, ptEntry->tRegularPipeline);
+            gptGfx->bind_shader(ptCommandBuffer, ptEntry->tRegularPipeline);
             tCurrentShader = ptEntry->tRegularPipeline;
             bSdf = false;
         }
@@ -4268,9 +4281,9 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
         {
             if(cmd.tUserCallback == plDrawCallbackResetRenderState)
             {
-                gptGfx->set_viewport(ptEncoder, &tViewport);
-                gptGfx->bind_vertex_buffer(ptEncoder, ptBufferInfo->tVertexBuffer);
-                gptGfx->bind_shader(ptEncoder, tCurrentShader);
+                gptGfx->set_viewport(ptCommandBuffer, &tViewport);
+                gptGfx->bind_vertex_buffer(ptCommandBuffer, ptBufferInfo->tVertexBuffer);
+                gptGfx->bind_shader(ptCommandBuffer, tCurrentShader);
                 gptDrawCtx->tCurrentSamplerBindGroup = gptDrawCtx->tFontSamplerBindGroup;
                 
             }
@@ -4286,7 +4299,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
                     .uWidth = (uint32_t)(fWidth),
                     .uHeight = (uint32_t)(fHeight),
                 };
-                gptGfx->set_scissor_region(ptEncoder, &tScissor);
+                gptGfx->set_scissor_region(ptCommandBuffer, &tScissor);
             }
             else
             {
@@ -4310,7 +4323,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
                     .uWidth    = (uint32_t)pl_rect_width(&cmd.tClip),
                     .uHeight   = (uint32_t)pl_rect_height(&cmd.tClip)
                 };
-                gptGfx->set_scissor_region(ptEncoder, &tScissor);
+                gptGfx->set_scissor_region(ptCommandBuffer, &tScissor);
             }
 
             plBindGroupHandle tTexture = {.uData = cmd.tTextureId};
@@ -4318,7 +4331,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
                 gptDrawCtx->tCurrentSamplerBindGroup,
                 tTexture
             };
-            gptGfx->bind_graphics_bind_groups(ptEncoder, tCurrentShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
+            gptGfx->bind_graphics_bind_groups(ptCommandBuffer, tCurrentShader, 0, 2, atBindGroups, 1, &tDynamicBinding);
 
             const plDrawIndex tDraw = {
                 .tIndexBuffer   = gptDrawCtx->atIndexBuffer[uFrameIdx],
@@ -4328,7 +4341,7 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
                 .uInstanceCount = 1,
                 .uVertexStart   = iVertexOffset
             };
-            gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
+            gptGfx->draw_indexed(ptCommandBuffer, 1, &tDraw);
         }
     }
 
@@ -4336,18 +4349,18 @@ pl_draw_submit_2d_drawlist(plDrawList2D* ptDrawlist, plRenderEncoder* ptEncoder,
     ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
     gptDrawCtx->auIndexBufferOffset[uFrameIdx] += uIdxBufSzNeeded;
 
-    gptGfx->pop_render_debug_group(ptEncoder);
+    gptGfx->pop_debug_group(ptCommandBuffer);
 }
 
 void
-pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags tFlags, uint32_t uMSAASampleCount)
+pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plCommandBuffer* ptCommandBuffer, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags tFlags, uint32_t uMSAASampleCount, const plRenderAttachmentInfo* ptFormatInfo)
 {
-    gptGfx->push_render_debug_group(ptEncoder, "3D Draw", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
+    gptGfx->push_debug_group(ptCommandBuffer, "3D Draw", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
     plDevice* ptDevice = gptDrawCtx->ptDevice;
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
 
-    const plPipelineEntry* ptEntry = pl__get_3d_pipeline(gptGfx->get_encoder_render_pass(ptEncoder), uMSAASampleCount, tFlags, gptGfx->get_render_encoder_subpass(ptEncoder));
+    const plPipelineEntry* ptEntry = pl__get_3d_pipeline(uMSAASampleCount, tFlags, ptFormatInfo);
 
     const float fAspectRatio = fWidth / fHeight;
 
@@ -4362,8 +4375,8 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
         .fMaxDepth = 1.0f
     };
 
-    gptGfx->set_scissor_region(ptEncoder, &tScissor);
-    gptGfx->set_viewport(ptEncoder, &tViewport);
+    gptGfx->set_scissor_region(ptCommandBuffer, &tScissor);
+    gptGfx->set_viewport(ptCommandBuffer, &tViewport);
 
     // regular 3D
     if(pl_sb_size(ptDrawlist->sbtSolidVertexBuffer) > 0)
@@ -4385,7 +4398,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
             gptGfx->queue_buffer_for_deletion(ptDevice, ptBufferInfo->tVertexBuffer);
 
             const plBufferDesc tBufferDesc = {
-                .tUsage     = PL_BUFFER_USAGE_VERTEX,
+                .eUsage     = PL_BUFFER_USAGE_VERTEX,
                 .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
                 .pcDebugName = "3D Draw Vertex Buffer"
             };
@@ -4414,7 +4427,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
             gptGfx->queue_buffer_for_deletion(gptDrawCtx->ptDevice, gptDrawCtx->atIndexBuffer[uFrameIdx]);
 
             const plBufferDesc tBufferDesc = {
-                .tUsage     = PL_BUFFER_USAGE_INDEX,
+                .eUsage     = PL_BUFFER_USAGE_INDEX,
                 .szByteSize = pl_max(gptDrawCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
                 .pcDebugName = "Draw Index Buffer"
             };
@@ -4430,13 +4443,13 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
         char* pucMappedIndexBufferLocation = ptIndexBuffer->tMemoryAllocation.pHostMapped;
         memcpy(&pucMappedIndexBufferLocation[gptDrawCtx->auIndexBufferOffset[uFrameIdx]], ptDrawlist->sbtSolidIndexBuffer, sizeof(uint32_t) * pl_sb_size(ptDrawlist->sbtSolidIndexBuffer));
 
-        plDynamicBinding tSolidDynamicData = pl_allocate_dynamic_data(gptGfx, gptDrawCtx->ptDevice, &gptDrawCtx->tCurrentDynamicDataBlock);
+        plDynamicBinding tSolidDynamicData = pl_allocate_dynamic_data(gptGfx, gptDrawCtx->ptDevice, &gptDrawCtx->tCurrentDynamicDataBlock, sizeof(plMat4));
         plMat4* ptSolidDynamicData = (plMat4*)tSolidDynamicData.pcData;
         *ptSolidDynamicData = *ptMVP;
 
-        gptGfx->bind_vertex_buffer(ptEncoder, ptBufferInfo->tVertexBuffer);
-        gptGfx->bind_shader(ptEncoder, ptEntry->tRegularPipeline);
-        gptGfx->bind_graphics_bind_groups(ptEncoder, ptEntry->tRegularPipeline, 0, 0, NULL, 1, &tSolidDynamicData);
+        gptGfx->bind_vertex_buffer(ptCommandBuffer, ptBufferInfo->tVertexBuffer);
+        gptGfx->bind_shader(ptCommandBuffer, ptEntry->tRegularPipeline);
+        gptGfx->bind_graphics_bind_groups(ptCommandBuffer, ptEntry->tRegularPipeline, 0, 0, NULL, 1, &tSolidDynamicData);
 
         const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex3DSolid);
         const int32_t iIndexOffset = gptDrawCtx->auIndexBufferOffset[uFrameIdx] / sizeof(uint32_t);
@@ -4450,7 +4463,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
             .uVertexStart = iVertexOffset
         };
 
-        gptGfx->draw_indexed(ptEncoder, 1, &tDrawIndex);
+        gptGfx->draw_indexed(ptCommandBuffer, 1, &tDrawIndex);
         
         // bump vertex & index buffer offset
         ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
@@ -4476,7 +4489,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
             gptGfx->queue_buffer_for_deletion(ptDevice, ptBufferInfo->tVertexBuffer);
 
             const plBufferDesc tBufferDesc = {
-                .tUsage     = PL_BUFFER_USAGE_VERTEX,
+                .eUsage     = PL_BUFFER_USAGE_VERTEX,
                 .szByteSize = pl_max(ptBufferInfo->uVertexBufferSize * 2, uVtxBufSzNeeded + uAvailableVertexBufferSpace),
                 .pcDebugName = "3D Lines Vertex Buffer"
             };
@@ -4505,7 +4518,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
             gptGfx->queue_buffer_for_deletion(ptDevice, gptDrawCtx->atIndexBuffer[uFrameIdx]);
 
             const plBufferDesc tBufferDesc = {
-                .tUsage     = PL_BUFFER_USAGE_INDEX,
+                .eUsage     = PL_BUFFER_USAGE_INDEX,
                 .szByteSize = pl_max(gptDrawCtx->auIndexBufferSize[uFrameIdx] * 2, uIdxBufSzNeeded + uAvailableIndexBufferSpace),
                 .pcDebugName = "Draw Index Buffer"
             };
@@ -4528,14 +4541,14 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
             int   padding[3];
         } plLineDynamiceData;
 
-        plDynamicBinding tLineDynamicData = pl_allocate_dynamic_data(gptGfx, gptDrawCtx->ptDevice, &gptDrawCtx->tCurrentDynamicDataBlock);
+        plDynamicBinding tLineDynamicData = pl_allocate_dynamic_data(gptGfx, gptDrawCtx->ptDevice, &gptDrawCtx->tCurrentDynamicDataBlock, sizeof(plLineDynamiceData));
         plLineDynamiceData* ptLineDynamicData = (plLineDynamiceData*)tLineDynamicData.pcData;
         ptLineDynamicData->tMVP = *ptMVP;
         ptLineDynamicData->fAspect = fAspectRatio;
 
-        gptGfx->bind_vertex_buffer(ptEncoder, ptBufferInfo->tVertexBuffer);
-        gptGfx->bind_shader(ptEncoder, ptEntry->tSecondaryPipeline);
-        gptGfx->bind_graphics_bind_groups(ptEncoder, ptEntry->tSecondaryPipeline, 0, 0, NULL, 1, &tLineDynamicData);
+        gptGfx->bind_vertex_buffer(ptCommandBuffer, ptBufferInfo->tVertexBuffer);
+        gptGfx->bind_shader(ptCommandBuffer, ptEntry->tSecondaryPipeline);
+        gptGfx->bind_graphics_bind_groups(ptCommandBuffer, ptEntry->tSecondaryPipeline, 0, 0, NULL, 1, &tLineDynamicData);
 
         const int32_t iVertexOffset = ptBufferInfo->uVertexBufferOffset / sizeof(plDrawVertex3DLine);
         const int32_t iIndexOffset = gptDrawCtx->auIndexBufferOffset[uFrameIdx] / sizeof(uint32_t);
@@ -4549,7 +4562,7 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
             .uVertexStart = iVertexOffset
         };
 
-        gptGfx->draw_indexed(ptEncoder, 1, &tDrawIndex);
+        gptGfx->draw_indexed(ptCommandBuffer, 1, &tDrawIndex);
         
         // bump vertex & index buffer offset
         ptBufferInfo->uVertexBufferOffset += uVtxBufSzNeeded;
@@ -4578,8 +4591,8 @@ pl_draw_submit_3d_drawlist(plDrawList3D* ptDrawlist, plRenderEncoder* ptEncoder,
     }
 
     pl_draw_submit_2d_layer(ptDrawlist->ptLayer);
-    pl_draw_submit_2d_drawlist(ptDrawlist->pt2dDrawlist, ptEncoder, fWidth, fHeight, uMSAASampleCount);
-    gptGfx->pop_render_debug_group(ptEncoder);
+    pl_draw_submit_2d_drawlist(ptDrawlist->pt2dDrawlist, ptCommandBuffer, fWidth, fHeight, uMSAASampleCount, ptFormatInfo);
+    gptGfx->pop_debug_group(ptCommandBuffer);
 }
 
 plBindGroupPool*
@@ -4726,15 +4739,15 @@ pl__create_staging_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32
 }
 
 static const plPipelineEntry*
-pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, plDrawFlags tFlags, uint32_t uSubpassIndex)
+pl__get_3d_pipeline(uint32_t uMSAASampleCount, plDrawFlags tFlags, const plRenderAttachmentInfo* ptFormatInfo)
 {
     // check if pipeline exists
     for(uint32_t i = 0; i < pl_sb_size(gptDrawCtx->sbt3dPipelineEntries); i++)
     {
         const plPipelineEntry* ptEntry = &gptDrawCtx->sbt3dPipelineEntries[i];
-        if(ptEntry->tRenderPass.uIndex == tRenderPass.uIndex && ptEntry->uMSAASampleCount == uMSAASampleCount && ptEntry->tFlags == tFlags && ptEntry->uSubpassIndex == uSubpassIndex)
+        if(ptEntry->uMSAASampleCount == uMSAASampleCount && pl__format_info_equal(&ptEntry->tFormatInfo, ptFormatInfo))
         {
-            return ptEntry;
+                return ptEntry;
         }
     }
 
@@ -4743,9 +4756,8 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
     pl_sb_add(gptDrawCtx->sbt3dPipelineEntries);
     plPipelineEntry* ptEntry = &gptDrawCtx->sbt3dPipelineEntries[pl_sb_size(gptDrawCtx->sbt3dPipelineEntries) - 1];
     ptEntry->tFlags = tFlags;
-    ptEntry->tRenderPass = tRenderPass;
+    ptEntry->tFormatInfo = *ptFormatInfo;
     ptEntry->uMSAASampleCount = uMSAASampleCount;
-    ptEntry->uSubpassIndex = uSubpassIndex;
 
     uint64_t ulCullMode = PL_CULL_MODE_NONE;
     if(tFlags & PL_DRAW_FLAG_CULL_FRONT)
@@ -4754,27 +4766,27 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
         ulCullMode |= PL_CULL_MODE_CULL_BACK;
 
     {
-        const plShaderDesc t3DShaderDesc = {
+        plShaderDesc t3DShaderDesc = {
             .tFragmentShader = gptShader->load_glsl("pl_draw_3d.frag", "main", NULL, NULL),
             .tVertexShader   = gptShader->load_glsl("pl_draw_3d.vert", "main", NULL, NULL),
             .tGraphicsState = {
-                .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE ? 1 : 0,
-                .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? (tFlags & PL_DRAW_FLAG_REVERSE_Z_DEPTH ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_LESS) : PL_COMPARE_MODE_ALWAYS,
-                .ulCullMode           = ulCullMode,
-                .ulWireframe          = 0,
-                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-                .ulStencilRef         = 0xff,
-                .ulStencilMask        = 0xff,
-                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+                .bDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE ? 1 : 0,
+                .eDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? (tFlags & PL_DRAW_FLAG_REVERSE_Z_DEPTH ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_LESS) : PL_COMPARE_MODE_ALWAYS,
+                .eCullMode           = ulCullMode,
+                .bWireframe          = 0,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
                     .uByteStride = sizeof(float) * 4,
                     .atAttributes = {
-                        {.uByteOffset = 0,                 .tFormat = PL_VERTEX_FORMAT_FLOAT3},
-                        {.uByteOffset = sizeof(float) * 3, .tFormat = PL_VERTEX_FORMAT_UINT},
+                        {.uByteOffset = 0,                 .eFormat = PL_VERTEX_FORMAT_FLOAT3},
+                        {.uByteOffset = sizeof(float) * 3, .eFormat = PL_VERTEX_FORMAT_UINT},
                     }
                 }
             },
@@ -4782,46 +4794,45 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
                 {
                     .bBlendEnabled   = true,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
-                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tColorOp        = PL_BLEND_OP_ADD,
-                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tAlphaOp        = PL_BLEND_OP_ADD
+                    .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eColorOp        = PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eAlphaOp        = PL_BLEND_OP_ADD
                 }
             },
-            .tRenderPassLayout = gptGfx->get_render_pass(ptDevice, tRenderPass)->tDesc.tLayout,
-            .uSubpassIndex = uSubpassIndex,
-            .tMSAASampleCount = uMSAASampleCount
+            .eMSAASampleCount = uMSAASampleCount,
+            .tRenderAttachmentInfo = *ptFormatInfo
         };
         ptEntry->tRegularPipeline = gptGfx->create_shader(ptDevice, &t3DShaderDesc);
         pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
     }
 
     {
-        const plShaderDesc t3DLineShaderDesc = {
+        plShaderDesc t3DLineShaderDesc = {
             .tFragmentShader = gptShader->load_glsl("pl_draw_3d.frag", "main", NULL, NULL),
             .tVertexShader   = gptShader->load_glsl("pl_draw_3d_line.vert", "main", NULL, NULL),
             .tGraphicsState = {
-                .ulDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE ? 1 : 0,
-                .ulDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? (tFlags & PL_DRAW_FLAG_REVERSE_Z_DEPTH ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_LESS) : PL_COMPARE_MODE_ALWAYS,
-                .ulCullMode           = ulCullMode,
-                .ulWireframe          = 0,
-                .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-                .ulStencilRef         = 0xff,
-                .ulStencilMask        = 0xff,
-                .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-                .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-                .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+                .bDepthWriteEnabled  = tFlags & PL_DRAW_FLAG_DEPTH_WRITE ? 1 : 0,
+                .eDepthMode          = tFlags & PL_DRAW_FLAG_DEPTH_TEST ? (tFlags & PL_DRAW_FLAG_REVERSE_Z_DEPTH ? PL_COMPARE_MODE_GREATER : PL_COMPARE_MODE_LESS) : PL_COMPARE_MODE_ALWAYS,
+                .eCullMode           = ulCullMode,
+                .bWireframe          = 0,
+                .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+                .uStencilRef         = 0xff,
+                .uStencilMask        = 0xff,
+                .eStencilOpFail      = PL_STENCIL_OP_KEEP,
+                .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+                .eStencilOpPass      = PL_STENCIL_OP_KEEP
             },
             .atVertexBufferLayouts = {
                 {
                     .uByteStride = sizeof(float) * 10,
                     .atAttributes = {
-                        {.uByteOffset = 0,                 .tFormat = PL_VERTEX_FORMAT_FLOAT3},
-                        {.uByteOffset = sizeof(float) * 3, .tFormat = PL_VERTEX_FORMAT_FLOAT3},
-                        {.uByteOffset = sizeof(float) * 6, .tFormat = PL_VERTEX_FORMAT_FLOAT3},
-                        {.uByteOffset = sizeof(float) * 9, .tFormat = PL_VERTEX_FORMAT_UINT},
+                        {.uByteOffset = 0,                 .eFormat = PL_VERTEX_FORMAT_FLOAT3},
+                        {.uByteOffset = sizeof(float) * 3, .eFormat = PL_VERTEX_FORMAT_FLOAT3},
+                        {.uByteOffset = sizeof(float) * 6, .eFormat = PL_VERTEX_FORMAT_FLOAT3},
+                        {.uByteOffset = sizeof(float) * 9, .eFormat = PL_VERTEX_FORMAT_UINT},
                     }
                 }
             },
@@ -4829,17 +4840,16 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
                 {
                     .bBlendEnabled   = true,
                     .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
-                    .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tColorOp        = PL_BLEND_OP_ADD,
-                    .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                    .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                    .tAlphaOp        = PL_BLEND_OP_ADD
+                    .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eColorOp        = PL_BLEND_OP_ADD,
+                    .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                    .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .eAlphaOp        = PL_BLEND_OP_ADD
                 }
             },
-            .tRenderPassLayout = gptGfx->get_render_pass(ptDevice, tRenderPass)->tDesc.tLayout,
-            .uSubpassIndex = uSubpassIndex,
-            .tMSAASampleCount = uMSAASampleCount
+            .eMSAASampleCount = uMSAASampleCount,
+            .tRenderAttachmentInfo = *ptFormatInfo
         };
         ptEntry->tSecondaryPipeline = gptGfx->create_shader(ptDevice, &t3DLineShaderDesc);
         pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
@@ -4848,15 +4858,15 @@ pl__get_3d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, p
 }
 
 static const plPipelineEntry*
-pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, uint32_t uSubpassIndex)
+pl__get_2d_pipeline(uint32_t uMSAASampleCount, const plRenderAttachmentInfo* ptFormatInfo)
 {
     // check if pipeline exists
     for(uint32_t i = 0; i < pl_sb_size(gptDrawCtx->sbt2dPipelineEntries); i++)
     {
         const plPipelineEntry* ptEntry = &gptDrawCtx->sbt2dPipelineEntries[i];
-        if(ptEntry->tRenderPass.uIndex == tRenderPass.uIndex && ptEntry->uMSAASampleCount == uMSAASampleCount && ptEntry->uSubpassIndex == uSubpassIndex)
+        if(ptEntry->uMSAASampleCount == uMSAASampleCount && pl__format_info_equal(&ptEntry->tFormatInfo, ptFormatInfo))
         {
-            return ptEntry;
+                return ptEntry;
         }
     }
 
@@ -4865,32 +4875,32 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
     pl_sb_add(gptDrawCtx->sbt2dPipelineEntries);
     plPipelineEntry* ptEntry = &gptDrawCtx->sbt2dPipelineEntries[pl_sb_size(gptDrawCtx->sbt2dPipelineEntries) - 1];
     ptEntry->tFlags = 0;
-    ptEntry->tRenderPass = tRenderPass;
+    ptEntry->tFormatInfo = *ptFormatInfo;
     ptEntry->uMSAASampleCount = uMSAASampleCount;
-    ptEntry->uSubpassIndex = uSubpassIndex;
 
-    const plShaderDesc tRegularShaderDesc = {
+
+    plShaderDesc tRegularShaderDesc = {
         .tFragmentShader  = gptShader->load_glsl("pl_draw_2d.frag", "main", NULL, NULL),
         .tVertexShader    = gptShader->load_glsl("pl_draw_2d.vert", "main", NULL, NULL),
         .tGraphicsState = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulWireframe          = 0,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            .bDepthWriteEnabled  = 0,
+            .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+            .eCullMode           = PL_CULL_MODE_NONE,
+            .bWireframe          = 0,
+            .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+            .uStencilRef         = 0xff,
+            .uStencilMask        = 0xff,
+            .eStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .eStencilOpPass      = PL_STENCIL_OP_KEEP
         },
         .atVertexBufferLayouts = {
             {
                 .uByteStride = sizeof(float) * 5,
                 .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_VERTEX_FORMAT_FLOAT2},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
-                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_VERTEX_FORMAT_UINT},
+                    {.uByteOffset = 0,                 .eFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 2, .eFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 4, .eFormat = PL_VERTEX_FORMAT_UINT},
                 }
             }
         },
@@ -4898,55 +4908,54 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
             {
                 .bBlendEnabled   = true,
                 .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
-                .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tColorOp        = PL_BLEND_OP_ADD,
-                .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tAlphaOp        = PL_BLEND_OP_ADD
+                .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .eColorOp        = PL_BLEND_OP_ADD,
+                .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .eAlphaOp        = PL_BLEND_OP_ADD
             }
         },
-        .tRenderPassLayout = gptGfx->get_render_pass(ptDevice, tRenderPass)->tDesc.tLayout,
-        .uSubpassIndex = uSubpassIndex,
         .atBindGroupLayouts = {
             {
                 .atSamplerBindings = {
-                    {.uSlot =  0, .tStages = PL_SHADER_STAGE_FRAGMENT}
+                    {.uSlot =  0, .eStages = PL_SHADER_STAGE_FRAGMENT}
                 }
             },
             {
                 .atTextureBindings = {
-                    {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    {.uSlot = 0, .eStages = PL_SHADER_STAGE_FRAGMENT, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
         },
-        .tMSAASampleCount = uMSAASampleCount
+        .eMSAASampleCount = uMSAASampleCount,
+        .tRenderAttachmentInfo = *ptFormatInfo
     };
     ptEntry->tRegularPipeline = gptGfx->create_shader(ptDevice, &tRegularShaderDesc);
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);
 
-    const plShaderDesc tSecondaryShaderDesc = {
+    plShaderDesc tSecondaryShaderDesc = {
         .tFragmentShader  = gptShader->load_glsl("pl_draw_2d_sdf.frag", "main", NULL, NULL),
         .tVertexShader    = gptShader->load_glsl("pl_draw_2d.vert", "main", NULL, NULL),
         .tGraphicsState = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulWireframe          = 0,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            .bDepthWriteEnabled  = 0,
+            .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+            .eCullMode           = PL_CULL_MODE_NONE,
+            .bWireframe          = 0,
+            .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+            .uStencilRef         = 0xff,
+            .uStencilMask        = 0xff,
+            .eStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .eStencilOpPass      = PL_STENCIL_OP_KEEP
         },
         .atVertexBufferLayouts = {
             {
                 .uByteStride = sizeof(float) * 5,
                 .atAttributes = {
-                    {.uByteOffset = 0,                 .tFormat = PL_VERTEX_FORMAT_FLOAT2},
-                    {.uByteOffset = sizeof(float) * 2, .tFormat = PL_VERTEX_FORMAT_FLOAT2},
-                    {.uByteOffset = sizeof(float) * 4, .tFormat = PL_VERTEX_FORMAT_UINT},
+                    {.uByteOffset = 0,                 .eFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 2, .eFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.uByteOffset = sizeof(float) * 4, .eFormat = PL_VERTEX_FORMAT_UINT},
                 }
             }
         },
@@ -4954,29 +4963,28 @@ pl__get_2d_pipeline(plRenderPassHandle tRenderPass, uint32_t uMSAASampleCount, u
             {
                 .bBlendEnabled   = true,
                 .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
-                .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tColorOp        = PL_BLEND_OP_ADD,
-                .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-                .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                .tAlphaOp        = PL_BLEND_OP_ADD
+                .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .eColorOp        = PL_BLEND_OP_ADD,
+                .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+                .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .eAlphaOp        = PL_BLEND_OP_ADD
             }
         },
-        .tRenderPassLayout = gptGfx->get_render_pass(ptDevice, tRenderPass)->tDesc.tLayout,
-        .uSubpassIndex = uSubpassIndex,
         .atBindGroupLayouts = {
             {
                 .atSamplerBindings = {
-                    {.uSlot =  0, .tStages = PL_SHADER_STAGE_FRAGMENT}
+                    {.uSlot =  0, .eStages = PL_SHADER_STAGE_FRAGMENT}
                 }
             },
             {
                 .atTextureBindings = {
-                    {.uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    {.uSlot = 0, .eStages = PL_SHADER_STAGE_FRAGMENT, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
         },
-        .tMSAASampleCount = uMSAASampleCount
+        .eMSAASampleCount = uMSAASampleCount,
+        .tRenderAttachmentInfo = *ptFormatInfo
     };
     ptEntry->tSecondaryPipeline = gptGfx->create_shader(ptDevice, &tSecondaryShaderDesc);
     pl_temp_allocator_reset(&gptDrawCtx->tTempAllocator);

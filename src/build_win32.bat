@@ -865,7 +865,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 :: skip during hot reload
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light_experimental
 
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND 
+@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND 
 @set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4996 -Od -MDd -Zi -permissive 
@@ -1267,7 +1267,7 @@ cl %PL_INCLUDE_DIRECTORIES% %PL_DEFINES% %PL_COMPILER_FLAGS% %PL_SOURCES% -Fe"..
 :: skip during hot reload
 @if %PL_HOT_RELOAD_STATUS% equ 1 goto Exit_pilot_light_experimental
 
-@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND 
+@set PL_DEFINES=-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND 
 @set PL_INCLUDE_DIRECTORIES=-I"../internal/sandbox" -I"../internal/demo" -I"../src" -I"../shaders" -I"../libs" -I"../extensions" -I"../out" -I"../thirdparty/stb" -I"../thirdparty/cgltf" -I"../thirdparty/imgui" -I"../thirdparty/glfw/include" 
 @set PL_LINK_DIRECTORIES=-LIBPATH:"../out" 
 @set PL_COMPILER_FLAGS=-nologo -std:c++14 -W3 -WX -wd4996 -O2 -MD -permissive 

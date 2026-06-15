@@ -112,37 +112,13 @@ typedef struct _plCpuComputeShader
 typedef struct _plCommandBuffer
 {
     plDevice*          ptDevice; // for convience
-    plBeginCommandInfo tBeginInfo;
     plCommandPool*     ptPool; // parent pool
     plCommandBuffer*   ptNext; // for linked list
 } plCommandBuffer;
 
-typedef struct _plRenderEncoder
-{
-    plCommandBuffer*   ptCommandBuffer;
-    plRenderPassHandle tRenderPassHandle;
-    uint32_t           uCurrentSubpass;
-    plRenderEncoder*   ptNext; // for linked list
-} plRenderEncoder;
-
-typedef struct _plComputeEncoder
-{
-    plCommandBuffer*  ptCommandBuffer;
-    plComputeEncoder* ptNext; // for linked list
-    plTextureHandle*  sbtTextures;
-} plComputeEncoder;
-
-typedef struct _plBlitEncoder
-{
-    plCommandBuffer* ptCommandBuffer;
-    plBlitEncoder*   ptNext; // for linked list
-} plBlitEncoder;
-
 typedef struct _plCommandPool
 {
     plDevice*        ptDevice; // for convience
-    // VkCommandBuffer* sbtReadyCommandBuffers;   // completed command buffers
-    // VkCommandBuffer* sbtPendingCommandBuffers; // recently submitted command buffers
     plCommandBuffer* ptCommandBufferFreeList;  // free list of command buffers
 } plCommandPool;
 
@@ -157,12 +133,6 @@ typedef struct _plTimelineSemaphore
     plDevice*            ptDevice; // for convience
     plTimelineSemaphore* ptNext; // for linked list
 } plTimelineSemaphore;
-
-typedef struct _plTimelineEvent
-{
-    plDevice*        ptDevice; // for convience
-    plTimelineEvent* ptNext; // for linked list
-} plTimelineEvent;
 
 typedef struct _plFrameContext
 {
@@ -187,19 +157,6 @@ typedef struct _plDevice
     
     // timeline semaphore free list
     plTimelineSemaphore* ptSemaphoreFreeList;
-
-    // timeline event free list
-    plTimelineEvent* ptEventFreeList;
-
-    // render pass layout generation pool
-    plCpuRenderPassLayout* sbtRenderPassLayoutsHot;
-    plRenderPassLayout*    sbtRenderPassLayoutsCold;
-    uint16_t*              sbtRenderPassLayoutFreeIndices;
-
-    // render pass generation pool
-    plCpuRenderPass* sbtRenderPassesHot;
-    plRenderPass*    sbtRenderPassesCold;
-    uint16_t*        sbtRenderPassFreeIndices;
 
     // shader generation pool
     plCpuShader* sbtShadersHot;
@@ -236,20 +193,11 @@ typedef struct _plDevice
     plCpuBindGroupLayout* sbtBindGroupLayoutsHot;
     plBindGroupLayout*    sbtBindGroupLayoutsCold;
     uint16_t*             sbtBindGroupLayoutFreeIndices;
-    // VkDescriptorSetLayout    tDynamicDescriptorSetLayout;
-
-    // vulkan specifics
-    // VkDevice                         tLogicalDevice;
-    // VkPhysicalDevice                 tPhysicalDevice;
-    // VkPhysicalDeviceMemoryProperties tMemProps;
-    int                              iGraphicsQueueFamily;
-    int                              iPresentQueueFamily;
-    // VkQueue                          tGraphicsQueue;
-    // VkQueue                          tPresentQueue;
-    // VkDescriptorPool                 tDynamicBufferDescriptorPool;
 
     // memory blocks
     plDeviceMemoryAllocation* sbtMemoryBlocks;
+
+    plStackedBarrier* sbtBarrierStack;
 } plDevice;
 
 typedef struct _plGraphics
@@ -264,9 +212,6 @@ typedef struct _plGraphics
 
     // free lists
     plCommandBuffer*  ptCommandBufferFreeList;
-    plRenderEncoder*  ptRenderEncoderFreeList;
-    plBlitEncoder*    ptBlitEncoderFreeList;
-    plComputeEncoder* ptComputeEncoderFreeList;
     
     // specifics
     plTempAllocator tTempAllocator;
@@ -329,35 +274,6 @@ pl_graphics_get_semaphore_value(plDevice* ptDevice, plTimelineSemaphore* ptSemap
     return ulValue;
 }
 
-plTimelineEvent*
-pl_graphics_create_event(plDevice* ptDevice)
-{
-    plTimelineEvent* ptEvent = pl__get_new_event(ptDevice);
-    return ptEvent;
-}
-
-void
-pl_graphics_cleanup_event(plTimelineEvent* ptEvent)
-{
-    pl__return_event(ptEvent->ptDevice, ptEvent);
-}
-
-void
-pl_graphics_reset_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tSrcStages)
-{
-}
-
-void
-pl_graphics_set_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tFlags)
-{
-}
-
-void
-pl_graphics_wait_for_events(plCommandBuffer* ptCmdBuffer, plTimelineEvent** atEvents, uint32_t uEventCount, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages)
-{
-}
-
-
 plBufferHandle
 pl_graphics_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer **ptBufferOut)
 {
@@ -413,18 +329,18 @@ pl_graphics_allocate_dynamic_data_block(plDevice* ptDevice)
 }
 
 void
-pl_graphics_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_graphics_copy_texture_to_buffer(plCommandBuffer* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
 
 }
 
 void
-pl_graphics_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
+pl_graphics_copy_texture(plCommandBuffer* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
 {
 }
 
 void
-pl_graphics_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
+pl_graphics_generate_mipmaps(plCommandBuffer* ptEncoder, plTextureHandle tTexture)
 {
 }
 
@@ -462,16 +378,6 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
 }
 
 void
-pl_graphics_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
-{
-}
-
-void
-pl_graphics_set_texture_usage_ex(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
-{
-}
-
-void
 pl_graphics_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, const plDeviceMemoryAllocation* ptAllocation)
 {
 }
@@ -504,96 +410,69 @@ pl_graphics_get_swapchain_images(plSwapchain* ptSwap, uint32_t* puSizeOut)
     return ptSwap->sbtSwapchainTextureViews;
 }
 
-plRenderPassLayoutHandle
-pl_graphics_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDesc* ptDesc)
-{
-    const plRenderPassLayoutHandle tHandle = pl__get_new_render_pass_layout_handle(ptDevice);
-    return tHandle;
-}
-
-plRenderPassHandle
-pl_graphics_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const plRenderPassAttachments* ptAttachments)
-{
-
-    plRenderPassHandle tHandle = pl__get_new_render_pass_handle(ptDevice);
-    return tHandle;
-}
-
 void
-pl_graphics_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments)
+pl_graphics_begin_command_recording(plCommandBuffer* ptCommandBuffer)
 {
 }
 
 void
-pl_graphics_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginCommandInfo* ptBeginInfo)
-{
-}
-
-plRenderEncoder*
-pl_graphics_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, const plPassResources* ptResource)
-{
-    plRenderEncoder* ptEncoder = pl__get_new_render_encoder();
-    return ptEncoder;
-}
-
-void
-pl_graphics_next_subpass(plRenderEncoder* ptEncoder, const plPassResources* ptResource)
+pl_graphics_begin_render_pass(plCommandBuffer* ptCmdBuffer, const plRenderInfo* ptInfo, const plPassResources* ptResource)
 {
 }
 
 void
-pl_graphics_end_render_pass(plRenderEncoder* ptEncoder)
+pl_graphics_end_render_pass(plCommandBuffer* ptEncoder)
 {
 }
 
 void
-pl_graphics_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
+pl_graphics_bind_vertex_buffers(plCommandBuffer* ptEncoder, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
 {
 }
 
 void
-pl_graphics_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
+pl_graphics_bind_vertex_buffer(plCommandBuffer* ptEncoder, plBufferHandle tHandle)
 {
 }
 
 void
-pl_graphics_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw *atDraws)
+pl_graphics_draw(plCommandBuffer* ptEncoder, uint32_t uCount, const plDraw *atDraws)
 {
 }
 
 void
-pl_graphics_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex *atDraws)
+pl_graphics_draw_indexed(plCommandBuffer* ptEncoder, uint32_t uCount, const plDrawIndex *atDraws)
 {
 }
 
 void
-pl_graphics_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
+pl_graphics_bind_shader(plCommandBuffer* ptEncoder, plShaderHandle tHandle)
 {
 }
 
 void
-pl_graphics_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle)
+pl_graphics_bind_compute_shader(plCommandBuffer* ptEncoder, plComputeShaderHandle tHandle)
 {
 }
 
 void
-pl_graphics_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAreas)
+pl_graphics_draw_stream(plCommandBuffer* ptEncoder, uint32_t uAreaCount, plDrawArea *atAreas)
 {
 
 }
 
 void
-pl_graphics_set_depth_bias(plRenderEncoder* ptEncoder, float fDepthBiasConstantFactor, float fDepthBiasClamp, float fDepthBiasSlopeFactor)
+pl_graphics_set_depth_bias(plCommandBuffer* ptEncoder, float fDepthBiasConstantFactor, float fDepthBiasClamp, float fDepthBiasSlopeFactor)
 {
 }
 
 void
-pl_graphics_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
+pl_graphics_set_viewport(plCommandBuffer* ptEncoder, const plRenderViewport* ptViewport)
 {
 }
 
 void
-pl_graphics_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
+pl_graphics_set_scissor_region(plCommandBuffer* ptEncoder, const plScissor* ptScissor)
 {
 }
 
@@ -654,7 +533,7 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
     // save context for hot-reloads
     gptDataRegistry->set_data("plGraphics", gptGraphics);
 
-    gptGraphics->bValidationActive = ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
+    gptGraphics->bValidationActive = ptDesc->eFlags & PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
 
     gptGraphics->bDebugMessengerActive = gptGraphics->bValidationActive;
 
@@ -675,9 +554,9 @@ pl_graphics_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCoun
     plIO* ptIOCtx = gptIOI->get_io();
 
     strncpy(atDeviceInfo[0].acName, "PL CPU Rasterizer", 256);
-    atDeviceInfo[0].tVendorId = PL_VENDOR_ID_NONE;
-    atDeviceInfo[0].tType = PL_DEVICE_TYPE_CPU;
-    atDeviceInfo[0].tCapabilities = PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING | PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY | PL_DEVICE_CAPABILITY_SWAPCHAIN | PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS;
+    atDeviceInfo[0].eVendorId = PL_VENDOR_ID_NONE;
+    atDeviceInfo[0].eType = PL_DEVICE_TYPE_CPU;
+    atDeviceInfo[0].eCapabilities = PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING | PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY | PL_DEVICE_CAPABILITY_SWAPCHAIN | PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS;
 }
 
 plDevice*
@@ -688,8 +567,6 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     memset(ptDevice, 0, sizeof(plDevice));
     ptDevice->tInit = *ptInit;
 
-    pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
-    pl_sb_add(ptDevice->sbtRenderPassesHot);
     pl_sb_add(ptDevice->sbtShadersHot);
     pl_sb_add(ptDevice->sbtComputeShadersHot);
     pl_sb_add(ptDevice->sbtBuffersHot);
@@ -699,7 +576,6 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     pl_sb_add(ptDevice->sbtBindGroupsHot);
     pl_sb_add(ptDevice->sbtBindGroupLayoutsHot);
     
-    pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
     pl_sb_add(ptDevice->sbtShadersCold);
     pl_sb_add(ptDevice->sbtComputeShadersCold);
     pl_sb_add(ptDevice->sbtBuffersCold);
@@ -708,7 +584,6 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     pl_sb_add(ptDevice->sbtBindGroupsCold);
     pl_sb_add(ptDevice->sbtBindGroupLayoutsCold);
 
-    pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtComputeShadersCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtBuffersCold)._uGeneration = 1;
@@ -805,64 +680,28 @@ pl_graphics_cleanup_device(plDevice* ptDevice)
 }
 
 void
-pl_graphics_pipeline_barrier(plCommandBuffer* ptCommandBuffer, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
-{
-}
-
-void
-pl_graphics_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
-{
-}
-
-void
-pl_graphics_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
-{
-}
-
-void
-pl_graphics_pipeline_barrier_render(plRenderEncoder* ptEncoder,  plShaderStageFlags beforeStages, plAccessFlags beforeAccesses, plShaderStageFlags afterStages, plAccessFlags afterAccesses)
-{
-}
-
-plComputeEncoder*
 pl_graphics_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResources* ptResources)
 {
-    plComputeEncoder* ptEncoder = pl__get_new_compute_encoder();
-    return ptEncoder;
 }
 
 void
-pl_graphics_end_compute_pass(plComputeEncoder* ptEncoder)
-{
-    pl__return_compute_encoder(ptEncoder);
-}
-
-plBlitEncoder*
-pl_graphics_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
-{
-    plBlitEncoder* ptEncoder = pl__get_new_blit_encoder();
-    return ptEncoder;
-}
-
-void
-pl_graphics_end_blit_pass(plBlitEncoder* ptEncoder)
-{
-    pl__return_blit_encoder(ptEncoder);
-}
-
-void
-pl_graphics_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispatch *atDispatches)
+pl_graphics_end_compute_pass(plCommandBuffer* ptEncoder)
 {
 }
 
 void
-pl_graphics_bind_compute_bind_groups(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst,
+pl_graphics_dispatch(plCommandBuffer* ptEncoder, uint32_t uDispatchCount, const plDispatch *atDispatches)
+{
+}
+
+void
+pl_graphics_bind_compute_bind_groups(plCommandBuffer* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst,
     uint32_t uCount, const plBindGroupHandle *atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
 {
 }
 
 void
-pl_graphics_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle *atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
+pl_graphics_bind_graphics_bind_groups(plCommandBuffer* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle *atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
 {
 }
 
@@ -941,12 +780,12 @@ pl_graphics_request_command_buffer(plCommandPool* ptPool, const char* pcDebugNam
 }
 
 void
-pl_graphics_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint64_t uSourceOffset, uint64_t uDestinationOffset, size_t szSize)
+pl_graphics_copy_buffer(plCommandBuffer* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint64_t uSourceOffset, uint64_t uDestinationOffset, size_t szSize)
 {
 }
 
 void
-pl_graphics_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_graphics_copy_buffer_to_texture(plCommandBuffer* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
 }
 
@@ -1001,36 +840,6 @@ pl_graphics_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHa
 }
 
 void
-pl_graphics_push_render_debug_group(plRenderEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
-{
-}
-
-void
-pl_graphics_pop_render_debug_group(plRenderEncoder* ptEncoder)
-{
-}
-
-void
-pl_graphics_push_blit_debug_group(plBlitEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
-{
-}
-
-void
-pl_graphics_pop_blit_debug_group(plBlitEncoder* ptEncoder)
-{
-}
-
-void
-pl_graphics_push_compute_debug_group(plComputeEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
-{
-}
-
-void
-pl_graphics_pop_compute_debug_group(plComputeEncoder* ptEncoder)
-{
-}
-
-void
 pl_graphics_insert_debug_label(plCommandBuffer* ptCmdBuffer, const char* pcLabel, plVec4 tColor)
 {
 
@@ -1043,6 +852,21 @@ pl_graphics_push_debug_group(plCommandBuffer* ptCmdBuffer, const char* pcLabel, 
 
 void
 pl_graphics_pop_debug_group(plCommandBuffer* ptCmdBuffer)
+{
+}
+
+void
+pl_graphics_intra_pass_barrier(plCommandBuffer* ptCmdBuffer, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages, plBarrierScope tScope, const plPassResources* ptResources)
+{
+}
+
+void
+pl_graphics_consumer_barrier(plCommandBuffer* ptCmdBuffer, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages, plBarrierScope tScope)
+{
+}
+
+void
+pl_graphics_producer_barrier(plCommandBuffer* ptCmdBuffer, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages, plBarrierScope tScope)
 {
 }
 

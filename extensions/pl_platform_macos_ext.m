@@ -212,14 +212,14 @@ pl_file_get_directory_info(const char* pcPath, plDirectoryInfo* ptInfoOut)
 
         switch(ptEntry->d_type)
         {
-            case DT_REG: ptInfoOut->uFileCount++; ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_FILE; break;
-            case DT_DIR: ptInfoOut->uDirectoryCount++; ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_DIRECTORY; break;
-            case DT_LNK: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_LINK; break;
-            case DT_FIFO: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_PIPE; break;
-            case DT_SOCK: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_SOCKET; break;
-            case DT_BLK: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_BLOCK_DEVICE; break;
-            case DT_CHR: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_CHARACTER_DEVICE; break;
-            case DT_UNKNOWN: ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_UNKNOWN; break;
+            case DT_REG: ptInfoOut->uFileCount++; ptNewEntry->eType = PL_DIRECTORY_ENTRY_TYPE_FILE; break;
+            case DT_DIR: ptInfoOut->uDirectoryCount++; ptNewEntry->eType = PL_DIRECTORY_ENTRY_TYPE_DIRECTORY; break;
+            case DT_LNK: ptNewEntry->eType = PL_DIRECTORY_ENTRY_TYPE_LINK; break;
+            case DT_FIFO: ptNewEntry->eType = PL_DIRECTORY_ENTRY_TYPE_PIPE; break;
+            case DT_SOCK: ptNewEntry->eType = PL_DIRECTORY_ENTRY_TYPE_SOCKET; break;
+            case DT_BLK: ptNewEntry->eType = PL_DIRECTORY_ENTRY_TYPE_BLOCK_DEVICE; break;
+            case DT_CHR: ptNewEntry->eType = PL_DIRECTORY_ENTRY_TYPE_CHARACTER_DEVICE; break;
+            case DT_UNKNOWN: ptNewEntry->eType = PL_DIRECTORY_ENTRY_TYPE_UNKNOWN; break;
             default:
                 PL_ASSERT(false && "unknown dirent file type");
                 break;

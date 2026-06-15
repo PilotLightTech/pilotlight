@@ -92,18 +92,8 @@ typedef struct _plVulkanTexture
     VkImage     tImage;
     VkImageView tImageView;
     bool        bOriginalView; // so we only free if original
+    bool        bSwapchain; // so we only free if original
 } plVulkanTexture;
-
-typedef struct _plVulkanRenderPassLayout
-{
-    VkRenderPass tRenderPass;
-} plVulkanRenderPassLayout;
-
-typedef struct _plVulkanRenderPass
-{
-    VkRenderPass  tRenderPass;
-    VkFramebuffer atFrameBuffers[6];
-} plVulkanRenderPass;
 
 typedef struct _plVulkanBindGroupLayout
 {
@@ -148,33 +138,11 @@ typedef struct _plVulkanComputeShader
 
 typedef struct _plCommandBuffer
 {
-    plDevice*          ptDevice; // for convience
-    plBeginCommandInfo tBeginInfo;
-    VkCommandBuffer    tCmdBuffer;
-    plCommandPool*     ptPool; // parent pool
-    plCommandBuffer*   ptNext; // for linked list
+    plDevice*        ptDevice; // for convience
+    VkCommandBuffer  tCmdBuffer;
+    plCommandPool*   ptPool; // parent pool
+    plCommandBuffer* ptNext; // for linked list
 } plCommandBuffer;
-
-typedef struct _plRenderEncoder
-{
-    plCommandBuffer*   ptCommandBuffer;
-    plRenderPassHandle tRenderPassHandle;
-    uint32_t           uCurrentSubpass;
-    plRenderEncoder*   ptNext; // for linked list
-} plRenderEncoder;
-
-typedef struct _plComputeEncoder
-{
-    plCommandBuffer*  ptCommandBuffer;
-    plTextureHandle*  sbtTextures;
-    plComputeEncoder* ptNext; // for linked list
-} plComputeEncoder;
-
-typedef struct _plBlitEncoder
-{
-    plCommandBuffer* ptCommandBuffer;
-    plBlitEncoder*   ptNext; // for linked list
-} plBlitEncoder;
 
 typedef struct _plCommandPool
 {
@@ -198,13 +166,6 @@ typedef struct _plTimelineSemaphore
     VkSemaphore          tSemaphore;
     plTimelineSemaphore* ptNext; // for linked list
 } plTimelineSemaphore;
-
-typedef struct _plTimelineEvent
-{
-    plDevice* ptDevice; // for convience
-    VkEvent   tEvent;
-    plTimelineEvent* ptNext; // for linked list
-} plTimelineEvent;
 
 typedef struct _plFrameContext
 {
@@ -234,19 +195,6 @@ typedef struct _plDevice
     
     // timeline semaphore free list
     plTimelineSemaphore* ptSemaphoreFreeList;
-
-    // timeline evene free list
-    plTimelineEvent* ptEventFreeList;
-
-    // render pass layout generation pool
-    plVulkanRenderPassLayout* sbtRenderPassLayoutsHot;
-    plRenderPassLayout*       sbtRenderPassLayoutsCold;
-    uint16_t*                 sbtRenderPassLayoutFreeIndices;
-
-    // render pass generation pool
-    plVulkanRenderPass* sbtRenderPassesHot;
-    plRenderPass*       sbtRenderPassesCold;
-    uint16_t*           sbtRenderPassFreeIndices;
 
     // shader generation pool
     plVulkanShader* sbtShadersHot;
@@ -310,6 +258,9 @@ typedef struct _plDevice
 
     VkCommandPool tCmdPool;
     VkCommandBuffer tCmdBuffer;
+
+    plPassTextureResource* sbtPassTextureStack;
+    plStackedBarrier* sbtBarrierStack;
 } plDevice;
 
 typedef struct _plGraphics
@@ -324,9 +275,6 @@ typedef struct _plGraphics
 
     // free lists
     plCommandBuffer*  ptCommandBufferFreeList;
-    plRenderEncoder*  ptRenderEncoderFreeList;
-    plBlitEncoder*    ptBlitEncoderFreeList;
-    plComputeEncoder* ptComputeEncoderFreeList;
     
     // vulkan specifics
     plTempAllocator              tTempAllocator;
@@ -335,7 +283,8 @@ typedef struct _plGraphics
     VkAllocationCallbacks        tAllocationCallbacks;
     const VkAllocationCallbacks* ptAllocationCallbacks;
 
-    bool bEncoderActive;
+    bool bGraphicsEncoderActive;
+    bool bComputeEncoderActive;
 } plGraphics;
 
 typedef struct _plSurface
@@ -370,7 +319,6 @@ static VkSamplerAddressMode    pl__vulkan_wrap               (plAddressMode);
 static VkCompareOp             pl__vulkan_compare            (plCompareMode);
 static VkFormat                pl__vulkan_format             (plFormat);
 static VkFormat                pl__vulkan_vertex_format      (plVertexFormat);
-static VkImageLayout           pl__vulkan_layout             (plTextureUsage);
 static VkAttachmentLoadOp      pl__vulkan_load_op            (plLoadOp);
 static VkAttachmentStoreOp     pl__vulkan_store_op           (plStoreOp);
 static VkCullModeFlags         pl__vulkan_cull               (plCullMode);
@@ -380,7 +328,6 @@ static plFormat                pl__pilotlight_format         (VkFormat);
 static VkStencilOp             pl__vulkan_stencil_op         (plStencilOp);
 static VkBlendFactor           pl__vulkan_blend_factor       (plBlendFactor);
 static VkBlendOp               pl__vulkan_blend_op           (plBlendOp);
-static VkAccessFlags           pl__vulkan_access_flags       (plAccessFlags);
 
 // misc
 static plDeviceMemoryAllocation pl__allocate_staging_dynamic(struct plDeviceMemoryAllocatorO*, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName);
@@ -390,7 +337,6 @@ static void                     pl__free_staging_dynamic    (struct plDeviceMemo
 static VkFormat pl__find_supported_format       (plDevice*, VkFormatFeatureFlags, const VkFormat*, uint32_t uFormatCount);
 static bool     pl__format_has_stencil          (VkFormat);
 static void     pl__create_swapchain            (uint32_t uWidth, uint32_t uHeight, plSwapchain *);
-static void     pl__fill_common_render_pass_data(plRenderPassLayoutDesc*, plRenderPassLayout*, plRenderPassCommonData* ptDataOut);
 
 // debug stuff
 static VKAPI_ATTR VkBool32 VKAPI_CALL pl__debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT, const VkDebugUtilsMessengerCallbackDataEXT*, void*);
@@ -481,56 +427,6 @@ pl_graphics_get_semaphore_value(plDevice* ptDevice, plTimelineSemaphore* ptSemap
     return ulValue;
 }
 
-plTimelineEvent*
-pl_graphics_create_event(plDevice* ptDevice)
-{
-    plTimelineEvent* ptEvent = pl__get_new_event(ptDevice);
-
-    VkEventCreateInfo tCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,
-        .flags = 0,
-    };
-    PL_VULKAN(vkCreateEvent(ptDevice->tLogicalDevice, &tCreateInfo, gptGraphics->ptAllocationCallbacks, &ptEvent->tEvent));
-    return ptEvent;
-}
-
-void
-pl_graphics_cleanup_event(plTimelineEvent* ptEvent)
-{
-    pl__return_event(ptEvent->ptDevice, ptEvent);
-    vkDestroyEvent(ptEvent->ptDevice->tLogicalDevice, ptEvent->tEvent, gptGraphics->ptAllocationCallbacks);
-    ptEvent->tEvent = VK_NULL_HANDLE;
-}
-
-void
-pl_graphics_reset_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tSrcStages)
-{
-    vkCmdResetEvent(ptCmdBuffer->tCmdBuffer, ptEvent->tEvent, pl_vulkan_pipeline_stage_flags(tSrcStages));
-}
-
-void
-pl_graphics_set_event(plCommandBuffer* ptCmdBuffer, plTimelineEvent* ptEvent, plPipelineStageFlags tFlags)
-{
-    vkCmdSetEvent(ptCmdBuffer->tCmdBuffer, ptEvent->tEvent, pl_vulkan_pipeline_stage_flags(tFlags));
-}
-
-void
-pl_graphics_wait_for_events(plCommandBuffer* ptCmdBuffer, plTimelineEvent** atEvents, uint32_t uEventCount, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages)
-{
-    VkEvent* atVkEvents = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, sizeof(VkEvent) * uEventCount);
-
-    for(uint32_t i = 0; i < uEventCount; i++)
-    {
-        atVkEvents[i] = atEvents[i]->tEvent;
-    }
-
-    vkCmdWaitEvents(ptCmdBuffer->tCmdBuffer, uEventCount, atVkEvents,
-        pl_vulkan_pipeline_stage_flags(tSrcStages),
-        pl_vulkan_pipeline_stage_flags(tDstStages),
-        0, NULL, 0, NULL, 0, NULL);
-    pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
-}
-
 plBufferHandle
 pl_graphics_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuffer **ptBufferOut)
 {
@@ -547,21 +443,21 @@ pl_graphics_create_buffer(plDevice* ptDevice, const plBufferDesc* ptDesc, plBuff
         .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size        = ptDesc->szByteSize,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .usage       = 0
     };
 
-    VkBufferUsageFlagBits tBufferUsageFlags = 0;
-    if (ptDesc->tUsage & PL_BUFFER_USAGE_VERTEX)
+    if (ptDesc->eUsage & PL_BUFFER_USAGE_VERTEX)
         tBufferInfo.usage |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    if (ptDesc->tUsage & PL_BUFFER_USAGE_INDEX)
+    if (ptDesc->eUsage & PL_BUFFER_USAGE_INDEX)
         tBufferInfo.usage |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    if (ptDesc->tUsage & PL_BUFFER_USAGE_STORAGE)
+    if (ptDesc->eUsage & PL_BUFFER_USAGE_STORAGE)
         tBufferInfo.usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-    if (ptDesc->tUsage & PL_BUFFER_USAGE_UNIFORM)
+    if (ptDesc->eUsage & PL_BUFFER_USAGE_UNIFORM)
         tBufferInfo.usage |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    if (ptDesc->tUsage & PL_BUFFER_USAGE_TRANSFER_SOURCE)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    if (ptDesc->tUsage & PL_BUFFER_USAGE_TRANSFER_DESTINATION)
-        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    if (ptDesc->eUsage & PL_BUFFER_USAGE_TRANSFER)
+        tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    // if (ptDesc->eUsage & PL_BUFFER_USAGE_TRANSFER_DESTINATION)
+    //     tBufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
     VkMemoryRequirements tMemRequirements = {0};
 
@@ -616,7 +512,7 @@ pl_graphics_allocate_dynamic_data_block(plDevice* ptDevice)
             ptDynamicBuffer = &ptFrame->sbtDynamicBuffers[ptFrame->uCurrentBufferIndex];
 
             const plBufferDesc tStagingBufferDescription0 = {
-                .tUsage      = PL_BUFFER_USAGE_UNIFORM,
+                .eUsage      = PL_BUFFER_USAGE_UNIFORM,
                 .szByteSize  = ptDevice->tInit.szDynamicBufferBlockSize,
                 .pcDebugName = "dynamic buffer"};
 
@@ -687,9 +583,8 @@ pl_graphics_allocate_dynamic_data_block(plDevice* ptDevice)
 }
 
 void
-pl_graphics_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_graphics_copy_texture_to_buffer(plCommandBuffer* ptCmdBuffer, plTextureHandle tTextureHandle, plBufferHandle tBufferHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     // allocate temporary memory
@@ -704,7 +599,7 @@ pl_graphics_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTe
     {
 
         // transition textures to acceptable layouts
-        atSubResourceRanges[i].aspectMask = ptColdTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atSubResourceRanges[i].aspectMask = ptColdTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         atSubResourceRanges[i].baseMipLevel = ptRegions[i].uMipLevel;
         atSubResourceRanges[i].levelCount = 1;
         atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uBaseArrayLayer;
@@ -718,8 +613,8 @@ pl_graphics_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTe
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image               = ptDevice->sbtTexturesHot[tTextureHandle.uIndex].tImage,
             .subresourceRange    = atSubResourceRanges[i],
-            .srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
+            .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+            .dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT
         };
         vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
 
@@ -758,9 +653,8 @@ pl_graphics_copy_texture_to_buffer(plBlitEncoder* ptEncoder, plTextureHandle tTe
 }
 
 void
-pl_graphics_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
+pl_graphics_copy_texture(plCommandBuffer* ptCmdBuffer, plTextureHandle tSrcHandle, plTextureHandle tDstHandle, uint32_t uRegionCount, const plImageCopy* ptRegions)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     // allocate temporary memory
@@ -783,13 +677,13 @@ pl_graphics_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, p
     for (uint32_t i = 0; i < uRegionCount; i++)
     {
 
-        atSubResourceRanges[i].aspectMask = ptColdSrcTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atSubResourceRanges[i].aspectMask = ptColdSrcTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         atSubResourceRanges[i].baseMipLevel = ptRegions[i].uSourceMipLevel;
         atSubResourceRanges[i].levelCount = ptRegions[i].uSourceLayerCount;
         atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uSourceBaseArrayLayer;
         atSubResourceRanges[i].layerCount = ptRegions[i].uSourceLayerCount;
 
-        atSubResourceRanges[i + uRegionCount].aspectMask = ptColdDstTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atSubResourceRanges[i + uRegionCount].aspectMask = ptColdDstTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         atSubResourceRanges[i + uRegionCount].baseMipLevel = ptRegions[i].uDestinationMipLevel;
         atSubResourceRanges[i + uRegionCount].levelCount = ptRegions[i].uDestinationLayerCount;
         atSubResourceRanges[i + uRegionCount].baseArrayLayer = ptRegions[i].uDestinationBaseArrayLayer;
@@ -848,7 +742,7 @@ pl_graphics_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, p
         atCopyRegions[i].srcSubresource.baseArrayLayer = ptRegions[i].uSourceBaseArrayLayer;
         atCopyRegions[i].srcSubresource.layerCount = ptRegions[i].uSourceLayerCount;
         atCopyRegions[i].srcSubresource.mipLevel = ptRegions[i].uSourceMipLevel;
-        atCopyRegions[i].srcSubresource.aspectMask = ptColdSrcTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atCopyRegions[i].srcSubresource.aspectMask = ptColdSrcTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
         atCopyRegions[i].dstOffset.x = ptRegions[i].iDestinationOffsetX;
         atCopyRegions[i].dstOffset.y = ptRegions[i].iDestinationOffsetY;
@@ -857,7 +751,7 @@ pl_graphics_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, p
         atCopyRegions[i].dstSubresource.baseArrayLayer = ptRegions[i].uDestinationBaseArrayLayer;
         atCopyRegions[i].dstSubresource.layerCount = ptRegions[i].uDestinationLayerCount;
         atCopyRegions[i].dstSubresource.mipLevel = ptRegions[i].uDestinationMipLevel;
-        atCopyRegions[i].dstSubresource.aspectMask = ptColdDstTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atCopyRegions[i].dstSubresource.aspectMask = ptColdDstTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
     }
 
     vkCmdCopyImage(ptCmdBuffer->tCmdBuffer,
@@ -917,9 +811,8 @@ pl_graphics_copy_texture(plBlitEncoder* ptEncoder, plTextureHandle tSrcHandle, p
 }
 
 void
-pl_graphics_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
+pl_graphics_generate_mipmaps(plCommandBuffer* ptCmdBuffer, plTextureHandle tTexture)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tTexture);
@@ -929,8 +822,8 @@ pl_graphics_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
     {
 
         // check if format supports linear blitting
-        VkFormatProperties tFormatProperties = {0};
-        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, pl__vulkan_format(ptTexture->tDesc.tFormat), &tFormatProperties);
+        VkFormatProperties eFormatProperties = {0};
+        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, pl__vulkan_format(ptTexture->tDesc.eFormat), &eFormatProperties);
 
         // transition texture to proper layout
         const VkImageSubresourceRange tSubResourceRange = {
@@ -959,7 +852,7 @@ pl_graphics_generate_mipmaps(plBlitEncoder* ptEncoder, plTextureHandle tTexture)
 
 
             // perform blits
-            if (tFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)
+            if (eFormatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)
             {
                 VkImageSubresourceRange tMipSubResourceRange = {
                     .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -1077,23 +970,23 @@ pl_graphics_create_sampler(plDevice* ptDevice, const plSamplerDesc* ptDesc)
 
     VkSamplerCreateInfo tSamplerInfo = {
         .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .minFilter               = pl__vulkan_filter(ptDesc->tMinFilter),
-        .magFilter               = pl__vulkan_filter(ptDesc->tMagFilter),
-        .addressModeU            = pl__vulkan_wrap(ptDesc->tUAddressMode),
-        .addressModeV            = pl__vulkan_wrap(ptDesc->tVAddressMode),
-        .addressModeW            = pl__vulkan_wrap(ptDesc->tWAddressMode),
-        .anisotropyEnable        = (bool)(ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY),
-        .maxAnisotropy           = ptDesc->fMaxAnisotropy == 0 ? (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY) : ptDesc->fMaxAnisotropy,
+        .minFilter               = pl__vulkan_filter(ptDesc->eMinFilter),
+        .magFilter               = pl__vulkan_filter(ptDesc->eMagFilter),
+        .addressModeU            = pl__vulkan_wrap(ptDesc->eUAddressMode),
+        .addressModeV            = pl__vulkan_wrap(ptDesc->eVAddressMode),
+        .addressModeW            = pl__vulkan_wrap(ptDesc->eWAddressMode),
+        .anisotropyEnable        = (bool)(ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY),
+        .maxAnisotropy           = ptDesc->fMaxAnisotropy == 0 ? (ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY) : ptDesc->fMaxAnisotropy,
         .unnormalizedCoordinates = ptDesc->bUnnormalizedCoordinates ? VK_TRUE : VK_FALSE,
-        .compareEnable           = ptDesc->tCompare == 0 ? VK_FALSE : VK_TRUE,
-        .compareOp               = pl__vulkan_compare(ptDesc->tCompare),
-        .mipmapMode              = ptDesc->tMipmapMode == PL_MIPMAP_MODE_LINEAR ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST,
+        .compareEnable           = ptDesc->eCompare == 0 ? VK_FALSE : VK_TRUE,
+        .compareOp               = pl__vulkan_compare(ptDesc->eCompare),
+        .mipmapMode              = ptDesc->eMipmapMode == PL_MIPMAP_MODE_LINEAR ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST,
         .mipLodBias              = ptDesc->fMipBias,
         .minLod                  = ptDesc->fMinMip,
         .maxLod                  = ptDesc->fMaxMip,
     };
 
-    switch(ptDesc->tBorderColor)
+    switch(ptDesc->eBorderColor)
     {
         case PL_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK: tSamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK; break;
         case PL_BORDER_COLOR_FLOAT_OPAQUE_BLACK:      tSamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK; break;
@@ -1125,21 +1018,21 @@ pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayout
     ptLayout->_uSamplerBindingCount = 0;
     for(uint32_t i = 0; i < PL_MAX_TEXTURES_PER_BIND_GROUP; i++)
     {
-        if(ptDesc->atTextureBindings[i].tStages == PL_SHADER_STAGE_NONE)
+        if(ptDesc->atTextureBindings[i].eStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uTextureBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_BUFFERS_PER_BIND_GROUP; i++)
     {
-        if(ptDesc->atBufferBindings[i].tStages == PL_SHADER_STAGE_NONE)
+        if(ptDesc->atBufferBindings[i].eStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uBufferBindingCount++;
     }
 
     for(uint32_t i = 0; i < PL_MAX_SAMPLERS_PER_BIND_GROUP; i++)
     {
-        if(ptDesc->atSamplerBindings[i].tStages == PL_SHADER_STAGE_NONE)
+        if(ptDesc->atSamplerBindings[i].eStages == PL_SHADER_STAGE_NONE)
             break;
         ptLayout->_uSamplerBindingCount++;
     }
@@ -1157,9 +1050,9 @@ pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayout
     {
         VkDescriptorSetLayoutBinding tBinding = {
             .binding            = ptDesc->atBufferBindings[i].uSlot,
-            .descriptorType     = ptDesc->atBufferBindings[i].tType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorType     = ptDesc->atBufferBindings[i].eType == PL_BUFFER_BINDING_TYPE_STORAGE ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount    = 1,
-            .stageFlags         = pl_vulkan_shader_stage_flags(ptDesc->atBufferBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptDesc->atBufferBindings[i].eStages),
             .pImmutableSamplers = NULL
         };
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
@@ -1172,15 +1065,15 @@ pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayout
         VkDescriptorSetLayoutBinding tBinding = {
             .binding            = ptDesc->atTextureBindings[i].uSlot,
             .descriptorCount    = ptDesc->atTextureBindings[i].uDescriptorCount,
-            .stageFlags         = pl_vulkan_shader_stage_flags(ptDesc->atTextureBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptDesc->atTextureBindings[i].eStages),
             .pImmutableSamplers = NULL
         };
 
-        if (ptDesc->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_SAMPLED)
+        if (ptDesc->atTextureBindings[i].eType == PL_TEXTURE_BINDING_TYPE_SAMPLED)
             tBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        else if (ptDesc->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT)
+        else if (ptDesc->atTextureBindings[i].eType == PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT)
             tBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-        else if (ptDesc->atTextureBindings[i].tType == PL_TEXTURE_BINDING_TYPE_STORAGE)
+        else if (ptDesc->atTextureBindings[i].eType == PL_TEXTURE_BINDING_TYPE_STORAGE)
             tBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 
         if (tBinding.descriptorCount > 1)
@@ -1204,7 +1097,7 @@ pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayout
             .binding            = ptDesc->atSamplerBindings[i].uSlot,
             .descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLER,
             .descriptorCount    = 1,
-            .stageFlags         = pl_vulkan_shader_stage_flags(ptDesc->atSamplerBindings[i].tStages),
+            .stageFlags         = pl_vulkan_shader_stage_flags(ptDesc->atSamplerBindings[i].eStages),
             .pImmutableSamplers = NULL
         };
 
@@ -1224,8 +1117,8 @@ pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayout
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = uDescriptorBindingCount,
         .pBindings    = atDescriptorSetLayoutBindings,
-        .pNext        = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING) ? &tSetLayoutBindingFlags : NULL,
-        .flags        = (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING) ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
+        .pNext        = (ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING) ? &tSetLayoutBindingFlags : NULL,
+        .flags        = (ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING) ? VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT : 0
     };
 
     VkDescriptorSetLayout tDescriptorSetLayout = VK_NULL_HANDLE;
@@ -1254,7 +1147,7 @@ pl_graphics_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
     plBindGroupLayoutDesc* ptLayout = &ptBindGroupLayout->tDesc;
 
     plVulkanBindGroup tVulkanBindGroup = {
-        .bResetable = ptDesc->ptPool->tDesc.tFlags & PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET,
+        .bResetable = ptDesc->ptPool->tDesc.eFlags & PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET,
         .tPool      = ptDesc->ptPool->tDescriptorPool
     };
 
@@ -1284,15 +1177,44 @@ pl_graphics_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
 void
 pl_graphics_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, const plBindGroupUpdateData* ptData)
 {
+
+    uint32_t uBufferCount = 0;
+    uint32_t uTextureCount = 0;
+    uint32_t uSamplerCount = 0;
+
+    for (uint32_t i = 0; i < PL_MAX_BUFFERS_PER_BIND_GROUP; i++)
+    {
+
+        if(!pl_graphics_is_buffer_valid(ptDevice, ptData->atBufferBindings[i].tBuffer))
+            break;
+        uBufferCount++;
+    }
+
+    for (uint32_t i = 0; i < PL_MAX_TEXTURES_PER_BIND_GROUP; i++)
+    {
+
+        if(!pl_graphics_is_texture_valid(ptDevice, ptData->atTextureBindings[i].tTexture))
+            break;
+        uTextureCount++;
+    }
+
+    for (uint32_t i = 0; i < PL_MAX_SAMPLERS_PER_BIND_GROUP; i++)
+    {
+
+        if(!pl_graphics_is_sampler_valid(ptDevice, ptData->atSamplerBindings[i].tSampler))
+            break;
+        uSamplerCount++;
+    }
+
     plBindGroup* ptBindGroup = pl_graphics_get_bind_group(ptDevice, tHandle);
     plVulkanBindGroup* ptVulkanBindGroup = &ptDevice->sbtBindGroupsHot[tHandle.uIndex];
     plBindGroupLayout* ptLayout = pl_graphics_get_bind_group_layout(ptDevice, ptBindGroup->tDesc.tLayout);
 
-    VkWriteDescriptorSet* sbtWrites = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, (ptData->uBufferCount + ptData->uSamplerCount + ptData->uTextureCount) * sizeof(VkWriteDescriptorSet));
+    VkWriteDescriptorSet* sbtWrites = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, (uBufferCount + uSamplerCount + uTextureCount) * sizeof(VkWriteDescriptorSet));
 
-    VkDescriptorBufferInfo* sbtBufferDescInfos = ptData->uBufferCount > 0 ? pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, ptData->uBufferCount * sizeof(VkDescriptorBufferInfo)) : NULL;
-    VkDescriptorImageInfo* sbtImageDescInfos = ptData->uTextureCount > 0 ? pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, ptData->uTextureCount * sizeof(VkDescriptorImageInfo)) : NULL;
-    VkDescriptorImageInfo* sbtSamplerDescInfos = ptData->uSamplerCount > 0 ? pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, ptData->uSamplerCount * sizeof(VkDescriptorImageInfo)) : NULL;
+    VkDescriptorBufferInfo* sbtBufferDescInfos = uBufferCount > 0 ? pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uBufferCount * sizeof(VkDescriptorBufferInfo)) : NULL;
+    VkDescriptorImageInfo* sbtImageDescInfos = uTextureCount > 0 ? pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uTextureCount * sizeof(VkDescriptorImageInfo)) : NULL;
+    VkDescriptorImageInfo* sbtSamplerDescInfos = uSamplerCount > 0 ? pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uSamplerCount * sizeof(VkDescriptorImageInfo)) : NULL;
 
     // fill out buffer writes
 
@@ -1302,8 +1224,13 @@ pl_graphics_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, con
     };
 
     uint32_t uCurrentWrite = 0;
-    for (uint32_t i = 0; i < ptData->uBufferCount; i++)
+    for (uint32_t i = 0; i < uBufferCount; i++)
     {
+
+        if(!pl_graphics_is_buffer_valid(ptDevice, ptData->atBufferBindings[i].tBuffer))
+            break;
+
+
 
         const plVulkanBuffer* ptVulkanBuffer = &ptDevice->sbtBuffersHot[ptData->atBufferBindings[i].tBuffer.uIndex];
 
@@ -1316,7 +1243,7 @@ pl_graphics_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, con
         {
             if(ptLayout->tDesc.atBufferBindings[j].uSlot == ptData->atBufferBindings[i].uSlot)
             {
-                sbtWrites[uCurrentWrite].descriptorType = atDescriptorTypeLUT[ptLayout->tDesc.atBufferBindings[j].tType - 1];
+                sbtWrites[uCurrentWrite].descriptorType = atDescriptorTypeLUT[ptLayout->tDesc.atBufferBindings[j].eType - 1];
                 bValid = true;
                 break;
             }
@@ -1342,20 +1269,20 @@ pl_graphics_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, con
         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
     };
 
-    static const VkImageLayout atTextureLayoutTypeLUT[] ={
+    static const VkImageLayout atTextureLayoueTypeLUT[] ={
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ,
         VK_IMAGE_LAYOUT_GENERAL,
     };
 
-    for (uint32_t i = 0; i < ptData->uTextureCount; i++)
+    for (uint32_t i = 0; i < uTextureCount; i++)
     {
-        sbtImageDescInfos[i].imageLayout = atTextureLayoutTypeLUT[ptData->atTextureBindings[i].tType - 1];
+        sbtImageDescInfos[i].imageLayout = atTextureLayoueTypeLUT[ptData->atTextureBindings[i].eType - 1];
         sbtImageDescInfos[i].imageView = ptDevice->sbtTexturesHot[ptData->atTextureBindings[i].tTexture.uIndex].tImageView;
         sbtWrites[uCurrentWrite].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sbtWrites[uCurrentWrite].dstBinding = ptData->atTextureBindings[i].uSlot;
         sbtWrites[uCurrentWrite].dstArrayElement = ptData->atTextureBindings[i].uIndex;
-        sbtWrites[uCurrentWrite].descriptorType = atTextureDescriptorTypeLUT[ptData->atTextureBindings[i].tType - 1];
+        sbtWrites[uCurrentWrite].descriptorType = atTextureDescriptorTypeLUT[ptData->atTextureBindings[i].eType - 1];
         sbtWrites[uCurrentWrite].descriptorCount = 1;
         sbtWrites[uCurrentWrite].dstSet = ptVulkanBindGroup->tDescriptorSet;
         sbtWrites[uCurrentWrite].pImageInfo = &sbtImageDescInfos[i];
@@ -1364,7 +1291,7 @@ pl_graphics_update_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle, con
     }
 
     // fill out sampler writes
-    for (uint32_t i = 0; i < ptData->uSamplerCount; i++)
+    for (uint32_t i = 0; i < uSamplerCount; i++)
     {
 
         sbtSamplerDescInfos[i].sampler = ptDevice->sbtSamplersHot[ptData->atSamplerBindings[i].tSampler.uIndex];
@@ -1398,7 +1325,7 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
     plTexture* ptTexture = pl_graphics_get_texture(ptDevice, tHandle);
     ptTexture->tDesc = tDesc;
     ptTexture->tView = (plTextureViewDesc){
-        .tFormat     = tDesc.tFormat,
+        .eFormat     = tDesc.eFormat,
         .uBaseMip    = 0,
         .uMips       = tDesc.uMips,
         .uBaseLayer  = 0,
@@ -1411,30 +1338,28 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
     };
 
     VkImageViewType tImageViewType = 0;
-    if (tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+    if (tDesc.eType == PL_TEXTURE_TYPE_CUBE)
         tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
-    else if (tDesc.tType == PL_TEXTURE_TYPE_2D)
+    else if (tDesc.eType == PL_TEXTURE_TYPE_2D)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
-    else if (tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+    else if (tDesc.eType == PL_TEXTURE_TYPE_2D_ARRAY)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     else
     {
         PL_ASSERT(false && "unsupported texture type");
     }
 
-    VkImageUsageFlags tUsageFlags = 0;
-    if (tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
-        tUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    if (tDesc.tUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
-        tUsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    if (tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
-        tUsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    if (tDesc.tUsage & PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT)
-        tUsageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
-    if (tDesc.tUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)
-        tUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-    if (tDesc.tUsage & PL_TEXTURE_USAGE_STORAGE)
-        tUsageFlags |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    VkImageUsageFlags eUsageFlags = 0;
+    if (tDesc.eUsage & PL_TEXTURE_USAGE_SAMPLED)
+        eUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if (tDesc.eUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+        eUsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    if (tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+        eUsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    if (tDesc.eUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)
+        eUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    if (tDesc.eUsage & PL_TEXTURE_USAGE_STORAGE)
+        eUsageFlags |= VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
     const VkImageCreateInfo tImageInfo = {
         .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -1444,12 +1369,12 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
         .extent.depth  = (uint32_t)tDesc.tDimensions.z,
         .mipLevels     = tDesc.uMips,
         .arrayLayers   = tDesc.uLayers,
-        .format        = pl__vulkan_format(tDesc.tFormat),
+        .format        = pl__vulkan_format(tDesc.eFormat),
         .tiling        = VK_IMAGE_TILING_OPTIMAL,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .usage         = tUsageFlags,
+        .usage         = eUsageFlags,
         .sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-        .samples       = ptDesc->tSampleCount == 0 ? VK_SAMPLE_COUNT_1_BIT : ptDesc->tSampleCount,
+        .samples       = ptDesc->eSampleCount == 0 ? VK_SAMPLE_COUNT_1_BIT : ptDesc->eSampleCount,
         .flags         = tImageViewType == VK_IMAGE_VIEW_TYPE_CUBE ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0
     };
     PL_VULKAN(vkCreateImage(ptDevice->tLogicalDevice, &tImageInfo, gptGraphics->ptAllocationCallbacks, &tVulkanTexture.tImage));
@@ -1471,13 +1396,13 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
 }
 
 void
-pl_graphics_set_texture_usage(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
+pl_graphics_set_texture_usage(plCommandBuffer* ptCmdBuffer, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage)
 {
     PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "'set_texture_usage' is now a no-op & obsolete");
 }
 
 void
-pl_graphics_set_texture_usage_ex(plBlitEncoder* ptEncoder, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
+pl_graphics_set_texture_usage_ex(plCommandBuffer* ptCmdBuffer, plTextureHandle tHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages)
 {
     PL_LOG_DEBUG_API_F(gptLog, uLogChannelGraphics, "'set_texture_usage_ex' is now a no-op & obsolete");
 }
@@ -1492,11 +1417,11 @@ pl_graphics_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, 
     PL_VULKAN(vkBindImageMemory(ptDevice->tLogicalDevice, ptVulkanTexture->tImage, (VkDeviceMemory)ptTexture->tMemoryAllocation.uHandle, ptTexture->tMemoryAllocation.ulOffset));
 
     VkImageViewType tImageViewType = 0;
-    if (ptTexture->tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+    if (ptTexture->tDesc.eType == PL_TEXTURE_TYPE_CUBE)
         tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
-    else if (ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
+    else if (ptTexture->tDesc.eType == PL_TEXTURE_TYPE_2D)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
-    else if (ptTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+    else if (ptTexture->tDesc.eType == PL_TEXTURE_TYPE_2D_ARRAY)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     else
     {
@@ -1507,13 +1432,13 @@ pl_graphics_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, 
         .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image            = ptVulkanTexture->tImage,
         .viewType         = tImageViewType,
-        .format           = pl__vulkan_format(ptTexture->tDesc.tFormat),
+        .format           = pl__vulkan_format(ptTexture->tDesc.eFormat),
         .subresourceRange = {
             .baseMipLevel   = ptTexture->tView.uBaseMip,
             .levelCount     = ptTexture->tDesc.uMips,
             .baseArrayLayer = ptTexture->tView.uBaseLayer,
             .layerCount     = ptTexture->tView.uLayerCount,
-            .aspectMask     = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT
+            .aspectMask     = ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT
     }
 
     };
@@ -1525,9 +1450,9 @@ pl_graphics_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, 
     };
     PL_VULKAN(vkBeginCommandBuffer(ptDevice->tCmdBuffer, &tBeginInfo));
 
-    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
-    if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
+    if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.eFormat)))
         tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
     VkImageSubresourceRange tRange = {
@@ -1548,19 +1473,25 @@ pl_graphics_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, 
         .subresourceRange    = tRange,
     };
     
-    if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
+    if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_SAMPLED)
     {
         tBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         tBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
     }
-    else if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+    else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
+        tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        tBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    }
+    else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
     {
         tBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         tBarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     }
-    else if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+    else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
     {
         tBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         tBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1597,9 +1528,10 @@ pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptV
 {
     plTextureHandle tHandle = pl__get_new_texture_handle(ptDevice);
     plTexture* ptOriginalTexture = pl_graphics_get_texture(ptDevice, ptViewDesc->tTexture);
-    plTexture* ptNewTexture = pl_graphics_get_texture(ptDevice, ptViewDesc->tTexture);
+    plTexture* ptNewTexture = pl_graphics_get_texture(ptDevice, tHandle);
     ptNewTexture->tDesc = ptOriginalTexture->tDesc;
-    ptNewTexture->tDesc.tType = ptViewDesc->tType;
+    ptNewTexture->tDesc.eType = ptViewDesc->eType;
+    ptNewTexture->tDesc.pcDebugName = ptViewDesc->pcDebugName;
     ptNewTexture->tView = *ptViewDesc;
     plVulkanTexture* ptOldVulkanTexture = &ptDevice->sbtTexturesHot[ptViewDesc->tTexture.uIndex];
     plVulkanTexture* ptNewVulkanTexture = &ptDevice->sbtTexturesHot[tHandle.uIndex];
@@ -1607,24 +1539,24 @@ pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptV
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     VkImageViewType tImageViewType = 0;
-    if (ptNewTexture->tDesc.tType == PL_TEXTURE_TYPE_CUBE)
+    if (ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_CUBE)
         tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
-    else if (ptNewTexture->tDesc.tType == PL_TEXTURE_TYPE_2D)
+    else if (ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_2D)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
-    else if (ptNewTexture->tDesc.tType == PL_TEXTURE_TYPE_2D_ARRAY)
+    else if (ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_2D_ARRAY)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D; // VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     else
     {
         PL_ASSERT(false && "unsupported texture type");
     }
 
-    VkImageAspectFlags tImageAspectFlags = ptOriginalTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    VkImageAspectFlags tImageAspectFlags = ptOriginalTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
     const VkImageViewCreateInfo tViewInfo = {
         .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image            = ptOldVulkanTexture->tImage,
         .viewType         = tImageViewType,
-        .format           = pl__vulkan_format(ptViewDesc->tFormat),
+        .format           = pl__vulkan_format(ptViewDesc->eFormat),
         .subresourceRange = {
             .baseMipLevel   = ptViewDesc->uBaseMip,
             .levelCount     = ptViewDesc->uMips == 0 ? ptOriginalTexture->tDesc.uMips - ptViewDesc->uBaseMip : ptViewDesc->uMips,
@@ -1635,6 +1567,7 @@ pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptV
     };
     PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, gptGraphics->ptAllocationCallbacks, &ptNewVulkanTexture->tImageView));
     ptNewVulkanTexture->bOriginalView = false;
+    ptNewVulkanTexture->tImage = ptOldVulkanTexture->tImage;
     return tHandle;
 }
 
@@ -1662,12 +1595,12 @@ pl_graphics_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc*
     for (uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
-        if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
+        if(ptConstant->eType == PL_DATA_TYPE_UNSPECIFIED)
             break;
         ptVulkanShader->atSpecializationEntries[i].constantID = ptConstant->uID == 0 ? ptShader->tDesc._uConstantCount : ptConstant->uID;
         ptVulkanShader->atSpecializationEntries[i].offset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
-        uConstantOffset += (uint32_t)pl_graphics_get_data_type_size(ptConstant->tType);
-        ptVulkanShader->atSpecializationEntries[i].size = pl_graphics_get_data_type_size(ptConstant->tType);
+        uConstantOffset += (uint32_t)pl_graphics_get_data_type_size(ptConstant->eType);
+        ptVulkanShader->atSpecializationEntries[i].size = pl_graphics_get_data_type_size(ptConstant->eType);
         ptVulkanShader->szSpecializationSize += ptVulkanShader->atSpecializationEntries[i].size;
         ptShader->tDesc._uConstantCount++;
     }
@@ -1676,9 +1609,9 @@ pl_graphics_create_compute_shader(plDevice* ptDevice, const plComputeShaderDesc*
     ptShader->tDesc._uBindGroupLayoutCount = 0;
     for (uint32_t i = 0; i < 3; i++)
     {
-        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].tStages == PL_SHADER_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].tStages == PL_SHADER_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].tStages == PL_SHADER_STAGE_NONE)
+        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].eStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].eStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].eStages == PL_SHADER_STAGE_NONE)
         {
             ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->tNullDescriptorSetLayout;
         }
@@ -1760,9 +1693,9 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     ptShader->tDesc._uBindGroupLayoutCount = 0;
     for (uint32_t i = 0; i < 3; i++)
     {
-        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].tStages == PL_SHADER_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].tStages == PL_SHADER_STAGE_NONE &&
-            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].tStages == PL_SHADER_STAGE_NONE)
+        if(ptShader->tDesc.atBindGroupLayouts[i].atTextureBindings[0].eStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atBufferBindings[0].eStages == PL_SHADER_STAGE_NONE &&
+            ptShader->tDesc.atBindGroupLayouts[i].atSamplerBindings[0].eStages == PL_SHADER_STAGE_NONE)
         {
             ptVulkanShader->atDescriptorSetLayouts[i] = ptDevice->tNullDescriptorSetLayout;
         }
@@ -1808,7 +1741,7 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 
     for(uint32_t uVtxBufferIdx = 0; uVtxBufferIdx < 2; uVtxBufferIdx++)
     {
-        if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[0].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
+        if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[0].eFormat == PL_VERTEX_FORMAT_UNKNOWN)
             break;
 
         if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].uByteStride != 0)
@@ -1818,10 +1751,10 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         uint32_t uByteStride = 0;
         for (uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
         {
-            if (ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
+            if (ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].eFormat == PL_VERTEX_FORMAT_UNKNOWN)
                 break;
 
-            auCalculatedStrides[uVtxBufferIdx] += pl__get_vertex_attribute_size(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat);
+            auCalculatedStrides[uVtxBufferIdx] += pl__get_vertex_attribute_size(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].eFormat);
             if(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uLocation != 0)
             {
                 abExplicitAttributePosition[uVtxBufferIdx] = true;
@@ -1839,13 +1772,13 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         size_t uOffset = 0;
         for (uint32_t i = 0; i < PL_MAX_VERTEX_ATTRIBUTES; i++)
         {
-            if (ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat == PL_VERTEX_FORMAT_UNKNOWN)
+            if (ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].eFormat == PL_VERTEX_FORMAT_UNKNOWN)
                 break;
             atAttributeDescription[uCurrentAttributeCount].binding = uVtxBufferIdx;
             atAttributeDescription[uCurrentAttributeCount].location = abExplicitAttributePosition[uVtxBufferIdx] ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uLocation : uCurrentAttributeCount;
             atAttributeDescription[uCurrentAttributeCount].offset = abExplicitOffset[uVtxBufferIdx] ? ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].uByteOffset : (uint32_t)uOffset;
-            atAttributeDescription[uCurrentAttributeCount].format = pl__vulkan_vertex_format(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat);
-            uOffset += pl__get_vertex_attribute_size(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].tFormat);
+            atAttributeDescription[uCurrentAttributeCount].format = pl__vulkan_vertex_format(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].eFormat);
+            uOffset += pl__get_vertex_attribute_size(ptDescription->atVertexBufferLayouts[uVtxBufferIdx].atAttributes[i].eFormat);
             uCurrentAttributeCount++;
         }
 
@@ -1871,12 +1804,12 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     for (uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atVertexConstants[i];
-        if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
+        if(ptConstant->eType == PL_DATA_TYPE_UNSPECIFIED)
             break;
         ptVulkanShader->atVertexSpecializationEntries[i].constantID = ptConstant->uID == 0 ? ptShader->tDesc._uVertexConstantCount : ptConstant->uID;
         ptVulkanShader->atVertexSpecializationEntries[i].offset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
-        uConstantOffset += (uint32_t)pl_graphics_get_data_type_size(ptConstant->tType);
-        ptVulkanShader->atVertexSpecializationEntries[i].size = pl_graphics_get_data_type_size(ptConstant->tType);
+        uConstantOffset += (uint32_t)pl_graphics_get_data_type_size(ptConstant->eType);
+        ptVulkanShader->atVertexSpecializationEntries[i].size = pl_graphics_get_data_type_size(ptConstant->eType);
         ptVulkanShader->szVertexSpecializationSize += ptVulkanShader->atVertexSpecializationEntries[i].size;
         ptShader->tDesc._uVertexConstantCount++;
     }
@@ -1885,12 +1818,12 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     for (uint32_t i = 0; i < PL_MAX_SHADER_SPECIALIZATION_CONSTANTS; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atFragmentConstants[i];
-        if(ptConstant->tType == PL_DATA_TYPE_UNSPECIFIED)
+        if(ptConstant->eType == PL_DATA_TYPE_UNSPECIFIED)
             break;
         ptVulkanShader->atFragmentSpecializationEntries[i].constantID = ptConstant->uID == 0 ? ptShader->tDesc._uFragmentConstantCount : ptConstant->uID;
         ptVulkanShader->atFragmentSpecializationEntries[i].offset = ptConstant->uOffset == 0 ? uConstantOffset : ptConstant->uOffset;
-        uConstantOffset += (uint32_t)pl_graphics_get_data_type_size(ptConstant->tType);
-        ptVulkanShader->atFragmentSpecializationEntries[i].size = pl_graphics_get_data_type_size(ptConstant->tType);
+        uConstantOffset += (uint32_t)pl_graphics_get_data_type_size(ptConstant->eType);
+        ptVulkanShader->atFragmentSpecializationEntries[i].size = pl_graphics_get_data_type_size(ptConstant->eType);
         ptVulkanShader->szFragmentSpecializationSize += ptVulkanShader->atFragmentSpecializationEntries[i].size;
         ptShader->tDesc._uFragmentConstantCount++;
     }
@@ -1954,11 +1887,11 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 
     VkPipelineRasterizationStateCreateInfo tRasterizer = {
         .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable        = ptDescription->tGraphicsState.ulDepthClampEnabled ? VK_TRUE : VK_FALSE,
+        .depthClampEnable        = ptDescription->tGraphicsState.bDepthClampEnabled ? VK_TRUE : VK_FALSE,
         .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode             = ptDescription->tGraphicsState.ulWireframe ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL,
+        .polygonMode             = ptDescription->tGraphicsState.bWireframe ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL,
         .lineWidth               = 1.0f,
-        .cullMode                = pl__vulkan_cull((plCullMode)ptDescription->tGraphicsState.ulCullMode),
+        .cullMode                = pl__vulkan_cull((plCullMode)ptDescription->tGraphicsState.eCullMode),
         .frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .depthBiasEnable         = VK_TRUE
     };
@@ -1973,29 +1906,32 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 
     VkPipelineDepthStencilStateCreateInfo tDepthStencil = {
         .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable       = ptDescription->tGraphicsState.ulDepthMode == PL_COMPARE_MODE_ALWAYS ? VK_FALSE : VK_TRUE,
-        .depthWriteEnable      = ptDescription->tGraphicsState.ulDepthWriteEnabled ? VK_TRUE : VK_FALSE,
-        .depthCompareOp        = pl__vulkan_compare((plCompareMode)ptDescription->tGraphicsState.ulDepthMode),
+        .depthTestEnable       = ptDescription->tGraphicsState.eDepthMode == PL_COMPARE_MODE_ALWAYS ? VK_FALSE : VK_TRUE,
+        .depthWriteEnable      = ptDescription->tGraphicsState.bDepthWriteEnabled ? VK_TRUE : VK_FALSE,
+        .depthCompareOp        = pl__vulkan_compare((plCompareMode)ptDescription->tGraphicsState.eDepthMode),
         .depthBoundsTestEnable = VK_FALSE,
         .minDepthBounds        = 0.0f, // Optional,
         .maxDepthBounds        = 1.0f, // Optional,
-        .stencilTestEnable     = ptDescription->tGraphicsState.ulStencilTestEnabled ? VK_TRUE : VK_FALSE,
+        .stencilTestEnable     = ptDescription->tGraphicsState.bStencilTestEnabled ? VK_TRUE : VK_FALSE,
         .back                  = {
-            .compareOp   = pl__vulkan_compare((plCompareMode)ptDescription->tGraphicsState.ulStencilMode),
-            .failOp      = pl__vulkan_stencil_op((plStencilOp)ptDescription->tGraphicsState.ulStencilOpFail),
-            .depthFailOp = pl__vulkan_stencil_op((plStencilOp)ptDescription->tGraphicsState.ulStencilOpDepthFail),
-            .passOp      = pl__vulkan_stencil_op((plStencilOp)ptDescription->tGraphicsState.ulStencilOpPass),
-            .compareMask = (uint32_t)ptDescription->tGraphicsState.ulStencilMask,
-            .writeMask   = (uint32_t)ptDescription->tGraphicsState.ulStencilMask,
-            .reference   = (uint32_t)ptDescription->tGraphicsState.ulStencilRef
+            .compareOp   = pl__vulkan_compare((plCompareMode)ptDescription->tGraphicsState.eStencilMode),
+            .failOp      = pl__vulkan_stencil_op((plStencilOp)ptDescription->tGraphicsState.eStencilOpFail),
+            .depthFailOp = pl__vulkan_stencil_op((plStencilOp)ptDescription->tGraphicsState.eStencilOpDepthFail),
+            .passOp      = pl__vulkan_stencil_op((plStencilOp)ptDescription->tGraphicsState.eStencilOpPass),
+            .compareMask = (uint32_t)ptDescription->tGraphicsState.uStencilMask,
+            .writeMask   = (uint32_t)ptDescription->tGraphicsState.uStencilMask,
+            .reference   = (uint32_t)ptDescription->tGraphicsState.uStencilRef
         }
     };
     tDepthStencil.front = tDepthStencil.back;
 
     // color blending
     VkPipelineColorBlendAttachmentState atColorBlendAttachment[PL_MAX_RENDER_TARGETS] = {0};
+    VkFormat aeColorAttachmentFormats[PL_MAX_RENDER_TARGETS] = {0};
     for (uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
     {
+        if(ptDescription->tRenderAttachmentInfo.aeColorFormats[i] != 0)
+            aeColorAttachmentFormats[i] = pl__vulkan_format(ptDescription->tRenderAttachmentInfo.aeColorFormats[i]);
         atColorBlendAttachment[i].colorWriteMask =
             (ptDescription->atBlendStates[i].uColorWriteMask & PL_COLOR_WRITE_MASK_R ? VK_COLOR_COMPONENT_R_BIT : 0) |
             (ptDescription->atBlendStates[i].uColorWriteMask & PL_COLOR_WRITE_MASK_G ? VK_COLOR_COMPONENT_G_BIT : 0) |
@@ -2004,22 +1940,22 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         atColorBlendAttachment[i].blendEnable = ptDescription->atBlendStates[i].bBlendEnabled ? VK_TRUE : VK_FALSE;
         if (ptDescription->atBlendStates[i].bBlendEnabled)
         {
-            atColorBlendAttachment[i].srcColorBlendFactor = pl__vulkan_blend_factor(ptDescription->atBlendStates[i].tSrcColorFactor);
-            atColorBlendAttachment[i].dstColorBlendFactor = pl__vulkan_blend_factor(ptDescription->atBlendStates[i].tDstColorFactor);
-            atColorBlendAttachment[i].colorBlendOp = pl__vulkan_blend_op(ptDescription->atBlendStates[i].tColorOp);
-            atColorBlendAttachment[i].srcAlphaBlendFactor = pl__vulkan_blend_factor(ptDescription->atBlendStates[i].tSrcAlphaFactor);
-            atColorBlendAttachment[i].dstAlphaBlendFactor = pl__vulkan_blend_factor(ptDescription->atBlendStates[i].tDstAlphaFactor);
-            atColorBlendAttachment[i].alphaBlendOp = pl__vulkan_blend_op(ptDescription->atBlendStates[i].tAlphaOp);
+            atColorBlendAttachment[i].srcColorBlendFactor = pl__vulkan_blend_factor(ptDescription->atBlendStates[i].eSrcColorFactor);
+            atColorBlendAttachment[i].dstColorBlendFactor = pl__vulkan_blend_factor(ptDescription->atBlendStates[i].eDstColorFactor);
+            atColorBlendAttachment[i].colorBlendOp = pl__vulkan_blend_op(ptDescription->atBlendStates[i].eColorOp);
+            atColorBlendAttachment[i].srcAlphaBlendFactor = pl__vulkan_blend_factor(ptDescription->atBlendStates[i].eSrcAlphaFactor);
+            atColorBlendAttachment[i].dstAlphaBlendFactor = pl__vulkan_blend_factor(ptDescription->atBlendStates[i].eDstAlphaFactor);
+            atColorBlendAttachment[i].alphaBlendOp = pl__vulkan_blend_op(ptDescription->atBlendStates[i].eAlphaOp);
         }
     }
 
-    const plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, ptDescription->tRenderPassLayout);
+    // const plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, ptDescription->tRenderPassLayout);
 
     VkPipelineColorBlendStateCreateInfo tColorBlending = {
         .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .logicOpEnable   = VK_FALSE,
         .logicOp         = VK_LOGIC_OP_COPY,
-        .attachmentCount = ptLayout->tDesc.atSubpasses[ptDescription->uSubpassIndex]._uColorAttachmentCount,
+        .attachmentCount = ptDescription->tRenderAttachmentInfo.uColorCount,
         .pAttachments    = atColorBlendAttachment,
         .blendConstants  = {0}
     };
@@ -2029,7 +1965,7 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .sampleShadingEnable  = false,
         .minSampleShading     = 0.2f,
-        .rasterizationSamples = ptDescription->tMSAASampleCount == 0 ? 1 : ptDescription->tMSAASampleCount
+        .rasterizationSamples = ptDescription->eMSAASampleCount == 0 ? 1 : ptDescription->eMSAASampleCount
     };
 
     // create pipelines
@@ -2051,6 +1987,16 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         .pDynamicStates    = tDynamicStateEnables
     };
 
+    // New create info to define color, depth and stencil attachments at pipeline create time
+    VkPipelineRenderingCreateInfo tPipelineRenderingCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .pNext = NULL,
+        .colorAttachmentCount = ptDescription->tRenderAttachmentInfo.uColorCount,
+        .pColorAttachmentFormats = aeColorAttachmentFormats,
+        .depthAttachmentFormat = ptDescription->tRenderAttachmentInfo.eDepthFormat == 0 ? 0 : pl__vulkan_format(ptDescription->tRenderAttachmentInfo.eDepthFormat),
+        .stencilAttachmentFormat = ptDescription->tRenderAttachmentInfo.eStencilFormat == 0 ? 0 : pl__vulkan_format(ptDescription->tRenderAttachmentInfo.eStencilFormat)
+    };
+
     VkGraphicsPipelineCreateInfo tPipelineInfo = {
         .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .stageCount          = uStageCount,
@@ -2063,10 +2009,10 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         .pColorBlendState    = &tColorBlending,
         .pDynamicState       = &tDynamicState,
         .layout              = tVulkanShader.tPipelineLayout,
-        .renderPass          = ptDevice->sbtRenderPassLayoutsHot[ptShader->tDesc.tRenderPassLayout.uIndex].tRenderPass,
-        .subpass             = ptShader->tDesc.uSubpassIndex,
+        .subpass             = 0,
         .basePipelineHandle  = VK_NULL_HANDLE,
-        .pDepthStencilState  = &tDepthStencil
+        .pDepthStencilState  = &tDepthStencil,
+        .pNext               = &tPipelineRenderingCreateInfo
     };
 
     PL_VULKAN(vkCreateGraphicsPipelines(ptDevice->tLogicalDevice, VK_NULL_HANDLE, 1, &tPipelineInfo, gptGraphics->ptAllocationCallbacks, &tVulkanShader.tPipeline));
@@ -2082,177 +2028,6 @@ pl_graphics_get_swapchain_images(plSwapchain* ptSwap, uint32_t* puSizeOut)
     if (puSizeOut)
        *puSizeOut = ptSwap->uImageCount;
     return ptSwap->sbtSwapchainTextureViews;
-}
-
-plRenderPassLayoutHandle
-pl_graphics_create_render_pass_layout(plDevice* ptDevice, const plRenderPassLayoutDesc* ptDesc)
-{
-    const plRenderPassLayoutHandle tHandle = pl__get_new_render_pass_layout_handle(ptDevice);
-    plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, tHandle);
-    ptLayout->tDesc = *ptDesc;
-
-    if (ptDesc->pcDebugName == NULL)
-    {
-        ptLayout->tDesc.pcDebugName = "unnamed render pass layout";
-    }
-
-    plRenderPassCommonData tCommonData = {0};
-    pl__fill_common_render_pass_data(&ptLayout->tDesc, ptLayout, &tCommonData);
-
-    plVulkanRenderPassLayout tVulkanRenderPassLayout = {0};
-
-    const VkRenderPassCreateInfo tRenderPassInfo = {
-        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = ptLayout->_uAttachmentCount,
-        .pAttachments    = tCommonData.atAttachments,
-        .subpassCount    = ptLayout->tDesc._uSubpassCount,
-        .pSubpasses      = tCommonData.atSubpasses,
-        .dependencyCount = tCommonData.uDependencyCount,
-        .pDependencies   = tCommonData.atSubpassDependencies
-    };
-    PL_VULKAN(vkCreateRenderPass(ptDevice->tLogicalDevice, &tRenderPassInfo, gptGraphics->ptAllocationCallbacks, &tVulkanRenderPassLayout.tRenderPass));
-    pl__set_vulkan_object_name(ptDevice, (uint64_t)tVulkanRenderPassLayout.tRenderPass, VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT, ptLayout->tDesc.pcDebugName);
-    ptDevice->sbtRenderPassLayoutsHot[tHandle.uIndex] = tVulkanRenderPassLayout;
-    return tHandle;
-}
-
-plRenderPassHandle
-pl_graphics_create_render_pass(plDevice* ptDevice, const plRenderPassDesc* ptDesc, const plRenderPassAttachments* ptAttachments)
-{
-
-    plRenderPassHandle tHandle = pl__get_new_render_pass_handle(ptDevice);
-    plRenderPass* ptPass = pl_graphics_get_render_pass(ptDevice, tHandle);
-    ptPass->tDesc = *ptDesc;
-
-    if (ptDesc->pcDebugName == NULL)
-    {
-        ptPass->tDesc.pcDebugName = "unnamed render pass";
-    }
-
-    plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, ptDesc->tLayout);
-
-    plRenderPassCommonData tCommonData = {0};
-    pl__fill_common_render_pass_data(&ptLayout->tDesc, ptLayout, &tCommonData);
-
-    plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[tHandle.uIndex];
-
-    // find attachment count & fill out descriptions
-    uint32_t uColorAttachmentCount = 0;
-    for (uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
-    {
-        if (ptLayout->tDesc.atRenderTargets[i].tFormat == PL_FORMAT_UNKNOWN)
-            break;
-
-        tCommonData.atAttachments[i].samples = ptLayout->tDesc.atRenderTargets[i].tSamples == 0 ? 1 : ptLayout->tDesc.atRenderTargets[i].tSamples;
-        if (ptLayout->tDesc.atRenderTargets[i].bDepth)
-        {
-            tCommonData.atAttachments[i].loadOp = pl__vulkan_load_op(ptDesc->tDepthTarget.tLoadOp);
-            tCommonData.atAttachments[i].storeOp = pl__vulkan_store_op(ptDesc->tDepthTarget.tStoreOp);
-            tCommonData.atAttachments[i].stencilLoadOp = pl__vulkan_load_op(ptDesc->tDepthTarget.tStencilLoadOp);
-            tCommonData.atAttachments[i].stencilStoreOp = pl__vulkan_store_op(ptDesc->tDepthTarget.tStencilStoreOp);
-            tCommonData.atAttachments[i].initialLayout = pl__vulkan_layout(ptDesc->tDepthTarget.tPreviousUsage);
-            tCommonData.atAttachments[i].finalLayout = pl__vulkan_layout(ptDesc->tDepthTarget.tNextUsage);
-        }
-        else if (ptLayout->tDesc.atRenderTargets[i].bResolve)
-        {
-            tCommonData.atAttachments[i].loadOp = pl__vulkan_load_op(ptDesc->tResolveTarget.tLoadOp);
-            tCommonData.atAttachments[i].storeOp = pl__vulkan_store_op(ptDesc->tResolveTarget.tStoreOp);
-            tCommonData.atAttachments[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            tCommonData.atAttachments[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            tCommonData.atAttachments[i].initialLayout = pl__vulkan_layout(ptDesc->tResolveTarget.tPreviousUsage);
-            tCommonData.atAttachments[i].finalLayout = pl__vulkan_layout(ptDesc->tResolveTarget.tNextUsage);
-        }
-        else
-        {
-            // from description
-            tCommonData.atAttachments[i].loadOp = pl__vulkan_load_op(ptDesc->atColorTargets[uColorAttachmentCount].tLoadOp);
-            tCommonData.atAttachments[i].storeOp = pl__vulkan_store_op(ptDesc->atColorTargets[uColorAttachmentCount].tStoreOp);
-            tCommonData.atAttachments[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            tCommonData.atAttachments[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            tCommonData.atAttachments[i].initialLayout = pl__vulkan_layout(ptDesc->atColorTargets[uColorAttachmentCount].tPreviousUsage);
-            tCommonData.atAttachments[i].finalLayout = pl__vulkan_layout(ptDesc->atColorTargets[uColorAttachmentCount].tNextUsage);
-            uColorAttachmentCount++;
-        }
-    }
-
-    const VkRenderPassCreateInfo tRenderPassInfo = {
-        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = ptLayout->_uAttachmentCount,
-        .pAttachments    = tCommonData.atAttachments,
-        .subpassCount    = ptLayout->tDesc._uSubpassCount,
-        .pSubpasses      = tCommonData.atSubpasses,
-        .dependencyCount = tCommonData.uDependencyCount,
-        .pDependencies   = tCommonData.atSubpassDependencies
-    };
-    PL_VULKAN(vkCreateRenderPass(ptDevice->tLogicalDevice, &tRenderPassInfo, gptGraphics->ptAllocationCallbacks, &ptVulkanRenderPass->tRenderPass));
-    pl__set_vulkan_object_name(ptDevice, (uint64_t)ptVulkanRenderPass->tRenderPass, VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT, ptPass->tDesc.pcDebugName);
-
-    uint32_t uCount = gptGraphics->uFramesInFlight;
-    if (ptDesc->ptSwapchain)
-        uCount = ptDesc->ptSwapchain->uImageCount;
-
-    for (uint32_t i = 0; i < uCount; i++)
-    {
-        VkImageView atViewAttachments[PL_MAX_RENDER_TARGETS] = {0};
-
-        for (uint32_t j = 0; j < ptLayout->_uAttachmentCount; j++)
-        {
-            atViewAttachments[j] = ptDevice->sbtTexturesHot[ptAttachments[i].atViewAttachments[j].uIndex].tImageView;
-        }
-
-        VkFramebufferCreateInfo tFrameBufferInfo = {
-            .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            .renderPass      = ptVulkanRenderPass->tRenderPass,
-            .attachmentCount = ptLayout->_uAttachmentCount,
-            .pAttachments    = atViewAttachments,
-            .width           = (uint32_t)ptDesc->tDimensions.x,
-            .height          = (uint32_t)ptDesc->tDimensions.y,
-            .layers          = 1
-        };
-        PL_VULKAN(vkCreateFramebuffer(ptDevice->tLogicalDevice, &tFrameBufferInfo, gptGraphics->ptAllocationCallbacks, &ptVulkanRenderPass->atFrameBuffers[i]));
-    }
-    return tHandle;
-}
-
-void
-pl_graphics_update_render_pass_attachments(plDevice* ptDevice, plRenderPassHandle tHandle, plVec2 tDimensions, const plRenderPassAttachments* ptAttachments)
-{
-    plRenderPass* ptRenderPass = pl_graphics_get_render_pass(ptDevice, tHandle);
-
-    plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[tHandle.uIndex];
-    plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, ptRenderPass->tDesc.tLayout);
-    plFrameContext* ptFrame = pl__get_frame_resources(ptDevice);
-    ptRenderPass->tDesc.tDimensions = tDimensions;
-
-    const plRenderPassDesc* ptDesc = &ptRenderPass->tDesc;
-
-    uint32_t uCount = gptGraphics->uFramesInFlight;
-    if (ptDesc->ptSwapchain)
-        uCount = ptDesc->ptSwapchain->uImageCount;
-
-    for (uint32_t i = 0; i < uCount; i++)
-    {
-
-        VkImageView atViewAttachments[PL_MAX_RENDER_TARGETS] = {0};
-
-        for (uint32_t j = 0; j < ptLayout->_uAttachmentCount; j++)
-        {
-            atViewAttachments[j] = ptDevice->sbtTexturesHot[ptAttachments[i].atViewAttachments[j].uIndex].tImageView;
-        }
-
-        VkFramebufferCreateInfo tFrameBufferInfo = {
-            .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-            .renderPass      = ptVulkanRenderPass->tRenderPass,
-            .attachmentCount = ptLayout->_uAttachmentCount,
-            .pAttachments    = atViewAttachments,
-            .width           = (uint32_t)ptDesc->tDimensions.x,
-            .height          = (uint32_t)ptDesc->tDimensions.y,
-            .layers          = 1
-        };
-        pl_sb_push(ptFrame->sbtRawFrameBuffers, ptVulkanRenderPass->atFrameBuffers[i]);
-        ptVulkanRenderPass->atFrameBuffers[i] = VK_NULL_HANDLE;
-        PL_VULKAN(vkCreateFramebuffer(ptDevice->tLogicalDevice, &tFrameBufferInfo, gptGraphics->ptAllocationCallbacks, &ptVulkanRenderPass->atFrameBuffers[i]));
-    }
 }
 
 void
@@ -2309,231 +2084,459 @@ pl_graphics_pop_debug_group(plCommandBuffer* ptCmdBuffer)
 }
 
 void
-pl_graphics_push_render_debug_group(plRenderEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
-{
-
-    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
-
-    if(ptDevice->vkCmdBeginDebugUtilsLabel == NULL)
-        return;
-
-    VkDebugUtilsLabelEXT tLabel = {
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-        .pNext = NULL,
-        .pLabelName = pcLabel,
-        .color = {
-            tColor.r,
-            tColor.g,
-            tColor.b,
-            tColor.a
-        }
-    };
-    ptDevice->vkCmdBeginDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer, &tLabel);
-}
-
-void
-pl_graphics_pop_render_debug_group(plRenderEncoder* ptEncoder)
-{
-    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
-    if(ptDevice->vkCmdEndDebugUtilsLabel)
-        ptDevice->vkCmdEndDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer);
-}
-
-void
-pl_graphics_push_blit_debug_group(plBlitEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
-{
-    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
-
-    if(ptDevice->vkCmdBeginDebugUtilsLabel == NULL)
-        return;
-
-    VkDebugUtilsLabelEXT tLabel = {
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-        .pNext = NULL,
-        .pLabelName = pcLabel,
-        .color = {
-            tColor.r,
-            tColor.g,
-            tColor.b,
-            tColor.a
-        }
-    };
-    ptDevice->vkCmdBeginDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer, &tLabel);
-}
-
-void
-pl_graphics_pop_blit_debug_group(plBlitEncoder* ptEncoder)
-{
-    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
-    if(ptDevice->vkCmdEndDebugUtilsLabel)
-        ptDevice->vkCmdEndDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer);
-}
-
-void
-pl_graphics_push_compute_debug_group(plComputeEncoder* ptEncoder, const char* pcLabel, plVec4 tColor)
-{
-    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
-
-    if(ptDevice->vkCmdBeginDebugUtilsLabel == NULL)
-        return;
-
-    VkDebugUtilsLabelEXT tLabel = {
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-        .pNext = NULL,
-        .pLabelName = pcLabel,
-        .color = {
-            tColor.r,
-            tColor.g,
-            tColor.b,
-            tColor.a
-        }
-    };
-    ptDevice->vkCmdBeginDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer, &tLabel);
-}
-
-void
-pl_graphics_pop_compute_debug_group(plComputeEncoder* ptEncoder)
-{
-    plDevice* ptDevice = ptEncoder->ptCommandBuffer->ptDevice;
-    if(ptDevice->vkCmdEndDebugUtilsLabel)
-        ptDevice->vkCmdEndDebugUtilsLabel(ptEncoder->ptCommandBuffer->tCmdBuffer);
-}
-
-void
-pl_graphics_begin_command_recording(plCommandBuffer* ptCommandBuffer, const plBeginCommandInfo* ptBeginInfo)
+pl_graphics_begin_command_recording(plCommandBuffer* ptCommandBuffer)
 {
     const VkCommandBufferBeginInfo tBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = 0
     };
     PL_VULKAN(vkBeginCommandBuffer(ptCommandBuffer->tCmdBuffer, &tBeginInfo));
-
-    if (ptBeginInfo)
-        ptCommandBuffer->tBeginInfo = *ptBeginInfo;
-    else
-        ptCommandBuffer->tBeginInfo.uWaitSemaphoreCount = UINT32_MAX;
 }
 
-plRenderEncoder*
-pl_graphics_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle tPass, const plPassResources* ptResource)
+void
+pl__graphics_change_texture_role(plCommandBuffer* ptCmdBuffer, plTextureHandle tTexture, plTextureUsage tOldRole,
+    plPassResourceAccess tOldAccess, plTextureUsage tNewRole, plPassResourceAccess tNewAccess)
 {
-
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
-    plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[tPass.uIndex];
+    const plTexture* ptTexture = &ptDevice->sbtTexturesCold[tTexture.uIndex];
+    const plVulkanTexture* ptVulkanTexture = &ptDevice->sbtTexturesHot[tTexture.uIndex];
 
-    // VkDebugUtilsLabelEXT tLabel = {
-    //     .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-    //     .pNext = NULL,
-    //     .pLabelName = ptRenderPass->tDesc.pcDebugName,
-    //     .color[0] = 0.33f,
-    //     .color[1] = 0.02f,
-    //     .color[2] = 0.10f,
-    //     .color[3] = 1.0f
-    // };
+    bool bDepthStencil = ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT;
+    VkImageAspectFlags tImageAspectFlags = bDepthStencil ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
-    // if(ptDevice->vkCmdBeginDebugUtilsLabel)
-    //     ptDevice->vkCmdBeginDebugUtilsLabel(ptCmdBuffer->tCmdBuffer, &tLabel);
+    if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.eFormat)))
+        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
-    plVulkanRenderPass* ptVulkanRenderPass = &ptDevice->sbtRenderPassesHot[tPass.uIndex];
-    plRenderPassLayout* ptLayout = &ptDevice->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
+    VkImageSubresourceRange tRange = {
+        .baseMipLevel   = 0,
+        .levelCount     = 1,
+        .baseArrayLayer = ptTexture->tView.uBaseLayer,
+        .layerCount     = 1,
+        .aspectMask     = tImageAspectFlags
+    };
 
-    if (ptRenderPass->tDesc.ptSwapchain)
+    VkImageMemoryBarrier2KHR tBarrier = {
+        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2_KHR,
+        .oldLayout           = 0,
+        .newLayout           = 0,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image               = ptVulkanTexture->tImage,
+        .subresourceRange    = tRange,
+        .srcAccessMask       = 0,
+        .dstAccessMask       = 0,
+        .srcStageMask        = 0,
+        .dstStageMask        = 0
+    };
+
+    bool bPreviousConfigValid = false;
+    bool bNextConfigValid = false;
+
+    // previous layout stuff
+
+    if(tOldRole == PL_TEXTURE_USAGE_UNSPECIFIED && tOldAccess == PL_PASS_RESOURCE_ACCESS_NONE)
     {
-        VkClearValue atClearValues[PL_MAX_RENDER_TARGETS] = {0};
+        tBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+        bPreviousConfigValid = true;
+    }
 
-        uint32_t uAttachmentCount = 0;
+    if(tOldRole == PL_TEXTURE_USAGE_SAMPLED && tOldAccess == PL_PASS_RESOURCE_ACCESS_READ)
+    {
+        tBarrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        tBarrier.srcAccessMask |= VK_ACCESS_2_SHADER_READ_BIT;
+        tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        bPreviousConfigValid = true;
+    }
 
-        for (uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
+    if(tOldRole == PL_TEXTURE_USAGE_COLOR_ATTACHMENT && tOldAccess == PL_PASS_RESOURCE_ACCESS_READ)
+    {
+        tBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        tBarrier.srcAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+        tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        bPreviousConfigValid = true;
+    }
+
+    if(tOldRole == PL_TEXTURE_USAGE_INPUT_ATTACHMENT && tOldAccess == PL_PASS_RESOURCE_ACCESS_READ)
+    {
+        tBarrier.oldLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
+        if(bDepthStencil)
         {
+            tBarrier.srcAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+        }
+        else
+        {
+            tBarrier.srcAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+            tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        }
+        bPreviousConfigValid = true;
+    }
 
-            if (ptLayout->tDesc.atRenderTargets[i].tFormat == PL_FORMAT_UNKNOWN)
-                break;
+    if(tOldRole == PL_TEXTURE_USAGE_INPUT_ATTACHMENT && tOldAccess == PL_PASS_RESOURCE_ACCESS_WRITE)
+    {
+        tBarrier.oldLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
+        if(bDepthStencil)
+        {
+            tBarrier.srcAccessMask |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+            tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+        }
+        else
+        {
+            tBarrier.srcAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+            tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        }
+        bPreviousConfigValid = true;
+    }
 
-            if (ptLayout->tDesc.atRenderTargets[i].bDepth)
-            {
-                atClearValues[i].depthStencil.depth = ptRenderPass->tDesc.tDepthTarget.fClearZ;
-                atClearValues[i].depthStencil.stencil = ptRenderPass->tDesc.tDepthTarget.uClearStencil;
-            }
-            else
-            {
-                atClearValues[i].color.float32[0] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.r;
-                atClearValues[i].color.float32[1] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.g;
-                atClearValues[i].color.float32[2] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.b;
-                atClearValues[i].color.float32[3] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.a;
-            }
-            uAttachmentCount++;
+    if(tOldRole == PL_TEXTURE_USAGE_COLOR_ATTACHMENT && tOldAccess == PL_PASS_RESOURCE_ACCESS_WRITE)
+    {
+
+        tBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        tBarrier.srcAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+        tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        bPreviousConfigValid = true;
+    }
+
+    if(tOldRole == PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT && tOldAccess == PL_PASS_RESOURCE_ACCESS_READ)
+    {
+        
+        tBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        tBarrier.srcAccessMask |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+        tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+        bPreviousConfigValid = true;
+    }
+
+    if(tOldRole == PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT && tOldAccess == PL_PASS_RESOURCE_ACCESS_WRITE)
+    {
+        
+        tBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        tBarrier.srcAccessMask |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+        tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+        bPreviousConfigValid = true;
+    }
+
+    if(tOldRole == PL_TEXTURE_USAGE_STORAGE && tOldAccess == PL_PASS_RESOURCE_ACCESS_WRITE)
+    {
+        
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        tBarrier.srcAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+        tBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_RESOLVE_BIT | VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        bPreviousConfigValid = true;  
+    }
+
+    // new layout stuff
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    if(tNewRole == PL_TEXTURE_USAGE_PRESENT && tNewAccess == PL_PASS_RESOURCE_ACCESS_READ)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        bNextConfigValid = true;
+    }
+
+    if(tNewRole == PL_TEXTURE_USAGE_INPUT_ATTACHMENT && tNewAccess == PL_PASS_RESOURCE_ACCESS_WRITE)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
+        if(bDepthStencil)
+        {
+            tBarrier.dstAccessMask |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+            tBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+        }
+        else
+        {
+            tBarrier.dstAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+            tBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        }
+        bNextConfigValid = true;
+    }
+
+    if(tNewRole == PL_TEXTURE_USAGE_INPUT_ATTACHMENT && tNewAccess == PL_PASS_RESOURCE_ACCESS_READ)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
+        if(bDepthStencil)
+        {
+            tBarrier.dstAccessMask |= VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT;
+            tBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        }
+        else
+        {
+            tBarrier.dstAccessMask |= VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT;
+            tBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        }
+        bNextConfigValid = true;
+    }
+
+    if(tNewRole == PL_TEXTURE_USAGE_SAMPLED && tNewAccess == PL_PASS_RESOURCE_ACCESS_READ)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        tBarrier.dstAccessMask |= VK_ACCESS_2_SHADER_READ_BIT;
+        tBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        bNextConfigValid = true;
+    }
+
+    if(tNewRole == PL_TEXTURE_USAGE_COLOR_ATTACHMENT && tNewAccess == PL_PASS_RESOURCE_ACCESS_WRITE)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        tBarrier.dstAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+        tBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        bNextConfigValid = true;
+    }
+
+    if(tNewRole == PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT && tNewAccess == PL_PASS_RESOURCE_ACCESS_WRITE)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        tBarrier.dstAccessMask |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+        tBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+        bNextConfigValid = true;
+    }
+
+    if(tNewRole == PL_TEXTURE_USAGE_COLOR_ATTACHMENT && tNewAccess == PL_PASS_RESOURCE_ACCESS_READ)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        tBarrier.dstAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+        tBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        bNextConfigValid = true;
+    }
+
+    if(tNewRole == PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT && tNewAccess == PL_PASS_RESOURCE_ACCESS_READ)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        tBarrier.dstAccessMask |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+        tBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+        bNextConfigValid = true;
+    }
+
+    if(tNewRole == PL_TEXTURE_USAGE_STORAGE && tNewAccess == PL_PASS_RESOURCE_ACCESS_WRITE)
+    {
+        tBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        tBarrier.dstAccessMask |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+        tBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_RESOLVE_BIT | VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+        bNextConfigValid = true;
+    }
+
+    PL_ASSERT(bPreviousConfigValid);
+    PL_ASSERT(bNextConfigValid);
+
+    VkDependencyInfoKHR tDependencyInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+        .dependencyFlags = gptGraphics->bGraphicsEncoderActive ? VK_DEPENDENCY_BY_REGION_BIT : 0,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &tBarrier
+    };
+    vkCmdPipelineBarrier2(ptCmdBuffer->tCmdBuffer, &tDependencyInfo);
+}
+
+void
+pl_graphics_begin_render_pass(plCommandBuffer* ptCmdBuffer, const plRenderInfo* ptInfo, const plPassResources* ptResources)
+{
+    PL_ASSERT(gptGraphics->bGraphicsEncoderActive == false && gptGraphics->bComputeEncoderActive == false);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+    VkRenderingAttachmentInfoKHR atColorAttachments[PL_MAX_RENDER_TARGETS] = {0};
+
+    uint32_t uColorAttachmentCount = 0;
+    plTextureHandle tResolveTexture = {0};
+    for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
+    {
+        if(!pl_graphics_is_texture_valid(ptDevice, ptInfo->atColorAttachments[i].tTexture))
+            break;
+
+        atColorAttachments[i].sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+        atColorAttachments[i].imageView = ptDevice->sbtTexturesHot[ptInfo->atColorAttachments[i].tTexture.uIndex].tImageView;
+        atColorAttachments[i].loadOp = pl__vulkan_load_op(ptInfo->atColorAttachments[i].eLoadOp);
+        atColorAttachments[i].storeOp = pl__vulkan_store_op(ptInfo->atColorAttachments[i].eStoreOp);
+        atColorAttachments[i].clearValue.color.float32[0] = ptInfo->atColorAttachments[i].tClearColor.r;
+        atColorAttachments[i].clearValue.color.float32[1] = ptInfo->atColorAttachments[i].tClearColor.g;
+        atColorAttachments[i].clearValue.color.float32[2] = ptInfo->atColorAttachments[i].tClearColor.b;
+        atColorAttachments[i].clearValue.color.float32[3] = ptInfo->atColorAttachments[i].tClearColor.a;
+        atColorAttachments[i].imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        if(ptInfo->atColorAttachments[i].eUsage == PL_TEXTURE_USAGE_INPUT_ATTACHMENT)
+            atColorAttachments[i].imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
+
+        if(ptInfo->atColorAttachments[i].tResolveTexture.uIndex > 0)
+        {
+            tResolveTexture = ptInfo->atColorAttachments[i].tResolveTexture;
+            atColorAttachments[i].resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+            atColorAttachments[i].resolveImageView = ptDevice->sbtTexturesHot[ptInfo->atColorAttachments[i].tResolveTexture.uIndex].tImageView;
+            atColorAttachments[i].resolveImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        }
+        uColorAttachmentCount++;
+    }
+
+    VkRenderingAttachmentInfo tDepthAttachment = {0};
+    VkRenderingAttachmentInfo tStencilAttachment = {0};
+
+    bool bDepth = false;
+    bool bStencil = false;
+
+    if(pl_graphics_is_texture_valid(ptDevice, ptInfo->tDepthAttachment.tTexture))
+    {
+        tDepthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+        tDepthAttachment.imageView = ptDevice->sbtTexturesHot[ptInfo->tDepthAttachment.tTexture.uIndex].tImageView;
+        tDepthAttachment.loadOp = pl__vulkan_load_op(ptInfo->tDepthAttachment.eLoadOp);
+        tDepthAttachment.storeOp = pl__vulkan_store_op(ptInfo->tDepthAttachment.eStoreOp);
+        tDepthAttachment.clearValue.depthStencil.depth = ptInfo->tDepthAttachment.fClearZ;
+        tDepthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        if(ptInfo->tDepthAttachment.eUsage == PL_TEXTURE_USAGE_INPUT_ATTACHMENT)
+            tDepthAttachment.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
+        bDepth = true;
+    }
+
+    if(pl_graphics_is_texture_valid(ptDevice, ptInfo->tStencilAttachment.tTexture))
+    {
+        tStencilAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+        tStencilAttachment.imageView = ptDevice->sbtTexturesHot[ptInfo->tStencilAttachment.tTexture.uIndex].tImageView;
+        tStencilAttachment.loadOp = pl__vulkan_load_op(ptInfo->tStencilAttachment.eLoadOp);
+        tStencilAttachment.storeOp = pl__vulkan_store_op(ptInfo->tStencilAttachment.eStoreOp);
+        tStencilAttachment.clearValue.depthStencil.stencil= ptInfo->tStencilAttachment.uClearStencil;
+        tStencilAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        if(ptInfo->tStencilAttachment.eUsage == PL_TEXTURE_USAGE_INPUT_ATTACHMENT)
+            tStencilAttachment.imageLayout = VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ;
+        bStencil = true;
+    }
+
+    plPassResources tResources = {0};
+
+    if(ptResources == NULL) // figure it out from render info
+    {
+        
+        for(uint32_t i = 0; i < uColorAttachmentCount; i++)
+        {
+            tResources.atTextures[i].tHandle = ptInfo->atColorAttachments[i].tTexture;
         }
 
-        VkRenderPassBeginInfo tRenderPassInfo = {
-            .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .renderPass      = ptVulkanRenderPass->tRenderPass,
-            .framebuffer     = ptVulkanRenderPass->atFrameBuffers[ptRenderPass->tDesc.ptSwapchain->uCurrentImageIndex],
-            .clearValueCount = uAttachmentCount,
-            .pClearValues    = atClearValues,
-            .renderArea = {
-                .extent = {
-                    .width = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
-                    .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y,
-                }
-            }
-        };
+        uint32_t uCurrentAttachmentIndex = uColorAttachmentCount;
 
-        vkCmdBeginRenderPass(ptCmdBuffer->tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    }
-    else
-    {
-        VkClearValue atClearValues[PL_MAX_RENDER_TARGETS] = {0};
-
-        uint32_t uAttachmentCount = 0;
-
-        for (uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
+        if(bDepth)
         {
-
-            if (ptLayout->tDesc.atRenderTargets[i].tFormat == PL_FORMAT_UNKNOWN)
-                break;
-
-            if (ptLayout->tDesc.atRenderTargets[i].bDepth)
-            {
-                atClearValues[i].depthStencil.depth = ptRenderPass->tDesc.tDepthTarget.fClearZ;
-                atClearValues[i].depthStencil.stencil = ptRenderPass->tDesc.tDepthTarget.uClearStencil;
-            }
-            else
-            {
-                atClearValues[i].color.float32[0] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.r;
-                atClearValues[i].color.float32[1] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.g;
-                atClearValues[i].color.float32[2] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.b;
-                atClearValues[i].color.float32[3] = ptRenderPass->tDesc.atColorTargets[i].tClearColor.a;
-            }
-            uAttachmentCount++;
+            tResources.atTextures[uCurrentAttachmentIndex].tHandle = ptInfo->tDepthAttachment.tTexture;
+            uCurrentAttachmentIndex++;
         }
 
-        VkRenderPassBeginInfo tRenderPassInfo = {
-            .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .renderPass      = ptVulkanRenderPass->tRenderPass,
-            .framebuffer     = ptVulkanRenderPass->atFrameBuffers[gptGraphics->uCurrentFrameIndex],
-            .clearValueCount = uAttachmentCount,
-            .pClearValues    = atClearValues,
-            .renderArea = {
-                .extent = {
-                    .width = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
-                    .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y
+        // if(bStencil)
+        // {
+        //     PL_ASSERT(bDepth);
+        //     tResources.atTextures[uCurrentAttachmentIndex].tHandle = tInfo.tStencilAttachment.tTexture;
+        // }
+
+        if(pl_graphics_is_texture_valid(ptDevice, tResolveTexture))
+        {
+            tResources.atTextures[uCurrentAttachmentIndex].tHandle = tResolveTexture;
+            tResources.atTextures[uCurrentAttachmentIndex].eUsage = PL_TEXTURE_USAGE_STORAGE;
+            tResources.atTextures[uCurrentAttachmentIndex].eAccess = PL_PASS_RESOURCE_ACCESS_WRITE;
+        }
+        
+
+        ptResources = &tResources;
+    }
+
+    // update layouts
+    if(ptResources)
+    {
+        for(uint32_t i = 0; i  < PL_MAX_PASS_RESOURCE_TEXTURES; i++)
+        {
+            if(!pl_graphics_is_texture_valid(ptDevice, ptResources->atTextures[i].tHandle))
+                break;
+
+            const plPassTextureResource* ptResource = &ptResources->atTextures[i];
+            plTextureUsage tOldUsage = PL_TEXTURE_USAGE_UNSPECIFIED;
+            plTextureUsage tNewUsage = ptResource->eUsage;
+
+            plPassResourceAccess tOldAccess = PL_PASS_RESOURCE_ACCESS_NONE;
+            plPassResourceAccess tNewAccess = ptResource->eAccess;
+
+            if(tNewAccess == PL_PASS_RESOURCE_ACCESS_NONE)
+                tNewAccess = PL_PASS_RESOURCE_ACCESS_WRITE;
+
+                
+            const plTexture* ptTexture = &ptDevice->sbtTexturesCold[ptResource->tHandle.uIndex];
+            // const plVulkanTexture* ptVulkanTexture = &ptDevice->sbtTexturesHot[ptResource->tHandle.uIndex];
+
+            bool bDepthStencil = ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT;
+
+            if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_SAMPLED)
+            {
+                tOldUsage = PL_TEXTURE_USAGE_SAMPLED;
+                tOldAccess = PL_PASS_RESOURCE_ACCESS_READ;
+            }
+            else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_PRESENT)
+            {
+                tOldUsage = PL_TEXTURE_USAGE_UNSPECIFIED;
+                tOldAccess = PL_PASS_RESOURCE_ACCESS_NONE;
+            }
+            else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)
+            {
+                tOldUsage = PL_TEXTURE_USAGE_INPUT_ATTACHMENT;
+                tOldAccess = PL_PASS_RESOURCE_ACCESS_READ;
+            }
+            else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+            {
+                tOldUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT;
+                tOldAccess = PL_PASS_RESOURCE_ACCESS_READ;
+            }
+            else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+            {
+                tOldUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT;
+                tOldAccess = PL_PASS_RESOURCE_ACCESS_READ; // TODO: this should probably be write
+            }
+
+            if(tNewUsage == PL_TEXTURE_USAGE_UNSPECIFIED) // auto
+            {
+                if(bDepthStencil)
+                {
+                    PL_ASSERT(pl_graphics_is_texture_valid(ptDevice, ptInfo->tDepthAttachment.tTexture));
+                    tNewUsage = ptInfo->tDepthAttachment.eUsage;
+                }
+                else
+                {
+                    for(uint32_t j = 0; j < uColorAttachmentCount; j++)
+                    {
+                        if(ptInfo->atColorAttachments[j].tTexture.uData == ptResource->tHandle.uData)
+                        {
+                            tNewUsage = ptInfo->atColorAttachments[j].eUsage;
+                            break;
+                        }
+                    }
+
+                    PL_ASSERT(tNewUsage != PL_TEXTURE_USAGE_UNSPECIFIED);
                 }
             }
-        };
 
-        vkCmdBeginRenderPass(ptCmdBuffer->tCmdBuffer, &tRenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            if(tNewAccess != tOldAccess || tOldUsage != tNewUsage)
+            {
+                pl__graphics_change_texture_role(ptCmdBuffer, ptResource->tHandle, tOldUsage, tOldAccess, tNewUsage, tNewAccess);
+            }
+            plPassTextureResource tResource = *ptResource;
+            tResource.eUsage = tNewUsage;
+            tResource.eAccess = tNewAccess;
+            pl_sb_push(ptDevice->sbtPassTextureStack, tResource);
+        }
     }
+
+    VkRenderingInfo tRenderingInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR,
+        .renderArea = {
+            (int32_t)ptInfo->tRenderArea.tMin.x, (int32_t)ptInfo->tRenderArea.tMin.y,
+            (int32_t)ptInfo->tRenderArea.tMax.x, (int32_t)ptInfo->tRenderArea.tMax.y },
+        .layerCount = 1,
+        .colorAttachmentCount = uColorAttachmentCount,
+        .pColorAttachments = atColorAttachments,
+        .pDepthAttachment = bDepth ? &tDepthAttachment : NULL,
+        .pStencilAttachment = bStencil ? &tStencilAttachment : NULL
+    };
+    
+    // Begin dynamic rendering
+	vkCmdBeginRendering(ptCmdBuffer->tCmdBuffer, &tRenderingInfo);
 
     const VkRect2D tScissor = {
         .extent = {
-            .width = (uint32_t)ptRenderPass->tDesc.tDimensions.x,
-            .height = (uint32_t)ptRenderPass->tDesc.tDimensions.y
+            .width = (uint32_t)ptInfo->tRenderArea.tMax.x,
+            .height = (uint32_t)ptInfo->tRenderArea.tMax.y
         }
     };
 
     const VkViewport tViewport = {
-        .width    = ptRenderPass->tDesc.tDimensions.x,
-        .height   = ptRenderPass->tDesc.tDimensions.y,
+        .width    = ptInfo->tRenderArea.tMax.x,
+        .height   = ptInfo->tRenderArea.tMax.y,
         .minDepth = 0.0f,
         .maxDepth = 1.0f
     };
@@ -2541,47 +2544,69 @@ pl_graphics_begin_render_pass(plCommandBuffer* ptCmdBuffer, plRenderPassHandle t
     vkCmdSetViewport(ptCmdBuffer->tCmdBuffer, 0, 1, &tViewport);
     vkCmdSetScissor(ptCmdBuffer->tCmdBuffer, 0, 1, &tScissor);
     vkCmdSetDepthBias(ptCmdBuffer->tCmdBuffer, 0.0f, 0.0f, 1.0f);
-
-    plRenderEncoder* ptEncoder = pl__get_new_render_encoder();
-    ptEncoder->ptCommandBuffer = ptCmdBuffer;
-    ptEncoder->tRenderPassHandle = tPass;
-    ptEncoder->uCurrentSubpass = 0;
-    return ptEncoder;
+    gptGraphics->bGraphicsEncoderActive = true;
 }
 
 void
-pl_graphics_next_subpass(plRenderEncoder* ptEncoder, const plPassResources* ptResource)
+pl_graphics_end_render_pass(plCommandBuffer* ptCmdBuffer)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
-    ptEncoder->uCurrentSubpass++;
-    vkCmdNextSubpass(ptCmdBuffer->tCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
-}
-
-void
-pl_graphics_end_render_pass(plRenderEncoder* ptEncoder)
-{
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
-    plRenderPass* ptRenderPass = &ptDevice->sbtRenderPassesCold[ptEncoder->tRenderPassHandle.uIndex];
-    plRenderPassLayout* ptLayout = &ptDevice->sbtRenderPassLayoutsCold[ptRenderPass->tDesc.tLayout.uIndex];
+    vkCmdEndRendering(ptCmdBuffer->tCmdBuffer);
+    gptGraphics->bGraphicsEncoderActive = false;
 
-    while(ptEncoder->uCurrentSubpass < ptLayout->tDesc._uSubpassCount - 1)
+    const uint32_t uTextureCount = pl_sb_size(ptDevice->sbtPassTextureStack);
+
+    for(uint32_t i = 0; i < uTextureCount; i++)
     {
-        vkCmdNextSubpass(ptCmdBuffer->tCmdBuffer, VK_SUBPASS_CONTENTS_INLINE);
-        ptEncoder->uCurrentSubpass++;
+        const plPassTextureResource* ptResource = &ptDevice->sbtPassTextureStack[i];
+        const plTexture* ptTexture = &ptDevice->sbtTexturesCold[ptResource->tHandle.uIndex];
+
+        plTextureUsage tNewUsage = PL_TEXTURE_USAGE_UNSPECIFIED;
+        plPassResourceAccess tNewAccess = PL_PASS_RESOURCE_ACCESS_NONE;
+
+        bool bDepthStencil = ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT;
+
+        if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_SAMPLED)
+        {
+            tNewUsage = PL_TEXTURE_USAGE_SAMPLED;
+            tNewAccess = PL_PASS_RESOURCE_ACCESS_READ;
+        }
+        else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_PRESENT)
+        {
+            tNewUsage = PL_TEXTURE_USAGE_PRESENT;
+            tNewAccess = PL_PASS_RESOURCE_ACCESS_READ;
+        }
+        else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_INPUT_ATTACHMENT)
+        {
+            tNewUsage = PL_TEXTURE_USAGE_INPUT_ATTACHMENT;
+            tNewAccess = PL_PASS_RESOURCE_ACCESS_READ;
+        }
+        else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+        {
+            tNewUsage = PL_TEXTURE_USAGE_COLOR_ATTACHMENT;
+            tNewAccess = PL_PASS_RESOURCE_ACCESS_READ;
+        }
+        else if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+        {
+            tNewUsage = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT;
+            tNewAccess = PL_PASS_RESOURCE_ACCESS_READ; // TODO: this should probably be write
+        }
+
+        pl__graphics_change_texture_role(ptCmdBuffer, ptResource->tHandle, ptResource->eUsage, ptResource->eAccess, tNewUsage, tNewAccess);
     }
-    vkCmdEndRenderPass(ptCmdBuffer->tCmdBuffer);
 
-    // if(ptDevice->vkCmdEndDebugUtilsLabel)
-    //     ptDevice->vkCmdEndDebugUtilsLabel(ptCmdBuffer->tCmdBuffer);
+    pl_sb_reset(ptDevice->sbtPassTextureStack);
 
-    pl__return_render_encoder(ptEncoder);
+    while(pl_sb_size(ptDevice->sbtBarrierStack) > 0)
+    {
+        plStackedBarrier tBarrier = pl_sb_pop(ptDevice->sbtBarrierStack);
+        pl_graphics_intra_pass_barrier(ptCmdBuffer, tBarrier.tSrcStages, tBarrier.tDstStages, tBarrier.tScope, NULL);
+    }
 }
 
 void
-pl_graphics_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandle)
+pl_graphics_bind_vertex_buffer(plCommandBuffer* ptCmdBuffer, plBufferHandle tHandle)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plVulkanBuffer* ptVertexBuffer = &ptDevice->sbtBuffersHot[tHandle.uIndex];
     static VkDeviceSize offsets = {0};
@@ -2589,9 +2614,8 @@ pl_graphics_bind_vertex_buffer(plRenderEncoder* ptEncoder, plBufferHandle tHandl
 }
 
 void
-pl_graphics_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
+pl_graphics_bind_vertex_buffers(plCommandBuffer* ptCmdBuffer, uint32_t uFirst, uint32_t uCount, const plBufferHandle* ptHandles, const size_t* pszOffsets)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     
     VkBuffer atBuffers[8] = {0};
@@ -2607,9 +2631,8 @@ pl_graphics_bind_vertex_buffers(plRenderEncoder* ptEncoder, uint32_t uFirst, uin
 }
 
 void
-pl_graphics_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw *atDraws)
+pl_graphics_draw(plCommandBuffer* ptCmdBuffer, uint32_t uCount, const plDraw *atDraws)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     for (uint32_t i = 0; i < uCount; i++)
     {
         vkCmdDraw(ptCmdBuffer->tCmdBuffer, atDraws[i].uVertexCount, atDraws[i].uInstanceCount, atDraws[i].uVertexStart, atDraws[i].uInstance);
@@ -2617,9 +2640,8 @@ pl_graphics_draw(plRenderEncoder* ptEncoder, uint32_t uCount, const plDraw *atDr
 }
 
 void
-pl_graphics_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDrawIndex *atDraws)
+pl_graphics_draw_indexed(plCommandBuffer* ptCmdBuffer, uint32_t uCount, const plDrawIndex *atDraws)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     uint32_t uCurrentIndexBuffer = UINT32_MAX;
@@ -2637,28 +2659,25 @@ pl_graphics_draw_indexed(plRenderEncoder* ptEncoder, uint32_t uCount, const plDr
 }
 
 void
-pl_graphics_bind_shader(plRenderEncoder* ptEncoder, plShaderHandle tHandle)
+pl_graphics_bind_shader(plCommandBuffer* ptCmdBuffer, plShaderHandle tHandle)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plVulkanShader* ptVulkanShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
     vkCmdBindPipeline(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, ptVulkanShader->tPipeline);
 }
 
 void
-pl_graphics_bind_compute_shader(plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle)
+pl_graphics_bind_compute_shader(plCommandBuffer* ptCmdBuffer, plComputeShaderHandle tHandle)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
     plVulkanComputeShader* ptVulkanShader = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
     vkCmdBindPipeline(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptVulkanShader->tPipeline);
 }
 
 void
-pl_graphics_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawArea *atAreas)
+pl_graphics_draw_stream(plCommandBuffer* ptCmdBuffer, uint32_t uAreaCount, plDrawArea *atAreas)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plFrameContext* ptCurrentFrame = pl__get_frame_resources(ptDevice);
@@ -2828,7 +2847,7 @@ pl_graphics_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawA
                 uTriangleCount = ptStream->_auStream[uCurrentStreamIndex];
                 uCurrentStreamIndex++;
             }
-
+ 
             if (uDirtyMask & PL_DRAW_STREAM_BIT_INSTANCE_OFFSET)
             {
                 uInstanceStart = ptStream->_auStream[uCurrentStreamIndex];
@@ -2854,17 +2873,14 @@ pl_graphics_draw_stream(plRenderEncoder* ptEncoder, uint32_t uAreaCount, plDrawA
 }
 
 void
-pl_graphics_set_depth_bias(plRenderEncoder* ptEncoder, float fDepthBiasConstantFactor, float fDepthBiasClamp, float fDepthBiasSlopeFactor)
+pl_graphics_set_depth_bias(plCommandBuffer* ptCmdBuffer, float fDepthBiasConstantFactor, float fDepthBiasClamp, float fDepthBiasSlopeFactor)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     vkCmdSetDepthBias(ptCmdBuffer->tCmdBuffer, fDepthBiasConstantFactor, fDepthBiasClamp, fDepthBiasSlopeFactor);
 }
 
 void
-pl_graphics_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptViewport)
+pl_graphics_set_viewport(plCommandBuffer* ptCmdBuffer, const plRenderViewport* ptViewport)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
-
     const VkViewport tViewport = {
         .x        = ptViewport->fX,
         .y        = ptViewport->fY,
@@ -2877,10 +2893,8 @@ pl_graphics_set_viewport(plRenderEncoder* ptEncoder, const plRenderViewport* ptV
 }
 
 void
-pl_graphics_set_scissor_region(plRenderEncoder* ptEncoder, const plScissor* ptScissor)
+pl_graphics_set_scissor_region(plCommandBuffer* ptCmdBuffer, const plScissor* ptScissor)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
-
     const VkRect2D tScissor = {
         .offset = {
             .x = ptScissor->iOffsetX,
@@ -3069,7 +3083,7 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
     // save context for hot-reloads
     gptDataRegistry->set_data("plGraphics", gptGraphics);
 
-    gptGraphics->bValidationActive = ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
+    gptGraphics->bValidationActive = ptDesc->eFlags & PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED;
 
     gptGraphics->bDebugMessengerActive = gptGraphics->bValidationActive;
 
@@ -3090,7 +3104,7 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
     const char *apcExtensions[64] = {0};
 
     // if swapchain option is enabled, add required extensions
-    if (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED)
+    if (ptDesc->eFlags & PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED)
     {
         apcExtensions[uExtensionCount++] = VK_KHR_SURFACE_EXTENSION_NAME;
         
@@ -3202,7 +3216,7 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
     // create vulkan tInstance
     const VkApplicationInfo tAppInfo = {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .apiVersion = VK_API_VERSION_1_2};
+        .apiVersion = VK_API_VERSION_1_4};
 
     const void* pCreateInfoNext = VK_NULL_HANDLE;
 
@@ -3216,13 +3230,13 @@ pl_graphics_initialize(const plGraphicsInit* ptDesc)
             .pfnUserCallback = pl__debug_callback,
             .pNext = VK_NULL_HANDLE};
 
-        // if (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_TRACE)
+        // if (ptDesc->eFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_TRACE)
         //     tDebugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
-        // else if ((ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_DEBUG) || (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO))
+        // else if ((ptDesc->eFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_DEBUG) || (ptDesc->eFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_INFO))
         tDebugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
-        // else if (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING)
+        // else if (ptDesc->eFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_WARNING)
         //     tDebugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
-        // else if (ptDesc->tFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR)
+        // else if (ptDesc->eFlags & PL_GRAPHICS_INIT_FLAGS_LOGGING_ERROR)
         //     tDebugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 
         pCreateInfoNext = &tDebugCreateInfo;
@@ -3288,32 +3302,32 @@ pl_graphics_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCoun
         VkPhysicalDeviceMemoryProperties tMemProps = {0};
         vkGetPhysicalDeviceMemoryProperties(atDevices[i], &tMemProps);
 
-        atDeviceInfo[i].tMaxSampleCount = VK_SAMPLE_COUNT_1_BIT;
+        atDeviceInfo[i].eMaxSampleCount = VK_SAMPLE_COUNT_1_BIT;
 
         VkSampleCountFlags tCounts = tProps.limits.framebufferColorSampleCounts & tProps.limits.framebufferDepthSampleCounts;
         if (tCounts & VK_SAMPLE_COUNT_64_BIT)
         {
-            atDeviceInfo[i].tMaxSampleCount = VK_SAMPLE_COUNT_64_BIT;
+            atDeviceInfo[i].eMaxSampleCount = VK_SAMPLE_COUNT_64_BIT;
         }
         else if (tCounts & VK_SAMPLE_COUNT_32_BIT)
         {
-            atDeviceInfo[i].tMaxSampleCount = VK_SAMPLE_COUNT_32_BIT;
+            atDeviceInfo[i].eMaxSampleCount = VK_SAMPLE_COUNT_32_BIT;
         }
         else if (tCounts & VK_SAMPLE_COUNT_16_BIT)
         {
-            atDeviceInfo[i].tMaxSampleCount = VK_SAMPLE_COUNT_16_BIT;
+            atDeviceInfo[i].eMaxSampleCount = VK_SAMPLE_COUNT_16_BIT;
         }
         else if (tCounts & VK_SAMPLE_COUNT_8_BIT)
         {
-            atDeviceInfo[i].tMaxSampleCount = VK_SAMPLE_COUNT_8_BIT;
+            atDeviceInfo[i].eMaxSampleCount = VK_SAMPLE_COUNT_8_BIT;
         }
         else if (tCounts & VK_SAMPLE_COUNT_4_BIT)
         {
-            atDeviceInfo[i].tMaxSampleCount = VK_SAMPLE_COUNT_4_BIT;
+            atDeviceInfo[i].eMaxSampleCount = VK_SAMPLE_COUNT_4_BIT;
         }
         else if (tCounts & VK_SAMPLE_COUNT_2_BIT)
         {
-            atDeviceInfo[i].tMaxSampleCount = VK_SAMPLE_COUNT_2_BIT;
+            atDeviceInfo[i].eMaxSampleCount = VK_SAMPLE_COUNT_2_BIT;
         }
 
         strncpy(atDeviceInfo[i].acName, tProps.deviceName, 256);
@@ -3324,31 +3338,31 @@ pl_graphics_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCoun
         switch (tProps.deviceType)
         {
         case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
-            atDeviceInfo[i].tType = PL_DEVICE_TYPE_DISCRETE;
+            atDeviceInfo[i].eType = PL_DEVICE_TYPE_DISCRETE;
             break;
         case VK_PHYSICAL_DEVICE_TYPE_CPU:
-            atDeviceInfo[i].tType = PL_DEVICE_TYPE_CPU;
+            atDeviceInfo[i].eType = PL_DEVICE_TYPE_CPU;
             break;
         case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
-            atDeviceInfo[i].tType = PL_DEVICE_TYPE_INTEGRATED;
+            atDeviceInfo[i].eType = PL_DEVICE_TYPE_INTEGRATED;
             break;
         default:
-            atDeviceInfo[i].tType = PL_DEVICE_TYPE_NONE;
+            atDeviceInfo[i].eType = PL_DEVICE_TYPE_NONE;
         }
 
         switch (tProps.vendorID)
         {
         case 0x1002:
-            atDeviceInfo[i].tVendorId = PL_VENDOR_ID_AMD;
+            atDeviceInfo[i].eVendorId = PL_VENDOR_ID_AMD;
             break;
         case 0x10DE:
-            atDeviceInfo[i].tVendorId = PL_VENDOR_ID_NVIDIA;
+            atDeviceInfo[i].eVendorId = PL_VENDOR_ID_NVIDIA;
             break;
         case 0x8086:
-            atDeviceInfo[i].tVendorId = PL_VENDOR_ID_INTEL;
+            atDeviceInfo[i].eVendorId = PL_VENDOR_ID_INTEL;
             break;
         default:
-            atDeviceInfo[i].tVendorId = PL_VENDOR_ID_NONE;
+            atDeviceInfo[i].eVendorId = PL_VENDOR_ID_NONE;
         }
 
         for (uint32_t j = 0; j < tMemProps.memoryHeapCount; j++)
@@ -3367,7 +3381,7 @@ pl_graphics_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCoun
         for (uint32_t j = 0; j < uExtensionCount; j++)
         {
             if (pl_str_equal(ptExtensions[j].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME))
-                atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_SWAPCHAIN;
+                atDeviceInfo[i].eCapabilities |= PL_DEVICE_CAPABILITY_SWAPCHAIN;
         }
         pl_temp_allocator_reset(&gptGraphics->tTempAllocator);
 
@@ -3379,8 +3393,8 @@ pl_graphics_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCoun
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
             .pNext = &tDeviceFeatures12};
 
-        if(tDeviceFeatures.shaderFloat64) atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_SHADER_FLOAT_64;
-        if(tDeviceFeatures.shaderInt64)   atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_SHADER_INT_64;
+        if(tDeviceFeatures.shaderFloat64) atDeviceInfo[i].eCapabilities |= PL_DEVICE_CAPABILITY_SHADER_FLOAT_64;
+        if(tDeviceFeatures.shaderInt64)   atDeviceInfo[i].eCapabilities |= PL_DEVICE_CAPABILITY_SHADER_INT_64;
 
         // create logical device
         tDeviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
@@ -3396,7 +3410,7 @@ pl_graphics_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCoun
         if (tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing &&
             tDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind)
         {
-            atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING;
+            atDeviceInfo[i].eCapabilities |= PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING;
             // PL_ASSERT(tDescriptorIndexingFeatures.shaderUniformBufferArrayNonUniformIndexing);
             // PL_ASSERT(tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind);
             // PL_ASSERT(tDescriptorIndexingFeatures.shaderStorageBufferArrayNonUniformIndexing);
@@ -3404,10 +3418,10 @@ pl_graphics_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCoun
         }
 
         if (tDeviceFeatures.samplerAnisotropy)
-            atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY;
+            atDeviceInfo[i].eCapabilities |= PL_DEVICE_CAPABILITY_SAMPLER_ANISOTROPY;
 
         if (tDeviceFeatures.multiViewport)
-            atDeviceInfo[i].tCapabilities |= PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS;
+            atDeviceInfo[i].eCapabilities |= PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS;
     }
 }
 
@@ -3419,8 +3433,6 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     memset(ptDevice, 0, sizeof(plDevice));
     ptDevice->tInit = *ptInit;
 
-    pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
-    pl_sb_add(ptDevice->sbtRenderPassesHot);
     pl_sb_add(ptDevice->sbtShadersHot);
     pl_sb_add(ptDevice->sbtComputeShadersHot);
     pl_sb_add(ptDevice->sbtBuffersHot);
@@ -3430,7 +3442,6 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     pl_sb_add(ptDevice->sbtBindGroupsHot);
     pl_sb_add(ptDevice->sbtBindGroupLayoutsHot);
     
-    pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
     pl_sb_add(ptDevice->sbtShadersCold);
     pl_sb_add(ptDevice->sbtComputeShadersCold);
     pl_sb_add(ptDevice->sbtBuffersCold);
@@ -3439,7 +3450,6 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     pl_sb_add(ptDevice->sbtBindGroupsCold);
     pl_sb_add(ptDevice->sbtBindGroupLayoutsCold);
 
-    pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtShadersCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtComputeShadersCold)._uGeneration = 1;
     pl_sb_back(ptDevice->sbtBuffersCold)._uGeneration = 1;
@@ -3518,13 +3528,14 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
         apcDeviceExts[0] = VK_EXT_DEBUG_MARKER_EXTENSION_NAME;
         uDeviceExtensionCount++;
     }
-    if (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_SWAPCHAIN)
+    if (ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_SWAPCHAIN)
         apcDeviceExts[uDeviceExtensionCount++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
     #if defined(__APPLE__)
         apcDeviceExts[uDeviceExtensionCount++] = "VK_KHR_portability_subset";
     #endif
 
     apcDeviceExts[uDeviceExtensionCount++] = VK_EXT_SHADER_VIEWPORT_INDEX_LAYER_EXTENSION_NAME;
+    // apcDeviceExts[uDeviceExtensionCount++] = VK_KHR_DYNAMIC_RENDERING_LOCAL_READ_EXTENSION_NAME;
 
     // get device features
     VkPhysicalDeviceFeatures tDeviceFeatures = {0};
@@ -3540,6 +3551,16 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     tDeviceFeatures2.pNext = &tDescriptorIndexingFeatures;
     tDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 
+    VkPhysicalDeviceVulkan13Features tDeviceFeatures13 = {0};
+    tDeviceFeatures13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    tDeviceFeatures13.dynamicRendering = VK_TRUE;
+    tDeviceFeatures12.pNext = &tDeviceFeatures13;
+
+    VkPhysicalDeviceVulkan14Features tDeviceFeatures14 = {0};
+    tDeviceFeatures14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
+    tDeviceFeatures14.dynamicRenderingLocalRead = VK_TRUE;
+    tDeviceFeatures13.pNext = &tDeviceFeatures14;
+
     vkGetPhysicalDeviceFeatures(ptDevice->tPhysicalDevice, &tDeviceFeatures);
     vkGetPhysicalDeviceFeatures2(ptDevice->tPhysicalDevice, &tDeviceFeatures2);
 
@@ -3549,8 +3570,6 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
         .pQueueCreateInfos       = atQueueCreateInfos,
         .pEnabledFeatures        = &tDeviceFeatures,
         .ppEnabledExtensionNames = apcDeviceExts,
-        .enabledLayerCount       = gptGraphics->bValidationActive ? 1 : 0,
-        .ppEnabledLayerNames     = gptGraphics->bValidationActive ? &pcValidationLayers : NULL,
         .enabledExtensionCount   = uDeviceExtensionCount,
         .pNext                   = &tDeviceFeatures12
     };
@@ -3587,7 +3606,7 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
         .poolSizeCount = 2,
         .pPoolSizes    = atPoolSizes
     };
-    if (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING)
+    if (ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING)
     {
         tDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
     }
@@ -3648,7 +3667,7 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
         PL_VULKAN(vkAllocateDescriptorSets(ptDevice->tLogicalDevice, &tNullAllocInfo, &ptDevice->tNullDecriptorSet));
 
         plBufferDesc tDummyBufferDescription = {
-            .tUsage      = PL_BUFFER_USAGE_UNIFORM,
+            .eUsage      = PL_BUFFER_USAGE_UNIFORM,
             .szByteSize  = 64,
             .pcDebugName = "dummy buffer"
         };
@@ -3700,7 +3719,7 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
         // dynamic buffer stuff
         // pl_sb_resize(tFrame.sbtDynamicBuffers, 1);
         // plBufferDesc tStagingBufferDescription0 = {
-        //     .tUsage      = PL_BUFFER_USAGE_UNIFORM,
+        //     .eUsage      = PL_BUFFER_USAGE_UNIFORM,
         //     .szByteSize  = ptDevice->tInit.szDynamicBufferBlockSize,
         //     .pcDebugName = "dynamic buffer"
         // };
@@ -3853,10 +3872,10 @@ pl_graphics_create_swapchain(plDevice* ptDevice, plSurface* ptSurface, const plS
     ptSwap->ptDevice = ptDevice;
     ptSwap->uImageCount = UINT32_MAX;
     pl_sb_reserve(ptSwap->sbtRenderFinish, 16);
-    ptSwap->tInfo.tFormat = PL_FORMAT_B8G8R8A8_UNORM;
-    ptSwap->tInfo.tSampleCount = pl_min(ptInit->tSampleCount, ptSwap->ptDevice->tInfo.tMaxSampleCount);
-    if(ptSwap->tInfo.tSampleCount == 0)
-        ptSwap->tInfo.tSampleCount = 1;
+    ptSwap->tInfo.eFormat = PL_FORMAT_B8G8R8A8_UNORM;
+    ptSwap->tInfo.eSampleCount = pl_min(ptInit->eSampleCount, ptSwap->ptDevice->tInfo.eMaxSampleCount);
+    if(ptSwap->tInfo.eSampleCount == 0)
+        ptSwap->tInfo.eSampleCount = 1;
 
     plIO* ptIOCtx = gptIOI->get_io();
     pl__create_swapchain((uint32_t)ptIOCtx->tMainViewportSize.x, (uint32_t)ptIOCtx->tMainViewportSize.y, ptSwap);
@@ -3941,29 +3960,26 @@ pl_graphics_present(plCommandBuffer* ptCmdBuffer, const plSubmitInfo* ptSubmitIn
 
     VkSemaphore atSignalSemaphores[PL_MAX_TIMELINE_SEMAPHORES + 1] = {0};
 
-    if(ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount != UINT32_MAX)
+    if(ptSubmitInfo)
     {
-        for (uint32_t i = 0; i < ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount; i++)
+        for (uint32_t i = 0; i < ptSubmitInfo->uWaitSemaphoreCount; i++)
         {
-            atWaitSemaphores[i] = ptCmdBuffer->tBeginInfo.atWaitSempahores[i]->tSemaphore;
+            atWaitSemaphores[i] = ptSubmitInfo->atWaitSempahores[i]->tSemaphore;
             atWaitStages[i] = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
         }
         for(uint32_t i = 0; i < uSwapchainCount; i++)
         {
-            atWaitSemaphores[ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount + i] = ptSwaps[i]->atImageAvailable[gptGraphics->uCurrentFrameIndex];
-            atWaitStages[ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount + i] = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+            atWaitSemaphores[ptSubmitInfo->uWaitSemaphoreCount + i] = ptSwaps[i]->atImageAvailable[gptGraphics->uCurrentFrameIndex];
+            atWaitStages[ptSubmitInfo->uWaitSemaphoreCount + i] = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
         }
 
-        tTimelineInfo.waitSemaphoreValueCount = ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount + uSwapchainCount;
-        tTimelineInfo.pWaitSemaphoreValues = ptCmdBuffer->tBeginInfo.auWaitSemaphoreValues;
+        tTimelineInfo.waitSemaphoreValueCount = ptSubmitInfo->uWaitSemaphoreCount + uSwapchainCount;
+        tTimelineInfo.pWaitSemaphoreValues = ptSubmitInfo->auWaitSemaphoreValues;
 
         tSubmitInfo.pNext = &tTimelineInfo;
         tSubmitInfo.pWaitSemaphores = atWaitSemaphores;
-        tSubmitInfo.waitSemaphoreCount = ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount + uSwapchainCount;
-    }
+        tSubmitInfo.waitSemaphoreCount = ptSubmitInfo->uWaitSemaphoreCount + uSwapchainCount;
 
-    if (ptSubmitInfo)
-    {
         for (uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
             atSignalSemaphores[i] = ptSubmitInfo->atSignalSempahores[i]->tSemaphore;
@@ -4017,15 +4033,15 @@ pl_graphics_recreate_swapchain(plSwapchain* ptSwap, const plSwapchainInit* ptIni
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
     plDevice* ptDevice = ptSwap->ptDevice;
-    VkSurfaceCapabilitiesKHR tCapabilities = {0};
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &tCapabilities));
+    VkSurfaceCapabilitiesKHR eCapabilities = {0};
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &eCapabilities));
 
     ptSwap->tInfo.bVSync = ptInit->bVSync;
-    ptSwap->tInfo.uWidth = tCapabilities.currentExtent.width;
-    ptSwap->tInfo.uHeight = tCapabilities.currentExtent.height;
-    ptSwap->tInfo.tSampleCount = pl_min(ptInit->tSampleCount, ptSwap->ptDevice->tInfo.tMaxSampleCount);
-    if(ptSwap->tInfo.tSampleCount == 0)
-        ptSwap->tInfo.tSampleCount = 1;
+    ptSwap->tInfo.uWidth = eCapabilities.currentExtent.width;
+    ptSwap->tInfo.uHeight = eCapabilities.currentExtent.height;
+    ptSwap->tInfo.eSampleCount = pl_min(ptInit->eSampleCount, ptSwap->ptDevice->tInfo.eMaxSampleCount);
+    if(ptSwap->tInfo.eSampleCount == 0)
+        ptSwap->tInfo.eSampleCount = 1;
 
     pl__create_swapchain(ptInit->uWidth, ptInit->uHeight, ptSwap);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -4076,10 +4092,11 @@ pl_graphics_cleanup_device(plDevice* ptDevice)
 {
 
     vkDeviceWaitIdle(ptDevice->tLogicalDevice);
+    pl_sb_free(ptDevice->sbtPassTextureStack);
 
     for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtTexturesHot); i++)
     {
-        if (ptDevice->sbtTexturesHot[i].tImage && ptDevice->sbtTexturesHot[i].bOriginalView)
+        if (ptDevice->sbtTexturesHot[i].tImage && ptDevice->sbtTexturesHot[i].bOriginalView && !ptDevice->sbtTexturesHot[i].bSwapchain)
         {
             vkDestroyImage(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[i].tImage, gptGraphics->ptAllocationCallbacks);
         }
@@ -4144,12 +4161,6 @@ pl_graphics_cleanup_device(plDevice* ptDevice)
             vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptDevice->sbtBindGroupLayoutsHot[i].tDescriptorSetLayout, gptGraphics->ptAllocationCallbacks);
     }
 
-    for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtRenderPassLayoutsHot); i++)
-    {
-        if (ptDevice->sbtRenderPassLayoutsHot[i].tRenderPass)
-            vkDestroyRenderPass(ptDevice->tLogicalDevice, ptDevice->sbtRenderPassLayoutsHot[i].tRenderPass, gptGraphics->ptAllocationCallbacks);
-    }
-
     vkDestroyDescriptorSetLayout(ptDevice->tLogicalDevice, ptDevice->tDynamicDescriptorSetLayout, gptGraphics->ptAllocationCallbacks);
     pl_sb_free(ptDevice->sbtTexturesHot);
     pl_sb_free(ptDevice->sbtSamplersHot);
@@ -4183,19 +4194,6 @@ pl_graphics_cleanup_device(plDevice* ptDevice)
     }
     pl_sb_free(ptDevice->sbtFrames);
 
-    for (uint32_t i = 0; i < pl_sb_size(ptDevice->sbtRenderPassesHot); i++)
-    {
-        if (ptDevice->sbtRenderPassesHot[i].tRenderPass)
-            vkDestroyRenderPass(ptDevice->tLogicalDevice, ptDevice->sbtRenderPassesHot[i].tRenderPass, gptGraphics->ptAllocationCallbacks);
-
-        for (uint32_t j = 0; j < 6; j++)
-        {
-            if (ptDevice->sbtRenderPassesHot[i].atFrameBuffers[j])
-                vkDestroyFramebuffer(ptDevice->tLogicalDevice, ptDevice->sbtRenderPassesHot[i].atFrameBuffers[j], gptGraphics->ptAllocationCallbacks);
-            ptDevice->sbtRenderPassesHot[i].atFrameBuffers[j] = VK_NULL_HANDLE;
-        }
-    }
-
     vkDestroyDescriptorPool(ptDevice->tLogicalDevice, ptDevice->tDynamicBufferDescriptorPool, gptGraphics->ptAllocationCallbacks);
 
     vkDestroyCommandPool(ptDevice->tLogicalDevice, ptDevice->tCmdPool, gptGraphics->ptAllocationCallbacks);
@@ -4207,195 +4205,429 @@ pl_graphics_cleanup_device(plDevice* ptDevice)
         if (tFunc != NULL)
             tFunc(gptGraphics->tInstance, gptGraphics->tDbgMessenger, gptGraphics->ptAllocationCallbacks);
     }
-    pl_sb_free(ptDevice->sbtRenderPassesHot);
     pl_sb_free(ptDevice->sbtBindGroupLayoutFreeIndices);
-    pl_sb_free(ptDevice->sbtRenderPassLayoutsHot);
 
     pl__cleanup_common_device(ptDevice);
 }
 
 void
-pl_graphics_pipeline_barrier(plCommandBuffer* ptCommandBuffer, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
-{
-    VkMemoryBarrier tMemoryBarrier = {
-        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .srcAccessMask = pl__vulkan_access_flags(beforeAccesses),
-        .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
-    };
-
-    VkPipelineStageFlagBits tSrcStageMask = pl_vulkan_pipeline_stage_flags(beforeStages);
-    VkPipelineStageFlagBits tDstStageMask = pl_vulkan_pipeline_stage_flags(afterStages);
-
-    vkCmdPipelineBarrier(ptCommandBuffer->tCmdBuffer, tSrcStageMask, tDstStageMask, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
-}
-
-void
-pl_graphics_pipeline_barrier_blit(plBlitEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
-{
-    VkMemoryBarrier tMemoryBarrier = {
-        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .srcAccessMask = pl__vulkan_access_flags(beforeAccesses),
-        .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
-    };
-
-    VkPipelineStageFlagBits tSrcStageMask = pl_vulkan_pipeline_stage_flags(beforeStages);
-    VkPipelineStageFlagBits tDstStageMask = pl_vulkan_pipeline_stage_flags(afterStages);
-
-    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, tSrcStageMask, tDstStageMask, 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
-}
-
-void
-pl_graphics_pipeline_barrier_compute(plComputeEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
-{
-    VkMemoryBarrier tMemoryBarrier = {
-        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .srcAccessMask = pl__vulkan_access_flags(beforeAccesses),
-        .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
-    };
-
-    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_pipeline_stage_flags(beforeStages), pl_vulkan_pipeline_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
-
-    // VkImageMemoryBarrier tBarrier = {
-    //     .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-    //     .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    //     .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
-    //     .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    //     .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-    //     .image               = ptVulkanTexture->tImage,
-    //     .subresourceRange    = tRange,
-    //     .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-    //     .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
-    // };
-
-    // vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
-
-}
-
-void
-pl_graphics_pipeline_barrier_render(plRenderEncoder* ptEncoder, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses)
-{
-    VkMemoryBarrier tMemoryBarrier = {
-        .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-        .srcAccessMask = pl__vulkan_access_flags(beforeAccesses),
-        .dstAccessMask = pl__vulkan_access_flags(afterAccesses)
-    };
-
-    vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, pl_vulkan_pipeline_stage_flags(beforeStages), pl_vulkan_pipeline_stage_flags(afterStages), 0, 1, &tMemoryBarrier, 0, NULL, 0, NULL);
-}
-
-plComputeEncoder*
 pl_graphics_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResources* ptResources)
 {
-    plComputeEncoder* ptEncoder = pl__get_new_compute_encoder();
-    ptEncoder->ptCommandBuffer = ptCmdBuffer;
+    PL_ASSERT(gptGraphics->bGraphicsEncoderActive == false && gptGraphics->bComputeEncoderActive == false);
+    gptGraphics->bComputeEncoderActive = true;
+
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     if(ptResources)
     {
-        
-        for(uint32_t i = 0; i < ptResources->uTextureCount; i++)
+
+        for(uint32_t i = 0; i < PL_MAX_PASS_RESOURCE_TEXTURES; i++)
         {
+            if(!pl_graphics_is_texture_valid(ptDevice, ptResources->atTextures[i].tHandle))
+                break;
+
             const plPassTextureResource* ptResource = &ptResources->atTextures[i];
             const plTexture* ptTexture = &ptCmdBuffer->ptDevice->sbtTexturesCold[ptResource->tHandle.uIndex];
             const plVulkanTexture* ptVulkanTexture = &ptCmdBuffer->ptDevice->sbtTexturesHot[ptResource->tHandle.uIndex];
 
-            // check if layout needed
-            if(ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_SAMPLED)
+            if(ptResource->eUsage == PL_TEXTURE_USAGE_STORAGE)
             {
-                VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
-                if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
+                // check if layout needed
+                if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_SAMPLED)
+                {
+                    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+                    if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.eFormat)))
+                        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
+
+                    VkImageSubresourceRange tRange = {
+                        .baseMipLevel   = 0,
+                        .levelCount     = ptTexture->tDesc.uMips,
+                        .baseArrayLayer = 0,
+                        .layerCount     = ptTexture->tDesc.uLayers,
+                        .aspectMask     = tImageAspectFlags
+                    };
+
+                    VkImageMemoryBarrier tBarrier = {
+                        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                        .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
+                        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .image               = ptVulkanTexture->tImage,
+                        .subresourceRange    = tRange
+                    };
+
+                    VkPipelineStageFlagBits tSrcStageFlags = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+                    VkPipelineStageFlagBits tDstStageFlags = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+                    if(ptResource->eAccess & PL_PASS_RESOURCE_ACCESS_READ)
+                    {
+                        
+                        tBarrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+
+                        tBarrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+                        if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+                        {
+                            tSrcStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                            tBarrier.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                        }
+                        if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+                        {
+                            // tSrcStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // TODO: does depth go here?
+                            tBarrier.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+                        }
+                    }
+                    if(ptResource->eAccess & PL_PASS_RESOURCE_ACCESS_WRITE)
+                    {
+                        tBarrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+
+                        tBarrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+                        if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+                        {
+                            tSrcStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                            tBarrier.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+                        }
+                        if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+                        {
+                            // tSrcStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // TODO: does depth go here?
+                            tBarrier.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+                        }
+                    }
+
+                    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, tSrcStageFlags, tDstStageFlags, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+
+                    
+                }
+            }
+            pl_sb_push(ptDevice->sbtPassTextureStack, *ptResource);
+        }
+    }
+}
+
+void
+pl_graphics_end_compute_pass(plCommandBuffer* ptCmdBuffer)
+{
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+
+    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtPassTextureStack); i++)
+    {
+        const plPassTextureResource* ptResource = &ptDevice->sbtPassTextureStack[i];
+        const plTexture* ptTexture = &ptDevice->sbtTexturesCold[ptResource->tHandle.uIndex];
+        const plVulkanTexture* ptVulkanTexture = &ptDevice->sbtTexturesHot[ptResource->tHandle.uIndex];
+
+        if(ptResource->eUsage == PL_TEXTURE_USAGE_STORAGE)
+        {
+            // check if layout needed
+            if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_SAMPLED)
+            {
+                VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+                if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.eFormat)))
                     tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
-                VkImageSubresourceRange tRange = {
-                    .baseMipLevel   = 0,
-                    .levelCount     = ptTexture->tDesc.uMips,
-                    .baseArrayLayer = 0,
-                    .layerCount     = ptTexture->tDesc.uLayers,
-                    .aspectMask     = tImageAspectFlags
-                };
+                    VkImageSubresourceRange tRange = {
+                        .baseMipLevel   = 0,
+                        .levelCount     = ptTexture->tDesc.uMips,
+                        .baseArrayLayer = 0,
+                        .layerCount     = ptTexture->tDesc.uLayers,
+                        .aspectMask     = tImageAspectFlags
+                    };
 
-                VkImageMemoryBarrier tBarrier = {
-                    .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                    .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
-                    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                    .image               = ptVulkanTexture->tImage,
-                    .subresourceRange    = tRange,
-                    .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-                    .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
-                };
+                    VkImageMemoryBarrier tBarrier = {
+                        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                        .oldLayout           = 0,
+                        .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                        .image               = ptVulkanTexture->tImage,
+                        .subresourceRange    = tRange,
+                        .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
+                    };
 
-                vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+                    VkPipelineStageFlagBits tSrcStageFlags = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
+                    VkPipelineStageFlagBits tDstStageFlags = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
-                pl_sb_push(ptEncoder->sbtTextures, ptResource->tHandle);
+                    if(ptResource->eAccess & PL_PASS_RESOURCE_ACCESS_READ)
+                    {
+                        
+                        tBarrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+
+                        tBarrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+                        if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+                        {
+                            tDstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                            tBarrier.dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                        }
+                        if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+                        {
+                            // tDstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // TODO: does depth go here?
+                            tBarrier.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+                        }
+                    }
+                    if(ptResource->eAccess & PL_PASS_RESOURCE_ACCESS_WRITE)
+                    {
+                        tBarrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+
+                        tBarrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+                        if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_COLOR_ATTACHMENT)
+                        {
+                            tDstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                            tBarrier.dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+                        }
+                        if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
+                        {
+                            // tDstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // TODO: does depth go here?
+                            tBarrier.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+                        }
+                    }
+
+                    vkCmdPipelineBarrier(ptCmdBuffer->tCmdBuffer, tSrcStageFlags, tDstStageFlags, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+                }
             }
+        }
+    pl_sb_reset(ptDevice->sbtPassTextureStack);
+    gptGraphics->bComputeEncoderActive = false;
+}
+
+void
+pl_graphics_intra_pass_barrier(plCommandBuffer* ptCmdBuffer, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages, plBarrierScope tScope, const plPassResources* ptResources)
+{
+    // PL_ASSERT(gptGraphics->bGraphicsEncoderActive || gptGraphics->bComputeEncoderActive);
+    plDevice* ptDevice = ptCmdBuffer->ptDevice;
+
+    if(ptResources)
+    {
+
+        const uint32_t uTextureCount = pl_sb_size(ptDevice->sbtPassTextureStack);
+
+        for(uint32_t i = 0; i  < PL_MAX_PASS_RESOURCE_TEXTURES; i++)
+        {
+            if(!pl_graphics_is_texture_valid(ptDevice, ptResources->atTextures[i].tHandle))
+                break;
+
+            const plPassTextureResource* ptNewResource = &ptResources->atTextures[i];
+            plPassTextureResource* ptOldResource = NULL;
+            for(uint32_t j = 0; j < uTextureCount; j++)
+            {
+                const plPassTextureResource* ptResource = &ptDevice->sbtPassTextureStack[j];
+                if(ptResource->tHandle.uData == ptResources->atTextures[i].tHandle.uData)
+                {
+                    ptOldResource = &ptDevice->sbtPassTextureStack[j];
+                    break;
+                }  
+            }
+            PL_ASSERT(ptOldResource != NULL);
+
+            pl__graphics_change_texture_role(ptCmdBuffer, ptOldResource->tHandle, ptOldResource->eUsage, ptOldResource->eAccess, ptNewResource->eUsage, ptNewResource->eAccess);
+            ptOldResource->eAccess = ptNewResource->eAccess;
+            ptOldResource->eUsage = ptNewResource->eUsage;
+            ptOldResource->eStages = ptNewResource->eStages;
         }
     }
 
-    return ptEncoder;
-}
+    PL_ASSERT(tSrcStages != 0);
+    PL_ASSERT(tDstStages != 0);
 
-void
-pl_graphics_end_compute_pass(plComputeEncoder* ptEncoder)
-{
-    for(uint32_t i = 0; i < pl_sb_size(ptEncoder->sbtTextures); i++)
+    VkMemoryBarrier2KHR tMemoryBarrier = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2_KHR,
+    };
+
+    if(tSrcStages & PL_PIPELINE_STAGE_COMPUTE)
     {
-        const plTexture* ptTexture = &ptEncoder->ptCommandBuffer->ptDevice->sbtTexturesCold[ptEncoder->sbtTextures[i].uIndex];
-        const plVulkanTexture* ptVulkanTexture = &ptEncoder->ptCommandBuffer->ptDevice->sbtTexturesHot[ptEncoder->sbtTextures[i].uIndex];
+        tMemoryBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
 
-    VkImageAspectFlags tImageAspectFlags = ptTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        if(tScope & PL_BARRIER_SCOPE_BUFFERS)
+        {
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+        }
 
-    if (pl__format_has_stencil(pl__vulkan_format(ptTexture->tDesc.tFormat)))
-        tImageAspectFlags |= VK_IMAGE_ASPECT_STENCIL_BIT;
-
-        VkImageSubresourceRange tRange = {
-            .baseMipLevel   = 0,
-            .levelCount     = ptTexture->tDesc.uMips,
-            .baseArrayLayer = 0,
-            .layerCount     = ptTexture->tDesc.uLayers,
-            .aspectMask     = tImageAspectFlags
-        };
-
-        VkImageMemoryBarrier tBarrier = {
-            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .oldLayout           = 0,
-            .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image               = ptVulkanTexture->tImage,
-            .subresourceRange    = tRange,
-            .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT
-        };
-
-        vkCmdPipelineBarrier(ptEncoder->ptCommandBuffer->tCmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &tBarrier);
+        if(tScope & PL_BARRIER_SCOPE_TEXTURES)
+        {
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+        }
     }
-    pl__return_compute_encoder(ptEncoder);
-}
 
-plBlitEncoder*
-pl_graphics_begin_blit_pass(plCommandBuffer* ptCmdBuffer)
-{
-    PL_ASSERT(gptGraphics->bEncoderActive == false);
-    gptGraphics->bEncoderActive = true;
-    plBlitEncoder* ptEncoder = pl__get_new_blit_encoder();
-    ptEncoder->ptCommandBuffer = ptCmdBuffer;
-    return ptEncoder;
+    if(tSrcStages & PL_PIPELINE_STAGE_BLIT)
+    {
+        tMemoryBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+
+        if(tScope & PL_BARRIER_SCOPE_BUFFERS)
+        {
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_TRANSFER_READ_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_TRANSFER_WRITE_BIT;
+        }
+        
+        if(tScope & PL_BARRIER_SCOPE_TEXTURES)
+        {
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_TRANSFER_READ_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_TRANSFER_WRITE_BIT;
+        }
+    }
+
+    
+    if(!gptGraphics->bGraphicsEncoderActive && tSrcStages & PL_PIPELINE_STAGE_VERTEX)
+    {
+        tMemoryBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
+        tMemoryBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+
+        if(tScope & PL_BARRIER_SCOPE_BUFFERS)
+        {
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_INDEX_READ_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_UNIFORM_READ_BIT;
+        }
+        
+        if(tScope & PL_BARRIER_SCOPE_TEXTURES)
+        {
+            // tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+        }
+    }
+
+    if(tSrcStages & PL_PIPELINE_STAGE_FRAGMENT)
+    {
+        tMemoryBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        tMemoryBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+        tMemoryBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+        tMemoryBarrier.srcStageMask |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        if(tScope & PL_BARRIER_SCOPE_BUFFERS)
+        {
+            // tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_UNIFORM_READ_BIT;
+        }
+        
+        if(tScope & PL_BARRIER_SCOPE_TEXTURES)
+        {
+            // tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+            tMemoryBarrier.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        }
+    }
+
+    if(tDstStages & PL_PIPELINE_STAGE_COMPUTE)
+    {
+        tMemoryBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+
+        if(tScope & PL_BARRIER_SCOPE_BUFFERS)
+        {
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+        }
+
+        if(tScope & PL_BARRIER_SCOPE_TEXTURES)
+        {
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+        }
+    }
+
+    if(tDstStages & PL_PIPELINE_STAGE_BLIT)
+    {
+        tMemoryBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+
+        if(tScope & PL_BARRIER_SCOPE_BUFFERS)
+        {
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_TRANSFER_READ_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_TRANSFER_WRITE_BIT;
+        }
+        
+        if(tScope & PL_BARRIER_SCOPE_TEXTURES)
+        {
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_TRANSFER_READ_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_TRANSFER_WRITE_BIT;
+        }
+    }
+
+    if(!gptGraphics->bGraphicsEncoderActive && tDstStages & PL_PIPELINE_STAGE_VERTEX)
+    {
+        tMemoryBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
+        tMemoryBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+
+        if(tScope & PL_BARRIER_SCOPE_BUFFERS)
+        {
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_INDEX_READ_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_UNIFORM_READ_BIT;
+        }
+        
+        if(tScope & PL_BARRIER_SCOPE_TEXTURES)
+        {
+            // tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+        }
+    }
+
+    if(tSrcStages & PL_PIPELINE_STAGE_FRAGMENT)
+    {
+        tMemoryBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        tMemoryBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+        tMemoryBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+        tMemoryBarrier.dstStageMask |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        if(tScope & PL_BARRIER_SCOPE_BUFFERS)
+        {
+            // tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_UNIFORM_READ_BIT;
+        }
+        
+        if(tScope & PL_BARRIER_SCOPE_TEXTURES)
+        {
+            // tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+            tMemoryBarrier.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        }
+    }
+    VkDependencyInfoKHR tDependencyInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR,
+        .dependencyFlags = gptGraphics->bGraphicsEncoderActive ? VK_DEPENDENCY_BY_REGION_BIT : 0,
+        .memoryBarrierCount = 1,
+        .pMemoryBarriers = &tMemoryBarrier
+    };
+    vkCmdPipelineBarrier2(ptCmdBuffer->tCmdBuffer, &tDependencyInfo);
 }
 
 void
-pl_graphics_end_blit_pass(plBlitEncoder* ptEncoder)
+pl_graphics_consumer_barrier(plCommandBuffer* ptCmdBuffer, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages, plBarrierScope tScope)
 {
-    pl__return_blit_encoder(ptEncoder);
-    gptGraphics->bEncoderActive = false;
+    PL_ASSERT(gptGraphics->bGraphicsEncoderActive == false && gptGraphics->bComputeEncoderActive == false);
+    pl_graphics_intra_pass_barrier(ptCmdBuffer, tSrcStages, tDstStages, tScope, NULL);
 }
 
 void
-pl_graphics_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const plDispatch *atDispatches)
+pl_graphics_producer_barrier(plCommandBuffer* ptCmdBuffer, plPipelineStageFlags tSrcStages, plPipelineStageFlags tDstStages, plBarrierScope tScope)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
+    PL_ASSERT(gptGraphics->bGraphicsEncoderActive || gptGraphics->bComputeEncoderActive);
+    plStackedBarrier tBarrier = {
+        .tSrcStages = tSrcStages,
+        .tDstStages = tDstStages,
+        .tScope = tScope
+    };
+    pl_sb_push(ptCmdBuffer->ptDevice->sbtBarrierStack, tBarrier);
+}
 
+void
+pl_graphics_dispatch(plCommandBuffer* ptCmdBuffer, uint32_t uDispatchCount, const plDispatch *atDispatches)
+{
     for (uint32_t i = 0; i < uDispatchCount; i++)
     {
         const plDispatch* ptDispatch = &atDispatches[i];
@@ -4404,11 +4636,8 @@ pl_graphics_dispatch(plComputeEncoder* ptEncoder, uint32_t uDispatchCount, const
 }
 
 void
-pl_graphics_bind_compute_bind_groups(
-    plComputeEncoder* ptEncoder, plComputeShaderHandle tHandle, uint32_t uFirst,
-    uint32_t uCount, const plBindGroupHandle *atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
+pl_graphics_bind_compute_bind_groups(plCommandBuffer* ptCmdBuffer, plComputeShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle *atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plVulkanComputeShader* ptShader = &ptDevice->sbtComputeShadersHot[tHandle.uIndex];
@@ -4451,13 +4680,11 @@ pl_graphics_bind_compute_bind_groups(
 }
 
 void
-pl_graphics_bind_graphics_bind_groups(plRenderEncoder* ptEncoder, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle *atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
+pl_graphics_bind_graphics_bind_groups(plCommandBuffer* ptCmdBuffer, plShaderHandle tHandle, uint32_t uFirst, uint32_t uCount, const plBindGroupHandle *atBindGroups, uint32_t uDynamicBindingCount, const plDynamicBinding* ptDynamicBinding)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plVulkanShader* ptShader = &ptDevice->sbtShadersHot[tHandle.uIndex];
-
 
     uint32_t uDummyByteOffset = 0;
     const uint32_t* puOffsets = &uDummyByteOffset;
@@ -4519,25 +4746,19 @@ pl_graphics_submit_command_buffer(plCommandBuffer* ptCmdBuffer, const plSubmitIn
         .pNext = NULL,
     };
 
-    if (ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount != UINT32_MAX)
+    if (ptSubmitInfo)
     {
-        for (uint32_t i = 0; i < ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount; i++)
+        for (uint32_t i = 0; i < ptSubmitInfo->uWaitSemaphoreCount; i++)
         {
-            atWaitSemaphores[i] = ptCmdBuffer->tBeginInfo.atWaitSempahores[i]->tSemaphore;
+            atWaitSemaphores[i] = ptSubmitInfo->atWaitSempahores[i]->tSemaphore;
             atWaitStages[i] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
         }
 
-        tTimelineInfo.waitSemaphoreValueCount = ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount;
-        tTimelineInfo.pWaitSemaphoreValues = ptCmdBuffer->tBeginInfo.auWaitSemaphoreValues;
-
-        tSubmitInfo.pNext = &tTimelineInfo;
+        tTimelineInfo.waitSemaphoreValueCount = ptSubmitInfo->uWaitSemaphoreCount;
+        tTimelineInfo.pWaitSemaphoreValues = ptSubmitInfo->auWaitSemaphoreValues;
         tSubmitInfo.pWaitSemaphores = atWaitSemaphores;
         tSubmitInfo.pWaitDstStageMask = atWaitStages;
-        tSubmitInfo.waitSemaphoreCount = ptCmdBuffer->tBeginInfo.uWaitSemaphoreCount;
-    }
-
-    if (ptSubmitInfo)
-    {
+        tSubmitInfo.waitSemaphoreCount = ptSubmitInfo->uWaitSemaphoreCount;
 
         for (uint32_t i = 0; i < ptSubmitInfo->uSignalSemaphoreCount; i++)
         {
@@ -4637,10 +4858,10 @@ pl_graphics_create_bind_group_pool(plDevice* ptDevice, const plBindGroupPoolDesc
         .pPoolSizes    = atPoolSizes
     };
 
-    if(ptDesc->tFlags &  PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET)
+    if(ptDesc->eFlags &  PL_BIND_GROUP_POOL_FLAGS_INDIVIDUAL_RESET)
         tDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
-    if (ptDevice->tInfo.tCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING)
+    if (ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING)
     {
         tDescriptorPoolInfo.flags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT;
     }
@@ -4695,7 +4916,7 @@ pl_graphics_cleanup_command_pool(plCommandPool* ptPool)
 }
 
 void
-pl_graphics_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags tFlags)
+pl_graphics_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags eFlags)
 {
     const uint32_t uCommandBufferCount = pl_sb_size(ptPool->sbtPendingCommandBuffers);
     for (uint32_t i = 0; i < uCommandBufferCount; i++)
@@ -4703,7 +4924,7 @@ pl_graphics_reset_command_pool(plCommandPool* ptPool, plCommandPoolResetFlags tF
         pl_sb_push(ptPool->sbtReadyCommandBuffers, ptPool->sbtPendingCommandBuffers[i]);
     }
     pl_sb_reset(ptPool->sbtPendingCommandBuffers);
-    if(tFlags & PL_COMMAND_POOL_RESET_FLAG_FREE_RESOURCES)
+    if(eFlags & PL_COMMAND_POOL_RESET_FLAG_FREE_RESOURCES)
     {
         PL_VULKAN(vkResetCommandPool(ptPool->ptDevice->tLogicalDevice, ptPool->tCmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT));
     }
@@ -4770,9 +4991,8 @@ pl_graphics_request_command_buffer(plCommandPool* ptPool, const char* pcDebugNam
 }
 
 void
-pl_graphics_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBufferHandle tDestination, uint64_t uSourceOffset, uint64_t uDestinationOffset, size_t szSize)
+pl_graphics_copy_buffer(plCommandBuffer* ptCmdBuffer, plBufferHandle tSource, plBufferHandle tDestination, uint64_t uSourceOffset, uint64_t uDestinationOffset, size_t szSize)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     const VkBufferCopy tCopyRegion = {
@@ -4785,9 +5005,8 @@ pl_graphics_copy_buffer(plBlitEncoder* ptEncoder, plBufferHandle tSource, plBuff
 }
 
 void
-pl_graphics_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_graphics_copy_buffer_to_texture(plCommandBuffer* ptCmdBuffer, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
-    plCommandBuffer* ptCmdBuffer = ptEncoder->ptCommandBuffer;
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
     plTexture* ptColdTexture = pl_graphics_get_texture(ptDevice, tTextureHandle);
@@ -4798,7 +5017,7 @@ pl_graphics_copy_buffer_to_texture(plBlitEncoder* ptEncoder, plBufferHandle tBuf
 
     for (uint32_t i = 0; i < uRegionCount; i++)
     {
-        atSubResourceRanges[i].aspectMask = ptColdTexture->tDesc.tUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+        atSubResourceRanges[i].aspectMask = ptColdTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
         atSubResourceRanges[i].baseMipLevel = ptRegions[i].uMipLevel;
         atSubResourceRanges[i].levelCount = 1;
         atSubResourceRanges[i].baseArrayLayer = ptRegions[i].uBaseArrayLayer;
@@ -4921,37 +5140,6 @@ pl_graphics_destroy_bind_group_layout(plDevice* ptDevice, plBindGroupLayoutHandl
 }
 
 void
-pl_graphics_destroy_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
-{
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy render pass %u immediately", tHandle.uIndex);
-    ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration++;
-
-    plVulkanRenderPass* ptVulkanResource = &ptDevice->sbtRenderPassesHot[tHandle.uIndex];
-    for (uint32_t j = 0; j < gptGraphics->uFramesInFlight; j++)
-    {
-        if (ptVulkanResource->atFrameBuffers[j])
-            vkDestroyFramebuffer(ptDevice->tLogicalDevice, ptVulkanResource->atFrameBuffers[j], gptGraphics->ptAllocationCallbacks);
-        ptVulkanResource->atFrameBuffers[j] = VK_NULL_HANDLE;
-    }
-    if (ptVulkanResource->tRenderPass)
-        vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, gptGraphics->ptAllocationCallbacks);
-    ptVulkanResource->tRenderPass = VK_NULL_HANDLE;
-    pl_sb_push(ptDevice->sbtRenderPassFreeIndices, tHandle.uIndex);
-}
-
-void
-pl_graphics_destroy_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
-{
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy render pass layout %u immediately", tHandle.uIndex);
-    ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration++;
-
-    plVulkanRenderPassLayout* ptVulkanResource = &ptDevice->sbtRenderPassLayoutsHot[tHandle.uIndex];
-    vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, gptGraphics->ptAllocationCallbacks);
-    ptVulkanResource->tRenderPass = VK_NULL_HANDLE;
-    pl_sb_push(ptDevice->sbtRenderPassLayoutFreeIndices, tHandle.uIndex);
-}
-
-void
 pl_graphics_destroy_shader(plDevice* ptDevice, plShaderHandle tHandle)
 {
     PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy shader %u immediately", tHandle.uIndex);
@@ -4996,138 +5184,6 @@ pl_graphics_destroy_compute_shader(plDevice* ptDevice, plComputeShaderHandle tHa
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
-static void
-pl__fill_common_render_pass_data(plRenderPassLayoutDesc* ptDesc, plRenderPassLayout* ptLayout, plRenderPassCommonData* ptDataOut)
-{
-    ptDesc->_uSubpassCount = 0;
-    ptDataOut->uDependencyCount = 0;
-    ptLayout->_uAttachmentCount = 0;
-    ptDataOut->uColorAttachmentCount = 0;
-
-    // find attachment count & descriptions
-    for (uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
-    {
-        if (ptDesc->atRenderTargets[i].tFormat == PL_FORMAT_UNKNOWN)
-            break;
-
-        ptDataOut->atAttachments[i].format = pl__vulkan_format(ptDesc->atRenderTargets[i].tFormat);
-        ptDataOut->atAttachments[i].samples = (ptDesc->atRenderTargets[i].tSamples == 0) ? 1 : ptDesc->atRenderTargets[i].tSamples;
-
-        if (ptDesc->atRenderTargets[i].bDepth)
-        {
-            // overwritten by actual renderpass
-            ptDataOut->atAttachments[i].initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            ptDataOut->atAttachments[i].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-            ptDataOut->tDepthAttachmentReference.attachment = i;
-            ptDataOut->tDepthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        }
-        else if (ptDesc->atRenderTargets[i].bResolve)
-        {
-            // overwritten by actual renderpass
-            ptDataOut->atAttachments[i].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            ptDataOut->atAttachments[i].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-            ptDataOut->tResolveAttachmentReference.attachment = i;
-            ptDataOut->tResolveAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        }
-        else
-        {
-            // overwritten by actual renderpass
-            ptDataOut->atAttachments[i].initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            ptDataOut->atAttachments[i].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            ptDataOut->uColorAttachmentCount++;
-        }
-        ptLayout->_uAttachmentCount++;
-    }
-
-    // fill out subpasses
-    for (uint32_t i = 0; i < PL_MAX_SUBPASSES; i++)
-    {
-        plSubpass* ptSubpass = &ptDesc->atSubpasses[i];
-
-        if(ptSubpass->uRenderTargetCount == 0 && ptSubpass->uSubpassInputCount == 0)
-            break;
-
-        ptDesc->_uSubpassCount++;
-
-        ptSubpass->_uColorAttachmentCount = 0;
-        ptDataOut->atSubpasses[i].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-
-        // render targets
-        uint32_t uCurrentColorAttachment = 0;
-        for (uint32_t j = 0; j < ptSubpass->uRenderTargetCount; j++)
-        {
-            if (ptDesc->atRenderTargets[ptSubpass->auRenderTargets[j]].bDepth)
-            {
-                ptDataOut->atSubpasses[i].pDepthStencilAttachment = &ptDataOut->tDepthAttachmentReference;
-            }
-            else if (ptDesc->atRenderTargets[ptSubpass->auRenderTargets[j]].bResolve)
-            {
-                ptDataOut->atSubpasses[i].pResolveAttachments = &ptDataOut->tResolveAttachmentReference;
-            }
-            else
-            {
-                ptDataOut->atSubpassColorAttachmentReferences[i][uCurrentColorAttachment].attachment = ptSubpass->auRenderTargets[j];
-                ptDataOut->atSubpassColorAttachmentReferences[i][uCurrentColorAttachment].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-                uCurrentColorAttachment++;
-                ptSubpass->_uColorAttachmentCount++;
-            }
-        }
-        ptDataOut->atSubpasses[i].colorAttachmentCount = uCurrentColorAttachment;
-        ptDataOut->atSubpasses[i].pColorAttachments = ptDataOut->atSubpassColorAttachmentReferences[i];
-
-        // input attachments
-        for (uint32_t j = 0; j < ptSubpass->uSubpassInputCount; j++)
-        {
-            const uint32_t uInput = ptSubpass->auSubpassInputs[j];
-            ptDataOut->atSubpassInputAttachmentReferences[i][j].attachment = uInput;
-            ptDataOut->atSubpassInputAttachmentReferences[i][j].layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        }
-        ptDataOut->atSubpasses[i].inputAttachmentCount = ptSubpass->uSubpassInputCount;
-        ptDataOut->atSubpasses[i].pInputAttachments = ptDataOut->atSubpassInputAttachmentReferences[i];
-    }
-
-    // TODO: be smart about this
-
-
-    ptDataOut->atSubpassDependencies[0] = (VkSubpassDependency){
-        .srcSubpass      = UINT32_MAX,
-        .dstSubpass      = 0,
-        .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-        .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
-    };
-    ptDataOut->uDependencyCount++;
-
-    for(uint32_t i = 1; i < ptDesc->_uSubpassCount; i++)
-    {
-        ptDataOut->atSubpassDependencies[i] = (VkSubpassDependency){
-            .srcSubpass      = i - 1,
-            .dstSubpass      = i,
-            .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-            .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-            .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .dstAccessMask   = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
-        };
-        ptDataOut->uDependencyCount++;
-    }
-
-    ptDataOut->atSubpassDependencies[ptDesc->_uSubpassCount] = (VkSubpassDependency){
-        .srcSubpass      = ptDesc->_uSubpassCount - 1,
-        .dstSubpass      = UINT32_MAX,
-        .srcStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .srcAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-        .dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
-    };
-    ptDataOut->uDependencyCount++;
-}
-
 static plDeviceMemoryAllocation
 pl__allocate_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, uint32_t uTypeFilter, uint64_t ulSize, uint64_t ulAlignment, const char* pcName)
 {
@@ -5164,14 +5220,14 @@ pl__free_staging_dynamic(struct plDeviceMemoryAllocatorO* ptInst, plDeviceMemory
 }
 
 static VkFormat
-pl__find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags tFlags, const VkFormat* ptFormats, uint32_t uFormatCount)
+pl__find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags eFlags, const VkFormat* peFormats, uint32_t uFormatCount)
 {
     for (uint32_t i = 0u; i < uFormatCount; i++)
     {
         VkFormatProperties tProps = {0};
-        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, ptFormats[i], &tProps);
-        if (tProps.optimalTilingFeatures & tFlags)
-            return ptFormats[i];
+        vkGetPhysicalDeviceFormatProperties(ptDevice->tPhysicalDevice, peFormats[i], &tProps);
+        if (tProps.optimalTilingFeatures & eFlags)
+            return peFormats[i];
     }
 
     PL_ASSERT(false && "no supported format found");
@@ -5179,9 +5235,9 @@ pl__find_supported_format(plDevice* ptDevice, VkFormatFeatureFlags tFlags, const
 }
 
 static bool
-pl__format_has_stencil(VkFormat tFormat)
+pl__format_has_stencil(VkFormat eFormat)
 {
-    switch (tFormat)
+    switch (eFormat)
     {
         case VK_FORMAT_D16_UNORM_S8_UINT:
         case VK_FORMAT_D24_UNORM_S8_UINT:
@@ -5228,8 +5284,8 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
 
     // query swapchain support
 
-    VkSurfaceCapabilitiesKHR tCapabilities = {0};
-    PL_VULKAN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &tCapabilities));
+    VkSurfaceCapabilitiesKHR eCapabilities = {0};
+    PL_VULKAN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &eCapabilities));
 
     uint32_t uFormatCount = 0u;
     PL_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(ptDevice->tPhysicalDevice, ptSwap->ptSurface->tSurface, &uFormatCount, NULL));
@@ -5258,7 +5314,7 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
 
     bool bPreferenceFound = false;
     VkSurfaceFormatKHR tSurfaceFormat = ptSwap->sbtSurfaceFormats[0];
-    ptSwap->tInfo.tFormat = pl__pilotlight_format(tSurfaceFormat.format);
+    ptSwap->tInfo.eFormat = pl__pilotlight_format(tSurfaceFormat.format);
 
     for (uint32_t i = 0; i < 4; i++)
     {
@@ -5270,7 +5326,7 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
             if (ptSwap->sbtSurfaceFormats[j].format == atSurfaceFormatPreference[i] && ptSwap->sbtSurfaceFormats[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
             {
                 tSurfaceFormat = ptSwap->sbtSurfaceFormats[j];
-                ptSwap->tInfo.tFormat = pl__pilotlight_format(tSurfaceFormat.format);
+                ptSwap->tInfo.eFormat = pl__pilotlight_format(tSurfaceFormat.format);
                 bPreferenceFound = true;
                 break;
             }
@@ -5296,32 +5352,32 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
 
     // chose swap extent
     VkExtent2D tExtent = {0};
-    if (tCapabilities.currentExtent.width != UINT32_MAX)
-        tExtent = tCapabilities.currentExtent;
+    if (eCapabilities.currentExtent.width != UINT32_MAX)
+        tExtent = eCapabilities.currentExtent;
     else
     {
-        tExtent.width = pl_max(tCapabilities.minImageExtent.width, pl_min(tCapabilities.maxImageExtent.width, uWidth));
-        tExtent.height = pl_max(tCapabilities.minImageExtent.height, pl_min(tCapabilities.maxImageExtent.height, uHeight));
+        tExtent.width = pl_max(eCapabilities.minImageExtent.width, pl_min(eCapabilities.maxImageExtent.width, uWidth));
+        tExtent.height = pl_max(eCapabilities.minImageExtent.height, pl_min(eCapabilities.maxImageExtent.height, uHeight));
     }
     ptSwap->tInfo.uWidth = tExtent.width;
     ptSwap->tInfo.uHeight = tExtent.height;
 
     // decide image count
     const uint32_t uOldImageCount = ptSwap->uImageCount;
-    uint32_t uDesiredMinImageCount = tCapabilities.minImageCount + 1;
-    if (tCapabilities.maxImageCount > 0 && uDesiredMinImageCount > tCapabilities.maxImageCount)
-        uDesiredMinImageCount = tCapabilities.maxImageCount;
+    uint32_t uDesiredMinImageCount = eCapabilities.minImageCount + 1;
+    if (eCapabilities.maxImageCount > 0 && uDesiredMinImageCount > eCapabilities.maxImageCount)
+        uDesiredMinImageCount = eCapabilities.maxImageCount;
 
     // find the transformation of the surface
     VkSurfaceTransformFlagsKHR tPreTransform;
-    if (tCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+    if (eCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
     {
         // We prefer a non-rotated transform
         tPreTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     }
     else
     {
-        tPreTransform = tCapabilities.currentTransform;
+        tPreTransform = eCapabilities.currentTransform;
     }
 
     // find a supported composite alpha format (not all devices support alpha opaque)
@@ -5337,7 +5393,7 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
 
     for (int i = 0; i < 4; i++)
     {
-        if (tCapabilities.supportedCompositeAlpha & atCompositeAlphaFlags[i])
+        if (eCapabilities.supportedCompositeAlpha & atCompositeAlphaFlags[i])
         {
             tCompositeAlpha = atCompositeAlphaFlags[i];
             break;
@@ -5362,11 +5418,11 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
     };
 
     // enable transfer source on swap chain images if supported
-    if (tCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+    if (eCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
         tCreateSwapchainInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
     // enable transfer destination on swap chain images if supported
-    if (tCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+    if (eCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
         tCreateSwapchainInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
     uint32_t auQueueFamilyIndices[] = {(uint32_t)ptDevice->iGraphicsQueueFamily, (uint32_t)ptDevice->iPresentQueueFamily};
@@ -5421,7 +5477,7 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
     {
 
         plTextureViewDesc tTextureViewDesc = {
-            .tFormat     = ptSwap->tInfo.tFormat,
+            .eFormat     = ptSwap->tInfo.eFormat,
             .uBaseLayer  = 0,
             .uBaseMip    = 0,
             .uLayerCount = 1,
@@ -5436,10 +5492,10 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
         ptTexture->tDesc.tDimensions = (plVec3){(float)ptSwap->tInfo.uWidth, (float)ptSwap->tInfo.uHeight, 1.0f};
         ptTexture->tDesc.uLayers = 1;
         ptTexture->tDesc.uMips = 1;
-        ptTexture->tDesc.tSampleCount = ptSwap->tInfo.tSampleCount;
-        ptTexture->tDesc.tFormat = tTextureViewDesc.tFormat;
-        ptTexture->tDesc.tType = PL_TEXTURE_TYPE_2D;
-        ptTexture->tDesc.tUsage = PL_TEXTURE_USAGE_PRESENT;
+        ptTexture->tDesc.eSampleCount = ptSwap->tInfo.eSampleCount;
+        ptTexture->tDesc.eFormat = tTextureViewDesc.eFormat;
+        ptTexture->tDesc.eType = PL_TEXTURE_TYPE_2D;
+        ptTexture->tDesc.eUsage = PL_TEXTURE_USAGE_PRESENT | PL_TEXTURE_USAGE_STORAGE | PL_TEXTURE_USAGE_COLOR_ATTACHMENT;
         ptTexture->tDesc.pcDebugName = "swapchain dummy image";
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~create view~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -5448,7 +5504,7 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
             .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image                           = ptSwap->atImages[i],
             .viewType                        = VK_IMAGE_VIEW_TYPE_2D,
-            .format                          = pl__vulkan_format(tTextureViewDesc.tFormat),
+            .format                          = pl__vulkan_format(tTextureViewDesc.eFormat),
             .subresourceRange.baseMipLevel   = tTextureViewDesc.uBaseMip,
             .subresourceRange.levelCount     = ptTexture->tView.uMips,
             .subresourceRange.baseArrayLayer = tTextureViewDesc.uBaseLayer,
@@ -5459,17 +5515,19 @@ pl__create_swapchain(uint32_t uWidth, uint32_t uHeight, plSwapchain* ptSwap)
         PL_VULKAN(vkCreateImageView(ptDevice->tLogicalDevice, &tViewInfo, gptGraphics->ptAllocationCallbacks, &tImageView));
 
         ptDevice->sbtTexturesHot[tHandle.uIndex].bOriginalView = true;
+        ptDevice->sbtTexturesHot[tHandle.uIndex].bSwapchain = true;
         ptDevice->sbtTexturesHot[tHandle.uIndex].tImageView = tImageView;
+        ptDevice->sbtTexturesHot[tHandle.uIndex].tImage = ptSwap->atImages[i];
         ptSwap->sbtSwapchainTextureViews[i] = tHandle;
     }
 }
 
 static void
-pl__set_vulkan_object_name(plDevice* ptDevice, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT tObjectType, const char* pcName)
+pl__set_vulkan_object_name(plDevice* ptDevice, uint64_t uObjectHandle, VkDebugReportObjectTypeEXT tObjeceType, const char* pcName)
 {
     const VkDebugMarkerObjectNameInfoEXT tNameInfo ={
         .sType       = VK_STRUCTURE_TYPE_DEBUG_MARKER_OBJECT_NAME_INFO_EXT,
-        .objectType  = tObjectType,
+        .objectType  = tObjeceType,
         .object      = uObjectHandle,
         .pObjectName = pcName
     };
@@ -5543,9 +5601,9 @@ pl__vulkan_compare(plCompareMode tCompare)
 }
 
 static VkFormat
-pl__vulkan_vertex_format(plVertexFormat tFormat)
+pl__vulkan_vertex_format(plVertexFormat eFormat)
 {
-    switch(tFormat)
+    switch(eFormat)
     {
         case PL_VERTEX_FORMAT_HALF:    return VK_FORMAT_R16_SFLOAT;
         case PL_VERTEX_FORMAT_HALF2:   return VK_FORMAT_R16G16_SFLOAT;
@@ -5590,9 +5648,9 @@ pl__vulkan_vertex_format(plVertexFormat tFormat)
 }
 
 static VkFormat
-pl__vulkan_format(plFormat tFormat)
+pl__vulkan_format(plFormat eFormat)
 {
-    switch (tFormat)
+    switch (eFormat)
     {
         case PL_FORMAT_R32G32B32A32_FLOAT:  return VK_FORMAT_R32G32B32A32_SFLOAT;
         case PL_FORMAT_R8G8B8A8_UNORM:      return VK_FORMAT_R8G8B8A8_UNORM;
@@ -5703,30 +5761,6 @@ pl__vulkan_format(plFormat tFormat)
 
     PL_ASSERT(false && "Unsupported format");
     return VK_FORMAT_UNDEFINED;
-}
-
-static VkImageLayout
-pl__vulkan_layout(plTextureUsage tUsage)
-{
-    switch (tUsage)
-    {
-        case PL_TEXTURE_USAGE_UNSPECIFIED:
-            return VK_IMAGE_LAYOUT_UNDEFINED;
-        case PL_TEXTURE_USAGE_COLOR_ATTACHMENT:
-            return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        case PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT:
-            return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        case PL_TEXTURE_USAGE_PRESENT:
-            return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        case PL_TEXTURE_USAGE_INPUT_ATTACHMENT:
-        case PL_TEXTURE_USAGE_SAMPLED:
-            return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        case PL_TEXTURE_USAGE_STORAGE:
-            return VK_IMAGE_LAYOUT_GENERAL;
-    }
-
-    PL_ASSERT(false && "Unsupported texture layout");
-    return VK_IMAGE_LAYOUT_UNDEFINED;
 }
 
 static VkAttachmentLoadOp
@@ -5876,67 +5910,41 @@ pl__vulkan_cull(plCullMode tFlag)
 }
 
 static VkShaderStageFlagBits
-pl_vulkan_shader_stage_flags(plShaderStageFlags tFlags)
+pl_vulkan_shader_stage_flags(plShaderStageFlags eFlags)
 {
     VkShaderStageFlagBits tResult = 0;
 
-    if (tFlags & PL_SHADER_STAGE_VERTEX)
+    if (eFlags & PL_SHADER_STAGE_VERTEX)
         tResult |= VK_SHADER_STAGE_VERTEX_BIT;
-    if (tFlags & PL_SHADER_STAGE_FRAGMENT)
+    if (eFlags & PL_SHADER_STAGE_FRAGMENT)
         tResult |= VK_SHADER_STAGE_FRAGMENT_BIT;
-    if (tFlags & PL_SHADER_STAGE_COMPUTE)
+    if (eFlags & PL_SHADER_STAGE_COMPUTE)
         tResult |= VK_SHADER_STAGE_COMPUTE_BIT;
 
     return tResult;
 }
 
-static VkPipelineStageFlagBits
-pl_vulkan_pipeline_stage_flags(plPipelineStageFlags tFlags)
-{
-    VkPipelineStageFlagBits tResult = 0;
+// static VkPipelineStageFlagBits
+// pl_vulkan_pipeline_stage_flags(plPipelineStageFlags eFlags)
+// {
+//     VkPipelineStageFlagBits tResult = 0;
 
-    if (tFlags & PL_PIPELINE_STAGE_VERTEX_INPUT)            tResult |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
-    if (tFlags & PL_PIPELINE_STAGE_VERTEX_SHADER)           tResult |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-    if (tFlags & PL_PIPELINE_STAGE_FRAGMENT_SHADER)         tResult |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    if (tFlags & PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS)    tResult |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    if (tFlags & PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS)     tResult |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    if (tFlags & PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT) tResult |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    if (tFlags & PL_PIPELINE_STAGE_COMPUTE_SHADER)          tResult |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-    if (tFlags & PL_PIPELINE_STAGE_TRANSFER)                tResult |= VK_PIPELINE_STAGE_TRANSFER_BIT;
+//     if (eFlags & PL_PIPELINE_STAGE_VERTEX_INPUT)            tResult |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+//     if (eFlags & PL_PIPELINE_STAGE_VERTEX_SHADER)           tResult |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+//     if (eFlags & PL_PIPELINE_STAGE_FRAGMENT_SHADER)         tResult |= VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+//     if (eFlags & PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS)    tResult |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+//     if (eFlags & PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS)     tResult |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+//     if (eFlags & PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT) tResult |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+//     if (eFlags & PL_PIPELINE_STAGE_COMPUTE_SHADER)          tResult |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+//     if (eFlags & PL_PIPELINE_STAGE_TRANSFER)                tResult |= VK_PIPELINE_STAGE_TRANSFER_BIT;
 
-    return tResult;
-}
-
-static VkAccessFlags
-pl__vulkan_access_flags(plAccessFlags tFlags)
-{
-    VkAccessFlags tResult = 0;
-
-    if (tFlags & PL_ACCESS_SHADER_READ)
-        tResult |= VK_ACCESS_SHADER_READ_BIT;
-    if (tFlags & PL_ACCESS_SHADER_WRITE)
-        tResult |= VK_ACCESS_SHADER_WRITE_BIT;
-    if (tFlags & PL_ACCESS_TRANSFER_WRITE)
-        tResult |= VK_ACCESS_TRANSFER_WRITE_BIT;
-    if(tFlags & PL_ACCESS_TRANSFER_READ)
-        tResult |= VK_ACCESS_TRANSFER_READ_BIT;
-    if(tFlags & PL_ACCESS_INPUT_ATTACHMENT_READ)
-        tResult |= VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
-    if(tFlags & PL_ACCESS_COLOR_ATTACHMENT_READ)
-        tResult |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-    if(tFlags & PL_ACCESS_COLOR_ATTACHMENT_WRITE)
-        tResult |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    if(tFlags & PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ)
-        tResult |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
-    if(tFlags & PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE)
-        tResult |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    return tResult;
-}
+//     return tResult;
+// }
 
 static plFormat
-pl__pilotlight_format(VkFormat tFormat)
+pl__pilotlight_format(VkFormat eFormat)
 {
-    switch (tFormat)
+    switch (eFormat)
     {
             case VK_FORMAT_R32G32B32A32_SFLOAT:       return PL_FORMAT_R32G32B32A32_FLOAT;
             case VK_FORMAT_R8G8B8A8_UNORM:            return PL_FORMAT_R8G8B8A8_UNORM;
@@ -6066,7 +6074,7 @@ pl__garbage_collect(plDevice* ptDevice)
         plVulkanTexture* ptVulkanResource = &ptDevice->sbtTexturesHot[iResourceIndex];
         vkDestroyImageView(ptDevice->tLogicalDevice, ptDevice->sbtTexturesHot[iResourceIndex].tImageView, gptGraphics->ptAllocationCallbacks);
         ptDevice->sbtTexturesHot[iResourceIndex].tImageView = VK_NULL_HANDLE;
-        if (ptDevice->sbtTexturesHot[iResourceIndex].bOriginalView)
+        if (ptDevice->sbtTexturesHot[iResourceIndex].bOriginalView && !ptDevice->sbtTexturesHot[iResourceIndex].bSwapchain)
         {
             vkDestroyImage(ptDevice->tLogicalDevice, ptVulkanResource->tImage, gptGraphics->ptAllocationCallbacks);
             ptVulkanResource->tImage = VK_NULL_HANDLE;
@@ -6081,33 +6089,6 @@ pl__garbage_collect(plDevice* ptDevice)
         vkDestroySampler(ptDevice->tLogicalDevice, ptDevice->sbtSamplersHot[iResourceIndex], gptGraphics->ptAllocationCallbacks);
         ptDevice->sbtSamplersHot[iResourceIndex] = VK_NULL_HANDLE;
         pl_sb_push(ptDevice->sbtSamplerFreeIndices, iResourceIndex);
-    }
-
-    for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtRenderPasses); i++)
-    {
-        const uint16_t iResourceIndex = ptGarbage->sbtRenderPasses[i].uIndex;
-        PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "destroy render pass %u", iResourceIndex);
-        plVulkanRenderPass* ptVulkanResource = &ptDevice->sbtRenderPassesHot[iResourceIndex];
-        for (uint32_t j = 0; j < 3; j++)
-        {
-            if (ptVulkanResource->atFrameBuffers[j])
-                vkDestroyFramebuffer(ptDevice->tLogicalDevice, ptVulkanResource->atFrameBuffers[j], gptGraphics->ptAllocationCallbacks);
-            ptVulkanResource->atFrameBuffers[j] = VK_NULL_HANDLE;
-        }
-        if (ptVulkanResource->tRenderPass)
-            vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, gptGraphics->ptAllocationCallbacks);
-        ptVulkanResource->tRenderPass = VK_NULL_HANDLE;
-        pl_sb_push(ptDevice->sbtRenderPassFreeIndices, iResourceIndex);
-        // ptVulkanResource->sbtFrameBuffers = NULL;
-    }
-
-    for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtRenderPassLayouts); i++)
-    {
-        const uint16_t iResourceIndex = ptGarbage->sbtRenderPassLayouts[i].uIndex;
-        plVulkanRenderPassLayout* ptVulkanResource = &ptDevice->sbtRenderPassLayoutsHot[iResourceIndex];
-        vkDestroyRenderPass(ptDevice->tLogicalDevice, ptVulkanResource->tRenderPass, gptGraphics->ptAllocationCallbacks);
-        ptVulkanResource->tRenderPass = VK_NULL_HANDLE;
-        pl_sb_push(ptDevice->sbtRenderPassLayoutFreeIndices, iResourceIndex);
     }
 
     for (uint32_t i = 0; i < pl_sb_size(ptGarbage->sbtShaders); i++)
@@ -6276,12 +6257,6 @@ pl_graphics_get_vulkan_queue_family(plDevice* ptDevice)
     return ptDevice->iGraphicsQueueFamily;
 }
 
-VkRenderPass
-pl_graphics_get_vulkan_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
-{
-    return ptDevice->sbtRenderPassesHot[tHandle.uIndex].tRenderPass;
-}
-
 VkDescriptorPool
 pl_graphics_get_vulkan_descriptor_pool(plBindGroupPool* ptPool)
 {
@@ -6291,7 +6266,7 @@ pl_graphics_get_vulkan_descriptor_pool(plBindGroupPool* ptPool)
 int
 pl_graphics_get_vulkan_sample_count(plSwapchain* ptSwap)
 {
-    return ptSwap->tInfo.tSampleCount;
+    return ptSwap->tInfo.eSampleCount;
 }
 
 VkCommandBuffer

@@ -152,13 +152,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {
-        .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
+        .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
 
     // we will remove this flag so we can handle
     // management of the shader extension
-    tStarterInit.tFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
+    tStarterInit.eFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
 
     // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
     // etc. which we will get to in later examples
@@ -175,7 +175,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             "../shaders/",
             "../examples/shaders/"
         },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
+        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
     };
     gptShader->initialize(&tDefaultShaderOptions);
 
@@ -195,7 +195,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create vertex buffer
     const plBufferDesc tVertexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
+        .eUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER,
         .szByteSize  = sizeof(float) * PL_ARRAYSIZE(atVertexData),
         .pcDebugName = "vertex buffer"
     };
@@ -224,7 +224,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create index buffer
     const plBufferDesc tIndexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
+        .eUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER,
         .szByteSize  = sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData),
         .pcDebugName = "index buffer"
     };
@@ -247,7 +247,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create vertex buffer
     const plBufferDesc tStagingBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE,
+        .eUsage      = PL_BUFFER_USAGE_TRANSFER,
         .szByteSize  = 1280000,
         .pcDebugName = "staging buffer"
     };
@@ -271,9 +271,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, atVertexData, sizeof(float) * PL_ARRAYSIZE(atVertexData));
     memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[1024], atIndexData, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
 
-    plBlitEncoder* ptEncoder = gptStarter->get_blit_encoder();
-    gptGfx->copy_buffer(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * PL_ARRAYSIZE(atVertexData));
-    gptGfx->copy_buffer(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
+    plCommandBuffer* ptCommandBuffer = gptStarter->get_temporary_command_buffer();
+    gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
+
+    gptGfx->copy_buffer(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * PL_ARRAYSIZE(atVertexData));
+    gptGfx->copy_buffer(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
+
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -286,11 +289,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // create texture
     const plTextureDesc tTextureDesc = {
         .tDimensions = { (float)iImageWidth, (float)iImageHeight, 1},
-        .tFormat     = PL_FORMAT_R8G8B8A8_UNORM,
+        .eFormat     = PL_FORMAT_R8G8B8A8_UNORM,
         .uLayers     = 1,
         .uMips       = 1,
-        .tType       = PL_TEXTURE_TYPE_2D,
-        .tUsage      = PL_TEXTURE_USAGE_SAMPLED,
+        .eType       = PL_TEXTURE_TYPE_2D,
+        .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName = "texture"
     };
     ptAppData->tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, NULL);
@@ -319,9 +322,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .szBufferOffset = 2048
     };
 
-    gptGfx->copy_buffer_to_texture(ptEncoder, ptAppData->tStagingBuffer, ptAppData->tTexture, 1, &tBufferImageCopy);
+    gptGfx->copy_buffer_to_texture(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tTexture, 1, &tBufferImageCopy);
 
-    gptStarter->return_blit_encoder(ptEncoder);
+    gptGfx->end_compute_pass(ptCommandBuffer);
+    gptStarter->submit_temporary_command_buffer(ptCommandBuffer);
 
     // free image data
     gptImage->free(pucImageData);
@@ -329,12 +333,12 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~samplers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     const plSamplerDesc tSamplerDesc = {
-        .tMagFilter    = PL_FILTER_LINEAR,
-        .tMinFilter    = PL_FILTER_LINEAR,
+        .eMagFilter    = PL_FILTER_LINEAR,
+        .eMinFilter    = PL_FILTER_LINEAR,
         .fMinMip       = 0.0f,
         .fMaxMip       = 1.0f,
-        .tVAddressMode = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .tUAddressMode = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .eVAddressMode = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .eUAddressMode = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
         .pcDebugName   = "sampler"
     };
     ptAppData->tSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);
@@ -346,7 +350,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create bind group pool
     const plBindGroupPoolDesc tBindGroupPoolDesc = {
-        .tFlags                      = PL_BIND_GROUP_POOL_FLAGS_NONE,
+        .eFlags                      = PL_BIND_GROUP_POOL_FLAGS_NONE,
         .szSamplerBindings           = 1,
         .szSampledTextureBindings    = 1
     };
@@ -359,10 +363,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // create bind group
     const plBindGroupLayoutDesc tBindGroupLayout = {
         .atSamplerBindings = {
-            { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT}
+            { .uSlot = 0, .eStages = PL_SHADER_STAGE_FRAGMENT}
         },
         .atTextureBindings = {
-            {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+            {.uSlot = 1, .eStages = PL_SHADER_STAGE_FRAGMENT, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         }
     };
     ptAppData->tBindGroupLayout0 = gptGfx->create_bind_group_layout(ptDevice, &tBindGroupLayout);
@@ -375,47 +379,45 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptAppData->tBindGroup0 = gptGfx->create_bind_group(ptDevice, &tBindGroupDesc);
 
     // update bind group (actually point bind groups to GPU resources)
-    const plBindGroupUpdateSamplerData tSamplerData = {
-        .tSampler = ptAppData->tSampler,
-        .uSlot    = 0
-    };
-
-    const plBindGroupUpdateTextureData tTextureData = {
-        .tTexture = ptAppData->tTexture,
-        .uSlot    = 1,
-        .tType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
-    };
-
     const plBindGroupUpdateData tBGData = {
-        .uSamplerCount     = 1,
-        .atSamplerBindings = &tSamplerData,
-        .uTextureCount     = 1,
-        .atTextureBindings = &tTextureData
+        .atSamplerBindings = {
+            {
+                .tSampler = ptAppData->tSampler,
+                .uSlot    = 0
+            }
+        },
+        .atTextureBindings = {
+            {
+                .tTexture = ptAppData->tTexture,
+                .uSlot    = 1,
+                .eType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            }
+        }
     };
     gptGfx->update_bind_group(ptDevice, ptAppData->tBindGroup0, &tBGData);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plShaderDesc tShaderDesc = {
+    plShaderDesc tShaderDesc = {
         .tVertexShader    = gptShader->load_glsl("example_gfx_2.vert", "main", NULL, NULL),
         .tFragmentShader  = gptShader->load_glsl("example_gfx_2.frag", "main", NULL, NULL),
         .tGraphicsState = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulWireframe          = 0,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            .bDepthWriteEnabled  = 0,
+            .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+            .eCullMode           = PL_CULL_MODE_NONE,
+            .bWireframe          = 0,
+            .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+            .uStencilRef         = 0xff,
+            .uStencilMask        = 0xff,
+            .eStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .eStencilOpPass      = PL_STENCIL_OP_KEEP
         },
         .atVertexBufferLayouts = {
             {
                 .atAttributes = {
-                    {.tFormat = PL_VERTEX_FORMAT_FLOAT2},
-                    {.tFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.eFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.eFormat = PL_VERTEX_FORMAT_FLOAT2},
                 }
             }
         },
@@ -425,18 +427,18 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
                 .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
             }
         },
-        .tRenderPassLayout = gptStarter->get_render_pass_layout(),
         .atBindGroupLayouts = {
             {
                 .atSamplerBindings = {
-                    { .uSlot = 0, .tStages = PL_SHADER_STAGE_FRAGMENT}
+                    { .uSlot = 0, .eStages = PL_SHADER_STAGE_FRAGMENT}
                 },
                 .atTextureBindings = {
-                    {.uSlot = 1, .tStages = PL_SHADER_STAGE_FRAGMENT, .tType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                    {.uSlot = 1, .eStages = PL_SHADER_STAGE_FRAGMENT, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
                 }
             }
         }
     };
+    gptStarter->get_render_attachment_info(&tShaderDesc.tRenderAttachmentInfo);
     ptAppData->tShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
 
     // return app memory
@@ -491,17 +493,17 @@ pl_app_update(plAppData* ptAppData)
     plDevice* ptDevice = gptStarter->get_device();
 
     // start main pass & return the encoder being used
-    plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
+    plCommandBuffer* ptCommandBuffer = gptStarter->begin_main_pass();
 
     // submit nonindexed draw using basic API
-    gptGfx->bind_shader(ptEncoder, ptAppData->tShader);
-    gptGfx->bind_vertex_buffer(ptEncoder, ptAppData->tVertexBuffer);
+    gptGfx->bind_shader(ptCommandBuffer, ptAppData->tShader);
+    gptGfx->bind_vertex_buffer(ptCommandBuffer, ptAppData->tVertexBuffer);
 
     // retrieve dynamic binding data
     // NOTE: This system is meant frequently updated shader data. Underneath its just simple
     //       bump allocator (very fast).
     plDynamicDataBlock tCurrentDynamicBufferBlock = gptGfx->allocate_dynamic_data_block(ptDevice);
-    plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &tCurrentDynamicBufferBlock);
+    plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &tCurrentDynamicBufferBlock, sizeof(plVec4));
     plVec4* tTintColor = (plVec4*)tDynamicBinding.pcData;
     tTintColor->r = 1.0f;
     tTintColor->g = 1.0f;
@@ -510,14 +512,14 @@ pl_app_update(plAppData* ptAppData)
 
     // bind bind groups (up to 3 bindgroups + 1 dynamic binding are allowed)
     // NOTE: dynamic bind groups are always bound to set 3 in the shader
-    gptGfx->bind_graphics_bind_groups(ptEncoder, ptAppData->tShader, 0, 1, &ptAppData->tBindGroup0, 1, &tDynamicBinding);
+    gptGfx->bind_graphics_bind_groups(ptCommandBuffer, ptAppData->tShader, 0, 1, &ptAppData->tBindGroup0, 1, &tDynamicBinding);
 
     const plDrawIndex tDraw = {
         .uInstanceCount = 1,
         .uIndexCount    = 6,
         .tIndexBuffer   = ptAppData->tIndexBuffer
     };
-    gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
+    gptGfx->draw_indexed(ptCommandBuffer, 1, &tDraw);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();

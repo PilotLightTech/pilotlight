@@ -44,7 +44,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plEcsI_version {1, 1, 0}
+#define plEcsI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -221,7 +221,7 @@ typedef struct _plTransformComponent
     plVec4           tRotation;
     plVec3           tTranslation;
     plMat4           tWorld;
-    plTransformFlags tFlags;
+    plTransformFlags eFlags;
 } plTransformComponent;
 
 //-----------------------------------------------------------------------------

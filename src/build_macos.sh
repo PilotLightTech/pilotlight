@@ -94,7 +94,7 @@ fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../thirdparty/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
@@ -364,7 +364,7 @@ fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../thirdparty/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
@@ -638,7 +638,7 @@ fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -D_DEBUG -DPL_CONFIG_DEBUG "
 PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../thirdparty/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC --debug -g -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
@@ -1040,7 +1040,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_METAL_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
 PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../thirdparty/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ --debug -g -std=c++11 "
@@ -1139,7 +1139,7 @@ fi
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
 PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND -DPL_UNITY_BUILD -DNDEBUG -DPL_CONFIG_RELEASE "
 PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../thirdparty/glfw/include -I$VULKAN_SDK/include -I/usr/include/vulkan "
-PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib -L$VULKAN_SDK/lib -Wl,-rpath,$VULKAN_SDK/lib "
 PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC -Wno-deprecated-declarations "
 PL_LINKER_FLAGS="-lstdc++ "
 PL_STATIC_LINK_LIBRARIES="-lshaderc_combined -lspirv-cross-c -lspirv-cross-core -lspirv-cross-cpp -lspirv-cross-glsl -lspirv-cross-hlsl -lspirv-cross-msl -lspirv-cross-reflect -lspirv-cross-util "
@@ -1541,7 +1541,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_METAL_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_METAL_BACKEND "
 PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../thirdparty/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out "
 PL_COMPILER_FLAGS="-fPIC -ObjC++ -std=c++11 "
@@ -2312,7 +2312,7 @@ echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 if [ $PL_HOT_RELOAD_STATUS -ne 1 ]; then
 
 PL_RESULT=${BOLD}${GREEN}Successful.${NC}
-PL_DEFINES="-DPL_UNITY_BUILD -DPL_EXPERIMENTAL -DPL_VULKAN_BACKEND "
+PL_DEFINES="-DPL_UNITY_BUILD -DPL_VULKAN_BACKEND "
 PL_INCLUDE_DIRECTORIES="-I../internal/sandbox -I../internal/demo -I../src -I../shaders -I../libs -I../extensions -I../out -I../thirdparty/stb -I../thirdparty/cgltf -I../thirdparty/imgui -I../thirdparty/glfw/include "
 PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
 PL_COMPILER_FLAGS="--debug -g -std=c++11 -fPIC -ObjC++ -fmodules "

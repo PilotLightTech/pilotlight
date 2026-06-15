@@ -52,6 +52,13 @@ typedef struct _plFrameGarbage
     plDeviceMemoryAllocation* sbtMemory;
 } plFrameGarbage;
 
+typedef struct _plStackedBarrier
+{
+    plPipelineStageFlags tSrcStages;
+    plPipelineStageFlags tDstStages;
+    plBarrierScope tScope;
+} plStackedBarrier;
+
 typedef struct _plFrameContext plFrameContext;
 
 //-----------------------------------------------------------------------------
@@ -91,17 +98,9 @@ static plShaderHandle           pl__get_new_shader_handle(plDevice*);
 static plComputeShaderHandle    pl__get_new_compute_shader_handle(plDevice*);
 static plRenderPassHandle       pl__get_new_render_pass_handle(plDevice*);
 static plRenderPassLayoutHandle pl__get_new_render_pass_layout_handle(plDevice*);
-static plRenderEncoder*         pl__get_new_render_encoder(void);
-static plComputeEncoder*        pl__get_new_compute_encoder(void);
-static plBlitEncoder*           pl__get_new_blit_encoder(void);
 static plTimelineSemaphore*     pl__get_new_semaphore(plDevice*);
-static plTimelineEvent*         pl__get_new_event(plDevice*);
 
-static void pl__return_render_encoder(plRenderEncoder*);
-static void pl__return_compute_encoder(plComputeEncoder*);
-static void pl__return_blit_encoder(plBlitEncoder*);
 static void pl__return_semaphore(plDevice*, plTimelineSemaphore*);
-static void pl__return_event(plDevice*, plTimelineEvent*);
 
 // deletion
 static plFrameGarbage* pl__get_frame_garbage(plDevice*);

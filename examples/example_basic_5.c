@@ -45,6 +45,7 @@ Index of this file:
 #include "pl_ui_ext.h"
 #include "pl_draw_ext.h"
 #include "pl_starter_ext.h"
+#include "pl_graphics_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -127,13 +128,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {
-        .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
+        .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
 
     // we will remove this flag so we can handle
     // management of the UI extension
-    tStarterInit.tFlags &= ~PL_STARTER_FLAGS_UI_EXT;
+    tStarterInit.eFlags &= ~PL_STARTER_FLAGS_UI_EXT;
 
     gptStarter->initialize(tStarterInit);
 
@@ -220,7 +221,7 @@ pl_app_update(plAppData* ptAppData)
     // the scope of the draw extension.
 
     // start main pass & return the encoder being used
-    plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
+    plCommandBuffer* ptCmdBuffer = gptStarter->begin_main_pass();
 
     // this must be called which handles several things but
     // most importantly it orders the various draw layers in
@@ -230,8 +231,10 @@ pl_app_update(plAppData* ptAppData)
     // now we must submit both the drawlist & debug drawlist provided by
     // the UI extension.
     plVec2 tViewportSize = gptIO->get_io()->tMainViewportSize;
-    gptDraw->submit_2d_drawlist(gptUi->get_draw_list(), ptEncoder, tViewportSize.x, tViewportSize.y, 1);
-    gptDraw->submit_2d_drawlist(gptUi->get_debug_draw_list(), ptEncoder, tViewportSize.x, tViewportSize.y, 1);
+    plRenderAttachmentInfo tRenderAttachmentInfo = {0};
+    gptStarter->get_render_attachment_info(&tRenderAttachmentInfo);
+    gptDraw->submit_2d_drawlist(gptUi->get_draw_list(), ptCmdBuffer, tViewportSize.x, tViewportSize.y, 1, &tRenderAttachmentInfo);
+    gptDraw->submit_2d_drawlist(gptUi->get_debug_draw_list(), ptCmdBuffer, tViewportSize.x, tViewportSize.y, 1, &tRenderAttachmentInfo);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();

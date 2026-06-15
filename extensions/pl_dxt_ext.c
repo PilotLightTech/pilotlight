@@ -96,7 +96,7 @@ pl_dxt_compress(const plDxtInfo* ptInfo, uint8_t* puDataOut, size_t* szSizeOut)
     uint8_t auPadded[4] = {0};
 
     int iDxtFlags = STB_DXT_NORMAL;
-    if(ptInfo->tFlags & PL_DXT_FLAGS_HIGH_QUALITY)
+    if(ptInfo->eFlags & PL_DXT_FLAGS_HIGH_QUALITY)
         iDxtFlags = STB_DXT_HIGHQUAL;
 
     int iIncludeAlpha = 0;

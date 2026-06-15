@@ -40,7 +40,7 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 #define plAtomicsI_version       {2, 0, 0}
-#define plFileI_version          {1, 1, 0}
+#define plFileI_version          {2, 0, 0}
 #define plNetworkI_version       {1, 0, 0}
 #define plThreadsI_version       {1, 0, 1}
 #define plVirtualMemoryI_version {1, 0, 0}
@@ -440,7 +440,7 @@ typedef struct _plSocketReceiverInfo
 
 typedef struct _plDirectoryEntry
 {
-    plDirectoryEntryType tType;
+    plDirectoryEntryType eType;
     char                 acName[PL_MAX_PATH_LENGTH];
 } plDirectoryEntry;
 

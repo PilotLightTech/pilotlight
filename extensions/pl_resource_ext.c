@@ -217,7 +217,7 @@ pl__resource_create_staging_buffer(size_t szSize)
 
     // create staging buffers
     const plBufferDesc tStagingBufferDesc = {
-        .tUsage     = PL_BUFFER_USAGE_TRANSFER_SOURCE | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
+        .eUsage     = PL_BUFFER_USAGE_TRANSFER,
         .szByteSize = pl_max(268435456, szSize),
         .pcDebugName = "Resource Staging Buffer"
     };
@@ -260,17 +260,17 @@ pl_resource_new_frame(void)
 
     // update texture data & calculate mips
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "resource update");
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-    plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->begin_command_recording(ptCommandBuffer);
+    gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
 
     for(uint32_t i = 0; i < uJobCount; i++)
     {
         const plTextureUploadJob* ptJob = &gptResourceManager->sbtTextureUploadJobs[i];
-        gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, ptJob->tTexture, 1, &ptJob->tBufferImageCopy);
-        gptGfx->generate_mipmaps(ptBlitEncoder, ptJob->tTexture);
+        gptGfx->copy_buffer_to_texture(ptCommandBuffer, gptResourceManager->tStagingBuffer.tStagingBufferHandle, ptJob->tTexture, 1, &ptJob->tBufferImageCopy);
+        gptGfx->generate_mipmaps(ptCommandBuffer, ptJob->tTexture);
     }
 
-    gptGfx->end_blit_pass(ptBlitEncoder);
+    gptGfx->end_compute_pass(ptCommandBuffer);
     gptGfx->end_command_recording(ptCommandBuffer);
     gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
@@ -695,7 +695,7 @@ pl_resource_make_resident(plResourceHandle tHandle)
                         size_t szRequiredStagingSize = 0;
 
                         plDxtInfo tDxtInfoOriginal = {
-                            .tFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
+                            .eFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
                             .uWidth    = (uint32_t)tImageInfo.iWidth,
                             .uHeight   = (uint32_t)tImageInfo.iHeight,
                             .uChannels = 4,
@@ -711,7 +711,7 @@ pl_resource_make_resident(plResourceHandle tHandle)
                             int iCurrentHeight = (int)tImageInfo.iHeight / ((1 << (int)uMipLevel));
 
                             plDxtInfo tDxtInfo = {
-                                .tFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
+                                .eFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
                                 .uWidth    = (uint32_t)iCurrentWidth,
                                 .uHeight   = (uint32_t)iCurrentHeight,
                                 .uChannels = 4
@@ -779,7 +779,7 @@ pl_resource_make_resident(plResourceHandle tHandle)
                             // compression
 
                             plDxtInfo tDxtInfo = {
-                                .tFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
+                                .eFlags    = PL_DXT_FLAGS_HIGH_QUALITY,
                                 .uWidth    = (uint32_t)iCurrentWidth,
                                 .uHeight   = (uint32_t)iCurrentHeight,
                                 .uChannels = 4,
@@ -800,8 +800,8 @@ pl_resource_make_resident(plResourceHandle tHandle)
                             .uDepth    = 0,
                             .uMips     = uMips,
                             .uLayers   = 1,
-                            .tFormat   = PL_FORMAT_BC3_UNORM,
-                            .tType     = PL_TEXTURE_TYPE_2D
+                            .eFormat   = PL_FORMAT_BC3_UNORM,
+                            .eType     = PL_TEXTURE_TYPE_2D
                         };
 
                         uint8_t* pcDdsFileBuffer = PL_ALLOC(gptDds->get_header_size() + szRequiredStagingSize);
@@ -840,11 +840,11 @@ pl_resource_make_resident(plResourceHandle tHandle)
                 // create texture
                 const plTextureDesc tTextureDesc = {
                     .tDimensions = {(float)tImageInfo.iWidth, (float)tImageInfo.iHeight, 1},
-                    .tFormat     = tTextureFormat,
+                    .eFormat     = tTextureFormat,
                     .uLayers     = 1,
                     .uMips       = 0,
-                    .tType       = PL_TEXTURE_TYPE_2D,
-                    .tUsage      = PL_TEXTURE_USAGE_SAMPLED
+                    .eType       = PL_TEXTURE_TYPE_2D,
+                    .eUsage      = PL_TEXTURE_USAGE_SAMPLED
                 };
             
                 ptResource->tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, &ptTexture);
@@ -891,8 +891,8 @@ pl_resource_make_resident(plResourceHandle tHandle)
 
                 // update texture data & calculate mips
                 plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "resource update");
-                gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-                plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+                gptGfx->begin_command_recording(ptCommandBuffer);
+                gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
 
                 plBufferImageCopy tBufferImageCopy = {
                     .uImageWidth = (uint32_t)ptTexture->tDesc.tDimensions.x,
@@ -902,18 +902,18 @@ pl_resource_make_resident(plResourceHandle tHandle)
                     .szBufferOffset = szStagingOffset
                 };
 
-                gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, ptResource->tTexture, 1, &tBufferImageCopy);
-                gptGfx->generate_mipmaps(ptBlitEncoder, ptResource->tTexture);
+                gptGfx->copy_buffer_to_texture(ptCommandBuffer, gptResourceManager->tStagingBuffer.tStagingBufferHandle, ptResource->tTexture, 1, &tBufferImageCopy);
+                gptGfx->generate_mipmaps(ptCommandBuffer, ptResource->tTexture);
 
-                gptGfx->end_blit_pass(ptBlitEncoder);
+                gptGfx->end_compute_pass(ptCommandBuffer);
                 gptGfx->end_command_recording(ptCommandBuffer);
                 gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
                 gptGfx->wait_on_command_buffer(ptCommandBuffer);
 
                 // copy mips back
                 gptGfx->reset_command_buffer(ptCommandBuffer);
-                gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-                ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+                gptGfx->begin_command_recording(ptCommandBuffer);
+                gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
 
                 size_t szMipStagingOffset = szStagingOffset + tImageInfo.iWidth * tImageInfo.iHeight * 4 * iTextureFormatStride;
                 for(uint32_t uMipLevel = 1; uMipLevel < uMips; uMipLevel++)
@@ -930,10 +930,10 @@ pl_resource_make_resident(plResourceHandle tHandle)
                         .uImageDepth    = 1,
                         .uLayerCount    = 1,
                     };
-                    gptGfx->copy_texture_to_buffer(ptBlitEncoder, ptResource->tTexture, gptResourceManager->tStagingBuffer.tStagingBufferHandle, 1, &tImageBufferCopy);
+                    gptGfx->copy_texture_to_buffer(ptCommandBuffer, ptResource->tTexture, gptResourceManager->tStagingBuffer.tStagingBufferHandle, 1, &tImageBufferCopy);
                     szMipStagingOffset += iCurrentWidth * iCurrentHeight * 4 * iTextureFormatStride;
                 }
-                gptGfx->end_blit_pass(ptBlitEncoder);
+                gptGfx->end_compute_pass(ptCommandBuffer);
                 gptGfx->end_command_recording(ptCommandBuffer);
                 gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
                 gptGfx->wait_on_command_buffer(ptCommandBuffer);
@@ -945,8 +945,8 @@ pl_resource_make_resident(plResourceHandle tHandle)
                     .uDepth    = 0,
                     .uMips     = uMips,
                     .uLayers   = 1,
-                    .tFormat   = tTextureDesc.tFormat,
-                    .tType     = PL_TEXTURE_TYPE_2D
+                    .eFormat   = tTextureDesc.eFormat,
+                    .eType     = PL_TEXTURE_TYPE_2D
                 };
 
                 uint8_t* pcDdsFileBuffer = PL_ALLOC(gptDds->get_header_size() + szRequiredStagingSize);
@@ -984,11 +984,11 @@ pl_resource_make_resident(plResourceHandle tHandle)
                 // create texture
                 const plTextureDesc tTextureDesc = {
                     .tDimensions = {(float)tDDSReadInfo.uWidth, (float)tDDSReadInfo.uHeight, 1},
-                    .tFormat     = tDDSReadInfo.tFormat,
+                    .eFormat     = tDDSReadInfo.eFormat,
                     .uLayers     = 1,
                     .uMips       = tDDSReadInfo.uMips,
-                    .tType       = PL_TEXTURE_TYPE_2D,
-                    .tUsage      = PL_TEXTURE_USAGE_SAMPLED,
+                    .eType       = PL_TEXTURE_TYPE_2D,
+                    .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
                     .pcDebugName = sbtNameConcat
                 };
 
@@ -1027,8 +1027,8 @@ pl_resource_make_resident(plResourceHandle tHandle)
 
                 plCommandPool* ptCmdPool = gptResourceManager->atCmdPools[gptGfx->get_current_frame_index()];
                 plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "resource update");
-                gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-                plBlitEncoder* ptBlitEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+                gptGfx->begin_command_recording(ptCommandBuffer);
+                gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
 
                 puDdsFileData += gptDds->get_header_size();
                 for(uint32_t i = 0; i < tDDSReadInfo.uMips; i++)
@@ -1047,13 +1047,13 @@ pl_resource_make_resident(plResourceHandle tHandle)
                         .uMipLevel      = i
                     };
 
-                    gptGfx->copy_buffer_to_texture(ptBlitEncoder, gptResourceManager->tStagingBuffer.tStagingBufferHandle, ptResource->tTexture, 1, &tBufferImageCopy0);
+                    gptGfx->copy_buffer_to_texture(ptCommandBuffer, gptResourceManager->tStagingBuffer.tStagingBufferHandle, ptResource->tTexture, 1, &tBufferImageCopy0);
 
                     szStagingOffset += tDDSReadInfo.atMipInfo[i].uSize;
                     puDdsFileData += tDDSReadInfo.atMipInfo[i].uSize;
                 }
 
-                gptGfx->end_blit_pass(ptBlitEncoder);
+                gptGfx->end_compute_pass(ptCommandBuffer);
                 gptGfx->end_command_recording(ptCommandBuffer);
                 gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
                 gptGfx->wait_on_command_buffer(ptCommandBuffer);

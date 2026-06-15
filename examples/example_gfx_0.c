@@ -173,13 +173,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {
-        .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
+        .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
 
     // we will remove this flag so we can handle
     // management of the shader extension
-    tStarterInit.tFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
+    tStarterInit.eFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
 
     // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
     // etc. which we will get to in later examples
@@ -194,7 +194,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             "../shaders/",
             "../examples/shaders/"
         },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
+        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
     };
     gptShader->initialize(&tDefaultShaderOptions);
 
@@ -216,7 +216,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // create vertex buffer
     const plBufferDesc tBufferDesc = {
-        .tUsage       = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
+        .eUsage       = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER,
         .szByteSize   = sizeof(float) * PL_ARRAYSIZE(atVertexData),
         .pcDebugName  = "vertex buffer"
     };
@@ -244,26 +244,26 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plShaderDesc tShaderDesc = {
+    plShaderDesc tShaderDesc = {
         .tVertexShader    = gptShader->load_glsl("example_gfx_0.vert", "main", NULL, NULL),
         .tFragmentShader  = gptShader->load_glsl("example_gfx_0.frag", "main", NULL, NULL),
         .tGraphicsState = {
-            .ulDepthWriteEnabled  = 0,
-            .ulDepthMode          = PL_COMPARE_MODE_ALWAYS,
-            .ulCullMode           = PL_CULL_MODE_NONE,
-            .ulWireframe          = 0,
-            .ulStencilMode        = PL_COMPARE_MODE_ALWAYS,
-            .ulStencilRef         = 0xff,
-            .ulStencilMask        = 0xff,
-            .ulStencilOpFail      = PL_STENCIL_OP_KEEP,
-            .ulStencilOpDepthFail = PL_STENCIL_OP_KEEP,
-            .ulStencilOpPass      = PL_STENCIL_OP_KEEP
+            .bDepthWriteEnabled  = 0,
+            .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+            .eCullMode           = PL_CULL_MODE_NONE,
+            .bWireframe          = 0,
+            .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+            .uStencilRef         = 0xff,
+            .uStencilMask        = 0xff,
+            .eStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .eStencilOpPass      = PL_STENCIL_OP_KEEP
         },
         .atVertexBufferLayouts = {
             {
                 .atAttributes = {
-                    {.tFormat = PL_VERTEX_FORMAT_FLOAT2 },
-                    {.tFormat = PL_VERTEX_FORMAT_FLOAT4 },
+                    {.eFormat = PL_VERTEX_FORMAT_FLOAT2 },
+                    {.eFormat = PL_VERTEX_FORMAT_FLOAT4 },
                 }
             }
         },
@@ -272,9 +272,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
                 .bBlendEnabled   = false,
                 .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
             }
-        },
-        .tRenderPassLayout = gptStarter->get_render_pass_layout(),
+        }
     };
+    gptStarter->get_render_attachment_info(&tShaderDesc.tRenderAttachmentInfo);
     ptAppData->tShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
 
     // return app memory
@@ -323,17 +323,17 @@ pl_app_update(plAppData* ptAppData)
         return;
 
     // start main pass & return the encoder being used
-    plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
+    plCommandBuffer* ptCmdBuffer = gptStarter->begin_main_pass();
 
     // submit nonindexed draw using basic API
-    gptGfx->bind_shader(ptEncoder, ptAppData->tShader);
-    gptGfx->bind_vertex_buffer(ptEncoder, ptAppData->tVertexBuffer);
+    gptGfx->bind_shader(ptCmdBuffer, ptAppData->tShader);
+    gptGfx->bind_vertex_buffer(ptCmdBuffer, ptAppData->tVertexBuffer);
 
     plDraw tDraw = {
         .uInstanceCount = 1,
         .uVertexCount   = 3
     };
-    gptGfx->draw(ptEncoder, 1, &tDraw);
+    gptGfx->draw(ptCmdBuffer, 1, &tDraw);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();

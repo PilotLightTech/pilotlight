@@ -64,38 +64,8 @@ Index of this file:
 // basic types
 typedef struct _plStarterContext plStarterContext;
 
-void                     pl_starter_initialize(plStarterInit);
-void                     pl_starter_finalize(void);
-void                     pl_starter_resize(void);
-void                     pl_starter_cleanup(void);
-bool                     pl_starter_begin_frame(void);
-void                     pl_starter_end_frame(void);
-plRenderEncoder*         pl_starter_begin_main_pass(void);
-void                     pl_starter_end_main_pass(void);
-plCommandBuffer*         pl_starter_get_command_buffer(void);
-void                     pl_starter_submit_command_buffer(plCommandBuffer*);
-plDrawLayer2D*           pl_starter_get_foreground_layer(void);
-plDrawLayer2D*           pl_starter_get_background_layer(void);
-plRenderEncoder*         pl_starter_get_current_encoder(void);
-plDevice*                pl_starter_get_device(void);
-plSwapchain*             pl_starter_get_swapchain(void);
-plSurface*               pl_starter_get_surface(void);
-plRenderPassHandle       pl_starter_get_render_pass(void);
-plRenderPassLayoutHandle pl_starter_get_render_pass_layout(void);
-plFont*                  pl_starter_get_default_font(void);
-plDevice*                pl_starter_create_device(plSurface*);
-plCommandBuffer*         pl_starter_get_temporary_command_buffer(void);
-void                     pl_starter_submit_temporary_command_buffer(plCommandBuffer*);
-plCommandBuffer*         pl_starter_get_raw_command_buffer(void);
-void                     pl_starter_return_raw_command_buffer(plCommandBuffer*);
-plBlitEncoder*           pl_starter_get_blit_encoder(void);
-void                     pl_starter_return_blit_encoder(plBlitEncoder*);
-
 // helpers
 static void pl__starter_create_render_pass(void);
-static void pl__starter_create_render_pass_with_msaa(void);
-static void pl__starter_create_render_pass_with_depth(void);
-static void pl__starter_create_render_pass_with_msaa_and_depth(void);
 static void pl__starter_activate_msaa(void);
 static void pl__starter_deactivate_msaa(void);
 static void pl__starter_activate_depth_buffer(void);
@@ -107,7 +77,7 @@ static void pl__starter_deactivate_depth_buffer(void);
 
 typedef struct _plStarterContext
 {
-    plStarterFlags           tFlags;
+    plStarterFlags           eFlags;
     plWindow*                ptWindow;
     plDevice*                ptDevice;
     plSwapchain*             ptSwapchain;
@@ -116,8 +86,8 @@ typedef struct _plStarterContext
     plTimelineSemaphore*     aptSemaphores[PL_MAX_FRAMES_IN_FLIGHT];
     uint64_t                 aulNextTimelineValue[PL_MAX_FRAMES_IN_FLIGHT];
     plCommandPool*           atCmdPools[PL_MAX_FRAMES_IN_FLIGHT];
-    plRenderPassHandle       tRenderPass;
-    plRenderPassLayoutHandle tRenderPassLayout;
+    // plRenderPassHandle       tRenderPass;
+    // plRenderPassLayoutHandle tRenderPassLayout;
     plTextureHandle          tDepthTexture;
     plTextureHandle          tResolveTexture;
     bool                     bMainPassExplicit;
@@ -134,7 +104,7 @@ typedef struct _plStarterContext
     plDrawLayer2D* ptBGLayer;
 
     // current frame
-    plRenderEncoder* ptCurrentEncoder;
+    plCommandBuffer* ptCurrentCommandBuffer;
 
     // gpu allocators
     plDeviceMemoryAllocatorI* ptLocalDedicatedAllocator;
@@ -156,12 +126,12 @@ pl_starter_initialize(plStarterInit tInit)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
-    gptStarterCtx->tFlags = tInit.tFlags;
+    gptStarterCtx->eFlags = tInit.eFlags;
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_CONSOLE_EXT)
-        gptConsole->initialize((plConsoleSettings){.tFlags = PL_CONSOLE_FLAGS_POPUP});
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_CONSOLE_EXT)
+        gptConsole->initialize((plConsoleSettings){.eFlags = PL_CONSOLE_FLAGS_POPUP});
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_SHADER_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_SHADER_EXT)
     {
         static const plShaderOptions tDefaultShaderOptions = {
             .apcIncludeDirectories = {
@@ -170,18 +140,18 @@ pl_starter_initialize(plStarterInit tInit)
             .apcDirectories = {
                 "../shaders/"
             },
-            .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
+            .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
         };
         gptShader->initialize(&tDefaultShaderOptions);
     }
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
     {
         plGraphicsInit tGraphicsDesc = {
             #ifdef PL_CONFIG_DEBUG
-            .tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED
+            .eFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED | PL_GRAPHICS_INIT_FLAGS_VALIDATION_ENABLED
             #else
-            .tFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED
+            .eFlags = PL_GRAPHICS_INIT_FLAGS_SWAPCHAIN_ENABLED
             #endif
         };
         gptGfx->initialize(&tGraphicsDesc);
@@ -197,7 +167,7 @@ pl_starter_initialize(plStarterInit tInit)
     plDevice* ptDevice = pl_starter_create_device(ptSurface);
     gptStarterCtx->ptDevice = ptDevice;
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_TOOLS_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_TOOLS_EXT)
         gptTools->initialize((plToolsInit){.ptDevice = ptDevice});
 
     // create command pools
@@ -210,8 +180,8 @@ pl_starter_initialize(plStarterInit tInit)
 
     // create swapchain
     const plSwapchainInit tSwapInit = {
-        .bVSync = !(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF),
-        .tSampleCount = (gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount : 1
+        .bVSync = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF),
+        .eSampleCount= (gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount : 1
     };
     plSwapchain* ptSwapchain = gptGfx->create_swapchain(ptDevice, gptStarterCtx->ptSurface, &tSwapInit);
     gptStarterCtx->ptSwapchain = ptSwapchain;
@@ -219,17 +189,17 @@ pl_starter_initialize(plStarterInit tInit)
     gptStarterCtx->ptLocalBuddyAllocator = gptGpuAllocators->get_local_buddy_allocator(ptDevice);
     gptStarterCtx->ptLocalDedicatedAllocator = gptGpuAllocators->get_local_dedicated_allocator(ptDevice);
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {gptIOI->get_io()->tMainViewportSize.x + 400.0f, gptIOI->get_io()->tMainViewportSize.y + 400.0f, 1},
-            .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
+            .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
             .uMips         = 1,
-            .tType         = PL_TEXTURE_TYPE_2D,
-            .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+            .eType         = PL_TEXTURE_TYPE_2D,
+            .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
             .pcDebugName   = "main depth texture",
-            .tSampleCount  = tSwapInit.tSampleCount
+            .eSampleCount  = tSwapInit.eSampleCount
         };
 
         plTexture* ptDepthTexture = NULL;
@@ -248,19 +218,18 @@ pl_starter_initialize(plStarterInit tInit)
         gptGfx->bind_texture_to_memory(ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
     }
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
     {
-        plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
-            .tFormat       = tInfo.tFormat,
+            .eFormat       = tInfo.eFormat,
             .uLayers       = 1,
             .uMips         = 1,
-            .tType         = PL_TEXTURE_TYPE_2D,
-            .tUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+            .eType         = PL_TEXTURE_TYPE_2D,
+            .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
             .pcDebugName   = "MSAA texture",
-            .tSampleCount  = tSwapInit.tSampleCount
+            .eSampleCount  = tSwapInit.eSampleCount
         };
 
         plTexture* ptResolveTexture = NULL;
@@ -278,22 +247,21 @@ pl_starter_initialize(plStarterInit tInit)
             "msaa texture memory");
 
         gptGfx->bind_texture_to_memory(ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
-        pl_starter_return_blit_encoder(ptEncoder);
     }
     
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER && gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
-        pl__starter_create_render_pass_with_msaa_and_depth();
-    else if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
-        pl__starter_create_render_pass_with_depth();
-    else if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
-        pl__starter_create_render_pass_with_msaa();
-    else
-        pl__starter_create_render_pass();
+    // if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER && gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
+    //     pl__starter_create_render_pass_with_msaa_and_depth();
+    // else if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    //     pl__starter_create_render_pass_with_depth();
+    // else if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
+    //     pl__starter_create_render_pass_with_msaa();
+    // else
+    //     pl__starter_create_render_pass();
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~setup draw extensions~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // initialize
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DRAW_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DRAW_EXT)
     {
         plDrawInit tDrawInit = {
             .ptDevice = ptDevice
@@ -319,12 +287,12 @@ pl_starter_finalize(void)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~message extension~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_SCREEN_LOG_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_SCREEN_LOG_EXT)
         gptScreenLog->initialize((plScreenLogSettings){.ptFont = gptStarterCtx->ptDefaultFont});
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ui extension~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_UI_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_UI_EXT)
     {
         gptUI->initialize();
         gptUI->set_default_font(gptStarterCtx->ptDefaultFont);
@@ -332,7 +300,7 @@ pl_starter_finalize(void)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~draw extension~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DRAW_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DRAW_EXT)
     {
         // build font atlas
         plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[0], "starter font atlas");
@@ -358,27 +326,16 @@ pl_starter_resize(void)
     // perform any operations required during a window resize
     plIO* ptIO = gptIOI->get_io();
     plSwapchainInit tDesc = {
-        .bVSync  = !(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF),
+        .bVSync  = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF),
         .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
         .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
-        .tSampleCount = (gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount : 1
+        .eSampleCount = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount : 1
     };
     gptGfx->recreate_swapchain(gptStarterCtx->ptSwapchain, &tDesc);
 
-    plCommandBuffer* ptCommandBuffer = NULL;
-    plBlitEncoder* ptEncoder = NULL;
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER || gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
-    {
-        ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter resize");
-        gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-
-        // begin blit pass, copy buffer, end pass
-        ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    }
-
     plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
         plVec3 tNewDimensions = {
                 (float)tInfo.uWidth * ptIO->tMainFramebufferScale.x,
@@ -387,7 +344,7 @@ pl_starter_resize(void)
 
         plTexture* ptTexture = gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
 
-        if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.tSampleCount != tInfo.tSampleCount)
+        if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.eSampleCount != tInfo.eSampleCount)
         {
             gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
 
@@ -395,13 +352,13 @@ pl_starter_resize(void)
             tNewDimensions.y += 400.0f;
             const plTextureDesc tDepthTextureDesc = {
                 .tDimensions   = tNewDimensions,
-                .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
+                .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
                 .uLayers       = 1,
                 .uMips         = 1,
-                .tType         = PL_TEXTURE_TYPE_2D,
-                .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                .eType         = PL_TEXTURE_TYPE_2D,
+                .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
                 .pcDebugName   = "offscreen depth texture",
-                .tSampleCount  = tInfo.tSampleCount
+                .eSampleCount  = tInfo.eSampleCount
             };
 
             plTexture* ptDepthTexture = NULL;
@@ -420,7 +377,7 @@ pl_starter_resize(void)
             gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
         }
     }
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
     {
 
         plVec3 tNewDimensions = {
@@ -430,7 +387,7 @@ pl_starter_resize(void)
 
         plTexture* ptTexture = gptGfx->get_texture(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
-        // if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.tSampleCount != tInfo.tSampleCount)
+        // if(ptTexture->tDesc.tDimensions.x < tNewDimensions.x || ptTexture->tDesc.tDimensions.y < tNewDimensions.y || ptTexture->tDesc.eSampleCount != tInfo.eSampleCount)
         {
             // tNewDimensions.x += 400.0f;
             // tNewDimensions.y += 400.0f;
@@ -438,13 +395,13 @@ pl_starter_resize(void)
 
             const plTextureDesc tDepthTextureDesc = {
                 .tDimensions   = tNewDimensions,
-                .tFormat       = tInfo.tFormat,
+                .eFormat       = tInfo.eFormat,
                 .uLayers       = 1,
                 .uMips         = 1,
-                .tType         = PL_TEXTURE_TYPE_2D,
-                .tUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                .eType         = PL_TEXTURE_TYPE_2D,
+                .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
                 .pcDebugName   = "MSAA texture",
-                .tSampleCount  = tInfo.tSampleCount
+                .eSampleCount  = tInfo.eSampleCount
             };
 
             plTexture* ptResolveTexture = NULL;
@@ -464,50 +421,6 @@ pl_starter_resize(void)
         }
 
     }
-
-    uint32_t uImageCount = 0;
-    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptStarterCtx->ptSwapchain, &uImageCount);
-    plRenderPassAttachments atMainAttachmentSets[16] = {0};
-    for(uint32_t i = 0; i < uImageCount; i++)
-    {
-
-        if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER && gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
-        {
-            atMainAttachmentSets[i].atViewAttachments[0] = gptStarterCtx->tDepthTexture;
-            atMainAttachmentSets[i].atViewAttachments[1] = atSwapchainImages[i];
-            atMainAttachmentSets[i].atViewAttachments[2] = gptStarterCtx->tResolveTexture;
-        }
-        else if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
-        {
-            atMainAttachmentSets[i].atViewAttachments[0] = gptStarterCtx->tDepthTexture;
-            atMainAttachmentSets[i].atViewAttachments[1] = atSwapchainImages[i];
-        }
-        else if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
-        {
-            atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
-            atMainAttachmentSets[i].atViewAttachments[1] = gptStarterCtx->tResolveTexture;
-            
-        }
-        else
-        {
-            atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
-        }
-    }
-
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER || gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
-    {
-        gptGfx->end_blit_pass(ptEncoder);
-
-        // finish recording
-        gptGfx->end_command_recording(ptCommandBuffer);
-
-        // submit command buffer
-        gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-        gptGfx->wait_on_command_buffer(ptCommandBuffer);
-        gptGfx->return_command_buffer(ptCommandBuffer);
-    }
-
-    gptGfx->update_render_pass_attachments(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPass, (plVec2){(float)tInfo.uWidth, (float)tInfo.uHeight}, atMainAttachmentSets);
 }
 
 void
@@ -517,9 +430,9 @@ pl_starter_cleanup(void)
     gptGfx->flush_device(gptStarterCtx->ptDevice);
     gptGpuAllocators->cleanup(gptStarterCtx->ptDevice);
 
-    // if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    // if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     //     gptGfx->destroy_texture(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
-    // if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
+    // if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
     //     gptGfx->destroy_texture(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
@@ -528,25 +441,25 @@ pl_starter_cleanup(void)
         gptGfx->cleanup_semaphore(gptStarterCtx->aptSemaphores[i]);
     }
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_SHADER_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_SHADER_EXT)
         gptShader->cleanup();
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DRAW_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DRAW_EXT)
     {
         gptDraw->cleanup_font_atlas(gptDraw->get_current_font_atlas());
         gptDraw->cleanup();
     }
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_UI_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_UI_EXT)
         gptUI->cleanup();
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_CONSOLE_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_CONSOLE_EXT)
         gptConsole->cleanup();
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_SCREEN_LOG_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_SCREEN_LOG_EXT)
         gptScreenLog->cleanup();
 
     gptGfx->cleanup_swapchain(gptStarterCtx->ptSwapchain);
     gptGfx->cleanup_surface(gptStarterCtx->ptSurface);
     gptGfx->cleanup_device(gptStarterCtx->ptDevice);
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
         gptGfx->cleanup();
 }
 
@@ -555,21 +468,21 @@ pl_starter_begin_frame(void)
 {
     gptStarterCtx->bMainPassExplicit = false;
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
         gptProfile->begin_frame();
 
     plIO* ptIO = gptIOI->get_io();
 
     gptIOI->new_frame();
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DRAW_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DRAW_EXT)
         gptDraw->new_frame();
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_UI_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_UI_EXT)
         gptUI->new_frame();
 
     // update statistics
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_STATS_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_STATS_EXT)
     {
         gptStats->new_frame();
         static double* pdFrameTimeCounter = NULL;
@@ -583,7 +496,7 @@ pl_starter_begin_frame(void)
     }
 
     // begin new frame
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
         gptGfx->begin_frame(gptStarterCtx->ptDevice);
     const uint32_t uCurrentFrameIndex = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarterCtx->atCmdPools[uCurrentFrameIndex];
@@ -593,7 +506,7 @@ pl_starter_begin_frame(void)
     {
         pl_starter_resize();
         gptStarterCtx->bVSyncChangeRequested = false;
-        if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
+        if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
             gptProfile->end_frame();
         return false; 
     }
@@ -602,7 +515,7 @@ pl_starter_begin_frame(void)
     {
         pl__starter_activate_msaa();
         gptStarterCtx->bMSAAActivateRequested = false;
-        if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
+        if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
             gptProfile->end_frame();
         return false;
     }
@@ -610,7 +523,7 @@ pl_starter_begin_frame(void)
     {
         pl__starter_deactivate_msaa();
         gptStarterCtx->bMSAADeactivateRequested = false;
-        if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
+        if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
             gptProfile->end_frame();
         return false;
     }
@@ -618,7 +531,7 @@ pl_starter_begin_frame(void)
     {
         pl__starter_activate_depth_buffer();
         gptStarterCtx->bDepthBufferActivateRequested = false;
-        if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
+        if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
             gptProfile->end_frame();
         return false;
     }
@@ -626,17 +539,17 @@ pl_starter_begin_frame(void)
     {
         pl__starter_deactivate_depth_buffer();
         gptStarterCtx->bDepthBufferDeactivateRequested = false;
-        if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
+        if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
             gptProfile->end_frame();
         return false;
     }
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
     {
         if(!gptGfx->acquire_swapchain_image(gptStarterCtx->ptSwapchain))
         {
             pl_starter_resize();
-            if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
+            if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
                 gptProfile->end_frame();
             return false;
         }
@@ -645,44 +558,93 @@ pl_starter_begin_frame(void)
     return true;
 }
 
-plRenderEncoder*
+plCommandBuffer*
 pl_starter_begin_main_pass(void)
 {
     const uint32_t uCurrentFrameIndex = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarterCtx->atCmdPools[uCurrentFrameIndex];
     plCommandBuffer* ptCurrentCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "starter main pass");
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
     {
         //~~~~~~~~~~~~~~~~~~~~~~~~begin recording command buffer~~~~~~~~~~~~~~~~~~~~~~~
+        gptGfx->begin_command_recording(ptCurrentCommandBuffer);
 
-        const plBeginCommandInfo tBeginInfo = {
-            .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
-            .auWaitSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]++},
+        uint32_t uImageCount = 0;
+        plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptStarterCtx->ptSwapchain, &uImageCount);
+
+        plRenderInfo tRenderInfo = {
+            .tRenderArea = {
+                .tMin = {0},
+                .tMax = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y}
+            },
+            .atColorAttachments = {
+                {
+                    .tTexture       = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) ? gptStarterCtx->tResolveTexture : atSwapchainImages[gptGfx->get_current_swapchain_image_index(gptStarterCtx->ptSwapchain)],
+                    .eLoadOp        = PL_LOAD_OP_CLEAR,
+                    .eStoreOp       = PL_STORE_OP_STORE,
+                    .eUsage         = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+                    .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f},
+                    .tResolveTexture = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) ? atSwapchainImages[gptGfx->get_current_swapchain_image_index(gptStarterCtx->ptSwapchain)] : (plTextureHandle){0}
+                }
+            },
+            .tDepthAttachment = {
+                .tTexture        = gptStarterCtx->tDepthTexture,
+                .eLoadOp         = PL_LOAD_OP_CLEAR,
+                .eStoreOp        = PL_STORE_OP_DONT_CARE,
+                .eUsage          = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                .fClearZ         = gptStarterCtx->eFlags & PL_STARTER_FLAGS_REVERSE_Z ? 0.0f : 1.0f
+            },
+            .tStencilAttachment = {
+                .tTexture        = gptStarterCtx->tDepthTexture,
+                .eLoadOp         = PL_LOAD_OP_CLEAR,
+                .eStoreOp        = PL_STORE_OP_DONT_CARE,
+                .eUsage          = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                .uClearStencil   = 0
+            }
         };
-        gptGfx->begin_command_recording(ptCurrentCommandBuffer, &tBeginInfo);
 
-        gptStarterCtx->ptCurrentEncoder = gptGfx->begin_render_pass(ptCurrentCommandBuffer, gptStarterCtx->tRenderPass, NULL);
+        // begin main renderpass (directly to swapchain)
+        gptGfx->begin_render_pass(ptCurrentCommandBuffer, &tRenderInfo, NULL);
+        gptStarterCtx->ptCurrentCommandBuffer = ptCurrentCommandBuffer;
 
         gptStarterCtx->bMainPassExplicit = true;
     }
     else
     {
-        gptStarterCtx->ptCurrentEncoder = NULL;
+        gptStarterCtx->ptCurrentCommandBuffer = NULL;
     }
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_CONSOLE_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_CONSOLE_EXT)
     {
         if(gptIOI->is_key_pressed(PL_KEY_F1, false))
             gptConsole->open();
         gptConsole->update();
     }
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_TOOLS_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_TOOLS_EXT)
         gptTools->update();
 
-    return gptStarterCtx->ptCurrentEncoder;
+    return gptStarterCtx->ptCurrentCommandBuffer;
+}
+
+void
+pl_starter_get_render_attachment_info(plRenderAttachmentInfo* ptInfoOut)
+{
+    plRenderAttachmentInfo tRenderAttachmentInfo = {
+        .uColorCount = 1,
+        .aeColorFormats = {
+            gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eFormat
+        }
+    };
+
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    {
+        tRenderAttachmentInfo.eDepthFormat = PL_FORMAT_D32_FLOAT_S8_UINT;
+        tRenderAttachmentInfo.eStencilFormat = PL_FORMAT_D32_FLOAT_S8_UINT;
+    }
+
+    *ptInfoOut = tRenderAttachmentInfo;
 }
 
 void
@@ -700,49 +662,73 @@ pl_starter_end_main_pass(void)
     gptDraw->submit_2d_layer(gptStarterCtx->ptBGLayer);
     gptDraw->submit_2d_layer(gptStarterCtx->ptFGLayer);
 
-    gptDraw->submit_2d_drawlist(gptStarterCtx->ptBGDrawlist, gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
+    plRenderAttachmentInfo tRenderAttachmentInfo = {
+        .uColorCount = 1,
+        .aeColorFormats = {
+            gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eFormat
+        }
+    };
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_UI_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    {
+        tRenderAttachmentInfo.eDepthFormat = PL_FORMAT_D32_FLOAT_S8_UINT;
+        tRenderAttachmentInfo.eStencilFormat = PL_FORMAT_D32_FLOAT_S8_UINT;
+    }
+        
+    gptDraw->submit_2d_drawlist(gptStarterCtx->ptBGDrawlist,
+        gptStarterCtx->ptCurrentCommandBuffer,
+        ptIO->tMainViewportSize.x,
+        ptIO->tMainViewportSize.y,
+        gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eSampleCount,
+        &tRenderAttachmentInfo);
+
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_UI_EXT)
     {
         gptUI->end_frame();
         
-        gptDraw->submit_2d_drawlist(gptUI->get_draw_list(), gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
-        gptDraw->submit_2d_drawlist(gptUI->get_debug_draw_list(), gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
+        gptDraw->submit_2d_drawlist(gptUI->get_draw_list(), gptStarterCtx->ptCurrentCommandBuffer,
+            ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y,
+            gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eSampleCount,
+            &tRenderAttachmentInfo);
+        gptDraw->submit_2d_drawlist(gptUI->get_debug_draw_list(), gptStarterCtx->ptCurrentCommandBuffer,
+        ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eSampleCount,
+            &tRenderAttachmentInfo);
     }
 
-    gptDraw->submit_2d_drawlist(gptStarterCtx->ptFGDrawlist, gptStarterCtx->ptCurrentEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
+    gptDraw->submit_2d_drawlist(gptStarterCtx->ptFGDrawlist, gptStarterCtx->ptCurrentCommandBuffer,
+        ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eSampleCount,
+        &tRenderAttachmentInfo);
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_SCREEN_LOG_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_SCREEN_LOG_EXT)
     {
         plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(fWidth - fWidth * 0.2f, 0.0f, fWidth * 0.2f, fHeight);
-        gptDraw->submit_2d_drawlist(ptMessageDrawlist, gptStarterCtx->ptCurrentEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tSampleCount);
+        gptDraw->submit_2d_drawlist(ptMessageDrawlist, gptStarterCtx->ptCurrentCommandBuffer,
+            fWidth, fHeight, gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eSampleCount, &tRenderAttachmentInfo);
     }
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_GRAPHICS_EXT)
     {
-
-        plCommandBuffer* ptCurrentCommandBuffer = gptGfx->get_encoder_command_buffer(gptStarterCtx->ptCurrentEncoder);
-
-        gptGfx->end_render_pass(gptStarterCtx->ptCurrentEncoder);
-        gptStarterCtx->ptCurrentEncoder = NULL;
-
-        // end recording
-        gptGfx->end_command_recording(ptCurrentCommandBuffer);
+        gptGfx->end_render_pass(gptStarterCtx->ptCurrentCommandBuffer);
+        gptGfx->end_command_recording(gptStarterCtx->ptCurrentCommandBuffer);
 
         //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
 
         const plSubmitInfo tSubmitInfo = {
+            .uWaitSemaphoreCount     = 1,
+            .atWaitSempahores        = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
+            .auWaitSemaphoreValues   = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]++},
             .uSignalSemaphoreCount   = 1,
             .atSignalSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
             .auSignalSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]},
         };
 
-        if(!gptGfx->present(ptCurrentCommandBuffer, &tSubmitInfo, &gptStarterCtx->ptSwapchain, 1))
+        if(!gptGfx->present(gptStarterCtx->ptCurrentCommandBuffer, &tSubmitInfo, &gptStarterCtx->ptSwapchain, 1))
         {
             pl_starter_resize();
         }
 
-        gptGfx->return_command_buffer(ptCurrentCommandBuffer);
+        gptGfx->return_command_buffer(gptStarterCtx->ptCurrentCommandBuffer);
+        gptStarterCtx->ptCurrentCommandBuffer = NULL;
     }
 }
 
@@ -756,7 +742,7 @@ pl_starter_end_frame(void)
         pl_starter_end_main_pass();
     }
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_PROFILE_EXT)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_PROFILE_EXT)
         gptProfile->end_frame();
 }
 
@@ -770,12 +756,7 @@ pl_starter_get_command_buffer(void)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~begin recording command buffer~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plBeginCommandInfo tBeginInfo = {
-        .uWaitSemaphoreCount   = 1,
-        .atWaitSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
-        .auWaitSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]++},
-    };
-    gptGfx->begin_command_recording(ptCommandBuffer, &tBeginInfo);
+    gptGfx->begin_command_recording(ptCommandBuffer);
 
     return ptCommandBuffer;
 }
@@ -791,6 +772,9 @@ pl_starter_submit_command_buffer(plCommandBuffer* ptCommandBuffer)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~submit work to GPU & present~~~~~~~~~~~~~~~~~~~~~~~
 
     const plSubmitInfo tSubmitInfo = {
+        .uWaitSemaphoreCount     = 1,
+        .atWaitSempahores        = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
+        .auWaitSemaphoreValues   = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]++},
         .uSignalSemaphoreCount   = 1,
         .atSignalSempahores      = {gptStarterCtx->aptSemaphores[uCurrentFrameIndex]},
         .auSignalSemaphoreValues = {gptStarterCtx->aulNextTimelineValue[uCurrentFrameIndex]},
@@ -811,12 +795,6 @@ plDrawLayer2D*
 pl_starter_get_background_layer(void)
 {
     return gptStarterCtx->ptBGLayer;
-}
-
-plRenderEncoder*
-pl_starter_get_current_encoder(void)
-{
-    return gptStarterCtx->ptCurrentEncoder;
 }
 
 plDevice*
@@ -841,18 +819,6 @@ plSurface*
 pl_starter_get_surface(void)
 {
     return gptStarterCtx->ptSurface;
-}
-
-plRenderPassHandle
-pl_starter_get_render_pass(void)
-{
-    return gptStarterCtx->tRenderPass;
-}
-
-plRenderPassLayoutHandle
-pl_starter_get_render_pass_layout(void)
-{
-    return gptStarterCtx->tRenderPassLayout;
 }
 
 plCommandPool*
@@ -913,7 +879,7 @@ plCommandBuffer*
 pl_starter_get_temporary_command_buffer(void)
 {
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter temp");
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+    gptGfx->begin_command_recording(ptCommandBuffer);
     return ptCommandBuffer;
 }
 
@@ -942,32 +908,6 @@ pl_starter_return_raw_command_buffer(plCommandBuffer* ptCommandBuffer)
     gptGfx->return_command_buffer(ptCommandBuffer);
 }
 
-plBlitEncoder*
-pl_starter_get_blit_encoder(void)
-{
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter blit");
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-
-    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-    return ptEncoder;
-}
-
-void
-pl_starter_return_blit_encoder(plBlitEncoder* ptEncoder)
-{
-    plCommandBuffer* ptCommandBuffer = gptGfx->get_blit_encoder_command_buffer(ptEncoder);
-
-    gptGfx->end_blit_pass(ptEncoder);
-
-    // finish recording
-    gptGfx->end_command_recording(ptCommandBuffer);
-
-    // submit command buffer
-    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
-}
-
 plDevice*
 pl_starter_create_device(plSurface* ptSurface)
 {
@@ -983,9 +923,9 @@ pl_starter_create_device(plSurface* ptSurface)
     for(uint32_t i = 0; i < uDeviceCount; i++)
     {
         
-        if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_DISCRETE && iDiscreteGPUIdx == -1)
+        if(atDeviceInfos[i].eType == PL_DEVICE_TYPE_DISCRETE && iDiscreteGPUIdx == -1)
             iDiscreteGPUIdx = i;
-        else if(atDeviceInfos[i].tType == PL_DEVICE_TYPE_INTEGRATED && iIntegratedGPUIdx == -1)
+        else if(atDeviceInfos[i].eType == PL_DEVICE_TYPE_INTEGRATED && iIntegratedGPUIdx == -1)
             iIntegratedGPUIdx = i;
     }
 
@@ -1008,23 +948,23 @@ pl_starter_create_device(plSurface* ptSurface)
 void
 pl_starter_activate_vsync(void)
 {
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF)
         gptStarterCtx->bVSyncChangeRequested = true;
-    gptStarterCtx->tFlags &= ~PL_STARTER_FLAGS_VSYNC_OFF;
+    gptStarterCtx->eFlags &= ~PL_STARTER_FLAGS_VSYNC_OFF;
 }
 
 void
 pl_starter_deactivate_vsync(void)
 {
-    if(!(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF))
+    if(!(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF))
         gptStarterCtx->bVSyncChangeRequested = true;
-    gptStarterCtx->tFlags |= PL_STARTER_FLAGS_VSYNC_OFF;
+    gptStarterCtx->eFlags |= PL_STARTER_FLAGS_VSYNC_OFF;
 }
 
 void
 pl_starter_activate_msaa(void)
 {
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
         return;
     gptStarterCtx->bMSAAActivateRequested = true;
 }
@@ -1032,7 +972,7 @@ pl_starter_activate_msaa(void)
 void
 pl_starter_deactivate_msaa(void)
 {
-    if(!(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA))
+    if(!(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA))
         return;
     gptStarterCtx->bMSAADeactivateRequested = true;
 }
@@ -1040,7 +980,7 @@ pl_starter_deactivate_msaa(void)
 void
 pl_starter_activate_depth_buffer(void)
 {
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
         return;
     gptStarterCtx->bDepthBufferActivateRequested = true;
 }
@@ -1048,7 +988,7 @@ pl_starter_activate_depth_buffer(void)
 void
 pl_starter_deactivate_depth_buffer(void)
 {
-    if(!(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER))
+    if(!(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER))
         return;
     gptStarterCtx->bDepthBufferDeactivateRequested = true;
 }
@@ -1060,36 +1000,32 @@ pl_starter_deactivate_depth_buffer(void)
 static void
 pl__starter_activate_msaa(void)
 {
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
         return;
     
-    gptStarterCtx->tFlags |= PL_STARTER_FLAGS_MSAA;
+    gptStarterCtx->eFlags |= PL_STARTER_FLAGS_MSAA;
 
     plIO* ptIO = gptIOI->get_io();
     plSwapchainInit tDesc = {
-        .bVSync  = !(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF),
+        .bVSync  = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF),
         .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
         .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
-        .tSampleCount = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount
+        .eSampleCount = gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount
     };
     gptGfx->recreate_swapchain(gptStarterCtx->ptSwapchain, &tDesc);
 
-    gptGfx->queue_render_pass_layout_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPassLayout);
-    gptGfx->queue_render_pass_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPass);
-
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA)
     {
-        plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {(float)tInfo.uWidth, (float)tInfo.uHeight, 1},
-            .tFormat       = tInfo.tFormat,
+            .eFormat       = tInfo.eFormat,
             .uLayers       = 1,
             .uMips         = 1,
-            .tType         = PL_TEXTURE_TYPE_2D,
-            .tUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
+            .eType         = PL_TEXTURE_TYPE_2D,
+            .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT,
             .pcDebugName   = "MSAA texture",
-            .tSampleCount  = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount
+            .eSampleCount  = gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount
         };
 
         plTexture* ptResolveTexture = NULL;
@@ -1106,27 +1042,24 @@ pl__starter_activate_msaa(void)
             "msaa texture memory");
 
         gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture, &tDepthAllocation);
-
-        pl_starter_return_blit_encoder(ptEncoder);
     }
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
         gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
         plSwapchainInfo tInfo = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain);
-        plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {
                 (float)tInfo.uWidth + 400.0f,
                 (float)tInfo.uHeight + 400.0f,
                 1},
-            .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
+            .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
             .uMips         = 1,
-            .tType         = PL_TEXTURE_TYPE_2D,
-            .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+            .eType         = PL_TEXTURE_TYPE_2D,
+            .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
             .pcDebugName   = "main depth texture",
-            .tSampleCount  = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount
+            .eSampleCount  = gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount
         };
 
         plTexture* ptDepthTexture = NULL;
@@ -1144,50 +1077,46 @@ pl__starter_activate_msaa(void)
 
         gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
 
-        pl_starter_return_blit_encoder(ptEncoder);
-        pl__starter_create_render_pass_with_msaa_and_depth();
+        // pl__starter_create_render_pass_with_msaa_and_depth();
     }
-    else
-        pl__starter_create_render_pass_with_msaa();
+    // else
+    //     pl__starter_create_render_pass_with_msaa();
 }
 
 static void
 pl__starter_deactivate_msaa(void)
 {
-    if(!(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA))
+    if(!(gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA))
         return;
 
-    gptStarterCtx->tFlags &= ~PL_STARTER_FLAGS_MSAA;
+    gptStarterCtx->eFlags &= ~PL_STARTER_FLAGS_MSAA;
 
     plIO* ptIO = gptIOI->get_io();
     plSwapchainInit tDesc = {
-        .bVSync  = !(gptStarterCtx->tFlags & PL_STARTER_FLAGS_VSYNC_OFF),
+        .bVSync  = !(gptStarterCtx->eFlags & PL_STARTER_FLAGS_VSYNC_OFF),
         .uWidth  = (uint32_t)(ptIO->tMainViewportSize.x * ptIO->tMainFramebufferScale.x),
         .uHeight = (uint32_t)(ptIO->tMainViewportSize.y * ptIO->tMainFramebufferScale.y),
-        .tSampleCount = 1
+        .eSampleCount = 1
     };
     gptGfx->recreate_swapchain(gptStarterCtx->ptSwapchain, &tDesc);
 
     gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tResolveTexture);
-    gptGfx->queue_render_pass_layout_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPassLayout);
-    gptGfx->queue_render_pass_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPass);
 
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
         gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
-        plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
         const plTextureDesc tDepthTextureDesc = {
             .tDimensions   = {
                 gptIOI->get_io()->tMainViewportSize.x * ptIO->tMainFramebufferScale.x + 400.0f,
                 gptIOI->get_io()->tMainViewportSize.y * ptIO->tMainFramebufferScale.y + 400.0f,
                 1},
-            .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
+            .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
             .uLayers       = 1,
             .uMips         = 1,
-            .tType         = PL_TEXTURE_TYPE_2D,
-            .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+            .eType         = PL_TEXTURE_TYPE_2D,
+            .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
             .pcDebugName   = "main depth texture",
-            .tSampleCount  = 1
+            .eSampleCount  = 1
         };
 
         plTexture* ptDepthTexture = NULL;
@@ -1204,40 +1133,31 @@ pl__starter_deactivate_msaa(void)
             "depth texture memory");
 
         gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
-
-        pl_starter_return_blit_encoder(ptEncoder);
-        pl__starter_create_render_pass_with_depth();
     }
-    else
-        pl__starter_create_render_pass();
 }
 
 static void
 pl__starter_activate_depth_buffer(void)
 {
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
         return;
     
-    gptStarterCtx->tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
+    gptStarterCtx->eFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
 
     gptGfx->flush_device(gptStarterCtx->ptDevice);
 
-    gptGfx->queue_render_pass_layout_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPassLayout);
-    gptGfx->queue_render_pass_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPass);
-
-    plBlitEncoder* ptEncoder = pl_starter_get_blit_encoder();
     const plTextureDesc tDepthTextureDesc = {
         .tDimensions   = {
             gptIOI->get_io()->tMainViewportSize.x * gptIOI->get_io()->tMainFramebufferScale.x + 400.0f,
             gptIOI->get_io()->tMainViewportSize.y * gptIOI->get_io()->tMainFramebufferScale.y + 400.0f,
             1},
-        .tFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
+        .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
         .uLayers       = 1,
         .uMips         = 1,
-        .tType         = PL_TEXTURE_TYPE_2D,
-        .tUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
         .pcDebugName   = "main depth texture",
-        .tSampleCount  = (gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount : 1
+        .eSampleCount  = (gptStarterCtx->eFlags & PL_STARTER_FLAGS_MSAA) ? gptGfx->get_device_info(gptStarterCtx->ptDevice)->eMaxSampleCount : 1
     };
 
     plTexture* ptDepthTexture = NULL;
@@ -1254,276 +1174,19 @@ pl__starter_activate_depth_buffer(void)
         "depth texture memory");
 
     gptGfx->bind_texture_to_memory(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture, &tDepthAllocation);
-
-    pl_starter_return_blit_encoder(ptEncoder);
-
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
-        pl__starter_create_render_pass_with_msaa_and_depth();
-    else
-        pl__starter_create_render_pass_with_depth();
 }
 
 static void
 pl__starter_deactivate_depth_buffer(void)
 {
-    if(!(gptStarterCtx->tFlags & PL_STARTER_FLAGS_DEPTH_BUFFER))
+    if(!(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER))
         return;
 
-    gptStarterCtx->tFlags &= ~PL_STARTER_FLAGS_DEPTH_BUFFER;
+    gptStarterCtx->eFlags &= ~PL_STARTER_FLAGS_DEPTH_BUFFER;
 
     gptGfx->flush_device(gptStarterCtx->ptDevice);
 
     gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
-    gptGfx->queue_render_pass_layout_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPassLayout);
-    gptGfx->queue_render_pass_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tRenderPass);
-
-    if(gptStarterCtx->tFlags & PL_STARTER_FLAGS_MSAA)
-        pl__starter_create_render_pass_with_msaa();
-    else
-        pl__starter_create_render_pass();
-}
-
-static void
-pl__starter_create_render_pass(void)
-{
-    const plRenderPassLayoutDesc tMainRenderPassLayoutDesc = {
-        .atRenderTargets = {
-            { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat },
-        },
-        .atSubpasses = {
-            {
-                .uRenderTargetCount = 1,
-                .auRenderTargets = {0}
-            }
-        }
-    };
-    gptStarterCtx->tRenderPassLayout = gptGfx->create_render_pass_layout(gptStarterCtx->ptDevice, &tMainRenderPassLayoutDesc);
-
-    // create main render pass
-    plRenderPassDesc tMainRenderPassDesc = {
-        .tLayout = gptStarterCtx->tRenderPassLayout,
-        .atColorTargets = {
-            {
-                .tLoadOp        = PL_LOAD_OP_CLEAR,
-                .tStoreOp       = PL_STORE_OP_STORE,
-                .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-                .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
-                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
-            }
-        },
-        .tDimensions = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y},
-        .ptSwapchain = gptStarterCtx->ptSwapchain
-    };
-
-    uint32_t uImageCount = 0;
-    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptStarterCtx->ptSwapchain, &uImageCount);
-    plRenderPassAttachments atMainAttachmentSets[16] = {0};
-    for(uint32_t i = 0; i < uImageCount; i++)
-    {
-        atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
-    }
-    gptStarterCtx->tRenderPass = gptGfx->create_render_pass(gptStarterCtx->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
-}
-
-static void
-pl__starter_create_render_pass_with_msaa(void)
-{
-    const plRenderPassLayoutDesc tMainRenderPassLayoutDesc = {
-        .atRenderTargets = {
-            { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat, .bResolve = true }, // swapchain
-            { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat, .tSamples = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount}, // msaa
-        },
-        .atSubpasses = {
-            {
-                .uRenderTargetCount = 2,
-                .auRenderTargets = {0, 1}
-            }
-        }
-    };
-    gptStarterCtx->tRenderPassLayout = gptGfx->create_render_pass_layout(gptStarterCtx->ptDevice, &tMainRenderPassLayoutDesc);
-
-    // create main render pass
-    plRenderPassDesc tMainRenderPassDesc = {
-        .tLayout = gptStarterCtx->tRenderPassLayout,
-        .tResolveTarget = { // swapchain image
-            .tLoadOp        = PL_LOAD_OP_DONT_CARE,
-            .tStoreOp       = PL_STORE_OP_STORE,
-            .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-            .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
-            .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
-        },
-        .atColorTargets = { // msaa
-            {
-                .tLoadOp        = PL_LOAD_OP_CLEAR,
-                .tStoreOp       = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
-                .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-                .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
-                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
-            }
-        },
-        .tDimensions = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y},
-        .ptSwapchain = gptStarterCtx->ptSwapchain
-    };
-
-    uint32_t uImageCount = 0;
-    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptStarterCtx->ptSwapchain, &uImageCount);
-    plRenderPassAttachments atMainAttachmentSets[16] = {0};
-    for(uint32_t i = 0; i < uImageCount; i++)
-    {
-        atMainAttachmentSets[i].atViewAttachments[0] = atSwapchainImages[i];
-        atMainAttachmentSets[i].atViewAttachments[1] = gptStarterCtx->tResolveTexture;
-    }
-    gptStarterCtx->tRenderPass = gptGfx->create_render_pass(gptStarterCtx->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
-}
-
-static void
-pl__starter_create_render_pass_with_depth(void)
-{
-    const plRenderPassLayoutDesc tMainRenderPassLayoutDesc = {
-        .atRenderTargets = {
-            { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true }, // depth buffer
-            { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat },
-        },
-        .atSubpasses = {
-            {
-                .uRenderTargetCount = 2,
-                .auRenderTargets = {0, 1}
-            }
-        }
-    };
-    gptStarterCtx->tRenderPassLayout = gptGfx->create_render_pass_layout(gptStarterCtx->ptDevice, &tMainRenderPassLayoutDesc);
-
-    // create main render pass
-    plRenderPassDesc tMainRenderPassDesc = {
-        .tLayout = gptStarterCtx->tRenderPassLayout,
-        .tDepthTarget = {
-                .tLoadOp         = PL_LOAD_OP_CLEAR,
-                .tStoreOp        = PL_STORE_OP_DONT_CARE,
-                .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
-                .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
-                .tPreviousUsage  = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .fClearZ         = gptStarterCtx->tFlags & PL_STARTER_FLAGS_REVERSE_Z ? 0.0f : 1.0f
-        },
-        .atColorTargets = {
-            {
-                .tLoadOp        = PL_LOAD_OP_CLEAR,
-                .tStoreOp       = PL_STORE_OP_STORE,
-                .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-                .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
-                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
-            }
-        },
-        .tDimensions = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y},
-        .ptSwapchain = gptStarterCtx->ptSwapchain
-    };
-
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter 0");
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-
-    // begin blit pass, copy buffer, end pass
-    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-
-    uint32_t uImageCount = 0;
-    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptStarterCtx->ptSwapchain, &uImageCount);
-    plRenderPassAttachments atMainAttachmentSets[16] = {0};
-    for(uint32_t i = 0; i < uImageCount; i++)
-    {
-        atMainAttachmentSets[i].atViewAttachments[0] = gptStarterCtx->tDepthTexture;
-        atMainAttachmentSets[i].atViewAttachments[1] = atSwapchainImages[i];
-    }
-    gptStarterCtx->tRenderPass = gptGfx->create_render_pass(gptStarterCtx->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
-
-    gptGfx->end_blit_pass(ptEncoder);
-
-    // finish recording
-    gptGfx->end_command_recording(ptCommandBuffer);
-
-    // submit command buffer
-    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
-}
-
-static void
-pl__starter_create_render_pass_with_msaa_and_depth(void)
-{
-    const plRenderPassLayoutDesc tMainRenderPassLayoutDesc = {
-        .atRenderTargets = {
-            { .tFormat = PL_FORMAT_D32_FLOAT_S8_UINT, .bDepth = true, .tSamples = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount }, // depth buffer
-            { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat, .bResolve = true }, // swapchain
-            { .tFormat = gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).tFormat, .tSamples = gptGfx->get_device_info(gptStarterCtx->ptDevice)->tMaxSampleCount}, // msaa
-            
-
-        },
-        .atSubpasses = {
-            {
-                .uRenderTargetCount = 3,
-                .auRenderTargets = {0, 1, 2}
-            }
-        }
-    };
-    gptStarterCtx->tRenderPassLayout = gptGfx->create_render_pass_layout(gptStarterCtx->ptDevice, &tMainRenderPassLayoutDesc);
-
-    // create main render pass
-    plRenderPassDesc tMainRenderPassDesc = {
-        .tLayout = gptStarterCtx->tRenderPassLayout,
-        .tDepthTarget = {
-                .tLoadOp         = PL_LOAD_OP_CLEAR,
-                .tStoreOp        = PL_STORE_OP_DONT_CARE,
-                .tStencilLoadOp  = PL_LOAD_OP_CLEAR,
-                .tStencilStoreOp = PL_STORE_OP_DONT_CARE,
-                .tPreviousUsage  = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .tNextUsage      = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                .fClearZ         = gptStarterCtx->tFlags & PL_STARTER_FLAGS_REVERSE_Z ? 0.0f : 1.0f
-        },
-        .tResolveTarget = { // swapchain image
-            .tLoadOp        = PL_LOAD_OP_DONT_CARE,
-            .tStoreOp       = PL_STORE_OP_STORE,
-            .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-            .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
-            .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
-        },
-        .atColorTargets = {
-            {
-                .tLoadOp        = PL_LOAD_OP_CLEAR,
-                .tStoreOp       = PL_STORE_OP_STORE_MULTISAMPLE_RESOLVE,
-                .tPreviousUsage = PL_TEXTURE_USAGE_UNSPECIFIED,
-                .tNextUsage     = PL_TEXTURE_USAGE_PRESENT,
-                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
-            }
-        },
-        .tDimensions = {.x = gptIOI->get_io()->tMainViewportSize.x, .y = gptIOI->get_io()->tMainViewportSize.y},
-        .ptSwapchain = gptStarterCtx->ptSwapchain
-    };
-
-    plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStarterCtx->atCmdPools[gptGfx->get_current_frame_index()], "starter 1");
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
-
-    // begin blit pass, copy buffer, end pass
-    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
-
-    uint32_t uImageCount = 0;
-    plTextureHandle* atSwapchainImages = gptGfx->get_swapchain_images(gptStarterCtx->ptSwapchain, &uImageCount);
-    plRenderPassAttachments atMainAttachmentSets[16] = {0};
-    for(uint32_t i = 0; i < uImageCount; i++)
-    {
-        atMainAttachmentSets[i].atViewAttachments[0] = gptStarterCtx->tDepthTexture;
-        atMainAttachmentSets[i].atViewAttachments[1] = atSwapchainImages[i];
-        atMainAttachmentSets[i].atViewAttachments[2] = gptStarterCtx->tResolveTexture;
-        
-    }
-    gptStarterCtx->tRenderPass = gptGfx->create_render_pass(gptStarterCtx->ptDevice, &tMainRenderPassDesc, atMainAttachmentSets);
-
-    gptGfx->end_blit_pass(ptEncoder);
-
-    // finish recording
-    gptGfx->end_command_recording(ptCommandBuffer);
-
-    // submit command buffer
-    gptGfx->submit_command_buffer(ptCommandBuffer, NULL);
-    gptGfx->wait_on_command_buffer(ptCommandBuffer);
-    gptGfx->return_command_buffer(ptCommandBuffer);
 }
 
 //-----------------------------------------------------------------------------
@@ -1547,8 +1210,6 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_swapchain                        = pl_starter_get_swapchain,
         .set_swapchain                        = pl_starter_set_swapchain,
         .get_surface                          = pl_starter_get_surface,
-        .get_render_pass                      = pl_starter_get_render_pass,
-        .get_render_pass_layout               = pl_starter_get_render_pass_layout,
         .get_current_command_pool             = pl_starter_get_current_command_pool,
         .get_current_timeline_semaphore       = pl_starter_get_current_timeline_semaphore,
         .get_last_timeline_semaphore          = pl_starter_get_last_timeline_semaphore,
@@ -1561,10 +1222,8 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .get_raw_command_buffer               = pl_starter_get_raw_command_buffer,
         .submit_temporary_command_buffer      = pl_starter_submit_temporary_command_buffer,
         .return_raw_command_buffer            = pl_starter_return_raw_command_buffer,
-        .get_blit_encoder                     = pl_starter_get_blit_encoder,
         .get_command_buffer                   = pl_starter_get_command_buffer,
         .submit_command_buffer                = pl_starter_submit_command_buffer,
-        .return_blit_encoder                  = pl_starter_return_blit_encoder,
         .get_background_layer                 = pl_starter_get_background_layer,
         .get_foreground_layer                 = pl_starter_get_foreground_layer,
         .activate_msaa                        = pl_starter_activate_msaa,
@@ -1573,6 +1232,7 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .deactivate_depth_buffer              = pl_starter_deactivate_depth_buffer,
         .activate_vsync                       = pl_starter_activate_vsync,
         .deactivate_vsync                     = pl_starter_deactivate_vsync,
+        .get_render_attachment_info           = pl_starter_get_render_attachment_info,
     };
     pl_set_api(ptApiRegistry, plStarterI, &tApi);
 

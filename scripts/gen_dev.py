@@ -154,7 +154,7 @@ with pl.project("pilotlight"):
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
                     pl.add_linker_flags("-lstdc++")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
+                    pl.add_link_directories('$VULKAN_SDK/lib')
 
         def add_release_unity_ext():
             
@@ -189,7 +189,7 @@ with pl.project("pilotlight"):
                     pl.add_compiler_flags("-Wno-deprecated-declarations")
                     pl.add_linker_flags("-lstdc++")
                     pl.add_include_directories('$VULKAN_SDK/include', '/usr/include/vulkan')
-                    pl.add_link_directories('$VULKAN_SDK/lib', "/usr/local/lib")
+                    pl.add_link_directories('$VULKAN_SDK/lib')
 
         with pl.configuration("debug"):                add_debug_unity_ext()
         with pl.configuration("release"):              add_release_unity_ext()

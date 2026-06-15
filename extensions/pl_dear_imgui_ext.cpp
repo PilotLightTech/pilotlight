@@ -50,7 +50,7 @@ static const plMemoryI *gptMemory = NULL;
 //-----------------------------------------------------------------------------
 
 void
-pl_dear_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, plRenderPassHandle tMainRenderPass)
+pl_dear_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, const plRenderAttachmentInfo* ptInfo)
 {
 
     ImPlotContext *ptImPlotContext = ImPlot::CreateContext();
@@ -58,6 +58,18 @@ pl_dear_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, plRenderPassHa
 
 #ifdef PL_CPU_BACKEND
 #elif defined(PL_VULKAN_BACKEND)
+
+    VkFormat atColorFormats[PL_MAX_RENDER_TARGETS] = {};
+    for(uint32_t i = 0; i < ptInfo->uColorCount; i++)
+        atColorFormats[i] = gptGfx->get_vulkan_format(ptInfo->aeColorFormats[i]);
+    VkPipelineRenderingCreateInfo tPipelineRenderingCreateInfo = {};
+    tPipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    tPipelineRenderingCreateInfo.pNext = NULL;
+    tPipelineRenderingCreateInfo.colorAttachmentCount = ptInfo->uColorCount;
+    tPipelineRenderingCreateInfo.pColorAttachmentFormats = atColorFormats;
+    tPipelineRenderingCreateInfo.depthAttachmentFormat = ptInfo->eDepthFormat == 0 ? VK_FORMAT_UNDEFINED : gptGfx->get_vulkan_format(ptInfo->eDepthFormat);
+    tPipelineRenderingCreateInfo.stencilAttachmentFormat = ptInfo->eStencilFormat == 0 ? VK_FORMAT_UNDEFINED : gptGfx->get_vulkan_format(ptInfo->eStencilFormat);
+
     ImGui_ImplVulkan_InitInfo tImguiVulkanInfo = PL_ZERO_INIT;
     tImguiVulkanInfo.ApiVersion = gptGfx->get_vulkan_api_version();
     tImguiVulkanInfo.Instance = gptGfx->get_vulkan_instance();
@@ -68,11 +80,14 @@ pl_dear_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, plRenderPassHa
     // tImguiVulkanInfo.DescriptorPool = gptGfx->get_vulkan_descriptor_pool(gptDraw->get_bind_group_pool());
     tImguiVulkanInfo.DescriptorPoolSize = 100000;
     tImguiVulkanInfo.MinImageCount = 2;
+    tImguiVulkanInfo.UseDynamicRendering = true;
     tImguiVulkanInfo.Allocator = gptGfx->get_vulkan_allocation_callbacks();
-    tImguiVulkanInfo.PipelineInfoMain.MSAASamples = (VkSampleCountFlagBits)gptGfx->get_swapchain_info(ptSwap).tSampleCount;
-    tImguiVulkanInfo.PipelineInfoMain.RenderPass = gptGfx->get_vulkan_render_pass(ptDevice, tMainRenderPass);
-    tImguiVulkanInfo.PipelineInfoForViewports.MSAASamples = (VkSampleCountFlagBits)gptGfx->get_swapchain_info(ptSwap).tSampleCount;
-    tImguiVulkanInfo.PipelineInfoForViewports.RenderPass = gptGfx->get_vulkan_render_pass(ptDevice, tMainRenderPass);
+    tImguiVulkanInfo.PipelineInfoMain.MSAASamples = (VkSampleCountFlagBits)gptGfx->get_swapchain_info(ptSwap).eSampleCount;
+    tImguiVulkanInfo.PipelineInfoMain.PipelineRenderingCreateInfo = tPipelineRenderingCreateInfo;
+    tImguiVulkanInfo.PipelineInfoForViewports.PipelineRenderingCreateInfo = tPipelineRenderingCreateInfo;
+    // tImguiVulkanInfo.PipelineInfoMain.RenderPass = gptGfx->get_vulkan_render_pass(ptDevice, tMainRenderPass);
+    tImguiVulkanInfo.PipelineInfoForViewports.MSAASamples = (VkSampleCountFlagBits)gptGfx->get_swapchain_info(ptSwap).eSampleCount;
+    // tImguiVulkanInfo.PipelineInfoForViewports.RenderPass = gptGfx->get_vulkan_render_pass(ptDevice, tMainRenderPass);
     gptGfx->get_swapchain_images(ptSwap, &tImguiVulkanInfo.ImageCount);
     ImGui_ImplVulkan_Init(&tImguiVulkanInfo);
 #elif defined(PL_METAL_BACKEND)
@@ -97,22 +112,24 @@ pl_dear_imgui_cleanup(void)
 }
 
 void
-pl_dear_imgui_new_frame(plDevice *ptDevice, plRenderPassHandle tMainRenderPass)
+pl_dear_imgui_new_frame(plDevice *ptDevice)
 {
 #ifdef PL_CPU_BACKEND
 #elif defined(PL_VULKAN_BACKEND)
     ImGui_ImplVulkan_NewFrame();
-#elif defined(PL_METAL_BACKEND)
-    ImGui_ImplMetal_NewFrame(gptGfx->get_metal_render_pass_descriptor(ptDevice, tMainRenderPass));
-#else
+
 #endif
 
     ImGui::NewFrame();
 }
 
 void
-pl_dear_imgui_render(plRenderEncoder *ptRenderEncoder, plCommandBuffer *ptCommandBuffer)
+pl_dear_imgui_render(plCommandBuffer *ptCommandBuffer)
 {
+    #ifdef PL_METAL_BACKEND
+        ImGui_ImplMetal_NewFrame(gptGfx->get_metal_render_pass_descriptor(ptCommandBuffer));
+    #endif
+
     ImGui::Render();
     ImDrawData *main_draw_data = ImGui::GetDrawData();
 
@@ -120,7 +137,7 @@ pl_dear_imgui_render(plRenderEncoder *ptRenderEncoder, plCommandBuffer *ptComman
     #elif defined(PL_VULKAN_BACKEND)
         ImGui_ImplVulkan_RenderDrawData(main_draw_data, gptGfx->get_vulkan_command_buffer(ptCommandBuffer));
     #elif defined(PL_METAL_BACKEND)
-        ImGui_ImplMetal_RenderDrawData(main_draw_data, gptGfx->get_metal_command_buffer(ptCommandBuffer), gptGfx->get_metal_command_encoder(ptRenderEncoder));
+        ImGui_ImplMetal_RenderDrawData(main_draw_data, gptGfx->get_metal_command_buffer(ptCommandBuffer), gptGfx->get_metal_command_encoder(ptCommandBuffer));
     #else
     #endif
 

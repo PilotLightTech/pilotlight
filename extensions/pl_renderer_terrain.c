@@ -44,7 +44,7 @@ typedef struct _plChunkFileData
 
 typedef struct _plTerrain
 {
-    plRenderPassLayoutHandle tRenderPassLayoutHandle;
+    plRenderAttachmentInfo tRenderPassLayoutHandle;
     plTerrainRuntimeOptions tRuntimeOptions;
     plChunkFileData* sbtChunkFiles;
     plTerrainProcessInfo tInfo;
@@ -78,8 +78,8 @@ static void pl__make_unresident  (plTerrain*, plTerrainChunk*);
 static bool pl__terrain_load(plTerrain* ptTerrain, plTerrainProcessInfo* ptInfo);
 void pl__remove_from_replacement_queue(plTerrain* ptTerrain, plTerrainChunk* ptChunk);
 
-static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plRenderEncoder*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP, uint32_t);
-static void pl__render_chunk_shadow(plScene*, plTerrain*, const plCamera*, plRenderEncoder*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP, uint32_t);
+static void pl__render_chunk(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP, uint32_t);
+static void pl__render_chunk_shadow(plScene*, plTerrain*, const plCamera*, plCommandBuffer*, plTerrainChunk*, plTerrainChunkFile*, const plMat4* ptMVP, uint32_t);
 
 static void pl__free_chunk_until(plTerrain* P, uint64_t idx_bytes_needed, uint64_t vtx_bytes_needed);
 
@@ -146,7 +146,7 @@ pl_renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plTerrainProcessInfo* p
     plDevice* ptDevice = gptData->ptDevice;
 
     const plBufferDesc tVertexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
+        .eUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER,
         .szByteSize  = ptTerrain->tVertexBufferManager.uSize,
         .pcDebugName = "vertex buffer"
     };
@@ -167,7 +167,7 @@ pl_renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plTerrainProcessInfo* p
 
     // create index buffer
     const plBufferDesc tIndexBufferDesc = {
-        .tUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER_DESTINATION,
+        .eUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER,
         .szByteSize  = ptTerrain->tIndexBufferManager.uSize,
         .pcDebugName = "index buffer"
     };
@@ -616,7 +616,7 @@ pl__request_residency(plTerrain* ptTerrain, plTerrainChunk* ptChunk)
 }
 
 static void
-pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plRenderEncoder* ptEncoder, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP, uint32_t uGlobalIndex)
+pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera, plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP, uint32_t uGlobalIndex)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -661,7 +661,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     {
         // Draw parent
         plDevice* ptDevice = gptData->ptDevice;
-        plDynamicBinding tDynamicBinding =  pl__allocate_dynamic_data(ptDevice);
+        plDynamicBinding tDynamicBinding =  pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynTerrainData));
         plGpuDynTerrainData* ptDynamic = (plGpuDynTerrainData*)tDynamicBinding.pcData;
 
         ptDynamic->iLevel          = (int)ptChunk->uLevel;
@@ -686,7 +686,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
         }
 
         gptGfx->bind_graphics_bind_groups(
-            ptEncoder,
+            ptCmdBuffer,
             ptScene->tTerrainShader,
             0, 0,
             NULL,
@@ -701,7 +701,7 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
             .tIndexBuffer   = ptTerrain->tIndexBuffer
         };
 
-        gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
+        gptGfx->draw_indexed(ptCmdBuffer, 1, &tDraw);
         *gptData->pdDrawCalls += 1;
 
         pl__touch_chunk(ptTerrain, ptChunk);
@@ -727,12 +727,12 @@ pl__render_chunk(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamer
     {
         // Descend into children
         for(uint32_t i = 0; i < 4; i++)
-            pl__render_chunk(ptScene, ptTerrain, ptCamera, ptEncoder, ptChunk->aptChildren[i], ptFile, ptMVP, uGlobalIndex);
+            pl__render_chunk(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile, ptMVP, uGlobalIndex);
     }
 }
 
 static void
-pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera , plRenderEncoder* ptEncoder, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP, uint32_t uGlobalIndex)
+pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* ptCamera , plCommandBuffer* ptCmdBuffer, plTerrainChunk* ptChunk, plTerrainChunkFile* ptFile, const plMat4* ptMVP, uint32_t uGlobalIndex)
 {
     PL_ASSERT(ptChunk != NULL);
 
@@ -780,7 +780,7 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
             .uInstanceCount = 1 // uCascadeCount
         };
 
-        gptGfx->draw_indexed(ptEncoder, 1, &tDraw);
+        gptGfx->draw_indexed(ptCmdBuffer, 1, &tDraw);
         *gptData->pdDrawCalls += 1;
 
         pl__touch_chunk(ptTerrain, ptChunk);
@@ -806,7 +806,7 @@ pl__render_chunk_shadow(plScene* ptScene, plTerrain* ptTerrain, const plCamera* 
     {
         // Descend into children
         for(uint32_t i = 0; i < 4; i++)
-            pl__render_chunk_shadow(ptScene, ptTerrain, ptCamera, ptEncoder, ptChunk->aptChildren[i], ptFile, ptMVP, uGlobalIndex);
+            pl__render_chunk_shadow(ptScene, ptTerrain, ptCamera, ptCmdBuffer, ptChunk->aptChildren[i], ptFile, ptMVP, uGlobalIndex);
     }
 }
 

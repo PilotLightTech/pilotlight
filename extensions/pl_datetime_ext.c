@@ -181,7 +181,7 @@ pl_datetime_now(void)
 
     plDateTime tResult = {
         .tDate = {
-            .tMonth = ptLocalTime->tm_mon + 1,
+            .eMonth = ptLocalTime->tm_mon + 1,
             .iDay   = ptLocalTime->tm_mday,
             .iYear  = ptLocalTime->tm_year + 1900
         },

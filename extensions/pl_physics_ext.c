@@ -501,7 +501,7 @@ pl_physics_create_rigid_body(plComponentLibrary* ptLibrary, plEntity tEntity)
         gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tAdditionalTransform = tAdditionalTransform;
         gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].tInverseAdditionalTransform = pl_mat4_invert(&tAdditionalTransform);
 
-        if(ptTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
+        if(ptTransform->eFlags & PL_TRANSFORM_FLAGS_DIRTY)
             pl__set_awake(&gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject], true);
         gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fLinearDamping = 1.0f - ptRigidBody->fLinearDamping;
         gptPhysicsCtx->sbtRigidBodies[ptRigidBody->uPhysicsObject].fAngularDamping = 1.0f - ptRigidBody->fAngularDamping;
@@ -627,7 +627,7 @@ pl_physics_update(float fRenderDeltaTime, plComponentLibrary* ptLibrary)
 
         plVec3 tUnUsedScale = {0};
         pl_decompose_matrix(&tTransform, &tUnUsedScale, &ptSphereTransform->tRotation, &ptSphereTransform->tTranslation);
-        ptSphereTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+        ptSphereTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
     }
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 

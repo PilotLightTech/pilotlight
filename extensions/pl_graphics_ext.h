@@ -1,6 +1,6 @@
 /*
    pl_graphics_ext.h
-    * a light wrapper over Vulkan & Metal 3.0
+    * a light wrapper over Vulkan & Metal 4.0
 */
 
 /*
@@ -45,7 +45,7 @@ Index of this file:
     BACKGROUND:
 
     The graphics extension is meant to be an extremely lightweight abstraction
-    over the "modern" explicit graphics APIs (Vulkan/DirectX 12/Metal 3.0).
+    over the "modern" explicit graphics APIs (Vulkan/DirectX 12/Metal 4.0).
     Ideally it should be 1 to 1 when possible. The explicit control provided
     by these APIs are their power, so the extension tries to preserve that
     as much as possible while also allowing a graphics programmer the ability
@@ -56,9 +56,9 @@ Index of this file:
     example, Vulkan makes it easy to issue draw calls and compute dispatches
     directly to command buffers while Metal requires these to be submitted
     to different "encoders" which can't be recording simutaneously. So the
-    graphics extension introduces the concept of encoder to match the stricter
-    API at the cost of some freedom Vulkan would normally allow. There is only
-    a few cases like this but you should be aware of them.
+    graphics extension matches the stricter API at the cost of some freedom
+    Vulkan would normally allow. There is only a few cases like this but you
+    should be aware of them.
 
     Provided Implementation:
         The provided implementation of this extension depends on the following
@@ -101,6 +101,8 @@ extern "C" {
 //-----------------------------------------------------------------------------
 
 // misc config options
+#define PL_MAX_PASS_RESOURCE_BUFFERS 16
+#define PL_MAX_PASS_RESOURCE_TEXTURES 16
 #define PL_MAX_BUFFERS_PER_BIND_GROUP 32
 #define PL_MAX_TEXTURES_PER_BIND_GROUP 32
 #define PL_MAX_SAMPLERS_PER_BIND_GROUP 8
@@ -120,7 +122,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {1, 10, 0}
+#define plGraphicsI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -156,7 +158,6 @@ typedef struct _plSampler           plSampler;           // sampler resource
 typedef struct _plTexture           plTexture;           // texture resource
 typedef struct _plBuffer            plBuffer;            // buffer resource
 typedef struct _plTimelineSemaphore plTimelineSemaphore; // timeline semaphore
-typedef struct _plTimelineEvent     plTimelineEvent;     // timeline event
 
 // swapchains
 typedef struct _plSwapchain     plSwapchain;     // swapchain
@@ -165,9 +166,6 @@ typedef struct _plSwapchainInfo plSwapchainInfo; // swapchain information
 typedef struct _plSwapchainInit plSwapchainInit; // swapchain creation options
 
 // encoders
-typedef struct _plRenderEncoder       plRenderEncoder;       // opaque type for command buffer encoder for render ops
-typedef struct _plComputeEncoder      plComputeEncoder;      // opaque type for command buffer encoder for compute ops
-typedef struct _plBlitEncoder         plBlitEncoder;         // opaque type for command buffer encoder for blit ops
 typedef struct _plBufferImageCopy     plBufferImageCopy;     // used for copying between buffers & textures with blit encoder
 typedef struct _plImageCopy           plImageCopy;           // used for copying between textures with blit encoder
 typedef struct _plPassTextureResource plPassTextureResource;
@@ -202,19 +200,12 @@ typedef struct _plShaderModule      plShaderModule;      // shader code
 typedef struct _plCommandBuffer    plCommandBuffer;    // opaque type for command buffer
 typedef struct _plCommandPool      plCommandPool;      // opaque type for command buffer pools
 typedef struct _plCommandPoolDesc  plCommandPoolDesc;  // descriptor for creating command pools (future use)
-typedef struct _plBeginCommandInfo plBeginCommandInfo; // options when beginning command recording
 typedef struct _plSubmitInfo       plSubmitInfo;       // options when submitting commands to queues
 
-// render passes
-typedef struct _plRenderTarget          plRenderTarget;
-typedef struct _plColorTarget           plColorTarget;
-typedef struct _plDepthTarget           plDepthTarget;
-typedef struct _plSubpass               plSubpass;
-typedef struct _plRenderPassLayout      plRenderPassLayout;
-typedef struct _plRenderPassLayoutDesc  plRenderPassLayoutDesc;
-typedef struct _plRenderPassDesc        plRenderPassDesc;
-typedef struct _plRenderPass            plRenderPass;
-typedef struct _plRenderPassAttachments plRenderPassAttachments;
+// render pass stuff
+typedef struct _plRenderAttachmentInfo plRenderAttachmentInfo;
+typedef struct _plRenderAttachment     plRenderAttachment;
+typedef struct _plRenderInfo           plRenderInfo;
 
 // device memory
 typedef struct _plDeviceMemoryRequirements plDeviceMemoryRequirements; // requirements for a new memory allocations
@@ -257,8 +248,9 @@ typedef int plFormat;                 // -> enum _plFormat                 // En
 typedef int plVertexFormat;           // -> enum _plVertexFormat           // Enum: formats (PL_FORMAT_VERTEX_XXXX)
 typedef int plBufferUsage;            // -> enum _plBufferUsage            // Flag: buffer usage flags (PL_BUFFER_USAGE_XXXX)
 typedef int plShaderStageFlags;       // -> enum _plShaderStageFlags       // Flag: GPU pipeline stage (PL_SHADER_STAGE_XXXX)
+typedef int plPassResourceAccess;     // -> enum _plPassResourceAccess     // Flag: (PL_PASS_RESOURCE_ACCESS_XXXX)
+typedef int plBarrierScope;           // -> enum _plBarrierScope           // Flag: GPU resource barrier scope (PL_BARRIER_SCOPE_XXXX)
 typedef int plPipelineStageFlags;     // -> enum _plPipelineStageFlags     // Flag: GPU pipeline stage (PL_PIPELINE_STAGE_XXXX)
-typedef int plAccessFlags;            // -> enum _plAccessFlags            // Flag: GPU pipeline stage (PL_ACCESS_XXXX)
 typedef int plCullMode;               // -> enum _plCullMode               // Flag: face culling mode (PL_CULL_MODE_XXXX)
 typedef int plBufferBindingType;      // -> enum _plBufferBindingType      // Enum: buffer binding type for bind groups (PL_BUFFER_BINDING_TYPE_XXXX)
 typedef int plTextureBindingType;     // -> enum _plTextureBindingType     // Enum: image binding type for bind groups (PL_TEXTURE_BINDING_TYPE_XXXX)
@@ -276,7 +268,6 @@ typedef int plVendorId;               // -> enum _plVendorId               // En
 typedef int plDeviceType;             // -> enum _plDeviceType             // Enum: device type (PL_DEVICE_TYPE_XXXX)
 typedef int plDeviceCapability;       // -> enum _plDeviceCapability       // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
 typedef int plCommandPoolResetFlags;  // -> enum _plCommandPoolResetFlags  // Flags: device capabilities (PL_DEVICE_CAPABILITY_XXXX)
-typedef int plPassResourceUsageFlags; // -> enum _plPassResourceUsageFlags // Flags: resource usage (PL_PASS_RESOURCE_USAGE_XXXX)
 typedef int plGraphicsBackend;        // -> enum _plGraphicsBackend        // Enum: graphics backend (PL_GRAPHICS_BACKEND_XXXX)
 typedef int plBlendMode;              // -> enum _plBlendMode              // Enum: blend state abstraction (PL_BLEND_MODE_XXXX)
 typedef int plBorderColor;            // -> enum _plBorderColor             // Enum: texture border color (PL_BORDER_COLOR_XXXX)
@@ -302,11 +293,12 @@ typedef struct VkDescriptorSet_T*  VkDescriptorSet;
 
 typedef struct VkAllocationCallbacks VkAllocationCallbacks;
 typedef struct VkPhysicalDeviceMemoryProperties VkPhysicalDeviceMemoryProperties;
+typedef enum VkFormat VkFormat;
 #endif
 
 #ifdef PL_GRAPHICS_EXPOSE_METAL
-@class MTLRenderPassDescriptor;
-@protocol MTLDevice, MTLCommandBuffer, MTLRenderCommandEncoder, MTLTexture;
+@class MTL4RenderPassDescriptor;
+@protocol MTLDevice, MTL4CommandBuffer, MTL4RenderCommandEncoder, MTLTexture;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -343,12 +335,12 @@ typedef struct _plBlendState
 {
     bool          bBlendEnabled;
     uint8_t       uColorWriteMask; // PL_COLOR_WRITE_MASK_* bits
-    plBlendOp     tColorOp;
-    plBlendOp     tAlphaOp;
-    plBlendFactor tSrcColorFactor;
-    plBlendFactor tDstColorFactor;
-    plBlendFactor tSrcAlphaFactor;
-    plBlendFactor tDstAlphaFactor;
+    plBlendOp     eColorOp;
+    plBlendOp     eAlphaOp;
+    plBlendFactor eSrcColorFactor;
+    plBlendFactor eDstColorFactor;
+    plBlendFactor eSrcAlphaFactor;
+    plBlendFactor eDstAlphaFactor;
 } plBlendState;
 
 typedef struct _plSwapchainInfo
@@ -356,8 +348,8 @@ typedef struct _plSwapchainInfo
     bool          bVSync;
     uint32_t      uWidth;
     uint32_t      uHeight;
-    plFormat      tFormat;
-    plSampleCount tSampleCount;
+    plFormat      eFormat;
+    plSampleCount eSampleCount;
 } plSwapchainInfo;
 
 //-----------------------------------------------------------------------------
@@ -392,6 +384,7 @@ PL_API bool             pl_graphics_acquire_swapchain_image(plSwapchain*);
 PL_API void             pl_graphics_recreate_swapchain     (plSwapchain*, const plSwapchainInit*);
 PL_API plTextureHandle* pl_graphics_get_swapchain_images   (plSwapchain*, uint32_t* puSizeOut);
 PL_API plSwapchainInfo  pl_graphics_get_swapchain_info     (plSwapchain*);
+PL_API uint32_t         pl_graphics_get_current_swapchain_image_index(plSwapchain*);
 
 // query
 PL_API uint32_t pl_graphics_get_frames_in_flight   (void);
@@ -418,69 +411,51 @@ PL_API plCommandBuffer* pl_graphics_request_command_buffer (plCommandPool*, cons
 PL_API void             pl_graphics_return_command_buffer  (plCommandBuffer*); // return command buffer to pool
 PL_API void             pl_graphics_reset_command_buffer   (plCommandBuffer*); // call if reusing after submit/present
 PL_API void             pl_graphics_wait_on_command_buffer (plCommandBuffer*); // call after submit to block/wait
-PL_API void             pl_graphics_begin_command_recording(plCommandBuffer*, const plBeginCommandInfo*);
+PL_API void             pl_graphics_begin_command_recording(plCommandBuffer*);
 PL_API void             pl_graphics_end_command_recording  (plCommandBuffer*);
 PL_API void             pl_graphics_submit_command_buffer  (plCommandBuffer*, const plSubmitInfo*);
 
-// timeline events
-PL_API plTimelineEvent* pl_graphics_create_event   (plDevice*);
-PL_API void             pl_graphics_cleanup_event  (plTimelineEvent*);
-PL_API void             pl_graphics_reset_event    (plCommandBuffer*, plTimelineEvent*, plPipelineStageFlags srcStages);
-PL_API void             pl_graphics_set_event      (plCommandBuffer*, plTimelineEvent*, plPipelineStageFlags srcStages);
-PL_API void             pl_graphics_wait_for_events(plCommandBuffer*, plTimelineEvent**, uint32_t eventCount, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages);
-
 // render encoder
-PL_API plRenderEncoder*   pl_graphics_begin_render_pass         (plCommandBuffer*, plRenderPassHandle, const plPassResources*); // do not store
-PL_API void               pl_graphics_next_subpass              (plRenderEncoder*, const plPassResources*);
-PL_API void               pl_graphics_end_render_pass           (plRenderEncoder*);
-PL_API plRenderPassHandle pl_graphics_get_encoder_render_pass   (plRenderEncoder*);
-PL_API uint32_t           pl_graphics_get_render_encoder_subpass(plRenderEncoder*);
-PL_API plCommandBuffer*   pl_graphics_get_encoder_command_buffer(plRenderEncoder*);
+PL_API void pl_graphics_begin_render_pass(plCommandBuffer*, const plRenderInfo*, const plPassResources*);
+PL_API void pl_graphics_end_render_pass  (plCommandBuffer*);
 
 // render encoder: draw stream (preferred system)
 //   Notes:
 //     - call reset_draw_stream(...) with the maximum number of possible calls to
 //       pl_add_to_draw_stream before the next call to draw_stream so any memory
 //       allocations can happen before a hot loop where pl_add_to_draw_stream is called.
-PL_API void pl_graphics_reset_draw_stream   (plDrawStream*, uint32_t drawCount);
-PL_API void pl_graphics_cleanup_draw_stream (plDrawStream*);
-PL_API void pl_graphics_draw_stream         (plRenderEncoder*, uint32_t areaCount, plDrawArea*); // decodes drawstream (does not reset draw stream)
+PL_API void pl_graphics_reset_draw_stream  (plDrawStream*, uint32_t drawCount);
+PL_API void pl_graphics_cleanup_draw_stream(plDrawStream*);
+PL_API void pl_graphics_draw_stream        (plCommandBuffer*, uint32_t areaCount, plDrawArea*); // decodes drawstream (does not reset draw stream)
 // INLINED -> void pl_add_to_draw_stream(plDrawStream*, plDrawStreamData);
 
 // render encoder: direct (prefer draw stream system, this will be used for bindless mostly)
-PL_API void pl_graphics_bind_graphics_bind_groups(plRenderEncoder*, plShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
-PL_API void pl_graphics_set_depth_bias           (plRenderEncoder*, float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor);
-PL_API void pl_graphics_set_viewport             (plRenderEncoder*, const plRenderViewport*);
-PL_API void pl_graphics_set_scissor_region       (plRenderEncoder*, const plScissor*);
-PL_API void pl_graphics_bind_vertex_buffer       (plRenderEncoder*, plBufferHandle);
-PL_API void pl_graphics_bind_vertex_buffers      (plRenderEncoder*, uint32_t first, uint32_t count, const plBufferHandle*, const size_t* offsets); // offsets can be NULL or array of "count" length
-PL_API void pl_graphics_draw                     (plRenderEncoder*, uint32_t count, const plDraw*);
-PL_API void pl_graphics_draw_indexed             (plRenderEncoder*, uint32_t count, const plDrawIndex*);
-PL_API void pl_graphics_bind_shader              (plRenderEncoder*, plShaderHandle);
+PL_API void pl_graphics_bind_graphics_bind_groups(plCommandBuffer*, plShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
+PL_API void pl_graphics_set_depth_bias           (plCommandBuffer*, float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor);
+PL_API void pl_graphics_set_viewport             (plCommandBuffer*, const plRenderViewport*);
+PL_API void pl_graphics_set_scissor_region       (plCommandBuffer*, const plScissor*);
+PL_API void pl_graphics_bind_vertex_buffer       (plCommandBuffer*, plBufferHandle);
+PL_API void pl_graphics_bind_vertex_buffers      (plCommandBuffer*, uint32_t first, uint32_t count, const plBufferHandle*, const size_t* offsets); // offsets can be NULL or array of "count" length
+PL_API void pl_graphics_draw                     (plCommandBuffer*, uint32_t count, const plDraw*);
+PL_API void pl_graphics_draw_indexed             (plCommandBuffer*, uint32_t count, const plDrawIndex*);
+PL_API void pl_graphics_bind_shader              (plCommandBuffer*, plShaderHandle);
 
 // compute encoder
-PL_API plComputeEncoder* pl_graphics_begin_compute_pass                (plCommandBuffer*, const plPassResources*); // do not store
-PL_API void              pl_graphics_end_compute_pass                  (plComputeEncoder*);
-PL_API void              pl_graphics_dispatch                          (plComputeEncoder*, uint32_t dispatchCount, const plDispatch*);
-PL_API void              pl_graphics_bind_compute_shader               (plComputeEncoder*, plComputeShaderHandle);
-PL_API void              pl_graphics_bind_compute_bind_groups          (plComputeEncoder*, plComputeShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
-PL_API plCommandBuffer*  pl_graphics_get_compute_encoder_command_buffer(plComputeEncoder*);
+PL_API void pl_graphics_begin_compute_pass      (plCommandBuffer*, const plPassResources*); // do not store
+PL_API void pl_graphics_end_compute_pass        (plCommandBuffer*);
+PL_API void pl_graphics_dispatch                (plCommandBuffer*, uint32_t dispatchCount, const plDispatch*);
+PL_API void pl_graphics_bind_compute_shader     (plCommandBuffer*, plComputeShaderHandle);
+PL_API void pl_graphics_bind_compute_bind_groups(plCommandBuffer*, plComputeShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
+PL_API void pl_graphics_copy_buffer_to_texture  (plCommandBuffer*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
+PL_API void pl_graphics_copy_texture_to_buffer  (plCommandBuffer*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
+PL_API void pl_graphics_copy_texture            (plCommandBuffer*, plTextureHandle src, plTextureHandle dst, uint32_t regionCount, const plImageCopy*);
+PL_API void pl_graphics_generate_mipmaps        (plCommandBuffer*, plTextureHandle);
+PL_API void pl_graphics_copy_buffer             (plCommandBuffer*, plBufferHandle source, plBufferHandle destination, uint64_t sourceOffset, uint64_t destinationOffset, size_t);
 
-// blit encoder 
-PL_API plBlitEncoder*   pl_graphics_begin_blit_pass                (plCommandBuffer*); // do not store
-PL_API void             pl_graphics_end_blit_pass                  (plBlitEncoder*);
-PL_API void             pl_graphics_copy_buffer_to_texture         (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
-PL_API void             pl_graphics_copy_texture_to_buffer         (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
-PL_API void             pl_graphics_copy_texture                   (plBlitEncoder*, plTextureHandle src, plTextureHandle dst, uint32_t regionCount, const plImageCopy*);
-PL_API void             pl_graphics_generate_mipmaps               (plBlitEncoder*, plTextureHandle);
-PL_API void             pl_graphics_copy_buffer                    (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint64_t sourceOffset, uint64_t destinationOffset, size_t);
-PL_API plCommandBuffer* pl_graphics_get_blit_encoder_command_buffer(plBlitEncoder*);
-
-// global barriers
-PL_API void pl_graphics_pipeline_barrier        (plCommandBuffer*,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses);
-PL_API void pl_graphics_pipeline_barrier_blit   (plBlitEncoder*,    plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
-PL_API void pl_graphics_pipeline_barrier_compute(plComputeEncoder*, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
-PL_API void pl_graphics_pipeline_barrier_render (plRenderEncoder*,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
+// barriers
+PL_API void pl_graphics_intra_pass_barrier(plCommandBuffer*, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages, plBarrierScope, const plPassResources*);
+PL_API void pl_graphics_consumer_barrier  (plCommandBuffer*, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages, plBarrierScope);
+PL_API void pl_graphics_producer_barrier  (plCommandBuffer*, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages, plBarrierScope);
 
 //-----------------------------------------------------------------------------
 
@@ -526,21 +501,6 @@ PL_API void                    pl_graphics_queue_bind_group_layout_for_deletion(
 PL_API plBindGroupLayout*      pl_graphics_get_bind_group_layout               (plDevice*, plBindGroupLayoutHandle); // do not store
 PL_API bool                    pl_graphics_is_bind_group_layout_valid          (plDevice*, plBindGroupLayoutHandle);
 
-// render passes
-PL_API plRenderPassHandle pl_graphics_create_render_pass            (plDevice*, const plRenderPassDesc*, const plRenderPassAttachments*);
-PL_API void               pl_graphics_update_render_pass_attachments(plDevice*, plRenderPassHandle, plVec2 dimensions, const plRenderPassAttachments*);
-PL_API void               pl_graphics_queue_render_pass_for_deletion(plDevice*, plRenderPassHandle);
-PL_API void               pl_graphics_destroy_render_pass           (plDevice*, plRenderPassHandle);
-PL_API plRenderPass*      pl_graphics_get_render_pass               (plDevice*, plRenderPassHandle); // do not store
-PL_API bool               pl_graphics_is_render_pass_valid          (plDevice*, plRenderPassHandle);
-
-// render pass layouts
-PL_API plRenderPassLayoutHandle pl_graphics_create_render_pass_layout            (plDevice*, const plRenderPassLayoutDesc*);
-PL_API void                     pl_graphics_queue_render_pass_layout_for_deletion(plDevice*, plRenderPassLayoutHandle);
-PL_API void                     pl_graphics_destroy_render_pass_layout           (plDevice*, plRenderPassLayoutHandle);
-PL_API plRenderPassLayout*      pl_graphics_get_render_pass_layout               (plDevice*, plRenderPassLayoutHandle); // do not store
-PL_API bool                     pl_graphics_is_render_pass_layout_valid          (plDevice*, plRenderPassLayoutHandle);
-
 // pixel & vertex shaders
 PL_API plShaderHandle pl_graphics_create_shader            (plDevice*, const plShaderDesc*);
 PL_API void           pl_graphics_queue_shader_for_deletion(plDevice*, plShaderHandle);
@@ -564,7 +524,7 @@ PL_API plComputeShader*      pl_graphics_get_compute_shader               (plDev
 //       longer than a single frame (they are reset every frame)
 PL_API plDynamicDataBlock pl_graphics_allocate_dynamic_data_block(plDevice*); // do not store longer than a single frame (this ar)
 PL_API void               pl_graphics_reset_dynamic_data_blocks(plDevice*);
-// INLINED -> plDynamicBinding pl_allocate_dynamic_data(const plGraphicsI*,  plDevice*, plDynamicDataBlock*)
+// INLINED -> plDynamicBinding pl_allocate_dynamic_data(const plGraphicsI*,  plDevice*, plDynamicDataBlock*, uint32_t size)
 
 // memory (only guaranteed 64 allocations, so suballocate)
 //   Notes:
@@ -577,28 +537,15 @@ PL_API const plDeviceMemoryAllocation* pl_graphics_get_allocations(plDevice*, ui
 
 //------------------------------DEBUGGING--------------------------------------
 
-PL_API void pl_graphics_push_render_debug_group (plRenderEncoder*, const char*, plVec4 color);
-PL_API void pl_graphics_pop_render_debug_group  (plRenderEncoder*);
-PL_API void pl_graphics_push_blit_debug_group   (plBlitEncoder*, const char*, plVec4 color);
-PL_API void pl_graphics_pop_blit_debug_group    (plBlitEncoder*);
-PL_API void pl_graphics_push_compute_debug_group(plComputeEncoder*, const char*, plVec4 color);
-PL_API void pl_graphics_pop_compute_debug_group (plComputeEncoder*);
-PL_API void pl_graphics_push_debug_group        (plCommandBuffer*, const char*, plVec4 color);
-PL_API void pl_graphics_pop_debug_group         (plCommandBuffer*);
-PL_API void pl_graphics_insert_debug_label      (plCommandBuffer*, const char*, plVec4 color); // vulkan only
+PL_API void pl_graphics_push_debug_group  (plCommandBuffer*, const char*, plVec4 color);
+PL_API void pl_graphics_pop_debug_group   (plCommandBuffer*);
+PL_API void pl_graphics_insert_debug_label(plCommandBuffer*, const char*, plVec4 color); // vulkan only
 
 //---------------------------------MISC----------------------------------------
 
-PL_API size_t       pl_graphics_get_data_type_size(plDataType);
-PL_API plBlendState pl_graphics_get_blend_state   (plBlendMode);
+PL_API size_t       pl_graphics_get_data_type_size (plDataType);
+PL_API plBlendState pl_graphics_get_blend_state    (plBlendMode);
 PL_API uint32_t     pl_graphics_calculate_mip_count(uint32_t width, uint32_t height);
-
-//-------------------------------OBSOLETE--------------------------------------
-
-#ifndef PL_DISABLE_OBSOLETE
-PL_API void pl_graphics_set_texture_usage    (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
-PL_API void pl_graphics_set_texture_usage_ex (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages);
-#endif
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -607,9 +554,9 @@ PL_API void pl_graphics_set_texture_usage_ex (plBlitEncoder*, plTextureHandle, p
 typedef struct _plGraphicsI
 {
     // context
-    bool              (*initialize)(const plGraphicsInit*);
-    void              (*cleanup)   (void);
-    plGraphicsBackend (*get_backend)(void);
+    bool              (*initialize)        (const plGraphicsInit*);
+    void              (*cleanup)           (void);
+    plGraphicsBackend (*get_backend)       (void);
     const char*       (*get_backend_string)(void);
 
     // devices
@@ -630,6 +577,7 @@ typedef struct _plGraphicsI
     void             (*recreate_swapchain)     (plSwapchain*, const plSwapchainInit*);
     plTextureHandle* (*get_swapchain_images)   (plSwapchain*, uint32_t* puSizeOut);
     plSwapchainInfo  (*get_swapchain_info)     (plSwapchain*);
+    uint32_t         (*get_current_swapchain_image_index)(plSwapchain*);
 
     // query
     uint32_t (*get_frames_in_flight)   (void);
@@ -656,24 +604,13 @@ typedef struct _plGraphicsI
     void             (*return_command_buffer)  (plCommandBuffer*); // return command buffer to pool
     void             (*reset_command_buffer)   (plCommandBuffer*); // call if reusing after submit/present
     void             (*wait_on_command_buffer) (plCommandBuffer*); // call after submit to block/wait
-    void             (*begin_command_recording)(plCommandBuffer*, const plBeginCommandInfo*);
+    void             (*begin_command_recording)(plCommandBuffer*);
     void             (*end_command_recording)  (plCommandBuffer*);
     void             (*submit_command_buffer)  (plCommandBuffer*, const plSubmitInfo*);
 
-    // timeline events
-    plTimelineEvent* (*create_event)   (plDevice*);
-    void             (*cleanup_event)  (plTimelineEvent*);
-    void             (*reset_event)    (plCommandBuffer*, plTimelineEvent*, plPipelineStageFlags srcStages);
-    void             (*set_event)      (plCommandBuffer*, plTimelineEvent*, plPipelineStageFlags srcStages);
-    void             (*wait_for_events)(plCommandBuffer*, plTimelineEvent**, uint32_t eventCount, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages);
-
     // render encoder
-    plRenderEncoder*   (*begin_render_pass)         (plCommandBuffer*, plRenderPassHandle, const plPassResources*); // do not store
-    void               (*next_subpass)              (plRenderEncoder*, const plPassResources*);
-    void               (*end_render_pass)           (plRenderEncoder*);
-    plRenderPassHandle (*get_encoder_render_pass)   (plRenderEncoder*);
-    uint32_t           (*get_render_encoder_subpass)(plRenderEncoder*);
-    plCommandBuffer*   (*get_encoder_command_buffer)(plRenderEncoder*);
+    void (*begin_render_pass)(plCommandBuffer*, const plRenderInfo*, const plPassResources*);
+    void (*end_render_pass) (plCommandBuffer*);
 
     // render encoder: draw stream (preferred system)
     //   Notes:
@@ -682,43 +619,37 @@ typedef struct _plGraphicsI
     //       allocations can happen before a hot loop where pl_add_to_draw_stream is called.
     void (*reset_draw_stream)   (plDrawStream*, uint32_t drawCount);
     void (*cleanup_draw_stream) (plDrawStream*);
-    void (*draw_stream)         (plRenderEncoder*, uint32_t areaCount, plDrawArea*); // decodes drawstream (does not reset draw stream)
+    void (*draw_stream)         (plCommandBuffer*, uint32_t areaCount, plDrawArea*); // decodes drawstream (does not reset draw stream)
     // INLINED -> void pl_add_to_draw_stream(plDrawStream*, plDrawStreamData);
 
     // render encoder: direct (prefer draw stream system, this will be used for bindless mostly)
-    void (*bind_graphics_bind_groups)(plRenderEncoder*, plShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
-    void (*set_depth_bias)           (plRenderEncoder*, float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor);
-    void (*set_viewport)             (plRenderEncoder*, const plRenderViewport*);
-    void (*set_scissor_region)       (plRenderEncoder*, const plScissor*);
-    void (*bind_vertex_buffer)       (plRenderEncoder*, plBufferHandle);
-    void (*bind_vertex_buffers)      (plRenderEncoder*, uint32_t first, uint32_t count, const plBufferHandle*, const size_t* offsets); // offsets can be NULL or array of "count" length
-    void (*draw)                     (plRenderEncoder*, uint32_t count, const plDraw*);
-    void (*draw_indexed)             (plRenderEncoder*, uint32_t count, const plDrawIndex*);
-    void (*bind_shader)              (plRenderEncoder*, plShaderHandle);
+    void (*bind_graphics_bind_groups)(plCommandBuffer*, plShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
+    void (*set_depth_bias)           (plCommandBuffer*, float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor);
+    void (*set_viewport)             (plCommandBuffer*, const plRenderViewport*);
+    void (*set_scissor_region)       (plCommandBuffer*, const plScissor*);
+    void (*bind_vertex_buffer)       (plCommandBuffer*, plBufferHandle);
+    void (*bind_vertex_buffers)      (plCommandBuffer*, uint32_t first, uint32_t count, const plBufferHandle*, const size_t* offsets); // offsets can be NULL or array of "count" length
+    void (*draw)                     (plCommandBuffer*, uint32_t count, const plDraw*);
+    void (*draw_indexed)             (plCommandBuffer*, uint32_t count, const plDrawIndex*);
+    void (*bind_shader)              (plCommandBuffer*, plShaderHandle);
 
     // compute encoder
-    plComputeEncoder* (*begin_compute_pass)                (plCommandBuffer*, const plPassResources*); // do not store
-    void              (*end_compute_pass)                  (plComputeEncoder*);
-    void              (*dispatch)                          (plComputeEncoder*, uint32_t dispatchCount, const plDispatch*);
-    void              (*bind_compute_shader)               (plComputeEncoder*, plComputeShaderHandle);
-    void              (*bind_compute_bind_groups)          (plComputeEncoder*, plComputeShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
-    plCommandBuffer*  (*get_compute_encoder_command_buffer)(plComputeEncoder*);
+    void (*begin_compute_pass)      (plCommandBuffer*, const plPassResources*); // do not store
+    void (*end_compute_pass)        (plCommandBuffer*);
+    void (*dispatch)                (plCommandBuffer*, uint32_t dispatchCount, const plDispatch*);
+    void (*bind_compute_shader)     (plCommandBuffer*, plComputeShaderHandle);
+    void (*bind_compute_bind_groups)(plCommandBuffer*, plComputeShaderHandle, uint32_t first, uint32_t count, const plBindGroupHandle*, uint32_t dynamicCount, const plDynamicBinding*);
+    void (*copy_buffer_to_texture)  (plCommandBuffer*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
+    void (*copy_texture_to_buffer)  (plCommandBuffer*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
+    void (*copy_texture)            (plCommandBuffer*, plTextureHandle src, plTextureHandle dst, uint32_t regionCount, const plImageCopy*);
+    void (*generate_mipmaps)        (plCommandBuffer*, plTextureHandle);
+    void (*copy_buffer)             (plCommandBuffer*, plBufferHandle source, plBufferHandle destination, uint64_t sourceOffset, uint64_t destinationOffset, size_t);
 
-    // blit encoder 
-    plBlitEncoder*   (*begin_blit_pass)                (plCommandBuffer*); // do not store
-    void             (*end_blit_pass)                  (plBlitEncoder*);
-    void             (*copy_buffer_to_texture)         (plBlitEncoder*, plBufferHandle, plTextureHandle, uint32_t regionCount, const plBufferImageCopy*);
-    void             (*copy_texture_to_buffer)         (plBlitEncoder*, plTextureHandle, plBufferHandle, uint32_t regionCount, const plBufferImageCopy*);
-    void             (*copy_texture)                   (plBlitEncoder*, plTextureHandle src, plTextureHandle dst, uint32_t regionCount, const plImageCopy*);
-    void             (*generate_mipmaps)               (plBlitEncoder*, plTextureHandle);
-    void             (*copy_buffer)                    (plBlitEncoder*, plBufferHandle source, plBufferHandle destination, uint64_t sourceOffset, uint64_t destinationOffset, size_t);
-    plCommandBuffer* (*get_blit_encoder_command_buffer)(plBlitEncoder*);
+    // barriers
+    void (*intra_pass_barrier)(plCommandBuffer*, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages, plBarrierScope, const plPassResources*);
+    void (*consumer_barrier)  (plCommandBuffer*, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages, plBarrierScope);
+    void (*producer_barrier)  (plCommandBuffer*, plPipelineStageFlags srcStages, plPipelineStageFlags dstStages, plBarrierScope);
 
-    // global barriers
-    void (*pipeline_barrier)        (plCommandBuffer*,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses);
-    void (*pipeline_barrier_blit)   (plBlitEncoder*,    plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
-    void (*pipeline_barrier_compute)(plComputeEncoder*, plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
-    void (*pipeline_barrier_render) (plRenderEncoder*,  plPipelineStageFlags beforeStages, plAccessFlags beforeAccesses, plPipelineStageFlags afterStages, plAccessFlags afterAccesses); // memory barrier only in Metal backend
 
     //-----------------------------------------------------------------------------
 
@@ -764,20 +695,6 @@ typedef struct _plGraphicsI
     plBindGroupLayout*      (*get_bind_group_layout)               (plDevice*, plBindGroupLayoutHandle); // do not store
     bool                    (*is_bind_group_layout_valid)          (plDevice*, plBindGroupLayoutHandle);
     
-    // render passes
-    plRenderPassHandle (*create_render_pass)            (plDevice*, const plRenderPassDesc*, const plRenderPassAttachments*);
-    void               (*update_render_pass_attachments)(plDevice*, plRenderPassHandle, plVec2 dimensions, const plRenderPassAttachments*);
-    void               (*queue_render_pass_for_deletion)(plDevice*, plRenderPassHandle);
-    void               (*destroy_render_pass)           (plDevice*, plRenderPassHandle);
-    plRenderPass*      (*get_render_pass)               (plDevice*, plRenderPassHandle); // do not store
-    bool               (*is_render_pass_valid)          (plDevice*, plRenderPassHandle);
-
-    // render pass layouts
-    plRenderPassLayoutHandle (*create_render_pass_layout)            (plDevice*, const plRenderPassLayoutDesc*);
-    void                     (*queue_render_pass_layout_for_deletion)(plDevice*, plRenderPassLayoutHandle);
-    void                     (*destroy_render_pass_layout)           (plDevice*, plRenderPassLayoutHandle);
-    plRenderPassLayout*      (*get_render_pass_layout)               (plDevice*, plRenderPassLayoutHandle); // do not store
-    bool                     (*is_render_pass_layout_valid)          (plDevice*, plRenderPassLayoutHandle);
 
     // pixel & vertex shaders
     plShaderHandle (*create_shader)            (plDevice*, const plShaderDesc*);
@@ -802,7 +719,7 @@ typedef struct _plGraphicsI
     //       longer than a single frame (they are reset every frame)
     plDynamicDataBlock (*allocate_dynamic_data_block)(plDevice*); // do not store longer than a single frame (this ar)
     void               (*reset_dynamic_data_blocks)(plDevice*);
-    // INLINED -> plDynamicBinding pl_allocate_dynamic_data(const plGraphicsI*,  plDevice*, plDynamicDataBlock*)
+    // INLINED -> plDynamicBinding pl_allocate_dynamic_data(const plGraphicsI*,  plDevice*, plDynamicDataBlock*, uint32_t size)
 
     // memory (only guaranteed 64 allocations, so suballocate)
     //   Notes:
@@ -815,15 +732,9 @@ typedef struct _plGraphicsI
 
     //------------------------------DEBUGGING--------------------------------------
 
-    void (*push_render_debug_group) (plRenderEncoder*, const char*, plVec4 color);
-    void (*pop_render_debug_group)  (plRenderEncoder*);
-    void (*push_blit_debug_group)   (plBlitEncoder*, const char*, plVec4 color);
-    void (*pop_blit_debug_group)    (plBlitEncoder*);
-    void (*push_compute_debug_group)(plComputeEncoder*, const char*, plVec4 color);
-    void (*pop_compute_debug_group) (plComputeEncoder*);
-    void (*push_debug_group)        (plCommandBuffer*, const char*, plVec4 color);
-    void (*pop_debug_group)         (plCommandBuffer*);
-    void (*insert_debug_label)      (plCommandBuffer*, const char*, plVec4 color); // vulkan only
+    void (*push_debug_group)  (plCommandBuffer*, const char*, plVec4 color);
+    void (*pop_debug_group)   (plCommandBuffer*);
+    void (*insert_debug_label)(plCommandBuffer*, const char*, plVec4 color); // vulkan only
 
     //---------------------------------MISC----------------------------------------
 
@@ -842,7 +753,6 @@ typedef struct _plGraphicsI
     VkQueue                          (*get_vulkan_queue)               (plDevice*);
     VkQueue                          (*get_vulkan_present_queue)       (plDevice*);
     uint32_t                         (*get_vulkan_queue_family)        (plDevice*);
-    VkRenderPass                     (*get_vulkan_render_pass)         (plDevice*, plRenderPassHandle);
     VkDescriptorPool                 (*get_vulkan_descriptor_pool)     (plBindGroupPool*);
     int                              (*get_vulkan_sample_count)        (plSwapchain*);
     VkCommandBuffer                  (*get_vulkan_command_buffer)      (plCommandBuffer*);
@@ -851,22 +761,16 @@ typedef struct _plGraphicsI
     VkDescriptorSet                  (*get_vulkan_descriptor_set)      (plDevice*, plBindGroupHandle);
     VkPhysicalDeviceMemoryProperties (*get_vulkan_memory_properties)   (plDevice*);
     const VkAllocationCallbacks*     (*get_vulkan_allocation_callbacks)(void);
+    VkFormat                         (*get_vulkan_format)              (plFormat);
     #endif
 
     #ifdef PL_GRAPHICS_EXPOSE_METAL
-    id<MTLDevice>               (*get_metal_device)(plDevice*);
-    plTextureHandle             (*get_metal_bind_group_texture)(plDevice*, plBindGroupHandle);
-    id<MTLTexture>              (*get_metal_texture)(plDevice*, plTextureHandle);
-    MTLRenderPassDescriptor*    (*get_metal_render_pass_descriptor)(plDevice*, plRenderPassHandle);
-    id<MTLCommandBuffer>        (*get_metal_command_buffer)(plCommandBuffer*);
-    id<MTLRenderCommandEncoder> (*get_metal_command_encoder)(plRenderEncoder*);
-    #endif
-
-    //-------------------------------OBSOLETE--------------------------------------
-    
-    #ifndef PL_DISABLE_OBSOLETE
-    void (*set_texture_usage)   (plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage);
-    void (*set_texture_usage_ex)(plBlitEncoder*, plTextureHandle, plTextureUsage tNewUsage, plTextureUsage tOldUsage, plPipelineStageFlags tNewStages, plPipelineStageFlags tOldStages);
+    id<MTLDevice>                (*get_metal_device)                (plDevice*);
+    plTextureHandle              (*get_metal_bind_group_texture)    (plDevice*, plBindGroupHandle);
+    id<MTLTexture>               (*get_metal_texture)               (plDevice*, plTextureHandle);
+    MTL4RenderPassDescriptor*    (*get_metal_render_pass_descriptor)(plCommandBuffer*);
+    id<MTL4CommandBuffer>        (*get_metal_command_buffer)        (plCommandBuffer*);
+    id<MTL4RenderCommandEncoder> (*get_metal_command_encoder)       (plCommandBuffer*);
     #endif
 
 } plGraphicsI;
@@ -904,17 +808,17 @@ typedef struct _plSamplerDesc
 {
     float         fMinMip;
     float         fMaxMip;
-    float         fMipBias; // Vulkan only until MacOS 26+
+    float         fMipBias;
     float         fMaxAnisotropy;
     bool          bUnnormalizedCoordinates;
-    plFilter      tMagFilter;
-    plFilter      tMinFilter;
-    plMipmapMode  tMipmapMode;
-    plCompareMode tCompare;
-    plAddressMode tUAddressMode;
-    plAddressMode tVAddressMode;
-    plAddressMode tWAddressMode;
-    plBorderColor tBorderColor;
+    plFilter      eMagFilter;
+    plFilter      eMinFilter;
+    plMipmapMode  eMipmapMode;
+    plCompareMode eCompare;
+    plAddressMode eUAddressMode;
+    plAddressMode eVAddressMode;
+    plAddressMode eWAddressMode;
+    plBorderColor eBorderColor;
     const char*   pcDebugName; // default: "unnamed sampler"
 } plSamplerDesc;
 
@@ -932,22 +836,22 @@ typedef struct _plTextureDesc
     plVec3         tDimensions;
     uint32_t       uLayers;
     uint32_t       uMips;
-    plSampleCount  tSampleCount;
-    plFormat       tFormat;
-    plTextureType  tType;
-    plTextureUsage tUsage;
+    plSampleCount  eSampleCount;
+    plFormat       eFormat;
+    plTextureType  eType;
+    plTextureUsage eUsage;
     const char*    pcDebugName; // default: "unnamed texture"
 } plTextureDesc;
 
 typedef struct _plTextureViewDesc
 {
-    plFormat        tFormat; 
+    plFormat        eFormat; 
     uint32_t        uBaseMip;
     uint32_t        uMips;
     uint32_t        uBaseLayer;
     uint32_t        uLayerCount;
     plTextureHandle tTexture;
-    plTextureType   tType;
+    plTextureType   eType;
     const char*     pcDebugName; // default: "unnamed texture view"
 } plTextureViewDesc;
 
@@ -965,7 +869,7 @@ typedef struct _plTexture
 
 typedef struct _plBufferDesc
 {
-    plBufferUsage tUsage;
+    plBufferUsage eUsage;
     size_t        szByteSize;
     const char*   pcDebugName; // default: "unnamed buffer"
 } plBufferDesc;
@@ -986,25 +890,25 @@ typedef struct _plBuffer
 typedef struct _plSamplerBinding
 {
     uint32_t           uSlot;
-    plShaderStageFlags tStages;
+    plShaderStageFlags eStages;
 } plSamplerBinding;
 
 typedef struct _plTextureBinding
 {
-    plTextureBindingType tType;
+    plTextureBindingType eType;
     uint32_t             uSlot;
     uint32_t             uDescriptorCount; // 0 - will become 1
-    plShaderStageFlags   tStages;
+    plShaderStageFlags   eStages;
     bool                 bNonUniformIndexing; // only available if device capability has PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING
 } plTextureBinding;
 
 typedef struct _plBufferBinding
 {
-    plBufferBindingType tType;
+    plBufferBindingType eType;
     uint32_t            uSlot;
     size_t              szSize;
     size_t              szOffset;
-    plShaderStageFlags  tStages;
+    plShaderStageFlags  eStages;
 } plBufferBinding;
 
 typedef struct _plDynamicBinding
@@ -1023,13 +927,9 @@ typedef struct _plBindGroupUpdateSamplerData
 typedef struct _plBindGroupUpdateTextureData
 {
     plTextureHandle      tTexture;
-    plTextureBindingType tType;
+    plTextureBindingType eType;
     uint32_t             uSlot;
     uint32_t             uIndex;
-
-    #ifndef PL_DISABLE_OBSOLETE
-        plTextureUsage tCurrentUsage;
-    #endif
 } plBindGroupUpdateTextureData;
 
 typedef struct _plBindGroupUpdateBufferData
@@ -1044,34 +944,31 @@ typedef struct _plBindGroupUpdateBufferData
 
 typedef struct _plBindGroupUpdateData
 {
-    uint32_t                            uBufferCount;
-    uint32_t                            uTextureCount;
-    uint32_t                            uSamplerCount;
-    const plBindGroupUpdateBufferData*  atBufferBindings;
-    const plBindGroupUpdateTextureData* atTextureBindings;
-    const plBindGroupUpdateSamplerData* atSamplerBindings;
+    plBindGroupUpdateBufferData  atBufferBindings[PL_MAX_BUFFERS_PER_BIND_GROUP];
+    plBindGroupUpdateTextureData atTextureBindings[PL_MAX_TEXTURES_PER_BIND_GROUP];
+    plBindGroupUpdateSamplerData atSamplerBindings[PL_MAX_SAMPLERS_PER_BIND_GROUP];
 } plBindGroupUpdateData;
 
 typedef struct _plPassTextureResource
 {
-    plTextureHandle          tHandle;
-    plShaderStageFlags       tStages;
-    plPassResourceUsageFlags tUsage;
+    plTextureHandle      tHandle;
+    plTextureUsage       eUsage;
+    plPassResourceAccess eAccess;
+    plPipelineStageFlags eStages;
 } plPassTextureResource;
 
 typedef struct _plPassBufferResource
 {
-    plBufferHandle           tHandle;
-    plShaderStageFlags       tStages;
-    plPassResourceUsageFlags tUsage;
+    plBufferHandle       tHandle;
+    plBufferUsage        eUsage;
+    plPassResourceAccess eAccess;
+    plPipelineStageFlags eStages;
 } plPassBufferResource;
 
 typedef struct _plPassResources
 {
-    uint32_t                     uBufferCount;
-    uint32_t                     uTextureCount;
-    const plPassBufferResource*  atBuffers;
-    const plPassTextureResource* atTextures;
+    plPassBufferResource  atBuffers[PL_MAX_PASS_RESOURCE_BUFFERS];
+    plPassTextureResource atTextures[PL_MAX_PASS_RESOURCE_TEXTURES];
 } plPassResources;
 
 typedef struct _plBindGroupLayoutDesc
@@ -1084,7 +981,7 @@ typedef struct _plBindGroupLayoutDesc
 
 typedef struct _plBindGroupPoolDesc
 {
-    plBindGroupPoolFlags tFlags;
+    plBindGroupPoolFlags eFlags;
     size_t               szSamplerBindings;
     size_t               szUniformBufferBindings;
     size_t               szStorageBufferBindings;
@@ -1107,7 +1004,6 @@ typedef struct _plBindGroup
     // [INTERNAL]
     uint16_t _uGeneration;
     uint64_t _uFrameBoundaryValueForDeletion;
-    plTextureHandle* _sbtTextures;
     uint32_t _uDescriptorCount;
 } plBindGroup;
 
@@ -1137,7 +1033,7 @@ typedef struct _plSpecializationConstant
 {
     uint32_t   uID;     // if set to 0, will be calculated
     uint32_t   uOffset; // if set to 0, will be calculated
-    plDataType tType;
+    plDataType eType;
 } plSpecializationConstant;
 
 typedef struct _plComputeShaderDesc
@@ -1167,7 +1063,7 @@ typedef struct _plVertexAttribute
 {
     uint32_t       uLocation;   // if set to 0, will be calculated
     uint32_t       uByteOffset; // if set to 0, will be calculated
-    plVertexFormat tFormat;
+    plVertexFormat eFormat;
 } plVertexAttribute;
 
 typedef struct _plVertexBufferLayout
@@ -1182,18 +1078,18 @@ typedef struct _plGraphicsState
     {
         struct
         {
-            uint64_t ulDepthMode          :  4; // PL_COMPARE_MODE_XXXX
-            uint64_t ulWireframe          :  1; // bool
-            uint64_t ulDepthWriteEnabled  :  1; // bool
-            uint64_t ulDepthClampEnabled  :  1; // bool
-            uint64_t ulCullMode           :  2; // PL_CULL_MODE_XXXX
-            uint64_t ulStencilTestEnabled :  1; // bool
-            uint64_t ulStencilMode        :  4; // PL_COMPARE_MODE_XXXX
-            uint64_t ulStencilRef         :  8; 
-            uint64_t ulStencilMask        :  8;
-            uint64_t ulStencilOpFail      :  3; // PL_STENCIL_OP_XXXX  
-            uint64_t ulStencilOpDepthFail :  3; // PL_STENCIL_OP_XXXX
-            uint64_t ulStencilOpPass      :  3; // PL_STENCIL_OP_XXXX
+            uint64_t eDepthMode          :  4; // PL_COMPARE_MODE_XXXX
+            uint64_t bWireframe          :  1; // bool
+            uint64_t bDepthWriteEnabled  :  1; // bool
+            uint64_t bDepthClampEnabled  :  1; // bool
+            uint64_t eCullMode           :  2; // PL_CULL_MODE_XXXX
+            uint64_t bStencilTestEnabled :  1; // bool
+            uint64_t eStencilMode        :  4; // PL_COMPARE_MODE_XXXX
+            uint64_t uStencilRef         :  8; 
+            uint64_t uStencilMask        :  8;
+            uint64_t eStencilOpFail      :  3; // PL_STENCIL_OP_XXXX  
+            uint64_t eStencilOpDepthFail :  3; // PL_STENCIL_OP_XXXX
+            uint64_t eStencilOpPass      :  3; // PL_STENCIL_OP_XXXX
             uint64_t _ulUnused            : 25;
         };
         uint64_t ulValue;
@@ -1201,32 +1097,30 @@ typedef struct _plGraphicsState
     
 } plGraphicsState;
 
+typedef struct _plRenderAttachmentInfo
+{
+    uint32_t uColorCount;
+    plFormat aeColorFormats[PL_MAX_RENDER_TARGETS];
+    plFormat eDepthFormat;
+    plFormat eStencilFormat;
+} plRenderAttachmentInfo;
+
 typedef struct _plShaderDesc
 {
-    uint32_t                 uSubpassIndex;
-    plGraphicsState          tGraphicsState;
-    plBlendState             atBlendStates[PL_MAX_RENDER_TARGETS];
-    plVertexBufferLayout     atVertexBufferLayouts[2];
-    plShaderModule           tVertexShader;
-
-    #ifndef PL_DISABLE_OBSOLETE
-    union
-    {
-        plShaderModule tPixelShader;
-        plShaderModule tFragmentShader;
-    };
-    #else
-    plShaderModule tFragmentShader;
-    #endif
+    plGraphicsState      tGraphicsState;
+    plBlendState         atBlendStates[PL_MAX_RENDER_TARGETS];
+    plVertexBufferLayout atVertexBufferLayouts[2];
+    plShaderModule       tVertexShader;
+    plShaderModule       tFragmentShader;
     
-    plSpecializationConstant atVertexConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
-    plSpecializationConstant atFragmentConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
-    const void*              pVertexTempConstantData;
-    const void*              pFragmentTempConstantData;
-    plBindGroupLayoutDesc    atBindGroupLayouts[3];
-    plRenderPassLayoutHandle tRenderPassLayout;    
-    plSampleCount            tMSAASampleCount;
-    const char*              pcDebugName; // default: "unnamed shader"
+    plSpecializationConstant     atVertexConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
+    plSpecializationConstant     atFragmentConstants[PL_MAX_SHADER_SPECIALIZATION_CONSTANTS];
+    const void*                  pVertexTempConstantData;
+    const void*                  pFragmentTempConstantData;
+    plBindGroupLayoutDesc        atBindGroupLayouts[3];  
+    plSampleCount                eMSAASampleCount;
+    const char*                  pcDebugName; // default: "unnamed shader"
+    plRenderAttachmentInfo tRenderAttachmentInfo;
 
     // [INTERNAL]
     uint32_t                _uVertexConstantCount;
@@ -1246,126 +1140,25 @@ typedef struct _plShader
 
 //----------------------------render passes------------------------------------
 
-typedef struct _plSubpass
+typedef struct _plRenderAttachment
 {
-    uint32_t uRenderTargetCount;
-    uint32_t uSubpassInputCount;
-    uint32_t auRenderTargets[PL_MAX_RENDER_TARGETS];
-    uint32_t auSubpassInputs[PL_MAX_RENDER_TARGETS];
+    plLoadOp        eLoadOp;
+    plStoreOp       eStoreOp;
+    plTextureUsage  eUsage;
+    plTextureHandle tTexture;
+    plTextureHandle tResolveTexture;
+    plVec4          tClearColor;
+    float           fClearZ;
+    uint32_t        uClearStencil;
+} plRenderAttachment;
 
-    // [INTERNAL]
-    uint32_t _uColorAttachmentCount;
-} plSubpass;
-
-typedef struct _plRenderTarget
+typedef struct _plRenderInfo
 {
-    plFormat      tFormat;
-    plSampleCount tSamples;
-    bool          bResolve;
-    bool          bDepth;
-} plRenderTarget;
-
-#ifndef PL_DISABLE_OBSOLETE
-    typedef struct _plSubpassDependency
-    {
-        uint32_t             uSourceSubpass;      // set to UINT32_MAX for external
-        uint32_t             uDestinationSubpass; // set to UINT32_MAX for external
-        plPipelineStageFlags tSourceStageMask;
-        plPipelineStageFlags tDestinationStageMask;
-        plAccessFlags        tSourceAccessMask;
-        plAccessFlags        tDestinationAccessMask;
-    } plSubpassDependency;
-#endif
-
-typedef struct _plRenderPassLayoutDesc
-{
-    plRenderTarget atRenderTargets[PL_MAX_RENDER_TARGETS];
-    plSubpass      atSubpasses[PL_MAX_SUBPASSES];
-    const char*    pcDebugName; // default: "unnamed render pass layout"
-
-    // [INTERNAL]
-    uint32_t _uSubpassCount;
-
-    #ifndef PL_DISABLE_OBSOLETE
-        plSubpassDependency atSubpassDependencies[PL_MAX_SUBPASSES];
-    #endif
-} plRenderPassLayoutDesc;
-
-typedef struct _plRenderPassLayout
-{
-    plRenderPassLayoutDesc tDesc;
-
-    // [INTERNAL]
-    uint32_t _uAttachmentCount;
-    uint16_t _uGeneration;
-    uint64_t _uFrameBoundaryValueForDeletion;
-} plRenderPassLayout;
-
-typedef struct _plRenderPassAttachments
-{
-    plTextureHandle atViewAttachments[PL_MAX_RENDER_TARGETS];
-} plRenderPassAttachments;
-
-typedef struct _plDepthTarget
-{
-    plLoadOp       tLoadOp;
-    plStoreOp      tStoreOp;
-    plLoadOp       tStencilLoadOp;
-    plStoreOp      tStencilStoreOp;
-
-    #ifndef PL_DISABLE_OBSOLETE
-    union
-    {
-        plTextureUsage tPreviousUsage;
-        plTextureUsage tCurrentUsage;
-    };
-    #else
-    plTextureUsage tPreviousUsage;
-    #endif
-
-    plTextureUsage tNextUsage;
-    float          fClearZ;
-    uint32_t       uClearStencil;
-} plDepthTarget;
-
-typedef struct _plColorTarget
-{
-    plLoadOp       tLoadOp;
-    plStoreOp      tStoreOp;
-
-    #ifndef PL_DISABLE_OBSOLETE
-    union
-    {
-        plTextureUsage tPreviousUsage;
-        plTextureUsage tCurrentUsage;
-    };
-    #else
-    plTextureUsage tPreviousUsage;
-    #endif
-
-    plTextureUsage tNextUsage;
-    plVec4         tClearColor;
-} plColorTarget;
-
-typedef struct _plRenderPassDesc
-{
-    plRenderPassLayoutHandle tLayout;
-    plColorTarget            atColorTargets[PL_MAX_RENDER_TARGETS];
-    plColorTarget            tResolveTarget;
-    plDepthTarget            tDepthTarget;
-    plVec2                   tDimensions;
-    plSwapchain*             ptSwapchain;
-    const char*              pcDebugName; // default: "unnamed render pass"
-} plRenderPassDesc;
-
-typedef struct _plRenderPass
-{
-    plRenderPassDesc tDesc;
-
-    // [INTERNAL]
-    uint16_t _uGeneration;
-    uint64_t _uFrameBoundaryValueForDeletion;
-} plRenderPass;
+    plRect             tRenderArea;
+    plRenderAttachment atColorAttachments[PL_MAX_RENDER_TARGETS];
+    plRenderAttachment tDepthAttachment;
+    plRenderAttachment tStencilAttachment;
+} plRenderInfo;
 
 //---------------------------command buffers-----------------------------------
 
@@ -1375,15 +1168,11 @@ typedef struct _plCommandPoolDesc
     int _iUnused;
 } plCommandPoolDesc;
 
-typedef struct _plBeginCommandInfo
+typedef struct _plSubmitInfo
 {
     uint32_t             uWaitSemaphoreCount;
     plTimelineSemaphore* atWaitSempahores[PL_MAX_TIMELINE_SEMAPHORES];
     uint64_t             auWaitSemaphoreValues[PL_MAX_TIMELINE_SEMAPHORES + 1];
-} plBeginCommandInfo;
-
-typedef struct _plSubmitInfo
-{
     uint32_t             uSignalSemaphoreCount;
     plTimelineSemaphore* atSignalSempahores[PL_MAX_TIMELINE_SEMAPHORES];
     uint64_t             auSignalSemaphoreValues[PL_MAX_TIMELINE_SEMAPHORES + 1];
@@ -1411,49 +1200,40 @@ typedef struct _plScissor
 
 typedef struct _plBufferImageCopy
 {
-    size_t         szBufferOffset;
-    int            iImageOffsetX;
-    int            iImageOffsetY;
-    int            iImageOffsetZ;
-    uint32_t       uImageWidth;
-    uint32_t       uImageHeight;
-    uint32_t       uImageDepth;
-    uint32_t       uMipLevel;
-    uint32_t       uBaseArrayLayer;
-    uint32_t       uLayerCount;
-    uint32_t       uBufferRowLength;
-    uint32_t       uBufferImageHeight;
-
-    #ifndef PL_DISABLE_OBSOLETE
-        plTextureUsage tCurrentImageUsage;
-    #endif
+    size_t   szBufferOffset;
+    int      iImageOffsetX;
+    int      iImageOffsetY;
+    int      iImageOffsetZ;
+    uint32_t uImageWidth;
+    uint32_t uImageHeight;
+    uint32_t uImageDepth;
+    uint32_t uMipLevel;
+    uint32_t uBaseArrayLayer;
+    uint32_t uLayerCount;
+    uint32_t uBufferRowLength;
+    uint32_t uBufferImageHeight;
 } plBufferImageCopy;
 
 typedef struct _plImageCopy
 {
     // source info
-    int            iSourceOffsetX;
-    int            iSourceOffsetY;
-    int            iSourceOffsetZ;
-    uint32_t       uSourceExtentX;
-    uint32_t       uSourceExtentY;
-    uint32_t       uSourceExtentZ;
-    uint32_t       uSourceMipLevel;
-    uint32_t       uSourceBaseArrayLayer;
-    uint32_t       uSourceLayerCount;
+    int      iSourceOffsetX;
+    int      iSourceOffsetY;
+    int      iSourceOffsetZ;
+    uint32_t uSourceExtentX;
+    uint32_t uSourceExtentY;
+    uint32_t uSourceExtentZ;
+    uint32_t uSourceMipLevel;
+    uint32_t uSourceBaseArrayLayer;
+    uint32_t uSourceLayerCount;
     
     // destination offset
-    int            iDestinationOffsetX;
-    int            iDestinationOffsetY;
-    int            iDestinationOffsetZ;
-    uint32_t       uDestinationMipLevel;
-    uint32_t       uDestinationBaseArrayLayer;
-    uint32_t       uDestinationLayerCount;
-
-    #ifndef PL_DISABLE_OBSOLETE
-        plTextureUsage tSourceImageUsage;
-        plTextureUsage tDestinationImageUsage;
-    #endif
+    int      iDestinationOffsetX;
+    int      iDestinationOffsetY;
+    int      iDestinationOffsetZ;
+    uint32_t uDestinationMipLevel;
+    uint32_t uDestinationBaseArrayLayer;
+    uint32_t uDestinationLayerCount;
 } plImageCopy; 
 
 typedef struct _plDrawArea
@@ -1518,17 +1298,15 @@ typedef struct _plDrawIndex
 typedef struct _plGraphicsInit
 {
     uint32_t            uFramesInFlight; // default: 2
-    plGraphicsInitFlags tFlags;
+    plGraphicsInitFlags eFlags;
 } plGraphicsInit;
-
-
 
 typedef struct _plSwapchainInit
 {
     bool          bVSync;
     uint32_t      uWidth;
     uint32_t      uHeight;
-    plSampleCount tSampleCount;
+    plSampleCount eSampleCount;
 } plSwapchainInit;
 
 typedef struct _plDeviceLimits
@@ -1541,18 +1319,18 @@ typedef struct _plDeviceLimits
 typedef struct _plDeviceInfo
 {
     char               acName[256];
-    plVendorId         tVendorId;
-    plDeviceType       tType;
+    plVendorId         eVendorId;
+    plDeviceType       eType;
     plDeviceLimits     tLimits;
     size_t             szDeviceMemory;
     size_t             szHostMemory;
-    plDeviceCapability tCapabilities;
-    plSampleCount      tMaxSampleCount;
+    plDeviceCapability eCapabilities;
+    plSampleCount      eMaxSampleCount;
 } plDeviceInfo;
 
 typedef struct _plDeviceInit
 {
-    plDeviceInitFlags tFlags;
+    plDeviceInitFlags eFlags;
     uint32_t          uDeviceIdx;
     size_t            szDynamicBufferBlockSize;
     size_t            szDynamicDataMaxSize;
@@ -1569,13 +1347,6 @@ enum _plGraphicsBackend
     PL_GRAPHICS_BACKEND_CPU,
     PL_GRAPHICS_BACKEND_VULKAN,
     PL_GRAPHICS_BACKEND_METAL
-};
-
-enum _plPassResourceUsageFlags
-{
-    PL_PASS_RESOURCE_USAGE_NONE  = 0,
-    PL_PASS_RESOURCE_USAGE_READ  = 1 << 0,
-    PL_PASS_RESOURCE_USAGE_WRITE = 1 << 1,
 };
 
 enum _plBindGroupPoolFlags
@@ -1616,11 +1387,7 @@ enum _plAddressMode
     PL_ADDRESS_MODE_WRAP,
     PL_ADDRESS_MODE_CLAMP_TO_EDGE,
     PL_ADDRESS_MODE_CLAMP_TO_BORDER,
-    PL_ADDRESS_MODE_MIRROR,
-    
-    #ifndef PL_DISABLE_OBSOLETE
-    PL_ADDRESS_MODE_CLAMP = PL_ADDRESS_MODE_CLAMP_TO_EDGE
-    #endif
+    PL_ADDRESS_MODE_MIRROR
 };
 
 enum _plSampleCount
@@ -1649,26 +1416,19 @@ enum _plTextureUsage
     PL_TEXTURE_USAGE_SAMPLED                  = 1 << 0,
     PL_TEXTURE_USAGE_COLOR_ATTACHMENT         = 1 << 1,
     PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT = 1 << 2,
-    PL_TEXTURE_USAGE_TRANSIENT_ATTACHMENT     = 1 << 3,
-    PL_TEXTURE_USAGE_PRESENT                  = 1 << 4,
-    PL_TEXTURE_USAGE_INPUT_ATTACHMENT         = 1 << 5,
-    PL_TEXTURE_USAGE_STORAGE                  = 1 << 6
+    PL_TEXTURE_USAGE_PRESENT                  = 1 << 3,
+    PL_TEXTURE_USAGE_INPUT_ATTACHMENT         = 1 << 4,
+    PL_TEXTURE_USAGE_STORAGE                  = 1 << 5
 };
 
 enum _plBufferUsage
 {
-    PL_BUFFER_USAGE_UNSPECIFIED          = 0,
-    PL_BUFFER_USAGE_INDEX                = 1 << 0,
-    PL_BUFFER_USAGE_VERTEX               = 1 << 1,
-    PL_BUFFER_USAGE_UNIFORM              = 1 << 2,
-    PL_BUFFER_USAGE_STORAGE              = 1 << 3,
-    PL_BUFFER_USAGE_TRANSFER_SOURCE      = 1 << 4,
-    PL_BUFFER_USAGE_TRANSFER_DESTINATION = 1 << 5,
-
-    // [OBSOLETE]
-    #ifndef PL_DISABLE_OBSOLETE
-        PL_BUFFER_USAGE_STAGING = PL_BUFFER_USAGE_TRANSFER_SOURCE | PL_BUFFER_USAGE_TRANSFER_DESTINATION
-    #endif
+    PL_BUFFER_USAGE_UNSPECIFIED = 0,
+    PL_BUFFER_USAGE_INDEX       = 1 << 0,
+    PL_BUFFER_USAGE_VERTEX      = 1 << 1,
+    PL_BUFFER_USAGE_UNIFORM     = 1 << 2,
+    PL_BUFFER_USAGE_STORAGE     = 1 << 3,
+    PL_BUFFER_USAGE_TRANSFER    = 1 << 4
 };
 
 enum _plVendorId
@@ -1727,31 +1487,32 @@ enum _plShaderStageFlags
     PL_SHADER_STAGE_ALL      = PL_SHADER_STAGE_VERTEX | PL_SHADER_STAGE_FRAGMENT | PL_SHADER_STAGE_COMPUTE
 };
 
-enum _plPipelineStageFlags
+enum _plBarrierScope
 {
-    PL_PIPELINE_STAGE_NONE                    = 0,
-    PL_PIPELINE_STAGE_VERTEX_INPUT            = 1 << 0,
-    PL_PIPELINE_STAGE_VERTEX_SHADER           = 1 << 1,
-    PL_PIPELINE_STAGE_FRAGMENT_SHADER         = 1 << 2,
-    PL_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS    = 1 << 3,
-    PL_PIPELINE_STAGE_LATE_FRAGMENT_TESTS     = 1 << 4,
-    PL_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT = 1 << 5,
-    PL_PIPELINE_STAGE_COMPUTE_SHADER          = 1 << 6,
-    PL_PIPELINE_STAGE_TRANSFER                = 1 << 7,
+    PL_BARRIER_SCOPE_NONE     = 0,
+    PL_BARRIER_SCOPE_BUFFERS  = 1 << 0,
+    PL_BARRIER_SCOPE_TEXTURES = 1 << 1,
+    PL_BARRIER_SCOPE_ALL      = PL_BARRIER_SCOPE_BUFFERS | PL_BARRIER_SCOPE_TEXTURES
 };
 
-enum _plAccessFlags
+enum _plPipelineStageFlags
 {
-    PL_ACCESS_NONE                           = 0,
-    PL_ACCESS_SHADER_READ                    = 1 << 0,
-    PL_ACCESS_SHADER_WRITE                   = 1 << 1,
-    PL_ACCESS_TRANSFER_WRITE                 = 1 << 2,
-    PL_ACCESS_TRANSFER_READ                  = 1 << 3,
-    PL_ACCESS_INPUT_ATTACHMENT_READ          = 1 << 4,
-    PL_ACCESS_COLOR_ATTACHMENT_READ          = 1 << 5,
-    PL_ACCESS_COLOR_ATTACHMENT_WRITE         = 1 << 6,
-    PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ  = 1 << 7,
-    PL_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE = 1 << 8,
+    PL_PIPELINE_STAGE_NONE     = 0,
+    PL_PIPELINE_STAGE_VERTEX   = 1 << 1,
+    PL_PIPELINE_STAGE_FRAGMENT = 1 << 2,
+    PL_PIPELINE_STAGE_COMPUTE  = 1 << 3,
+    PL_PIPELINE_STAGE_BLIT     = 1 << 4,
+
+    PL_PIPELINE_STAGE_ALL = PL_PIPELINE_STAGE_VERTEX | PL_PIPELINE_STAGE_FRAGMENT
+    | PL_PIPELINE_STAGE_COMPUTE | PL_PIPELINE_STAGE_BLIT
+};
+
+enum _plPassResourceAccess
+{
+    PL_PASS_RESOURCE_ACCESS_NONE       = 0,
+    PL_PASS_RESOURCE_ACCESS_READ       = 1 << 0,
+    PL_PASS_RESOURCE_ACCESS_WRITE      = 1 << 1,
+    PL_PASS_RESOURCE_ACCESS_READ_WRITE = PL_PASS_RESOURCE_ACCESS_READ | PL_PASS_RESOURCE_ACCESS_WRITE
 };
 
 enum _plCullMode
@@ -1842,13 +1603,6 @@ enum _plMemoryFlags
     PL_MEMORY_FLAGS_HOST_VISIBLE  = 1 << 1, // will be mapped for host access
     PL_MEMORY_FLAGS_HOST_COHERENT = 1 << 2, // no need to flush or invalidate memory ranges
     PL_MEMORY_FLAGS_HOST_CACHED   = 1 << 3, // faster access on the host (good for readbacks)
-
-    // [OBSOLETE]
-    #ifndef PL_DISABLE_OBSOLETE
-    PL_MEMORY_GPU     = PL_MEMORY_FLAGS_DEVICE_LOCAL,
-    PL_MEMORY_GPU_CPU = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
-    PL_MEMORY_CPU     = PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT | PL_MEMORY_FLAGS_HOST_CACHED,
-    #endif
 };
 
 enum _plDataType
@@ -2134,8 +1888,9 @@ enum plDrawStreamBits
 //-----------------------------------------------------------------------------
 
 static inline plDynamicBinding
-pl_allocate_dynamic_data(const plGraphicsI* ptGfx, plDevice* ptDevice, plDynamicDataBlock* ptCurrentBlock)
+pl_allocate_dynamic_data(const plGraphicsI* ptGfx, plDevice* ptDevice, plDynamicDataBlock* ptCurrentBlock, uint32_t uSize)
 {
+    PL_ASSERT(uSize <= ptCurrentBlock->_uBumpAmount);
     if(ptCurrentBlock->_uCurrentOffset + ptCurrentBlock->_uBumpAmount > ptCurrentBlock->_uByteSize)
     {
         *ptCurrentBlock = ptGfx->allocate_dynamic_data_block(ptDevice);

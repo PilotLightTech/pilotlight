@@ -53,7 +53,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plDrawI_version {2, 1, 1}
+#define plDrawI_version {3, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -109,11 +109,11 @@ typedef int plDrawRectFlags; // -> enum _plDrawRectFlags // Flags:
 
 // external
 typedef struct _plDevice        plDevice;          // pl_graphics_ext.h
-typedef struct _plRenderEncoder plRenderEncoder;   // pl_graphics_ext.h
 typedef struct _plCommandBuffer plCommandBuffer;   // pl_graphics_ext.h
 typedef struct _plBindGroupPool plBindGroupPool;   // pl_graphics_ext.h
 typedef union plBindGroupHandle plBindGroupHandle; // pl_graphics_ext.h
 typedef union plTextureHandle   plTextureHandle;   // pl_graphics_ext.h
+typedef struct _plRenderAttachmentInfo plRenderAttachmentInfo;  // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -129,8 +129,8 @@ PL_API void pl_draw_cleanup   (void); // usually called by backend "cleanup" fun
 
 // per frame
 PL_API void pl_draw_new_frame(void);
-PL_API void pl_draw_submit_2d_drawlist(plDrawList2D*, plRenderEncoder*, float fWidth, float fHeight, uint32_t sampleCount);
-PL_API void pl_draw_submit_3d_drawlist(plDrawList3D*, plRenderEncoder*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t sampleCount);
+PL_API void pl_draw_submit_2d_drawlist(plDrawList2D*, plCommandBuffer*, float fWidth, float fHeight, uint32_t sampleCount, const plRenderAttachmentInfo*);
+PL_API void pl_draw_submit_3d_drawlist(plDrawList3D*, plCommandBuffer*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t sampleCount, const plRenderAttachmentInfo*);
 
 // misc.
 PL_API void pl_draw_use_nearest_sampler(plDrawLayer2D*);
@@ -252,8 +252,8 @@ typedef struct _plDrawI
 
     // per frame
     void (*new_frame)(void);
-    void (*submit_2d_drawlist)(plDrawList2D*, plRenderEncoder*, float fWidth, float fHeight, uint32_t sampleCount);
-    void (*submit_3d_drawlist)(plDrawList3D*, plRenderEncoder*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t sampleCount);
+    void (*submit_2d_drawlist)(plDrawList2D*, plCommandBuffer*, float fWidth, float fHeight, uint32_t sampleCount, const plRenderAttachmentInfo*);
+    void (*submit_3d_drawlist)(plDrawList3D*, plCommandBuffer*, float fWidth, float fHeight, const plMat4* ptMVP, plDrawFlags, uint32_t sampleCount, const plRenderAttachmentInfo*);
 
     // misc.
     void (*use_nearest_sampler)(plDrawLayer2D*);

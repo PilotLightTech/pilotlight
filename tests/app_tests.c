@@ -572,7 +572,7 @@ file_tests_0(void* pAppData)
         }
     }
     pl_test_expect_true(bFindMath, NULL);
-    pl_test_expect_true(tInfo.sbtEntries[uMathIndex].tType == PL_DIRECTORY_ENTRY_TYPE_FILE, NULL);
+    pl_test_expect_true(tInfo.sbtEntries[uMathIndex].eType == PL_DIRECTORY_ENTRY_TYPE_FILE, NULL);
 
     gptFile->cleanup_directory_info(&tInfo);
     pl_sb_free(sbcFiles);

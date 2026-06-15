@@ -5,7 +5,8 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-- v0.9.3 (2026-06-02)(graphics   v1.10.0) -last version before 2.x with breaking changes
+- v0.10.0 (xx-xx-xx)
+- v0.9.3  (2026-06-02)(graphics  v1.10.0) -last version before 2.x with breaking changes
                                           -remove necessity of subpass dependencies
                                           -remove necessity of "set_texture_usage(...)"
                      (camera     v1.0.1)  -fix camera zero init issues

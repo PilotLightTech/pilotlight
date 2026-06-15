@@ -47,9 +47,10 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 // [SECTION] input & output
 //-----------------------------------------------------------------------------
 
-layout(location = 0) out vec4 outAlbedo;
-layout(location = 1) out vec2 outNormal;
-layout(location = 2) out vec4 outAOMetalnessRoughness;
+layout(location = 0) out vec4 outFinal;
+layout(location = 1) out vec4 outAlbedo;
+layout(location = 2) out vec2 outNormal;
+layout(location = 3) out vec4 outAOMetalnessRoughness;
 
 // output
 layout(location = 0) in struct plShaderIn {
@@ -125,5 +126,5 @@ void main()
         outNormal = Encode(tNormalInfo.n);
     }
     outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
-    
+    // outFinal = vec4(0, 0, 0, 1);
 }

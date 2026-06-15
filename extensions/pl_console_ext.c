@@ -334,11 +334,11 @@ pl_console_initialize(plConsoleSettings tSettings)
     gptConsoleCtx->bConsoleTransparency = true;
     gptConsoleCtx->bShowConsoleBackground = true;
 
-    if(tSettings.tFlags & PL_CONSOLE_FLAGS_POPUP)
+    if(tSettings.eFlags & PL_CONSOLE_FLAGS_POPUP)
         gptConsoleCtx->bPopup = true;
-    if(tSettings.tFlags & PL_CONSOLE_FLAGS_MOVABLE)
+    if(tSettings.eFlags & PL_CONSOLE_FLAGS_MOVABLE)
         gptConsoleCtx->bMoveable = true;
-    if(tSettings.tFlags & PL_CONSOLE_FLAGS_RESIZABLE)
+    if(tSettings.eFlags & PL_CONSOLE_FLAGS_RESIZABLE)
         gptConsoleCtx->bResizable = true;
 
     // pilot light

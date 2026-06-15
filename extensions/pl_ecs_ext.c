@@ -146,7 +146,7 @@ pl_ecs_initialize(plEcsInit tInit)
         
         .tScale    = {1.0f, 1.0f, 1.0f},
         .tRotation = {0.0f, 0.0f, 0.0f, 1.0f},
-        .tFlags    = PL_TRANSFORM_FLAGS_DIRTY
+        .eFlags    = PL_TRANSFORM_FLAGS_DIRTY
     };
     tTransformComponentDefault.tWorld = pl_identity_mat4();
     gptEcsCtx->tTransformComponentType = pl_ecs_register_type(tTransformDesc, &tTransformComponentDefault);
@@ -637,10 +637,10 @@ pl_ecs_run_transform_update_system(plComponentLibrary* ptLibrary)
     for(uint32_t i = 0; i < uComponentCount; i++)
     {
         plTransformComponent* ptTransform = &ptComponents[i];
-        if(ptTransform->tFlags & PL_TRANSFORM_FLAGS_DIRTY)
+        if(ptTransform->eFlags & PL_TRANSFORM_FLAGS_DIRTY)
         {
             ptTransform->tWorld = pl_rotation_translation_scale(ptTransform->tRotation, ptTransform->tTranslation, ptTransform->tScale);
-            ptTransform->tFlags &= ~PL_TRANSFORM_FLAGS_DIRTY;
+            ptTransform->eFlags &= ~PL_TRANSFORM_FLAGS_DIRTY;
         }
     }
 
@@ -665,7 +665,7 @@ pl_ecs_run_hierarchy_update_system(plComponentLibrary* ptLibrary)
         if(ptParentTransform && ptChildTransform)
         {
             ptChildTransform->tWorld = pl_mul_mat4(&ptParentTransform->tWorld, &ptChildTransform->tWorld);
-            ptChildTransform->tFlags |= PL_TRANSFORM_FLAGS_DIRTY;
+            ptChildTransform->eFlags |= PL_TRANSFORM_FLAGS_DIRTY;
         }
     }
 

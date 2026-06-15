@@ -171,13 +171,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {
-        .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
+        .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
 
     // we will remove this flag so we can handle
     // management of the shader extension
-    tStarterInit.tFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
+    tStarterInit.eFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
 
     // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
     // etc. which we will get to in later examples
@@ -193,7 +193,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             "../dependencies/pilotlight/shaders/",
             "/shaders/"
         },
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
+        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
     };
     gptShader->initialize(&tDefaultShaderOptions);
     gptStarter->finalize();

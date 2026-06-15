@@ -196,12 +196,12 @@ pl_file_get_directory_info(const char* pcPath, plDirectoryInfo* ptInfoOut)
         if(tFindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         {
             ptInfoOut->uDirectoryCount++;
-            ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_DIRECTORY;
+            ptNewEntry->eType = PL_DIRECTORY_ENTRY_TYPE_DIRECTORY;
         }
         else
         {
             ptInfoOut->uFileCount++;
-            ptNewEntry->tType = PL_DIRECTORY_ENTRY_TYPE_FILE;
+            ptNewEntry->eType = PL_DIRECTORY_ENTRY_TYPE_FILE;
         }
         strncpy(ptNewEntry->acName, tFindData.cFileName, PL_MAX_PATH_LENGTH);
 

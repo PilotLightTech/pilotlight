@@ -144,7 +144,6 @@ typedef struct _plCommandBuffer       plCommandBuffer;      // pl_graphics_ext.h
 typedef struct _plCommandPool         plCommandPool;        // pl_graphics_ext.h
 typedef struct _plSwapchain           plSwapchain;          // pl_graphics_ext.h
 typedef union  plTextureHandle        plTextureHandle;      // pl_graphics_ext.h
-typedef struct _plRenderEncoder       plRenderEncoder;      // pl_graphics_ext.h
 typedef union  plRenderPassHandle     plRenderPassHandle;   // pl_graphics_ext.h
 typedef union  plBindGroupHandle      plBindGroupHandle;    // pl_graphics_ext.h
 typedef struct _plComponentLibrary    plComponentLibrary;   // pl_ecs_ext.h

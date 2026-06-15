@@ -266,9 +266,6 @@ typedef struct _plEnvironmentProbeData
 
     plGpuDirectionLightShadow* sbtDLightShadowData;
 
-    plRenderPassHandle atRenderPasses[6];
-    plRenderPassHandle atTransparentRenderPasses[6];
-
     // g-buffer textures
     plTextureHandle tAlbedoTexture;
     plTextureHandle tNormalTexture;
@@ -338,13 +335,7 @@ typedef struct _plView
     plBindGroupHandle atDShadowBG[PL_MAX_FRAMES_IN_FLIGHT];
 
     // renderpasses
-    plRenderPassHandle tRenderPass;
-    plRenderPassHandle tTransparentRenderPass;
-    plRenderPassHandle tPostProcessRenderPass;
-    plRenderPassHandle tFinalRenderPass;
-    plRenderPassHandle tPickRenderPass;
-    plRenderPassHandle tUVRenderPass;
-    plVec2             tTargetSize;
+    plVec2 tTargetSize;
 
     // textures
     plTextureHandle  tAlbedoTexture;           // g-buffer
@@ -437,10 +428,6 @@ typedef struct _plScene
     plShaderHandle tTerrainShader;
     plShaderHandle tTerrainShadowShader;
     plShaderHandle tTerrainWireframeShader;
-
-    // render passes
-    plRenderPassHandle tFirstShadowRenderPass;
-    plRenderPassHandle tShadowRenderPass;
 
     // bind groups
     plBindGroupHandle tSkyboxBindGroup;
@@ -553,13 +540,14 @@ typedef struct _plRefRendererData
     plBindGroupPool* aptTempGroupPools[PL_MAX_FRAMES_IN_FLIGHT];
 
     // main renderpass layout (used as a template for views)
-    plRenderPassLayoutHandle tRenderPassLayout;
-    plRenderPassLayoutHandle tTransparentRenderPassLayout;
-    plRenderPassLayoutHandle tPostProcessRenderPassLayout;
-    plRenderPassLayoutHandle tFinalRenderPassLayout;
-    plRenderPassLayoutHandle tUVRenderPassLayout;
-    plRenderPassLayoutHandle tDepthRenderPassLayout;
-    plRenderPassLayoutHandle tPickRenderPassLayout;
+    plRenderAttachmentInfo tRenderPassLayout;
+    plRenderAttachmentInfo tDeferredLightingRenderPassLayout;
+    plRenderAttachmentInfo tTransparentRenderPassLayout;
+    plRenderAttachmentInfo tPostProcessRenderPassLayout;
+    plRenderAttachmentInfo tFinalRenderPassLayout;
+    plRenderAttachmentInfo tUVRenderPassLayout;
+    plRenderAttachmentInfo tDepthRenderPassLayout;
+    plRenderAttachmentInfo tPickRenderPassLayout;
 
     // bind group layouts
     plBindGroupLayoutHandle tViewBGLayout;
@@ -660,14 +648,13 @@ typedef struct _plCSMInfo
 // scene render helpers
 static void pl__renderer_perform_skinning(plCommandBuffer*, plScene*);
 static bool pl__renderer_pack_shadow_atlas(plScene*);
-static void pl__renderer_generate_cascaded_shadow_map(plRenderEncoder*, plCommandBuffer*, plScene*, uint32_t, uint32_t, const plCamera*, plCSMInfo, plDrawList3D*);
-static void pl__renderer_generate_shadow_maps(plRenderEncoder*, plCommandBuffer*, plScene*, const plCamera** atCameras, uint32_t uCameraCount);
+static void pl__renderer_generate_cascaded_shadow_map(plCommandBuffer*, plScene*, uint32_t, uint32_t, const plCamera*, plCSMInfo, plDrawList3D*);
+static void pl__renderer_generate_shadow_maps(plCommandBuffer*, plScene*, const plCamera** atCameras, uint32_t uCameraCount);
 
 static uint64_t pl_renderer__add_material_to_scene(plScene* ptScene, plEntity tMaterial);
 
 // misc
-static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock);}
-static bool                    pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex);
+static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice, uint32_t uSize){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock, uSize);}static bool                    pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex);
 static uint32_t                pl__renderer_get_bindless_texture_index(plScene*, plTextureHandle);
 static uint32_t                pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);
 static void                    pl__renderer_return_bindless_texture_index(plScene*, plTextureHandle);

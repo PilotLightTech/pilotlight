@@ -124,14 +124,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {
-        .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
+        .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
 
     // we want the starter extension to include a depth buffer
     // when setting up the render pass
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_MSAA;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_MSAA;
 
     // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
     // etc. which we will get to in later examples
@@ -251,16 +251,18 @@ pl_app_update(plAppData* ptAppData)
     gptDraw->add_3d_band_yz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 1.0f, 0.75f)});
 
     // start main pass & return the encoder being used
-    plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
+    plCommandBuffer* ptCommandBuffer = gptStarter->begin_main_pass();
 
     // submit 3d drawlist
+    plRenderAttachmentInfo tRenderAttachmentInfo = {0};
+    gptStarter->get_render_attachment_info(&tRenderAttachmentInfo);
     gptDraw->submit_3d_drawlist(ptAppData->pt3dDrawlist,
-        ptEncoder,
+        ptCommandBuffer,
         ptIO->tMainViewportSize.x,
         ptIO->tMainViewportSize.y,
         &ptAppData->tCamera.tViewProjMat,
         PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE,
-        gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
+        gptGfx->get_swapchain_info(gptStarter->get_swapchain()).eSampleCount, &tRenderAttachmentInfo);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();

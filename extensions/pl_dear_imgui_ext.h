@@ -25,7 +25,7 @@ Index of this file:
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plDearImGuiI_version {0, 1, 0}
+#define plDearImGuiI_version {0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -39,12 +39,11 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 // external (pl_graphics_ext.h)
-typedef union  plRenderPassHandle plRenderPassHandle;
 typedef union  plBindGroupHandle  plBindGroupHandle;
-typedef struct _plRenderEncoder   plRenderEncoder;
 typedef struct _plSwapchain       plSwapchain;
 typedef struct _plCommandBuffer   plCommandBuffer;
 typedef struct _plDevice          plDevice;
+typedef struct _plRenderAttachmentInfo plRenderAttachmentInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -55,12 +54,12 @@ PL_API void pl_load_dear_imgui_ext  (const plApiRegistryI*, bool reload);
 PL_API void pl_unload_dear_imgui_ext(const plApiRegistryI*, bool reload);
 
 // setup/shutdown
-PL_API void pl_dear_imgui_initialize(plDevice*, plSwapchain*, plRenderPassHandle tMainRenderPass);
+PL_API void pl_dear_imgui_initialize(plDevice*, plSwapchain*, const plRenderAttachmentInfo*);
 PL_API void pl_dear_imgui_cleanup   (void);
 
 // per frame
-PL_API void pl_dear_imgui_new_frame(plDevice*, plRenderPassHandle tMainRenderPass);
-PL_API void pl_dear_imgui_render   (plRenderEncoder*, plCommandBuffer*);
+PL_API void pl_dear_imgui_new_frame(plDevice*);
+PL_API void pl_dear_imgui_render   (plCommandBuffer*);
 
 // for using texture in Dear ImGui specifically
 PL_API ImTextureID pl_dear_imgui_get_texture_id_from_bindgroup(plDevice*, plBindGroupHandle);
@@ -72,12 +71,12 @@ PL_API ImTextureID pl_dear_imgui_get_texture_id_from_bindgroup(plDevice*, plBind
 typedef struct _plDearImGuiI
 {
     // setup/shutdown
-    void (*initialize)(plDevice*, plSwapchain*, plRenderPassHandle tMainRenderPass);
+    void (*initialize)(plDevice*, plSwapchain*, const plRenderAttachmentInfo*);
     void (*cleanup)   (void);
 
     // per frame
-    void (*new_frame)(plDevice*, plRenderPassHandle tMainRenderPass);
-    void (*render)   (plRenderEncoder*, plCommandBuffer*);
+    void (*new_frame)(plDevice*);
+    void (*render)   (plCommandBuffer*);
 
     ImTextureID (*get_texture_id_from_bindgroup)(plDevice*, plBindGroupHandle);
 } plDearImGuiI;

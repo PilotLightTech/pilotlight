@@ -212,7 +212,7 @@ pl_shader_variant_cleanup(void)
 }
 
 plShaderHandle
-pl_shader_variant_get_shader(const char* pcName, const plGraphicsState* ptGraphicsState, const void* pTempVtxConstantData, const void* pTempFragConstantData, const plRenderPassLayoutHandle* ptRenderPassLayout)
+pl_shader_variant_get_shader(const char* pcName, const plGraphicsState* ptGraphicsState, const void* pTempVtxConstantData, const void* pTempFragConstantData, const plRenderAttachmentInfo* ptFormatInfo)
 {
 
     uint32_t uVariantIndex = UINT32_MAX;
@@ -229,10 +229,10 @@ pl_shader_variant_get_shader(const char* pcName, const plGraphicsState* ptGraphi
     plShaderHandle tBaseHandle = gptShaderVariantCtx->sbtShaderMeta[uVariantIndex];
     if(tBaseHandle.uData == 0) // first run
     {
-        PL_ASSERT(ptRenderPassLayout != NULL);
+        PL_ASSERT(ptFormatInfo != NULL);
         gptShaderVariantCtx->sbtShaderDesc[uVariantIndex].pVertexTempConstantData = pTempVtxConstantData;
         gptShaderVariantCtx->sbtShaderDesc[uVariantIndex].pFragmentTempConstantData = pTempFragConstantData;
-        gptShaderVariantCtx->sbtShaderDesc[uVariantIndex].tRenderPassLayout = *ptRenderPassLayout;
+        gptShaderVariantCtx->sbtShaderDesc[uVariantIndex].tRenderAttachmentInfo = *ptFormatInfo;
 
         gptShaderVariantCtx->sbtShaderDesc[uVariantIndex].pcDebugName = pcName;
         tBaseHandle = gptGfx->create_shader(gptShaderVariantCtx->ptDevice, &gptShaderVariantCtx->sbtShaderDesc[uVariantIndex]);
@@ -247,14 +247,14 @@ pl_shader_variant_get_shader(const char* pcName, const plGraphicsState* ptGraphi
     for(uint32_t i = 0; i < ptShader->tDesc._uVertexConstantCount; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atVertexConstants[i];
-        szVertexSpecializationSize += gptGfx->get_data_type_size(ptConstant->tType);
+        szVertexSpecializationSize += gptGfx->get_data_type_size(ptConstant->eType);
     }
 
     size_t szFragmentSpecializationSize = 0;
     for(uint32_t i = 0; i < ptShader->tDesc._uFragmentConstantCount; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atFragmentConstants[i];
-        szFragmentSpecializationSize += gptGfx->get_data_type_size(ptConstant->tType);
+        szFragmentSpecializationSize += gptGfx->get_data_type_size(ptConstant->eType);
     }
 
     if(szVertexSpecializationSize + szFragmentSpecializationSize == 0 && ptShader->tDesc.tGraphicsState.ulValue == ptGraphicsState->ulValue)
@@ -330,7 +330,7 @@ pl_shader_variant_get_compute_shader(const char* pcName, const void* pTempConsta
     for(uint32_t i = 0; i < ptShader->tDesc._uConstantCount; i++)
     {
         const plSpecializationConstant* ptConstant = &ptShader->tDesc.atConstants[i];
-        szSpecializationSize += gptGfx->get_data_type_size(ptConstant->tType);
+        szSpecializationSize += gptGfx->get_data_type_size(ptConstant->eType);
     }
 
     if(szSpecializationSize == 0)
@@ -575,10 +575,10 @@ pl_shader_variant_load_manifest(const char* pcPath)
             tComputeShaderDesc.atConstants[i].uOffset = pl_json_uint_member(ptConstant, "uOffset", 0);
 
             char acTypeBuffer[64] = {0};
-            pl_json_string_member(ptConstant, "tType", acTypeBuffer, 64);
-            tComputeShaderDesc.atConstants[i].tType = pl__shader_tools_get_data_type(acTypeBuffer);
+            pl_json_string_member(ptConstant, "eType", acTypeBuffer, 64);
+            tComputeShaderDesc.atConstants[i].eType = pl__shader_tools_get_data_type(acTypeBuffer);
 
-            const size_t szConstantExtent = gptGfx->get_data_type_size(tComputeShaderDesc.atConstants[i].tType) + tComputeShaderDesc.atConstants[i].uOffset;
+            const size_t szConstantExtent = gptGfx->get_data_type_size(tComputeShaderDesc.atConstants[i].eType) + tComputeShaderDesc.atConstants[i].uOffset;
 
             if(szConstantExtent > szMaxContantExtent)
                 szMaxContantExtent = szConstantExtent;
@@ -685,45 +685,43 @@ pl_shader_variant_load_manifest(const char* pcPath)
         if(ptPixelShaderMember)
             tShaderDesc.tFragmentShader = gptShader->load_glsl(acFileBuffer2, acEntryBuffer2, NULL, NULL);
 
-        tShaderDesc.uSubpassIndex = pl_json_uint_member(ptGraphicsShader, "uSubpassIndex", 0);
-
         plJsonObject* ptGraphicsMember = pl_json_member(ptGraphicsShader, "tGraphicsState");
         if(ptGraphicsMember)
         {
-            tShaderDesc.tGraphicsState.ulWireframe = pl_json_bool_member(ptGraphicsMember, "ulWireframe", false);
-            tShaderDesc.tGraphicsState.ulDepthWriteEnabled = pl_json_bool_member(ptGraphicsMember, "ulDepthWriteEnabled", false);
-            tShaderDesc.tGraphicsState.ulStencilRef = pl_json_uint_member(ptGraphicsMember, "ulStencilRef", 255);
-            tShaderDesc.tGraphicsState.ulStencilMask = pl_json_uint_member(ptGraphicsMember, "ulStencilMask", 255);
-            tShaderDesc.tGraphicsState.ulDepthClampEnabled = pl_json_bool_member(ptGraphicsMember, "ulDepthClampEnabled", false);
-            tShaderDesc.tGraphicsState.ulStencilTestEnabled = pl_json_bool_member(ptGraphicsMember, "ulStencilTestEnabled", false);
+            tShaderDesc.tGraphicsState.bWireframe = pl_json_bool_member(ptGraphicsMember, "bWireframe", false);
+            tShaderDesc.tGraphicsState.bDepthWriteEnabled = pl_json_bool_member(ptGraphicsMember, "bDepthWriteEnabled", false);
+            tShaderDesc.tGraphicsState.uStencilRef = pl_json_uint_member(ptGraphicsMember, "uStencilRef", 255);
+            tShaderDesc.tGraphicsState.uStencilMask = pl_json_uint_member(ptGraphicsMember, "uStencilMask", 255);
+            tShaderDesc.tGraphicsState.bDepthClampEnabled = pl_json_bool_member(ptGraphicsMember, "bDepthClampEnabled", false);
+            tShaderDesc.tGraphicsState.bStencilTestEnabled = pl_json_bool_member(ptGraphicsMember, "bStencilTestEnabled", false);
 
             char acEnumBuffer[64] = {0};
-            char* pcEnumValue = pl_json_string_member(ptGraphicsMember, "ulStencilOpFail", acEntryBuffer, 64);
-            if(pl_json_member_exist(ptGraphicsMember, "ulStencilOpFail"))
-                tShaderDesc.tGraphicsState.ulStencilOpFail = pl__shader_tools_get_stencil_op(pcEnumValue);
+            char* pcEnumValue = pl_json_string_member(ptGraphicsMember, "eStencilOpFail", acEntryBuffer, 64);
+            if(pl_json_member_exist(ptGraphicsMember, "eStencilOpFail"))
+                tShaderDesc.tGraphicsState.eStencilOpFail = pl__shader_tools_get_stencil_op(pcEnumValue);
 
-            pl_json_string_member(ptGraphicsMember, "ulStencilOpDepthFail", acEntryBuffer, 64);
-            if(pl_json_member_exist(ptGraphicsMember, "ulStencilOpDepthFail"))
-                tShaderDesc.tGraphicsState.ulStencilOpDepthFail = pl__shader_tools_get_stencil_op(pcEnumValue);
+            pl_json_string_member(ptGraphicsMember, "eStencilOpDepthFail", acEntryBuffer, 64);
+            if(pl_json_member_exist(ptGraphicsMember, "eStencilOpDepthFail"))
+                tShaderDesc.tGraphicsState.eStencilOpDepthFail = pl__shader_tools_get_stencil_op(pcEnumValue);
 
-            pl_json_string_member(ptGraphicsMember, "ulStencilOpPass", acEntryBuffer, 64);
-            if(pl_json_member_exist(ptGraphicsMember, "ulStencilOpDepthFail"))
-                tShaderDesc.tGraphicsState.ulStencilOpPass = pl__shader_tools_get_stencil_op(pcEnumValue);
+            pl_json_string_member(ptGraphicsMember, "eStencilOpPass", acEntryBuffer, 64);
+            if(pl_json_member_exist(ptGraphicsMember, "eStencilOpPass"))
+                tShaderDesc.tGraphicsState.eStencilOpPass = pl__shader_tools_get_stencil_op(pcEnumValue);
 
-            pcEnumValue = pl_json_string_member(ptGraphicsMember, "ulStencilMode", acEntryBuffer, 64);
+            pcEnumValue = pl_json_string_member(ptGraphicsMember, "eStencilMode", acEntryBuffer, 64);
             if(pcEnumValue)
-                tShaderDesc.tGraphicsState.ulStencilMode = pl__shader_tools_get_compare_mode(pcEnumValue);
+                tShaderDesc.tGraphicsState.eStencilMode = pl__shader_tools_get_compare_mode(pcEnumValue);
 
-            pcEnumValue = pl_json_string_member(ptGraphicsMember, "ulDepthMode", acEntryBuffer, 64);
+            pcEnumValue = pl_json_string_member(ptGraphicsMember, "eDepthMode", acEntryBuffer, 64);
             if(pcEnumValue)
-                tShaderDesc.tGraphicsState.ulDepthMode = pl__shader_tools_get_compare_mode(pcEnumValue);
+                tShaderDesc.tGraphicsState.eDepthMode = pl__shader_tools_get_compare_mode(pcEnumValue);
 
-            pcEnumValue = pl_json_string_member(ptGraphicsMember, "ulCullMode", acEntryBuffer, 64);
+            pcEnumValue = pl_json_string_member(ptGraphicsMember, "eCullMode", acEntryBuffer, 64);
             if(pcEnumValue)
             {
-                if     (pcEnumValue[13] == 'N')                           tShaderDesc.tGraphicsState.ulCullMode = PL_CULL_MODE_NONE;
-                else if(pcEnumValue[13] == 'C' && pcEnumValue[18] == 'F') tShaderDesc.tGraphicsState.ulCullMode = PL_CULL_MODE_CULL_FRONT;
-                else if(pcEnumValue[13] == 'C')                           tShaderDesc.tGraphicsState.ulCullMode = PL_CULL_MODE_CULL_BACK;
+                if     (pcEnumValue[13] == 'N')                           tShaderDesc.tGraphicsState.eCullMode = PL_CULL_MODE_NONE;
+                else if(pcEnumValue[13] == 'C' && pcEnumValue[18] == 'F') tShaderDesc.tGraphicsState.eCullMode = PL_CULL_MODE_CULL_FRONT;
+                else if(pcEnumValue[13] == 'C')                           tShaderDesc.tGraphicsState.eCullMode = PL_CULL_MODE_CULL_BACK;
                 else
                 {
                     PL_ASSERT(false);
@@ -743,23 +741,23 @@ pl_shader_variant_load_manifest(const char* pcPath)
             char acBlendOp[64] = {0};
             char* pcBlendEnum = NULL;
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "tSrcColorFactor", acBlendOp, 64);
-            tShaderDesc.atBlendStates[i].tSrcColorFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
+            pcBlendEnum = pl_json_string_member(ptBlendState, "eSrcColorFactor", acBlendOp, 64);
+            tShaderDesc.atBlendStates[i].eSrcColorFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "tDstColorFactor", acBlendOp, 64);
-            tShaderDesc.atBlendStates[i].tDstColorFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
+            pcBlendEnum = pl_json_string_member(ptBlendState, "eDstColorFactor", acBlendOp, 64);
+            tShaderDesc.atBlendStates[i].eDstColorFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "tSrcAlphaFactor", acBlendOp, 64);
-            tShaderDesc.atBlendStates[i].tSrcAlphaFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
+            pcBlendEnum = pl_json_string_member(ptBlendState, "eSrcAlphaFactor", acBlendOp, 64);
+            tShaderDesc.atBlendStates[i].eSrcAlphaFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "tDstAlphaFactor", acBlendOp, 64);
-            tShaderDesc.atBlendStates[i].tDstAlphaFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
+            pcBlendEnum = pl_json_string_member(ptBlendState, "eDstAlphaFactor", acBlendOp, 64);
+            tShaderDesc.atBlendStates[i].eDstAlphaFactor = pl__shader_tools_get_blend_factor(pcBlendEnum);
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "tAlphaOp", acBlendOp, 64);
-            tShaderDesc.atBlendStates[i].tAlphaOp = pl__shader_tools_get_blend_op(pcBlendEnum);
+            pcBlendEnum = pl_json_string_member(ptBlendState, "eAlphaOp", acBlendOp, 64);
+            tShaderDesc.atBlendStates[i].eAlphaOp = pl__shader_tools_get_blend_op(pcBlendEnum);
 
-            pcBlendEnum = pl_json_string_member(ptBlendState, "tColorOp", acBlendOp, 64);
-            tShaderDesc.atBlendStates[i].tColorOp = pl__shader_tools_get_blend_op(pcBlendEnum);
+            pcBlendEnum = pl_json_string_member(ptBlendState, "eColorOp", acBlendOp, 64);
+            tShaderDesc.atBlendStates[i].eColorOp = pl__shader_tools_get_blend_op(pcBlendEnum);
         }
 
         uint32_t uVertexBufferCount = 0;
@@ -778,9 +776,9 @@ pl_shader_variant_load_manifest(const char* pcPath)
                 tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].uLocation = pl_json_uint_member(ptAttribute, "uLocation", 0);
 
                 char acVertexFormatBuffer[64] = {0};
-                pl_json_string_member(ptAttribute, "tFormat", acVertexFormatBuffer, 64);
-                if(pl_json_member_exist(ptAttribute, "tFormat"))
-                    tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].tFormat = pl__shader_tools_get_vertex_format(acVertexFormatBuffer);
+                pl_json_string_member(ptAttribute, "eFormat", acVertexFormatBuffer, 64);
+                if(pl_json_member_exist(ptAttribute, "eFormat"))
+                    tShaderDesc.atVertexBufferLayouts[i].atAttributes[j].eFormat = pl__shader_tools_get_vertex_format(acVertexFormatBuffer);
             }
         }
 
@@ -793,8 +791,8 @@ pl_shader_variant_load_manifest(const char* pcPath)
             tShaderDesc.atVertexConstants[i].uOffset = pl_json_uint_member(ptConstant, "uOffset", 0);
 
             char acTypeBuffer[64] = {0};
-            pl_json_string_member(ptConstant, "tType", acTypeBuffer, 64);
-            tShaderDesc.atVertexConstants[i].tType = pl__shader_tools_get_data_type(acTypeBuffer);
+            pl_json_string_member(ptConstant, "eType", acTypeBuffer, 64);
+            tShaderDesc.atVertexConstants[i].eType = pl__shader_tools_get_data_type(acTypeBuffer);
         }
 
         uConstantCount = 0;
@@ -806,8 +804,8 @@ pl_shader_variant_load_manifest(const char* pcPath)
             tShaderDesc.atFragmentConstants[i].uOffset = pl_json_uint_member(ptConstant, "uOffset", 0);
 
             char acTypeBuffer[64] = {0};
-            pl_json_string_member(ptConstant, "tType", acTypeBuffer, 64);
-            tShaderDesc.atFragmentConstants[i].tType = pl__shader_tools_get_data_type(acTypeBuffer);
+            pl_json_string_member(ptConstant, "eType", acTypeBuffer, 64);
+            tShaderDesc.atFragmentConstants[i].eType = pl__shader_tools_get_data_type(acTypeBuffer);
         }
 
         uint32_t uBindGroupLayoutCount = 0;
@@ -1105,77 +1103,77 @@ pl__shader_tools_get_vertex_format(const char* pcText)
 static plDataType
 pl__shader_tools_get_data_type(const char* pcText)
 {
-    plDataType tType = PL_DATA_TYPE_UNSPECIFIED;
+    plDataType eType = PL_DATA_TYPE_UNSPECIFIED;
 
-    if     (pcText[13] == 'I' && pcText[16] == '4') tType = PL_DATA_TYPE_INT4;
-    else if(pcText[13] == 'I' && pcText[16] == '3') tType = PL_DATA_TYPE_INT3;
-    else if(pcText[13] == 'I' && pcText[16] == '2') tType = PL_DATA_TYPE_INT2;
-    else if(pcText[13] == 'I')                      tType = PL_DATA_TYPE_INT;
-    else if(pcText[13] == 'F' && pcText[18] == '4') tType = PL_DATA_TYPE_FLOAT4;
-    else if(pcText[13] == 'F' && pcText[18] == '3') tType = PL_DATA_TYPE_FLOAT3;
-    else if(pcText[13] == 'F' && pcText[18] == '2') tType = PL_DATA_TYPE_FLOAT2;
-    else if(pcText[13] == 'F')                      tType = PL_DATA_TYPE_FLOAT;
-    else if(pcText[13] == 'B' && pcText[17] == '4') tType = PL_DATA_TYPE_BOOL4;
-    else if(pcText[13] == 'B' && pcText[17] == '3') tType = PL_DATA_TYPE_BOOL3;
-    else if(pcText[13] == 'B' && pcText[17] == '2') tType = PL_DATA_TYPE_BOOL2;
-    else if(pcText[13] == 'B')                      tType = PL_DATA_TYPE_BOOL;
-    else if(pcText[13] == 'C' && pcText[17] == '4') tType = PL_DATA_TYPE_CHAR4;
-    else if(pcText[13] == 'C' && pcText[17] == '3') tType = PL_DATA_TYPE_CHAR3;
-    else if(pcText[13] == 'C' && pcText[17] == '2') tType = PL_DATA_TYPE_CHAR2;
-    else if(pcText[13] == 'C')                      tType = PL_DATA_TYPE_CHAR;
-    else if(pcText[13] == 'S' && pcText[18] == '4') tType = PL_DATA_TYPE_SHORT4;
-    else if(pcText[13] == 'S' && pcText[18] == '3') tType = PL_DATA_TYPE_SHORT3;
-    else if(pcText[13] == 'S' && pcText[18] == '2') tType = PL_DATA_TYPE_SHORT2;
-    else if(pcText[13] == 'S')                      tType = PL_DATA_TYPE_SHORT;
-    else if(pcText[14] == 'C' && pcText[18] == '4') tType = PL_DATA_TYPE_UCHAR4;
-    else if(pcText[14] == 'C' && pcText[18] == '3') tType = PL_DATA_TYPE_UCHAR3;
-    else if(pcText[14] == 'C' && pcText[18] == '2') tType = PL_DATA_TYPE_UCHAR2;
-    else if(pcText[14] == 'C')                      tType = PL_DATA_TYPE_UCHAR;
-    else if(pcText[14] == 'S' && pcText[19] == '4') tType = PL_DATA_TYPE_USHORT4;
-    else if(pcText[14] == 'S' && pcText[19] == '3') tType = PL_DATA_TYPE_USHORT3;
-    else if(pcText[14] == 'S' && pcText[19] == '2') tType = PL_DATA_TYPE_USHORT2;
-    else if(pcText[14] == 'S')                      tType = PL_DATA_TYPE_USHORT;
-    else if(pcText[14] == 'I' && pcText[17] == '4') tType = PL_DATA_TYPE_UINT4;
-    else if(pcText[14] == 'I' && pcText[17] == '3') tType = PL_DATA_TYPE_UINT3;
-    else if(pcText[14] == 'I' && pcText[17] == '2') tType = PL_DATA_TYPE_UINT2;
-    else if(pcText[14] == 'I')                      tType = PL_DATA_TYPE_UINT;
+    if     (pcText[13] == 'I' && pcText[16] == '4') eType = PL_DATA_TYPE_INT4;
+    else if(pcText[13] == 'I' && pcText[16] == '3') eType = PL_DATA_TYPE_INT3;
+    else if(pcText[13] == 'I' && pcText[16] == '2') eType = PL_DATA_TYPE_INT2;
+    else if(pcText[13] == 'I')                      eType = PL_DATA_TYPE_INT;
+    else if(pcText[13] == 'F' && pcText[18] == '4') eType = PL_DATA_TYPE_FLOAT4;
+    else if(pcText[13] == 'F' && pcText[18] == '3') eType = PL_DATA_TYPE_FLOAT3;
+    else if(pcText[13] == 'F' && pcText[18] == '2') eType = PL_DATA_TYPE_FLOAT2;
+    else if(pcText[13] == 'F')                      eType = PL_DATA_TYPE_FLOAT;
+    else if(pcText[13] == 'B' && pcText[17] == '4') eType = PL_DATA_TYPE_BOOL4;
+    else if(pcText[13] == 'B' && pcText[17] == '3') eType = PL_DATA_TYPE_BOOL3;
+    else if(pcText[13] == 'B' && pcText[17] == '2') eType = PL_DATA_TYPE_BOOL2;
+    else if(pcText[13] == 'B')                      eType = PL_DATA_TYPE_BOOL;
+    else if(pcText[13] == 'C' && pcText[17] == '4') eType = PL_DATA_TYPE_CHAR4;
+    else if(pcText[13] == 'C' && pcText[17] == '3') eType = PL_DATA_TYPE_CHAR3;
+    else if(pcText[13] == 'C' && pcText[17] == '2') eType = PL_DATA_TYPE_CHAR2;
+    else if(pcText[13] == 'C')                      eType = PL_DATA_TYPE_CHAR;
+    else if(pcText[13] == 'S' && pcText[18] == '4') eType = PL_DATA_TYPE_SHORT4;
+    else if(pcText[13] == 'S' && pcText[18] == '3') eType = PL_DATA_TYPE_SHORT3;
+    else if(pcText[13] == 'S' && pcText[18] == '2') eType = PL_DATA_TYPE_SHORT2;
+    else if(pcText[13] == 'S')                      eType = PL_DATA_TYPE_SHORT;
+    else if(pcText[14] == 'C' && pcText[18] == '4') eType = PL_DATA_TYPE_UCHAR4;
+    else if(pcText[14] == 'C' && pcText[18] == '3') eType = PL_DATA_TYPE_UCHAR3;
+    else if(pcText[14] == 'C' && pcText[18] == '2') eType = PL_DATA_TYPE_UCHAR2;
+    else if(pcText[14] == 'C')                      eType = PL_DATA_TYPE_UCHAR;
+    else if(pcText[14] == 'S' && pcText[19] == '4') eType = PL_DATA_TYPE_USHORT4;
+    else if(pcText[14] == 'S' && pcText[19] == '3') eType = PL_DATA_TYPE_USHORT3;
+    else if(pcText[14] == 'S' && pcText[19] == '2') eType = PL_DATA_TYPE_USHORT2;
+    else if(pcText[14] == 'S')                      eType = PL_DATA_TYPE_USHORT;
+    else if(pcText[14] == 'I' && pcText[17] == '4') eType = PL_DATA_TYPE_UINT4;
+    else if(pcText[14] == 'I' && pcText[17] == '3') eType = PL_DATA_TYPE_UINT3;
+    else if(pcText[14] == 'I' && pcText[17] == '2') eType = PL_DATA_TYPE_UINT2;
+    else if(pcText[14] == 'I')                      eType = PL_DATA_TYPE_UINT;
     else
     {
         PL_ASSERT(false);
     }
 
-    return tType;
+    return eType;
 }
 
 static plBufferBindingType
 pl__shader_tools_buffer_binding_type(const char* pcText)
 {
-    plBufferBindingType tType = PL_BUFFER_BINDING_TYPE_UNSPECIFIED;
+    plBufferBindingType eType = PL_BUFFER_BINDING_TYPE_UNSPECIFIED;
 
-    if     (pcText[23] == 'S') tType = PL_BUFFER_BINDING_TYPE_STORAGE;
-    else if(pcText[23] == 'U') tType = PL_BUFFER_BINDING_TYPE_UNIFORM;
+    if     (pcText[23] == 'S') eType = PL_BUFFER_BINDING_TYPE_STORAGE;
+    else if(pcText[23] == 'U') eType = PL_BUFFER_BINDING_TYPE_UNIFORM;
     else
     {
         PL_ASSERT(false);
     }
 
-    return tType;
+    return eType;
 }
 
 static plTextureBindingType
 pl__shader_tools_texture_binding_type(const char* pcText)
 {
-    plTextureBindingType tType = PL_TEXTURE_BINDING_TYPE_UNSPECIFIED;
+    plTextureBindingType eType = PL_TEXTURE_BINDING_TYPE_UNSPECIFIED;
 
-    if     (pcText[24] == 'S' && pcText[25] == 'T') tType = PL_TEXTURE_BINDING_TYPE_STORAGE;
-    else if(pcText[24] == 'S' && pcText[25] == 'A') tType = PL_TEXTURE_BINDING_TYPE_SAMPLED;
-    else if(pcText[24] == 'I')                      tType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT;
+    if     (pcText[24] == 'S' && pcText[25] == 'T') eType = PL_TEXTURE_BINDING_TYPE_STORAGE;
+    else if(pcText[24] == 'S' && pcText[25] == 'A') eType = PL_TEXTURE_BINDING_TYPE_SAMPLED;
+    else if(pcText[24] == 'I')                      eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT;
     else
     {
         PL_ASSERT(false);
     }
 
-    return tType;
+    return eType;
 }
 
 static plBindGroupLayoutDesc
@@ -1190,8 +1188,8 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
         tDesc.atBufferBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
 
         char acTypeBuffer[64] = {0};
-        pl_json_string_member(ptBinding, "tType", acTypeBuffer, 64);
-        tDesc.atBufferBindings[j].tType = pl__shader_tools_buffer_binding_type(acTypeBuffer);
+        pl_json_string_member(ptBinding, "eType", acTypeBuffer, 64);
+        tDesc.atBufferBindings[j].eType = pl__shader_tools_buffer_binding_type(acTypeBuffer);
 
         char acStage0[64] = {0};
         char acStage1[64] = {0};
@@ -1199,9 +1197,9 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
         char* aacStages[3] = {acStage0, acStage1, acStage2};
         uint32_t auLengths[3] = {64, 64, 64};
         uint32_t uStageCount = 0;
-        pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
+        pl_json_string_array_member(ptBinding, "eStages", aacStages, &uStageCount, auLengths);
         for(uint32_t k = 0; k < uStageCount; k++)
-            tDesc.atBufferBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
+            tDesc.atBufferBindings[j].eStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
     }
 
     uint32_t uTextureBindingCount = 0;
@@ -1214,8 +1212,8 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
         tDesc.atTextureBindings[j].uDescriptorCount = pl_json_uint_member(ptBinding, "uDescriptorCount", 0);
 
         char acTypeBuffer[64] = {0};
-        pl_json_string_member(ptBinding, "tType", acTypeBuffer, 64);
-        tDesc.atTextureBindings[j].tType = pl__shader_tools_texture_binding_type(acTypeBuffer);
+        pl_json_string_member(ptBinding, "eType", acTypeBuffer, 64);
+        tDesc.atTextureBindings[j].eType = pl__shader_tools_texture_binding_type(acTypeBuffer);
 
         char acStage0[64] = {0};
         char acStage1[64] = {0};
@@ -1223,9 +1221,9 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
         char* aacStages[3] = {acStage0, acStage1, acStage2};
         uint32_t auLengths[3] = {64, 64, 64};
         uint32_t uStageCount = 0;
-        pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
+        pl_json_string_array_member(ptBinding, "eStages", aacStages, &uStageCount, auLengths);
         for(uint32_t k = 0; k < uStageCount; k++)
-            tDesc.atTextureBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
+            tDesc.atTextureBindings[j].eStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
     }
 
     uint32_t uSamplerBindingCount = 0;
@@ -1241,9 +1239,9 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
         char* aacStages[3] = {acStage0, acStage1, acStage2};
         uint32_t auLengths[3] = {64, 64, 64};
         uint32_t uStageCount = 0;
-        pl_json_string_array_member(ptBinding, "tStages", aacStages, &uStageCount, auLengths);
+        pl_json_string_array_member(ptBinding, "eStages", aacStages, &uStageCount, auLengths);
         for(uint32_t k = 0; k < uStageCount; k++)
-            tDesc.atSamplerBindings[j].tStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
+            tDesc.atSamplerBindings[j].eStages |= pl__shader_tools_get_shader_stage(aacStages[k]);
     }
     return tDesc;
 }

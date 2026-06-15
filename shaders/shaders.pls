@@ -3,61 +3,61 @@
         {
             "pcName": "scene",
             "atBufferBindings": [
-                { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
-                { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 3, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 1, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 2, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 3, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ],
             "atSamplerBindings": [
-                { "uSlot": 4, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 5, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 6, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 7, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                { "uSlot": 4, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 5, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 6, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 7, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ],
             "atTextureBindings": [
-                { "uSlot":    8, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "bNonUniformIndexing": true, "uDescriptorCount": 4096, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]},
-                { "uSlot": 4104, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "bNonUniformIndexing": true, "uDescriptorCount": 4096, "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]}
+                { "uSlot":    8, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "bNonUniformIndexing": true, "uDescriptorCount": 4096, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]},
+                { "uSlot": 4104, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "bNonUniformIndexing": true, "uDescriptorCount": 4096, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]}
             ]
         },
         {
             "pcName": "view",
             "atBufferBindings": [
-                { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
-                { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 3, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 4, "tType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 5, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 6, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 7, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 8, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 1, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 2, "eType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 3, "eType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 4, "eType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 5, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 6, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 7, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 8, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ]
         },
         {
             "pcName": "shadow",
             "atBufferBindings": [
-                { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 1, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ]
         },
         {
             "pcName": "cube_filter_set_0",
             "atTextureBindings": [
-                { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
             ],
             "atSamplerBindings": [
-                { "uSlot": 0, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                { "uSlot": 0, "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
             ]
         },
         {
             "pcName": "cube_filter_set_1",
             "atBufferBindings": [
-                { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                { "uSlot": 3, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                { "uSlot": 4, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                { "uSlot": 5, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 1, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 2, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 3, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 4, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                { "uSlot": 5, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
             ]
         }
     ],
@@ -67,20 +67,20 @@
             "pcName": "panorama_to_cubemap",
             "tShader": { "file": "pl_panorama_to_cubemap.comp"},
             "atConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 {
                     "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 2, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 3, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 4, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 5, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 6, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 2, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 3, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 4, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 5, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 6, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 }
             ]
@@ -91,8 +91,8 @@
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
-                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 }
             ]
@@ -101,12 +101,12 @@
             "pcName": "gaussian_blur",
             "tShader": { "file": "pl_gaussian_blur.comp"},
             "atConstants": [
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
-                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 }
             ]
@@ -117,11 +117,11 @@
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
-                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ],
                     "atSamplerBindings": [
-                        { "uSlot": 2, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 2, "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 }
             ]
@@ -132,11 +132,11 @@
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
-                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ],
                     "atSamplerBindings": [
-                        { "uSlot": 2, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 2, "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 }
             ]
@@ -147,12 +147,12 @@
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
-                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 2, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 2, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ],
                     "atSamplerBindings": [
-                        { "uSlot": 3, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 3, "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 }
             ]
@@ -163,7 +163,7 @@
             "atBindGroupLayouts": [
                 {
                     "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 }
             ]
@@ -196,24 +196,24 @@
             "pcName": "skinning",
             "tShader": { "file": "pl_skinning.comp"},
             "atConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 {
                     "atSamplerBindings": [
-                        { "uSlot": 2, "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 2, "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ],
                     "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] },
-                        { "uSlot": 1, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] },
+                        { "uSlot": 1, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 },
                 {
                     "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"]}
+                        { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"]}
                     ]
                 }
             ]
@@ -224,7 +224,7 @@
             "atBindGroupLayouts": [
                 {
                     "atTextureBindings": [
-                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_COMPUTE"] }
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
                     ]
                 }
             ]
@@ -237,20 +237,19 @@
             "tVertexShader":    { "file": "pl_full_screen.vert"},
             "tFragmentShader":  { "file": "pl_jumpfloodalgo.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled": false,
-                "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
-                "ulCullMode":           "PL_CULL_MODE_NONE",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  false,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled": false,
+                "eDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "uSubpassIndex": 0,
             "atBlendStates": [
                 { "bBlendEnabled": false }
             ],
@@ -258,8 +257,8 @@
                 { "pcName": "scene" },
                 {
                     "atTextureBindings": [
-                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] },
-                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] }
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_FRAGMENT"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_FRAGMENT"] }
                     ]
                 }
             ]
@@ -269,20 +268,19 @@
             "tVertexShader":    { "file": "pl_full_screen.vert"},
             "tFragmentShader":  { "file": "pl_skybox.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  false,
-                "ulDepthMode":          "PL_COMPARE_MODE_EQUAL",
-                "ulCullMode":           "PL_CULL_MODE_NONE",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  false,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_EQUAL",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "uSubpassIndex": 2,
             "atBlendStates": [
                 { "bBlendEnabled": false }
             ],
@@ -291,7 +289,7 @@
                 { "pcName": "view"  },
                 {
                     "atTextureBindings": [
-                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
                     ]
                 }
             ]
@@ -303,32 +301,31 @@
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
-            "uSubpassIndex": 0,
             "atBlendStates": [
-                { "bBlendEnabled": false },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
                 { "bBlendEnabled": false },
                 { "bBlendEnabled": false },
                 { "bBlendEnabled": false }
             ],
             "atVertexConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
                 {
                     "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                        { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
                     ]
                 }
             ]
@@ -340,33 +337,31 @@
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
-            "uSubpassIndex": 0,
             "atBlendStates": [
-                { "bBlendEnabled": false },
-                { "bBlendEnabled": false },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
                 { "bBlendEnabled": false },
                 { "bBlendEnabled": false },
                 { "bBlendEnabled": false }
             ],
             "atVertexConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
             ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
                 {
                     "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                        { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
                     ]
                 }
             ]
@@ -378,32 +373,31 @@
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
-            "uSubpassIndex": 2,
             "atBlendStates": [
                 {
                     "bBlendEnabled":   true,
-                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
-                    "tColorOp":        "PL_BLEND_OP_ADD",
-                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
-                    "tAlphaOp":        "PL_BLEND_OP_ADD"
+                    "eSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstColorFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
+                    "eColorOp":        "PL_BLEND_OP_ADD",
+                    "eSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
+                    "eAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ],
             "atVertexConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
@@ -417,33 +411,32 @@
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
-            "uSubpassIndex": 2,
             "atBlendStates": [
                 {
                     "bBlendEnabled":   true,
-                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
-                    "tColorOp":        "PL_BLEND_OP_ADD",
-                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
-                    "tAlphaOp":        "PL_BLEND_OP_ADD"
+                    "eSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstColorFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
+                    "eColorOp":        "PL_BLEND_OP_ADD",
+                    "eSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
+                    "eAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ],
             "atVertexConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
@@ -457,7 +450,7 @@
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
@@ -465,17 +458,17 @@
                 { "bBlendEnabled": false }
             ],
             "atVertexConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
@@ -487,18 +480,18 @@
             "tVertexShader":    { "file": "pl_full_screen.vert"},
             "tFragmentShader":  { "file": "pl_uvmap.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  false,
-                "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
-                "ulCullMode":           "PL_CULL_MODE_NONE",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  false,
-                "ulStencilTestEnabled": true,
-                "ulStencilMode":        "PL_COMPARE_MODE_LESS",
-                "ulStencilRef":         128,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": true,
+                "eStencilMode":        "PL_COMPARE_MODE_LESS",
+                "uStencilRef":         128,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
             "atBlendStates": [
                 { "bBlendEnabled": false }
@@ -509,23 +502,23 @@
             "tVertexShader":    { "file": "pl_picking.vert"},
             "tFragmentShader":  { "file": "pl_picking.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  false,
-                "ulDepthMode":          "PL_COMPARE_MODE_EQUAL",
-                "ulCullMode":           "PL_CULL_MODE_NONE",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  false,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_EQUAL",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
@@ -536,7 +529,7 @@
                 { "pcName": "view" },
                 {
                     "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                        { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
                     ]
                 }
             ]
@@ -545,23 +538,23 @@
             "pcName": "shadow",
             "tVertexShader": { "file": "pl_shadow.vert"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  true,
-                "ulDepthMode":          "PL_COMPARE_MODE_GREATER_OR_EQUAL",
-                "ulCullMode":           "PL_CULL_MODE_NONE",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  true,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  true,
+                "eDepthMode":          "PL_COMPARE_MODE_GREATER_OR_EQUAL",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  true,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
@@ -569,12 +562,12 @@
                 { "bBlendEnabled":   false }
             ],
             "atVertexConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
                 { "pcName": "scene" },
@@ -586,44 +579,44 @@
             "tVertexShader":    { "file": "pl_shadow.vert"},
             "tFragmentShader":  { "file": "pl_shadow.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  true,
-                "ulDepthMode":          "PL_COMPARE_MODE_GREATER_OR_EQUAL",
-                "ulCullMode":           "PL_CULL_MODE_NONE",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  true,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  true,
+                "eDepthMode":          "PL_COMPARE_MODE_GREATER_OR_EQUAL",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  true,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
             "atBlendStates": [
                 {
                     "bBlendEnabled":   true,
-                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
-                    "tColorOp":        "PL_BLEND_OP_ADD",
-                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
-                    "tAlphaOp":        "PL_BLEND_OP_ADD"
+                    "eSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstColorFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
+                    "eColorOp":        "PL_BLEND_OP_ADD",
+                    "eSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
+                    "eAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ],
             "atVertexConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
                 { "pcName": "scene" },
@@ -635,30 +628,33 @@
             "tVertexShader":    { "file": "pl_full_screen.vert"},
             "tFragmentShader":  { "file": "pl_deferred_lighting_probe.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  false,
-                "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
-                "ulCullMode":           "PL_CULL_MODE_NONE",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  false,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "uSubpassIndex": 1,
             "atBlendStates": [
                 {
                     "bBlendEnabled":   true,
-                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE",
-                    "tColorOp":        "PL_BLEND_OP_ADD",
-                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
-                    "tAlphaOp":        "PL_BLEND_OP_ADD"
-                }
+                    "eSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstColorFactor": "PL_BLEND_FACTOR_ONE",
+                    "eColorOp":        "PL_BLEND_OP_ADD",
+                    "eSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
+                    "eAlphaOp":        "PL_BLEND_OP_ADD",
+                    "uColorWriteMask": 7
+                },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 }
             ],
             "atBindGroupLayouts": [ 
                 { "pcName": "scene" },
@@ -666,10 +662,10 @@
                 {
                     "pcName": "deferred lighting 1",
                     "atTextureBindings": [
-                        { "uSlot": 0, "tType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] },
-                        { "uSlot": 1, "tType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] },
-                        { "uSlot": 2, "tType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] },
-                        { "uSlot": 3, "tType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "tStages": ["PL_SHADER_STAGE_FRAGMENT"] }
+                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "eStages": ["PL_SHADER_STAGE_FRAGMENT"] },
+                        { "uSlot": 1, "eType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "eStages": ["PL_SHADER_STAGE_FRAGMENT"] },
+                        { "uSlot": 2, "eType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "eStages": ["PL_SHADER_STAGE_FRAGMENT"] },
+                        { "uSlot": 3, "eType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "eStages": ["PL_SHADER_STAGE_FRAGMENT"] }
                     ]
                 }
                 
@@ -680,34 +676,36 @@
             "tVertexShader":    { "file": "pl_full_screen.vert"},
             "tFragmentShader":  { "file": "pl_deferred_lighting_directional.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  false,
-                "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
-                "ulCullMode":           "PL_CULL_MODE_NONE",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  false,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "uSubpassIndex": 1,
             "atBlendStates": [
                 {
                     "bBlendEnabled":   true,
-                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE",
-                    "tColorOp":        "PL_BLEND_OP_ADD",
-                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
-                    "tAlphaOp":        "PL_BLEND_OP_ADD"
-                }
+                    "eSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstColorFactor": "PL_BLEND_FACTOR_ONE",
+                    "eColorOp":        "PL_BLEND_OP_ADD",
+                    "eSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
+                    "eAlphaOp":        "PL_BLEND_OP_ADD"
+                },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" },
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
                 { "pcName": "scene" },
@@ -721,40 +719,42 @@
             "tVertexShader":    { "file": "pl_deferred_lighting_spot.vert"},
             "tFragmentShader":  { "file": "pl_deferred_lighting_spot.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  false,
-                "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
-                "ulCullMode":           "PL_CULL_MODE_CULL_FRONT",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  true,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "eCullMode":           "PL_CULL_MODE_CULL_FRONT",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  true,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "uSubpassIndex": 1,
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
             "atBlendStates": [
                 {
                     "bBlendEnabled":   true,
-                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE",
-                    "tColorOp":        "PL_BLEND_OP_ADD",
-                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
-                    "tAlphaOp":        "PL_BLEND_OP_ADD"
-                }
+                    "eSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstColorFactor": "PL_BLEND_FACTOR_ONE",
+                    "eColorOp":        "PL_BLEND_OP_ADD",
+                    "eSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
+                    "eAlphaOp":        "PL_BLEND_OP_ADD"
+                },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
                 { "pcName": "scene" },
@@ -768,40 +768,39 @@
             "tVertexShader":    { "file": "pl_deferred_lighting_point.vert"},
             "tFragmentShader":  { "file": "pl_deferred_lighting_point.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  false,
-                "ulDepthMode":          "PL_COMPARE_MODE_ALWAYS",
-                "ulCullMode":           "PL_CULL_MODE_CULL_FRONT",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  true,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "eCullMode":           "PL_CULL_MODE_CULL_FRONT",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  true,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "uSubpassIndex": 1,
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" }
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" }
                     ]
                 }
             ],
             "atBlendStates": [
                 {
                     "bBlendEnabled":   true,
-                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE",
-                    "tColorOp":        "PL_BLEND_OP_ADD",
-                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
-                    "tAlphaOp":        "PL_BLEND_OP_ADD"
+                    "eSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstColorFactor": "PL_BLEND_FACTOR_ONE",
+                    "eColorOp":        "PL_BLEND_OP_ADD",
+                    "eSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
+                    "eAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ],
             "atFragmentConstants": [
-                { "tType": "PL_DATA_TYPE_INT" }
+                { "eType": "PL_DATA_TYPE_INT" }
             ],
             "atBindGroupLayouts": [ 
                 { "pcName": "scene" },
@@ -815,29 +814,28 @@
             "tVertexShader":    { "file": "pl_terrain.vert"},
             "tFragmentShader":  { "file": "pl_terrain.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  true,
-                "ulDepthMode":          "PL_COMPARE_MODE_GREATER",
-                "ulCullMode":           "PL_CULL_MODE_CULL_BACK",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  false,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  true,
+                "eDepthMode":          "PL_COMPARE_MODE_GREATER",
+                "eCullMode":           "PL_CULL_MODE_CULL_BACK",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" },
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" },
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT2" },
                     ]
                 }
             ],
-            "uSubpassIndex": 0,
             "atBlendStates": [
                 { "bBlendEnabled": false },
                 { "bBlendEnabled": false },
@@ -848,7 +846,7 @@
                 { "pcName": "scene" },
                 {
                     "atBufferBindings": [
-                        { "uSlot": 0, "tType": "PL_BUFFER_BINDING_TYPE_STORAGE", "tStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                        { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
                     ]
                 }
             ]
@@ -857,25 +855,25 @@
             "pcName": "terrain_shadow",
             "tVertexShader": { "file": "pl_terrain_shadow.vert"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  true,
-                "ulDepthMode":          "PL_COMPARE_MODE_GREATER_OR_EQUAL",
-                "ulCullMode":           "PL_CULL_MODE_NONE",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  true,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  true,
+                "eDepthMode":          "PL_COMPARE_MODE_GREATER_OR_EQUAL",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  true,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
             "atVertexBufferLayouts": [
                 {
                     "atAttributes": [
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT3" },
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
-                        { "tFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT3" },
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT2" },
+                        { "eFormat": "PL_VERTEX_FORMAT_FLOAT2" },
                     ]
                 }
             ],
@@ -892,29 +890,28 @@
             "tVertexShader":    { "file": "pl_grid.vert"},
             "tFragmentShader":  { "file": "pl_grid.frag"},
             "tGraphicsState": {
-                "ulDepthWriteEnabled":  false,
-                "ulDepthMode":          "PL_COMPARE_MODE_GREATER",
-                "ulCullMode":           "PL_CULL_MODE_NONE",
-                "ulWireframe":          false,
-                "ulDepthClampEnabled":  false,
-                "ulStencilTestEnabled": false,
-                "ulStencilMode":        "PL_COMPARE_MODE_ALWAYS",
-                "ulStencilRef":         255,
-                "ulStencilMask":        255,
-                "ulStencilOpFail":      "PL_STENCIL_OP_KEEP",
-                "ulStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
-                "ulStencilOpPass":      "PL_STENCIL_OP_KEEP"
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_GREATER",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
             },
-            "uSubpassIndex": 0,
             "atBlendStates": [
                 {
                     "bBlendEnabled":   true,
-                    "tSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstColorFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
-                    "tColorOp":        "PL_BLEND_OP_ADD",
-                    "tSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
-                    "tDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
-                    "tAlphaOp":        "PL_BLEND_OP_ADD"
+                    "eSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstColorFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
+                    "eColorOp":        "PL_BLEND_OP_ADD",
+                    "eSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA",
+                    "eAlphaOp":        "PL_BLEND_OP_ADD"
                 }
             ]
         }

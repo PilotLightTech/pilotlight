@@ -469,7 +469,10 @@ int main(int argc, char *argv[])
     // main event loop
     while (gptIOCtx->bRunning)
     {
-
+    #if defined(__APPLE__)
+        @autoreleasepool
+    #endif
+        {
         glfwPollEvents();
 
         // queued window changes so swapchain remains valid for frame requesting changes
@@ -683,6 +686,10 @@ int main(int argc, char *argv[])
     
         if(gbApisDirty)
             pl__check_apis();
+
+    #if defined(__APPLE__)
+    #endif
+        }
     }
 
     // app cleanup

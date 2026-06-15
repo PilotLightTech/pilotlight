@@ -65,7 +65,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plStarterI_version {1, 4, 1}
+#define plStarterI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -86,19 +86,16 @@ typedef struct _plStarterInit plStarterInit;
 typedef int plStarterFlags;
 
 // external
-typedef struct _plWindow               plWindow;                 // pl.h
-typedef struct _plFont                 plFont;                   // pl_draw_ext.h
-typedef struct _plDrawLayer2D          plDrawLayer2D;            // pl_draw_ext.h
-typedef struct _plDevice               plDevice;                 // pl_graphics_ext.h
-typedef struct _plCommandPool          plCommandPool;            // pl_graphics_ext.h
-typedef struct _plTimelineSemaphore    plTimelineSemaphore;      // pl_graphics_ext.h
-typedef struct _plSurface              plSurface;                // pl_graphics_ext.h
-typedef struct _plRenderEncoder        plRenderEncoder;          // pl_graphics_ext.h
-typedef struct _plSwapchain            plSwapchain;              // pl_graphics_ext.h
-typedef struct _plCommandBuffer        plCommandBuffer;          // pl_graphics_ext.h
-typedef struct _plBlitEncoder          plBlitEncoder;            // pl_graphics_ext.h
-typedef union plRenderPassHandle       plRenderPassHandle;       // pl_graphics_ext.h
-typedef union plRenderPassLayoutHandle plRenderPassLayoutHandle; // pl_graphics_ext.h
+typedef struct _plWindow               plWindow;               // pl.h
+typedef struct _plFont                 plFont;                 // pl_draw_ext.h
+typedef struct _plDrawLayer2D          plDrawLayer2D;          // pl_draw_ext.h
+typedef struct _plDevice               plDevice;               // pl_graphics_ext.h
+typedef struct _plCommandPool          plCommandPool;          // pl_graphics_ext.h
+typedef struct _plTimelineSemaphore    plTimelineSemaphore;    // pl_graphics_ext.h
+typedef struct _plSurface              plSurface;              // pl_graphics_ext.h
+typedef struct _plSwapchain            plSwapchain;            // pl_graphics_ext.h
+typedef struct _plCommandBuffer        plCommandBuffer;        // pl_graphics_ext.h
+typedef struct _plRenderAttachmentInfo plRenderAttachmentInfo; // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -137,9 +134,9 @@ PL_API bool pl_starter_begin_frame(void);
 PL_API void pl_starter_end_frame  (void);
 
 // main pass
-//   - if you need the encoder to submit your own work, use this
+//   - if you need to submit your own work, use this
 //     and make sure to call "end_main_pass" before ending the frame
-PL_API plRenderEncoder* pl_starter_begin_main_pass(void);
+PL_API plCommandBuffer* pl_starter_begin_main_pass(void);
 PL_API void             pl_starter_end_main_pass  (void);
 
 // resize
@@ -170,13 +167,6 @@ PL_API void             pl_starter_submit_temporary_command_buffer(plCommandBuff
 PL_API plCommandBuffer* pl_starter_get_raw_command_buffer(void);
 PL_API void             pl_starter_return_raw_command_buffer(plCommandBuffer*);
 
-// blit encoder
-//    - like the temporary command buffers above, this is just to
-//      help with resource loading. It handles the command buffer
-//      for you and blocks.
-PL_API plBlitEncoder* pl_starter_get_blit_encoder(void);
-PL_API void           pl_starter_return_blit_encoder(plBlitEncoder*);
-
 // VSync/MSAA/Depth Buffering
 //    - active/deactive MSAA & depth buffers & vsync
 //    - this will recreate the swapchain, render pass layouts
@@ -193,8 +183,6 @@ PL_API void pl_starter_deactivate_vsync       (void);
 PL_API plDevice*                pl_starter_get_device                      (void);
 PL_API plSwapchain*             pl_starter_get_swapchain                   (void);
 PL_API plSurface*               pl_starter_get_surface                     (void);
-PL_API plRenderPassHandle       pl_starter_get_render_pass                 (void);
-PL_API plRenderPassLayoutHandle pl_starter_get_render_pass_layout          (void);
 PL_API plCommandPool*           pl_starter_get_current_command_pool        (void);
 PL_API plTimelineSemaphore*     pl_starter_get_current_timeline_semaphore  (void);
 PL_API uint64_t                 pl_starter_get_current_timeline_value      (void);
@@ -244,7 +232,7 @@ typedef struct _plStarterI
     void (*end_frame)  (void);
 
     // main pass
-    plRenderEncoder* (*begin_main_pass)(void);
+    plCommandBuffer* (*begin_main_pass)(void);
     void             (*end_main_pass)  (void);
 
     // resize
@@ -264,10 +252,6 @@ typedef struct _plStarterI
     plCommandBuffer* (*get_raw_command_buffer)(void);
     void             (*return_raw_command_buffer)(plCommandBuffer*);
 
-    // blit encoder
-    plBlitEncoder* (*get_blit_encoder)(void);
-    void           (*return_blit_encoder)(plBlitEncoder*);
-
     // VSync/MSAA/Depth Buffering
     void (*activate_msaa)          (void);
     void (*deactivate_msaa)        (void);
@@ -280,14 +264,13 @@ typedef struct _plStarterI
     plDevice*                (*get_device)                      (void);
     plSwapchain*             (*get_swapchain)                   (void);
     plSurface*               (*get_surface)                     (void);
-    plRenderPassHandle       (*get_render_pass)                 (void);
-    plRenderPassLayoutHandle (*get_render_pass_layout)          (void);
     plCommandPool*           (*get_current_command_pool)        (void);
     plTimelineSemaphore*     (*get_current_timeline_semaphore)  (void);
     uint64_t                 (*get_current_timeline_value)      (void);
     uint64_t                 (*increment_current_timeline_value)(void);
     plTimelineSemaphore*     (*get_last_timeline_semaphore)     (void);
     uint64_t                 (*get_last_timeline_value)         (void);
+    void                     (*get_render_attachment_info)      (plRenderAttachmentInfo*);
 
     // resource setting
     void (*set_swapchain)(plSwapchain*);
@@ -341,7 +324,7 @@ enum _plStarterFlags
 
 typedef struct _plStarterInit
 {
-    plStarterFlags tFlags;
+    plStarterFlags eFlags;
     plWindow*      ptWindow;
 } plStarterInit;
 

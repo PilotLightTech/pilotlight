@@ -44,7 +44,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plConsoleI_version {1, 1, 0}
+#define plConsoleI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -159,7 +159,7 @@ enum _plConsoleVarFlags
 
 typedef struct _plConsoleSettings
 {
-    plConsoleFlags tFlags;
+    plConsoleFlags eFlags;
 } plConsoleSettings;
 
 #ifdef __cplusplus

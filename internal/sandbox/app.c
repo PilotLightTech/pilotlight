@@ -294,22 +294,22 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {
-        .tFlags   = PL_STARTER_FLAGS_NONE,
+        .eFlags   = PL_STARTER_FLAGS_NONE,
         .ptWindow = ptAppData->ptWindow
     };
 
     // extensions handled by starter
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_GRAPHICS_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_PROFILE_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_STATS_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_CONSOLE_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_DRAW_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_UI_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_GRAPHICS_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_PROFILE_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_STATS_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_CONSOLE_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_DRAW_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_UI_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
 
     // initial flags
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
+    // tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
     // tStarterInit.tFlags |= PL_STARTER_FLAGS_VSYNC_OFF;
 
     // we handle these
@@ -329,7 +329,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             "/shader-temp/",
         },
         .pcCacheOutputDirectory = "/shader-temp/",
-        .tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
+        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
     };
     gptShader->initialize(&tDefaultShaderOptions);
 
@@ -723,7 +723,7 @@ pl_app_update(plAppData* ptAppData)
 
     gptDraw->submit_2d_layer(ptAppData->ptDrawLayer);
 
-    plRenderEncoder* ptRenderEncoder = gptStarter->begin_main_pass();
+    gptStarter->begin_main_pass();
     gptStarter->end_main_pass();
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     gptStarter->end_frame();
@@ -1253,7 +1253,7 @@ pl__refresh_files(plAppData* ptAppData)
         pl_sb_reserve(ptAppData->sbtSceneFiles, tDirectoryInfo.uFileCount);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
-            if(tDirectoryInfo.sbtEntries[i].tType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
             {
                 char acExtensionBuffer[16] = {0};
                 char acFileNameOnly[PL_MAX_PATH_LENGTH] = {0};
@@ -1284,7 +1284,7 @@ pl__refresh_files(plAppData* ptAppData)
         pl_sb_reserve(ptAppData->sbtSceneFiles, tDirectoryInfo.uFileCount);
         for(uint32_t i = 0; i < tDirectoryInfo.uFileCount; i++)
         {
-            if(tDirectoryInfo.sbtEntries[i].tType == PL_DIRECTORY_ENTRY_TYPE_FILE)
+            if(tDirectoryInfo.sbtEntries[i].eType == PL_DIRECTORY_ENTRY_TYPE_FILE)
             {
                 char acExtensionBuffer[16] = {0};
                 char acFileNameOnly[PL_MAX_PATH_LENGTH] = {0};

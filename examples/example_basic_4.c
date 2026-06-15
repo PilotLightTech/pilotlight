@@ -136,13 +136,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     // initialize the starter API
     plStarterInit tStarterInit = {
-        .tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
+        .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
 
     // we will remove this flag so we can handle
     // management of the UI extension
-    tStarterInit.tFlags &= ~PL_STARTER_FLAGS_DRAW_EXT;
+    tStarterInit.eFlags &= ~PL_STARTER_FLAGS_DRAW_EXT;
 
     gptStarter->initialize(tStarterInit);
 
@@ -384,11 +384,13 @@ pl_app_update(plAppData* ptAppData)
     // the scope of the draw extension.
 
     // start main pass & return the encoder being used
-    plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
+    plCommandBuffer* ptCmdBuffer = gptStarter->begin_main_pass();
 
     // submit our drawlist
     plIO* ptIO = gptIO->get_io();
-    gptDraw->submit_2d_drawlist(ptAppData->ptDrawlist, ptEncoder, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1);
+    plRenderAttachmentInfo tRenderAttachmentInfo = {0};
+    gptStarter->get_render_attachment_info(&tRenderAttachmentInfo);
+    gptDraw->submit_2d_drawlist(ptAppData->ptDrawlist, ptCmdBuffer, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y, 1, &tRenderAttachmentInfo);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();

@@ -207,22 +207,6 @@ pl_graphics_get_sampler(plDevice* ptDevice, plSamplerHandle tHandle)
     return &ptDevice->sbtSamplersCold[tHandle.uIndex];
 }
 
-plRenderPassLayout*
-pl_graphics_get_render_pass_layout(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
-{
-    if(tHandle.uGeneration != ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration)
-        return NULL;
-    return &ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex];
-}
-
-plRenderPass*
-pl_graphics_get_render_pass(plDevice* ptDevice, plRenderPassHandle tHandle)
-{
-    if(tHandle.uGeneration != ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration)
-        return NULL;
-    return &ptDevice->sbtRenderPassesCold[tHandle.uIndex];
-}
-
 void
 pl_graphics_queue_buffer_for_deletion(plDevice* ptDevice, plBufferHandle tHandle)
 {
@@ -262,38 +246,6 @@ pl_graphics_queue_texture_for_deletion(plDevice* ptDevice, plTextureHandle tHand
     else
     {
         PL_LOG_WARN_API_F(gptLog, uLogChannelGraphics, "double texture %s deletion (%u)", ptDevice->sbtTexturesCold[tHandle.uIndex].tDesc.pcDebugName, tHandle.uIndex);
-    }
-}
-
-void
-pl_graphics_queue_render_pass_for_deletion(plDevice* ptDevice, plRenderPassHandle tHandle)
-{
-    if(ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
-    {
-        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-        pl_sb_push(ptGarbage->sbtRenderPasses, tHandle);
-        ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration++;
-        ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
-    }
-    else
-    {
-        PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "double render pass deletion");
-    }
-}
-
-void
-pl_graphics_queue_render_pass_layout_for_deletion(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
-{
-    if(ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration == tHandle.uGeneration)
-    {
-        plFrameGarbage* ptGarbage = pl__get_frame_garbage(ptDevice);
-        pl_sb_push(ptGarbage->sbtRenderPassLayouts, tHandle);
-        ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration++;
-        ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uFrameBoundaryValueForDeletion = pl__get_frame_resources(ptDevice)->uNextValue;
-    }
-    else
-    {
-        PL_LOG_WARN_API(gptLog, uLogChannelGraphics, "double render pass layout deletion");
     }
 }
 
@@ -563,31 +515,6 @@ pl__format_stride(plFormat tFormat)
 static void
 pl__cleanup_common_graphics(void)
 {
-
-    plRenderEncoder* ptCurrentRenderEncoder = gptGraphics->ptRenderEncoderFreeList;
-    while(ptCurrentRenderEncoder)
-    {
-        plRenderEncoder* ptNextEncoder = ptCurrentRenderEncoder->ptNext;
-        PL_FREE(ptCurrentRenderEncoder);
-        ptCurrentRenderEncoder = ptNextEncoder;
-    }
-
-    plBlitEncoder* ptCurrentBlitEncoder = gptGraphics->ptBlitEncoderFreeList;
-    while(ptCurrentBlitEncoder)
-    {
-        plBlitEncoder* ptNextEncoder = ptCurrentBlitEncoder->ptNext;
-        PL_FREE(ptCurrentBlitEncoder);
-        ptCurrentBlitEncoder = ptNextEncoder;
-    }
-
-    plComputeEncoder* ptCurrentComputeEncoder = gptGraphics->ptComputeEncoderFreeList;
-    while(ptCurrentComputeEncoder)
-    {
-        plComputeEncoder* ptNextEncoder = ptCurrentComputeEncoder->ptNext;
-        pl_sb_free(ptCurrentComputeEncoder->sbtTextures);
-        PL_FREE(ptCurrentComputeEncoder);
-        ptCurrentComputeEncoder = ptNextEncoder;
-    }
     gptGraphics = NULL;
 }
 
@@ -601,6 +528,7 @@ pl__cleanup_common_swapchain(plSwapchain* ptSwapchain)
 static void
 pl__cleanup_common_device(plDevice* ptDevice)
 {
+    pl_sb_free(ptDevice->sbtBarrierStack);
     pl_sb_free(ptDevice->sbtMemoryBlocks);
     pl_sb_free(ptDevice->sbtShadersCold);
     pl_sb_free(ptDevice->sbtBuffersCold);
@@ -608,22 +536,14 @@ pl__cleanup_common_device(plDevice* ptDevice)
     pl_sb_free(ptDevice->sbtBufferFreeIndices);
     pl_sb_free(ptDevice->sbtTexturesCold);
     pl_sb_free(ptDevice->sbtSamplersCold);
-    pl_sb_free(ptDevice->sbtRenderPassesCold);
     pl_sb_free(ptDevice->sbtTextureFreeIndices);
-    pl_sb_free(ptDevice->sbtRenderPassLayoutsCold);
     pl_sb_free(ptDevice->sbtComputeShadersCold);
     pl_sb_free(ptDevice->sbtBindGroupFreeIndices);
     pl_sb_free(ptDevice->sbtSamplerFreeIndices);
     pl_sb_free(ptDevice->sbtComputeShaderFreeIndices);
-    pl_sb_free(ptDevice->sbtRenderPassLayoutFreeIndices);
-    pl_sb_free(ptDevice->sbtRenderPassFreeIndices);
     pl_sb_free(ptDevice->sbtBindGroupLayoutsCold);
     pl_sb_free(ptDevice->sbtBindGroupLayoutFreeIndices);
 
-    for(uint32_t i = 0; i < pl_sb_size(ptDevice->sbtBindGroupsCold); i++)
-    {
-        pl_sb_free(ptDevice->sbtBindGroupsCold[i]._sbtTextures);
-    }
     pl_sb_free(ptDevice->sbtBindGroupsCold);
 
     plTimelineSemaphore* ptCurrentSemaphore = ptDevice->ptSemaphoreFreeList;
@@ -681,18 +601,6 @@ bool
 pl_graphics_is_bind_group_valid(plDevice* ptDevice, plBindGroupHandle tHandle)
 {
     return (tHandle.uGeneration == ptDevice->sbtBindGroupsCold[tHandle.uIndex]._uGeneration);
-}
-
-bool
-pl_graphics_is_render_pass_valid(plDevice* ptDevice, plRenderPassHandle tHandle)
-{
-    return (tHandle.uGeneration == ptDevice->sbtRenderPassesCold[tHandle.uIndex]._uGeneration);
-}
-
-bool
-pl_graphics_is_render_pass_layout_valid(plDevice* ptDevice, plRenderPassLayoutHandle tHandle)
-{
-    return (tHandle.uGeneration == ptDevice->sbtRenderPassLayoutsCold[tHandle.uIndex]._uGeneration);
 }
 
 bool
@@ -859,98 +767,6 @@ pl__get_new_compute_shader_handle(plDevice* ptDevice)
     return tHandle;
 }
 
-static plRenderPassHandle
-pl__get_new_render_pass_handle(plDevice* ptDevice)
-{
-    uint16_t uResourceIndex = 0;
-    if(pl_sb_size(ptDevice->sbtRenderPassFreeIndices) > 0)
-        uResourceIndex = pl_sb_pop(ptDevice->sbtRenderPassFreeIndices);
-    else
-    {
-        uResourceIndex = (uint16_t)pl_sb_size(ptDevice->sbtRenderPassesCold);
-        pl_sb_add(ptDevice->sbtRenderPassesCold);
-        pl_sb_back(ptDevice->sbtRenderPassesCold)._uGeneration = UINT16_MAX;
-        pl_sb_add(ptDevice->sbtRenderPassesHot);
-    }
-
-    plRenderPassHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtRenderPassesCold[uResourceIndex]._uGeneration,
-        .uIndex = uResourceIndex
-    };
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "create render pass %u", tHandle.uIndex);
-    return tHandle;
-}
-
-static plRenderPassLayoutHandle
-pl__get_new_render_pass_layout_handle(plDevice* ptDevice)
-{
-    uint16_t uResourceIndex = 0;
-    if(pl_sb_size(ptDevice->sbtRenderPassLayoutFreeIndices) > 0)
-        uResourceIndex = pl_sb_pop(ptDevice->sbtRenderPassLayoutFreeIndices);
-    else
-    {
-        uResourceIndex = (uint16_t)pl_sb_size(ptDevice->sbtRenderPassLayoutsCold);
-        pl_sb_add(ptDevice->sbtRenderPassLayoutsCold);
-        pl_sb_back(ptDevice->sbtRenderPassLayoutsCold)._uGeneration = UINT16_MAX;
-        pl_sb_add(ptDevice->sbtRenderPassLayoutsHot);
-    }
-
-    const plRenderPassLayoutHandle tHandle = {
-        .uGeneration = ++ptDevice->sbtRenderPassLayoutsCold[uResourceIndex]._uGeneration,
-        .uIndex = uResourceIndex
-    };
-    PL_LOG_TRACE_API_F(gptLog, uLogChannelGraphics, "create render pass layout %u", tHandle.uIndex);
-    return tHandle;
-}
-
-static plRenderEncoder*
-pl__get_new_render_encoder(void)
-{
-    plRenderEncoder* ptEncoder = gptGraphics->ptRenderEncoderFreeList;
-    if(ptEncoder)
-    {
-        gptGraphics->ptRenderEncoderFreeList = ptEncoder->ptNext;
-    }
-    else
-    {
-        ptEncoder = PL_ALLOC(sizeof(plRenderEncoder));
-        memset(ptEncoder, 0, sizeof(plRenderEncoder));
-    }
-    return ptEncoder;
-}
-
-static plComputeEncoder*
-pl__get_new_compute_encoder(void)
-{
-    plComputeEncoder* ptEncoder = gptGraphics->ptComputeEncoderFreeList;
-    if(ptEncoder)
-    {
-        gptGraphics->ptComputeEncoderFreeList = ptEncoder->ptNext;
-    }
-    else
-    {
-        ptEncoder = PL_ALLOC(sizeof(plComputeEncoder));
-        memset(ptEncoder, 0, sizeof(plComputeEncoder));
-    }
-    return ptEncoder;
-}
-
-static plBlitEncoder*
-pl__get_new_blit_encoder(void)
-{
-    plBlitEncoder* ptEncoder = gptGraphics->ptBlitEncoderFreeList;
-    if(ptEncoder)
-    {
-        gptGraphics->ptBlitEncoderFreeList = ptEncoder->ptNext;
-    }
-    else
-    {
-        ptEncoder = PL_ALLOC(sizeof(plBlitEncoder));
-        memset(ptEncoder, 0, sizeof(plBlitEncoder));
-    }
-    return ptEncoder;
-}
-
 static plTimelineSemaphore*
 pl__get_new_semaphore(plDevice* ptDevice)
 {
@@ -969,46 +785,6 @@ pl__get_new_semaphore(plDevice* ptDevice)
     return ptSemaphore;
 }
 
-static plTimelineEvent*
-pl__get_new_event(plDevice* ptDevice)
-{
-    plTimelineEvent* ptEvent = ptDevice->ptEventFreeList;
-    if(ptEvent)
-    {
-        ptDevice->ptEventFreeList = ptEvent->ptNext;
-    }
-    else
-    {
-        ptEvent = PL_ALLOC(sizeof(plTimelineEvent));
-        memset(ptEvent, 0, sizeof(plTimelineEvent));
-    }
-    ptEvent->ptDevice = ptDevice;
-    ptEvent->ptNext = NULL;
-    return ptEvent;
-}
-
-static void
-pl__return_render_encoder(plRenderEncoder* ptEncoder)
-{
-    ptEncoder->ptNext = gptGraphics->ptRenderEncoderFreeList;
-    gptGraphics->ptRenderEncoderFreeList = ptEncoder;
-}
-
-static void
-pl__return_compute_encoder(plComputeEncoder* ptEncoder)
-{
-    pl_sb_reset(ptEncoder->sbtTextures);
-    ptEncoder->ptNext = gptGraphics->ptComputeEncoderFreeList;
-    gptGraphics->ptComputeEncoderFreeList = ptEncoder;
-}
-
-static void
-pl__return_blit_encoder(plBlitEncoder* ptEncoder)
-{
-    ptEncoder->ptNext = gptGraphics->ptBlitEncoderFreeList;
-    gptGraphics->ptBlitEncoderFreeList = ptEncoder;
-}
-
 static void
 pl__return_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
 {
@@ -1016,29 +792,16 @@ pl__return_semaphore(plDevice* ptDevice, plTimelineSemaphore* ptSemaphore)
     ptDevice->ptSemaphoreFreeList = ptSemaphore;
 }
 
-static void
-pl__return_event(plDevice* ptDevice, plTimelineEvent* ptEvent)
-{
-    ptEvent->ptNext = ptDevice->ptEventFreeList;
-    ptDevice->ptEventFreeList = ptEvent;
-}
-
-plRenderPassHandle
-pl_graphics_get_encoder_render_pass(plRenderEncoder* ptEncoder)
-{
-    return ptEncoder->tRenderPassHandle;
-}
-
-uint32_t
-pl_graphics_get_render_encoder_subpass(plRenderEncoder* ptEncoder)
-{
-    return ptEncoder->uCurrentSubpass;
-}
-
 plSwapchainInfo
 pl_graphics_get_swapchain_info(plSwapchain* ptSwap)
 {
     return ptSwap->tInfo;
+}
+
+uint32_t
+pl_graphics_get_current_swapchain_image_index(plSwapchain* ptSwap)
+{
+    return ptSwap->uCurrentImageIndex;
 }
 
 const plDeviceMemoryAllocation*
@@ -1055,24 +818,6 @@ const plDeviceInfo*
 pl_graphics_get_device_info(plDevice* ptDevice)
 {
     return &ptDevice->tInfo;
-}
-
-plCommandBuffer*
-pl_graphics_get_encoder_command_buffer(plRenderEncoder* ptEncoder)
-{
-    return ptEncoder->ptCommandBuffer;
-}
-
-plCommandBuffer*
-pl_graphics_get_compute_encoder_command_buffer(plComputeEncoder* ptEncoder)
-{
-    return ptEncoder->ptCommandBuffer;
-}
-
-plCommandBuffer*
-pl_graphics_get_blit_encoder_command_buffer(plBlitEncoder* ptEncoder)
-{
-    return ptEncoder->ptCommandBuffer;
 }
 
 uint32_t
@@ -1110,60 +855,60 @@ pl_graphics_get_blend_state(plBlendMode tBlendMode)
         {
             .bBlendEnabled   = true,
             .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
-            .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tAlphaOp        = PL_BLEND_OP_ADD
+            .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+            .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .eColorOp        = PL_BLEND_OP_ADD,
+            .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+            .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .eAlphaOp        = PL_BLEND_OP_ADD
         },
 
         // PL_BLEND_MODE_PREMULTIPLY
         {
             .bBlendEnabled   = true,
             .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
-            .tSrcColorFactor = PL_BLEND_FACTOR_ONE,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tAlphaOp        = PL_BLEND_OP_ADD
+            .eSrcColorFactor = PL_BLEND_FACTOR_ONE,
+            .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .eColorOp        = PL_BLEND_OP_ADD,
+            .eSrcAlphaFactor = PL_BLEND_FACTOR_ONE,
+            .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .eAlphaOp        = PL_BLEND_OP_ADD
         },
 
         // PL_BLEND_MODE_ADDITIVE
         {
             .bBlendEnabled   = true,
             .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
-            .tSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE,
-            .tAlphaOp        = PL_BLEND_OP_ADD
+            .eSrcColorFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+            .eDstColorFactor = PL_BLEND_FACTOR_ONE,
+            .eColorOp        = PL_BLEND_OP_ADD,
+            .eSrcAlphaFactor = PL_BLEND_FACTOR_SRC_ALPHA,
+            .eDstAlphaFactor = PL_BLEND_FACTOR_ONE,
+            .eAlphaOp        = PL_BLEND_OP_ADD
         },
 
         // PL_BLEND_MODE_MULTIPLY
         {
             .bBlendEnabled   = true,
             .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
-            .tSrcColorFactor = PL_BLEND_FACTOR_DST_COLOR,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_DST_ALPHA,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tAlphaOp        = PL_BLEND_OP_ADD
+            .eSrcColorFactor = PL_BLEND_FACTOR_DST_COLOR,
+            .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .eColorOp        = PL_BLEND_OP_ADD,
+            .eSrcAlphaFactor = PL_BLEND_FACTOR_DST_ALPHA,
+            .eDstAlphaFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .eAlphaOp        = PL_BLEND_OP_ADD
         },
 
         // PL_BLEND_MODE_CLIP_MASK
         {
             .bBlendEnabled   = true,
             .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL,
-            .tSrcColorFactor = PL_BLEND_FACTOR_ZERO,
-            .tDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-            .tColorOp        = PL_BLEND_OP_ADD,
-            .tSrcAlphaFactor = PL_BLEND_FACTOR_DST_ALPHA,
-            .tDstAlphaFactor = PL_BLEND_FACTOR_ZERO,
-            .tAlphaOp        = PL_BLEND_OP_ADD
+            .eSrcColorFactor = PL_BLEND_FACTOR_ZERO,
+            .eDstColorFactor = PL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .eColorOp        = PL_BLEND_OP_ADD,
+            .eSrcAlphaFactor = PL_BLEND_FACTOR_DST_ALPHA,
+            .eDstAlphaFactor = PL_BLEND_FACTOR_ZERO,
+            .eAlphaOp        = PL_BLEND_OP_ADD
         }
     };
 
@@ -1181,6 +926,7 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .set_depth_bias                         = pl_graphics_set_depth_bias,
         .recreate_swapchain                     = pl_graphics_recreate_swapchain,
         .get_swapchain_info                     = pl_graphics_get_swapchain_info,
+        .get_current_swapchain_image_index      = pl_graphics_get_current_swapchain_image_index,
         .get_current_frame_index                = pl_graphics_get_current_frame_index,
         .get_host_memory_in_use                 = pl_graphics_get_host_memory_in_use,
         .get_local_memory_in_use                = pl_graphics_get_local_memory_in_use,
@@ -1213,15 +959,10 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .wait_on_command_buffer                 = pl_graphics_wait_on_command_buffer,
         .return_command_buffer                  = pl_graphics_return_command_buffer,
         .reset_command_buffer                   = pl_graphics_reset_command_buffer,
-        .next_subpass                           = pl_graphics_next_subpass,
         .begin_render_pass                      = pl_graphics_begin_render_pass,
-        .get_encoder_render_pass                = pl_graphics_get_encoder_render_pass,
-        .get_render_encoder_subpass             = pl_graphics_get_render_encoder_subpass,
         .end_render_pass                        = pl_graphics_end_render_pass,
         .begin_compute_pass                     = pl_graphics_begin_compute_pass,
         .end_compute_pass                       = pl_graphics_end_compute_pass,
-        .begin_blit_pass                        = pl_graphics_begin_blit_pass,
-        .end_blit_pass                          = pl_graphics_end_blit_pass,
         .draw_stream                            = pl_graphics_draw_stream,
         .draw                                   = pl_graphics_draw,
         .draw_indexed                           = pl_graphics_draw_indexed,
@@ -1231,6 +972,9 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .copy_texture                           = pl_graphics_copy_texture,
         .generate_mipmaps                       = pl_graphics_generate_mipmaps,
         .copy_buffer                            = pl_graphics_copy_buffer,
+        .intra_pass_barrier                     = pl_graphics_intra_pass_barrier,
+        .consumer_barrier                       = pl_graphics_consumer_barrier,
+        .producer_barrier                       = pl_graphics_producer_barrier,
         .signal_semaphore                       = pl_graphics_signal_semaphore,
         .wait_semaphore                         = pl_graphics_wait_semaphore,
         .get_semaphore_value                    = pl_graphics_get_semaphore_value,
@@ -1240,8 +984,6 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_buffer                          = pl_graphics_create_buffer,
         .create_shader                          = pl_graphics_create_shader,
         .create_compute_shader                  = pl_graphics_create_compute_shader,
-        .create_render_pass_layout              = pl_graphics_create_render_pass_layout,
-        .create_render_pass                     = pl_graphics_create_render_pass,
         .create_texture                         = pl_graphics_create_texture,
         .create_texture_view                    = pl_graphics_create_texture_view,
         .create_sampler                         = pl_graphics_create_sampler,
@@ -1259,18 +1001,13 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .queue_bind_group_for_deletion          = pl_graphics_queue_bind_group_for_deletion,
         .queue_shader_for_deletion              = pl_graphics_queue_shader_for_deletion,
         .queue_compute_shader_for_deletion      = pl_graphics_queue_compute_shader_for_deletion,
-        .queue_render_pass_for_deletion         = pl_graphics_queue_render_pass_for_deletion,
-        .queue_render_pass_layout_for_deletion  = pl_graphics_queue_render_pass_layout_for_deletion,
         .queue_sampler_for_deletion             = pl_graphics_queue_sampler_for_deletion,
         .destroy_bind_group                     = pl_graphics_destroy_bind_group,
         .destroy_buffer                         = pl_graphics_destroy_buffer,
         .destroy_texture                        = pl_graphics_destroy_texture,
         .destroy_shader                         = pl_graphics_destroy_shader,
         .destroy_compute_shader                 = pl_graphics_destroy_compute_shader,
-        .destroy_render_pass                    = pl_graphics_destroy_render_pass,
-        .destroy_render_pass_layout             = pl_graphics_destroy_render_pass_layout,
         .destroy_sampler                        = pl_graphics_destroy_sampler,
-        .update_render_pass_attachments         = pl_graphics_update_render_pass_attachments,
         .get_buffer                             = pl_graphics_get_buffer,
         .get_texture                            = pl_graphics_get_texture,
         .get_bind_group                         = pl_graphics_get_bind_group,
@@ -1284,8 +1021,6 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .bind_buffer_to_memory                  = pl_graphics_bind_buffer_to_memory,
         .bind_texture_to_memory                 = pl_graphics_bind_texture_to_memory,
         .get_sampler                            = pl_graphics_get_sampler,
-        .get_render_pass                        = pl_graphics_get_render_pass,
-        .get_render_pass_layout                 = pl_graphics_get_render_pass_layout,
         .create_command_pool                    = pl_graphics_create_command_pool,
         .cleanup_command_pool                   = pl_graphics_cleanup_command_pool,
         .reset_command_pool                     = pl_graphics_reset_command_pool,
@@ -1293,72 +1028,47 @@ pl_load_graphics_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .create_bind_group_pool                 = pl_graphics_create_bind_group_pool,
         .cleanup_bind_group_pool                = pl_graphics_cleanup_bind_group_pool,
         .reset_bind_group_pool                  = pl_graphics_reset_bind_group_pool,
-        .pipeline_barrier                       = pl_graphics_pipeline_barrier,
-        .pipeline_barrier_blit                  = pl_graphics_pipeline_barrier_blit,
-        .pipeline_barrier_render                = pl_graphics_pipeline_barrier_render,
-        .pipeline_barrier_compute               = pl_graphics_pipeline_barrier_compute,
         .is_buffer_valid                        = pl_graphics_is_buffer_valid,
         .is_sampler_valid                       = pl_graphics_is_sampler_valid,
         .is_texture_valid                       = pl_graphics_is_texture_valid,
         .is_bind_group_valid                    = pl_graphics_is_bind_group_valid,
-        .is_render_pass_valid                   = pl_graphics_is_render_pass_valid,
-        .is_render_pass_layout_valid            = pl_graphics_is_render_pass_layout_valid,
         .is_shader_valid                        = pl_graphics_is_shader_valid,
         .is_compute_shader_valid                = pl_graphics_is_compute_shader_valid,
-        .get_compute_encoder_command_buffer     = pl_graphics_get_compute_encoder_command_buffer,
-        .get_blit_encoder_command_buffer        = pl_graphics_get_blit_encoder_command_buffer,
-        .get_encoder_command_buffer             = pl_graphics_get_encoder_command_buffer,
         .invalidate_memory                      = pl_graphics_invalidate_memory,
         .flush_memory                           = pl_graphics_flush_memory,
         .get_data_type_size                     = pl_graphics_get_data_type_size,
         .push_debug_group                       = pl_graphics_push_debug_group,
         .pop_debug_group                        = pl_graphics_pop_debug_group,
-        .push_render_debug_group                = pl_graphics_push_render_debug_group,
-        .pop_render_debug_group                 = pl_graphics_pop_render_debug_group,
-        .push_blit_debug_group                  = pl_graphics_push_blit_debug_group,
-        .pop_blit_debug_group                   = pl_graphics_pop_blit_debug_group,
-        .push_compute_debug_group               = pl_graphics_push_compute_debug_group,
-        .pop_compute_debug_group                = pl_graphics_pop_compute_debug_group,
         .insert_debug_label                     = pl_graphics_insert_debug_label,
-        .create_event                           = pl_graphics_create_event,
-        .cleanup_event                          = pl_graphics_cleanup_event,
-        .reset_event                            = pl_graphics_reset_event,
-        .set_event                              = pl_graphics_set_event,
-        .wait_for_events                        = pl_graphics_wait_for_events,
         .calculate_mip_count                    = pl_graphics_calculate_mip_count,
 
         #if defined(PL_GRAPHICS_EXPOSE_VULKAN) && defined(PL_VULKAN_BACKEND)
-        .get_vulkan_instance        = pl_graphics_get_vulkan_instance,
-        .get_vulkan_api_version     = pl_graphics_get_vulkan_api_version,
-        .get_vulkan_device          = pl_graphics_get_vulkan_device,
-        .get_vulkan_surface         = pl_graphics_get_vulkan_surface,
-        .get_vulkan_physical_device = pl_graphics_get_vulkan_physical_device,
-        .get_vulkan_queue           = pl_graphics_get_vulkan_queue,
-        .get_vulkan_present_queue   = pl_graphics_get_vulkan_present_queue,
-        .get_vulkan_queue_family    = pl_graphics_get_vulkan_queue_family,
-        .get_vulkan_render_pass     = pl_graphics_get_vulkan_render_pass,
-        .get_vulkan_descriptor_pool = pl_graphics_get_vulkan_descriptor_pool,
-        .get_vulkan_sample_count    = pl_graphics_get_vulkan_sample_count,
-        .get_vulkan_command_buffer  = pl_graphics_get_vulkan_command_buffer,
-        .get_vulkan_image_view      = pl_graphics_get_vulkan_image_view,
-        .get_vulkan_sampler         = pl_graphics_get_vulkan_sampler,
-        .get_vulkan_descriptor_set  = pl_graphics_get_vulkan_descriptor_set,
+        .get_vulkan_instance             = pl_graphics_get_vulkan_instance,
+        .get_vulkan_api_version          = pl_graphics_get_vulkan_api_version,
+        .get_vulkan_device               = pl_graphics_get_vulkan_device,
+        .get_vulkan_surface              = pl_graphics_get_vulkan_surface,
+        .get_vulkan_physical_device      = pl_graphics_get_vulkan_physical_device,
+        .get_vulkan_queue                = pl_graphics_get_vulkan_queue,
+        .get_vulkan_present_queue        = pl_graphics_get_vulkan_present_queue,
+        .get_vulkan_queue_family         = pl_graphics_get_vulkan_queue_family,
+        .get_vulkan_descriptor_pool      = pl_graphics_get_vulkan_descriptor_pool,
+        .get_vulkan_sample_count         = pl_graphics_get_vulkan_sample_count,
+        .get_vulkan_command_buffer       = pl_graphics_get_vulkan_command_buffer,
+        .get_vulkan_image_view           = pl_graphics_get_vulkan_image_view,
+        .get_vulkan_sampler              = pl_graphics_get_vulkan_sampler,
+        .get_vulkan_descriptor_set       = pl_graphics_get_vulkan_descriptor_set,
+        .get_vulkan_format               = pl__vulkan_format,
         .get_vulkan_allocation_callbacks = pl_graphics_get_vulkan_allocation_callbacks,
-        .get_vulkan_memory_properties = pl_graphics_get_vulkan_memory_properties,
+        .get_vulkan_memory_properties    = pl_graphics_get_vulkan_memory_properties,
         #endif
 
         #if defined(PL_GRAPHICS_EXPOSE_METAL) && defined(PL_METAL_BACKEND)
         .get_metal_device                 = pl_graphics_get_metal_device,
-        .get_metal_render_pass_descriptor = pl_graphics_get_metal_render_pass_descriptor,
         .get_metal_command_buffer         = pl_graphics_get_metal_command_buffer,
         .get_metal_command_encoder        = pl_graphics_get_metal_command_encoder,
         .get_metal_texture                = pl_graphics_get_metal_texture,
         .get_metal_bind_group_texture     = pl_graphics_get_metal_bind_group_texture,
-        #endif
-
-        #ifndef PL_DISABLE_OBSOLETE
-        .set_texture_usage    = pl_graphics_set_texture_usage,
-        .set_texture_usage_ex = pl_graphics_set_texture_usage_ex,
+        .get_metal_render_pass_descriptor = pl_graphics_get_metal_render_pass_descriptor,
         #endif
     };
     pl_set_api(ptApiRegistry, plGraphicsI, &tApi);

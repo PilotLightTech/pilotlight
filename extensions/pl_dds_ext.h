@@ -60,7 +60,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plDdsI_version {1, 1, 0}
+#define plDdsI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -128,8 +128,8 @@ typedef struct _plDdsReadInfo
     uint32_t      uDepth;        // depth of mip 0
     uint32_t      uMips;         // mip map count
     uint32_t      uLayers;       // array slice count
-    plFormat      tFormat;       // texture format
-    plTextureType tType;         // texture type
+    plFormat      eFormat;       // texture format
+    plTextureType eType;         // texture type
     uint32_t      uSliceSize;    // slice size in bytes (all mips of individual layer)
     plDdsMipInfo  atMipInfo[16]; // information for each mip level
 } plDdsReadInfo;
@@ -141,8 +141,8 @@ typedef struct _plDdsWriteInfo
     uint32_t      uDepth;  // depth of mip 0
     uint32_t      uMips;   // mip map count
     uint32_t      uLayers; // layer or slice count
-    plFormat      tFormat; // texture format
-    plTextureType tType;   // texture type
+    plFormat      eFormat; // texture format
+    plTextureType eType;   // texture type
 } plDdsWriteInfo;
 
 #ifdef __cplusplus

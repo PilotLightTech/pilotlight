@@ -73,6 +73,7 @@ static inline CFTimeInterval pl__get_absolute_time(void) { return (CFTimeInterva
 @property (nonatomic, nullable,retain) plNSViewController* delegate;
 - (void)initCommon;
 - (void)resizeDrawable:(CGFloat)scaleFactor;
+- (CGSize)backingDrawableSize;
 - (void)stopRenderLoop;
 - (void)render;
 @end
@@ -340,6 +341,20 @@ int main(int argc, char *argv[])
     [super dealloc];
 }
 
+- (CGSize)backingDrawableSize
+{
+    NSRect bounds = self.bounds;
+    NSRect backingBounds = [self convertRectToBacking:bounds];
+
+    CGFloat w = floor(backingBounds.size.width);
+    CGFloat h = floor(backingBounds.size.height);
+
+    if(w < 1) w = 1;
+    if(h < 1) h = 1;
+
+    return CGSizeMake(w, h);
+}
+
 - (void)resizeDrawable:(CGFloat)scaleFactor
 {
     CGSize newSize = self.bounds.size;
@@ -347,7 +362,7 @@ int main(int argc, char *argv[])
     // gptIOCtx->tMainFramebufferScale.x = scaleFactor;
     // gptIOCtx->tMainFramebufferScale.y = scaleFactor;
 
-    if(newSize.width <= 0 || newSize.width <= 0)
+    if(newSize.width <= 0 || newSize.height <= 0)
     {
         return;
     }
@@ -514,7 +529,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 - (void)setFrameSize:(NSSize)size
 {
     [super setFrameSize:size];
-    [self resizeDrawable:self.window.screen.backingScaleFactor];
+    // [self resizeDrawable:self.window.screen.backingScaleFactor];
 }
 
 - (void)setBoundsSize:(NSSize)size
@@ -552,21 +567,7 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 {
     @autoreleasepool
     {
-        // gAppData.graphics.metalLayer = layer;
         gptIOCtx->pBackendPlatformData = layer;
-
-        // updating mouse cursor
-        if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
-            gptIOCtx->bCursorChanged = true;
-
-        if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
-        {
-            gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
-            NSCursor* ptMacCursor = aptMouseCursors[gptIOCtx->tCurrentCursor] ?: aptMouseCursors[PL_MOUSE_CURSOR_ARROW];
-            [ptMacCursor set];
-        }
-        gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
-        gptIOCtx->bCursorChanged = false;
 
         // reload library
         if(gbHotReloadActive && gptLibraryApi->has_changed(gptAppLibrary))
@@ -582,42 +583,45 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
 
         layer.contentsScale = self.view.window.screen.backingScaleFactor;
 
-        // frame buffer size
-        const NSRect contentRect = [self.view frame];
-        const NSRect fbRect = [self.view convertRectToBacking:contentRect];
-        layer.drawableSize = CGSizeMake(fbRect.size.width, fbRect.size.height);
-        
-        
+        CGSize drawableSize = [(plNSView*)self.view backingDrawableSize];
 
-        // window size
-        const NSRect contentRect2 = [self.view frame];
-        float fCurrentWidth = (float)contentRect2.size.width;
-        float fCurrentHeight = (float)contentRect2.size.height;
+        bool drawableChanged =
+            layer.drawableSize.width  != drawableSize.width ||
+            layer.drawableSize.height != drawableSize.height;
 
-        float fCurrentScaleX = (float)self.view.window.screen.backingScaleFactor;
-        float fCurrentScaleY = (float)self.view.window.screen.backingScaleFactor;
-
-
-        // float fCurrentScaleX = 1.0f;
-        // float fCurrentScaleY = 1.0f;
-
-        bool bResize = false;
-
-        if(fCurrentWidth != gptIOCtx->tMainViewportSize.x || fCurrentHeight != gptIOCtx->tMainViewportSize.y)
-            bResize = true;
-        else if(fCurrentScaleX != gptIOCtx->tMainFramebufferScale.x || fCurrentScaleY != gptIOCtx->tMainFramebufferScale.y )
-            bResize = true;
-
-
-        if(bResize)
+        if(drawableChanged)
         {
-            gptIOCtx->tMainViewportSize.x = fCurrentWidth;
-            gptIOCtx->tMainViewportSize.y = fCurrentHeight;
-            gptIOCtx->tMainFramebufferScale.x = fCurrentScaleX;
-            gptIOCtx->tMainFramebufferScale.y = fCurrentScaleY;
+            layer.drawableSize = drawableSize;
+
+            gptIOCtx->tMainFramebufferScale.x =
+                (float)self.view.window.screen.backingScaleFactor;
+            gptIOCtx->tMainFramebufferScale.y =
+                (float)self.view.window.screen.backingScaleFactor;
+
+            gptIOCtx->tMainViewportSize.x =
+                (float)self.view.bounds.size.width;
+            gptIOCtx->tMainViewportSize.y =
+                (float)self.view.bounds.size.height;
+
             pl_app_resize(gptMainWindow, gpUserData);
-            // return;
+
+            return;
         }
+
+        // updating mouse cursor
+        if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
+            gptIOCtx->bCursorChanged = true;
+
+        if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
+        {
+            gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
+            NSCursor* ptMacCursor = aptMouseCursors[gptIOCtx->tCurrentCursor] ?: aptMouseCursors[PL_MOUSE_CURSOR_ARROW];
+            [ptMacCursor set];
+        }
+        gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
+        gptIOCtx->bCursorChanged = false;
+
+
 
         if(gtTime == 0.0)
             gtTime = pl__get_absolute_time();

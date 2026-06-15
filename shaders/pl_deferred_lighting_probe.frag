@@ -191,5 +191,4 @@ void main()
     {
         outColor = fogLinear(outColor, tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
     }
-
 }

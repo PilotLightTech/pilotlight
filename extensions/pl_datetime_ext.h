@@ -30,7 +30,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plDateTimeI_version {1, 1, 0}
+#define plDateTimeI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -57,7 +57,7 @@ typedef int plDay;   // -> enum _plDay   PL_XXDAY
 
 typedef struct _plDate
 {
-    plMonth tMonth;
+    plMonth eMonth;
     int     iDay; // 1 - 31
     int     iYear;
 } plDate;

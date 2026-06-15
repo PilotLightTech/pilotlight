@@ -159,7 +159,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // this path is taken only during first load, so we
     // allocate app memory here
     ptAppData = (plAppData*)PL_ALLOC(sizeof(plAppData));
-    memset(ptAppData, 0, sizeof(plAppData));
+    memset((void*)ptAppData, 0, sizeof(plAppData));
 
     gptVfs->mount_directory("/gltf-samples", "../assets/gltf-samples/Models", PL_VFS_MOUNT_FLAGS_NONE);
     gptVfs->mount_directory("/environments", "../assets/development/environments", PL_VFS_MOUNT_FLAGS_NONE);
@@ -206,21 +206,21 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->set_fullscreen(ptAppData->ptWindow, &tFullScreen);
 
     plStarterInit tStarterInit = {};
-    tStarterInit.tFlags   = PL_STARTER_FLAGS_NONE;
+    tStarterInit.eFlags   = PL_STARTER_FLAGS_NONE;
     tStarterInit.ptWindow = ptAppData->ptWindow;
 
     // extensions handled by starter
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_GRAPHICS_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_PROFILE_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_STATS_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_CONSOLE_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_DRAW_EXT;
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_UI_EXT;
-    // tStarterInit.tFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_GRAPHICS_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_PROFILE_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_STATS_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_CONSOLE_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_DRAW_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_UI_EXT;
+    // tStarterInit.eFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
 
     // initial flags
-    tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
+    // tStarterInit.eFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
 
     // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
     // etc. which we will get to in later examples
@@ -232,7 +232,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tDefaultShaderOptions.apcDirectories[0] = "/shaders/";
     tDefaultShaderOptions.apcDirectories[1] = "/shader-temp/";
     tDefaultShaderOptions.pcCacheOutputDirectory = "/shader-temp/";
-    tDefaultShaderOptions.tFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE;
+    tDefaultShaderOptions.eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE;
     gptShader->initialize(&tDefaultShaderOptions);
 
     ptAppData->ptDevice = gptStarter->get_device();
@@ -323,7 +323,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     pl__find_models(ptAppData);
 
-    gptDearImGui->initialize(ptAppData->ptDevice, gptStarter->get_swapchain(), gptStarter->get_render_pass());
+    plRenderAttachmentInfo tRenderInfo = {};
+    gptStarter->get_render_attachment_info(&tRenderInfo);
+    gptDearImGui->initialize(ptAppData->ptDevice, gptStarter->get_swapchain(), &tRenderInfo);
     // ImGui::GetIO().ConfigFlags &= ~ImGuiBackendFlags_PlatformHasViewports;
     ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
     ImGuiIO& tImGuiIO = ImGui::GetIO();
@@ -412,7 +414,7 @@ pl_app_update(plAppData* ptAppData)
 
     gptRenderer->begin_frame();
 
-    gptDearImGui->new_frame(ptAppData->ptDevice, gptStarter->get_render_pass());
+    gptDearImGui->new_frame(ptAppData->ptDevice);
 
     if(ptAppData->bResize)
     {
@@ -742,13 +744,15 @@ pl_app_update(plAppData* ptAppData)
     if(ptAppData->bShowImGuiDemo)
         ImGui::ShowDemoWindow(&ptAppData->bShowImGuiDemo);
 
-    plRenderEncoder* ptRenderEncoder = gptStarter->begin_main_pass();
-    gptDearImGui->render(ptRenderEncoder, gptGfx->get_encoder_command_buffer(ptRenderEncoder));
+    plCommandBuffer* ptCommandBuffer = gptStarter->begin_main_pass();
+    gptDearImGui->render(ptCommandBuffer);
 
     float fWidth = ptIO->tMainViewportSize.x;
     float fHeight = ptIO->tMainViewportSize.y;
     plDrawList2D* ptMessageDrawlist = gptScreenLog->get_drawlist(tLogOffset.x, tLogOffset.y, fWidth * 0.2f, fHeight);
-    gptDraw->submit_2d_drawlist(ptMessageDrawlist, ptRenderEncoder, fWidth, fHeight, gptGfx->get_swapchain_info(gptStarter->get_swapchain()).tSampleCount);
+    plRenderAttachmentInfo tRenderInfo = {};
+    gptStarter->get_render_attachment_info(&tRenderInfo);
+    gptDraw->submit_2d_drawlist(ptMessageDrawlist, ptCommandBuffer, fWidth, fHeight, gptGfx->get_swapchain_info(gptStarter->get_swapchain()).eSampleCount, &tRenderInfo);
     gptStarter->end_main_pass();
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     gptStarter->end_frame();

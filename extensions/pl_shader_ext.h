@@ -68,7 +68,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plShaderI_version {1, 4, 0}
+#define plShaderI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations
@@ -148,8 +148,8 @@ typedef struct _plShaderMacroDefinition
 
 typedef struct _plShaderOptions
 {
-    plShaderFlags             tFlags;
-    plShaderOptimizationLevel tOptimizationLevel;
+    plShaderFlags             eFlags;
+    plShaderOptimizationLevel eOptimizationLevel;
     plShaderMacroDefinition   atMacroDefinitions[PL_MAX_SHADER_MACRO_DEFINITIONS];
     const char*               apcIncludeDirectories[PL_MAX_SHADER_INCLUDE_DIRECTORIES + 1];
     const char*               apcDirectories[PL_MAX_SHADER_DIRECTORIES + 1];

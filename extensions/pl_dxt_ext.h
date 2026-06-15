@@ -45,7 +45,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plDxtI_version {1, 1, 0}
+#define plDxtI_version {2, 0, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -92,7 +92,7 @@ typedef struct _plDxtI
 
 typedef struct _plDxtInfo
 {
-    plDxtFlags     tFlags;
+    plDxtFlags     eFlags;
     uint32_t       uWidth;
     uint32_t       uHeight;
     uint32_t       uChannels; // 1 - 4 channels

@@ -83,7 +83,6 @@ typedef struct _plStageBlock
 typedef struct _plStageContext
 {
     plDevice*            ptDevice;
-    plTimelineSemaphore* ptSemaphore;
     plCommandPool*       ptCmdPool;
 
     plStageBufferUploadRequest* sbtBufferUploadRequests;
@@ -96,8 +95,6 @@ typedef struct _plStageContext
     // gpu allocators
     plDeviceMemoryAllocatorI* ptAllocator;
 
-    plCommandBuffer* ptCurrentCommandBuffer;
-    plBlitEncoder* ptCurrentEncoder;
     uint64_t uNextValue;
     uint64_t uLastUsedFrame;
 } plStageContext;
@@ -121,7 +118,6 @@ pl_stage_initialize(plStageInit tInit)
     gptStageCtx->ptDevice = tInit.ptDevice;
     gptStageCtx->ptAllocator = gptGpuAllocators->get_staging_uncached_allocator(gptStageCtx->ptDevice);
     gptStageCtx->ptCmdPool = gptGfx->create_command_pool(gptStageCtx->ptDevice, NULL);
-    gptStageCtx->ptSemaphore = gptGfx->create_semaphore(gptStageCtx->ptDevice, true);
     gptStageCtx->uNextValue = 0;
 }
 
@@ -131,7 +127,6 @@ pl_stage_cleanup(void)
     if(gptStageCtx->ptCmdPool == NULL) // already initialized
         return;
     gptGfx->cleanup_command_pool(gptStageCtx->ptCmdPool);
-    gptGfx->cleanup_semaphore(gptStageCtx->ptSemaphore);
     pl_sb_free(gptStageCtx->sbtBlocks);
     pl_sb_free(gptStageCtx->sbtStageBlocks);
     pl_sb_free(gptStageCtx->sbtBufferUploadRequests);
@@ -178,7 +173,7 @@ pl_stage_stage_buffer_upload(plBufferHandle tDestination, uint64_t uOffset, cons
         plBufferDesc tStagingBufferDesc = {
             .pcDebugName = "staging buffer",
             .szByteSize  = pl_max(gptGpuAllocators->get_buddy_block_size(), uSize),
-            .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE
+            .eUsage      = PL_BUFFER_USAGE_TRANSFER
         };
         plBuffer* ptBuffer = NULL;
         plBufferHandle tBuffer = gptGfx->create_buffer(gptStageCtx->ptDevice, &tStagingBufferDesc, &ptBuffer);
@@ -250,7 +245,7 @@ pl_stage_stage_texture_upload(plTextureHandle tDestination, const plBufferImageC
         plBufferDesc tStagingBufferDesc = {
             .pcDebugName = "staging buffer",
             .szByteSize  = pl_max(gptGpuAllocators->get_buddy_block_size(), uSize),
-            .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE
+            .eUsage      = PL_BUFFER_USAGE_TRANSFER
         };
         plBuffer* ptBuffer = NULL;
         plBufferHandle tBuffer = gptGfx->create_buffer(gptStageCtx->ptDevice, &tStagingBufferDesc, &ptBuffer);
@@ -289,14 +284,14 @@ pl_stage_flush(void)
         return;
 
     plCommandBuffer* ptCommandBuffer = gptGfx->request_command_buffer(gptStageCtx->ptCmdPool, "upload staging now");
-    gptGfx->begin_command_recording(ptCommandBuffer, NULL);
+    gptGfx->begin_command_recording(ptCommandBuffer);
 
-    plBlitEncoder* ptEncoder = gptGfx->begin_blit_pass(ptCommandBuffer);
+    gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
 
     uint32_t uRequestCount = pl_sb_size(gptStageCtx->sbtBufferUploadRequests);
     for(uint32_t i = 0; i < uRequestCount; i++)
     {
-        gptGfx->copy_buffer(ptEncoder,
+        gptGfx->copy_buffer(ptCommandBuffer,
             gptStageCtx->sbtStageBlocks[gptStageCtx->sbtBufferUploadRequests[i].uBufferIndex].tBuffer,
             gptStageCtx->sbtBufferUploadRequests[i].uDestinationBuffer,
             gptStageCtx->sbtBufferUploadRequests[i].uOffset,
@@ -308,16 +303,16 @@ pl_stage_flush(void)
     uRequestCount = pl_sb_size(gptStageCtx->sbtTextureUploadRequests);
     for(uint32_t i = 0; i < uRequestCount; i++)
     {
-        gptGfx->copy_buffer_to_texture(ptEncoder,
+        gptGfx->copy_buffer_to_texture(ptCommandBuffer,
             gptStageCtx->sbtStageBlocks[gptStageCtx->sbtTextureUploadRequests[i].uBufferIndex].tBuffer,
             gptStageCtx->sbtTextureUploadRequests[i].uDestinationTexture,
             1,
             &gptStageCtx->sbtTextureUploadRequests[i].tBufferImageCopy);
         if(gptStageCtx->sbtTextureUploadRequests[i].bGenerateMips)
-            gptGfx->generate_mipmaps(ptEncoder, gptStageCtx->sbtTextureUploadRequests[i].uDestinationTexture);
+            gptGfx->generate_mipmaps(ptCommandBuffer, gptStageCtx->sbtTextureUploadRequests[i].uDestinationTexture);
     }
     pl_sb_reset(gptStageCtx->sbtTextureUploadRequests);
-    gptGfx->end_blit_pass(ptEncoder);
+    gptGfx->end_compute_pass(ptCommandBuffer);
 
     // finish recording
     gptGfx->end_command_recording(ptCommandBuffer);
@@ -343,242 +338,6 @@ pl_stage_flush(void)
     // pl_sb_reset(gptStageCtx->sbtStageBlocks);
 }
 
-uint64_t
-pl_stage_queue_buffer_upload(plBufferHandle tDestination, uint64_t uOffset, const void* pData, uint64_t uSize)
-{
-
-    if(pData == NULL)
-        return 0;
-
-    gptStageCtx->uLastUsedFrame = gptIOI->get_io()->ulFrameCount;
-
-    if(gptStageCtx->ptCurrentCommandBuffer == NULL)
-    {
-        const plBeginCommandInfo tSceneBeginInfo = {
-            .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {gptStageCtx->ptSemaphore},
-            .auWaitSemaphoreValues = {gptStageCtx->uNextValue++},
-        };
-
-        gptStageCtx->ptCurrentCommandBuffer = gptGfx->request_command_buffer(gptStageCtx->ptCmdPool, "stage");
-        gptGfx->begin_command_recording(gptStageCtx->ptCurrentCommandBuffer, &tSceneBeginInfo);
-
-        gptStageCtx->ptCurrentEncoder = gptGfx->begin_blit_pass(gptStageCtx->ptCurrentCommandBuffer);
-    }
-
-    plStageBufferUploadRequest tRequest = {
-        .uSize              = uSize,
-        .uDestinationOffset = uOffset,
-        .uDestinationBuffer = tDestination,
-    };
-
-
-    const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtBlocks);
-
-    bool bBlockFound = false;
-
-    for(uint32_t i = 0; i < uBlockCount; i++)
-    {
-        plStageBlock* ptBlock = &gptStageCtx->sbtBlocks[i];
-
-        if(ptBlock->uSize - ptBlock->uCurrentOffset > uSize)
-        {
-            tRequest.uBufferIndex = i;
-            tRequest.uOffset = ptBlock->uCurrentOffset;
-            bBlockFound = true;
-            break;
-        }
-    }
-
-    // check if first run
-    if(!bBlockFound)
-    {
-        plBufferDesc tStagingBufferDesc = {
-            .pcDebugName = "staging buffer",
-            .szByteSize  = pl_max(gptGpuAllocators->get_buddy_block_size(), uSize),
-            .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE
-        };
-        plBuffer* ptBuffer = NULL;
-        plBufferHandle tBuffer = gptGfx->create_buffer(gptStageCtx->ptDevice, &tStagingBufferDesc, &ptBuffer);
-
-        // allocate memory
-        const plDeviceMemoryAllocation tAllocation = gptStageCtx->ptAllocator->allocate(gptStageCtx->ptAllocator->ptInst, 
-            ptBuffer->tMemoryRequirements.uMemoryTypeBits,
-            ptBuffer->tMemoryRequirements.ulSize,
-            ptBuffer->tMemoryRequirements.ulAlignment,
-            "staging buffer memory");
-
-        // bind memory
-        gptGfx->bind_buffer_to_memory(gptStageCtx->ptDevice, tBuffer, &tAllocation);
-
-        tRequest.uBufferIndex = pl_sb_size(gptStageCtx->sbtBlocks);
-
-        plStageBlock tBlock = {
-            .tBuffer = tBuffer,
-            .uSize = tStagingBufferDesc.szByteSize
-        };
-        pl_sb_push(gptStageCtx->sbtBlocks, tBlock);
-    }
-    gptStageCtx->sbtBlocks[tRequest.uBufferIndex].uCurrentOffset += uSize;
-
-    plBuffer* ptBuffer = gptGfx->get_buffer(gptStageCtx->ptDevice, gptStageCtx->sbtBlocks[tRequest.uBufferIndex].tBuffer);
-    uint8_t* pucData = (uint8_t*)&ptBuffer->tMemoryAllocation.pHostMapped[tRequest.uOffset];
-    memcpy(pucData, pData, uSize);
-
-    gptGfx->copy_buffer(gptStageCtx->ptCurrentEncoder,
-        gptStageCtx->sbtBlocks[tRequest.uBufferIndex].tBuffer,
-        tRequest.uDestinationBuffer,
-        tRequest.uOffset,
-        tRequest.uDestinationOffset,
-        tRequest.uSize);
-
-    return gptStageCtx->uNextValue;
-}
-
-uint64_t
-pl_stage_queue_texture_upload(plTextureHandle tDestination, const plBufferImageCopy* ptCopy, const void* pData, uint64_t uSize, bool bGenerateMips)
-{
-
-    if(pData == NULL)
-        return 0;
-
-    gptStageCtx->uLastUsedFrame = gptIOI->get_io()->ulFrameCount;
-
-    if(gptStageCtx->ptCurrentCommandBuffer == NULL)
-    {
-        const plBeginCommandInfo tSceneBeginInfo = {
-            .uWaitSemaphoreCount   = 1,
-            .atWaitSempahores      = {gptStageCtx->ptSemaphore},
-            .auWaitSemaphoreValues = {gptStageCtx->uNextValue++},
-        };
-
-        gptStageCtx->ptCurrentCommandBuffer = gptGfx->request_command_buffer(gptStageCtx->ptCmdPool, "stage");
-        gptGfx->begin_command_recording(gptStageCtx->ptCurrentCommandBuffer, &tSceneBeginInfo);
-
-        gptStageCtx->ptCurrentEncoder = gptGfx->begin_blit_pass(gptStageCtx->ptCurrentCommandBuffer);
-    }
-
-    plStageTextureUploadRequest tRequest = {
-        .uSize               = uSize,
-        .tBufferImageCopy    = *ptCopy,
-        .uDestinationTexture = tDestination,
-        .bGenerateMips       = bGenerateMips
-    };
-
-
-    const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtBlocks);
-
-    bool bBlockFound = false;
-
-    for(uint32_t i = 0; i < uBlockCount; i++)
-    {
-        plStageBlock* ptBlock = &gptStageCtx->sbtBlocks[i];
-
-        if(ptBlock->uSize - ptBlock->uCurrentOffset >= uSize)
-        {
-            tRequest.uBufferIndex = i;
-            tRequest.uOffset = ptBlock->uCurrentOffset;
-            bBlockFound = true;
-            break;
-        }
-    }
-
-    // check if first run
-    if(!bBlockFound)
-    {
-        plBufferDesc tStagingBufferDesc = {
-            .pcDebugName = "staging buffer",
-            .szByteSize  = pl_max(gptGpuAllocators->get_buddy_block_size(), uSize),
-            .tUsage      = PL_BUFFER_USAGE_TRANSFER_SOURCE
-        };
-        plBuffer* ptBuffer = NULL;
-        plBufferHandle tBuffer = gptGfx->create_buffer(gptStageCtx->ptDevice, &tStagingBufferDesc, &ptBuffer);
-
-        // allocate memory
-        const plDeviceMemoryAllocation tAllocation = gptStageCtx->ptAllocator->allocate(gptStageCtx->ptAllocator->ptInst, 
-            ptBuffer->tMemoryRequirements.uMemoryTypeBits,
-            ptBuffer->tMemoryRequirements.ulSize,
-            ptBuffer->tMemoryRequirements.ulAlignment,
-            "staging buffer memory");
-
-        // bind memory
-        gptGfx->bind_buffer_to_memory(gptStageCtx->ptDevice, tBuffer, &tAllocation);
-
-        tRequest.uBufferIndex = pl_sb_size(gptStageCtx->sbtBlocks);
-
-        plStageBlock tBlock = {
-            .tBuffer = tBuffer,
-            .uSize = tStagingBufferDesc.szByteSize
-        };
-        pl_sb_push(gptStageCtx->sbtBlocks, tBlock);
-    }
-    gptStageCtx->sbtBlocks[tRequest.uBufferIndex].uCurrentOffset += uSize;
-
-    plBuffer* ptBuffer = gptGfx->get_buffer(gptStageCtx->ptDevice, gptStageCtx->sbtBlocks[tRequest.uBufferIndex].tBuffer);
-    uint8_t* pucData = (uint8_t*)&ptBuffer->tMemoryAllocation.pHostMapped[tRequest.uOffset];
-    memcpy(pucData, pData, uSize);
-
-    gptGfx->copy_buffer_to_texture(gptStageCtx->ptCurrentEncoder,
-        gptStageCtx->sbtBlocks[tRequest.uBufferIndex].tBuffer,
-        tRequest.uDestinationTexture,
-        1,
-        &tRequest.tBufferImageCopy);
-    if(tRequest.bGenerateMips)
-        gptGfx->generate_mipmaps(gptStageCtx->ptCurrentEncoder, tRequest.uDestinationTexture);
-
-    return gptStageCtx->uNextValue;
-}
-
-void
-pl_stage_new_frame(void)
-{
-    if(gptStageCtx->ptCurrentCommandBuffer)
-    {
-        gptGfx->end_blit_pass(gptStageCtx->ptCurrentEncoder);
-        gptGfx->end_command_recording(gptStageCtx->ptCurrentCommandBuffer);
-
-        const plSubmitInfo tStageSubmitInfo = {
-            .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {gptStageCtx->ptSemaphore},
-            .auSignalSemaphoreValues = {gptStageCtx->uNextValue}
-        };
-        gptGfx->submit_command_buffer(gptStageCtx->ptCurrentCommandBuffer, &tStageSubmitInfo);
-        gptGfx->return_command_buffer(gptStageCtx->ptCurrentCommandBuffer);
-
-        gptStageCtx->ptCurrentCommandBuffer = NULL;
-        gptStageCtx->ptCurrentEncoder = NULL;
-    }
-
-    uint64_t uSemValue = gptGfx->get_semaphore_value(gptStageCtx->ptDevice, gptStageCtx->ptSemaphore);
-    if(uSemValue >= gptStageCtx->uNextValue)
-    {
-        const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtBlocks);
-        for(uint32_t i = 0; i < uBlockCount; i++)
-        {
-            gptStageCtx->sbtBlocks[i].uCurrentOffset = 0;
-        }
-    }
-
-    if(gptIOI->get_io()->ulFrameCount - gptStageCtx->uLastUsedFrame > 30)
-    {
-        const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtBlocks);
-        for(uint32_t i = 0; i < uBlockCount; i++)
-        {
-            gptGfx->queue_buffer_for_deletion(gptStageCtx->ptDevice, gptStageCtx->sbtBlocks[i].tBuffer);
-        }
-        pl_sb_reset(gptStageCtx->sbtBlocks);
-    }
-
-    pl_stage_flush();
-}
-
-bool
-pl_stage_completed(uint64_t uValue)
-{
-    uint64_t uSemValue = gptGfx->get_semaphore_value(gptStageCtx->ptDevice, gptStageCtx->ptSemaphore);
-    return uSemValue >= uValue;
-}
-
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -589,13 +348,9 @@ pl_load_stage_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     const plStageI tApi = {
         .initialize           = pl_stage_initialize,
         .cleanup              = pl_stage_cleanup,
-        .new_frame            = pl_stage_new_frame,
         .stage_buffer_upload  = pl_stage_stage_buffer_upload,
         .stage_texture_upload = pl_stage_stage_texture_upload,
-        .flush                = pl_stage_flush,
-        .queue_buffer_upload  = pl_stage_queue_buffer_upload,
-        .queue_texture_upload = pl_stage_queue_texture_upload,
-        .completed            = pl_stage_completed
+        .flush                = pl_stage_flush
     };
     pl_set_api(ptApiRegistry, plStageI, &tApi);
 

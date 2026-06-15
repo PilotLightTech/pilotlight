@@ -175,43 +175,43 @@ pl_shader_initialize(const plShaderOptions* ptShaderOptions)
     {
         gptShaderCtx->tDefaultShaderOptions.pcCacheOutputDirectory = gptString->intern(gptShaderCtx->ptStringRepo, ptShaderOptions->pcCacheOutputDirectory);
     }
-    gptShaderCtx->tDefaultShaderOptions.tFlags = ptShaderOptions->tFlags;
-    if(ptShaderOptions->tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
+    gptShaderCtx->tDefaultShaderOptions.eFlags = ptShaderOptions->eFlags;
+    if(ptShaderOptions->eFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
         #ifdef PL_CPU_BACKEND
         #elif defined(PL_METAL_BACKEND)
-            gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
+            gptShaderCtx->tDefaultShaderOptions.eFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
         #elif defined(PL_VULKAN_BACKEND)
-            gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
+            gptShaderCtx->tDefaultShaderOptions.eFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
         #endif
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_INCLUDE_DEBUG)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_INCLUDE_DEBUG)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_INCLUDE_DEBUG");
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_ALWAYS_COMPILE");
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_NEVER_CACHE)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_NEVER_CACHE)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_NEVER_CACHE");
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_METAL_OUTPUT");
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_SPIRV_OUTPUT)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_SPIRV_OUTPUT)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_SPIRV_OUTPUT");
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "initialized flag PL_SHADER_FLAGS_AUTO_OUTPUT");
     }
@@ -290,43 +290,43 @@ pl_shader_set_options(const plShaderOptions* ptShaderOptions)
     if(!gptShaderCtx->bInitialized)
         return;
 
-    gptShaderCtx->tDefaultShaderOptions.tFlags = ptShaderOptions->tFlags;
-    if(ptShaderOptions->tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
+    gptShaderCtx->tDefaultShaderOptions.eFlags = ptShaderOptions->eFlags;
+    if(ptShaderOptions->eFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
         #ifdef PL_CPU_BACKEND
         #elif defined(PL_METAL_BACKEND)
-            gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
+            gptShaderCtx->tDefaultShaderOptions.eFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
         #elif defined(PL_VULKAN_BACKEND)
-            gptShaderCtx->tDefaultShaderOptions.tFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
+            gptShaderCtx->tDefaultShaderOptions.eFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
         #endif
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_INCLUDE_DEBUG)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_INCLUDE_DEBUG)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_INCLUDE_DEBUG");
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_ALWAYS_COMPILE");
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_NEVER_CACHE)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_NEVER_CACHE)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_NEVER_CACHE");
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_METAL_OUTPUT");
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_SPIRV_OUTPUT)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_SPIRV_OUTPUT)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_SPIRV_OUTPUT");
     }
 
-    if(gptShaderCtx->tDefaultShaderOptions.tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
+    if(gptShaderCtx->tDefaultShaderOptions.eFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
     {
         PL_LOG_INFO_API(gptLog, gptShaderCtx->uLogChannel, "set flag PL_SHADER_FLAGS_AUTO_OUTPUT");
     }
@@ -542,7 +542,7 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
         return tModule;
     }
         
-    switch(ptOptions->tOptimizationLevel)
+    switch(ptOptions->eOptimizationLevel)
     {
 
         case PL_SHADER_OPTIMIZATION_SIZE:
@@ -558,7 +558,7 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
             break;
     }
 
-    if(ptOptions->tFlags & PL_SHADER_FLAGS_INCLUDE_DEBUG)
+    if(ptOptions->eFlags & PL_SHADER_FLAGS_INCLUDE_DEBUG)
         shaderc_compile_options_set_generate_debug_info(tShaderRcOptions);
 
     shaderc_compile_options_add_macro_definition(tShaderRcOptions, "PL_SHADER_CODE", 14, "1", 1);
@@ -637,7 +637,7 @@ pl_shader_compile_glsl(const char* pcShader, const char* pcEntryFunc, plShaderOp
     }
 
     #ifdef PL_INCLUDE_SPIRV_CROSS
-    if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+    if(ptOptions->eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
     {
         PL_LOG_INFO_API_F(gptLog, gptShaderCtx->uLogChannel, "cross compiling \"%s\" to MSL", pcShader);
         if(tShaderKind == shaderc_glsl_vertex_shader)
@@ -782,13 +782,13 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
                 break;
         }
 
-        if(ptOptions->tFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
+        if(ptOptions->eFlags & PL_SHADER_FLAGS_AUTO_OUTPUT)
         {
             #ifdef PL_CPU_BACKEND
             #elif defined(PL_METAL_BACKEND)
-                ptOptions->tFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
+                ptOptions->eFlags |= PL_SHADER_FLAGS_METAL_OUTPUT;
             #elif defined(PL_VULKAN_BACKEND)
-                ptOptions->tFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
+                ptOptions->eFlags |= PL_SHADER_FLAGS_SPIRV_OUTPUT;
             #endif
         }
         if(ptOptions->pcCacheOutputDirectory == NULL)
@@ -806,7 +806,7 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
 
         for(uint32_t i = 0; i < ptOptions->_uDirectoriesCount; i++)
         {
-            if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+            if(ptOptions->eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
                 pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.metal", ptOptions->apcDirectories[i], pcFileNameOnly);
             else
                 pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->apcDirectories[i], pcFileNameOnly);
@@ -824,7 +824,7 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
         if(pcCacheFile == NULL)
         {
             PL_LOG_DEBUG_API_F(gptLog, gptShaderCtx->uLogChannel, "no cached shader found for: \"%s\"", pcFileNameOnly);
-            if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+            if(ptOptions->eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
                 pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.metal", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
             else
                 pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
@@ -834,20 +834,20 @@ pl_shader_load_glsl(const char* pcShader, const char* pcEntryFunc, const char* p
     plShaderModule tModule = {0};
 
     // unless overriden, try to load precompiled shader
-    if(!(ptOptions->tFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE))
+    if(!(ptOptions->eFlags & PL_SHADER_FLAGS_ALWAYS_COMPILE))
         tModule = pl_shader_read_from_disk(pcCacheFile, pcEntryFunc);
 
     // no precompiled shader available, compile it ourselves
     if(tModule.szCodeSize == 0)
     {
         const char* pcFileNameOnly = pl_str_get_file_name(pcShader, NULL, 0);
-        if(ptOptions->tFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
+        if(ptOptions->eFlags & PL_SHADER_FLAGS_METAL_OUTPUT)
             pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.metal", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
         else
             pcCacheFile = pl_temp_allocator_sprintf(&gptShaderCtx->tTempAllocator2, "%s%s.spv", ptOptions->pcCacheOutputDirectory, pcFileNameOnly);
 
         tModule = pl_shader_compile_glsl(pcShader, pcEntryFunc, ptOptions);
-        if(!(ptOptions->tFlags & PL_SHADER_FLAGS_NEVER_CACHE) && tModule.szCodeSize > 0)
+        if(!(ptOptions->eFlags & PL_SHADER_FLAGS_NEVER_CACHE) && tModule.szCodeSize > 0)
             pl_shader_write_to_disk(pcCacheFile, &tModule);
     }
     pl_temp_allocator_reset(&gptShaderCtx->tTempAllocator2);

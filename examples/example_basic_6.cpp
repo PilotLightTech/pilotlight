@@ -187,7 +187,9 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptStarter->finalize();
 
     // initializes out Dear ImGui backend
-    gptDearImGui->initialize(gptStarter->get_device(), gptStarter->get_swapchain(), gptStarter->get_render_pass());
+    plRenderAttachmentInfo tRenderAttachmentInfo = {};
+    gptStarter->get_render_attachment_info(&tRenderAttachmentInfo);
+    gptDearImGui->initialize(gptStarter->get_device(), gptStarter->get_swapchain(), &tRenderAttachmentInfo);
 
     // same process for implot as imgui
     ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
@@ -233,7 +235,7 @@ pl_app_update(plAppData* ptAppData)
     if(!gptStarter->begin_frame())
         return;
 
-    gptDearImGui->new_frame(gptStarter->get_device(), gptStarter->get_render_pass());
+    gptDearImGui->new_frame(gptStarter->get_device());
 
     ImGui::DockSpaceOverViewport();
 
@@ -253,10 +255,10 @@ pl_app_update(plAppData* ptAppData)
 
 
     // start main pass & return the encoder being used
-    plRenderEncoder* ptEncoder = gptStarter->begin_main_pass();
+    plCommandBuffer* ptCommandBuffer = gptStarter->begin_main_pass();
 
     // submit Dear ImGui stuff
-    gptDearImGui->render(ptEncoder, gptGfx->get_encoder_command_buffer(ptEncoder));
+    gptDearImGui->render(ptCommandBuffer);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();
