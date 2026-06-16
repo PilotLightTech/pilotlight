@@ -1099,7 +1099,6 @@ typedef struct _plGraphicsState
 
 typedef struct _plRenderAttachmentInfo
 {
-    uint32_t uColorCount;
     plFormat aeColorFormats[PL_MAX_RENDER_TARGETS];
     plFormat eDepthFormat;
     plFormat eStencilFormat;

@@ -5,7 +5,34 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
-- v0.10.0 (xx-xx-xx)
+- v0.10.0 (2026-06-16)(graphics  v2.0.0)  -major version update requires Metal 4.0 & Vulkan 1.4 support
+                                          -moved from renderpasses to dynamic rendering
+                                          -removed explicit image layouts
+                                          -removed events (for now)
+                                          -added consumer, producer, & intrapass barriers
+                                          -removed render, compute, & blit encoders
+                                          -combined blit & compute passes
+                                          -changed enum members to start with "e"
+                                          -removed "plBeginCommandInfo" when starting command recordings
+                                          -added size parameter when allocating dynamic memory blocks
+                                          -fixed copy buffer to texture issues with texture arrays
+                                          -removed all obsolete items
+                                          -"plBindGroupUpdateData" now uses arrays to allow in-place creation
+                                          -"plGraphicsState" parameters start with "b", "e", or "u" instead of "ul"
+                                          -"plSubmitInfo" now contains the wait semaphore information
+                                          -removed transient attachment types (for now)
+                      (draw      v3.0.0)  -"submit_*d_drawlist" now takes command buffer & "plRenderAttachmentInfo" for
+                                           gfx 2.0 changes
+                      (dxt       v2.0.0)  -renamed plDxtInfo member "tFlags" to "eFlags"
+                      (ecs       v2.0.0)  -renamed plTransformComponent member "tFlags" to "eFlags"
+                      (file      v2.0.0)  -renamed plDirectoryEntry member "tType" to "eType"
+                      (shader    v2.0.0)  -renamed plShaderOptions member "tFlags" to "eFlags"
+                                          -renamed plShaderOptions member "tOptimizationLevel" to "eOptimizationLevel"
+                      (starter   v2.0.0)  -begin_main_pass now returns command buffer instead of encoders
+                                          -removed blit encoders
+                                          -removed render pass stuff
+                                          -added "get_render_attachment_info"
+                                          -changed plStarterInit member "tFlags" to "eFlags"
 - v0.9.3  (2026-06-02)(graphics  v1.10.0) -last version before 2.x with breaking changes
                                           -remove necessity of subpass dependencies
                                           -remove necessity of "set_texture_usage(...)"

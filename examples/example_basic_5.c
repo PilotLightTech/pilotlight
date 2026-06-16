@@ -73,7 +73,7 @@ const plDrawI*        gptDraw        = NULL;
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    // NOTE: on first load, "pAppData" will be NULL but on reloads
+    // NOTE: on first load, "ptAppData" will be NULL but on reloads
     //       it will be the value returned from this function
 
     // if "ptAppData" is a valid pointer, then this function is being called
@@ -82,7 +82,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     {
 
         // re-retrieve the apis since we are now in
-        // a different dll/so
+        // a different dll/so and we are storing them
+        // as global variables
         gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
         gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
         gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
@@ -110,11 +111,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false); // provides the file API used by the drawing ext
     
     // load required apis
-    gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
-    gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
-    gptUi          = pl_get_api_latest(ptApiRegistry, plUiI);
-    gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
-    gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
+    gptUi      = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptDraw    = pl_get_api_latest(ptApiRegistry, plDrawI);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -159,6 +160,9 @@ pl_app_shutdown(plAppData* ptAppData)
     // we must now cleanup the UI
     // extension ourselves
     gptUi->cleanup();
+
+    // allow starter extension to handle cleanup for extensions
+    // we set it to handle
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
     free(ptAppData);
@@ -171,6 +175,9 @@ pl_app_shutdown(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
+    // here we allow the starter to handle resize for any 
+    // extensions that require it, for example resizing
+    // textures with the swapchain
     gptStarter->resize();
 }
 
@@ -182,6 +189,8 @@ PL_EXPORT void
 pl_app_update(plAppData* ptAppData)
 {
 
+    // this needs to be the first call when using the starter
+    // extension. You must return if it returns false (usually a swapchain recreation).
     if(!gptStarter->begin_frame())
         return;
 
@@ -220,7 +229,7 @@ pl_app_update(plAppData* ptAppData)
     // with command buffers, syncronization, submission, etc. but that is outside
     // the scope of the draw extension.
 
-    // start main pass & return the encoder being used
+    // start main pass & return the command buffer being used
     plCommandBuffer* ptCmdBuffer = gptStarter->begin_main_pass();
 
     // this must be called which handles several things but

@@ -250,7 +250,7 @@ pl_app_update(plAppData* ptAppData)
     gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 0.75f)});
     gptDraw->add_3d_band_yz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 1.0f, 0.75f)});
 
-    // start main pass & return the encoder being used
+    // start main pass & return the command buffer being used
     plCommandBuffer* ptCommandBuffer = gptStarter->begin_main_pass();
 
     // submit 3d drawlist

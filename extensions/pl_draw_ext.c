@@ -504,10 +504,9 @@ static inline bool
 pl__format_info_equal(const plRenderAttachmentInfo* ptInfo0, const plRenderAttachmentInfo* ptInfo1)
 {
     if(ptInfo0->eDepthFormat == ptInfo1->eDepthFormat
-        && ptInfo0->eStencilFormat == ptInfo1->eStencilFormat
-        && ptInfo0->uColorCount == ptInfo1->uColorCount)
+        && ptInfo0->eStencilFormat == ptInfo1->eStencilFormat)
     {
-        for(uint32_t i = 0; i < ptInfo0->uColorCount; i++)
+        for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
         {
             if(ptInfo0->aeColorFormats[i] != ptInfo1->aeColorFormats[i])
             {

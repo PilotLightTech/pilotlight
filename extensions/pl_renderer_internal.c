@@ -4334,7 +4334,6 @@ pl__render_view_debug_pass(plView* ptView, const plCamera* ptCamera, const plCam
     gptGfx->set_depth_bias(ptPostCmdBuffer, 0.0f, 0.0f, 0.0f);
 
     plRenderAttachmentInfo tRenderAttachmentInfo = {
-        .uColorCount = 1,
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT
         },
@@ -4761,7 +4760,6 @@ pl__render_view_outline_pass(plView* ptView, const plCamera* ptCamera)
     gptGfx->draw(ptCommandBuffer, 1, &tDraw);
 
     plRenderAttachmentInfo tRenderAttachmentInfo = {
-        .uColorCount = 1,
         .aeColorFormats = { PL_FORMAT_R16G16B16A16_FLOAT}
     };
     gptDraw->submit_3d_drawlist(ptView->pt3DGizmoDrawList, ptCommandBuffer, tDimensions.x, tDimensions.y, &ptCamera->tViewProjMat, 0, 1, &tRenderAttachmentInfo);

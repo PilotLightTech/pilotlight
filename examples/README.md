@@ -41,8 +41,9 @@ Demonstrates:
 * loading APIs
 * hot reloading
 
-### Example 2 - Starter & Basic Extensions (example_basic_2.c)
+### Example 2 - Starter & Basic Extensions With API Registry (example_basic_2.c)
 Demonstrates:
+* loading APIs
 * loading extensions
 * starter extension
 * basic drawing extension (2D)
@@ -50,9 +51,8 @@ Demonstrates:
 * basic console extension
 * basic UI extension
 
-### Example 3 - Starter & Basic Extensions With API Registry (example_basic_3.c)
+### Example 3 - Starter & Basic Extensions (example_basic_3.c)
 Demonstrates:
-* loading APIs
 * loading extensions
 * starter extension
 * basic drawing extension (2D)

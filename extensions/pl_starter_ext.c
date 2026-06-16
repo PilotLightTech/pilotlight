@@ -632,7 +632,6 @@ void
 pl_starter_get_render_attachment_info(plRenderAttachmentInfo* ptInfoOut)
 {
     plRenderAttachmentInfo tRenderAttachmentInfo = {
-        .uColorCount = 1,
         .aeColorFormats = {
             gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eFormat
         }
@@ -663,7 +662,6 @@ pl_starter_end_main_pass(void)
     gptDraw->submit_2d_layer(gptStarterCtx->ptFGLayer);
 
     plRenderAttachmentInfo tRenderAttachmentInfo = {
-        .uColorCount = 1,
         .aeColorFormats = {
             gptGfx->get_swapchain_info(gptStarterCtx->ptSwapchain).eFormat
         }

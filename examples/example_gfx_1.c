@@ -354,7 +354,7 @@ pl_app_update(plAppData* ptAppData)
     if(!gptStarter->begin_frame())
         return;
 
-    // start main pass & return the encoder being used
+    // start main pass & return the command buffer being used
     plCommandBuffer* ptCommandBuffer = gptStarter->begin_main_pass();
 
     // submit nonindexed draw using basic API

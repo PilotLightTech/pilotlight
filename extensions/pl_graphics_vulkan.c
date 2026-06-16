@@ -1951,11 +1951,19 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
 
     // const plRenderPassLayout* ptLayout = pl_graphics_get_render_pass_layout(ptDevice, ptDescription->tRenderPassLayout);
 
+    uint32_t uColorCount = 0;
+    for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
+    {
+        if(ptDescription->tRenderAttachmentInfo.aeColorFormats[i] == PL_FORMAT_UNKNOWN)
+            break;
+        uColorCount++;
+    }
+
     VkPipelineColorBlendStateCreateInfo tColorBlending = {
         .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .logicOpEnable   = VK_FALSE,
         .logicOp         = VK_LOGIC_OP_COPY,
-        .attachmentCount = ptDescription->tRenderAttachmentInfo.uColorCount,
+        .attachmentCount = uColorCount,
         .pAttachments    = atColorBlendAttachment,
         .blendConstants  = {0}
     };
@@ -1991,7 +1999,7 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
     VkPipelineRenderingCreateInfo tPipelineRenderingCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
         .pNext = NULL,
-        .colorAttachmentCount = ptDescription->tRenderAttachmentInfo.uColorCount,
+        .colorAttachmentCount = uColorCount,
         .pColorAttachmentFormats = aeColorAttachmentFormats,
         .depthAttachmentFormat = ptDescription->tRenderAttachmentInfo.eDepthFormat == 0 ? 0 : pl__vulkan_format(ptDescription->tRenderAttachmentInfo.eDepthFormat),
         .stencilAttachmentFormat = ptDescription->tRenderAttachmentInfo.eStencilFormat == 0 ? 0 : pl__vulkan_format(ptDescription->tRenderAttachmentInfo.eStencilFormat)

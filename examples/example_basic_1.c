@@ -71,10 +71,11 @@ const plWindowI* gptWindows = NULL;
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    // NOTE: on first load, "pAppData" will be NULL but on reloads
-    //       it will be the value returned from this function
+    // NOTE: on first load, "ptAppData" will be NULL but on reloads
+    //       it will be the value returned from this function's first
+    //       call
 
-    // load required apis
+    // load required apis (stored as globals for convience)
     gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
     
@@ -89,7 +90,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     }
 
     // this path is taken only during first load, so we
-    // allocate app memory here
+    // allocate the app memory here
     ptAppData = malloc(sizeof(plAppData));
     memset(ptAppData, 0, sizeof(plAppData));
 
@@ -131,7 +132,7 @@ pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     // perform any operations required during a window resize
     plIO* ptIO = gptIO->get_io();
-    printf("resize to %d, %d\n", (int)ptIO->tMainViewportSize.x, (int)ptIO->tMainViewportSize.y);
+    printf("resizing to %d, %d\n", (int)ptIO->tMainViewportSize.x, (int)ptIO->tMainViewportSize.y);
 }
 
 //-----------------------------------------------------------------------------

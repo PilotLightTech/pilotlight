@@ -492,7 +492,7 @@ pl_app_update(plAppData* ptAppData)
 
     plDevice* ptDevice = gptStarter->get_device();
 
-    // start main pass & return the encoder being used
+    // start main pass & return the command buffer being used
     plCommandBuffer* ptCommandBuffer = gptStarter->begin_main_pass();
 
     // submit nonindexed draw using basic API

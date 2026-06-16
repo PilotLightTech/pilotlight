@@ -79,7 +79,7 @@ const plGraphicsI* gptGfx     = NULL;
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    // NOTE: on first load, "pAppData" will be NULL but on reloads
+    // NOTE: on first load, "ptAppData" will be NULL but on reloads
     //       it will be the value returned from this function
 
     // if "ptAppData" is a valid pointer, then this function is being called
@@ -88,7 +88,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     {
 
         // re-retrieve the apis since we are now in
-        // a different dll/so
+        // a different dll/so and we are storing them
+        // as global variables
         gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
         gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
         gptDraw    = pl_get_api_latest(ptApiRegistry, plDrawI);
@@ -205,10 +206,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plCommandBuffer* ptCmdBuffer = gptStarter->get_raw_command_buffer(); // not recording
 
-    // actually record, submit, & wait
+    // actually record building atlas
     gptDraw->build_font_atlas(ptCmdBuffer, gptDraw->get_current_font_atlas());
 
-    // return back to the pool
+    // return back to the pool (this actually submits the work and waits)
     gptStarter->return_raw_command_buffer(ptCmdBuffer);
 
     // return app memory
@@ -230,6 +231,8 @@ pl_app_shutdown(plAppData* ptAppData)
     gptDraw->cleanup_font_atlas(gptDraw->get_current_font_atlas());
     gptDraw->cleanup();
 
+    // allow starter extension to handle cleanup for extensions
+    // we set it to handle
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
     free(ptAppData);
@@ -242,6 +245,9 @@ pl_app_shutdown(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
+    // here we allow the starter to handle resize for any 
+    // extensions that require it, for example resizing
+    // textures with the swapchain
     gptStarter->resize();
 }
 
@@ -383,7 +389,7 @@ pl_app_update(plAppData* ptAppData)
     // with command buffers, syncronization, submission, etc. but that is outside
     // the scope of the draw extension.
 
-    // start main pass & return the encoder being used
+    // start main pass & return the command buffer being used
     plCommandBuffer* ptCmdBuffer = gptStarter->begin_main_pass();
 
     // submit our drawlist

@@ -1338,8 +1338,10 @@ pl_graphics_create_shader(plDevice* ptDevice, const plShaderDesc* ptDescription)
         pipelineDescriptor.stencilAttachmentPixelFormat = pl__metal_format(ptDescription->tRenderAttachmentInfo.eStencilFormat);
     }
 
-    for(uint32_t i = 0; i < ptDescription->tRenderAttachmentInfo.uColorCount; i++)
+    for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
     {
+        if(ptDescription->tRenderAttachmentInfo.aeColorFormats[i] == PL_FORMAT_UNKNOWN)
+            break;
         pipelineDescriptor.colorAttachments[i].pixelFormat = pl__metal_format(ptDescription->tRenderAttachmentInfo.aeColorFormats[i]);
         pipelineDescriptor.colorAttachments[i].blendingEnabled = ptDescription->atBlendStates[i].bBlendEnabled ? YES : NO;
         pipelineDescriptor.colorAttachments[i].writeMask =

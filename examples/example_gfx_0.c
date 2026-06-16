@@ -44,7 +44,7 @@ Index of this file:
     BACKGROUND:
 
     The graphics extension is meant to be an extremely lightweight abstraction
-    over the "modern" explicit graphics APIs (Vulkan/DirectX 12/Metal 3.0).
+    over the "modern" explicit graphics APIs (Vulkan/DirectX 12/Metal 4.0).
     Ideally it should be 1 to 1 when possible. The explicit control provided
     by these APIs are their power, so the extension tries to preserve that
     as much as possible while also allowing a graphics programmer the ability
@@ -118,7 +118,7 @@ const plStarterI*  gptStarter = NULL;
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    // NOTE: on first load, "pAppData" will be NULL but on reloads
+    // NOTE: on first load, "ptAppData" will be NULL but on reloads
     //       it will be the value returned from this function
 
     // retrieve the data registry API, this is the API used for sharing data
@@ -268,10 +268,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
             }
         },
         .atBlendStates = {
-            {
-                .bBlendEnabled   = false,
-                .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
-            }
+            { .bBlendEnabled   = false, .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL }
         }
     };
     gptStarter->get_render_attachment_info(&tShaderDesc.tRenderAttachmentInfo);
@@ -322,7 +319,7 @@ pl_app_update(plAppData* ptAppData)
     if(!gptStarter->begin_frame())
         return;
 
-    // start main pass & return the encoder being used
+    // start main pass & return the command buffer being used
     plCommandBuffer* ptCmdBuffer = gptStarter->begin_main_pass();
 
     // submit nonindexed draw using basic API

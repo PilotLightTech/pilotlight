@@ -60,12 +60,18 @@ pl_dear_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, const plRender
 #elif defined(PL_VULKAN_BACKEND)
 
     VkFormat atColorFormats[PL_MAX_RENDER_TARGETS] = {};
-    for(uint32_t i = 0; i < ptInfo->uColorCount; i++)
+    uint32_t uColorCount = 0;
+    for(uint32_t i = 0; i < PL_MAX_RENDER_TARGETS; i++)
+    {
+        if(ptInfo->aeColorFormats[i] == 0)
+            break;
         atColorFormats[i] = gptGfx->get_vulkan_format(ptInfo->aeColorFormats[i]);
+        uColorCount++;
+    }
     VkPipelineRenderingCreateInfo tPipelineRenderingCreateInfo = {};
     tPipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     tPipelineRenderingCreateInfo.pNext = NULL;
-    tPipelineRenderingCreateInfo.colorAttachmentCount = ptInfo->uColorCount;
+    tPipelineRenderingCreateInfo.colorAttachmentCount = uColorCount;
     tPipelineRenderingCreateInfo.pColorAttachmentFormats = atColorFormats;
     tPipelineRenderingCreateInfo.depthAttachmentFormat = ptInfo->eDepthFormat == 0 ? VK_FORMAT_UNDEFINED : gptGfx->get_vulkan_format(ptInfo->eDepthFormat);
     tPipelineRenderingCreateInfo.stencilAttachmentFormat = ptInfo->eStencilFormat == 0 ? VK_FORMAT_UNDEFINED : gptGfx->get_vulkan_format(ptInfo->eStencilFormat);

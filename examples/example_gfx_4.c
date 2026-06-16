@@ -435,7 +435,6 @@ pl_app_update(plAppData* ptAppData)
     // submit our 3D drawlist
 
     plRenderAttachmentInfo tInfo = {
-        .uColorCount = 1,
         .aeColorFormats = {
             PL_FORMAT_R32G32B32A32_FLOAT
         },
@@ -462,7 +461,7 @@ pl_app_update(plAppData* ptAppData)
     // add full screen quad for offscreen render
     gptDraw->add_image(ptAppData->ptFGLayer, ptAppData->tColorTextureBg.uData, (plVec2){0}, ptIO->tMainViewportSize);
 
-    // begin main renderpass (directly to swapchain)
+    // start main pass & return the command buffer being used
     ptCommandBuffer = gptStarter->begin_main_pass();
 
     // submit drawlists
@@ -538,11 +537,7 @@ resize_offscreen_resources(plAppData* ptAppData)
     // update our previous allocated bind group
     const plBindGroupUpdateData tBGData = {
         .atTextureBindings = {
-            {
-                .tTexture = ptAppData->tColorTexture,
-                .uSlot    = 0,
-                .eType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
-            }
+            { .tTexture = ptAppData->tColorTexture, .uSlot = 0, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
         }
     };
     gptGfx->update_bind_group(ptDevice, ptAppData->tColorTextureBg, &tBGData);

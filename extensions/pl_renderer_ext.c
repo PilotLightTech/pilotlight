@@ -347,7 +347,6 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
     gptData->tSamplerNearestRepeat = gptGfx->create_sampler(gptData->ptDevice, &tSamplerNearestRepeatDesc);
 
     gptData->tRenderPassLayout = (plRenderAttachmentInfo){
-        .uColorCount = 4,
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT,
             PL_FORMAT_R8G8B8A8_UNORM,
@@ -359,7 +358,6 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
     };
 
     gptData->tDeferredLightingRenderPassLayout = (plRenderAttachmentInfo){
-        .uColorCount = 4,
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT,
             PL_FORMAT_R8G8B8A8_UNORM,
@@ -371,7 +369,6 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
     };
 
     gptData->tTransparentRenderPassLayout = (plRenderAttachmentInfo){
-        .uColorCount = 1,
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT
         },
@@ -384,7 +381,6 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
     };
 
     gptData->tPickRenderPassLayout = (plRenderAttachmentInfo){
-        .uColorCount = 1,
         .aeColorFormats = {
             PL_FORMAT_R8G8B8A8_UNORM
         },
@@ -393,14 +389,12 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
     };
 
     gptData->tPostProcessRenderPassLayout = (plRenderAttachmentInfo){
-        .uColorCount = 1,
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT
         }
     };
 
     gptData->tFinalRenderPassLayout = (plRenderAttachmentInfo){
-        .uColorCount = 1,
         .aeColorFormats = {
             PL_FORMAT_R16G16B16A16_FLOAT
         },
@@ -409,7 +403,6 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
     };
 
     gptData->tUVRenderPassLayout = (plRenderAttachmentInfo){
-        .uColorCount = 1,
         .aeColorFormats = {
             PL_FORMAT_R32G32_FLOAT
         },

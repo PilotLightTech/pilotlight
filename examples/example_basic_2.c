@@ -34,6 +34,13 @@ Index of this file:
     * void pl_load_ext  (plApiRegistryI*, bool reload)
     * void pl_unload_ext(plApiRegistryI*, bool reload)
     
+    Later examples will explain more about the details of creating an extension
+    but the important thing to understand now is that an extension just provides
+    an implementation of an API. The "load" function allows an extension to
+    request APIs it depends on and to register any API it provides. The unload
+    function just allows an extension the opportunity to unregister and perform
+    any required cleanup.
+
     This example is also the first to introduce the "starter" extension. This
     extension acts a bit as a helper extension to remove some common boilerplate
     but is also just useful in general for most applications only needing to use
@@ -62,8 +69,6 @@ Index of this file:
 #include <string.h> // memset
 #include "pl.h"
 
-#include "pl_unity_ext.h" // for loading extension directly to not need api structs
-
 #define PL_MATH_INCLUDE_FUNCTIONS // required to expose some of the color helpers
 #include "pl_math.h"
 
@@ -76,7 +81,6 @@ Index of this file:
 #include "pl_log_ext.h"
 #include "pl_stats_ext.h"
 #include "pl_console_ext.h"
-#include "pl_platform_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -98,11 +102,21 @@ typedef struct _plAppData
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-plApiRegistryI* gptApiRegistry = NULL;
+const plIOI*        gptIO        = NULL;
+const plWindowI*    gptWindows   = NULL;
+const plDrawI*      gptDraw      = NULL;
+const plStarterI*   gptStarter   = NULL;
+const plUiI*        gptUI        = NULL;
+const plScreenLogI* gptScreenLog = NULL;
+const plProfileI*   gptProfile   = NULL;
+const plStatsI*     gptStats     = NULL;
+const plMemoryI*    gptMemory    = NULL;
+const plLogI*       gptLog       = NULL;
+const plConsoleI*   gptConsole   = NULL;
 
-#define PL_ALLOC(x)      pl_memory_tracked_realloc(NULL, (x), __FILE__, __LINE__)
-#define PL_REALLOC(x, y) pl_memory_tracked_realloc((x), (y), __FILE__, __LINE__)
-#define PL_FREE(x)       pl_memory_tracked_realloc((x), 0, __FILE__, __LINE__)
+#define PL_ALLOC(x)      gptMemory->tracked_realloc(NULL, (x), __FILE__, __LINE__)
+#define PL_REALLOC(x, y) gptMemory->tracked_realloc((x), (y), __FILE__, __LINE__)
+#define PL_FREE(x)       gptMemory->tracked_realloc((x), 0, __FILE__, __LINE__)
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -111,15 +125,58 @@ plApiRegistryI* gptApiRegistry = NULL;
 PL_EXPORT void*
 pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 {
-    gptApiRegistry = ptApiRegistry; // saving for cleanup later
+    // NOTE: on first load, "ptAppData" will be NULL but on reloads
+    //       it will be the value returned from this function
+
+    // if "ptAppData" is a valid pointer, then this function is being called
+    // during a hot reload.
+    if(ptAppData)
+    {
+
+        // re-retrieve the apis since we are now in
+        // a different dll/so and we are storing them
+        // as global variables
+        gptIO        = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptWindows   = pl_get_api_latest(ptApiRegistry, plWindowI);
+        gptDraw      = pl_get_api_latest(ptApiRegistry, plDrawI);
+        gptStarter   = pl_get_api_latest(ptApiRegistry, plStarterI);
+        gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
+        gptScreenLog = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+        gptProfile   = pl_get_api_latest(ptApiRegistry, plProfileI);
+        gptStats     = pl_get_api_latest(ptApiRegistry, plStatsI);
+        gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
+        gptLog       = pl_get_api_latest(ptApiRegistry, plLogI);
+        gptConsole   = pl_get_api_latest(ptApiRegistry, plConsoleI);
+
+        return ptAppData;
+    }
 
     // retrieve extension registry
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
 
     // load extensions
-    pl_load_ext(ptApiRegistry, false);
-    pl_load_platform_ext(ptApiRegistry, false);
+    //   * first argument is the shared library name WITHOUT the file extension
+    //   * second & third argument is the load/unload functions names (use NULL for the default of "pl_load_ext" &
+    //     "pl_unload_ext")
+    //   * fourth argument indicates if the extension is reloadable (should the runtime check for changes and reload if changed)
+    ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
+    ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false); // provides the file API used by the drawing ext
     
+    // load required apis
+    gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
+    gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
+
+    // load required apis (these are provided though extensions)
+    gptDraw      = pl_get_api_latest(ptApiRegistry, plDrawI);
+    gptStarter   = pl_get_api_latest(ptApiRegistry, plStarterI);
+    gptUI        = pl_get_api_latest(ptApiRegistry, plUiI);
+    gptScreenLog = pl_get_api_latest(ptApiRegistry, plScreenLogI);
+    gptProfile   = pl_get_api_latest(ptApiRegistry, plProfileI);
+    gptStats     = pl_get_api_latest(ptApiRegistry, plStatsI);
+    gptMemory    = pl_get_api_latest(ptApiRegistry, plMemoryI);
+    gptLog       = pl_get_api_latest(ptApiRegistry, plLogI);
+    gptConsole   = pl_get_api_latest(ptApiRegistry, plConsoleI);
+
     // this path is taken only during first load, so we
     // allocate app memory here
     ptAppData = PL_ALLOC(sizeof(plAppData));
@@ -136,22 +193,34 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .uWidth  = 600,
         .uHeight = 600,
     };
-    pl_window_create(tWindowDesc, &ptAppData->ptWindow);
-    pl_window_show(ptAppData->ptWindow);
+    gptWindows->create(tWindowDesc, &ptAppData->ptWindow);
+    gptWindows->show(ptAppData->ptWindow);
 
     // initialize the starter API (handles alot of boilerplate)
     plStarterInit tStarterInit = {
-        .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
+        // .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
-    pl_starter_initialize(tStarterInit);
-    pl_starter_finalize();
+    
+    // explicitly setting the flags for information purposes
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_DRAW_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_UI_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_CONSOLE_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_PROFILE_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_STATS_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_SHADER_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_GRAPHICS_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
+
+    gptStarter->initialize(tStarterInit);
+    gptStarter->finalize();
 
     // add a log channel
-    ptAppData->uExampleLogChannel = pl_log_add_channel("Example 2", (plLogExtChannelInit){.tType = PL_LOG_CHANNEL_TYPE_BUFFER});
+    ptAppData->uExampleLogChannel = gptLog->add_channel("Example 2", (plLogExtChannelInit){.tType = PL_LOG_CHANNEL_TYPE_BUFFER});
 
     // add a console variable
-    pl_console_add_toggle_variable("a.HelpWindow", &ptAppData->bShowHelpWindow, "toggle help window", PL_CONSOLE_VARIABLE_FLAGS_NONE);
+    gptConsole->add_toggle_variable("a.HelpWindow", &ptAppData->bShowHelpWindow, "toggle help window", PL_CONSOLE_VARIABLE_FLAGS_NONE);
 
     // return app memory
     return ptAppData;
@@ -164,12 +233,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
-    pl_starter_cleanup();
-    pl_window_destroy(ptAppData->ptWindow);
-    
-    // unload extensions
-    pl_unload_ext(gptApiRegistry, false);
-    pl_unload_platform_ext(gptApiRegistry, false);
+    // allow starter extension to handle cleanup for extensions
+    // we set it to handle
+    gptStarter->cleanup();
+
+    gptWindows->destroy(ptAppData->ptWindow);
     PL_FREE(ptAppData);
 }
 
@@ -180,7 +248,10 @@ pl_app_shutdown(plAppData* ptAppData)
 PL_EXPORT void
 pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
-    pl_starter_resize();
+    // here we allow the starter to handle resize for any 
+    // extensions that require it, for example resizing
+    // textures with the swapchain
+    gptStarter->resize();
 }
 
 //-----------------------------------------------------------------------------
@@ -192,7 +263,7 @@ pl_app_update(plAppData* ptAppData)
 {
     // this needs to be the first call when using the starter
     // extension. You must return if it returns false (usually a swapchain recreation).
-    if(!pl_starter_begin_frame())
+    if(!gptStarter->begin_frame())
         return;
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~stats API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -201,21 +272,21 @@ pl_app_update(plAppData* ptAppData)
     // like this. To update it, just deference it and set the value.
     static double* pdExample2Counter = NULL;
     if(!pdExample2Counter)
-        pdExample2Counter = pl_stats_get_counter("example 2 counter");
+        pdExample2Counter = gptStats->get_counter("example 2 counter");
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~drawing & profile API~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    pl_profile_begin_sample(0, "example drawing");
+    gptProfile->begin_sample(0, "example drawing");
     
-    plDrawLayer2D* ptFGLayer = pl_starter_get_foreground_layer();
-    pl_draw_add_line(ptFGLayer,
+    plDrawLayer2D* ptFGLayer = gptStarter->get_foreground_layer();
+    gptDraw->add_line(ptFGLayer,
         (plVec2){0.0f, 0.0f},
         (plVec2){500.0f, 500.0f}, (plDrawLineOptions){ .fThickness = 1.0f, .uColor = PL_COLOR_32_MAGENTA});
 
-    plDrawLayer2D* ptBGLayer = pl_starter_get_background_layer();
-    pl_draw_add_triangle_filled(ptBGLayer,
+    plDrawLayer2D* ptBGLayer = gptStarter->get_background_layer();
+    gptDraw->add_triangle_filled(ptBGLayer,
         (plVec2){50.0f, 100.0f},
-        (plVec2){200.0f},
+        (plVec2){200.0f, 0.0f},
         (plVec2){100.0f, 200.0f}, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(0.0f, 0.5f, 1.0f, 0.5f)});
 
     plVec2 points[5] = {
@@ -225,63 +296,63 @@ pl_app_update(plAppData* ptAppData)
         (plVec2){300.0f, 500.0f},
         (plVec2){100.0f, 300.0f},
     };
-    pl_draw_add_convex_polygon_filled(ptBGLayer, points, sizeof(points)/sizeof(points[0]), (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.25f, 0.25f, 0.5f)});
-    pl_draw_add_polygon(ptBGLayer, points, sizeof(points)/sizeof(points[0]), (plDrawLineOptions){.fThickness = 30.0f, .uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 0.5f)});
+    gptDraw->add_convex_polygon_filled(ptBGLayer, points, sizeof(points)/sizeof(points[0]), (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.25f, 0.25f, 0.5f)});
+    gptDraw->add_polygon(ptBGLayer, points, sizeof(points)/sizeof(points[0]), (plDrawLineOptions){.fThickness = 30.0f, .uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 1.0f, 0.5f)});
 
-    pl_profile_end_sample(0);
+    gptProfile->end_sample(0);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~UI & Screen Log API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // creating a window
     if(ptAppData->bShowHelpWindow)
     {
-        if(pl_ui_begin_window("Help", NULL, PL_UI_WINDOW_FLAGS_AUTO_SIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE))
+        if(gptUI->begin_window("Help", NULL, PL_UI_WINDOW_FLAGS_AUTO_SIZE | PL_UI_WINDOW_FLAGS_NO_COLLAPSE))
         {
-            pl_ui_layout_static(0.0f, 500.0f, 1);
-            pl_ui_text("Press F1 to bring up console.");
-            pl_ui_text("Look for t.StatsTool (we added a stat)");
-            pl_ui_text("Look for t.LogTool (we added a log channel)");
-            pl_ui_text("Look for t.ProfileTool");
-            pl_ui_text("Look for t.MemoryAllocationTool and look for example 2!");
-            pl_ui_text("Look for a.HelpWindow (console variable we added)");
-            pl_ui_end_window();
+            gptUI->layout_static(0.0f, 500.0f, 1);
+            gptUI->text("Press F1 to bring up console.");
+            gptUI->text("Look for t.StatsTool (we added a stat)");
+            gptUI->text("Look for t.LogTool (we added a log channel)");
+            gptUI->text("Look for t.ProfileTool");
+            gptUI->text("Look for t.MemoryAllocationTool and look for example 2!");
+            gptUI->text("Look for a.HelpWindow (console variable we added)");
+            gptUI->end_window();
         }
     }
 
     // creating another window
-    if(pl_ui_begin_window("Pilot Light", NULL, PL_UI_WINDOW_FLAGS_NONE))
+    if(gptUI->begin_window("Pilot Light", NULL, PL_UI_WINDOW_FLAGS_NONE))
     {
-        pl_ui_text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
+        gptUI->text("Pilot Light %s", PILOT_LIGHT_VERSION_STRING);
 
-        if(pl_ui_button("Log"))
+        if(gptUI->button("Log"))
         {
-            pl_log_trace(ptAppData->uExampleLogChannel, "Log");
-            pl_log_debug(ptAppData->uExampleLogChannel, "Log");
-            pl_log_info(ptAppData->uExampleLogChannel, "Log");
-            pl_log_warn(ptAppData->uExampleLogChannel, "Log");
-            pl_log_error(ptAppData->uExampleLogChannel, "Log");
-            pl_log_fatal(ptAppData->uExampleLogChannel, "Log");
+            gptLog->trace(ptAppData->uExampleLogChannel, "Log");
+            gptLog->debug(ptAppData->uExampleLogChannel, "Log");
+            gptLog->info(ptAppData->uExampleLogChannel, "Log");
+            gptLog->warn(ptAppData->uExampleLogChannel, "Log");
+            gptLog->error(ptAppData->uExampleLogChannel, "Log");
+            gptLog->fatal(ptAppData->uExampleLogChannel, "Log");
         }
 
         static int iCounter = 0;
-        pl_ui_slider_int("Stat Counter Example", &iCounter, -10, 10, 0);
+        gptUI->slider_int("Stat Counter Example", &iCounter, -10, 10, 0);
         *pdExample2Counter = iCounter; // setting our stat variable
 
-        pl_ui_layout_row_begin(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2); // got to pl_ui_ext.h to see layout systems
+        gptUI->layout_row_begin(PL_UI_LAYOUT_ROW_TYPE_DYNAMIC, 0.0f, 2); // got to pl_ui_ext.h to see layout systems
         
-        pl_ui_layout_row_push(0.3f);
-        if(pl_ui_button("Log To Screen"))
-            pl_screen_log_add_message(5.0, "Cool Message!");
+        gptUI->layout_row_push(0.3f);
+        if(gptUI->button("Log To Screen"))
+            gptScreenLog->add_message(5.0, "Cool Message!");
 
-        pl_ui_layout_row_push(0.3f);
-        if(pl_ui_button("Big Log To Screen"))
-            pl_screen_log_add_message_ex(0, 5, PL_COLOR_32_GREEN, 3.0f, "%s", "Bigger & Greener!");
+        gptUI->layout_row_push(0.3f);
+        if(gptUI->button("Big Log To Screen"))
+            gptScreenLog->add_message_ex(0, 5, PL_COLOR_32_GREEN, 3.0f, "%s", "Bigger & Greener!");
 
-        pl_ui_layout_row_end();
+        gptUI->layout_row_end();
 
-        pl_ui_end_window();
+        gptUI->end_window();
     }
 
     // must be the last function called when using the starter extension
-    pl_starter_end_frame(); 
+    gptStarter->end_frame(); 
 }
