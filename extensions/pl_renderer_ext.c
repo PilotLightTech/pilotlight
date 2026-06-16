@@ -475,11 +475,6 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
         ptScene->atSceneBindGroups[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBindGroupDesc);
     }
 
-    const plBufferDesc tSkinBufferDesc = {
-        .eUsage     = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = tInit.szSkinBufferSize,
-        .pcDebugName = "skin buffer"
-    };
     gptFreeList->create((uint64_t)tInit.szSkinBufferSize, 4096, &ptScene->tSkinBufferFreeList);
 
     const plBindGroupDesc tSkinBindGroupDesc = {
@@ -529,56 +524,25 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     };
     ptScene->tMaterialDataBuffer = pl__renderer_create_local_buffer(&tMaterialDataBufferDesc,  "material buffer", 0);
 
-    const plBufferDesc atPointLightShadowDataBufferDesc = {
-        .eUsage    = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuPointLightShadow),
-        .pcDebugName = "point shadow data buffer"
-    };
-
-    const plBufferDesc atSpotLightShadowDataBufferDesc = {
-        .eUsage    = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuSpotLightShadow),
-        .pcDebugName = "spot shadow data buffer"
-    };
-
-    const plBufferDesc atCameraBuffersDesc = {
-        .eUsage     = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = 4096,
-        .pcDebugName = "camera buffers"
-    };
-
-    const plBufferDesc atProbeDataBufferDesc = {
-        .eUsage     = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = 4096,
-        .pcDebugName = "probe buffers"
-    };
-
-    const plBufferDesc tSceneBufferDesc = {
-        .eUsage     = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = sizeof(plGpuSceneData),
-        .pcDebugName = "scene buffer"
-    };
-
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        ptScene->atSceneBuffer[i]           = pl__renderer_create_staging_buffer(&tSceneBufferDesc, "scene buffer", i);
-        ptScene->atPointLightShadowDataBuffer[i] = pl__renderer_create_staging_buffer(&atPointLightShadowDataBufferDesc, "point shadow buffer", i);
-        ptScene->atSpotLightShadowDataBuffer[i] = pl__renderer_create_staging_buffer(&atSpotLightShadowDataBufferDesc, "spot shadow buffer", i);
-        ptScene->atShadowCameraBuffers[i]   = pl__renderer_create_staging_buffer(&atCameraBuffersDesc, "shadow camera buffer", i);
+        gptStage->get_staging_buffer(sizeof(plGpuSceneData), &ptScene->atSceneBuffer[i], "scene buffer");
+        gptStage->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuPointLightShadow), &ptScene->atPointLightShadowDataBuffer[i], "point shadow buffer");
+        gptStage->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuSpotLightShadow), &ptScene->atSpotLightShadowDataBuffer[i], "spot shadow buffer");
+        gptStage->get_staging_buffer(4096, &ptScene->atShadowCameraBuffers[i], "shadow camera buffer");
 
     }
-    ptScene->tGPUProbeDataBuffers   = pl__renderer_create_staging_buffer(&atProbeDataBufferDesc, "probe buffer", 0);
-
-    gptFreeList->create(atCameraBuffersDesc.szByteSize, sizeof(plMat4) * PL_MAX_SHADOW_CASCADES, &ptScene->tShadowCameraFreeList);
+    gptStage->get_staging_buffer(4096, &ptScene->tGPUProbeDataBuffers, "probe buffer");
+    gptFreeList->create(4096, sizeof(plMat4) * PL_MAX_SHADOW_CASCADES, &ptScene->tShadowCameraFreeList);
 
     for(uint32_t uFrameIndex = 0; uFrameIndex < gptGfx->get_frames_in_flight(); uFrameIndex++)
     {
         
-        ptScene->atDynamicSkinBuffer[uFrameIndex] = pl__renderer_create_staging_buffer(&tSkinBufferDesc, "joint buffer", uFrameIndex);
+        gptStage->get_staging_buffer(tInit.szSkinBufferSize, &ptScene->atDynamicSkinBuffer[uFrameIndex], "joint buffer");
 
         const plBindGroupUpdateData tSkinBGData = {
             .atBufferBindings  = {
-                { .uSlot = 0, .tBuffer = ptScene->atDynamicSkinBuffer[uFrameIndex], .szBufferRange = tSkinBufferDesc.szByteSize }
+                { .uSlot = 0, .tBuffer = ptScene->atDynamicSkinBuffer[uFrameIndex], .szBufferRange = tInit.szSkinBufferSize }
             }
         };
         ptScene->atSkinBindGroup1[uFrameIndex] = gptGfx->create_bind_group(gptData->ptDevice, &tSkinBindGroup2Desc);
@@ -768,43 +732,13 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~GPU Buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plBufferDesc tPointLightBufferDesc = {
-        .eUsage    = PL_BUFFER_USAGE_UNIFORM,
-        .szByteSize = sizeof(plGpuPointLight) * PL_MAX_LIGHTS,
-        .pcDebugName = "point light buffer"
-    };
-
-    const plBufferDesc tSpotLightBufferDesc = {
-        .eUsage    = PL_BUFFER_USAGE_UNIFORM,
-        .szByteSize = sizeof(plGpuSpotLight) * PL_MAX_LIGHTS,
-        .pcDebugName = "spot light buffer"
-    };
-
-    const plBufferDesc tDirectionLightBufferDesc = {
-        .eUsage    = PL_BUFFER_USAGE_UNIFORM,
-        .szByteSize = sizeof(plGpuDirectionLight) * PL_MAX_LIGHTS,
-        .pcDebugName = "direction light buffer"
-    };
-
-    const plBufferDesc tTransformBufferDesc = {
-        .eUsage    = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = sizeof(plMat4) * 10000,
-        .pcDebugName = "transform buffer"
-    };
-
-    const plBufferDesc tInstanceBufferDesc = {
-        .eUsage    = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = sizeof(plShadowInstanceBufferData) * 10000,
-        .pcDebugName = "instance buffer"
-    };
-
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        ptScene->atPointLightBuffer[i]     = pl__renderer_create_staging_buffer(&tPointLightBufferDesc, "point light", i);
-        ptScene->atSpotLightBuffer[i]      = pl__renderer_create_staging_buffer(&tSpotLightBufferDesc, "spot light", i);
-        ptScene->atDirectionLightBuffer[i] = pl__renderer_create_staging_buffer(&tDirectionLightBufferDesc, "direction light", i);
-        ptScene->atTransformBuffer[i]      = pl__renderer_create_staging_buffer(&tTransformBufferDesc, "transform", i);
-        ptScene->atInstanceBuffer[i]       = pl__renderer_create_staging_buffer(&tInstanceBufferDesc, "instance", i);
+        gptStage->get_staging_buffer(sizeof(plGpuPointLight) * PL_MAX_LIGHTS, &ptScene->atPointLightBuffer[i], "point light");
+        gptStage->get_staging_buffer(sizeof(plGpuSpotLight) * PL_MAX_LIGHTS, &ptScene->atSpotLightBuffer[i], "spot light");
+        gptStage->get_staging_buffer(sizeof(plGpuDirectionLight) * PL_MAX_LIGHTS, &ptScene->atDirectionLightBuffer[i], "direction light");
+        gptStage->get_staging_buffer(sizeof(plMat4) * 10000, &ptScene->atTransformBuffer[i], "transform");
+        gptStage->get_staging_buffer(sizeof(plShadowInstanceBufferData) * 10000, &ptScene->atInstanceBuffer[i], "instance");
     }
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
@@ -867,7 +801,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
                 {
                     .tBuffer       = ptScene->atShadowCameraBuffers[i],
                     .uSlot         = 0,
-                    .szBufferRange = atCameraBuffersDesc.szByteSize
+                    .szBufferRange = 4096
                 },
                 {
                     .tBuffer       = ptScene->atInstanceBuffer[i],
@@ -957,11 +891,11 @@ pl_renderer_destroy_view(plView* ptView)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atDShadowCameraBuffers[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atDLightShadowDataBuffer[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atViewBuffers[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atView2Buffers[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptView->atPickBuffer[i]);
+        gptStage->return_staging_buffer(&ptView->atDShadowCameraBuffers[i]);
+        gptStage->return_staging_buffer(&ptView->atDLightShadowDataBuffer[i]);
+        gptStage->return_staging_buffer(&ptView->atViewBuffers[i]);
+        gptStage->return_staging_buffer(&ptView->atView2Buffers[i]);
+        gptStage->return_readback_buffer(&ptView->atPickBuffer[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atPickBindGroup[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atDeferredBG1[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atViewBG[i]);
@@ -994,8 +928,8 @@ pl_renderer_destroy_scene(plScene* ptScene)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];
             
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDShadowCameraBuffers);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tDLightShadowDataBuffer);
+        gptStage->return_staging_buffer(&ptProbe->tDShadowCameraBuffers);
+        gptStage->return_staging_buffer(&ptProbe->tDLightShadowDataBuffer);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
         if(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
@@ -1017,8 +951,8 @@ pl_renderer_destroy_scene(plScene* ptScene)
             gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->atLightingBindGroup[i]);
         }
 
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tViewBuffer);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptProbe->tView2Buffer);
+        gptStage->return_staging_buffer(&ptProbe->tViewBuffer);
+        gptStage->return_staging_buffer(&ptProbe->tView2Buffer);
 
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tViewBG);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tGBufferBG);
@@ -1033,19 +967,20 @@ pl_renderer_destroy_scene(plScene* ptScene)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atTransformBuffer[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atInstanceBuffer[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atDynamicSkinBuffer[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atSceneBuffer[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atPointLightBuffer[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atSpotLightBuffer[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atDirectionLightBuffer[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atShadowCameraBuffers[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[i]);
-        gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[i]);
+        gptStage->return_staging_buffer(&ptScene->atSceneBuffer[i]);
+        gptStage->return_staging_buffer(&ptScene->atPointLightBuffer[i]);
+        gptStage->return_staging_buffer(&ptScene->atSpotLightBuffer[i]);
+        gptStage->return_staging_buffer(&ptScene->atDynamicSkinBuffer[i]);
+        gptStage->return_staging_buffer(&ptScene->atTransformBuffer[i]);
+        gptStage->return_staging_buffer(&ptScene->atInstanceBuffer[i]);
+        gptStage->return_staging_buffer(&ptScene->atPointLightShadowDataBuffer[i]);
+        gptStage->return_staging_buffer(&ptScene->atSpotLightShadowDataBuffer[i]);
+        gptStage->return_staging_buffer(&ptScene->atShadowCameraBuffers[i]);
+        gptStage->return_staging_buffer(&ptScene->atDirectionLightBuffer[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptScene->atSceneBindGroups[i]);
     }
-    gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tGPUProbeDataBuffers);
+    gptStage->return_staging_buffer(&ptScene->tGPUProbeDataBuffers);
+
     gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tMaterialDataBuffer);
     
     for(uint32_t i = 0; i < 7; i++)
@@ -1246,18 +1181,6 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
         .pcDebugName   = "emissive texture"
     };
 
-    const plBufferDesc atView2BuffersDesc = {
-        .eUsage     = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = 4096,
-        .pcDebugName = "view buffer"
-    };
-
-    const plBufferDesc atViewBuffersDesc = {
-        .eUsage     = PL_BUFFER_USAGE_UNIFORM,
-        .szByteSize = sizeof(plGpuViewData),
-        .pcDebugName = "view buffer"
-    };
-
     // pick bind group
 
     ptView->tRawOutputTexture        = pl__renderer_create_texture(&tRawOutputTextureDesc,  "offscreen raw", 0);
@@ -1347,18 +1270,6 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
 
     ptView->tPickTexture = pl__renderer_create_texture(&tPickTextureDesc, "pick original", 0);
 
-    const plBufferDesc atLightShadowDataBufferDesc = {
-        .eUsage    = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow),
-        .pcDebugName = "shadow data buffer"
-    };
-
-    const plBufferDesc atCameraBuffersDesc = {
-        .eUsage     = PL_BUFFER_USAGE_STORAGE,
-        .szByteSize = 4096,
-        .pcDebugName = "camera buffers"
-    };
-
     const plBindGroupDesc tGlobalBGDesc = {
         .ptPool      = gptData->ptBindGroupPool,
         .tLayout     = gptData->tShadowGlobalBGLayout,
@@ -1368,9 +1279,8 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-
-        ptView->atDShadowCameraBuffers[i]   = pl__renderer_create_staging_buffer(&atCameraBuffersDesc, "directional shadow camera buffer", i);
-        ptView->atDLightShadowDataBuffer[i] = pl__renderer_create_staging_buffer(&atLightShadowDataBufferDesc, "directional shadow buffer", i);
+        gptStage->get_staging_buffer(4096, &ptView->atDShadowCameraBuffers[i], "directional shadow camera buffer");
+        gptStage->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &ptView->atDLightShadowDataBuffer[i], "directional shadow buffer");
 
 
         ptView->atDShadowBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
@@ -1380,7 +1290,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
                 {
                     .tBuffer       = ptView->atDShadowCameraBuffers[i],
                     .uSlot         = 0,
-                    .szBufferRange = atCameraBuffersDesc.szByteSize
+                    .szBufferRange = 4096
                 },
                 {
                     .tBuffer       = ptScene->atInstanceBuffer[i],
@@ -1397,7 +1307,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
             .szByteSize = sizeof(uint32_t) * 2,
             .pcDebugName = "Picking buffer"
         };
-        ptView->atPickBuffer[i] = pl__renderer_create_cached_staging_buffer(&tPickBufferDesc, "picking buffer", 0);
+        gptStage->get_readback_buffer(sizeof(uint32_t) * 2, &ptView->atPickBuffer[i], "pick buffer");
 
         const plBindGroupDesc tPickBindGroupDesc = {
             .ptPool = gptData->ptBindGroupPool,
@@ -1415,7 +1325,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
         gptGfx->update_bind_group(gptData->ptDevice, ptView->atPickBindGroup[i], &tPickBGData);
 
         // buffers
-        ptView->atView2Buffers[i] = pl__renderer_create_staging_buffer(&atView2BuffersDesc, "scene", i);
+        gptStage->get_staging_buffer(4096, &ptView->atView2Buffers[i], "scene");
         
         const plBindGroupDesc tDeferredBG1Desc = {
             .ptPool      = gptData->ptBindGroupPool,
@@ -1438,7 +1348,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
 
         pl_temp_allocator_reset(&gptData->tTempAllocator);
 
-        ptView->atViewBuffers[i] = pl__renderer_create_staging_buffer(&atViewBuffersDesc, "view buffer", i);
+        gptStage->get_staging_buffer(sizeof(plGpuViewData), &ptView->atViewBuffers[i], "view buffer");
 
         const plBindGroupUpdateData tViewBGData = {
             .atBufferBindings  = {
@@ -1838,7 +1748,7 @@ pl_renderer_ecs_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, 
             .szByteSize = uPanoramaSize,
             .pcDebugName = "panorama input buffer"
         };
-        atComputeBuffers[0] = pl__renderer_create_staging_buffer(&tInputBufferDesc, "panorama input", 0);
+        gptStage->get_staging_buffer(uPanoramaSize, &atComputeBuffers[0], "panorama input");
         plBuffer* ptComputeBuffer = gptGfx->get_buffer(ptDevice, atComputeBuffers[0]);
         memcpy(ptComputeBuffer->tMemoryAllocation.pHostMapped, pfPanoramaData, uPanoramaSize);
         
@@ -3762,6 +3672,8 @@ pl_renderer_begin_frame(void)
             }
         }
     }
+
+    gptStage->return_readback_buffer(&gptData->tReadbackBuffer);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }

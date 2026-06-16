@@ -302,7 +302,7 @@ typedef enum VkFormat VkFormat;
 #endif
 
 //-----------------------------------------------------------------------------
-// [SECTION] declared structs (for C++)
+// [SECTION] pre-declared structs (for C++)
 //-----------------------------------------------------------------------------
 
 typedef struct _plDynamicDataBlock

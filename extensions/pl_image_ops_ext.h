@@ -36,7 +36,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plImageOpsI_version {0, 1, 0}
+#define plImageOpsI_version {0, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] forward declarations & basic types
@@ -47,9 +47,18 @@ typedef struct _plImageOpData   plImageOpData;
 typedef struct _plImageOpInit   plImageOpInit;
 typedef struct _plImageOpRegion plImageOpRegion; // internal
 
+// mipmap types
+typedef struct _plMipMapCpuDesc plMipMapCpuDesc;
+typedef struct _plMipLevel      plMipLevel;
+typedef struct _plMipMapChain   plMipMapChain;
+
 // enums
 typedef int plImageOpFlags;
 typedef int plImageOpColor;
+
+// external enums/flags
+typedef int plFormat;      // pl_graphics_ext.h
+typedef int plTextureType; // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -73,6 +82,11 @@ PL_API void pl_image_ops_square(plImageOpData*);
 PL_API uint8_t* pl_image_ops_extract        (plImageOpData* dataIn, int x, int y, uint32_t w, uint32_t h, uint64_t* sizeOut);
 PL_API void     pl_image_ops_cleanup_extract(uint8_t*);
 
+//-----------------------------MIPMAPPING--------------------------------------
+
+PL_API bool pl_image_ops_generate_mip_chain(const plMipMapCpuDesc*, plMipMapChain* chainOut);
+PL_API void pl_image_ops_free_mip_chain(plMipMapChain* chainOut);
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
@@ -92,6 +106,11 @@ typedef struct _plImageOpsI
     // misc.
     uint8_t* (*extract)        (plImageOpData* dataIn, int x, int y, uint32_t w, uint32_t h, uint64_t* sizeOut);
     void     (*cleanup_extract)(uint8_t*);
+
+    //-----------------------------MIPMAPPING--------------------------------------
+
+    bool (*generate_mip_chain)(const plMipMapCpuDesc*, plMipMapChain* chainOut);
+    void (*free_mip_chain)    (plMipMapChain*);
 } plImageOpsI;
 
 //-----------------------------------------------------------------------------
@@ -126,6 +145,47 @@ typedef struct _plImageOpData
     uint8_t          _uStride; // bytes
     uint8_t          _uChannelStride; // bytes
 } plImageOpData;
+
+typedef struct _plMipMapCpuDesc
+{
+    void*                pData;
+    uint32_t             uWidth;
+    uint32_t             uHeight;
+    uint32_t             uLayers;
+
+    plFormat             eFormat;
+    plTextureType        tTextureType;
+    // plMipMapFilter       tFilter;
+    // plMipMapColorSpace   tColorSpace;
+    // plMipMapContentType  tContentType;
+    // plMipMapFlags        tFlags;
+
+    uint32_t             uBaseMip;
+    uint32_t             uMipCount;     // 0 = full chain
+
+    // Source layout
+    size_t               szRowStride;
+    size_t               szLayerStride;
+
+} plMipMapCpuDesc;
+
+typedef struct _plMipLevel
+{
+    void*    pData;
+    uint32_t uWidth;
+    uint32_t uHeight;
+    size_t   szSize;
+    size_t   szRowStride;
+    size_t   szFaceStride;
+} plMipLevel;
+
+typedef struct _plMipMapChain
+{
+    plFormat    eFormat;
+    uint32_t    uMipCount;
+    uint32_t    uLayerCount;
+    plMipLevel* atLevels;
+} plMipMapChain;
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums

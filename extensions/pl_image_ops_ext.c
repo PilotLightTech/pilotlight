@@ -22,6 +22,9 @@ Index of this file:
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
+// extensions
+#include "pl_graphics_ext.h"
+
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
 #else
@@ -56,6 +59,229 @@ typedef struct _plImageOpRegion
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
+
+static float
+pl__half_to_float(uint16_t h)
+{
+    const uint32_t sign = (uint32_t)(h & 0x8000u) << 16;
+    uint32_t exp        = (h & 0x7C00u) >> 10;
+    uint32_t mant       = h & 0x03FFu;
+
+    uint32_t f;
+
+    if(exp == 0)
+    {
+        if(mant == 0)
+        {
+            f = sign;
+        }
+        else
+        {
+            // Normalize subnormal.
+            exp = 1;
+            while((mant & 0x0400u) == 0)
+            {
+                mant <<= 1;
+                exp--;
+            }
+
+            mant &= 0x03FFu;
+            exp = exp + (127 - 15);
+
+            f = sign | (exp << 23) | (mant << 13);
+        }
+    }
+    else if(exp == 31)
+    {
+        // Inf / NaN
+        f = sign | 0x7F800000u | (mant << 13);
+    }
+    else
+    {
+        exp = exp + (127 - 15);
+        f = sign | (exp << 23) | (mant << 13);
+    }
+
+    float result;
+    memcpy(&result, &f, sizeof(float));
+    return result;
+}
+
+static uint16_t
+pl__float_to_half(float value)
+{
+    uint32_t f;
+    memcpy(&f, &value, sizeof(uint32_t));
+
+    const uint32_t sign = (f >> 16) & 0x8000u;
+    int32_t exp         = (int32_t)((f >> 23) & 0xFFu) - 127 + 15;
+    uint32_t mant       = f & 0x007FFFFFu;
+
+    if(exp <= 0)
+    {
+        if(exp < -10)
+            return (uint16_t)sign;
+
+        mant = mant | 0x00800000u;
+
+        const uint32_t shift = (uint32_t)(14 - exp);
+        uint32_t halfMant = mant >> shift;
+
+        // Round to nearest.
+        if((mant >> (shift - 1)) & 1u)
+            halfMant++;
+
+        return (uint16_t)(sign | halfMant);
+    }
+    else if(exp >= 31)
+    {
+        // Inf/NaN
+        if(mant == 0)
+            return (uint16_t)(sign | 0x7C00u);
+
+        return (uint16_t)(sign | 0x7C00u | (mant >> 13));
+    }
+    else
+    {
+        uint32_t half = sign | ((uint32_t)exp << 10) | (mant >> 13);
+
+        // Round to nearest.
+        if(mant & 0x00001000u)
+            half++;
+
+        return (uint16_t)half;
+    }
+}
+
+static void
+pl__mipmap_filter_2x2_rgba8(
+    const uint8_t* p00,
+    const uint8_t* p10,
+    const uint8_t* p01,
+    const uint8_t* p11,
+    uint8_t* pOut
+)
+{
+    pOut[0] = (uint8_t)(((uint32_t)p00[0] + p10[0] + p01[0] + p11[0] + 2) / 4);
+    pOut[1] = (uint8_t)(((uint32_t)p00[1] + p10[1] + p01[1] + p11[1] + 2) / 4);
+    pOut[2] = (uint8_t)(((uint32_t)p00[2] + p10[2] + p01[2] + p11[2] + 2) / 4);
+    pOut[3] = (uint8_t)(((uint32_t)p00[3] + p10[3] + p01[3] + p11[3] + 2) / 4);
+}
+
+static void
+pl__mipmap_filter_2x2_rgba16f(
+    const uint8_t* p00Bytes,
+    const uint8_t* p10Bytes,
+    const uint8_t* p01Bytes,
+    const uint8_t* p11Bytes,
+    uint8_t* pOutBytes
+)
+{
+    const uint16_t* p00 = (const uint16_t*)p00Bytes;
+    const uint16_t* p10 = (const uint16_t*)p10Bytes;
+    const uint16_t* p01 = (const uint16_t*)p01Bytes;
+    const uint16_t* p11 = (const uint16_t*)p11Bytes;
+    uint16_t* pOut      = (uint16_t*)pOutBytes;
+
+    for(uint32_t c = 0; c < 4; c++)
+    {
+        const float f00 = pl__half_to_float(p00[c]);
+        const float f10 = pl__half_to_float(p10[c]);
+        const float f01 = pl__half_to_float(p01[c]);
+        const float f11 = pl__half_to_float(p11[c]);
+
+        const float fAvg = (f00 + f10 + f01 + f11) * 0.25f;
+
+        pOut[c] = pl__float_to_half(fAvg);
+    }
+}
+
+static uint32_t
+pl__mipmap_get_format_bpp(plFormat eFormat)
+{
+    switch(eFormat)
+    {
+        case PL_FORMAT_R8G8B8A8_UNORM:
+            return 4;
+
+        case PL_FORMAT_R16G16B16A16_FLOAT:
+            return 8;
+
+        default:
+            return 0;
+    }
+}
+
+static bool
+pl__mipmap_generate_next_level_2d(plFormat eFormat, const plMipLevel* ptSrcLevel, plMipLevel* ptDstLevel, uint32_t uLayerCount)
+{
+    const uint32_t uBpp = pl__mipmap_get_format_bpp(eFormat);
+    if(uBpp == 0)
+        return false;
+
+    uint8_t* puSrcBase = (uint8_t*)ptSrcLevel->pData;
+    uint8_t* puDstBase = (uint8_t*)ptDstLevel->pData;
+
+    for(uint32_t uLayer = 0; uLayer < uLayerCount; uLayer++)
+    {
+        uint8_t* puSrcLayer = puSrcBase + uLayer * ptSrcLevel->szFaceStride;
+        uint8_t* puDstLayer = puDstBase + uLayer * ptDstLevel->szFaceStride;
+
+        for(uint32_t y = 0; y < ptDstLevel->uHeight; y++)
+        {
+            for(uint32_t x = 0; x < ptDstLevel->uWidth; x++)
+            {
+                const uint32_t srcX0 = x * 2;
+                const uint32_t srcY0 = y * 2;
+
+                const uint32_t srcX1 = srcX0 + 1 < ptSrcLevel->uWidth  ? srcX0 + 1 : srcX0;
+                const uint32_t srcY1 = srcY0 + 1 < ptSrcLevel->uHeight ? srcY0 + 1 : srcY0;
+
+                const uint8_t* p00 = puSrcLayer + srcY0 * ptSrcLevel->szRowStride + srcX0 * uBpp;
+                const uint8_t* p10 = puSrcLayer + srcY0 * ptSrcLevel->szRowStride + srcX1 * uBpp;
+                const uint8_t* p01 = puSrcLayer + srcY1 * ptSrcLevel->szRowStride + srcX0 * uBpp;
+                const uint8_t* p11 = puSrcLayer + srcY1 * ptSrcLevel->szRowStride + srcX1 * uBpp;
+
+                uint8_t* pOut = puDstLayer + y * ptDstLevel->szRowStride + x * uBpp;
+
+                switch(eFormat)
+                {
+                    case PL_FORMAT_R8G8B8A8_UNORM:
+                        pl__mipmap_filter_2x2_rgba8(p00, p10, p01, p11, pOut);
+                        break;
+
+                    case PL_FORMAT_R16G16B16A16_FLOAT:
+                        pl__mipmap_filter_2x2_rgba16f(p00, p10, p01, p11, pOut);
+                        break;
+
+                    default:
+                        return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+uint32_t
+pl_mipmap_calculate_mip_count(uint32_t uWidth, uint32_t uHeight)
+{
+    uint32_t uMips = (uint32_t)floorf(log2f((float)pl_maxi((int)uWidth, (int)uHeight))) + 1;
+
+    for(uint32_t uMipLevel = 1; uMipLevel < uMips; uMipLevel++)
+    {
+        int iCurrentWidth = (int)uWidth / ((1 << (int)uMipLevel));
+        int iCurrentHeight = (int)uHeight / ((1 << (int)uMipLevel));
+
+        if(iCurrentHeight < 4 || iCurrentWidth < 4)
+        {
+            uMips = uMipLevel;
+            break;
+        }
+    }
+    return uMips;
+}
 
 static inline void
 pl__region_union(plImageOpRegion* out, const plImageOpRegion* a, const plImageOpRegion* b)
@@ -272,6 +498,113 @@ pl_image_ops_square(plImageOpData* ptData)
     ptData->uActiveHeight = uTarget;
 }
 
+bool
+pl_image_ops_generate_mip_chain(const plMipMapCpuDesc* ptDesc, plMipMapChain* ptChain)
+{
+    if(ptDesc == NULL || ptChain == NULL || ptDesc->pData == NULL)
+        return false;
+
+    if(ptDesc->uWidth == 0 || ptDesc->uHeight == 0)
+        return false;
+
+    const uint32_t uBpp = pl__mipmap_get_format_bpp(ptDesc->eFormat);
+    if(uBpp == 0)
+        return false;
+
+    uint32_t uLayerCount = ptDesc->uLayers;
+    if(uLayerCount == 0)
+        uLayerCount = 1;
+
+    if(ptDesc->tTextureType == PL_TEXTURE_TYPE_CUBE && uLayerCount != 6)
+        return false;
+
+    memset(ptChain, 0, sizeof(plMipMapChain));
+
+    ptChain->uMipCount = ptDesc->uMipCount == 0 ?
+        pl_mipmap_calculate_mip_count(ptDesc->uWidth, ptDesc->uHeight) :
+        ptDesc->uMipCount;
+
+    if(ptChain->uMipCount == 0)
+        return false;
+
+    ptChain->atLevels = PL_ALLOC(sizeof(plMipLevel) * ptChain->uMipCount);
+    if(ptChain->atLevels == NULL)
+        return false;
+
+    memset(ptChain->atLevels, 0, sizeof(plMipLevel) * ptChain->uMipCount);
+
+    ptChain->atLevels[0].pData        = (void*)ptDesc->pData;
+    ptChain->atLevels[0].uWidth       = ptDesc->uWidth;
+    ptChain->atLevels[0].uHeight      = ptDesc->uHeight;
+    ptChain->atLevels[0].szRowStride  = ptDesc->uWidth * uBpp;
+    ptChain->atLevels[0].szFaceStride = ptChain->atLevels[0].szRowStride * ptDesc->uHeight;
+    ptChain->atLevels[0].szSize       = ptChain->atLevels[0].szFaceStride * uLayerCount;
+
+    for(uint32_t uCurrentMip = 1; uCurrentMip < ptChain->uMipCount; uCurrentMip++)
+    {
+        plMipLevel* ptSrcLevel = &ptChain->atLevels[uCurrentMip - 1];
+        plMipLevel* ptDstLevel = &ptChain->atLevels[uCurrentMip];
+
+        ptDstLevel->uWidth  = ptSrcLevel->uWidth  > 1 ? ptSrcLevel->uWidth  / 2 : 1;
+        ptDstLevel->uHeight = ptSrcLevel->uHeight > 1 ? ptSrcLevel->uHeight / 2 : 1;
+
+        ptDstLevel->szRowStride  = ptDstLevel->uWidth * uBpp;
+        ptDstLevel->szFaceStride = ptDstLevel->szRowStride * ptDstLevel->uHeight;
+        ptDstLevel->szSize       = ptDstLevel->szFaceStride * uLayerCount;
+
+        ptDstLevel->pData = PL_ALLOC(ptDstLevel->szSize);
+        if(ptDstLevel->pData == NULL)
+        {
+            for(uint32_t i = 1; i < uCurrentMip; i++)
+            {
+                PL_FREE(ptChain->atLevels[i].pData);
+                ptChain->atLevels[i].pData = NULL;
+            }
+
+            PL_FREE(ptChain->atLevels);
+            memset(ptChain, 0, sizeof(plMipMapChain));
+            return false;
+        }
+
+        memset(ptDstLevel->pData, 0, ptDstLevel->szSize);
+
+        if(!pl__mipmap_generate_next_level_2d(
+            ptDesc->eFormat,
+            ptSrcLevel,
+            ptDstLevel,
+            uLayerCount
+        ))
+        {
+            for(uint32_t i = 1; i <= uCurrentMip; i++)
+            {
+                PL_FREE(ptChain->atLevels[i].pData);
+                ptChain->atLevels[i].pData = NULL;
+            }
+
+            PL_FREE(ptChain->atLevels);
+            memset(ptChain, 0, sizeof(plMipMapChain));
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void
+pl_image_ops_free_mip_chain(plMipMapChain* ptChain)
+{
+    if(ptChain == NULL || ptChain->atLevels == NULL)
+        return;
+
+    for(uint32_t i = 1; i < ptChain->uMipCount; i++)
+    {
+        PL_FREE(ptChain->atLevels[i].pData);
+    }
+
+    PL_FREE(ptChain->atLevels);
+    memset(ptChain, 0, sizeof(plMipMapChain));
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -280,13 +613,15 @@ void
 pl_load_image_ops_ext(plApiRegistryI* ptApiRegistry, bool bReload)
 {
     const plImageOpsI tApi = {
-        .initialize      = pl_image_ops_initialize,
-        .cleanup         = pl_image_ops_cleanup,
-        .add             = pl_image_ops_add,
-        .extract         = pl_image_ops_extract,
-        .square          = pl_image_ops_square,
-        .add_region      = pl_image_ops_add_region,
-        .cleanup_extract = pl_image_ops_cleanup_extract,
+        .initialize         = pl_image_ops_initialize,
+        .cleanup            = pl_image_ops_cleanup,
+        .add                = pl_image_ops_add,
+        .extract            = pl_image_ops_extract,
+        .square             = pl_image_ops_square,
+        .add_region         = pl_image_ops_add_region,
+        .cleanup_extract    = pl_image_ops_cleanup_extract,
+        .generate_mip_chain = pl_image_ops_generate_mip_chain,
+        .free_mip_chain     = pl_image_ops_free_mip_chain
     };
     pl_set_api(ptApiRegistry, plImageOpsI, &tApi);
 

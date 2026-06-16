@@ -60,13 +60,21 @@ PL_API void pl_load_stage_ext  (plApiRegistryI*, bool reload);
 PL_API void pl_unload_stage_ext(plApiRegistryI*, bool reload);
 
 // setup/shutdown
-PL_API void     pl_stage_initialize(plStageInit);
-PL_API void     pl_stage_cleanup   (void);
+PL_API void pl_stage_initialize(plStageInit);
+PL_API void pl_stage_cleanup   (void);
 
 // staging
-PL_API void     pl_stage_stage_buffer_upload (plBufferHandle, uint64_t offset, const void* data, uint64_t size);
-PL_API void     pl_stage_stage_texture_upload(plTextureHandle, const plBufferImageCopy*, const void* data, uint64_t size, bool generateMips);
-PL_API void     pl_stage_flush               (void);
+PL_API void pl_stage_stage_buffer_upload (plBufferHandle, uint64_t offset, const void* data, uint64_t size);
+PL_API void pl_stage_stage_texture_upload(plTextureHandle, const plBufferImageCopy*, const void* data, uint64_t size, bool generateMips);
+PL_API void pl_stage_flush               (void);
+
+// readback
+PL_API void pl_stage_get_readback_buffer   (uint64_t size, plBufferHandle*, const char* name);
+PL_API void pl_stage_return_readback_buffer(plBufferHandle*);
+
+// readback
+PL_API void pl_stage_get_staging_buffer   (uint64_t size, plBufferHandle*, const char* name);
+PL_API void pl_stage_return_staging_buffer(plBufferHandle*);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -82,6 +90,14 @@ typedef struct _plStageI
     void (*stage_buffer_upload) (plBufferHandle, uint64_t offset, const void* data, uint64_t size);
     void (*stage_texture_upload)(plTextureHandle, const plBufferImageCopy*, const void* data, uint64_t size, bool generateMips);
     void (*flush)               (void);
+
+    // readback
+    void (*get_readback_buffer)   (uint64_t size, plBufferHandle*, const char* name);
+    void (*return_readback_buffer)(plBufferHandle*);
+
+    // staging
+    void (*get_staging_buffer)   (uint64_t size, plBufferHandle*, const char* name);
+    void (*return_staging_buffer)(plBufferHandle*);
 } plStageI;
 
 //-----------------------------------------------------------------------------

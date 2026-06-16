@@ -589,6 +589,9 @@ typedef struct _plRefRendererData
     plEcsTypeKey tLightComponentType;
     plEcsTypeKey tEnvironmentProbeComponentType;
     plEcsTypeKey tObjectComponentType;
+
+    // misc
+    plBufferHandle tReadbackBuffer;
 } plRefRendererData;
 
 typedef struct _plCullData
@@ -628,8 +631,6 @@ static void pl__renderer_cull_spot_light_job(plInvocationData, void*, void*);
 static plTextureHandle pl__renderer_create_texture              (const plTextureDesc*, const char* pcName, uint32_t uIdentifier);
 static plTextureHandle pl__renderer_create_local_texture        (const plTextureDesc*, const char* pcName, uint32_t uIdentifier);
 static plTextureHandle pl__renderer_create_texture_with_data    (const plTextureDesc*, const char* pcName, uint32_t uIdentifier, const void*, size_t);
-static plBufferHandle  pl__renderer_create_staging_buffer       (const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
-static plBufferHandle  pl__renderer_create_cached_staging_buffer(const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
 static plBufferHandle  pl__renderer_create_local_buffer         (const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
 
 static void pl__camera_build_perspective_frustum(const plCamera* ptCamera, plFrustum* ptFrustum);

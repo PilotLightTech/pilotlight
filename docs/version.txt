@@ -1,4 +1,4 @@
-v0.10.0
+v0.10.1 WIP
 
 -----------------------------------------------------------------------------
                              Versioning
@@ -105,7 +105,7 @@ the API is complete. It just means we won't break what currently exists.
 * Material            v0.1.0 (pl_material_ext.h)
 * Terrain             v0.1.0 (pl_terrain_ext.h)
 * Free List           v0.1.0 (pl_freelist_ext.h)
-* Image Ops           v0.1.0 (pl_image_ops_ext.h)
+* Image Ops           v0.2.0 (pl_image_ops_ext.h)
 * Stage               v0.2.0 (pl_stage_ext.h)
 * Renderer            v0.3.0 (pl_renderer_ext.h)
 * Renderer Terrain    v0.1.0 (pl_renderer_ext.h)
