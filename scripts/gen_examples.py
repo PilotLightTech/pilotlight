@@ -57,6 +57,7 @@ with pl.project("pilotlight_examples"):
         'example_gfx_2',
         'example_gfx_3',
         'example_gfx_4',
+        'example_gfx_5',
     ]
 
     cpp_examples = [

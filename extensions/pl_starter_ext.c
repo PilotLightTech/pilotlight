@@ -34,6 +34,9 @@ Index of this file:
 #include "pl_tools_ext.h"
 #include "pl_gpu_allocators_ext.h"
 
+// unstable extensions
+#include "pl_stage_ext.h"
+
 #ifdef PL_UNITY_BUILD
     #include "pl_unity_ext.inc"
 #else
@@ -54,6 +57,7 @@ Index of this file:
     static const plConsoleI*       gptConsole       = NULL;
     static const plToolsI*         gptTools         = NULL;
     static const plGPUAllocatorsI* gptGpuAllocators = NULL;
+    static const plStageI*         gptStage         = NULL;
     
 #endif
 
@@ -109,6 +113,9 @@ typedef struct _plStarterContext
     // gpu allocators
     plDeviceMemoryAllocatorI* ptLocalDedicatedAllocator;
     plDeviceMemoryAllocatorI* ptLocalBuddyAllocator;
+    plDeviceMemoryAllocatorI* ptStagingUnCachedAllocator;
+    plDeviceMemoryAllocatorI* ptStagingUnCachedBuddyAllocator;
+    plDeviceMemoryAllocatorI* ptStagingCachedAllocator;
 } plStarterContext;
 
 //-----------------------------------------------------------------------------
@@ -186,8 +193,11 @@ pl_starter_initialize(plStarterInit tInit)
     plSwapchain* ptSwapchain = gptGfx->create_swapchain(ptDevice, gptStarterCtx->ptSurface, &tSwapInit);
     gptStarterCtx->ptSwapchain = ptSwapchain;
 
-    gptStarterCtx->ptLocalBuddyAllocator = gptGpuAllocators->get_local_buddy_allocator(ptDevice);
-    gptStarterCtx->ptLocalDedicatedAllocator = gptGpuAllocators->get_local_dedicated_allocator(ptDevice);
+    gptStarterCtx->ptLocalBuddyAllocator           = gptGpuAllocators->get_local_buddy_allocator(ptDevice);
+    gptStarterCtx->ptLocalDedicatedAllocator       = gptGpuAllocators->get_local_dedicated_allocator(ptDevice);
+    gptStarterCtx->ptStagingUnCachedAllocator      = gptGpuAllocators->get_staging_uncached_allocator(ptDevice);
+    gptStarterCtx->ptStagingUnCachedBuddyAllocator = gptGpuAllocators->get_staging_uncached_buddy_allocator(ptDevice);
+    gptStarterCtx->ptStagingCachedAllocator        = gptGpuAllocators->get_staging_cached_allocator(ptDevice);
 
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)
     {
@@ -1187,6 +1197,192 @@ pl__starter_deactivate_depth_buffer(void)
     gptGfx->queue_texture_for_deletion(gptStarterCtx->ptDevice, gptStarterCtx->tDepthTexture);
 }
 
+void
+pl_starter_get_readback_buffer(uint64_t uSize, plBufferHandle* ptHandleOut, const char* pcName)
+{
+    plDevice* ptDevice = gptStarterCtx->ptDevice;
+
+    if(gptGfx->is_buffer_valid(ptDevice, *ptHandleOut))
+    {
+        plBuffer* ptOldBuffer = gptGfx->get_buffer(ptDevice, *ptHandleOut);
+
+        if(ptOldBuffer->tDesc.szByteSize >= uSize)
+            return;
+        
+        gptGfx->queue_buffer_for_deletion(ptDevice, *ptHandleOut);
+    }
+
+    const plBufferDesc tStagingBufferDesc = {
+        .eUsage      = PL_BUFFER_USAGE_TRANSFER | PL_BUFFER_USAGE_STORAGE,
+        .szByteSize  = uSize,
+        .pcDebugName = pcName
+    };
+    plBufferHandle tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, NULL);
+
+    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
+    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
+
+    // allocate memory for the vertex buffer
+    plDeviceMemoryAllocation tStagingBufferAllocation = gptStarterCtx->ptStagingCachedAllocator->allocate(
+        gptStarterCtx->ptStagingCachedAllocator->ptInst,
+        ptStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
+        ptStagingBuffer->tMemoryRequirements.ulSize,
+        ptStagingBuffer->tMemoryRequirements.ulAlignment,
+        pcName);
+
+    // bind the buffer to the new memory allocation
+    gptGfx->bind_buffer_to_memory(ptDevice, tStagingBuffer, &tStagingBufferAllocation);
+
+    *ptHandleOut = tStagingBuffer;
+}
+
+void
+pl_starter_return_readback_buffer(plBufferHandle* ptHandle)
+{
+    plDevice* ptDevice = gptStarterCtx->ptDevice;
+    if(gptGfx->is_buffer_valid(ptDevice, *ptHandle))
+    {
+        gptGfx->queue_buffer_for_deletion(ptDevice, *ptHandle);
+        ptHandle->uData = 0;
+    }
+}
+
+void
+pl_starter_get_staging_buffer(uint64_t uSize, plBufferHandle* ptHandleOut, const char* pcName)
+{
+    plDevice* ptDevice = gptStarterCtx->ptDevice;
+
+    if(gptGfx->is_buffer_valid(ptDevice, *ptHandleOut))
+    {
+        plBuffer* ptOldBuffer = gptGfx->get_buffer(ptDevice, *ptHandleOut);
+
+        if(ptOldBuffer->tDesc.szByteSize >= uSize)
+            return;
+        
+        gptGfx->queue_buffer_for_deletion(ptDevice, *ptHandleOut);
+    }
+
+    const plBufferDesc tStagingBufferDesc = {
+        .eUsage      = PL_BUFFER_USAGE_TRANSFER | PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_UNIFORM,
+        .szByteSize  = uSize,
+        .pcDebugName = pcName
+    };
+    plBuffer* ptBuffer = NULL;
+    plBufferHandle tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, &ptBuffer);
+
+    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
+    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
+
+    plDeviceMemoryAllocatorI* ptAllocator = NULL;
+
+    if(ptBuffer->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
+        ptAllocator = gptStarterCtx->ptStagingUnCachedAllocator;
+    else
+        ptAllocator = gptStarterCtx->ptStagingUnCachedBuddyAllocator;
+
+    // allocate memory for the vertex buffer
+    plDeviceMemoryAllocation tStagingBufferAllocation = ptAllocator->allocate(
+        ptAllocator->ptInst,
+        ptStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
+        ptStagingBuffer->tMemoryRequirements.ulSize,
+        ptStagingBuffer->tMemoryRequirements.ulAlignment,
+        pcName);
+
+    // bind the buffer to the new memory allocation
+    gptGfx->bind_buffer_to_memory(ptDevice, tStagingBuffer, &tStagingBufferAllocation);
+
+    *ptHandleOut = tStagingBuffer;
+}
+
+void
+pl_starter_return_staging_buffer(plBufferHandle* ptHandle)
+{
+    plDevice* ptDevice = gptStarterCtx->ptDevice;
+    if(gptGfx->is_buffer_valid(ptDevice, *ptHandle))
+    {
+        gptGfx->queue_buffer_for_deletion(ptDevice, *ptHandle);
+        ptHandle->uData = 0;
+    }
+}
+
+void
+pl_starter_create_texture(const plTextureDesc* ptDesc, const void* pData, uint64_t uSize, plTextureHandle* ptHandleOut)
+{
+    // for convience
+    plDevice* ptDevice = gptStarterCtx->ptDevice;
+ 
+    // create texture
+    plTexture* ptTexture = NULL;
+    const plTextureHandle tHandle = gptGfx->create_texture(ptDevice, ptDesc, &ptTexture);
+
+    // choose allocator
+    plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
+    if(ptTexture->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
+        ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
+
+    // allocate memory
+    const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
+        ptTexture->tMemoryRequirements.uMemoryTypeBits,
+        ptTexture->tMemoryRequirements.ulSize,
+        ptTexture->tMemoryRequirements.ulAlignment,
+        ptDesc->pcDebugName);
+
+    // bind memory
+    gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
+
+    // if data is presented, upload using staging buffer
+    if(pData)
+    {
+        PL_ASSERT(ptDesc->uLayers == 1); // this is for simple textures right now
+
+        const plBufferImageCopy tBufferImageCopy = {
+            .uImageWidth = (uint32_t)ptDesc->tDimensions.x,
+            .uImageHeight = (uint32_t)ptDesc->tDimensions.y,
+            .uImageDepth = 1,
+            .uLayerCount = 1
+        };
+
+        gptStage->stage_texture_upload(tHandle, &tBufferImageCopy, pData, uSize, true);
+        gptStage->flush();
+    }
+    *ptHandleOut = tHandle;
+}
+
+void
+pl_starter_create_buffer(const plBufferDesc* ptDesc, const void* pData, plBufferHandle* ptHandleOut)
+{
+    // for convience
+    plDevice* ptDevice = gptStarterCtx->ptDevice;
+ 
+    // create texture
+    plBuffer* ptBuffer = NULL;
+    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc, &ptBuffer);
+
+    // choose allocator
+    plDeviceMemoryAllocatorI* ptAllocator = gptStarterCtx->ptLocalBuddyAllocator;
+    if(ptBuffer->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
+        ptAllocator = gptStarterCtx->ptLocalDedicatedAllocator;
+
+    // allocate memory
+    const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
+        ptBuffer->tMemoryRequirements.uMemoryTypeBits,
+        ptBuffer->tMemoryRequirements.ulSize,
+        ptBuffer->tMemoryRequirements.ulAlignment,
+        ptDesc->pcDebugName);
+
+    // bind memory
+    gptGfx->bind_buffer_to_memory(ptDevice, tHandle, &tAllocation);
+
+    // if data is presented, upload using staging buffer
+    if(pData)
+    {
+        gptStage->stage_buffer_upload(tHandle, 0, pData, ptDesc->szByteSize);
+        gptStage->flush();
+    }
+    *ptHandleOut = tHandle;
+}
+
+
 //-----------------------------------------------------------------------------
 // [SECTION] extension loading
 //-----------------------------------------------------------------------------
@@ -1231,6 +1427,12 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .activate_vsync                       = pl_starter_activate_vsync,
         .deactivate_vsync                     = pl_starter_deactivate_vsync,
         .get_render_attachment_info           = pl_starter_get_render_attachment_info,
+        .get_readback_buffer                  = pl_starter_get_readback_buffer,
+        .return_readback_buffer               = pl_starter_return_readback_buffer,
+        .get_staging_buffer                   = pl_starter_get_staging_buffer,
+        .return_staging_buffer                = pl_starter_return_staging_buffer,
+        .create_texture                       = pl_starter_create_texture,
+        .create_buffer                        = pl_starter_create_buffer,
     };
     pl_set_api(ptApiRegistry, plStarterI, &tApi);
 
@@ -1248,6 +1450,7 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptShader        = pl_get_api_latest(ptApiRegistry, plShaderI);
     gptTools         = pl_get_api_latest(ptApiRegistry, plToolsI);
     gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
+    gptStage         = pl_get_api_latest(ptApiRegistry, plStageI);
 
     if(bReload)
     {

@@ -332,127 +332,10 @@ pl_stage_flush(void)
     gptGfx->wait_on_command_buffer(ptCommandBuffer);
     gptGfx->return_command_buffer(ptCommandBuffer);
 
-    // const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtStageBlocks);
-    // for(uint32_t i = 0; i < uBlockCount; i++)
-    // {
-    //     gptStageCtx->sbtStageBlocks[i].uCurrentOffset = 0;
-    // }
-    
-
     const uint32_t uBlockCount = pl_sb_size(gptStageCtx->sbtStageBlocks);
     for(uint32_t i = 0; i < uBlockCount; i++)
     {
-        // gptGfx->destroy_buffer(gptStageCtx->ptDevice, gptStageCtx->sbtStageBlocks[i].tBuffer);
         gptStageCtx->sbtStageBlocks[i].uCurrentOffset = 0;
-    }
-    // pl_sb_reset(gptStageCtx->sbtStageBlocks);
-}
-
-void
-pl_stage_get_readback_buffer(uint64_t uSize, plBufferHandle* ptHandleOut, const char* pcName)
-{
-    plDevice* ptDevice = gptStageCtx->ptDevice;
-
-    if(gptGfx->is_buffer_valid(ptDevice, *ptHandleOut))
-    {
-        plBuffer* ptOldBuffer = gptGfx->get_buffer(ptDevice, *ptHandleOut);
-
-        if(ptOldBuffer->tDesc.szByteSize >= uSize)
-            return;
-        
-        gptGfx->queue_buffer_for_deletion(ptDevice, *ptHandleOut);
-    }
-
-    const plBufferDesc tStagingBufferDesc = {
-        .eUsage      = PL_BUFFER_USAGE_TRANSFER | PL_BUFFER_USAGE_STORAGE,
-        .szByteSize  = uSize,
-        .pcDebugName = pcName
-    };
-    plBufferHandle tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, NULL);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
-
-    // allocate memory for the vertex buffer
-    plDeviceMemoryAllocation tStagingBufferAllocation = gptStageCtx->ptStagingCachedAllocator->allocate(
-        gptStageCtx->ptStagingCachedAllocator->ptInst,
-        ptStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
-        ptStagingBuffer->tMemoryRequirements.ulSize,
-        ptStagingBuffer->tMemoryRequirements.ulAlignment,
-        pcName);
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, tStagingBuffer, &tStagingBufferAllocation);
-
-    *ptHandleOut = tStagingBuffer;
-}
-
-void
-pl_stage_return_readback_buffer(plBufferHandle* ptHandle)
-{
-    plDevice* ptDevice = gptStageCtx->ptDevice;
-    if(gptGfx->is_buffer_valid(ptDevice, *ptHandle))
-    {
-        gptGfx->queue_buffer_for_deletion(ptDevice, *ptHandle);
-        ptHandle->uData = 0;
-    }
-}
-
-void
-pl_stage_get_staging_buffer(uint64_t uSize, plBufferHandle* ptHandleOut, const char* pcName)
-{
-    plDevice* ptDevice = gptStageCtx->ptDevice;
-
-    if(gptGfx->is_buffer_valid(ptDevice, *ptHandleOut))
-    {
-        plBuffer* ptOldBuffer = gptGfx->get_buffer(ptDevice, *ptHandleOut);
-
-        if(ptOldBuffer->tDesc.szByteSize >= uSize)
-            return;
-        
-        gptGfx->queue_buffer_for_deletion(ptDevice, *ptHandleOut);
-    }
-
-    const plBufferDesc tStagingBufferDesc = {
-        .eUsage      = PL_BUFFER_USAGE_TRANSFER | PL_BUFFER_USAGE_STORAGE,
-        .szByteSize  = uSize,
-        .pcDebugName = pcName
-    };
-    plBuffer* ptBuffer = NULL;
-    plBufferHandle tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, &ptBuffer);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, tStagingBuffer);
-
-    plDeviceMemoryAllocatorI* ptAllocator = NULL;
-
-    if(ptBuffer->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
-        ptAllocator = gptStageCtx->ptStagingUnCachedAllocator;
-    else
-        ptAllocator = gptStageCtx->ptStagingUnCachedBuddyAllocator;
-
-    // allocate memory for the vertex buffer
-    plDeviceMemoryAllocation tStagingBufferAllocation = ptAllocator->allocate(
-        ptAllocator->ptInst,
-        ptStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
-        ptStagingBuffer->tMemoryRequirements.ulSize,
-        ptStagingBuffer->tMemoryRequirements.ulAlignment,
-        pcName);
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, tStagingBuffer, &tStagingBufferAllocation);
-
-    *ptHandleOut = tStagingBuffer;
-}
-
-void
-pl_stage_return_staging_buffer(plBufferHandle* ptHandle)
-{
-    plDevice* ptDevice = gptStageCtx->ptDevice;
-    if(gptGfx->is_buffer_valid(ptDevice, *ptHandle))
-    {
-        gptGfx->queue_buffer_for_deletion(ptDevice, *ptHandle);
-        ptHandle->uData = 0;
     }
 }
 
@@ -468,11 +351,7 @@ pl_load_stage_ext(plApiRegistryI* ptApiRegistry, bool bReload)
         .cleanup                = pl_stage_cleanup,
         .stage_buffer_upload    = pl_stage_stage_buffer_upload,
         .stage_texture_upload   = pl_stage_stage_texture_upload,
-        .flush                  = pl_stage_flush,
-        .get_readback_buffer    = pl_stage_get_readback_buffer,
-        .return_readback_buffer = pl_stage_return_readback_buffer,
-        .get_staging_buffer     = pl_stage_get_staging_buffer,
-        .return_staging_buffer  = pl_stage_return_staging_buffer,
+        .flush                  = pl_stage_flush
     };
     pl_set_api(ptApiRegistry, plStageI, &tApi);
 

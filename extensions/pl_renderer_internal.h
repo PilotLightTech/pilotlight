@@ -627,12 +627,6 @@ static void pl__renderer_cull_job(plInvocationData, void*, void*);
 static void pl__renderer_cull_point_light_job(plInvocationData, void*, void*);
 static void pl__renderer_cull_spot_light_job(plInvocationData, void*, void*);
 
-// resource creation helpers
-static plTextureHandle pl__renderer_create_texture              (const plTextureDesc*, const char* pcName, uint32_t uIdentifier);
-static plTextureHandle pl__renderer_create_local_texture        (const plTextureDesc*, const char* pcName, uint32_t uIdentifier);
-static plTextureHandle pl__renderer_create_texture_with_data    (const plTextureDesc*, const char* pcName, uint32_t uIdentifier, const void*, size_t);
-static plBufferHandle  pl__renderer_create_local_buffer         (const plBufferDesc*, const char* pcName, uint32_t uIdentifier);
-
 static void pl__camera_build_perspective_frustum(const plCamera* ptCamera, plFrustum* ptFrustum);
 static void pl_camera_build_orthographic_frustum(const plCamera* ptCamera, plFrustum* ptFrustum);
 
@@ -665,8 +659,5 @@ static void                    pl__renderer_return_bindless_cube_texture_index(p
 static void pl__renderer_create_probe_data(plScene*, plEntity tProbeHandle);
 static void pl__renderer_update_probes(plScene*);
 static void pl__renderer_create_environment_map_from_texture(plScene*, plEnvironmentProbeData* ptProbe);
-bool pl_renderer_add_drawable_objects_to_scene(plScene* ptScene, uint32_t uObjectCount, const plEntity* atObjects);
-
-plBindGroupHandle pl_renderer_get_view_texture(plView* ptView, plVec2* ptMaxUVOut);
 
 #endif // PL_RENDERER_INTERNAL_H

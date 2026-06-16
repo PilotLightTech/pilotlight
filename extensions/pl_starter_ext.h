@@ -25,11 +25,11 @@ Index of this file:
         The provided implementation of this extension depends on the following
         APIs being available:
 
-        * plGraphicsI    (v1.x)
+        * plGraphicsI    (v2.x)
         * plScreenLogI   (v2.x)
         * plUiI          (v1.x)
-        * plDrawI        (v2.x)
-        * plShaderI      (v1.x)
+        * plDrawI        (v3.x)
+        * plShaderI      (v2.x)
         * plProfileI     (v1.x)
         * plConsoleI     (v1.x)
 */
@@ -65,7 +65,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plStarterI_version {2, 0, 0}
+#define plStarterI_version {2, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -96,6 +96,10 @@ typedef struct _plSurface              plSurface;              // pl_graphics_ex
 typedef struct _plSwapchain            plSwapchain;            // pl_graphics_ext.h
 typedef struct _plCommandBuffer        plCommandBuffer;        // pl_graphics_ext.h
 typedef struct _plRenderAttachmentInfo plRenderAttachmentInfo; // pl_graphics_ext.h
+typedef struct _plTextureDesc          plTextureDesc;          // pl_graphics_ext.h
+typedef struct _plBufferDesc           plBufferDesc;           // pl_graphics_ext.h
+typedef union plBufferHandle           plBufferHandle;         // pl_graphics_ext.h
+typedef union plTextureHandle          plTextureHandle;        // pl_graphics_ext.h
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
@@ -207,6 +211,20 @@ PL_API plDrawLayer2D* pl_starter_get_background_layer(void);
 // discrete, then integrated, then CPU.
 PL_API plDevice* pl_starter_create_device(plSurface*);
 
+// readback buffers
+PL_API void pl_starter_get_readback_buffer   (uint64_t size, plBufferHandle*, const char* name); // allocates/resizes
+PL_API void pl_starter_return_readback_buffer(plBufferHandle*);
+
+// staging buffers
+PL_API void pl_starter_get_staging_buffer   (uint64_t size, plBufferHandle*, const char* name); // allocates/resizes
+PL_API void pl_starter_return_staging_buffer(plBufferHandle*);
+
+// textures (local memory)
+PL_API void pl_starter_create_texture(const plTextureDesc*, const void* data, uint64_t size, plTextureHandle*); // data only for 2D textures for now
+
+// buffers (local memory)
+PL_API void pl_starter_create_buffer(const plBufferDesc*, const void* data, plBufferHandle*);
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api struct
 //-----------------------------------------------------------------------------
@@ -284,6 +302,20 @@ typedef struct _plStarterI
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~helper API~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     plDevice* (*create_device)(plSurface*);
+
+    // readback buffer
+    void (*get_readback_buffer)   (uint64_t size, plBufferHandle*, const char* name); // allocates/resizes
+    void (*return_readback_buffer)(plBufferHandle*);
+
+    // staging buffers
+    void (*get_staging_buffer)   (uint64_t size, plBufferHandle*, const char* name); // allocates/resizes
+    void (*return_staging_buffer)(plBufferHandle*);
+
+    // textures (local memory)
+    void (*create_texture)(const plTextureDesc*, const void* data, uint64_t size, plTextureHandle*); // data only for 2D textures for now
+
+    // buffers (local memory)
+    void (*create_buffer)(const plBufferDesc*, const void* data, plBufferHandle*);
 
 } plStarterI;
 

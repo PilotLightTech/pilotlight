@@ -1,5 +1,4 @@
 /*
-   example_gfx_1.c
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
@@ -175,7 +174,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // vertex buffer data
-    const float atVertexData[] = { // x, y, r, g, b, a
+    const float afVertexData[] = { // x, y, r, g, b, a
         -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f,
          0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
          0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f,
@@ -185,25 +184,14 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // create vertex buffer
     const plBufferDesc tVertexBufferDesc = {
         .eUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER,
-        .szByteSize  = sizeof(float) * PL_ARRAYSIZE(atVertexData),
+        .szByteSize  = sizeof(float) * PL_ARRAYSIZE(afVertexData),
         .pcDebugName = "vertex buffer"
     };
-    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);
-
-    // allocate memory for the vertex buffer
-    const plDeviceMemoryAllocation tVertexBufferAllocation = gptGfx->allocate_memory(ptDevice,
-        ptVertexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "vertex buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tVertexBuffer, &tVertexBufferAllocation);
+    gptStarter->create_buffer(&tVertexBufferDesc, afVertexData, &ptAppData->tVertexBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // for the index buffer, we will not use the starter API & instead will show what it was handling for us
     
     // index buffer data
     const uint32_t atIndexData[] = {
@@ -258,8 +246,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~transfers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // copy memory to mapped staging buffer
-    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, atVertexData, sizeof(float) * PL_ARRAYSIZE(atVertexData));
-    memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[1024], atIndexData, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
+    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, atIndexData, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
 
     // begin blit pass, copy buffer, end pass
     // NOTE: we are using the starter extension to get a blit encoder, later examples we will
@@ -267,8 +254,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     plCommandBuffer* ptCommandBuffer = gptStarter->get_temporary_command_buffer();
     gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
-    gptGfx->copy_buffer(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * PL_ARRAYSIZE(atVertexData));
-    gptGfx->copy_buffer(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
+    gptGfx->copy_buffer(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 0, 0, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
     gptGfx->end_compute_pass(ptCommandBuffer);
     gptStarter->submit_temporary_command_buffer(ptCommandBuffer);
 

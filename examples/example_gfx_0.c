@@ -1,5 +1,4 @@
 /*
-   example_gfx_0.c
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
@@ -208,7 +207,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~buffers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // vertex buffer data
-    const float atVertexData[] = { // x, y, r, g, b, a
+    const float afVertexData[] = { // x, y, r, g, b, a
         -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 1.0f,
          0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f,
          0.0f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f
@@ -217,30 +216,10 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // create vertex buffer
     const plBufferDesc tBufferDesc = {
         .eUsage       = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER,
-        .szByteSize   = sizeof(float) * PL_ARRAYSIZE(atVertexData),
+        .szByteSize   = sizeof(float) * PL_ARRAYSIZE(afVertexData),
         .pcDebugName  = "vertex buffer"
     };
-    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tBufferDesc, NULL);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);
-
-    // allocate memory for the vertex buffer
-    // NOTE: for this example we are using host visible memory for simplicity (PL_MEMORY_GPU_CPU)
-    //       which is persistently mapped. For rarely updated memory, device local memory should
-    //       be used, with uploads transfered from staging buffers (see later examples)
-    const plDeviceMemoryAllocation tAllocation = gptGfx->allocate_memory(ptDevice,
-        ptVertexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
-        ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "vertex buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tVertexBuffer, &tAllocation);
-
-    // copy vertex data to newly allocated memory
-    // NOTE: you can't access the mapped memory until it's bound (metal backend reasons)
-    memcpy(ptVertexBuffer->tMemoryAllocation.pHostMapped, atVertexData, sizeof(float) * PL_ARRAYSIZE(atVertexData));
+    gptStarter->create_buffer(&tBufferDesc, afVertexData, &ptAppData->tVertexBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

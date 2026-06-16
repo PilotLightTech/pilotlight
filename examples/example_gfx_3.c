@@ -1,11 +1,14 @@
 /*
-   example_gfx_3.c
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
      - demonstrates starter extension
-     - demonstrates camera extension
-     - demonstrates drawing extension (2D & 3D)
+     - demonstrates bind groups
+     - demonstrates vertex, index, staging buffers
+     - demonstrates samplers, textures, bind groups
+     - demonstrates shaders
+     - demonstrates indexed drawing
+     - demonstrates image extension
 */
 
 /*
@@ -23,17 +26,20 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include <string.h> // memset
+#include <stdio.h>
 #include "pl.h"
-
+#include "pl_ds.h"
+#include "pl_memory.h"
 #define PL_MATH_INCLUDE_FUNCTIONS
 #include "pl_math.h"
 
 // extensions
+#include "pl_log_ext.h"
+#include "pl_platform_ext.h"
 #include "pl_graphics_ext.h"
-#include "pl_draw_ext.h"
+#include "pl_image_ext.h"
+#include "pl_shader_ext.h"
 #include "pl_starter_ext.h"
-#include "pl_camera_ext.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -44,21 +50,40 @@ typedef struct _plAppData
     // window
     plWindow* ptWindow;
 
-    // 3d drawing
-    plCamera      tCamera;
-    plDrawList3D* pt3dDrawlist;
+    // shaders
+    plShaderHandle tShader;
+
+    // buffers
+    plBufferHandle tStagingBuffer;
+    plBufferHandle tIndexBuffer;
+    plBufferHandle tVertexBuffer;
+
+    // textures
+    plTextureHandle tTexture;
+
+    // samplers
+    plSamplerHandle tSampler;
+
+    // bind groups
+    plBindGroupHandle       tBindGroup0;
+    plBindGroupLayoutHandle tBindGroupLayout0;
+
+    // graphics & sync objects
+    plBindGroupPool* ptBindGroupPool;
+
 } plAppData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-const plIOI*          gptIO          = NULL;
-const plWindowI*      gptWindows     = NULL;
-const plGraphicsI*    gptGfx         = NULL;
-const plDrawI*        gptDraw        = NULL;
-const plStarterI*     gptStarter     = NULL;
-const plCameraI*      gptCamera      = NULL;
+const plIOI*       gptIO      = NULL;
+const plWindowI*   gptWindows = NULL;
+const plGraphicsI* gptGfx     = NULL;
+const plImageI*    gptImage   = NULL;
+const plShaderI*   gptShader  = NULL;
+const plFileI*     gptFile    = NULL;
+const plStarterI*  gptStarter = NULL;
 
 //-----------------------------------------------------------------------------
 // [SECTION] pl_app_load
@@ -80,12 +105,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     {
         // re-retrieve the apis since we are now in
         // a different dll/so
-        gptIO          = pl_get_api_latest(ptApiRegistry, plIOI);
-        gptWindows     = pl_get_api_latest(ptApiRegistry, plWindowI);
-        gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-        gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-        gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
-        gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
+        gptIO      = pl_get_api_latest(ptApiRegistry, plIOI);
+        gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
+        gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+        gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
+        gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
+        gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
+        gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
 
         return ptAppData;
     }
@@ -98,7 +124,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // retrieve extension registry
     const plExtensionRegistryI* ptExtensionRegistry = pl_get_api_latest(ptApiRegistry, plExtensionRegistryI);
 
-    // load extensions (makes their APIs available)
+    // load extensions
     ptExtensionRegistry->load("pl_unity_ext", NULL, NULL, true);
     ptExtensionRegistry->load("pl_platform_ext", "pl_load_platform_ext", "pl_unload_platform_ext", false);
     
@@ -107,10 +133,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows = pl_get_api_latest(ptApiRegistry, plWindowI);
 
     // load required apis (these are provided though extensions)
-    gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
-    gptDraw        = pl_get_api_latest(ptApiRegistry, plDrawI);
-    gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
-    gptCamera      = pl_get_api_latest(ptApiRegistry, plCameraI);
+    gptGfx     = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+    gptShader  = pl_get_api_latest(ptApiRegistry, plShaderI);
+    gptImage   = pl_get_api_latest(ptApiRegistry, plImageI);
+    gptFile    = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptStarter = pl_get_api_latest(ptApiRegistry, plStarterI);
 
     // use window API to create a window
     plWindowDesc tWindowDesc = {
@@ -128,35 +155,289 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .ptWindow = ptAppData->ptWindow
     };
 
-    // we want the starter extension to include a depth buffer
-    // when setting up the render pass
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_MSAA;
+    // we will remove this flag so we can handle
+    // management of the shader extension
+    tStarterInit.eFlags &= ~PL_STARTER_FLAGS_SHADER_EXT;
 
     // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
     // etc. which we will get to in later examples
     gptStarter->initialize(tStarterInit);
 
+    plDevice* ptDevice = gptStarter->get_device();
+
+    // initialize shader extension (we are doing this ourselves so we can add additional shader directories)
+    static const plShaderOptions tDefaultShaderOptions = {
+        .apcIncludeDirectories = {
+            "../examples/shaders/"
+        },
+        .apcDirectories = {
+            "../shaders/",
+            "../examples/shaders/"
+        },
+        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_NEVER_CACHE
+    };
+    gptShader->initialize(&tDefaultShaderOptions);
+
     // give starter extension chance to do its work now that we
     // setup the shader extension
     gptStarter->finalize();
 
-    // request 3d drawlists
-    ptAppData->pt3dDrawlist = gptDraw->request_3d_drawlist();
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    // create camera
-    gptCamera->init(&ptAppData->tCamera);
-    plCameraPerspectiveDesc tCameraDesc = {
-        .fNearZ       = 0.01f,
-        .fFarZ        = 50.0f,
-        .fYFov        = PL_PI_3,
-        .fAspectRatio = 1.0f,
-        .eDepthMode   = PL_CAMERA_DEPTH_MODE_STANDARD
+    // vertex buffer data
+    const float atVertexData[] = { // x, y, u, v
+        -0.5f, -0.5f, 0.0f, 0.0f,
+        -0.5f,  0.5f, 0.0f, 1.0f, 
+         0.5f,  0.5f, 1.0f, 1.0f,
+         0.5f, -0.5f, 1.0f, 0.0f
     };
-    gptCamera->set_perspective(&ptAppData->tCamera, &tCameraDesc);
-    gptCamera->set_position(&ptAppData->tCamera, (plVec3d){5.0, 10.0, 10.0});
-    gptCamera->set_euler(&ptAppData->tCamera, -PL_PI_4, PL_PI + PL_PI_4, 0.0f);
-    gptCamera->update(&ptAppData->tCamera);
+
+    // create vertex buffer
+    const plBufferDesc tVertexBufferDesc = {
+        .eUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER,
+        .szByteSize  = sizeof(float) * PL_ARRAYSIZE(atVertexData),
+        .pcDebugName = "vertex buffer"
+    };
+    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
+
+    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
+    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);
+
+    // allocate memory for the vertex buffer
+    const plDeviceMemoryAllocation tVertexBufferAllocation = gptGfx->allocate_memory(ptDevice,
+        ptVertexBuffer->tMemoryRequirements.ulSize,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
+        ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
+        "vertex buffer memory");
+
+    // bind the buffer to the new memory allocation
+    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tVertexBuffer, &tVertexBufferAllocation);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    // index buffer data
+    const uint32_t atIndexData[] = {
+        0, 1, 2,
+        0, 2, 3
+    };
+
+    // create index buffer
+    const plBufferDesc tIndexBufferDesc = {
+        .eUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER,
+        .szByteSize  = sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData),
+        .pcDebugName = "index buffer"
+    };
+    ptAppData->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, NULL);
+
+    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
+    plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tIndexBuffer);
+
+    // allocate memory for the index buffer
+    const plDeviceMemoryAllocation tIndexBufferAllocation = gptGfx->allocate_memory(ptDevice,
+        ptIndexBuffer->tMemoryRequirements.ulSize,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
+        ptIndexBuffer->tMemoryRequirements.uMemoryTypeBits,
+        "index buffer memory");
+
+    // bind the buffer to the new memory allocation
+    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tIndexBuffer, &tIndexBufferAllocation);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~staging buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // create vertex buffer
+    const plBufferDesc tStagingBufferDesc = {
+        .eUsage      = PL_BUFFER_USAGE_TRANSFER,
+        .szByteSize  = 1280000,
+        .pcDebugName = "staging buffer"
+    };
+    ptAppData->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, NULL);
+
+    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
+    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tStagingBuffer);
+
+    // allocate memory for the vertex buffer
+    const plDeviceMemoryAllocation tStagingBufferAllocation = gptGfx->allocate_memory(ptDevice,
+        ptStagingBuffer->tMemoryRequirements.ulSize,
+        PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
+        ptStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
+        "staging buffer memory");
+
+    // bind the buffer to the new memory allocation
+    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tStagingBuffer, &tStagingBufferAllocation);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~transfers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, atVertexData, sizeof(float) * PL_ARRAYSIZE(atVertexData));
+    memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[1024], atIndexData, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
+
+    plCommandBuffer* ptCommandBuffer = gptStarter->get_temporary_command_buffer();
+    gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
+
+    gptGfx->copy_buffer(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * PL_ARRAYSIZE(atVertexData));
+    gptGfx->copy_buffer(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // load actual data from file data
+    int iImageWidth = 0;
+    int iImageHeight = 0;
+    int _unused;
+    unsigned char* pucImageData = gptImage->load_from_file("../assets/core/textures/sprite_map.png", &iImageWidth, &iImageHeight, &_unused, 4);
+
+    // create texture
+    const plTextureDesc tTextureDesc = {
+        .tDimensions = { (float)iImageWidth, (float)iImageHeight, 1},
+        .eFormat     = PL_FORMAT_R8G8B8A8_UNORM,
+        .uLayers     = 1,
+        .uMips       = 1,
+        .eType       = PL_TEXTURE_TYPE_2D,
+        .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName = "texture"
+    };
+    ptAppData->tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, NULL);
+
+    // retrieve new texture (also could have used out param from create_texture above)
+    plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptAppData->tTexture);
+
+    // allocate memory
+    const plDeviceMemoryAllocation tTextureAllocation = gptGfx->allocate_memory(ptDevice,
+        ptTexture->tMemoryRequirements.ulSize,
+        PL_MEMORY_FLAGS_DEVICE_LOCAL,
+        ptTexture->tMemoryRequirements.uMemoryTypeBits,
+        "texture memory");
+
+    // bind memory
+    gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tTexture, &tTextureAllocation);
+
+    // copy memory to mapped staging buffer
+    memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[2048], pucImageData, iImageWidth * iImageHeight * 4);
+
+    const plBufferImageCopy tBufferImageCopy = {
+        .uImageWidth    = (uint32_t)iImageWidth,
+        .uImageHeight   = (uint32_t)iImageHeight,
+        .uImageDepth    = 1,
+        .uLayerCount    = 1,
+        .szBufferOffset = 2048
+    };
+
+    gptGfx->copy_buffer_to_texture(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tTexture, 1, &tBufferImageCopy);
+
+    gptGfx->end_compute_pass(ptCommandBuffer);
+    gptStarter->submit_temporary_command_buffer(ptCommandBuffer);
+
+    // free image data
+    gptImage->free(pucImageData);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~samplers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    const plSamplerDesc tSamplerDesc = {
+        .eMagFilter    = PL_FILTER_LINEAR,
+        .eMinFilter    = PL_FILTER_LINEAR,
+        .fMinMip       = 0.0f,
+        .fMaxMip       = 1.0f,
+        .eVAddressMode = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .eUAddressMode = PL_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .pcDebugName   = "sampler"
+    };
+    ptAppData->tSampler = gptGfx->create_sampler(ptDevice, &tSamplerDesc);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    // NOTE: Bind group pools map directly to descriptor pools in Vulkan. In Metal
+    //       a bind group is just an argument buffer managed as a pool
+
+    // create bind group pool
+    const plBindGroupPoolDesc tBindGroupPoolDesc = {
+        .eFlags                      = PL_BIND_GROUP_POOL_FLAGS_NONE,
+        .szSamplerBindings           = 1,
+        .szSampledTextureBindings    = 1
+    };
+    ptAppData->ptBindGroupPool = gptGfx->create_bind_group_pool(ptDevice, &tBindGroupPoolDesc);
+
+    // NOTE: Bind group layouts and bind groups map directly to Vulkan descriptor
+    //       set layouts and descriptors. The metal backend accomplishes the same
+    //       concept but treats bind groups as simple offsets into argument buffers.
+
+    // create bind group
+    const plBindGroupLayoutDesc tBindGroupLayout = {
+        .atSamplerBindings = {
+            { .uSlot = 0, .eStages = PL_SHADER_STAGE_FRAGMENT}
+        },
+        .atTextureBindings = {
+            {.uSlot = 1, .eStages = PL_SHADER_STAGE_FRAGMENT, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+        }
+    };
+    ptAppData->tBindGroupLayout0 = gptGfx->create_bind_group_layout(ptDevice, &tBindGroupLayout);
+
+    const plBindGroupDesc tBindGroupDesc = {
+        .tLayout     = ptAppData->tBindGroupLayout0,
+        .pcDebugName = "bind group 0",
+        .ptPool      = ptAppData->ptBindGroupPool
+    };
+    ptAppData->tBindGroup0 = gptGfx->create_bind_group(ptDevice, &tBindGroupDesc);
+
+    // update bind group (actually point bind groups to GPU resources)
+    const plBindGroupUpdateData tBGData = {
+        .atSamplerBindings = {
+            {
+                .tSampler = ptAppData->tSampler,
+                .uSlot    = 0
+            }
+        },
+        .atTextureBindings = {
+            {
+                .tTexture = ptAppData->tTexture,
+                .uSlot    = 1,
+                .eType    = PL_TEXTURE_BINDING_TYPE_SAMPLED
+            }
+        }
+    };
+    gptGfx->update_bind_group(ptDevice, ptAppData->tBindGroup0, &tBGData);
+
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~shaders~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    plShaderDesc tShaderDesc = {
+        .tVertexShader    = gptShader->load_glsl("example_gfx_2.vert", "main", NULL, NULL),
+        .tFragmentShader  = gptShader->load_glsl("example_gfx_2.frag", "main", NULL, NULL),
+        .tGraphicsState = {
+            .bDepthWriteEnabled  = 0,
+            .eDepthMode          = PL_COMPARE_MODE_ALWAYS,
+            .eCullMode           = PL_CULL_MODE_NONE,
+            .bWireframe          = 0,
+            .eStencilMode        = PL_COMPARE_MODE_ALWAYS,
+            .uStencilRef         = 0xff,
+            .uStencilMask        = 0xff,
+            .eStencilOpFail      = PL_STENCIL_OP_KEEP,
+            .eStencilOpDepthFail = PL_STENCIL_OP_KEEP,
+            .eStencilOpPass      = PL_STENCIL_OP_KEEP
+        },
+        .atVertexBufferLayouts = {
+            {
+                .atAttributes = {
+                    {.eFormat = PL_VERTEX_FORMAT_FLOAT2},
+                    {.eFormat = PL_VERTEX_FORMAT_FLOAT2},
+                }
+            }
+        },
+        .atBlendStates = {
+            {
+                .bBlendEnabled   = false,
+                .uColorWriteMask = PL_COLOR_WRITE_MASK_ALL
+            }
+        },
+        .atBindGroupLayouts = {
+            {
+                .atSamplerBindings = {
+                    { .uSlot = 0, .eStages = PL_SHADER_STAGE_FRAGMENT}
+                },
+                .atTextureBindings = {
+                    {.uSlot = 1, .eStages = PL_SHADER_STAGE_FRAGMENT, .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED}
+                }
+            }
+        }
+    };
+    gptStarter->get_render_attachment_info(&tShaderDesc.tRenderAttachmentInfo);
+    ptAppData->tShader = gptGfx->create_shader(ptDevice, &tShaderDesc);
 
     // return app memory
     return ptAppData;
@@ -169,6 +450,19 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 PL_EXPORT void
 pl_app_shutdown(plAppData* ptAppData)
 {
+    plDevice* ptDevice = gptStarter->get_device();
+
+    // ensure the GPU is done with our resources
+    gptGfx->flush_device(ptDevice);
+
+    // cleanup our resources
+    gptGfx->destroy_buffer(ptDevice, ptAppData->tVertexBuffer);
+    gptGfx->destroy_buffer(ptDevice, ptAppData->tIndexBuffer);
+    gptGfx->destroy_buffer(ptDevice, ptAppData->tStagingBuffer);
+    gptGfx->destroy_texture(ptDevice, ptAppData->tTexture);
+    gptGfx->cleanup_bind_group_pool(ptAppData->ptBindGroupPool);
+
+    gptShader->cleanup();
     gptStarter->cleanup();
     gptWindows->destroy(ptAppData->ptWindow);
     free(ptAppData);
@@ -182,9 +476,6 @@ PL_EXPORT void
 pl_app_resize(plWindow* ptWindow, plAppData* ptAppData)
 {
     gptStarter->resize();
-
-    plIO* ptIO = gptIO->get_io();
-    gptCamera->set_viewport(&ptAppData->tCamera, ptIO->tMainViewportSize.x, ptIO->tMainViewportSize.y);
 }
 
 //-----------------------------------------------------------------------------
@@ -197,72 +488,36 @@ pl_app_update(plAppData* ptAppData)
     if(!gptStarter->begin_frame())
         return;
 
-    // for convience
-    plIO* ptIO = gptIO->get_io();
-
-    static const float fCameraTravelSpeed = 4.0f;
-    static const float fCameraRotationSpeed = 0.005f;
-
-    plCamera* ptCamera = &ptAppData->tCamera;
-
-    // camera space
-    if(gptIO->is_key_down(PL_KEY_W)) gptCamera->translate_local(ptCamera, (plVec3d){ 0.0f,  0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime});
-    if(gptIO->is_key_down(PL_KEY_S)) gptCamera->translate_local(ptCamera, (plVec3d){ 0.0f,  0.0f, -fCameraTravelSpeed* ptIO->fDeltaTime});
-    if(gptIO->is_key_down(PL_KEY_A)) gptCamera->translate_local(ptCamera, (plVec3d){ fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
-    if(gptIO->is_key_down(PL_KEY_D)) gptCamera->translate_local(ptCamera, (plVec3d){-fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f,  0.0f});
-
-    // world space
-    if(gptIO->is_key_down(PL_KEY_F)) { gptCamera->translate(ptCamera, (plVec3d){ 0.0f, -fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f }); }
-    if(gptIO->is_key_down(PL_KEY_R)) { gptCamera->translate(ptCamera, (plVec3d){ 0.0f,  fCameraTravelSpeed * ptIO->fDeltaTime,  0.0f }); }
-
-    if(gptIO->is_mouse_dragging(PL_MOUSE_BUTTON_LEFT, 1.0f))
-    {
-        const plVec2 tMouseDelta = gptIO->get_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT, 1.0f);
-        gptCamera->rotate_euler(ptCamera,  -tMouseDelta.y * fCameraRotationSpeed,  -tMouseDelta.x * fCameraRotationSpeed, 0.0f);
-        gptIO->reset_mouse_drag_delta(PL_MOUSE_BUTTON_LEFT);
-    }
-    gptCamera->update(ptCamera);
-
-    // 3d drawing API usage
-    const plMat4 tOrigin = pl_identity_mat4();
-    gptDraw->add_3d_transform(ptAppData->pt3dDrawlist, &tOrigin, 10.0f, (plDrawLineOptions){.fThickness = 0.2f});
-
-    plCylinder tCylinderDesc = {
-        .fRadius = 1.5f,
-        .tBasePos = {-2.5f, 1.0f, 0.0f},
-        .tTipPos  = {-2.5f, 4.0f, 0.0f}
-    };
-    gptDraw->add_3d_cylinder_filled(ptAppData->pt3dDrawlist, tCylinderDesc, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
-
-    gptDraw->add_3d_triangle_filled(ptAppData->pt3dDrawlist,
-        (plVec3){1.0f, 1.0f, 0.0f},
-        (plVec3){4.0f, 1.0f, 0.0f},
-        (plVec3){1.0f, 4.0f, 0.0f},
-        (plDrawSolidOptions){.uColor = PL_COLOR_32_YELLOW});
-
-    gptDraw->add_3d_sphere_filled(ptAppData->pt3dDrawlist,
-        (plSphere){.fRadius = 1.0F, .tCenter = {5.5f, 2.5f, 0.0f}}, 0, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
-
-    gptDraw->add_3d_circle_xz_filled(ptAppData->pt3dDrawlist,
-        (plVec3){8.5f, 2.5f, 0.0f}, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
-
-    gptDraw->add_3d_band_xz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 1.0f, 0.0f, 0.75f)});
-    gptDraw->add_3d_band_xy_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 0.0f, 0.75f)});
-    gptDraw->add_3d_band_yz_filled(ptAppData->pt3dDrawlist, (plVec3){11.5f, 2.5f, 0.0f}, 0.75f, 1.5f, 0, (plDrawSolidOptions){.uColor = PL_COLOR_32_RGBA(1.0f, 0.0f, 1.0f, 0.75f)});
+    plDevice* ptDevice = gptStarter->get_device();
 
     // start main pass & return the command buffer being used
     plCommandBuffer* ptCommandBuffer = gptStarter->begin_main_pass();
 
-    // submit 3d drawlist
-    plRenderAttachmentInfo tRenderAttachmentInfo = {0};
-    gptStarter->get_render_attachment_info(&tRenderAttachmentInfo);
-    gptDraw->submit_3d_drawlist(ptAppData->pt3dDrawlist,
-        ptCommandBuffer,
-        ptIO->tMainViewportSize.x,
-        ptIO->tMainViewportSize.y,
-        &ptAppData->tCamera.tViewProjMat,
-        PL_DRAW_FLAG_DEPTH_TEST | PL_DRAW_FLAG_DEPTH_WRITE,
-        gptGfx->get_swapchain_info(gptStarter->get_swapchain()).eSampleCount, &tRenderAttachmentInfo);
+    // submit nonindexed draw using basic API
+    gptGfx->bind_shader(ptCommandBuffer, ptAppData->tShader);
+    gptGfx->bind_vertex_buffer(ptCommandBuffer, ptAppData->tVertexBuffer);
+
+    // retrieve dynamic binding data
+    // NOTE: This system is meant frequently updated shader data. Underneath its just simple
+    //       bump allocator (very fast).
+    plDynamicDataBlock tCurrentDynamicBufferBlock = gptGfx->allocate_dynamic_data_block(ptDevice);
+    plDynamicBinding tDynamicBinding = pl_allocate_dynamic_data(gptGfx, ptDevice, &tCurrentDynamicBufferBlock, sizeof(plVec4));
+    plVec4* tTintColor = (plVec4*)tDynamicBinding.pcData;
+    tTintColor->r = 1.0f;
+    tTintColor->g = 1.0f;
+    tTintColor->b = 1.0f;
+    tTintColor->a = 1.0f;
+
+    // bind bind groups (up to 3 bindgroups + 1 dynamic binding are allowed)
+    // NOTE: dynamic bind groups are always bound to set 3 in the shader
+    gptGfx->bind_graphics_bind_groups(ptCommandBuffer, ptAppData->tShader, 0, 1, &ptAppData->tBindGroup0, 1, &tDynamicBinding);
+
+    const plDrawIndex tDraw = {
+        .uInstanceCount = 1,
+        .uIndexCount    = 6,
+        .tIndexBuffer   = ptAppData->tIndexBuffer
+    };
+    gptGfx->draw_indexed(ptCommandBuffer, 1, &tDraw);
 
     // allows the starter extension to handle some things then ends the main pass
     gptStarter->end_main_pass();

@@ -1,11 +1,10 @@
 /*
-   example_gfx_2.c
      - demonstrates loading APIs
      - demonstrates loading extensions
      - demonstrates hot reloading
      - demonstrates starter extension
      - demonstrates bind groups
-     - demonstrates vertex, index, staging buffers
+     - demonstrates vertex, index
      - demonstrates samplers, textures, bind groups
      - demonstrates shaders
      - demonstrates indexed drawing
@@ -55,7 +54,6 @@ typedef struct _plAppData
     plShaderHandle tShader;
 
     // buffers
-    plBufferHandle tStagingBuffer;
     plBufferHandle tIndexBuffer;
     plBufferHandle tVertexBuffer;
 
@@ -186,7 +184,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~vertex buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     // vertex buffer data
-    const float atVertexData[] = { // x, y, u, v
+    const float afVertexData[] = { // x, y, u, v
         -0.5f, -0.5f, 0.0f, 0.0f,
         -0.5f,  0.5f, 0.0f, 1.0f, 
          0.5f,  0.5f, 1.0f, 1.0f,
@@ -196,23 +194,11 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // create vertex buffer
     const plBufferDesc tVertexBufferDesc = {
         .eUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER,
-        .szByteSize  = sizeof(float) * PL_ARRAYSIZE(atVertexData),
+        .szByteSize  = sizeof(float) * PL_ARRAYSIZE(afVertexData),
         .pcDebugName = "vertex buffer"
     };
-    ptAppData->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
+    gptStarter->create_buffer(&tVertexBufferDesc, afVertexData, &ptAppData->tVertexBuffer);
 
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tVertexBuffer);
-
-    // allocate memory for the vertex buffer
-    const plDeviceMemoryAllocation tVertexBufferAllocation = gptGfx->allocate_memory(ptDevice,
-        ptVertexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "vertex buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tVertexBuffer, &tVertexBufferAllocation);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~index buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     
@@ -228,55 +214,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .szByteSize  = sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData),
         .pcDebugName = "index buffer"
     };
-    ptAppData->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, NULL);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tIndexBuffer);
-
-    // allocate memory for the index buffer
-    const plDeviceMemoryAllocation tIndexBufferAllocation = gptGfx->allocate_memory(ptDevice,
-        ptIndexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptIndexBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "index buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tIndexBuffer, &tIndexBufferAllocation);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~staging buffer~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    // create vertex buffer
-    const plBufferDesc tStagingBufferDesc = {
-        .eUsage      = PL_BUFFER_USAGE_TRANSFER,
-        .szByteSize  = 1280000,
-        .pcDebugName = "staging buffer"
-    };
-    ptAppData->tStagingBuffer = gptGfx->create_buffer(ptDevice, &tStagingBufferDesc, NULL);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptStagingBuffer = gptGfx->get_buffer(ptDevice, ptAppData->tStagingBuffer);
-
-    // allocate memory for the vertex buffer
-    const plDeviceMemoryAllocation tStagingBufferAllocation = gptGfx->allocate_memory(ptDevice,
-        ptStagingBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_HOST_VISIBLE | PL_MEMORY_FLAGS_HOST_COHERENT,
-        ptStagingBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "staging buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptAppData->tStagingBuffer, &tStagingBufferAllocation);
-
-    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~transfers~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    memcpy(ptStagingBuffer->tMemoryAllocation.pHostMapped, atVertexData, sizeof(float) * PL_ARRAYSIZE(atVertexData));
-    memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[1024], atIndexData, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
-
-    plCommandBuffer* ptCommandBuffer = gptStarter->get_temporary_command_buffer();
-    gptGfx->begin_compute_pass(ptCommandBuffer, NULL);
-
-    gptGfx->copy_buffer(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tVertexBuffer, 0, 0, sizeof(float) * PL_ARRAYSIZE(atVertexData));
-    gptGfx->copy_buffer(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tIndexBuffer, 1024, 0, sizeof(uint32_t) * PL_ARRAYSIZE(atIndexData));
-
+    gptStarter->create_buffer(&tIndexBufferDesc, atIndexData, &ptAppData->tIndexBuffer);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~textures~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -296,37 +234,8 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName = "texture"
     };
-    ptAppData->tTexture = gptGfx->create_texture(ptDevice, &tTextureDesc, NULL);
-
-    // retrieve new texture (also could have used out param from create_texture above)
-    plTexture* ptTexture = gptGfx->get_texture(ptDevice, ptAppData->tTexture);
-
-    // allocate memory
-    const plDeviceMemoryAllocation tTextureAllocation = gptGfx->allocate_memory(ptDevice,
-        ptTexture->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptTexture->tMemoryRequirements.uMemoryTypeBits,
-        "texture memory");
-
-    // bind memory
-    gptGfx->bind_texture_to_memory(ptDevice, ptAppData->tTexture, &tTextureAllocation);
-
-    // copy memory to mapped staging buffer
-    memcpy(&ptStagingBuffer->tMemoryAllocation.pHostMapped[2048], pucImageData, iImageWidth * iImageHeight * 4);
-
-    const plBufferImageCopy tBufferImageCopy = {
-        .uImageWidth    = (uint32_t)iImageWidth,
-        .uImageHeight   = (uint32_t)iImageHeight,
-        .uImageDepth    = 1,
-        .uLayerCount    = 1,
-        .szBufferOffset = 2048
-    };
-
-    gptGfx->copy_buffer_to_texture(ptCommandBuffer, ptAppData->tStagingBuffer, ptAppData->tTexture, 1, &tBufferImageCopy);
-
-    gptGfx->end_compute_pass(ptCommandBuffer);
-    gptStarter->submit_temporary_command_buffer(ptCommandBuffer);
-
+    gptStarter->create_texture(&tTextureDesc, pucImageData, iImageWidth * iImageHeight * 4, &ptAppData->tTexture);
+    
     // free image data
     gptImage->free(pucImageData);
 
@@ -460,7 +369,6 @@ pl_app_shutdown(plAppData* ptAppData)
     // cleanup our resources
     gptGfx->destroy_buffer(ptDevice, ptAppData->tVertexBuffer);
     gptGfx->destroy_buffer(ptDevice, ptAppData->tIndexBuffer);
-    gptGfx->destroy_buffer(ptDevice, ptAppData->tStagingBuffer);
     gptGfx->destroy_texture(ptDevice, ptAppData->tTexture);
     gptGfx->cleanup_bind_group_pool(ptAppData->ptBindGroupPool);
 

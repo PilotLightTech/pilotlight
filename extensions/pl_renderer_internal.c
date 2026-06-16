@@ -6,7 +6,6 @@
 Index of this file:
 // [SECTION] includes
 // [SECTION] job system tasks
-// [SECTION] resource creation helpers
 // [SECTION] scene render helpers
 */
 
@@ -198,160 +197,6 @@ pl__renderer_cull_spot_light_job(plInvocationData tInvoData, void* pData, void* 
             ptCullData->atDrawables[tInvoData.uGlobalIndex].bCulled = false;
         }
     }
-}
-
-//-----------------------------------------------------------------------------
-// [SECTION] resource creation helpers
-//-----------------------------------------------------------------------------
-
-static plTextureHandle
-pl__renderer_create_local_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier)
-{
-    // for convience
-    plDevice* ptDevice = gptData->ptDevice;
-    // plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
- 
-    // create texture
-    plTempAllocator tTempAllocator = {0};
-    plTexture* ptTexture = NULL;
-    const plTextureHandle tHandle = gptGfx->create_texture(ptDevice, ptDesc, &ptTexture);
-    pl_temp_allocator_reset(&tTempAllocator);
-
-    // choose allocator
-    plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
-    if(ptTexture->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
-        ptAllocator = gptData->ptLocalDedicatedAllocator;
-
-    // allocate memory
-    const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
-        ptTexture->tMemoryRequirements.uMemoryTypeBits,
-        ptTexture->tMemoryRequirements.ulSize,
-        ptTexture->tMemoryRequirements.ulAlignment,
-        pl_temp_allocator_sprintf(&tTempAllocator, "texture alloc %s: %u", pcName, uIdentifier));
-
-    // bind memory
-    gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
-    pl_temp_allocator_free(&tTempAllocator);
-
-    gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created local texture %s %u", pcName, uIdentifier);
-    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created local texture %s %u", pcName, uIdentifier);
-    return tHandle;
-}
-
-static plTextureHandle
-pl__renderer_create_texture(const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier)
-{
-    // for convience
-    plDevice* ptDevice = gptData->ptDevice;
-
-    // create texture
-    plTempAllocator tTempAllocator = {0};
-    plTexture* ptTexture = NULL;
-    const plTextureHandle tHandle = gptGfx->create_texture(ptDevice, ptDesc, &ptTexture);
-    pl_temp_allocator_reset(&tTempAllocator);
-
-    // choose allocator
-    plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
-    if(ptTexture->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
-        ptAllocator = gptData->ptLocalDedicatedAllocator;
-
-    // allocate memory
-    const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
-        ptTexture->tMemoryRequirements.uMemoryTypeBits,
-        ptTexture->tMemoryRequirements.ulSize,
-        ptTexture->tMemoryRequirements.ulAlignment,
-        pl_temp_allocator_sprintf(&tTempAllocator, "texture alloc %s: %u", pcName, uIdentifier));
-
-    // bind memory
-    gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
-    pl_temp_allocator_free(&tTempAllocator);
-
-    gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created texture %s %u", pcName, uIdentifier);
-    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created texture %s %u", pcName, uIdentifier);
-    return tHandle;
-}
-
-static plTextureHandle
-pl__renderer_create_texture_with_data(const plTextureDesc* ptDesc, const char* pcName, uint32_t uIdentifier, const void* pData, size_t szSize)
-{
-    // for convience
-    plDevice* ptDevice = gptData->ptDevice;
- 
-    // create texture
-    plTempAllocator tTempAllocator = {0};
-    plTexture* ptTexture = NULL;
-    const plTextureHandle tHandle = gptGfx->create_texture(ptDevice, ptDesc, &ptTexture);
-    pl_temp_allocator_reset(&tTempAllocator);
-
-    // choose allocator
-    plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
-    if(ptTexture->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
-        ptAllocator = gptData->ptLocalDedicatedAllocator;
-
-    // allocate memory
-    const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
-        ptTexture->tMemoryRequirements.uMemoryTypeBits,
-        ptTexture->tMemoryRequirements.ulSize,
-        ptTexture->tMemoryRequirements.ulAlignment,
-        pl_temp_allocator_sprintf(&tTempAllocator, "texture alloc %s: %u", pcName, uIdentifier));
-
-    // bind memory
-    gptGfx->bind_texture_to_memory(ptDevice, tHandle, &tAllocation);
-    pl_temp_allocator_free(&tTempAllocator);
-
-    // if data is presented, upload using staging buffer
-    if(pData)
-    {
-        PL_ASSERT(ptDesc->uLayers == 1); // this is for simple textures right now
-
-        const plBufferImageCopy tBufferImageCopy = {
-            .uImageWidth = (uint32_t)ptDesc->tDimensions.x,
-            .uImageHeight = (uint32_t)ptDesc->tDimensions.y,
-            .uImageDepth = 1,
-            .uLayerCount = 1
-        };
-
-        gptStage->stage_texture_upload(tHandle, &tBufferImageCopy, pData, (uint64_t)szSize, true);
-        gptStage->flush();
-    }
-
-    gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created texture %s %u", pcName, uIdentifier);
-    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created texture %s %u", pcName, uIdentifier);
-    return tHandle;
-}
-
-static plBufferHandle
-pl__renderer_create_local_buffer(const plBufferDesc* ptDesc, const char* pcName, uint32_t uIdentifier)
-{
-    // for convience
-    plDevice* ptDevice = gptData->ptDevice;
-    plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
-    
-    // create buffer
-    plTempAllocator tTempAllocator = {0};
-    plBuffer* ptBuffer = NULL;
-    const plBufferHandle tHandle = gptGfx->create_buffer(ptDevice, ptDesc, &ptBuffer);
-    pl_temp_allocator_reset(&tTempAllocator);
-
-    // choose allocator
-    plDeviceMemoryAllocatorI* ptAllocator = gptData->ptLocalBuddyAllocator;
-    if(ptBuffer->tMemoryRequirements.ulSize > gptGpuAllocators->get_buddy_block_size())
-        ptAllocator = gptData->ptLocalDedicatedAllocator;
-
-    // allocate memory
-    const plDeviceMemoryAllocation tAllocation = ptAllocator->allocate(ptAllocator->ptInst, 
-        ptBuffer->tMemoryRequirements.uMemoryTypeBits,
-        ptBuffer->tMemoryRequirements.ulSize,
-        ptBuffer->tMemoryRequirements.ulAlignment,
-        pl_temp_allocator_sprintf(&tTempAllocator, "lbuffer alloc %s: %u", pcName, uIdentifier));
-
-    // bind memory
-    gptGfx->bind_buffer_to_memory(ptDevice, tHandle, &tAllocation);
-    pl_temp_allocator_free(&tTempAllocator);
-
-    gptScreenLog->add_message_ex(0, 0.0, PL_COLOR_32_WHITE, 1.0f, "created local buffer %s %u", pcName, uIdentifier);
-    PL_LOG_INFO_API_F(gptLog, gptData->uLogChannel, "created local buffer %s %u", pcName, uIdentifier);
-    return tHandle;
 }
 
 //-----------------------------------------------------------------------------
@@ -2489,8 +2334,8 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .pcDebugName   = "emissive texture"
     };
 
-    gptStage->get_staging_buffer(4096, &tProbeData.tDShadowCameraBuffers, "directional shadow camera buffer");
-    gptStage->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &tProbeData.tDLightShadowDataBuffer, "directional shadow buffer");
+    gptStarter->get_staging_buffer(4096, &tProbeData.tDShadowCameraBuffers, "directional shadow camera buffer");
+    gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &tProbeData.tDLightShadowDataBuffer, "directional shadow buffer");
 
     const plBindGroupDesc tGlobalBGDesc = {
         .ptPool      = gptData->ptBindGroupPool,
@@ -2517,11 +2362,11 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
     gptGfx->update_bind_group(gptData->ptDevice, tProbeData.tDShadowBG, &tDShadowBGData);
 
     // textures
-    tProbeData.tRawOutputTexture        = pl__renderer_create_texture(&tRawOutputTextureCubeDesc,  "offscreen raw cube", 0);
-    tProbeData.tAlbedoTexture           = pl__renderer_create_texture(&tAlbedoTextureDesc, "albedo original", 0);
-    tProbeData.tNormalTexture           = pl__renderer_create_texture(&tNormalTextureDesc, "normal original", 0);
-    tProbeData.tAOMetalRoughnessTexture = pl__renderer_create_texture(&tEmmissiveTexDesc, "metalroughness original", 0);
-    tProbeData.tDepthTexture            = pl__renderer_create_texture(&tDepthTextureDesc,      "offscreen depth original", 0);
+    gptStarter->create_texture(&tRawOutputTextureCubeDesc, NULL, 0, &tProbeData.tRawOutputTexture);
+    gptStarter->create_texture(&tAlbedoTextureDesc, NULL, 0, &tProbeData.tAlbedoTexture);
+    gptStarter->create_texture(&tNormalTextureDesc, NULL, 0, &tProbeData.tNormalTexture);
+    gptStarter->create_texture(&tEmmissiveTexDesc, NULL, 0, &tProbeData.tAOMetalRoughnessTexture);
+    gptStarter->create_texture(&tDepthTextureDesc, NULL, 0, &tProbeData.tDepthTexture);
 
     plTextureViewDesc tAlbedoTextureViewDesc = {
         .eFormat     = tAlbedoTextureDesc.eFormat,
@@ -2575,8 +2420,8 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
     };
 
     // buffers
-    gptStage->get_staging_buffer(4096, &tProbeData.tView2Buffer, "scene");
-    gptStage->get_staging_buffer(sizeof(plGpuViewData), &tProbeData.tViewBuffer, "view buffer");
+    gptStarter->get_staging_buffer(4096, &tProbeData.tView2Buffer, "scene");
+    gptStarter->get_staging_buffer(sizeof(plGpuViewData), &tProbeData.tViewBuffer, "view buffer");
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -2645,7 +2490,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName = "probe lambertian env"
     };
-    tProbeData.tLambertianEnvTexture = pl__renderer_create_texture(&tSpecularTextureDesc, "specular texture", 0);
+    gptStarter->create_texture(&tSpecularTextureDesc, NULL, 0, &tProbeData.tLambertianEnvTexture);
 
     const plTextureDesc tTextureDesc = {
         .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
@@ -2656,7 +2501,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName = "probe tGGXEnvTexture"
     };
-    tProbeData.tGGXEnvTexture = pl__renderer_create_texture(&tTextureDesc, "ggx texture", 0);
+    gptStarter->create_texture(&tTextureDesc, NULL, 0, &tProbeData.tGGXEnvTexture);
 
     tProbeData.uLambertianEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tLambertianEnvTexture);
     tProbeData.uGGXEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tGGXEnvTexture);
@@ -2740,7 +2585,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
 
         #if 1
 
-        gptStage->get_readback_buffer(128000000, &gptData->tReadbackBuffer, "env readback");
+        gptStarter->get_readback_buffer(128000000, &gptData->tReadbackBuffer, "env readback");
 
         plBuffer* ptReadbackBuffer = gptGfx->get_buffer(ptDevice, gptData->tReadbackBuffer);
 
@@ -2826,7 +2671,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         gptGfx->wait_on_command_buffer(ptCommandBuffer);
         gptGfx->return_command_buffer(ptCommandBuffer);
 
-        gptStage->return_readback_buffer(&gptData->tReadbackBuffer);
+        gptStarter->return_readback_buffer(&gptData->tReadbackBuffer);
         gptImageOps->free_mip_chain(&tChain);
 
         #endif

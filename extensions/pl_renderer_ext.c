@@ -284,7 +284,7 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
         0.0f, 0.0f, 0.0f, 1.0f,
         0.0f, 0.0f, 0.0f, 1.0f
     };
-    gptData->tDummyTexture = pl__renderer_create_texture_with_data(&tDummyTextureDesc, "dummy", 0, afDummyTextureData, sizeof(afDummyTextureData));
+    gptStarter->create_texture(&tDummyTextureDesc, afDummyTextureData, sizeof(afDummyTextureData), &gptData->tDummyTexture);
 
     const plTextureDesc tSkyboxTextureDesc = {
         .tDimensions = {1, 1, 1},
@@ -295,7 +295,7 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
         .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName = "dummy cube"
     };
-    gptData->tDummyTextureCube = pl__renderer_create_texture(&tSkyboxTextureDesc, "dummy cube", 0);
+    gptStarter->create_texture(&tSkyboxTextureDesc, NULL, 0, &gptData->tDummyTextureCube);
 
     // create samplers
     const plSamplerDesc tSamplerLinearClampDesc = {
@@ -508,9 +508,9 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
         .pcDebugName = "storage buffer"
     };
 
-    ptScene->tIndexBuffer = pl__renderer_create_local_buffer(&tIndexBufferDesc, "index", 0);
-    ptScene->tVertexBuffer = pl__renderer_create_local_buffer(&tVertexBufferDesc, "vertex", 0);
-    ptScene->tStorageBuffer = pl__renderer_create_local_buffer(&tStorageBufferDesc, "vertex data", 0);
+    gptStarter->create_buffer(&tIndexBufferDesc, NULL, &ptScene->tIndexBuffer);
+    gptStarter->create_buffer(&tVertexBufferDesc, NULL, &ptScene->tVertexBuffer);
+    gptStarter->create_buffer(&tStorageBufferDesc, NULL, &ptScene->tStorageBuffer);
 
     gptFreeList->create(tIndexBufferDesc.szByteSize, 128, &ptScene->tIndexBufferFreeList);
     gptFreeList->create(tVertexBufferDesc.szByteSize, 128, &ptScene->tVertexBufferFreeList);
@@ -522,23 +522,23 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
         .szByteSize = tInit.szMaterialBufferSize,
         .pcDebugName = "material buffer"
     };
-    ptScene->tMaterialDataBuffer = pl__renderer_create_local_buffer(&tMaterialDataBufferDesc,  "material buffer", 0);
+    gptStarter->create_buffer(&tMaterialDataBufferDesc, NULL, &ptScene->tMaterialDataBuffer);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        gptStage->get_staging_buffer(sizeof(plGpuSceneData), &ptScene->atSceneBuffer[i], "scene buffer");
-        gptStage->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuPointLightShadow), &ptScene->atPointLightShadowDataBuffer[i], "point shadow buffer");
-        gptStage->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuSpotLightShadow), &ptScene->atSpotLightShadowDataBuffer[i], "spot shadow buffer");
-        gptStage->get_staging_buffer(4096, &ptScene->atShadowCameraBuffers[i], "shadow camera buffer");
+        gptStarter->get_staging_buffer(sizeof(plGpuSceneData), &ptScene->atSceneBuffer[i], "scene buffer");
+        gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuPointLightShadow), &ptScene->atPointLightShadowDataBuffer[i], "point shadow buffer");
+        gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuSpotLightShadow), &ptScene->atSpotLightShadowDataBuffer[i], "spot shadow buffer");
+        gptStarter->get_staging_buffer(4096, &ptScene->atShadowCameraBuffers[i], "shadow camera buffer");
 
     }
-    gptStage->get_staging_buffer(4096, &ptScene->tGPUProbeDataBuffers, "probe buffer");
+    gptStarter->get_staging_buffer(4096, &ptScene->tGPUProbeDataBuffers, "probe buffer");
     gptFreeList->create(4096, sizeof(plMat4) * PL_MAX_SHADOW_CASCADES, &ptScene->tShadowCameraFreeList);
 
     for(uint32_t uFrameIndex = 0; uFrameIndex < gptGfx->get_frames_in_flight(); uFrameIndex++)
     {
         
-        gptStage->get_staging_buffer(tInit.szSkinBufferSize, &ptScene->atDynamicSkinBuffer[uFrameIndex], "joint buffer");
+        gptStarter->get_staging_buffer(tInit.szSkinBufferSize, &ptScene->atDynamicSkinBuffer[uFrameIndex], "joint buffer");
 
         const plBindGroupUpdateData tSkinBGData = {
             .atBufferBindings  = {
@@ -594,7 +594,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
             .szByteSize = uMaxFaceSize,
             .pcDebugName = "filter buffers"
         };
-        ptScene->atFilterWorkingBuffers[i] = pl__renderer_create_local_buffer(&tInputBufferDesc, "filter buffer", i);
+        gptStarter->create_buffer(&tInputBufferDesc, NULL, &ptScene->atFilterWorkingBuffers[i]);
     }
 
     // create shadow atlas
@@ -611,7 +611,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
         .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName   = "shadow map"
     };
-    ptScene->tShadowTexture = pl__renderer_create_local_texture(&tShadowDepthTextureDesc, "shadow map", 0);
+    gptStarter->create_texture(&tShadowDepthTextureDesc, NULL, 0, &ptScene->tShadowTexture);
 
     ptScene->uShadowAtlasIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tShadowTexture);
 
@@ -624,7 +624,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
         .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName = "tBrdfLutTexture"
     };
-    ptScene->tBrdfLutTexture = pl__renderer_create_texture(&tLutTextureDesc, "lut texture", 0);
+    gptStarter->create_texture(&tLutTextureDesc, NULL, 0, &ptScene->tBrdfLutTexture);
     ptScene->tSceneData.iBrdfLutIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tBrdfLutTexture);
 
     const plBindGroupDesc tBrdfBGSet1Desc = {
@@ -734,11 +734,11 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        gptStage->get_staging_buffer(sizeof(plGpuPointLight) * PL_MAX_LIGHTS, &ptScene->atPointLightBuffer[i], "point light");
-        gptStage->get_staging_buffer(sizeof(plGpuSpotLight) * PL_MAX_LIGHTS, &ptScene->atSpotLightBuffer[i], "spot light");
-        gptStage->get_staging_buffer(sizeof(plGpuDirectionLight) * PL_MAX_LIGHTS, &ptScene->atDirectionLightBuffer[i], "direction light");
-        gptStage->get_staging_buffer(sizeof(plMat4) * 10000, &ptScene->atTransformBuffer[i], "transform");
-        gptStage->get_staging_buffer(sizeof(plShadowInstanceBufferData) * 10000, &ptScene->atInstanceBuffer[i], "instance");
+        gptStarter->get_staging_buffer(sizeof(plGpuPointLight) * PL_MAX_LIGHTS, &ptScene->atPointLightBuffer[i], "point light");
+        gptStarter->get_staging_buffer(sizeof(plGpuSpotLight) * PL_MAX_LIGHTS, &ptScene->atSpotLightBuffer[i], "spot light");
+        gptStarter->get_staging_buffer(sizeof(plGpuDirectionLight) * PL_MAX_LIGHTS, &ptScene->atDirectionLightBuffer[i], "direction light");
+        gptStarter->get_staging_buffer(sizeof(plMat4) * 10000, &ptScene->atTransformBuffer[i], "transform");
+        gptStarter->get_staging_buffer(sizeof(plShadowInstanceBufferData) * 10000, &ptScene->atInstanceBuffer[i], "instance");
     }
 
     int iSceneWideRenderingFlags = PL_RENDERING_FLAG_SHADOWS;
@@ -891,11 +891,11 @@ pl_renderer_destroy_view(plView* ptView)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        gptStage->return_staging_buffer(&ptView->atDShadowCameraBuffers[i]);
-        gptStage->return_staging_buffer(&ptView->atDLightShadowDataBuffer[i]);
-        gptStage->return_staging_buffer(&ptView->atViewBuffers[i]);
-        gptStage->return_staging_buffer(&ptView->atView2Buffers[i]);
-        gptStage->return_readback_buffer(&ptView->atPickBuffer[i]);
+        gptStarter->return_staging_buffer(&ptView->atDShadowCameraBuffers[i]);
+        gptStarter->return_staging_buffer(&ptView->atDLightShadowDataBuffer[i]);
+        gptStarter->return_staging_buffer(&ptView->atViewBuffers[i]);
+        gptStarter->return_staging_buffer(&ptView->atView2Buffers[i]);
+        gptStarter->return_readback_buffer(&ptView->atPickBuffer[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atPickBindGroup[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atDeferredBG1[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atViewBG[i]);
@@ -928,8 +928,8 @@ pl_renderer_destroy_scene(plScene* ptScene)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];
             
-        gptStage->return_staging_buffer(&ptProbe->tDShadowCameraBuffers);
-        gptStage->return_staging_buffer(&ptProbe->tDLightShadowDataBuffer);
+        gptStarter->return_staging_buffer(&ptProbe->tDShadowCameraBuffers);
+        gptStarter->return_staging_buffer(&ptProbe->tDLightShadowDataBuffer);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
         if(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
@@ -951,8 +951,8 @@ pl_renderer_destroy_scene(plScene* ptScene)
             gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->atLightingBindGroup[i]);
         }
 
-        gptStage->return_staging_buffer(&ptProbe->tViewBuffer);
-        gptStage->return_staging_buffer(&ptProbe->tView2Buffer);
+        gptStarter->return_staging_buffer(&ptProbe->tViewBuffer);
+        gptStarter->return_staging_buffer(&ptProbe->tView2Buffer);
 
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tViewBG);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tGBufferBG);
@@ -967,19 +967,19 @@ pl_renderer_destroy_scene(plScene* ptScene)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        gptStage->return_staging_buffer(&ptScene->atSceneBuffer[i]);
-        gptStage->return_staging_buffer(&ptScene->atPointLightBuffer[i]);
-        gptStage->return_staging_buffer(&ptScene->atSpotLightBuffer[i]);
-        gptStage->return_staging_buffer(&ptScene->atDynamicSkinBuffer[i]);
-        gptStage->return_staging_buffer(&ptScene->atTransformBuffer[i]);
-        gptStage->return_staging_buffer(&ptScene->atInstanceBuffer[i]);
-        gptStage->return_staging_buffer(&ptScene->atPointLightShadowDataBuffer[i]);
-        gptStage->return_staging_buffer(&ptScene->atSpotLightShadowDataBuffer[i]);
-        gptStage->return_staging_buffer(&ptScene->atShadowCameraBuffers[i]);
-        gptStage->return_staging_buffer(&ptScene->atDirectionLightBuffer[i]);
+        gptStarter->return_staging_buffer(&ptScene->atSceneBuffer[i]);
+        gptStarter->return_staging_buffer(&ptScene->atPointLightBuffer[i]);
+        gptStarter->return_staging_buffer(&ptScene->atSpotLightBuffer[i]);
+        gptStarter->return_staging_buffer(&ptScene->atDynamicSkinBuffer[i]);
+        gptStarter->return_staging_buffer(&ptScene->atTransformBuffer[i]);
+        gptStarter->return_staging_buffer(&ptScene->atInstanceBuffer[i]);
+        gptStarter->return_staging_buffer(&ptScene->atPointLightShadowDataBuffer[i]);
+        gptStarter->return_staging_buffer(&ptScene->atSpotLightShadowDataBuffer[i]);
+        gptStarter->return_staging_buffer(&ptScene->atShadowCameraBuffers[i]);
+        gptStarter->return_staging_buffer(&ptScene->atDirectionLightBuffer[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptScene->atSceneBindGroups[i]);
     }
-    gptStage->return_staging_buffer(&ptScene->tGPUProbeDataBuffers);
+    gptStarter->return_staging_buffer(&ptScene->tGPUProbeDataBuffers);
 
     gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tMaterialDataBuffer);
     
@@ -1182,15 +1182,14 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
     };
 
     // pick bind group
-
-    ptView->tRawOutputTexture        = pl__renderer_create_texture(&tRawOutputTextureDesc,  "offscreen raw", 0);
-    ptView->tAlbedoTexture           = pl__renderer_create_texture(&tAlbedoTextureDesc, "albedo original", 0);
-    ptView->tNormalTexture           = pl__renderer_create_texture(&tNormalTextureDesc, "normal original", 0);
-    ptView->tAOMetalRoughnessTexture = pl__renderer_create_texture(&tEmmissiveTexDesc, "metalroughness original", 0);
-    ptView->tDepthTexture            = pl__renderer_create_texture(&tDepthTextureDesc, "offscreen depth original", 0);
-    ptView->atUVMaskTexture0         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 0", 0);
-    ptView->atUVMaskTexture1         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 1", 0);
-    ptView->tFinalTexture            = pl__renderer_create_texture(&tRawOutputTextureDesc,  "offscreen final", 0);
+    gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tRawOutputTexture);
+    gptStarter->create_texture(&tAlbedoTextureDesc, NULL, 0, &ptView->tAlbedoTexture);
+    gptStarter->create_texture(&tNormalTextureDesc, NULL, 0, &ptView->tNormalTexture);
+    gptStarter->create_texture(&tEmmissiveTexDesc, NULL, 0, &ptView->tAOMetalRoughnessTexture);
+    gptStarter->create_texture(&tDepthTextureDesc, NULL, 0, &ptView->tDepthTexture);
+    gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture0);
+    gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture1);
+    gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tFinalTexture);
     ptView->tFinalTextureHandle      = gptDraw->create_bind_group_for_texture(ptView->tFinalTexture);
 
     const plBindGroupDesc tJFABindGroupDesc = {
@@ -1268,7 +1267,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
     };
     gptGfx->update_bind_group(gptData->ptDevice, ptView->tLightingBindGroup, &tBGData);
 
-    ptView->tPickTexture = pl__renderer_create_texture(&tPickTextureDesc, "pick original", 0);
+    gptStarter->create_texture(&tPickTextureDesc, NULL, 0, &ptView->tPickTexture);
 
     const plBindGroupDesc tGlobalBGDesc = {
         .ptPool      = gptData->ptBindGroupPool,
@@ -1279,8 +1278,8 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
-        gptStage->get_staging_buffer(4096, &ptView->atDShadowCameraBuffers[i], "directional shadow camera buffer");
-        gptStage->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &ptView->atDLightShadowDataBuffer[i], "directional shadow buffer");
+        gptStarter->get_staging_buffer(4096, &ptView->atDShadowCameraBuffers[i], "directional shadow camera buffer");
+        gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &ptView->atDLightShadowDataBuffer[i], "directional shadow buffer");
 
 
         ptView->atDShadowBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
@@ -1307,7 +1306,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
             .szByteSize = sizeof(uint32_t) * 2,
             .pcDebugName = "Picking buffer"
         };
-        gptStage->get_readback_buffer(sizeof(uint32_t) * 2, &ptView->atPickBuffer[i], "pick buffer");
+        gptStarter->get_readback_buffer(sizeof(uint32_t) * 2, &ptView->atPickBuffer[i], "pick buffer");
 
         const plBindGroupDesc tPickBindGroupDesc = {
             .ptPool = gptData->ptBindGroupPool,
@@ -1325,7 +1324,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
         gptGfx->update_bind_group(gptData->ptDevice, ptView->atPickBindGroup[i], &tPickBGData);
 
         // buffers
-        gptStage->get_staging_buffer(4096, &ptView->atView2Buffers[i], "scene");
+        gptStarter->get_staging_buffer(4096, &ptView->atView2Buffers[i], "scene");
         
         const plBindGroupDesc tDeferredBG1Desc = {
             .ptPool      = gptData->ptBindGroupPool,
@@ -1348,7 +1347,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
 
         pl_temp_allocator_reset(&gptData->tTempAllocator);
 
-        gptStage->get_staging_buffer(sizeof(plGpuViewData), &ptView->atViewBuffers[i], "view buffer");
+        gptStarter->get_staging_buffer(sizeof(plGpuViewData), &ptView->atViewBuffers[i], "view buffer");
 
         const plBindGroupUpdateData tViewBGData = {
             .atBufferBindings  = {
@@ -1559,23 +1558,23 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tAOMetalRoughnessTexture);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tDepthTexture);
         gptGfx->queue_texture_for_deletion(ptDevice, ptView->tPickTexture);
-        ptView->tPickTexture = pl__renderer_create_texture(&tPickTextureDesc, "pick", 0);
+        gptStarter->create_texture(&tPickTextureDesc, NULL, 0, &ptView->tPickTexture);
 
         // textures
-        ptView->tRawOutputTexture        = pl__renderer_create_texture(&tRawOutputTextureDesc, "offscreen raw", 0);
-        ptView->tAlbedoTexture           = pl__renderer_create_texture(&tAlbedoTextureDesc, "albedo original", 0);
-        ptView->tNormalTexture           = pl__renderer_create_texture(&tNormalTextureDesc, "normal resize", 0);
-        ptView->tAOMetalRoughnessTexture = pl__renderer_create_texture(&tEmmissiveTexDesc, "metalroughness original", 0);
-        ptView->tDepthTexture            = pl__renderer_create_texture(&tDepthTextureDesc, "offscreen depth original", 0);
-        ptView->atUVMaskTexture0         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 0", 0);
-        ptView->atUVMaskTexture1         = pl__renderer_create_texture(&tMaskTextureDesc, "uv mask texture 1", 0);
-        ptView->tFinalTexture            = pl__renderer_create_texture(&tRawOutputTextureDesc,  "offscreen final", 0);
+        gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tRawOutputTexture);
+        gptStarter->create_texture(&tAlbedoTextureDesc, NULL, 0, &ptView->tAlbedoTexture);
+        gptStarter->create_texture(&tNormalTextureDesc, NULL, 0, &ptView->tNormalTexture);
+        gptStarter->create_texture(&tEmmissiveTexDesc, NULL, 0, &ptView->tAOMetalRoughnessTexture);
+        gptStarter->create_texture(&tDepthTextureDesc, NULL, 0, &ptView->tDepthTexture);
+        gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture0);
+        gptStarter->create_texture(&tMaskTextureDesc, NULL, 0, &ptView->atUVMaskTexture1);
+        gptStarter->create_texture(&tRawOutputTextureDesc, NULL, 0, &ptView->tFinalTexture);
         ptView->tFinalTextureHandle      = gptDraw->create_bind_group_for_texture(ptView->tFinalTexture);
 
         if(ptView->ptParentScene->tFlags & PL_SCENE_INTERNAL_FLAG_TRANSMISSION_REQUIRED)
         {
             gptGfx->queue_texture_for_deletion(ptDevice, ptView->tTransmissionTexture);
-            ptView->tTransmissionTexture = pl__renderer_create_texture(&tRawOutput2TextureDesc,  "transmission offscreen", 0);
+            gptStarter->create_texture(&tRawOutput2TextureDesc, NULL, 0, &ptView->tTransmissionTexture);
 
             const plBindGroupUpdateData tGlobalBindGroupData = {
                 .atTextureBindings = {
@@ -1748,7 +1747,7 @@ pl_renderer_ecs_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, 
             .szByteSize = uPanoramaSize,
             .pcDebugName = "panorama input buffer"
         };
-        gptStage->get_staging_buffer(uPanoramaSize, &atComputeBuffers[0], "panorama input");
+        gptStarter->get_staging_buffer(uPanoramaSize, &atComputeBuffers[0], "panorama input");
         plBuffer* ptComputeBuffer = gptGfx->get_buffer(ptDevice, atComputeBuffers[0]);
         memcpy(ptComputeBuffer->tMemoryAllocation.pHostMapped, pfPanoramaData, uPanoramaSize);
         
@@ -1761,7 +1760,7 @@ pl_renderer_ecs_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, 
         };
         
         for(uint32_t i = 0; i < 6; i++)
-            atComputeBuffers[i + 1] = pl__renderer_create_local_buffer(&tOutputBufferDesc, "panorama output", i);
+            gptStarter->create_buffer(&tOutputBufferDesc, NULL, &atComputeBuffers[i + 1]);
 
         const plBindGroupDesc tComputeBindGroupDesc = {
             .ptPool      = gptData->aptTempGroupPools[gptGfx->get_current_frame_index()],
@@ -1828,7 +1827,7 @@ pl_renderer_ecs_load_skybox_from_panorama(plScene* ptScene, const char* pcPath, 
             .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
             .pcDebugName = "skybox"
         };
-        ptScene->tSkyboxTexture = pl__renderer_create_texture(&tSkyboxTextureDesc, "skybox texture", 0);
+        gptStarter->create_texture(&tSkyboxTextureDesc, NULL, 0, &ptScene->tSkyboxTexture);
 
         ptCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "load skybox 1");
         gptGfx->begin_command_recording(ptCommandBuffer);
@@ -2504,7 +2503,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
                     .eUsage        = PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT | PL_TEXTURE_USAGE_STORAGE,
                     .pcDebugName   = "offscreen transmission"
                 };
-                ptView->tTransmissionTexture                = pl__renderer_create_texture(&tRawOutput2TextureDesc,  "transmission offscreen", 0);
+                gptStarter->create_texture(&tRawOutput2TextureDesc, NULL, 0, &ptView->tTransmissionTexture);
                 ptView->tData.iTransmissionFrameBufferIndex = pl__renderer_get_bindless_texture_index(ptScene, ptView->tTransmissionTexture);
             }
         }
@@ -2720,7 +2719,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
                     .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
                     .pcDebugName = "tSheenEnvTexture"
                 };
-                ptProbe->tSheenEnvTexture = pl__renderer_create_texture(&tTextureDesc, "sheen texture", 0);
+                gptStarter->create_texture(&tTextureDesc, NULL, 0, &ptProbe->tSheenEnvTexture);
                 ptProbe->uSheenEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, ptProbe->tSheenEnvTexture);
                 ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
             }
@@ -2991,8 +2990,11 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
                 break;
             }
 
-            plTextureHandle tBloomUpTexture = pl__renderer_create_texture(&tBloomTextureDesc,  "bloom", i);
-            plTextureHandle tBloomDownTexture = pl__renderer_create_texture(&tBloomTextureDesc,  "bloom", i);
+            plTextureHandle tBloomUpTexture = {0};
+            plTextureHandle tBloomDownTexture = {0};
+
+            gptStarter->create_texture(&tBloomTextureDesc, NULL, 0, &tBloomUpTexture);
+            gptStarter->create_texture(&tBloomTextureDesc, NULL, 0, &tBloomDownTexture);
 
             pl_sb_push(ptView->sbtBloomDownChain, tBloomDownTexture);
             pl_sb_push(ptView->sbtBloomUpChain, tBloomUpTexture);
@@ -3673,7 +3675,7 @@ pl_renderer_begin_frame(void)
         }
     }
 
-    gptStage->return_readback_buffer(&gptData->tReadbackBuffer);
+    gptStarter->return_readback_buffer(&gptData->tReadbackBuffer);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }

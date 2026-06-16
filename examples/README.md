@@ -97,19 +97,28 @@ Demonstrates:
 ### Example 2 - Graphics Extension 2 With API Registry (example_gfx_2.c)
 Demonstrates:
 * bind groups
+* vertex, index
+* samplers, textures, bind groups
+* shaders
+* indexed drawing
+* image extension
+
+### Example 3 - Graphics Extension 2 With API Registry (example_gfx_3.c)
+Demonstrates:
+* bind groups
 * vertex, index, staging buffers
 * samplers, textures, bind groups
 * shaders
 * indexed drawing
 * image extension
 
-### Example 3 - Graphics Extension 3 With API Registry (example_gfx_3.c)
+### Example 4 - Graphics Extension 3 With API Registry (example_gfx_4.c)
 Demonstrates:
 * starter extension
 * camera extension
 * drawing extension (2D & 3D)
 
-### Example 4 - Graphics Extension 4 With API Registry (example_gfx_4.c)
+### Example 5 - Graphics Extension 4 With API Registry (example_gfx_5.c)
 Demonstrates:
 * starter extension
 * camera extension

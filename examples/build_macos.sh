@@ -100,6 +100,8 @@ else
     rm -f ../out/example_gfx_3_*.dylib
     rm -f ../out/example_gfx_4.dylib
     rm -f ../out/example_gfx_4_*.dylib
+    rm -f ../out/example_gfx_5.dylib
+    rm -f ../out/example_gfx_5_*.dylib
 
 fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_0 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -564,6 +566,48 @@ fi
 echo ${CYAN}Results: ${NC} ${PL_RESULT}
 echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_5 | debug ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 --debug -g -fmodules -ObjC -fPIC "
+PL_LINKER_FLAGS=""
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_SOURCES="example_gfx_5.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: example_gfx_5${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_gfx_5.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
 # delete lock file(s)
 rm -f ../out/lock.tmp
 
@@ -622,6 +666,8 @@ else
     rm -f ../out/example_gfx_3_*.dylib
     rm -f ../out/example_gfx_4.dylib
     rm -f ../out/example_gfx_4_*.dylib
+    rm -f ../out/example_gfx_5.dylib
+    rm -f ../out/example_gfx_5_*.dylib
 
 fi
 #~~~~~~~~~~~~~~~~~~~~~~~~~~ example_basic_0 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1070,6 +1116,48 @@ echo ${YELLOW}Step: example_gfx_4${NC}
 echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
 echo ${CYAN}Compiling and Linking...${NC}
 clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_gfx_4.dylib"
+
+# check build status
+if [ $? -ne 0 ]
+then
+    PL_RESULT=${BOLD}${RED}Failed.${NC}
+    PL_BUILD_STATUS=1
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+popd >/dev/null
+exit 1
+fi
+
+# print results
+echo ${CYAN}Results: ${NC} ${PL_RESULT}
+echo ${CYAN}~~~~~~~~~~~~~~~~~~~~~~${NC}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~ example_gfx_5 | release ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PL_RESULT=${BOLD}${GREEN}Successful.${NC}
+PL_DEFINES="-D_USE_MATH_DEFINES -DPL_PROFILING_ON -DPL_ALLOW_HOT_RELOAD -DPL_ENABLE_VALIDATION_LAYERS -DPL_CONFIG_DEBUG "
+PL_INCLUDE_DIRECTORIES="-I../examples -I../internal/sandbox -I../src -I../shaders -I../libs -I../extensions -I../out -I../internal/demo -I../thirdparty/stb -I../thirdparty/imgui "
+PL_LINK_DIRECTORIES="-L../out -Wl,-rpath,../out -L/usr/local/lib -Wl,-rpath,/usr/local/lib "
+PL_COMPILER_FLAGS="-std=c99 -fmodules -ObjC -fPIC "
+PL_LINKER_FLAGS=""
+PL_STATIC_LINK_LIBRARIES=""
+PL_DYNAMIC_LINK_LIBRARIES="-lpl_unity_ext -lpl_platform_ext "
+PL_SOURCES="example_gfx_5.c "
+PL_LINK_FRAMEWORKS="-framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore "
+
+# add flags for specific hardware
+if [[ "$ARCH" == "arm64" ]]; then
+    PL_COMPILER_FLAGS+="-arch arm64 "
+else
+    PL_COMPILER_FLAGS+="-arch x86_64 "
+fi
+
+# run compiler (and linker)
+echo
+echo ${YELLOW}Step: example_gfx_5${NC}
+echo ${YELLOW}~~~~~~~~~~~~~~~~~~~${NC}
+echo ${CYAN}Compiling and Linking...${NC}
+clang -shared $PL_SOURCES $PL_INCLUDE_DIRECTORIES $PL_DEFINES $PL_COMPILER_FLAGS $PL_INCLUDE_DIRECTORIES $PL_LINK_DIRECTORIES $PL_STATIC_LINK_LIBRARIES $PL_DYNAMIC_LINK_LIBRARIES $PL_LINK_FRAMEWORKS $PL_LINKER_FLAGS -o "./../out/libexample_gfx_5.dylib"
 
 # check build status
 if [ $? -ne 0 ]
