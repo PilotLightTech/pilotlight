@@ -57,7 +57,6 @@ for file in glob.glob(file_directory + "/../extensions/pl_*_ext.h"):
 
 shutil.copy(file_directory + "/../src/pl.h", target_directory + "/dependencies/pilotlight/include/pl.h")
 shutil.copy(file_directory + "/../src/pl.inc", target_directory + "/dependencies/pilotlight/include/pl.inc")
-shutil.copy(file_directory + "/../src/pl_config.h", target_directory + "/dependencies/pilotlight/include/pl_config.h")
 shutil.copy(file_directory + "/../src/pl_internal.h", target_directory + "/dependencies/pilotlight/src/pl_internal.h")
 shutil.copy(file_directory + "/../src/pl_main_macos.m", target_directory + "/dependencies/pilotlight/src/pl_main_macos.m")
 
@@ -103,6 +102,7 @@ if newProject:
         shutil.copy(file_directory + "/../internal/templates/gen_build_c.py", target_directory + "/scripts/gen_build.py")
         shutil.copy(file_directory + "/../internal/templates/template_app.cpp", target_directory + "/src/app.c")
 
+    shutil.copy(file_directory + "/../src/pl_config.h", target_directory + "/src/pl_config.h")
     shutil.copy(file_directory + "/../internal/templates/template_README.md", target_directory + "/README.md")
     shutil.copy(file_directory + "/../internal/templates/template_gitignore", target_directory + "/.gitignore")
     shutil.copy(file_directory + "/../internal/templates/template_c_cpp_properties.json", target_directory + "/.vscode/c_cpp_properties.json")
