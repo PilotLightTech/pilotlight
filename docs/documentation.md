@@ -31,12 +31,6 @@ As the name suggests (Pilot Light), the project is meant to be a starting point 
 
 In the ideal situation, everything would be [STB style](https://github.com/nothings/stb) libraries which are about as decoupled as things can be. In reality, this obviously isn't possible for everything, but the effort is still made when possible, and those libraries end up in the [libs](https://github.com/PilotLightTech/pilotlight/tree/master/libs) folder. These are standalone libraries that can easily be dropped into any project. Everything else becomes an extension.
 
-## Getting Started
-
-Follow the instructions found [here](https://github.com/PilotLightTech/pilotlight/wiki/Building).
-
-Then start experimenting with the [examples](https://github.com/PilotLightTech/pilotlight/tree/master/examples).
-
 ## Architecture
 The overall architecture takes inspiration from the now nonexistent **The Machinery** game engine. This architecture is very plugin (what I call extension) based. If something can be an extension, then it should be! Functionality is provided by **APIs** which are just structs of function pointers.
 

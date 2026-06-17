@@ -3,6 +3,15 @@ import os
 from urllib.request import urlretrieve
 from zipfile import ZipFile
 
+if len(sys.argv) <= 1:
+    print("Pilot Light - Download Assets Script");
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+    print("Usage: python download_assets.py [options]");
+    print("\nOptions:");
+    print("        -gltf     gltf-samples repo");
+    print("        -dev      extra pilot light assets");
+    exit()
+
 def reporthook(blocknum, blocksize, totalsize):
     bytesread = blocknum * blocksize
     if totalsize > 0:
@@ -31,9 +40,9 @@ if len(sys.argv) > 1:
     target_directory = sys.argv[1]
     for i in range(1, len(sys.argv)):
         print(sys.argv[i])
-        if sys.argv[i] == "development":
+        if sys.argv[i] == "-dev":
             development_assets = True
-        elif sys.argv[i] == "gltf":
+        elif sys.argv[i] == "-gltf":
             gltf_assets = True
         else:
             target_directory = sys.argv[i]

@@ -27,7 +27,36 @@
 </p>
 
 ## Information
-This is currently a project I use as a starting point for various other projects. It may not be the friendliest to newcomers (yet!) but that will improve with time as higher level extensions are created and documentation improves. More information can be found in the [wiki](https://github.com/PilotLightTech/pilotlight/wiki#what-is-pilot-light). 
+Pilot Light is a lightweight real-time application framework for building native tools,
+graphics experiments, prototypes, and small engine-style applications with minimal dependencies.
+
+It is written primarily in C, uses a modular extension system, and currently includes
+platform, graphics, UI, asset, math, ECS, and many other extensions.
+
+The fastest way to try Pilot Light is to follow the instructions [here](https://github.com/PilotLightTech/pilotlight/wiki/Building).
+
+> Status: active development. APIs are stabilizing, but some systems may still change.
+
+## Quick Start
+
+The fastest way to use Pilot Light is to generate a small standalone project.
+
+### Requirements
+
+- Python 3
+- Platform requirements:
+  - Windows: Visual Studio toolchain + Vulkan SDK
+  - Linux: GCC/Clang + Vulkan SDK + X11/XCB dependencies
+  - MacOS: Xcode command line tools + Vulkan SDK
+
+### Create new project
+
+From the root of this repository:
+
+```bash
+python scripts/new_project.py ../MyFirstProject
+```
+Then just run your platforms build script located in the **/src** directory of your new project. The binaries will be located in the **/out** directory. The Pilot Light directory is no longer needed. Running the script again will update your project with the newest Pilot Light files.
 
 ## Developer Notes
 Information for developers can be found in the [wiki](https://github.com/PilotLightTech/pilotlight/wiki). This includes:
