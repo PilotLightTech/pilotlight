@@ -533,7 +533,6 @@ typedef struct _plRefRendererData
     plDeviceInfo tDeviceInfo;
     plSwapchain* ptSwap;
     plTempAllocator tTempAllocator;
-    uint32_t uMaxTextureResolution;
 
     // bind groups
     plBindGroupPool* ptBindGroupPool;

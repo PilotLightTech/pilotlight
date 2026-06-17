@@ -248,7 +248,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // setup reference renderer
     plRendererSettings tRenderSettings = PL_ZERO_INIT;
     tRenderSettings.ptDevice              = ptAppData->ptDevice;
-    tRenderSettings.uMaxTextureResolution = 1024;
     tRenderSettings.ptSwapchain           = gptStarter->get_swapchain();
     gptRenderer->initialize(&tRenderSettings);
 
@@ -406,8 +405,6 @@ pl_app_update(plAppData* ptAppData)
         return;
         
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
-
-    gptResource->new_frame();
     
     // for convience
     plIO* ptIO = gptIO->get_io();

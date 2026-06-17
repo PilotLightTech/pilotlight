@@ -221,9 +221,6 @@ pl_renderer_initialize(const plRendererSettings* ptSettings)
 
     // default options
     gptData->pdDrawCalls = gptStats->get_counter("draw calls");
-    gptData->uMaxTextureResolution = ptSettings->uMaxTextureResolution > 0 ? ptSettings->uMaxTextureResolution : 1024;
-
-    gptResource->initialize((plResourceManagerInit){.ptDevice = gptData->ptDevice, .uMaxTextureResolution = ptSettings->uMaxTextureResolution});
 
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, "create resources");
     
@@ -1704,7 +1701,6 @@ pl_renderer_cleanup(void)
 
     pl_sb_free(gptData->sbptScenes);
     gptShaderVariant->unload_manifest("/shaders/shaders.pls");
-    gptResource->cleanup();
     gptStage->cleanup();
     gptGfx->flush_device(gptData->ptDevice);
 

@@ -33,6 +33,9 @@ Index of this file:
 #include "pl_shader_ext.h"
 #include "pl_tools_ext.h"
 #include "pl_gpu_allocators_ext.h"
+#include "pl_vfs_ext.h"
+#include "pl_platform_ext.h"
+#include "pl_resource_ext.h"
 
 // unstable extensions
 #include "pl_stage_ext.h"
@@ -58,6 +61,9 @@ Index of this file:
     static const plToolsI*         gptTools         = NULL;
     static const plGPUAllocatorsI* gptGpuAllocators = NULL;
     static const plStageI*         gptStage         = NULL;
+    static const plVfsI*           gptVfs           = NULL;
+    static const plFileI*          gptFile          = NULL;
+    static const plResourceI*      gptResource      = NULL;
     
 #endif
 
@@ -69,7 +75,6 @@ Index of this file:
 typedef struct _plStarterContext plStarterContext;
 
 // helpers
-static void pl__starter_create_render_pass(void);
 static void pl__starter_activate_msaa(void);
 static void pl__starter_deactivate_msaa(void);
 static void pl__starter_activate_depth_buffer(void);
@@ -140,13 +145,18 @@ pl_starter_initialize(plStarterInit tInit)
 
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_SHADER_EXT)
     {
+        gptVfs->mount_directory("/shader-temp", "../shader-temp", PL_VFS_MOUNT_FLAGS_NONE);
+        gptFile->create_directory("../shader-temp");
         static const plShaderOptions tDefaultShaderOptions = {
             .apcIncludeDirectories = {
-                "../shaders/"
+                "../shaders/",
+                "../dependencies/pilotlight/shaders/"
             },
             .apcDirectories = {
-                "../shaders/"
+                "../shaders/",
+                "../dependencies/pilotlight/shaders/"
             },
+            .pcCacheOutputDirectory = "/shader-temp/",
             .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
         };
         gptShader->initialize(&tDefaultShaderOptions);
@@ -173,6 +183,15 @@ pl_starter_initialize(plStarterInit tInit)
     // possibly create device
     plDevice* ptDevice = pl_starter_create_device(ptSurface);
     gptStarterCtx->ptDevice = ptDevice;
+
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_RESOURCE_EXT)
+    {
+        plResourceManagerInit tResourceInit = {
+            .pcCacheDirectory = "../cache",
+            .ptDevice = gptStarterCtx->ptDevice
+        };
+        gptResource->initialize(tResourceInit);
+    }
 
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_TOOLS_EXT)
         gptTools->initialize((plToolsInit){.ptDevice = ptDevice});
@@ -290,7 +309,6 @@ pl_starter_initialize(plStarterInit tInit)
 void
 pl_starter_finalize(void)
 {
-
     plFontAtlas* ptCurrentAtlas = gptDraw->get_current_font_atlas();
     if(gptStarterCtx->ptDefaultFont == NULL)
         gptStarterCtx->ptDefaultFont = gptDraw->get_first_font(ptCurrentAtlas);
@@ -451,6 +469,11 @@ pl_starter_cleanup(void)
         gptGfx->cleanup_semaphore(gptStarterCtx->aptSemaphores[i]);
     }
 
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_RESOURCE_EXT)
+    {
+        gptResource->cleanup();
+    }
+
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_SHADER_EXT)
         gptShader->cleanup();
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DRAW_EXT)
@@ -565,6 +588,11 @@ pl_starter_begin_frame(void)
         }
     }
 
+
+    if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_RESOURCE_EXT)
+    {
+        gptResource->new_frame();
+    }
     return true;
 }
 
@@ -1451,6 +1479,9 @@ pl_load_starter_ext(plApiRegistryI* ptApiRegistry, bool bReload)
     gptTools         = pl_get_api_latest(ptApiRegistry, plToolsI);
     gptGpuAllocators = pl_get_api_latest(ptApiRegistry, plGPUAllocatorsI);
     gptStage         = pl_get_api_latest(ptApiRegistry, plStageI);
+    gptVfs           = pl_get_api_latest(ptApiRegistry, plVfsI);
+    gptFile          = pl_get_api_latest(ptApiRegistry, plFileI);
+    gptResource      = pl_get_api_latest(ptApiRegistry, plResourceI);
 
     if(bReload)
     {

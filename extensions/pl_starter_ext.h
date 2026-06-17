@@ -65,7 +65,7 @@ extern "C" {
 // [SECTION] APIs
 //-----------------------------------------------------------------------------
 
-#define plStarterI_version {2, 1, 0}
+#define plStarterI_version {2, 2, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -337,16 +337,18 @@ enum _plStarterFlags
     PL_STARTER_FLAGS_SCREEN_LOG_EXT = 1 << 6,
     PL_STARTER_FLAGS_GRAPHICS_EXT   = 1 << 7,
     PL_STARTER_FLAGS_TOOLS_EXT      = 1 << 8,
+    PL_STARTER_FLAGS_RESOURCE_EXT   = 1 << 9,
 
     // main render pass options
-    PL_STARTER_FLAGS_DEPTH_BUFFER = 1 << 9,
-    PL_STARTER_FLAGS_MSAA         = 1 << 10,
-    PL_STARTER_FLAGS_VSYNC_OFF    = 1 << 11,
-    PL_STARTER_FLAGS_REVERSE_Z    = 1 << 12,
+    PL_STARTER_FLAGS_DEPTH_BUFFER = 1 << 10,
+    PL_STARTER_FLAGS_MSAA         = 1 << 11,
+    PL_STARTER_FLAGS_VSYNC_OFF    = 1 << 12,
+    PL_STARTER_FLAGS_REVERSE_Z    = 1 << 13,
 
     PL_STARTER_FLAGS_ALL_EXTENSIONS = PL_STARTER_FLAGS_SHADER_EXT | PL_STARTER_FLAGS_DRAW_EXT | PL_STARTER_FLAGS_UI_EXT |
                             PL_STARTER_FLAGS_CONSOLE_EXT | PL_STARTER_FLAGS_PROFILE_EXT | PL_STARTER_FLAGS_STATS_EXT |
-                            PL_STARTER_FLAGS_SCREEN_LOG_EXT | PL_STARTER_FLAGS_GRAPHICS_EXT | PL_STARTER_FLAGS_TOOLS_EXT
+                            PL_STARTER_FLAGS_SCREEN_LOG_EXT | PL_STARTER_FLAGS_GRAPHICS_EXT | PL_STARTER_FLAGS_TOOLS_EXT |
+                            PL_STARTER_FLAGS_RESOURCE_EXT
 
 };
 

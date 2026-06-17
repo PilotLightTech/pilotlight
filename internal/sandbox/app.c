@@ -294,51 +294,20 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {
-        .eFlags   = PL_STARTER_FLAGS_NONE,
+        .eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS,
         .ptWindow = ptAppData->ptWindow
     };
-
-    // extensions handled by starter
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_GRAPHICS_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_PROFILE_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_STATS_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_CONSOLE_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_DRAW_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_UI_EXT;
-    tStarterInit.eFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
 
     // initial flags
     // tStarterInit.tFlags |= PL_STARTER_FLAGS_DEPTH_BUFFER;
     // tStarterInit.tFlags |= PL_STARTER_FLAGS_VSYNC_OFF;
 
-    // we handle these
-    // tStarterInit.tFlags |= PL_STARTER_FLAGS_SHADER_EXT;
 
     // from a graphics standpoint, the starter extension is handling device, swapchain, renderpass
     // etc. which we will get to in later examples
     gptStarter->initialize(tStarterInit);
 
-    // initialize shader compiler
-    static plShaderOptions tDefaultShaderOptions = {
-        .apcIncludeDirectories = {
-            "/shaders/"
-        },
-        .apcDirectories = {
-            "/shaders/",
-            "/shader-temp/",
-        },
-        .pcCacheOutputDirectory = "/shader-temp/",
-        .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_INCLUDE_DEBUG | PL_SHADER_FLAGS_ALWAYS_COMPILE
-    };
-    gptShader->initialize(&tDefaultShaderOptions);
-
     ptAppData->ptDevice = gptStarter->get_device();
-
-    // plTerrainExtInit tTerrainExtInit = {
-    //     .ptDevice = ptAppData->ptDevice
-    // };
-    // gptTerrain->initialize(tTerrainExtInit);
 
     // initialize job system
     gptJobs->initialize((plJobSystemInit){0});
@@ -351,8 +320,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // setup reference renderer
     plRendererSettings tRenderSettings = {
         .ptDevice = ptAppData->ptDevice,
-        .ptSwapchain = gptStarter->get_swapchain(),
-        .uMaxTextureResolution = 1024,
+        .ptSwapchain = gptStarter->get_swapchain()
     };
     gptRenderer->initialize(&tRenderSettings);
 
@@ -479,8 +447,6 @@ pl_app_shutdown(plAppData* ptAppData)
 
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
-    // gptTerrain->cleanup();
-
 
     if(ptAppData->ptTerrain)
         gptRendererTerrain->destroy(ptAppData->ptTerrain);
@@ -497,7 +463,6 @@ pl_app_shutdown(plAppData* ptAppData)
     gptConfig->cleanup();
     gptEcsTools->cleanup();
     gptPhysics->cleanup();
-    gptShader->cleanup();
     gptConsole->cleanup();
 
     if(ptAppData->tTestWorld.ptScene) gptRenderer->unload_test_world(&ptAppData->tTestWorld);
@@ -537,8 +502,6 @@ pl_app_update(plAppData* ptAppData)
 
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
-    gptResource->new_frame();
-    
     // for convience
     plIO* ptIO = gptIO->get_io();
 
