@@ -64,7 +64,7 @@ with pl.project("pilotlight"):
                     include_directories=['%WindowsSdkDir%Include\\um', '%WindowsSdkDir%Include\\shared'])
     pl.add_profile(compiler_filter=["msvc"],
                     target_type_filter=[pl.TargetType.DYNAMIC_LIBRARY],
-                    linker_flags=["-noexp", "-noimplib"])
+                    linker_flags=["-noexp"])
     pl.add_profile(compiler_filter=["msvc"],
                     linker_flags=["-incremental:no"],
                     compiler_flags=["-Zc:preprocessor", "-nologo", "-W4", "-WX", "-wd4201",
