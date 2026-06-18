@@ -24,10 +24,19 @@ jobs:
     
     runs-on: windows-2022
 
+    strategy:
+      matrix:
+        python-version: [ 3.14 ]
+
     steps:
 
     - name: Checkout
       uses: actions/checkout@v6
+
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
 
     - name: Retrieve submodules
       run: git submodule update --init --recursive
@@ -37,6 +46,7 @@ jobs:
         Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/1.4.350.0/windows/vulkansdk-windows-X64-1.4.350.0.exe" -OutFile VulkanSDK.exe
         # ./VulkanSDK.exe --help
         ./VulkanSDK.exe --accept-licenses --default-answer --root D:/a/VulkanSDK --confirm-command install
+        python3 -m pip install pl-build
 
     - name: Prep 1
       shell: cmd
@@ -121,15 +131,49 @@ jobs:
         path: D:\a\pilotlight\pilotlight\out\pilotlight_win32.zip
         overwrite: true
 
+    - name: Check New Project
+      shell: cmd
+      run: |
+        set VULKAN_SDK=D:/a/VulkanSDK
+        cd $GITHUB_WORKSPACE
+        cd scripts
+        python new_project.py ../../Test0 -c -hr
+        python new_project.py ../../Test1 -c
+        python new_project.py ../../Test2 -cpp -hr
+        python new_project.py ../../Test3 -cpp
+        cd ../../Test0/src
+        call build_win32.bat
+        if %ERRORLEVEL% NEQ 0 exit 1
+        cd ../../Test1/src
+        call build_win32.bat
+        if %ERRORLEVEL% NEQ 0 exit 1
+        cd ../../Test2/src
+        call build_win32.bat
+        if %ERRORLEVEL% NEQ 0 exit 1
+        cd ../../Test3/src
+        call build_win32.bat
+        if %ERRORLEVEL% NEQ 0 exit 1
+
+
   MacOS:
     
     runs-on: macos-26
     env:
       CXX: g++-10
+
+    strategy:
+      matrix:
+        python-version: [ 3.14 ]
+
     steps:
 
     - name: Checkout
       uses: actions/checkout@v6
+
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
 
     - name: Retrieve submodules
       run: git submodule update --init --recursive
@@ -139,6 +183,7 @@ jobs:
         curl https://sdk.lunarg.com/sdk/download/1.4.350.0/mac/vulkansdk-macos-1.4.350.0.zip -o vk.zip
         unzip vk.zip
         sudo ./vulkansdk-macOS-1.4.350.0.app/Contents/MacOS/vulkansdk-macOS-1.4.350.0 --root ~/VulkanSDK/1.4.350.0 --accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.core com.lunarg.vulkan.usr com.lunarg.vulkan.sdl2 com.lunarg.vulkan.glm com.lunarg.vulkan.volk com.lunarg.vulkan.vma com.lunarg.vulkan.ios
+        python3 -m pip install pl-build
 
     - name: Prep 1
       run: |
@@ -217,14 +262,44 @@ jobs:
         path: /Users/runner/work/pilotlight/pilotlight/out/pilotlight_macos.zip
         overwrite: true
 
+    - name: Check New Project
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd scripts
+        python new_project.py ../../Test0 -c -hr
+        python new_project.py ../../Test1 -c
+        python new_project.py ../../Test2 -cpp -hr
+        python new_project.py ../../Test3 -cpp
+        cd ../../Test0/src
+        chmod +x build_macos.sh
+        ./build_macos.sh || exit 1
+        cd ../../Test1/src
+        chmod +x build_macos.sh
+        ./build_macos.sh || exit 1
+        cd ../../Test2/src
+        chmod +x build_macos.sh
+        ./build_macos.sh || exit 1
+        cd ../../Test3/src
+        chmod +x build_macos.sh
+        ./build_macos.sh || exit 1
+
   Ubuntu:
     
     runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        python-version: [ 3.14 ]
 
     steps:
 
     - name: Checkout
       uses: actions/checkout@v6
+
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
 
     - name: Retrieve submodules
       run: git submodule update --init --recursive
@@ -247,6 +322,7 @@ jobs:
         sudo apt install libxinerama-dev
         sudo apt install libgl-dev
         sudo apt install libxi-dev
+        python3 -m pip install pl-build
 
     - name: Prep 1
       run: |
@@ -311,7 +387,6 @@ jobs:
         chmod +x build_distribute.sh
         ./build_distribute.sh -c release || exit 1
 
-
     - name: Package Pilot Light
       run: |
         cd $GITHUB_WORKSPACE
@@ -326,3 +401,24 @@ jobs:
         name: pilotlight_release_linux
         path: /home/runner/work/pilotlight/pilotlight/out/pilotlight_linux_amd64.zip
         overwrite: true
+
+    - name: Check New Project
+      run: |
+        cd $GITHUB_WORKSPACE
+        cd scripts
+        python new_project.py ../../Test0 -c -hr
+        python new_project.py ../../Test1 -c
+        python new_project.py ../../Test2 -cpp -hr
+        python new_project.py ../../Test3 -cpp
+        cd ../../Test0/src
+        chmod +x build_linux.sh
+        ./build_linux.sh || exit 1
+        cd ../../Test1/src
+        chmod +x build_linux.sh
+        ./build_linux.sh || exit 1
+        cd ../../Test2/src
+        chmod +x build_linux.sh
+        ./build_linux.sh || exit 1
+        cd ../../Test3/src
+        chmod +x build_linux.sh
+        ./build_linux.sh || exit 1
