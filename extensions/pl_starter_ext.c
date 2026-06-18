@@ -157,7 +157,7 @@ pl_starter_initialize(plStarterInit tInit)
                 "../dependencies/pilotlight/shaders/"
             },
             .pcCacheOutputDirectory = "/shader-temp/",
-            .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT
+            .eFlags = PL_SHADER_FLAGS_AUTO_OUTPUT | PL_SHADER_FLAGS_ALWAYS_COMPILE | PL_SHADER_FLAGS_INCLUDE_DEBUG
         };
         gptShader->initialize(&tDefaultShaderOptions);
     }

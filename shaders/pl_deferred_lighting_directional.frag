@@ -66,8 +66,6 @@ void main()
     tViewPosition.w = 1.0;
     vec4 tWorldPosition = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraViewInv * tViewPosition;
 
-    
-
     MaterialInfo materialInfo;
 
     // The default index of refraction of 1.5 yields a dielectric normal incidence reflectance of 0.04.
@@ -229,62 +227,7 @@ void main()
     // Layer blending
 
     outColor.a = fBaseColorAlpha;
-
-    if(tShaderDebugMode == PL_SHADER_DEBUG_MODE_NONE)
-    {
-        
-        outColor.rgb = color.rgb;
-    }
-    else
-    {
-
-        outColor = vec4(1.0);
-        {
-            float frequency = 0.02;
-            float gray = 0.9;
-
-            vec2 v1 = step(0.5, fract(frequency * gl_FragCoord.xy));
-            vec2 v2 = step(0.5, vec2(1.0) - fract(frequency * gl_FragCoord.xy));
-            outColor.rgb *= gray + v1.x * v1.y + v2.x * v2.y;
-        }
-    
-        if(tShaderDebugMode == PL_SHADER_DEBUG_BASE_COLOR)
-        {
-            outColor.rgb = materialInfo.baseColor;
-            outColor.a = fBaseColorAlpha;
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_SHADING_NORMAL)
-        {
-            outColor = vec4((n + 1.0) / 2.0, fBaseColorAlpha);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_METALLIC)
-        {
-            outColor.rgb = vec3(materialInfo.metallic);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_ROUGHNESS)
-        {
-            outColor.rgb = vec3(materialInfo.perceptualRoughness);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_ALPHA)
-        {
-            outColor.rgb = vec3(fBaseColorAlpha);
-        }
-
-        if(tShaderDebugMode == PL_SHADER_DEBUG_OCCLUSION)
-        {
-            outColor.rgb = vec3(ao);
-        }
-
-        if(tShaderDebugMode > PL_SHADER_DEBUG_SHADING_NORMAL)
-        {
-            outColor.rgb = vec3(n);
-        }
-    }
-
+    outColor.rgb = color.rgb;
 
     // if(gl_FragCoord.x < 1800.0)
     // {

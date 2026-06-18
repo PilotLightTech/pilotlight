@@ -113,10 +113,9 @@ void main()
 
     // fill g-buffer
     outAlbedo = tBaseColor;
-    {
-        NormalInfo tNormalInfo = pl_get_normal_info();
-        outNormal = Encode(tNormalInfo.n);
-    }
+    NormalInfo tNormalInfo = pl_get_normal_info();
+    outNormal = vec2(0);
+    outFinal = vec4(0);
     outAOMetalnessRoughness = vec4(ao, materialInfo.metallic, materialInfo.perceptualRoughness, 1.0);
     
 
@@ -134,6 +133,36 @@ void main()
         }
     }
 
+    if(tShaderDebugMode == PL_SHADER_DEBUG_BASE_COLOR)
+    {
+        outAlbedo = tBaseColor;
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_SHADING_NORMAL)
+    {
+        outAlbedo.rgb = vec3((1.0 + tNormalInfo.n) / 2.0);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_METALLIC)
+    {
+        outAlbedo.rgb = vec3(materialInfo.metallic);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_ROUGHNESS)
+    {
+        outAlbedo.rgb = vec3(materialInfo.perceptualRoughness);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_ALPHA)
+    {
+        outAlbedo.rgb = vec3(tBaseColor.a);
+    }
+
+    if(tShaderDebugMode == PL_SHADER_DEBUG_OCCLUSION)
+    {
+        outAlbedo.rgb = vec3(ao);
+    }
+
     if(tShaderDebugMode == PL_SHADER_DEBUG_UV0)
     {
         if(bool(iMeshVariantFlags & PL_MESH_FORMAT_FLAG_HAS_TEXCOORD_0))
@@ -142,19 +171,16 @@ void main()
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_NORMAL)
     {
-        NormalInfo tNormalInfo = pl_get_normal_info();
         outAlbedo.rgb = vec3((1.0 + tNormalInfo.ng) / 2.0);
     }
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_TANGENT)
     {
-        NormalInfo tNormalInfo = pl_get_normal_info();
         outAlbedo.rgb = vec3((1.0 + tNormalInfo.t) / 2.0);
     }
 
     if(tShaderDebugMode == PL_SHADER_DEBUG_GEOMETRY_BITANGENT)
     {
-        NormalInfo tNormalInfo = pl_get_normal_info();
         outAlbedo.rgb = vec3((1.0 + tNormalInfo.b) / 2.0);
     }
 
@@ -162,8 +188,7 @@ void main()
     {
         if(bool(iTextureMappingFlags & PL_HAS_NORMAL_MAP))
         {
-            NormalInfo tNormalInfo = pl_get_normal_info();
-            outAlbedo.rgb = tNormalInfo.ntex;
+            outAlbedo.rgb = (tNormalInfo.ntex + 1.0) / 2.0;
         }
     }
 }

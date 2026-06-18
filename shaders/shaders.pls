@@ -356,6 +356,7 @@
                 { "eType": "PL_DATA_TYPE_INT" },
                 { "eType": "PL_DATA_TYPE_INT" },
                 { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" },
             ],
             "atBindGroupLayouts": [
                 { "pcName": "scene" },
@@ -668,6 +669,49 @@
                         { "uSlot": 3, "eType": "PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT", "eStages": ["PL_SHADER_STAGE_FRAGMENT"] }
                     ]
                 }
+                
+            ]
+        },
+        {
+            "pcName": "deferred_lighting_debug",
+            "tVertexShader":    { "file": "pl_full_screen.vert"},
+            "tFragmentShader":  { "file": "pl_deferred_lighting_debug.frag"},
+            "tGraphicsState": {
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
+            },
+            "atBlendStates": [
+                {
+                    "bBlendEnabled":   true,
+                    "eSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstColorFactor": "PL_BLEND_FACTOR_ONE",
+                    "eColorOp":        "PL_BLEND_OP_ADD",
+                    "eSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
+                    "eAlphaOp":        "PL_BLEND_OP_ADD"
+                },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 }
+            ],
+            "atFragmentConstants": [
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
+            ],
+            "atBindGroupLayouts": [ 
+                { "pcName": "scene" },
+                { "pcName": "view" },
+                { "pcName": "deferred lighting 1" }
                 
             ]
         },
