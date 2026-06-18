@@ -86,7 +86,7 @@ pl_script_run(plComponentLibrary* ptLibrary, plEntity tEntity)
         }
         else if(gptIO->is_mouse_released(PL_MOUSE_BUTTON_RIGHT))
         {
-            ptCamera->fYFov = gfOriginalFOV;
+            gptCamera->set_y_fov(ptCamera, gfOriginalFOV);
         }
 
         if(gptIO->get_mouse_wheel() > 0.0f)
