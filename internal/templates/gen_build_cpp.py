@@ -1,19 +1,17 @@
-# gen_dev.py
+# gen_build.py
 
 # Index of this file:
 # [SECTION] imports
 # [SECTION] project
 # [SECTION] profiles
+# [SECTION] pilot_light
 # [SECTION] extensions
 # [SECTION] ecs scripts
 # [SECTION] platform extension
-# [SECTION] app
-# [SECTION] pilot_light
-# [SECTION] experimental editor section (temporary)
 # [SECTION] glfw
 # [SECTION] imgui & implot
-# [SECTION] editor app
 # [SECTION] pl_dear_imgui_ext
+# [SECTION] app
 # [SECTION] pilot light glfw backend
 # [SECTION] generate_scripts
 

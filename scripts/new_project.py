@@ -106,7 +106,11 @@ if newProject:
     shutil.copy(file_directory + "/../internal/templates/template_README.md", target_directory + "/README.md")
     shutil.copy(file_directory + "/../internal/templates/template_gitignore", target_directory + "/.gitignore")
     shutil.copy(file_directory + "/../internal/templates/template_c_cpp_properties.json", target_directory + "/.vscode/c_cpp_properties.json")
-    shutil.copy(file_directory + "/../internal/templates/template_launch.json", target_directory + "/.vscode/launch.json")
+    
+    if api:
+        shutil.copy(file_directory + "/../internal/templates/template_launch_api.json", target_directory + "/.vscode/launch.json")
+    else:
+        shutil.copy(file_directory + "/../internal/templates/template_launch.json", target_directory + "/.vscode/launch.json")
 
     os.chdir(target_directory)
     os.chdir("scripts")
