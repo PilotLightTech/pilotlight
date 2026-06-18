@@ -5,6 +5,7 @@
 Below is the change log for typical users. Minor and older changes stripped
 away, please see git history for details.
 
+- v0.10.2 (XXXX-XX-XX)
 - v0.10.1 (2026-06-17)(scripts)           -improved new_project script
                       (starter   v2.1.0)  -added readback, staging, & resource creation helpers
                                           -added resource manager handling

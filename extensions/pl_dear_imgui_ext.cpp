@@ -92,7 +92,7 @@ pl_dear_imgui_initialize(plDevice *ptDevice, plSwapchain *ptSwap, const plRender
     tImguiVulkanInfo.PipelineInfoMain.PipelineRenderingCreateInfo = tPipelineRenderingCreateInfo;
     tImguiVulkanInfo.PipelineInfoForViewports.PipelineRenderingCreateInfo = tPipelineRenderingCreateInfo;
     // tImguiVulkanInfo.PipelineInfoMain.RenderPass = gptGfx->get_vulkan_render_pass(ptDevice, tMainRenderPass);
-    tImguiVulkanInfo.PipelineInfoForViewports.MSAASamples = (VkSampleCountFlagBits)gptGfx->get_swapchain_info(ptSwap).eSampleCount;
+    // tImguiVulkanInfo.PipelineInfoForViewports.MSAASamples = (VkSampleCountFlagBits)gptGfx->get_swapchain_info(ptSwap).eSampleCount;
     // tImguiVulkanInfo.PipelineInfoForViewports.RenderPass = gptGfx->get_vulkan_render_pass(ptDevice, tMainRenderPass);
     gptGfx->get_swapchain_images(ptSwap, &tImguiVulkanInfo.ImageCount);
     ImGui_ImplVulkan_Init(&tImguiVulkanInfo);
