@@ -217,6 +217,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     tStarterInit.eFlags |= PL_STARTER_FLAGS_TOOLS_EXT;
     tStarterInit.eFlags |= PL_STARTER_FLAGS_DRAW_EXT;
     tStarterInit.eFlags |= PL_STARTER_FLAGS_UI_EXT;
+    tStarterInit.eFlags |= PL_STARTER_FLAGS_RESOURCE_EXT;
     // tStarterInit.eFlags |= PL_STARTER_FLAGS_SCREEN_LOG_EXT;
 
     // initial flags
