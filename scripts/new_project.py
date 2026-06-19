@@ -16,6 +16,7 @@ if len(sys.argv) <= 1:
 
 target_directory = "../../project"
 file_directory = os.path.dirname(os.path.abspath(__file__))
+build_sys_directory = os.path.dirname(os.path.abspath(__file__)) + "/.."
 
 cpp = False
 api = False
@@ -35,7 +36,11 @@ for i in range(2, len(sys.argv)):
 if os.path.isdir(target_directory + "/dependencies"):
     newProject = False
     print("Updating Existing Project")
-    shutil.rmtree(target_directory + "/dependencies")
+    shutil.rmtree(target_directory + "/dependencies/pilotlight")
+    shutil.rmtree(target_directory + "/dependencies/cgltf")
+    shutil.rmtree(target_directory + "/dependencies/glfw")
+    shutil.rmtree(target_directory + "/dependencies/imgui")
+    shutil.rmtree(target_directory + "/dependencies/stb")
 
 if not os.path.isdir(target_directory):
     os.mkdir(target_directory)
@@ -45,12 +50,11 @@ if not os.path.isdir(target_directory):
     os.mkdir(target_directory + "/docs")
     os.mkdir(target_directory + "/tests")
     os.mkdir(target_directory + "/.vscode")
+    os.mkdir(target_directory + "/dependencies")
 
-os.mkdir(target_directory + "/dependencies")
 os.mkdir(target_directory + "/dependencies/pilotlight")
 os.mkdir(target_directory + "/dependencies/pilotlight/include")
 os.mkdir(target_directory + "/dependencies/pilotlight/src")
-
 
 for file in glob.glob(file_directory + "/../extensions/pl_*_ext.h"):
     shutil.copy(file, target_directory + "/dependencies/pilotlight/include/")
@@ -87,19 +91,28 @@ shutil.copytree(file_directory + "/../thirdparty/imgui", target_directory + "/de
 shutil.copytree(file_directory + "/../thirdparty/stb", target_directory + "/dependencies/stb")
 shutil.copytree(file_directory + "/../shaders", target_directory + "/dependencies/pilotlight/shaders")
 
+if cpp and api:
+    shutil.copy(file_directory + "/../internal/templates/gen_build_cpp_api.py", target_directory + "/scripts/gen_build.py")
+elif api:
+    shutil.copy(file_directory + "/../internal/templates/gen_build_c_api.py", target_directory + "/scripts/gen_build.py")
+elif cpp:
+    shutil.copy(file_directory + "/../internal/templates/gen_build_cpp.py", target_directory + "/scripts/gen_build.py")
+else:
+    shutil.copy(file_directory + "/../internal/templates/gen_build_c.py", target_directory + "/scripts/gen_build.py")
+
 if newProject:
     print("Generating New Project")
     if cpp and api:
-        shutil.copy(file_directory + "/../internal/templates/gen_build_cpp_api.py", target_directory + "/scripts/gen_build.py")
+        shutil.copy(file_directory + "/../internal/templates/gen_build_cpp_api.py", target_directory + "/scripts/gen_build_user.py")
         shutil.copy(file_directory + "/../internal/templates/template_app_api.cpp", target_directory + "/src/app.cpp")
     elif api:
-        shutil.copy(file_directory + "/../internal/templates/gen_build_c_api.py", target_directory + "/scripts/gen_build.py")
+        shutil.copy(file_directory + "/../internal/templates/gen_build_c_api.py", target_directory + "/scripts/gen_build_user.py")
         shutil.copy(file_directory + "/../internal/templates/template_app_api.cpp", target_directory + "/src/app.c")
     elif cpp:
-        shutil.copy(file_directory + "/../internal/templates/gen_build_cpp.py", target_directory + "/scripts/gen_build.py")
+        shutil.copy(file_directory + "/../internal/templates/gen_build_cpp.py", target_directory + "/scripts/gen_build_user.py")
         shutil.copy(file_directory + "/../internal/templates/template_app.cpp", target_directory + "/src/app.cpp")
     else:
-        shutil.copy(file_directory + "/../internal/templates/gen_build_c.py", target_directory + "/scripts/gen_build.py")
+        shutil.copy(file_directory + "/../internal/templates/gen_build_c.py", target_directory + "/scripts/gen_build_user.py")
         shutil.copy(file_directory + "/../internal/templates/template_app.cpp", target_directory + "/src/app.c")
 
     shutil.copy(file_directory + "/../src/pl_config.h", target_directory + "/src/pl_config.h")
@@ -114,7 +127,7 @@ if newProject:
 
     os.chdir(target_directory)
     os.chdir("scripts")
-    subprocess.run([os.path.basename(sys.executable), "gen_build.py"])
+    subprocess.run([os.path.basename(sys.executable), "gen_build.py", build_sys_directory])
 
 else:
     if(os.path.isdir(target_directory + "/out")):
@@ -125,5 +138,5 @@ else:
         shutil.rmtree(target_directory + "/cache")
     os.chdir(target_directory)
     os.chdir("scripts")
-    subprocess.run([os.path.basename(sys.executable), "gen_build.py"])
+    subprocess.run([os.path.basename(sys.executable), "gen_build.py", build_sys_directory])
 

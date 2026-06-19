@@ -46,7 +46,6 @@ jobs:
         Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/1.4.350.0/windows/vulkansdk-windows-X64-1.4.350.0.exe" -OutFile VulkanSDK.exe
         # ./VulkanSDK.exe --help
         ./VulkanSDK.exe --accept-licenses --default-answer --root D:/a/VulkanSDK --confirm-command install
-        python3 -m pip install pl-build
 
     - name: Prep 1
       shell: cmd
@@ -183,7 +182,6 @@ jobs:
         curl https://sdk.lunarg.com/sdk/download/1.4.350.0/mac/vulkansdk-macos-1.4.350.0.zip -o vk.zip
         unzip vk.zip
         sudo ./vulkansdk-macOS-1.4.350.0.app/Contents/MacOS/vulkansdk-macOS-1.4.350.0 --root ~/VulkanSDK/1.4.350.0 --accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.core com.lunarg.vulkan.usr com.lunarg.vulkan.sdl2 com.lunarg.vulkan.glm com.lunarg.vulkan.volk com.lunarg.vulkan.vma com.lunarg.vulkan.ios
-        python3 -m pip install pl-build
 
     - name: Prep 1
       run: |
@@ -322,7 +320,6 @@ jobs:
         sudo apt install libxinerama-dev
         sudo apt install libgl-dev
         sudo apt install libxi-dev
-        python3 -m pip install pl-build
 
     - name: Prep 1
       run: |

@@ -54,7 +54,6 @@ The fastest way to use Pilot Light is to generate a small standalone project.
 From the root of this repository:
 
 ```bash
-python -m pip install pl-build
 python scripts/new_project.py ../MyFirstProject
 ```
 Then just run your platforms build script located in the **/src** directory of your new project. The binaries will be located in the **/out** directory. The Pilot Light directory is no longer needed. Running the script again will update your project with the newest Pilot Light files.
