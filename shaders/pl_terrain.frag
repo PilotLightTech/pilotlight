@@ -20,9 +20,10 @@ layout(location = 0) in struct plShaderIn {
 } tShaderIn;
 
 // output
-layout(location = 0) out vec4 outAlbedo;
-layout(location = 1) out vec2 outNormal;
-layout(location = 2) out vec4 outAOMetalnessRoughness;
+layout(location = 0) out vec4 outFinal;
+layout(location = 1) out vec4 outAlbedo;
+layout(location = 2) out vec2 outNormal;
+layout(location = 3) out vec4 outAOMetalnessRoughness;
 
 layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 {

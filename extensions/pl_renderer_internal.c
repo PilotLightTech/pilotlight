@@ -1283,7 +1283,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
             const float fCenterZ = 0.5f * (fZMin + fZMax);
 
             // optional z padding for off-frustum casters
-            const float fDepthPadding = 100.0f; // TODO: make option
+            const float fDepthPadding = 5000.0f; // TODO: make option
             const float fNearZ = fZMin - fDepthPadding;
             const float fFarZ  = fZMax + fDepthPadding;
 
@@ -1323,6 +1323,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
             // tViewMat assignment to after update() and then rebuild viewProj here.
 
             atCamViewProjs[uCascade] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
+            tShadowCamera.tViewProjMat = atCamViewProjs[uCascade];
             ptShadowData->viewProjMat[uCascade] = atCamViewProjs[uCascade];
             fLastSplitDist = fSplitDist;
 
@@ -1361,6 +1362,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                 // ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                 // ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
                 ptDynamicData->iIndex = (int)uCascade + iShadowIndex;
+                // ptDynamicData->iIndex = (int)uCascade + iShadowIndex * PL_MAX_SHADOW_CASCADES;
 
                 gptGfx->bind_graphics_bind_groups(
                     ptCommandBuffer,
@@ -1372,7 +1374,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
 
 
                 for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
-                    pl__render_chunk_shadow(ptScene, ptScene->ptTerrain, &tShadowCamera, ptCommandBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &tShadowCamera.tViewProjMat, 0);
+                    pl__render_chunk_shadow(ptScene, ptScene->ptTerrain, &tShadowCamera, ptCommandBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &ptShadowData->viewProjMat[uCascade], 0);
             }
         }
 

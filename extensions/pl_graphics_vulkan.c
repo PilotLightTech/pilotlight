@@ -4888,6 +4888,7 @@ void
 pl_graphics_cleanup_bind_group_pool(plBindGroupPool* ptPool)
 {
     vkDestroyDescriptorPool(ptPool->ptDevice->tLogicalDevice, ptPool->tDescriptorPool, gptGraphics->ptAllocationCallbacks);
+    ptPool->tDescriptorPool = VK_NULL_HANDLE;
     PL_FREE(ptPool);
 }
 

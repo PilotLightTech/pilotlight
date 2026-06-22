@@ -881,7 +881,7 @@
                 }
             ],
             "atBlendStates": [
-                { "bBlendEnabled": false },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
                 { "bBlendEnabled": false },
                 { "bBlendEnabled": false },
                 { "bBlendEnabled": false }

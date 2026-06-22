@@ -885,6 +885,8 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                     gptUI->input_float3("Position", ptCameraComp->tPositionF.d, NULL, 0);
                     gptUI->input_float("Near Z Plane", &ptCameraComp->fNearZ, NULL, 0);
                     gptUI->input_float("Far Z Plane", &ptCameraComp->fFarZ, NULL, 0);
+
+                    ptCameraComp->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_ALL;
                     
                     
                     gptUI->end_collapsing_header();

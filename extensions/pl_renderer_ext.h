@@ -576,6 +576,7 @@ typedef struct _plTestWorldData
 {
     plScene* ptScene;
     plView*  ptView;
+    plTerrain* ptTerrain;
 
     plEntity tMainCamera;
     bool bMSAA;

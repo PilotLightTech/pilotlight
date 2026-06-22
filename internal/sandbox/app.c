@@ -174,9 +174,6 @@ typedef struct _plAppData
     bool* pbShowStats;
     bool* pbShowLogging;
 
-    // terrain
-    plTerrain* ptTerrain;
-
     // drawing
     plDrawLayer2D* ptDrawLayer;
 
@@ -448,8 +445,6 @@ pl_app_shutdown(plAppData* ptAppData)
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(ptAppData->ptDevice);
 
-    if(ptAppData->ptTerrain)
-        gptRendererTerrain->destroy(ptAppData->ptTerrain);
     gptConfig->set_bool("bEditorAttached", ptAppData->bEditorAttached);
     gptConfig->set_bool("bShowEntityWindow", ptAppData->bShowEntityWindow);
     gptConfig->set_bool("bPhysicsDebugDraw", ptAppData->bPhysicsDebugDraw);
@@ -465,7 +460,8 @@ pl_app_shutdown(plAppData* ptAppData)
     gptPhysics->cleanup();
     gptConsole->cleanup();
 
-    if(ptAppData->tTestWorld.ptScene) gptRenderer->unload_test_world(&ptAppData->tTestWorld);
+    if(ptAppData->tTestWorld.ptScene)
+        gptRenderer->unload_test_world(&ptAppData->tTestWorld);
     
     gptEcs->cleanup();
     gptRenderer->cleanup();
@@ -731,34 +727,6 @@ pl__show_init_window(plAppData* ptAppData)
                     gptStarter->deactivate_msaa();
 
                 gptRendererEditor->rebuild_scene_bvh(ptAppData->tTestWorld.ptScene);
-
-                #if 0
-                    plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
-
-                    plTerrainProcessTileInfo tTile = {
-                        .iTreeDepth    = 6,
-                        .fMaxHeight    = 2000.0f,
-                        .fMinHeight    = -40.0f,
-                        .fMaxBaseError = 3.0f,
-                        .tCenter = {0}
-                    };
-                    plTerrainProcessInfo tTerrainInfo = {
-                        .fMetersPerPixel = 20.0f,
-                        .uHorizontalTiles = 1,
-                        .uVerticalTiles = 1,
-                        .uSize = 4096,
-                        .uTileCount = 1,
-                        .atTiles = &tTile
-                    };
-
-                    sprintf(tTile.acOutputFile, "/cache/mountains.chu");
-                    sprintf(tTile.acHeightMapFile, "/assets/core/textures/mountains.png");
-
-                    gptTerrain->process(&tTerrainInfo);
-                    ptAppData->ptTerrain = gptRendererTerrain->create(ptCmdBuffer, &tTerrainInfo);
-                    gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
-                    gptRendererTerrain->set(ptAppData->tTestWorld.ptScene, ptAppData->ptTerrain);
-                #endif
             }
         }
 
@@ -794,7 +762,7 @@ pl__show_editor_window(plAppData* ptAppData)
     bool bReloadShaders = false;
     bool bReloadScene = false;
 
-    plTerrainRuntimeOptions* ptRuntimeOptions = gptRendererTerrain->get_runtime_options(ptAppData->ptTerrain);
+    plTerrainRuntimeOptions* ptRuntimeOptions = gptRendererTerrain->get_runtime_options(ptAppData->tTestWorld.ptTerrain);
 
     if(ptAppData->bEditorAttached)
     {
@@ -873,7 +841,7 @@ pl__show_editor_window(plAppData* ptAppData)
 
             gptUI->vertical_spacing();
 
-            if(ptAppData->ptTerrain)
+            if(ptAppData->tTestWorld.ptTerrain)
             {
                 if(gptUI->tree_node("Terrain", 0))
                 {

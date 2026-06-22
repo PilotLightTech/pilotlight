@@ -148,43 +148,17 @@ pl_renderer_terrain_create(plCommandBuffer* ptCmdBuffer, plTerrainProcessInfo* p
     const plBufferDesc tVertexBufferDesc = {
         .eUsage      = PL_BUFFER_USAGE_VERTEX | PL_BUFFER_USAGE_TRANSFER,
         .szByteSize  = ptTerrain->tVertexBufferManager.uSize,
-        .pcDebugName = "vertex buffer"
+        .pcDebugName = "terrain vertex buffer"
     };
-    ptTerrain->tVertexBuffer = gptGfx->create_buffer(ptDevice, &tVertexBufferDesc, NULL);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptVertexBuffer = gptGfx->get_buffer(ptDevice, ptTerrain->tVertexBuffer);
-
-    // allocate memory for the vertex buffer
-    const plDeviceMemoryAllocation tVertexBufferAllocation = gptGfx->allocate_memory(ptDevice,
-        ptVertexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptVertexBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "vertex buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tVertexBuffer, &tVertexBufferAllocation);
+    gptStarter->create_buffer(&tVertexBufferDesc, NULL, &ptTerrain->tVertexBuffer);
 
     // create index buffer
     const plBufferDesc tIndexBufferDesc = {
         .eUsage      = PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_TRANSFER,
         .szByteSize  = ptTerrain->tIndexBufferManager.uSize,
-        .pcDebugName = "index buffer"
+        .pcDebugName = "terrain index buffer"
     };
-    ptTerrain->tIndexBuffer = gptGfx->create_buffer(ptDevice, &tIndexBufferDesc, NULL);
-
-    // retrieve buffer to get memory allocation requirements (do not store buffer pointer)
-    plBuffer* ptIndexBuffer = gptGfx->get_buffer(ptDevice, ptTerrain->tIndexBuffer);
-
-    // allocate memory for the index buffer
-    const plDeviceMemoryAllocation tIndexBufferAllocation = gptGfx->allocate_memory(ptDevice,
-        ptIndexBuffer->tMemoryRequirements.ulSize,
-        PL_MEMORY_FLAGS_DEVICE_LOCAL,
-        ptIndexBuffer->tMemoryRequirements.uMemoryTypeBits,
-        "index buffer memory");
-
-    // bind the buffer to the new memory allocation
-    gptGfx->bind_buffer_to_memory(ptDevice, ptTerrain->tIndexBuffer, &tIndexBufferAllocation);
+    gptStarter->create_buffer(&tIndexBufferDesc, NULL, &ptTerrain->tIndexBuffer);
 
     pl__terrain_load(ptTerrain, ptInfo);
     ptTerrain->atTiles = PL_ALLOC(sizeof(plTerrainProcessTileInfo) * ptInfo->uTileCount);
@@ -221,8 +195,8 @@ pl_renderer_terrain_destroy(plTerrain* ptTerrain)
     ptTerrain->atTiles = NULL;
 
     // cleanup our resources
-    gptGfx->destroy_buffer(ptDevice, ptTerrain->tVertexBuffer);
-    gptGfx->destroy_buffer(ptDevice, ptTerrain->tIndexBuffer);
+    gptGfx->queue_buffer_for_deletion(ptDevice, ptTerrain->tVertexBuffer);
+    gptGfx->queue_buffer_for_deletion(ptDevice, ptTerrain->tIndexBuffer);
     gptFreeList->cleanup(&ptTerrain->tVertexBufferManager);
     gptFreeList->cleanup(&ptTerrain->tIndexBufferManager);
 

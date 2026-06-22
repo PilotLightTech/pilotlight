@@ -182,7 +182,7 @@ void main()
 
     // Layer blending
     outColor.a = fBaseColorAlpha;
-
+    
     if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_HEIGHT_FOG))
     {
         outColor = fog(outColor, tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);

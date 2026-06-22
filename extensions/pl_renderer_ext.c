@@ -3146,7 +3146,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
                 .eLoadOp        = PL_LOAD_OP_CLEAR,
                 .eStoreOp       = PL_STORE_OP_STORE,
                 .eUsage         = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-                .tClearColor    = {0.0f, 0.0f, 0.0f, 0.0f}
+                .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
             },
             {
                 .tTexture       = ptView->tAlbedoTexture,
@@ -3220,10 +3220,9 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     };
     pl__render_view_gbuffer_fill_pass(ptScene, ptSceneCmdBuffer, &tGbufferFillPassInfo);
 
-    gptGfx->push_debug_group(ptSceneCmdBuffer, "Terrain", (plVec4){0.33f, 0.42f, 0.20f, 1.0f});
-    
     if(ptScene->ptTerrain)
     {
+        gptGfx->push_debug_group(ptSceneCmdBuffer, "Terrain", (plVec4){0.33f, 0.42f, 0.20f, 1.0f});
         plShaderHandle tTerrainShader = ptScene->tTerrainShader;
 
         if(ptScene->ptTerrain->tRuntimeOptions.tFlags & PL_TERRAIN_FLAGS_WIREFRAME)
@@ -3243,9 +3242,10 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
         for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
             pl__render_chunk(ptScene, ptScene->ptTerrain, ptCamera, ptSceneCmdBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &ptCamera->tViewProjMat, 0);
-    }
-    gptGfx->pop_debug_group(ptSceneCmdBuffer);
 
+        gptGfx->pop_debug_group(ptSceneCmdBuffer);
+    }
+    
     const plPassResources tResourceUpdates = {
         .atTextures = {
             {
@@ -4515,9 +4515,18 @@ void
 pl_renderer_unload_test_world(plTestWorldData* ptData)
 {
     pl_renderer_destroy_view(ptData->ptView);
+
+    if(ptData->ptTerrain)
+    {
+        pl_renderer_terrain_destroy(ptData->ptTerrain);
+    }
+    ptData->ptTerrain = NULL;
+    ptData->ptScene->ptTerrain = NULL;
+
     pl_renderer_destroy_scene(ptData->ptScene);
     ptData->ptView = NULL;
     ptData->ptScene = NULL;
+    
 }
 
 bool
@@ -4955,6 +4964,40 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
             }
             gptModelLoader->free_data(tHandle);
         }
+    }
+
+
+    plJsonObject* ptTerrainObject = pl_json_member(ptSceneObject, "terrain");
+    if(ptTerrainObject)
+    {
+        plTerrainProcessInfo tTerrainInfo = {0};
+        tTerrainInfo.fMetersPerPixel = pl_json_float_member(ptTerrainObject, "fMetersPerPixel", 0.0f);
+        tTerrainInfo.uHorizontalTiles = pl_json_uint_member(ptTerrainObject, "uHorizontalTiles", 0);
+        tTerrainInfo.uVerticalTiles = pl_json_uint_member(ptTerrainObject, "uVerticalTiles", 0);
+        tTerrainInfo.uSize = pl_json_uint_member(ptTerrainObject, "uSize", 0);
+
+        plJsonObject* ptTilesObject = pl_json_array_member(ptTerrainObject, "tiles", &tTerrainInfo.uTileCount);
+        tTerrainInfo.atTiles = PL_ALLOC(tTerrainInfo.uTileCount * sizeof(plTerrainProcessTileInfo));
+        memset(tTerrainInfo.atTiles, 0, tTerrainInfo.uTileCount * sizeof(plTerrainProcessTileInfo));
+        for(uint32_t i = 0; i < tTerrainInfo.uTileCount; i++)
+        {
+            plJsonObject* ptTileObject = pl_json_member_by_index(ptTilesObject, i);
+            tTerrainInfo.atTiles[i].fMaxHeight = pl_json_float_member(ptTileObject, "fMaxHeight", 0.0f);
+            tTerrainInfo.atTiles[i].fMinHeight = pl_json_float_member(ptTileObject, "fMinHeight", 0.0f);
+            tTerrainInfo.atTiles[i].fMaxBaseError = pl_json_float_member(ptTileObject, "fMaxBaseError", 0.0f);
+            tTerrainInfo.atTiles[i].iTreeDepth = pl_json_int_member(ptTileObject, "iTreeDepth", 0);
+            pl_json_float_array_member(ptTileObject, "tCenter", tTerrainInfo.atTiles[i].tCenter.d, NULL);
+
+            pl_json_string_member(ptTileObject, "acOutputFile", tTerrainInfo.atTiles[i].acOutputFile, 256);
+            pl_json_string_member(ptTileObject, "acHeightMapFile", tTerrainInfo.atTiles[i].acHeightMapFile, 256);
+        }
+
+        gptTerrain->process(&tTerrainInfo);
+        plCommandBuffer* ptCmdBuffer = gptStarter->get_temporary_command_buffer();
+        ptDataOut->ptTerrain = pl_renderer_terrain_create(ptCmdBuffer, &tTerrainInfo);
+        gptStarter->submit_temporary_command_buffer(ptCmdBuffer);
+        pl_renderer_terrain_set(ptDataOut->ptScene, ptDataOut->ptTerrain);
+        PL_FREE(tTerrainInfo.atTiles);
     }
     
     pl_unload_json(&ptRootJsonObject);
