@@ -184,6 +184,8 @@ pl_starter_initialize(plStarterInit tInit)
     plDevice* ptDevice = pl_starter_create_device(ptSurface);
     gptStarterCtx->ptDevice = ptDevice;
 
+    gptStage->initialize((plStageInit){.ptDevice = ptDevice});
+
     if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_RESOURCE_EXT)
     {
         plResourceManagerInit tResourceInit = {
@@ -456,6 +458,7 @@ pl_starter_cleanup(void)
 {
     // ensure GPU is finished before cleanup
     gptGfx->flush_device(gptStarterCtx->ptDevice);
+    gptStage->cleanup();
     gptGpuAllocators->cleanup(gptStarterCtx->ptDevice);
 
     // if(gptStarterCtx->eFlags & PL_STARTER_FLAGS_DEPTH_BUFFER)

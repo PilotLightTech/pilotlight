@@ -98,20 +98,6 @@
             ]
         },
         {
-            "pcName": "gaussian_blur",
-            "tShader": { "file": "pl_gaussian_blur.comp"},
-            "atConstants": [
-                { "eType": "PL_DATA_TYPE_INT" }
-            ],
-            "atBindGroupLayouts": [
-                {
-                    "atTextureBindings": [
-                        { "uSlot": 0, "eType": "PL_TEXTURE_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_COMPUTE"] }
-                    ]
-                }
-            ]
-        },
-        {
             "pcName": "bloom_apply",
             "tShader": { "file": "pl_bloom_apply.comp"},
             "atBindGroupLayouts": [

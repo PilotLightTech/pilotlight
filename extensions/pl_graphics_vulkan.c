@@ -3572,6 +3572,10 @@ pl_graphics_create_device(const plDeviceInit* ptInit)
     vkGetPhysicalDeviceFeatures(ptDevice->tPhysicalDevice, &tDeviceFeatures);
     vkGetPhysicalDeviceFeatures2(ptDevice->tPhysicalDevice, &tDeviceFeatures2);
 
+    // re-assert after query to prevent overwrite
+    tDeviceFeatures13.dynamicRendering = VK_TRUE;
+    tDeviceFeatures14.dynamicRenderingLocalRead = VK_TRUE;
+
     const VkDeviceCreateInfo tCreateDeviceInfo = {
         .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .queueCreateInfoCount    = atQueueCreateInfos[0].queueFamilyIndex == atQueueCreateInfos[1].queueFamilyIndex ? 1 : 2,
@@ -4657,12 +4661,22 @@ pl_graphics_bind_compute_bind_groups(plCommandBuffer* ptCmdBuffer, plComputeShad
         puOffsets = &ptDynamicBinding->uByteOffset;
     }
 
+    uint32_t uMainCount = 4;
+    uint32_t uDynamicCount = 1;
+
     VkDescriptorSet atDescriptorSets[4] = {
         ptDevice->tNullDecriptorSet,
         ptDevice->tNullDecriptorSet,
         ptDevice->tNullDecriptorSet,
         ptDevice->tNullDynamicDecriptorSet
     };
+
+    if(ptDevice->tNullDynamicDecriptorSet == VK_NULL_HANDLE)
+    {
+        uMainCount = 3;
+        uDynamicCount = 0;
+        puOffsets = NULL;
+    }
         
     for (uint32_t i = 0; i < uCount; i++)
     {
@@ -4684,7 +4698,7 @@ pl_graphics_bind_compute_bind_groups(plCommandBuffer* ptCmdBuffer, plComputeShad
         vkCmdBindDescriptorSets(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptShader->tPipelineLayout, 3, 1, &atDescriptorSets[3], 1, puOffsets);
     }
     else
-        vkCmdBindDescriptorSets(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptShader->tPipelineLayout, uFirst, 4 - uFirst, &atDescriptorSets[uFirst], 1, puOffsets);
+        vkCmdBindDescriptorSets(ptCmdBuffer->tCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, ptShader->tPipelineLayout, uFirst, uMainCount - uFirst, &atDescriptorSets[uFirst], uDynamicCount, puOffsets);
 }
 
 void
