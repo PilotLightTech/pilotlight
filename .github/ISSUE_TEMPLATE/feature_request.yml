@@ -40,6 +40,7 @@ body:
       options:
         - New
         - Animation
+        - Audio
         - BVH
         - Camera
         - Collision
@@ -47,19 +48,24 @@ body:
         - Config
         - Console
         - Date Time
-        - Draw Backend
+        - DDS
         - Draw
+        - DXT
         - ECS
         - ECS Tools
+        - Free List
         - Gizmo
+        - GJK
         - GPU Allocators
         - Graphics
         - Image
+        - Image Ops
         - Job
         - Log
         - Mesh
         - Model Loader
         - Pak
+        - Path
         - Physics
         - Platform
         - Profile
@@ -67,8 +73,10 @@ body:
         - Renderer
         - Resource Manager
         - Screen Log
+        - Script
         - Shader
         - Shader Variant
+        - Stage
         - Starter
         - Stats
         - String Intern

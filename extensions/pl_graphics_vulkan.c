@@ -60,19 +60,6 @@ typedef struct _plInternalDeviceAllocatorData
     plDeviceMemoryAllocatorI* ptAllocator;
 } plInternalDeviceAllocatorData;
 
-typedef struct _plRenderPassCommonData
-{
-    uint32_t                uDependencyCount;
-    uint32_t                uColorAttachmentCount;
-    VkAttachmentDescription atAttachments[PL_MAX_RENDER_TARGETS];
-    VkSubpassDependency     atSubpassDependencies[PL_MAX_SUBPASSES];
-    VkSubpassDescription    atSubpasses[PL_MAX_SUBPASSES];
-    VkAttachmentReference   atSubpassColorAttachmentReferences[PL_MAX_RENDER_TARGETS][PL_MAX_SUBPASSES];
-    VkAttachmentReference   atSubpassInputAttachmentReferences[PL_MAX_RENDER_TARGETS][PL_MAX_SUBPASSES];
-    VkAttachmentReference   tDepthAttachmentReference;
-    VkAttachmentReference   tResolveAttachmentReference;
-} plRenderPassCommonData;
-
 typedef struct _plVulkanDynamicBuffer
 {
     uint32_t                 uHandle;
