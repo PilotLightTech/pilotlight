@@ -71,6 +71,7 @@ bool                        pl_get_window_attribute(plWindow*, plWindowAttribute
 bool                        pl_set_cursor_mode(plWindow*, plCursorMode);
 plCursorMode                pl_get_cursor_mode(plWindow*);
 bool                        pl_set_raw_mouse_input(plWindow*, bool);
+bool                        pl_set_mouse_pos(plWindow*, plVec2);
 bool                        pl_set_fullscreen(plWindow*, const plFullScreenDesc*);
 const plWindowCapabilities* pl_get_window_capabilities(void);
 
