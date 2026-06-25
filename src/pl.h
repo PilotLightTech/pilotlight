@@ -197,6 +197,7 @@ PL_API bool pl_window_get_attribute (plWindow*, plWindowAttribute, plWindowAttri
 PL_API bool         pl_window_set_cursor_mode     (plWindow*, plCursorMode);
 PL_API plCursorMode pl_window_get_cursor_mode     (plWindow*);
 PL_API bool         pl_window_set_raw_mouse_input (plWindow*, bool);
+PL_API bool         pl_window_set_mouse_pos       (plWindow*, plVec2);
 
 // full screen modes
 PL_API bool pl_window_set_fullscreen(plWindow*, const plFullScreenDesc*);
@@ -328,6 +329,7 @@ typedef struct _plWindowI
     bool         (*set_cursor_mode)     (plWindow*, plCursorMode);
     plCursorMode (*get_cursor_mode)     (plWindow*);
     bool         (*set_raw_mouse_input) (plWindow*, bool);
+    bool         (*set_mouse_pos)       (plWindow*, plVec2);
 
     // full screen modes
     bool (*set_fullscreen)(plWindow*, const plFullScreenDesc*);
