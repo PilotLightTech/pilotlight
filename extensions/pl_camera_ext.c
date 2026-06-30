@@ -275,13 +275,13 @@ pl_camera_update(plCamera* ptCamera)
             }
         }
 
-        ptCamera->tInvProjMat = pl_mat4t_invert(&ptCamera->tProjMat);
+        ptCamera->tInvProjMat = pl_mat4_invert(&ptCamera->tProjMat);
     }
 
     if(ptCamera->eDirtyFlags != PL_CAMERA_DIRTY_FLAGS_NONE)
     {
         ptCamera->tViewProjMat = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
-        ptCamera->tInvViewProjMat = pl_mat4t_invert(&ptCamera->tViewProjMat);
+        ptCamera->tInvViewProjMat = pl_mat4_invert(&ptCamera->tViewProjMat);
     }
 
     ptCamera->eDirtyFlags = PL_CAMERA_DIRTY_FLAGS_NONE;

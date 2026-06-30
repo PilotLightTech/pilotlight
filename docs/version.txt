@@ -83,7 +83,7 @@ the API is complete. It just means we won't break what currently exists.
 * ECS                 v2.0.0  (pl_ecs_ext.h)
 * DDS                 v2.0.0  (pl_dds_ext.h)
 * Resource            v1.5.0  (pl_resource_ext.h)
-* Camera              v1.0.2  (pl_camera_ext.h)
+* Camera              v1.0.3  (pl_camera_ext.h)
 
 ## Nearly Stable APIs
 
