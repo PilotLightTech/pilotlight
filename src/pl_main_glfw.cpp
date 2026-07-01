@@ -1706,6 +1706,12 @@ pl_glfw_cursor_enter_callback(GLFWwindow* window, int entered)
     }
 }
 
+bool
+pl_set_mouse_pos(plWindow* ptWindow, plVec2 tPos)
+{
+    return false; // not implemented on this platform
+}
+
 void
 pl_glfw_window_focus_callback(GLFWwindow* window, int focused)
 {
