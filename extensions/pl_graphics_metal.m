@@ -617,6 +617,8 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
 
     if(tDesc.eType == PL_TEXTURE_TYPE_2D)
         ptTextureDescriptor.textureType = MTLTextureType2D;
+    else if(tDesc.eType == PL_TEXTURE_TYPE_3D)
+        ptTextureDescriptor.textureType = MTLTextureType3D;
     else if(tDesc.eType == PL_TEXTURE_TYPE_CUBE)
         ptTextureDescriptor.textureType = MTLTextureTypeCube;
     else if(tDesc.eType == PL_TEXTURE_TYPE_2D_ARRAY)
@@ -942,6 +944,8 @@ pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptV
 
     if(ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_2D)
         tTextureType = MTLTextureType2D;
+    else if(ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_3D)
+        tTextureType = MTLTextureType3D;
     else if(ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_CUBE)
         tTextureType = MTLTextureTypeCube;
     else if(ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_2D_ARRAY)

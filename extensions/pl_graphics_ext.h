@@ -121,7 +121,7 @@ extern "C" {
 // [SECTION] apis
 //-----------------------------------------------------------------------------
 
-#define plGraphicsI_version {2, 0, 1}
+#define plGraphicsI_version {2, 1, 0}
 
 //-----------------------------------------------------------------------------
 // [SECTION] includes
@@ -1404,6 +1404,7 @@ enum _plTextureType
 {
     PL_TEXTURE_TYPE_UNSPECIFIED,
     PL_TEXTURE_TYPE_2D,
+    PL_TEXTURE_TYPE_3D,
     PL_TEXTURE_TYPE_CUBE,
     PL_TEXTURE_TYPE_2D_ARRAY
 };

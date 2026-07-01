@@ -1327,6 +1327,8 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
     VkImageViewType tImageViewType = 0;
     if (tDesc.eType == PL_TEXTURE_TYPE_CUBE)
         tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
+    else if (tDesc.eType == PL_TEXTURE_TYPE_3D)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_3D;
     else if (tDesc.eType == PL_TEXTURE_TYPE_2D)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
     else if (tDesc.eType == PL_TEXTURE_TYPE_2D_ARRAY)
@@ -1350,7 +1352,7 @@ pl_graphics_create_texture(plDevice* ptDevice, const plTextureDesc* ptDesc, plTe
 
     const VkImageCreateInfo tImageInfo = {
         .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType     = VK_IMAGE_TYPE_2D,
+        .imageType     = tDesc.eType == PL_TEXTURE_TYPE_3D ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D,
         .extent.width  = (uint32_t)tDesc.tDimensions.x,
         .extent.height = (uint32_t)tDesc.tDimensions.y,
         .extent.depth  = (uint32_t)tDesc.tDimensions.z,
@@ -1410,6 +1412,8 @@ pl_graphics_bind_texture_to_memory(plDevice* ptDevice, plTextureHandle tHandle, 
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
     else if (ptTexture->tDesc.eType == PL_TEXTURE_TYPE_2D_ARRAY)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    else if (ptTexture->tDesc.eType == PL_TEXTURE_TYPE_3D)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_3D;
     else
     {
         PL_ASSERT(false && "unsupported texture type");
@@ -1530,6 +1534,8 @@ pl_graphics_create_texture_view(plDevice* ptDevice, const plTextureViewDesc* ptV
         tImageViewType = VK_IMAGE_VIEW_TYPE_CUBE;
     else if (ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_2D)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D;
+    else if (ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_3D)
+        tImageViewType = VK_IMAGE_VIEW_TYPE_3D;
     else if (ptNewTexture->tDesc.eType == PL_TEXTURE_TYPE_2D_ARRAY)
         tImageViewType = VK_IMAGE_VIEW_TYPE_2D; // VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     else
@@ -4274,7 +4280,7 @@ pl_graphics_begin_compute_pass(plCommandBuffer* ptCmdBuffer, const plPassResourc
                         }
                         if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
                         {
-                            // tSrcStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // TODO: does depth go here?
+                            tSrcStageFlags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; // TODO: does depth go here?
                             tBarrier.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                         }
                     }
@@ -4363,6 +4369,7 @@ pl_graphics_end_compute_pass(plCommandBuffer* ptCmdBuffer)
                         if(ptTexture->tDesc.eUsage & PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT)
                         {
                             // tDstStageFlags |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // TODO: does depth go here?
+                            tDstStageFlags |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
                             tBarrier.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                         }
                     }

@@ -1283,7 +1283,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
             const float fCenterZ = 0.5f * (fZMin + fZMax);
 
             // optional z padding for off-frustum casters
-            const float fDepthPadding = 5000.0f; // TODO: make option
+            const float fDepthPadding = 500.0f; // TODO: make option
             const float fNearZ = fZMin - fDepthPadding;
             const float fFarZ  = fZMax + fDepthPadding;
 
