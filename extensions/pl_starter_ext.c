@@ -1369,7 +1369,7 @@ pl_starter_create_texture(const plTextureDesc* ptDesc, const void* pData, uint64
         const plBufferImageCopy tBufferImageCopy = {
             .uImageWidth = (uint32_t)ptDesc->tDimensions.x,
             .uImageHeight = (uint32_t)ptDesc->tDimensions.y,
-            .uImageDepth = 1,
+            .uImageDepth = (uint32_t)ptDesc->tDimensions.z,
             .uLayerCount = 1
         };
 

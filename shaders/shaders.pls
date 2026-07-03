@@ -15,8 +15,8 @@
                 { "uSlot": 7, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ],
             "atTextureBindings": [
-                { "uSlot":    8, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "bNonUniformIndexing": true, "uDescriptorCount": 4096, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]},
-                { "uSlot": 4104, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "bNonUniformIndexing": true, "uDescriptorCount": 4096, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]}
+                { "uSlot":    8, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "uDescriptorCount": 4096, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]},
+                { "uSlot": 4104, "eType": "PL_TEXTURE_BINDING_TYPE_SAMPLED", "uDescriptorCount": 4096, "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"]}
             ]
         },
         {

@@ -898,7 +898,6 @@ typedef struct _plTextureBinding
     uint32_t             uSlot;
     uint32_t             uDescriptorCount; // 0 - will become 1
     plShaderStageFlags   eStages;
-    bool                 bNonUniformIndexing; // only available if device capability has PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING
 } plTextureBinding;
 
 typedef struct _plBufferBinding

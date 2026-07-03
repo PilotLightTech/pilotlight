@@ -1208,7 +1208,6 @@ pl__shader_tools_bind_group_layout_desc(plJsonObject* ptBindGroupLayout)
     {
         plJsonObject* ptBinding = pl_json_member_by_index(ptTextureBindings, j);
         tDesc.atTextureBindings[j].uSlot = pl_json_uint_member(ptBinding, "uSlot", 0);
-        tDesc.atTextureBindings[j].bNonUniformIndexing = pl_json_bool_member(ptBinding, "bNonUniformIndexing", false);
         tDesc.atTextureBindings[j].uDescriptorCount = pl_json_uint_member(ptBinding, "uDescriptorCount", 0);
 
         char acTypeBuffer[64] = {0};

@@ -1028,7 +1028,6 @@ pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayout
     const uint32_t uDescriptorBindingCount = ptLayout->_uTextureBindingCount + ptLayout->_uBufferBindingCount + ptLayout->_uSamplerBindingCount;
     VkDescriptorSetLayoutBinding *atDescriptorSetLayoutBindings = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorSetLayoutBinding));
     VkDescriptorBindingFlagsEXT *atDescriptorSetLayoutFlags = pl_temp_allocator_alloc(&gptGraphics->tTempAllocator, uDescriptorBindingCount * sizeof(VkDescriptorBindingFlagsEXT));
-    bool bHasVariableDescriptors = false;
     ptLayout->_uDescriptorCount = 1;
 
     // buffer bindings
@@ -1042,7 +1041,11 @@ pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayout
             .stageFlags         = pl_vulkan_shader_stage_flags(ptDesc->atBufferBindings[i].eStages),
             .pImmutableSamplers = NULL
         };
+
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
+        if (ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING)
+            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
@@ -1056,12 +1059,19 @@ pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayout
             .pImmutableSamplers = NULL
         };
 
+        bool bUpdateAvailable = false;
         if (ptDesc->atTextureBindings[i].eType == PL_TEXTURE_BINDING_TYPE_SAMPLED)
+        {
             tBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            bUpdateAvailable = true;
+        }
         else if (ptDesc->atTextureBindings[i].eType == PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT)
             tBinding.descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
         else if (ptDesc->atTextureBindings[i].eType == PL_TEXTURE_BINDING_TYPE_STORAGE)
+        {
+            bUpdateAvailable = true;
             tBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        }
 
         if (tBinding.descriptorCount > 1)
             ptLayout->_uDescriptorCount = tBinding.descriptorCount;
@@ -1069,11 +1079,10 @@ pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayout
             tBinding.descriptorCount = 1;
 
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
-        if (ptDesc->atTextureBindings[i].bNonUniformIndexing)
-        {
+        if (bUpdateAvailable && ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING)
             atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
-            bHasVariableDescriptors = true;
-        }
+
+            
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
@@ -1089,6 +1098,9 @@ pl_graphics_create_bind_group_layout(plDevice* ptDevice, const plBindGroupLayout
         };
 
         atDescriptorSetLayoutFlags[uCurrentBinding] = 0;
+        if (ptDevice->tInfo.eCapabilities & PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING)
+            atDescriptorSetLayoutFlags[uCurrentBinding] |= VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+
         atDescriptorSetLayoutBindings[uCurrentBinding++] = tBinding;
     }
 
@@ -3409,6 +3421,9 @@ pl_graphics_enumerate_devices(plDeviceInfo *atDeviceInfo, uint32_t* puDeviceCoun
         // binding flags for textures, uniforms, and buffers
         // are required for our extension
         if (tDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing &&
+            tDescriptorIndexingFeatures.descriptorBindingUniformBufferUpdateAfterBind &&
+            tDescriptorIndexingFeatures.descriptorBindingStorageImageUpdateAfterBind &&
+            tDescriptorIndexingFeatures.descriptorBindingStorageBufferUpdateAfterBind &&
             tDescriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind)
         {
             atDeviceInfo[i].eCapabilities |= PL_DEVICE_CAPABILITY_BIND_GROUP_INDEXING;
