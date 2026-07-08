@@ -6,8 +6,8 @@
 
 layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
 {
-    plGpuViewData data[];
-} tViewInfo2;
+    plGpuViewData tData;
+} tViewInfo;
 
 vec3
 Decode( vec2 f )
@@ -42,7 +42,7 @@ layout(set = 3, binding = 0) uniform PL_DYNAMIC_DATA
 
 void main() 
 {
-    gl_Position = tViewInfo2.data[tDynamicData.tData.uGlobalIndex].tCameraViewProjection * vec4(inPos, 1.0);
+    gl_Position = tViewInfo.tData.tCameraViewProjection[tDynamicData.tData.uGlobalIndex] * vec4(inPos, 1.0);
 
     tShaderOut.tWorldPosition = inPos;
     tShaderOut.tWorldNormal = Decode(inNormal);

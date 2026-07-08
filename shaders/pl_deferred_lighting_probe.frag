@@ -47,15 +47,15 @@ void main()
     vec2 tEncodedN = subpassLoad(tNormalTexture).xy;
     vec4 tBaseColor = subpassLoad(tAlbedoSampler);
     
-    vec3 ndcSpace = vec3(gl_FragCoord.x / tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.x, gl_FragCoord.y / tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tViewportSize.y, depth);
+    vec3 ndcSpace = vec3(gl_FragCoord.x / tViewInfo.tData.tViewportSize.x, gl_FragCoord.y / tViewInfo.tData.tViewportSize.y, depth);
 
     vec3 clipSpace = ndcSpace;
     clipSpace.xy = clipSpace.xy * 2.0 - 1.0;
 
-    vec4 tViewPosition = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraProjectionInv * vec4(clipSpace, 1.0); // homo location
+    vec4 tViewPosition = tViewInfo.tData.tCameraProjectionInv[tObjectInfo.tData.uGlobalIndex] * vec4(clipSpace, 1.0); // homo location
     tViewPosition.xyz = tViewPosition.xyz / tViewPosition.w;
     tViewPosition.w = 1.0;
-    vec4 tWorldPosition = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraViewInv * tViewPosition;
+    vec4 tWorldPosition = tViewInfo.tData.tCameraViewInv[tObjectInfo.tData.uGlobalIndex] * tViewPosition;
     
 
     MaterialInfo materialInfo;
@@ -77,7 +77,7 @@ void main()
     materialInfo.alphaRoughness = materialInfo.perceptualRoughness * materialInfo.perceptualRoughness;
     
     // LIGHTING
-    vec3 v = normalize(tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
+    vec3 v = normalize(tViewInfo.tData.tCameraPos.xyz - tWorldPosition.xyz);
 
     float fBaseColorAlpha = 0.0;
     {
@@ -185,10 +185,10 @@ void main()
     
     if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_HEIGHT_FOG))
     {
-        outColor = fog(outColor, tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
+        outColor = fog(outColor, tViewInfo.tData.tCameraPos.xyz - tWorldPosition.xyz, tViewInfo.tData.tCameraPos.y);
     }
     else if(bool(tGpuScene.tData.iSceneFlags & PL_SCENE_FLAG_LINEAR_FOG))
     {
-        outColor = fogLinear(outColor, tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tWorldPosition.xyz);
+        outColor = fogLinear(outColor, tViewInfo.tData.tCameraPos.xyz - tWorldPosition.xyz);
     }
 }

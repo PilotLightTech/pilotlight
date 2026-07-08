@@ -87,10 +87,10 @@ void main()
 
     vec4 pos = tTransform * inPosition;
     tShaderIn.tWorldPosition = pos.xyz / pos.w;
-    gl_Position = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraViewProjection * pos;
+    gl_Position = tViewInfo.tData.tCameraViewProjection[tObjectInfo.tData.uGlobalIndex] * pos;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tColor = inColor0;
     tShaderIn.tModel = tTransform;
-    tShaderIn.tViewPosition = (pos * tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraView).xyz;
+    tShaderIn.tViewPosition = (pos * tViewInfo.tData.tCameraView[tObjectInfo.tData.uGlobalIndex]).xyz;
 }

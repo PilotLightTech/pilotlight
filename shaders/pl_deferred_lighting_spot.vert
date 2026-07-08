@@ -59,5 +59,5 @@ void main()
         tLight.tPosition.x, tLight.tPosition.y, tLight.tPosition.z, 1.0);
     
     vec4 pos = tTransform * inPosition;
-    gl_Position = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraViewProjection * pos;
+    gl_Position = tViewInfo.tData.tCameraViewProjection[tObjectInfo.tData.uGlobalIndex] * pos;
 }

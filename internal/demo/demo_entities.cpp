@@ -443,14 +443,6 @@ pl__show_entity_components(plAppData* ptAppData, plScene* ptScene, plEntity tEnt
                     ImGui::RadioButton("Resolution: 4096", &iSelection, 5);
                     ptLightComp->uShadowResolution = auResolutions[iSelection];
                 }
-
-                if(ptLightComp->tType == PL_LIGHT_TYPE_DIRECTIONAL)
-                {
-                    static const uint32_t uCascadeMin = 1;
-                    static const uint32_t uCascadeMax = 4;
-                    ImGui::SliderScalar("Cascades", ImGuiDataType_U32, &ptLightComp->uCascadeCount, &uCascadeMin, &uCascadeMax);
-                    ImGui::InputFloat4("Cascade Splits", ptLightComp->afCascadeSplits);
-                }
             }
 
             if(ptMaterialComp && ImGui::CollapsingHeader(PL_ICON_FA_PALETTE " Material"))

@@ -105,23 +105,26 @@ void main()
     vec3 f_metal_brdf = vec3(0.0);
 
     // punctual stuff
+    uint cascadeIndex = 0;
     const bool bShadows = bool(iRenderingFlags & PL_RENDERING_FLAG_SHADOWS);
     {
-        plGpuDirectionLight tLightData = tDirectionLightInfo.atData[tObjectInfo.tData.iLightIndex];
-        int iShadowIndex = tLightData.iShadowIndex; 
         float shadow = 1.0;
+        vec3 pointToLight = -tGpuScene.tData.tDirection;
+        int iCascadeCount = tGpuScene.tData.iCascadeCount;
+        if(tObjectInfo.tData.iProbe == 1)
+        {
+            iCascadeCount = 1;
+        }
 
-        vec3 pointToLight = -tLightData.tDirection;
-
-        if(bShadows && tLightData.iCastShadow > 0)
+        if(bShadows)
         {
 
             // Depth compare for shadowing
             mat4 abiasMat = biasMat;
-            abiasMat[0][0] *= tDirectionShadowData.atData[iShadowIndex].fFactor;
-            abiasMat[1][1] *= tDirectionShadowData.atData[iShadowIndex].fFactor;
-            abiasMat[3][0] *= tDirectionShadowData.atData[iShadowIndex].fFactor;
-            abiasMat[3][1] *= tDirectionShadowData.atData[iShadowIndex].fFactor;
+            abiasMat[0][0] *= tGpuScene.tData.fFactor;
+            abiasMat[1][1] *= tGpuScene.tData.fFactor;
+            abiasMat[3][0] *= tGpuScene.tData.fFactor;
+            abiasMat[3][1] *= tGpuScene.tData.fFactor;
             shadow = 1.0;
 
             // Get cascade index for the current fragment's view position
@@ -130,19 +133,60 @@ void main()
 
             vec4 tWorldPos2 = vec4(tWorldPosition.xyz, 1.0);
 
-            vec4 shadowCoord = (abiasMat * tDirectionShadowData.atData[iShadowIndex].viewProjMat) * tWorldPos2;
-        
-            if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+            for(int j = 0; j < iCascadeCount; j++)
             {
-                shadow = filterPCF(
-                    shadowCoord,
-                    vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset),
-                    tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx, 0);
+                if(viewDepth > tViewInfo.tData.afCascadeSplits[j])
+                    cascadeIndex = j + 1;
             }
-            else
+
+            if(cascadeIndex < 4)
             {
-                shadow = textureProj(shadowCoord, vec2(tDirectionShadowData.atData[iShadowIndex].fXOffset, tDirectionShadowData.atData[iShadowIndex].fYOffset), tDirectionShadowData.atData[iShadowIndex].iShadowMapTexIdx);
+                vec4 shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex]) * tWorldPos2;
+                // cascadeIndex = j;
+            
+                if(bool(iRenderingFlags & PL_RENDERING_FLAG_PCF_SHADOWS))
+                {
+                    shadow = filterPCF(
+                        shadowCoord,
+                        vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2(cascadeIndex * tGpuScene.tData.fFactor, 0),
+                        tGpuScene.tData.iShadowMapTexIdx, cascadeIndex);
+                }
+                else
+                {
+                    shadow = textureProj(shadowCoord, vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2(cascadeIndex * tGpuScene.tData.fFactor, 0), tGpuScene.tData.iShadowMapTexIdx);
+                }
+
+                
+                // if(abs(rawshadowCoord.x - pl_saturate(rawshadowCoord.x)) < 0.00001 && abs(rawshadowCoord.y - pl_saturate(rawshadowCoord.y)) < 0.00001 && abs(rawshadowCoord.z - pl_saturate(rawshadowCoord.z)) < 0.00001)
+                if(cascadeIndex < (iCascadeCount - 1))
+                {
+                    float splitStart = (cascadeIndex == 0) ? 0.0 : tViewInfo.tData.afCascadeSplits[cascadeIndex - 1];
+                    float splitEnd   = tViewInfo.tData.afCascadeSplits[cascadeIndex];
+
+                    // width of fade region (10% of cascade)
+                    float fadeRange = (splitEnd - splitStart) * 0.1;
+
+                    // distance to end of cascade
+                    float distToEnd = splitEnd - viewDepth;
+
+                    // normalize fade
+                    float cascade_fade = clamp(1.0 - distToEnd / fadeRange, 0.0, 1.0);
+
+                    if(cascade_fade > 0)
+                    {
+
+                        shadowCoord = (abiasMat * tViewInfo.tData.viewProjMat[cascadeIndex + 1]) * tWorldPos2;
+                        float shadowfallback = filterPCF(
+                            shadowCoord,
+                            vec2(tGpuScene.tData.fXOffset, tGpuScene.tData.fYOffset) + vec2((cascadeIndex + 1.0) * tGpuScene.tData.fFactor, 0),
+                                tGpuScene.tData.iShadowMapTexIdx, cascadeIndex + 1);
+
+                        shadow = mix(shadow, shadowfallback, cascade_fade);
+                        // shadow = 100.0;
+                    }
+                }
             }
+
         }
         
         // BSTF
@@ -158,7 +202,8 @@ void main()
         if (NdotL > 0.0 || NdotV > 0.0)
         {
 
-            vec3 intensity = getLightIntensity(tLightData, pointToLight);
+            vec3 intensity = tGpuScene.tData.fIntensity * tGpuScene.tData.tColor;
+            // vec3 intensity = vec3(0);
 
             vec3 l_diffuse = shadow * intensity * NdotL * pl_brdf_diffuse(materialInfo.baseColor);
             vec3 l_specular_dielectric = vec3(0.0);

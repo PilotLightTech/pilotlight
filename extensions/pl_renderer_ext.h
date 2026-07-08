@@ -438,7 +438,7 @@ typedef struct _plSceneDesc
     size_t              szDataBufferSize;       // default: 64000000
     size_t              szMaterialBufferSize;   // default:  8000000
     size_t              szSkinBufferSize;       // default:  8000000
-    uint32_t            uShadowAtlasResolution; // default:    16384
+    uint32_t            uShadowAtlasResolution; // default:    4096
 } plSceneDesc;
 
 typedef struct _plViewDesc
@@ -460,6 +460,13 @@ typedef struct _plRenderViewDesc
 typedef struct _plRendererLightingOptions
 {
     plRendererLightingFlags tFlags;
+
+    // sun
+    plVec3 tSunColor;
+    plVec3 tSunDirection;
+    uint32_t uSunCascadeCount;
+    uint32_t uSunResolution;
+    float fSunStrength;
 } plRendererLightingOptions;
 
 typedef struct _plRendererShadowOptions
@@ -703,9 +710,6 @@ typedef struct _plLightComponent
     plVec3       tPosition;
     plVec3       tDirection;
     uint32_t     uShadowResolution; // 0 -> automatic
-    float        afCascadeSplits[PL_MAX_SHADOW_CASCADES];
-    uint32_t     uCascadeCount;
-    float        fShadowLambda;
 } plLightComponent;
 
 #ifdef __cplusplus

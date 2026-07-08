@@ -36,7 +36,7 @@
             "tPosition": [-2.539, 4.003, 2.640],
             "fYFov": 1.04719755,
             "fNearZ": 0.1,
-            "fFarZ": 100.0,
+            "fFarZ": 25.0,
             "fPitch": -0.395,
             "fYaw": 2.436
         },
@@ -46,7 +46,12 @@
                     "PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED",
                     "PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING",
                     "PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS"
-                ]
+                ],
+                "tSunColor": [1.0, 1.0, 1.0],
+                "tSunDirection": [0.425, -1.0, -0.384],
+                "fSunStrength": 8.0,
+                "uSunCascadeCount": 4,
+                "uSunResolution": 2048
             },
             "shadows": {
                 "tFlags": [
@@ -110,6 +115,24 @@
                 "uSamples": 1024,
                 "uInterval": 6,
                 "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
+            },
+            {
+                "active": false,
+                "tPosition": [-3.0, 3.0, 3.0],
+                "fRange": 30.0,
+                "uResolution": 128,
+                "uSamples": 1024,
+                "uInterval": 6,
+                "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
+            },
+            {
+                "active": false,
+                "tPosition": [3.0, 3.0, 3.0],
+                "fRange": 30.0,
+                "uResolution": 128,
+                "uSamples": 1024,
+                "uInterval": 6,
+                "tFlags": ["PL_ENVIRONMENT_PROBE_FLAGS_INCLUDE_SKY"]
             }
         ],
         "entities": [
@@ -138,15 +161,13 @@
         ],
         "lights": [
             {
-                "active": true,
+                "active": false,
                 "name": "direction light",
                 "type": "directional",
-                "tDirection": [0.425, -1.0, -0.384],
+                "tDirection": [-0.425, -1.0, -0.384],
                 "tColor": [1.0, 1.0, 1.0],
-                "uCascadeCount": 4,
                 "fIntensity": 10.0,
-                "fShadowLambda": 0.6,
-                "uShadowResolution": 2048,
+                "uShadowResolution": 1024,
                 "tFlags": ["PL_LIGHT_FLAG_CAST_SHADOW", "PL_LIGHT_FLAG_VISUALIZER"]
             },
             {

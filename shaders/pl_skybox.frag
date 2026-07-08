@@ -41,13 +41,13 @@ vec3 get_perspective_sky_dir(vec2 uv)
     // ndc.x *= -1.0;
     // ndc.y *= -1.0;
 
-    vec4 viewPos = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraProjectionInv * vec4(ndc, 0.0, 1.0);
+    vec4 viewPos = tViewInfo.tData.tCameraProjectionInv[tObjectInfo.tData.uGlobalIndex] * vec4(ndc, 0.0, 1.0);
     viewPos.xyz /= viewPos.w;
     
 
     vec3 viewDir = normalize(viewPos.xyz);
 
-    return normalize((tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tInvViewMatNoTranslation * vec4(viewDir, 0.0)).xyz);
+    return normalize((tViewInfo.tData.tInvViewMatNoTranslation[tObjectInfo.tData.uGlobalIndex] * vec4(viewDir, 0.0)).xyz);
 }
 
 vec3 get_ortho_sky_dir_fake(vec2 uv)
@@ -62,12 +62,12 @@ vec3 get_ortho_sky_dir_fake(vec2 uv)
     float fakeTanHalfFovY = tan(radians(60.0) * 0.5);
 
     vec3 viewDir = normalize(vec3(
-        ndc.x * fakeTanHalfFovY * tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].fAspectRatio,
+        ndc.x * fakeTanHalfFovY * tViewInfo.tData.fAspectRatio,
         ndc.y * fakeTanHalfFovY,
         1.0
     ));
 
-    return normalize((tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tInvViewMatNoTranslation * vec4(viewDir, 0.0)).xyz);
+    return normalize((tViewInfo.tData.tInvViewMatNoTranslation[tObjectInfo.tData.uGlobalIndex] * vec4(viewDir, 0.0)).xyz);
 }
 
 //-----------------------------------------------------------------------------
@@ -92,7 +92,7 @@ void main()
 {
     vec3 tVectorOut;
 
-    if(tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].iCameraProjectType == 1)
+    if(tViewInfo.tData.iCameraProjectType == 1)
         tVectorOut = get_ortho_sky_dir_fake(inUV);
     else
         tVectorOut = get_perspective_sky_dir(inUV);
@@ -109,7 +109,8 @@ void main()
 
         outColor = fog(
             outColor,
-            fogDir * tViewInfo.tData.fFogCutOffDistance * 0.75
+            fogDir * tGpuScene.tData.fFogCutOffDistance * 0.75,
+            tViewInfo.tData.tCameraPos.y
         );
     }
 }

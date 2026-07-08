@@ -35,7 +35,7 @@ void main()
 {
     vec4 inPosition  = vec4(inPos, 1.0);
     vec4 pos = tObjectInfo.tData.tModel * inPosition;
-    gl_Position = tViewInfo2.data[0].tCameraViewProjection * pos;
+    gl_Position = tViewInfo.tData.tCameraViewProjection[0] * pos;
     tShaderOut.uID = tObjectInfo.tData.uID;
     tShaderOut.tMousePos = tObjectInfo.tData.tMousePos.xy;
 }

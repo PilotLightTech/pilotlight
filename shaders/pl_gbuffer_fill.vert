@@ -36,8 +36,8 @@ layout(constant_id = 1) const int iDataStride = 0;
 
 layout(set = 1, binding = 0) readonly buffer _plGlobalInfo
 {
-    plGpuViewData data[];
-} tViewInfo2;
+    plGpuViewData tData;
+} tViewInfo;
 
 //-----------------------------------------------------------------------------
 // [SECTION] dynamic bind group
@@ -112,7 +112,7 @@ void main()
 
     vec4 pos = tTransform * inPosition;
     tShaderIn.tWorldPosition = pos.xyz / pos.w;
-    gl_Position = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraViewProjection * pos;
+    gl_Position = tViewInfo.tData.tCameraViewProjection[tObjectInfo.tData.uGlobalIndex] * pos;
     tShaderIn.tUV[0] = inTexCoord0;
     tShaderIn.tUV[1] = inTexCoord1;
     tShaderIn.tViewPosition = gl_Position / gl_Position.w;

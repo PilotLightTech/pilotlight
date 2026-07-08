@@ -1,15 +1,17 @@
 
 vec4
-fog(vec4 color, vec3 view)
+fog(vec4 color, vec3 view, float fCameraHeight)
 {
-    float height = tViewInfo.tData.fFogHeight;
-    float fHeightFalloff = -tViewInfo.tData.fFogHeightFalloff;
+    float height = tGpuScene.tData.fFogHeight;
+    float fHeightFalloff = -tGpuScene.tData.fFogHeightFalloff;
 
     float iblLuminance = 1.0;
-    float fogStart = tViewInfo.tData.fFogStart;
-    float fogCutOffDistance = tViewInfo.tData.fFogCutOffDistance;
-    float fogMaxOpacity = tViewInfo.tData.fFogMaxOpacity;
-    vec3 fogDensity = tViewInfo.tData.tFogDensity;
+    float fogStart = tGpuScene.tData.fFogStart;
+    float fogCutOffDistance = tGpuScene.tData.fFogCutOffDistance;
+    float fogMaxOpacity = tGpuScene.tData.fFogMaxOpacity;
+
+    float fFogDensity = -tGpuScene.tData.fFogHeightFalloff * (fCameraHeight - tGpuScene.tData.fFogHeight);
+    vec3 fogDensity = vec3(tGpuScene.tData.fFogDensity, fFogDensity, tGpuScene.tData.fFogDensity * exp(fFogDensity));
 
     // note: d can be +inf with the skybox
     float d = length(view);
@@ -48,7 +50,7 @@ fog(vec4 color, vec3 view)
     float fogOpacity = min(1.0 - fogTransmittance, fogMaxOpacity);
 
     // compute fog color
-    vec3 fogColor = tViewInfo.tData.tFogColor;
+    vec3 fogColor = tGpuScene.tData.tFogColor;
     fogColor *= iblLuminance * fogOpacity;
     fogColor *= color.a;
     color.rgb = color.rgb * (1.0 - fogOpacity) + fogColor;
@@ -59,8 +61,8 @@ fog(vec4 color, vec3 view)
 vec4
 fogLinear(vec4 color, vec3 view)
 {
-    float fogStart = tViewInfo.tData.fFogStart;
-    float fogCutOffDistance = tViewInfo.tData.fFogCutOffDistance;
+    float fogStart = tGpuScene.tData.fFogStart;
+    float fogCutOffDistance = tGpuScene.tData.fFogCutOffDistance;
 
     // note: d can be +inf with the skybox
     float d = length(view);
@@ -78,11 +80,11 @@ fogLinear(vec4 color, vec3 view)
     }
 
     // compute fog color
-    float A = tViewInfo.tData.fFogLinearParam0;
-    float B = tViewInfo.tData.fFogLinearParam1;
+    float A = tGpuScene.tData.fFogLinearParam0;
+    float B = tGpuScene.tData.fFogLinearParam1;
     float fogOpacity = pl_saturate(A * d + B);
 
-    vec3 fogColor = tViewInfo.tData.tFogColor;
+    vec3 fogColor = tGpuScene.tData.tFogColor;
 
     float iblLuminance = 1.0;
     fogColor *= iblLuminance * fogOpacity;

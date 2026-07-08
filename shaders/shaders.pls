@@ -23,14 +23,13 @@
             "pcName": "view",
             "atBufferBindings": [
                 { "uSlot": 0, "eType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX", "PL_SHADER_STAGE_COMPUTE"] },
-                { "uSlot": 1, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 1, "eType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
                 { "uSlot": 2, "eType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
                 { "uSlot": 3, "eType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 4, "eType": "PL_BUFFER_BINDING_TYPE_UNIFORM", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
+                { "uSlot": 4, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
                 { "uSlot": 5, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
                 { "uSlot": 6, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 7, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] },
-                { "uSlot": 8, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
+                { "uSlot": 7, "eType": "PL_BUFFER_BINDING_TYPE_STORAGE", "eStages": ["PL_SHADER_STAGE_FRAGMENT", "PL_SHADER_STAGE_VERTEX"] }
             ]
         },
         {
@@ -662,6 +661,49 @@
             "pcName": "deferred_lighting_debug",
             "tVertexShader":    { "file": "pl_full_screen.vert"},
             "tFragmentShader":  { "file": "pl_deferred_lighting_debug.frag"},
+            "tGraphicsState": {
+                "bDepthWriteEnabled":  false,
+                "eDepthMode":          "PL_COMPARE_MODE_ALWAYS",
+                "eCullMode":           "PL_CULL_MODE_NONE",
+                "bWireframe":          false,
+                "eDepthClampEnabled":  false,
+                "bStencilTestEnabled": false,
+                "eStencilMode":        "PL_COMPARE_MODE_ALWAYS",
+                "uStencilRef":         255,
+                "eStencilMask":        255,
+                "eStencilOpFail":      "PL_STENCIL_OP_KEEP",
+                "eStencilOpDepthFail": "PL_STENCIL_OP_KEEP",
+                "eStencilOpPass":      "PL_STENCIL_OP_KEEP"
+            },
+            "atBlendStates": [
+                {
+                    "bBlendEnabled":   true,
+                    "eSrcColorFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstColorFactor": "PL_BLEND_FACTOR_ONE",
+                    "eColorOp":        "PL_BLEND_OP_ADD",
+                    "eSrcAlphaFactor": "PL_BLEND_FACTOR_SRC_ALPHA",
+                    "eDstAlphaFactor": "PL_BLEND_FACTOR_ONE",
+                    "eAlphaOp":        "PL_BLEND_OP_ADD"
+                },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 },
+                { "bBlendEnabled": false, "uColorWriteMask": 0 }
+            ],
+            "atFragmentConstants": [
+                { "eType": "PL_DATA_TYPE_INT" },
+                { "eType": "PL_DATA_TYPE_INT" }
+            ],
+            "atBindGroupLayouts": [ 
+                { "pcName": "scene" },
+                { "pcName": "view" },
+                { "pcName": "deferred lighting 1" }
+                
+            ]
+        },
+        {
+            "pcName": "deferred_lighting_sun",
+            "tVertexShader":    { "file": "pl_full_screen.vert"},
+            "tFragmentShader":  { "file": "pl_deferred_lighting_sun.frag"},
             "tGraphicsState": {
                 "bDepthWriteEnabled":  false,
                 "eDepthMode":          "PL_COMPARE_MODE_ALWAYS",

@@ -706,14 +706,6 @@ pl_ecs_tools_show_window(plComponentLibrary* ptLibrary, plEntity* ptSelectedEnti
                         gptUI->radio_button("Resolution: 4096", &iSelection, 5);
                         ptLightComp->uShadowResolution = auResolutions[iSelection];
                     }
-
-                    if(ptLightComp->tType == PL_LIGHT_TYPE_DIRECTIONAL)
-                    {
-                        gptUI->slider_uint("Cascades", &ptLightComp->uCascadeCount, 1, 4, 0);
-                        gptUI->input_float4("Cascade Splits", ptLightComp->afCascadeSplits, "%0.6f", 0);
-                        gptUI->input_float("Shadow Lambda", &ptLightComp->fShadowLambda, "%0.2f", 0);
-                        gptUI->slider_float("Shadow Lambda#2", &ptLightComp->fShadowLambda, 0.0f, 1.0f, 0);
-                    }
                     gptUI->end_collapsing_header();
                 }
 

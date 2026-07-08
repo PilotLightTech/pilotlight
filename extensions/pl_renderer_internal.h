@@ -204,9 +204,6 @@ typedef struct _plRendererLight
 typedef struct _plShadowPackData
 {
     uint32_t uLightIndex;
-    uint32_t uViewIndex;
-    uint32_t uProbeIndex;
-    bool     bAltMode; // alt mode is for probe
     plLightType tType;
 } plShadowPackData;
 
@@ -259,40 +256,37 @@ typedef struct _plDrawableResources
     plFreeListNode* ptSkinBufferNode;
 } plDrawableResources;
 
-typedef struct _plEnvironmentProbeData
+typedef struct _plEnvironmentProbeDataPack
 {
-    plEntity tEntity;
-    plVec2 tTargetSize;
-
-    plGpuDirectionLightShadow* sbtDLightShadowData;
+    uint32_t uResolution;
 
     // g-buffer textures
     plTextureHandle tAlbedoTexture;
     plTextureHandle tNormalTexture;
     plTextureHandle tAOMetalRoughnessTexture;
-    plTextureHandle tRawOutputTexture;
     plTextureHandle tDepthTexture;
 
     // views
     plTextureHandle atAlbedoTextureViews[6];
     plTextureHandle atNormalTextureViews[6];
     plTextureHandle atAOMetalRoughnessTextureViews[6];
-    plTextureHandle atRawOutputTextureViews[6];
     plTextureHandle atDepthTextureViews[6];
 
-    // lighting
     plBindGroupHandle atLightingBindGroup[6];
+} plEnvironmentProbeDataPack;
 
-    // GPU buffers
-    plBufferHandle tViewBuffer;
-    plBufferHandle tView2Buffer;
+typedef struct _plEnvironmentProbeData
+{
+    plEntity tEntity;
+    plVec2 tTargetSize;
+    plGpuViewData tViewData;
 
-    // submitted drawables
-    uint32_t* sbuVisibleDeferredEntities[6];
-    uint32_t* sbuVisibleForwardEntities[6];
-    uint32_t* sbuVisibleTransmissionEntities[6];
+    plGpuDirectionLightShadow* sbtDLightShadowData;
 
-    // textures
+    uint32_t uDataPackIndex;
+    plTextureHandle tRawOutputTexture;
+    plTextureHandle atRawOutputTextureViews[6];
+
     plTextureHandle tLambertianEnvTexture;
     uint32_t        uLambertianEnvSampler;
     plTextureHandle tGGXEnvTexture;
@@ -300,11 +294,16 @@ typedef struct _plEnvironmentProbeData
     plTextureHandle tSheenEnvTexture;
     uint32_t        uSheenEnvSampler;
 
+    // GPU buffers
+    plBufferHandle tViewBuffer;
+
     // bind groups
     plBindGroupHandle tViewBG;
     plBindGroupHandle tGBufferBG;
     plBindGroupHandle tDShadowBG;
+    plBindGroupHandle tSunCameraBG;
 
+    plBufferHandle tSunCameraBuffers;
     plBufferHandle tDShadowCameraBuffers;
     plBufferHandle tDLightShadowDataBuffer;
 
@@ -318,7 +317,7 @@ typedef struct _plView
 {
     plScene* ptParentScene;
     uint32_t uIndex;
-    plGpuViewData tData;
+    plGpuViewData tViewData;
 
     plGpuDirectionLightShadow* sbtDLightShadowData;
 
@@ -333,6 +332,7 @@ typedef struct _plView
     plBindGroupHandle atViewBG[PL_MAX_FRAMES_IN_FLIGHT];
     plBindGroupHandle tFinalTextureHandle; // handed out to draw result
     plBindGroupHandle atDShadowBG[PL_MAX_FRAMES_IN_FLIGHT];
+    plBindGroupHandle atSunCSMBG[PL_MAX_FRAMES_IN_FLIGHT];
 
     // renderpasses
     plVec2 tTargetSize;
@@ -354,8 +354,8 @@ typedef struct _plView
     // GPU buffers
     plBufferHandle atPickBuffer[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atViewBuffers[PL_MAX_FRAMES_IN_FLIGHT];
-    plBufferHandle atView2Buffers[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atDShadowCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
+    plBufferHandle atSunCameraBuffers[PL_MAX_FRAMES_IN_FLIGHT];
     plBufferHandle atDLightShadowDataBuffer[PL_MAX_FRAMES_IN_FLIGHT];
 
     // picking system
@@ -367,10 +367,7 @@ typedef struct _plView
     plEntity tHoveredEntity;
     
     // submitted drawables
-    uint32_t* sbtVisibleDrawables;
-    uint32_t* sbuVisibleDeferredEntities;
-    uint32_t* sbuVisibleForwardEntities;
-    uint32_t* sbuVisibleTransmissionEntities;
+    
 
     // drawing api
     plDrawList3D* pt3DGizmoDrawList;
@@ -393,11 +390,23 @@ typedef struct _plScene
     plView**             sbptViews; // child views
     uint32_t             uDOffset; // directional light buffer offset (synced across views & probes)
 
+    plEnvironmentProbeDataPack* sbtProbeDataPacks;
+    uint32_t* sbtVisibleDrawables;
+    uint32_t* sbuVisibleDeferredEntities;
+    uint32_t* sbuVisibleForwardEntities;
+    uint32_t* sbuVisibleTransmissionEntities;
+
     // shadow atlas
     uint32_t          uShadowAtlasIndex;
     uint32_t          uShadowAtlasResolution;
     plShadowPackData* sbtShadowRectData;
     plPackRect*       sbtShadowRects;
+
+    // shadow atlas
+    plPackRect*       sbtShadowViewRects;
+    uint32_t          uSunShadowAtlasIndex;
+    uint32_t          uSunShadowAtlasResolution;
+    plPackRect        tSunPackRect;
 
     // CPU buffers (temporary staging)
     uint32_t* sbuIndexBuffer;
@@ -415,12 +424,14 @@ typedef struct _plScene
     plTextureHandle tBrdfLutTexture;
     plTextureHandle tSkyboxTexture;
     plTextureHandle tShadowTexture;
+    plTextureHandle tSunShadowTexture;
 
     // meshes (shared)
     plEntity tProbeMesh;
     plEntity tUnitSphereMesh;
 
     // shaders
+    plShaderHandle tSunShader;
     plShaderHandle tDirectionalLightingShader;
     plShaderHandle tSpotLightingShader;
     plShaderHandle tProbeLightingShader;
@@ -631,7 +642,6 @@ static void pl_camera_build_orthographic_frustum(const plCamera* ptCamera, plFru
 
 typedef struct _plCSMInfo
 {
-    bool bAltMode;
     plBufferHandle tDShadowCameraBuffer;
     plBufferHandle tDLightShadowDataBuffer;
     plGpuDirectionLightShadow* sbtDLightShadowData;
@@ -642,13 +652,17 @@ typedef struct _plCSMInfo
 // scene render helpers
 static void pl__renderer_perform_skinning(plCommandBuffer*, plScene*);
 static bool pl__renderer_pack_shadow_atlas(plScene*);
-static void pl__renderer_generate_cascaded_shadow_map(plCommandBuffer*, plScene*, uint32_t, uint32_t, const plCamera*, plCSMInfo, plDrawList3D*);
+static bool pl__renderer_pack_view_shadow_atlas(plScene*);
+static void pl__renderer_generate_direction_view_map(plCommandBuffer*, plScene*, const plCamera*, plCSMInfo);
+static void pl__renderer_generate_sun_shadow_map(plCommandBuffer*, plScene* ptScene, plGpuViewData*, plBufferHandle, plBufferHandle, const plCamera*, plBindGroupHandle, bool bProbe);
 static void pl__renderer_generate_shadow_maps(plCommandBuffer*, plScene*, const plCamera** atCameras, uint32_t uCameraCount);
 
 static uint64_t pl_renderer__add_material_to_scene(plScene* ptScene, plEntity tMaterial);
 
+static uint32_t pl__renderer_probe_data_pack_index(plScene*, uint32_t);
+
 // misc
-static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice, uint32_t uSize){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock, uSize);}static bool                    pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex);
+static inline plDynamicBinding pl__allocate_dynamic_data(plDevice* ptDevice, uint32_t uSize){ return pl_allocate_dynamic_data(gptGfx, gptData->ptDevice, &gptData->tCurrentDynamicDataBlock, uSize);}static bool pl__renderer_add_drawable_data_to_global_buffer(plScene*, uint32_t uDrawableIndex);
 static uint32_t                pl__renderer_get_bindless_texture_index(plScene*, plTextureHandle);
 static uint32_t                pl__renderer_get_bindless_cube_texture_index(plScene*, plTextureHandle);
 static void                    pl__renderer_return_bindless_texture_index(plScene*, plTextureHandle);

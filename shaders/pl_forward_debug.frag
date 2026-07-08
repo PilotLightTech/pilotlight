@@ -72,7 +72,7 @@ void main()
     vec3 n = tNormalInfo.n;
     vec3 t = tNormalInfo.t;
 
-    vec3 vraw = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraPos.xyz - tShaderIn.tWorldPosition.xyz;
+    vec3 vraw = tViewInfo.tData.tCameraPos.xyz - tShaderIn.tWorldPosition.xyz;
     vec3 v = normalize(vraw);
 
     MaterialInfo materialInfo;
@@ -155,8 +155,8 @@ void main()
         }
     }
 
-    mat4 u_ViewMatrix = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraView;
-    mat4 u_ProjectionMatrix = tViewInfo2.data[tObjectInfo.tData.uGlobalIndex].tCameraProjection;
+    mat4 u_ViewMatrix = tViewInfo.tData.tCameraView[tObjectInfo.tData.uGlobalIndex];
+    mat4 u_ProjectionMatrix = tViewInfo.tData.tCameraProjection[tObjectInfo.tData.uGlobalIndex];
     mat4 u_ModelMatrix = tShaderIn.tModel;
 
     if(bool(iMaterialFlags & PL_MATERIAL_SHADER_FLAG_CLEARCOAT))

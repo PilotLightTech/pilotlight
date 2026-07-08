@@ -48,7 +48,12 @@
                     "PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED",
                     "PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING",
                     "PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS"
-                ]
+                ],
+                "tSunColor": [1.0, 1.0, 1.0],
+                "tSunDirection": [0.425, -1.0, -0.384],
+                "fSunStrength": 18.0,
+                "uSunCascadeCount": 4,
+                "uSunResolution": 2048
             },
             "shadows": {
                 "tFlags": [
@@ -136,12 +141,11 @@
         ],
         "lights": [
             {
-                "active": true,
+                "active": false,
                 "name": "direction light",
                 "type": "directional",
                 "tDirection": [0.425, -1.0, -0.384],
                 "tColor": [1.0, 1.0, 1.0],
-                "uCascadeCount": 3,
                 "fIntensity": 18.0,
                 "fShadowLambda": 0.6,
                 "uShadowResolution": 1024,

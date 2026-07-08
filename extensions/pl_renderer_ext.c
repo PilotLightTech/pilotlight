@@ -430,6 +430,8 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     memset(ptScene, 0, sizeof(plScene));
     pl_sb_push(gptData->sbptScenes, ptScene);
 
+    ptScene->uSunShadowAtlasResolution = 4096 * 4;
+
     // default fog options
     ptScene->tFogOptions.fDensity = 0.1f;
     ptScene->tFogOptions.fHeight = 0.0f;
@@ -447,6 +449,11 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     // default lighting options
     ptScene->tLightingOptions.tFlags = PL_RENDERER_LIGHTING_FLAGS_IMAGE_BASED | PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING | PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
+    ptScene->tLightingOptions.tSunDirection = (plVec3){0.425f, -1.0f, -0.384f};
+    ptScene->tLightingOptions.tSunColor = (plVec3){1.0f, 1.0f, 1.0f};
+    ptScene->tLightingOptions.uSunCascadeCount = 4;
+    ptScene->tLightingOptions.fSunStrength = 3.0f;
+    ptScene->tLightingOptions.uSunResolution = 2048;
 
     if(gptData->tDeviceInfo.eCapabilities & PL_DEVICE_CAPABILITY_MULTIPLE_VIEWPORTS)
         ptScene->tShadowOptions.tFlags |= PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
@@ -530,7 +537,7 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
 
     }
     gptStarter->get_staging_buffer(4096, &ptScene->tGPUProbeDataBuffers, "probe buffer");
-    gptFreeList->create(4096, sizeof(plMat4) * PL_MAX_SHADOW_CASCADES, &ptScene->tShadowCameraFreeList);
+    gptFreeList->create(4096, sizeof(plMat4), &ptScene->tShadowCameraFreeList);
 
     for(uint32_t uFrameIndex = 0; uFrameIndex < gptGfx->get_frames_in_flight(); uFrameIndex++)
     {
@@ -597,8 +604,8 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     // create shadow atlas
     ptScene->uShadowAtlasResolution = ptInit->uShadowAtlasResolution;
     if(ptScene->uShadowAtlasResolution == 0)
-        ptScene->uShadowAtlasResolution = 1024 * 16;
-
+        ptScene->uShadowAtlasResolution = 4092;
+    
     const plTextureDesc tShadowDepthTextureDesc = {
         .tDimensions   = {(float)ptScene->uShadowAtlasResolution, (float)ptScene->uShadowAtlasResolution, 1},
         .eFormat       = PL_FORMAT_D16_UNORM,
@@ -609,8 +616,19 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
         .pcDebugName   = "shadow map"
     };
     gptStarter->create_texture(&tShadowDepthTextureDesc, NULL, 0, &ptScene->tShadowTexture);
-
     ptScene->uShadowAtlasIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tShadowTexture);
+
+    const plTextureDesc tSunShadowDepthTextureDesc = {
+        .tDimensions   = {(float)ptScene->uSunShadowAtlasResolution, (float)ptScene->uSunShadowAtlasResolution, 1},
+        .eFormat       = PL_FORMAT_D16_UNORM,
+        .uLayers       = 1,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_2D,
+        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED,
+        .pcDebugName   = "shadow map"
+    };
+    gptStarter->create_texture(&tSunShadowDepthTextureDesc, NULL, 0, &ptScene->tSunShadowTexture);
+    ptScene->uSunShadowAtlasIndex = pl__renderer_get_bindless_texture_index(ptScene, ptScene->tSunShadowTexture);
 
     const plTextureDesc tLutTextureDesc = {
         .tDimensions = {(float)1024, (float)1024, 1},
@@ -749,7 +767,10 @@ pl_renderer_create_scene(const plSceneDesc* ptInit)
     if(ptScene->tDebugOptions.tShaderDebugMode)
         ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_debug", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
     else
+    {
+        ptScene->tSunShader = gptShaderVariant->get_shader("deferred_lighting_sun", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
         ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
+    }
     ptScene->tSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
     ptScene->tPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
     ptScene->tProbeLightingShader = gptShaderVariant->get_shader("deferred_lighting", NULL, NULL, NULL, &gptData->tDeferredLightingRenderPassLayout);
@@ -857,11 +878,6 @@ void
 pl_renderer_destroy_view(plView* ptView)
 {
 
-    pl_sb_free(ptView->sbtVisibleDrawables);
-    pl_sb_free(ptView->sbuVisibleDeferredEntities);
-    pl_sb_free(ptView->sbuVisibleForwardEntities);
-    pl_sb_free(ptView->sbuVisibleTransmissionEntities);
-    
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAlbedoTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tNormalTexture);
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptView->tAOMetalRoughnessTexture);
@@ -891,10 +907,10 @@ pl_renderer_destroy_view(plView* ptView)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
+        gptStarter->return_staging_buffer(&ptView->atSunCameraBuffers[i]);
         gptStarter->return_staging_buffer(&ptView->atDShadowCameraBuffers[i]);
         gptStarter->return_staging_buffer(&ptView->atDLightShadowDataBuffer[i]);
         gptStarter->return_staging_buffer(&ptView->atViewBuffers[i]);
-        gptStarter->return_staging_buffer(&ptView->atView2Buffers[i]);
         gptStarter->return_readback_buffer(&ptView->atPickBuffer[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atPickBindGroup[i]);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptView->atDeferredBG1[i]);
@@ -924,46 +940,56 @@ pl_renderer_destroy_scene(plScene* ptScene)
         return;
 
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tBrdfLutTexture);
+    for(uint32_t j = 0; j < pl_sb_size(ptScene->sbtProbeDataPacks); j++)
+    {
+        plEnvironmentProbeDataPack* ptProbePack = &ptScene->sbtProbeDataPacks[j];
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbePack->tAlbedoTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbePack->tNormalTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbePack->tAOMetalRoughnessTexture);
+        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbePack->tDepthTexture);
+
+
+        for(uint32_t i = 0; i < 6; i++)
+        {
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbePack->atAlbedoTextureViews[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbePack->atNormalTextureViews[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbePack->atAOMetalRoughnessTextureViews[i]);
+            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbePack->atDepthTextureViews[i]);
+            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbePack->atLightingBindGroup[i]);
+        }
+    }
     for(uint32_t j = 0; j < pl_sb_size(ptScene->sbtProbeData); j++)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[j];
             
         gptStarter->return_staging_buffer(&ptProbe->tDShadowCameraBuffers);
         gptStarter->return_staging_buffer(&ptProbe->tDLightShadowDataBuffer);
+
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tLambertianEnvTexture);
         gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tGGXEnvTexture);
+
         if(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED)
             gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tSheenEnvTexture);
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tAlbedoTexture);
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tNormalTexture);
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tAOMetalRoughnessTexture);
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tRawOutputTexture);
-        gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->tDepthTexture);
+
         pl_sb_free(ptProbe->sbtDLightShadowData);
 
         for(uint32_t i = 0; i < 6; i++)
         {
-            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atAlbedoTextureViews[i]);
-            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atNormalTextureViews[i]);
-            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atAOMetalRoughnessTextureViews[i]);
             gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atRawOutputTextureViews[i]);
-            gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptProbe->atDepthTextureViews[i]);
-            gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->atLightingBindGroup[i]);
+            
         }
 
         gptStarter->return_staging_buffer(&ptProbe->tViewBuffer);
-        gptStarter->return_staging_buffer(&ptProbe->tView2Buffer);
 
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tViewBG);
         gptGfx->queue_bind_group_for_deletion(gptData->ptDevice, ptProbe->tGBufferBG);
 
-        for(uint32_t k = 0; k < 6; k++)
-        {
-            pl_sb_free(ptProbe->sbuVisibleDeferredEntities[k]);
-            pl_sb_free(ptProbe->sbuVisibleForwardEntities[k]);
-            pl_sb_free(ptProbe->sbuVisibleTransmissionEntities[k]);
-        }
     }
+
+    pl_sb_free(ptScene->sbuVisibleDeferredEntities);
+    pl_sb_free(ptScene->sbuVisibleForwardEntities);
+    pl_sb_free(ptScene->sbuVisibleTransmissionEntities);
+    pl_sb_free(ptScene->sbtVisibleDrawables);
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
@@ -993,6 +1019,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
     gptGfx->queue_buffer_for_deletion(gptData->ptDevice, ptScene->tStorageBuffer);
 
     gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tShadowTexture);
+    gptGfx->queue_texture_for_deletion(gptData->ptDevice, ptScene->tSunShadowTexture);
 
     if(ptScene->tSkyboxTexture.uIndex != 0)
     {
@@ -1006,6 +1033,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
     pl_sb_free(ptScene->sbtVisibleDrawables0);
     pl_sb_free(ptScene->sbtVisibleDrawables1);
     pl_sb_free(ptScene->sbtRegularShaders);
+    pl_sb_free(ptScene->sbtProbeDataPacks);
     pl_sb_free(ptScene->sbtShadowShaders);
     pl_sb_free(ptScene->sbtProbeShaders);
     pl_sb_free(ptScene->sbtOutlineShaders);
@@ -1015,6 +1043,7 @@ pl_renderer_destroy_scene(plScene* ptScene)
     pl_sb_free(ptScene->sbtProbeData);
     pl_sb_free(ptScene->sbtShadowRects);
     pl_sb_free(ptScene->sbtShadowRectData);
+    pl_sb_free(ptScene->sbtShadowViewRects);
     pl_sb_free(ptScene->sbtPointLights);
     pl_sb_free(ptScene->sbtSpotLights);
     pl_sb_free(ptScene->sbtDirectionLights);
@@ -1101,7 +1130,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
     ptView->ptParentScene = ptScene;
     ptView->tTargetSize.x = (float)ptDesc->uWidth;
     ptView->tTargetSize.y = (float)ptDesc->uHeight;
-    ptView->tData.tViewportSize.xy = (plVec2){(float)ptDesc->uWidth, (float)ptDesc->uHeight};
+    ptView->tViewData.tViewportSize.xy = (plVec2){(float)ptDesc->uWidth, (float)ptDesc->uHeight};
 
     // picking defaults
     ptView->tHoveredEntity.uData = 0;
@@ -1260,7 +1289,7 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
             },
             {
                 .tTexture = ptView->tDepthTexture,
-                .uSlot    = 3,
+                .uSlot    = 3, 
                 .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
             }
         }
@@ -1278,11 +1307,13 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
 
     for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
     {
+        gptStarter->get_staging_buffer(4096, &ptView->atSunCameraBuffers[i], "directional shadow camera buffer");
         gptStarter->get_staging_buffer(4096, &ptView->atDShadowCameraBuffers[i], "directional shadow camera buffer");
         gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &ptView->atDLightShadowDataBuffer[i], "directional shadow buffer");
 
 
         ptView->atDShadowBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
+        ptView->atSunCSMBG[i] = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
 
         const plBindGroupUpdateData tDShadowBGData = {
             .atBufferBindings = {
@@ -1299,7 +1330,23 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
             }
         };
 
+        const plBindGroupUpdateData tDShadowBGData2 = {
+            .atBufferBindings = {
+                {
+                    .tBuffer       = ptView->atSunCameraBuffers[i],
+                    .uSlot         = 0,
+                    .szBufferRange = 4096
+                },
+                {
+                    .tBuffer       = ptScene->atInstanceBuffer[i],
+                    .uSlot         = 1,
+                    .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
+                } 
+            }
+        };
+
         gptGfx->update_bind_group(gptData->ptDevice, ptView->atDShadowBG[i], &tDShadowBGData);
+        gptGfx->update_bind_group(gptData->ptDevice, ptView->atSunCSMBG[i], &tDShadowBGData2);
 
         const plBufferDesc tPickBufferDesc = {
             .eUsage     = PL_BUFFER_USAGE_STORAGE,
@@ -1323,19 +1370,19 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
         };
         gptGfx->update_bind_group(gptData->ptDevice, ptView->atPickBindGroup[i], &tPickBGData);
 
-        // buffers
-        gptStarter->get_staging_buffer(4096, &ptView->atView2Buffers[i], "scene");
-        
+
         const plBindGroupDesc tDeferredBG1Desc = {
             .ptPool      = gptData->ptBindGroupPool,
             .tLayout     = gptShaderVariant->get_graphics_bind_group_layout("gbuffer_fill", 1),
             .pcDebugName = "view specific bindgroup"
         };
 
+        gptStarter->get_staging_buffer(sizeof(plGpuViewData), &ptView->atViewBuffers[i], "view buffer");
+
         const plBindGroupUpdateData tView2BGData = {
             .atBufferBindings = {
                 {
-                    .tBuffer       = ptView->atView2Buffers[i],
+                    .tBuffer       = ptView->atViewBuffers[i],
                     .uSlot         = 0,
                     .szBufferRange = sizeof(plGpuViewData)
                 }
@@ -1347,19 +1394,18 @@ pl_renderer_create_view(plScene* ptScene, const plViewDesc* ptDesc)
 
         pl_temp_allocator_reset(&gptData->tTempAllocator);
 
-        gptStarter->get_staging_buffer(sizeof(plGpuViewData), &ptView->atViewBuffers[i], "view buffer");
+        
 
         const plBindGroupUpdateData tViewBGData = {
             .atBufferBindings  = {
                 { .uSlot = 0, .tBuffer = ptView->atViewBuffers[i], .szBufferRange = sizeof(plGpuViewData) },
-                { .uSlot = 1, .tBuffer = ptView->atView2Buffers[i], .szBufferRange = sizeof(plGpuViewData) },
-                { .uSlot = 2, .tBuffer = ptScene->atPointLightBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightBuffer[i])->tDesc.szByteSize},
-                { .uSlot = 3, .tBuffer = ptScene->atSpotLightBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightBuffer[i])->tDesc.szByteSize},
-                { .uSlot = 4, .tBuffer = ptScene->atDirectionLightBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atDirectionLightBuffer[i])->tDesc.szByteSize},
-                { .uSlot = 5, .tBuffer = ptView->atDLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptView->atDLightShadowDataBuffer[i])->tDesc.szByteSize},
-                { .uSlot = 6, .tBuffer = ptScene->atPointLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[i])->tDesc.szByteSize},
-                { .uSlot = 7, .tBuffer = ptScene->atSpotLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[i])->tDesc.szByteSize},
-                { .uSlot = 8, .tBuffer = ptScene->tGPUProbeDataBuffers, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize} 
+                { .uSlot = 1, .tBuffer = ptScene->atPointLightBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 2, .tBuffer = ptScene->atSpotLightBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 3, .tBuffer = ptScene->atDirectionLightBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atDirectionLightBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 4, .tBuffer = ptView->atDLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptView->atDLightShadowDataBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 5, .tBuffer = ptScene->atPointLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 6, .tBuffer = ptScene->atSpotLightShadowDataBuffer[i], .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[i])->tDesc.szByteSize},
+                { .uSlot = 7, .tBuffer = ptScene->tGPUProbeDataBuffers, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize} 
             }
         };
 
@@ -1449,7 +1495,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
 
     // update offscreen size to match viewport
     ptView->tTargetSize = tDimensions;
-    ptView->tData.tViewportSize.xy = ptView->tTargetSize;
+    ptView->tViewData.tViewportSize.xy = ptView->tTargetSize;
 
     for(uint32_t i = 0; i < pl_sb_size(ptView->sbtBloomDownChain); i++)
     {
@@ -1581,7 +1627,7 @@ pl_renderer_resize_view(plView* ptView, plVec2 tDimensions)
                     {
                         .tTexture = ptView->tTransmissionTexture,
                         .uSlot    = PL_MAX_BINDLESS_TEXTURE_SLOT,
-                        .uIndex   = (uint32_t)ptView->tData.iTransmissionFrameBufferIndex,
+                        .uIndex   = (uint32_t)ptView->tViewData.iTransmissionFrameBufferIndex,
                         .eType = PL_TEXTURE_BINDING_TYPE_SAMPLED
                     }  
                 }
@@ -2027,7 +2073,10 @@ pl_renderer_editor_reload_scene_shaders(plScene* ptScene)
     if(ptScene->tDebugOptions.tShaderDebugMode)
         ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_debug", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
     else
+    {
+        ptScene->tSunShader = gptShaderVariant->get_shader("deferred_lighting_sun", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
         ptScene->tDirectionalLightingShader = gptShaderVariant->get_shader("deferred_lighting_directional", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
+    }
 
     ptScene->tSpotLightingShader = gptShaderVariant->get_shader("deferred_lighting_spot", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
     ptScene->tPointLightingShader = gptShaderVariant->get_shader("deferred_lighting_point", NULL, NULL, aiLightingConstantData, &gptData->tDeferredLightingRenderPassLayout);
@@ -2440,13 +2489,6 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
                 .tColor        = ptLight->tColor,
                 .iShadowIndex  = (int)ptScene->uDOffset++,
                 .iCastShadow   = 1,
-                .iCascadeCount = (int)ptLight->uCascadeCount,
-                .afCascadeSplits = {
-                    ptLight->afCascadeSplits[0],
-                    ptLight->afCascadeSplits[1],
-                    ptLight->afCascadeSplits[2],
-                    ptLight->afCascadeSplits[3]
-                }
             };
             pl_sb_push(ptScene->sbtDirectionLightData, tLight);
 
@@ -2467,14 +2509,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
                 .tDirection    = ptLight->tDirection,
                 .tColor        = ptLight->tColor,
                 .iShadowIndex  = 0,
-                .iCastShadow   = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW,
-                .iCascadeCount = (int)ptLight->uCascadeCount,
-                .afCascadeSplits = {
-                    ptLight->afCascadeSplits[0],
-                    ptLight->afCascadeSplits[1],
-                    ptLight->afCascadeSplits[2],
-                    ptLight->afCascadeSplits[3]
-                }
+                .iCastShadow   = ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW
             };
             pl_sb_push(ptScene->sbtDirectionLightData, tLight);
         }
@@ -2508,7 +2543,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
                     .pcDebugName   = "offscreen transmission"
                 };
                 gptStarter->create_texture(&tRawOutput2TextureDesc, NULL, 0, &ptView->tTransmissionTexture);
-                ptView->tData.iTransmissionFrameBufferIndex = pl__renderer_get_bindless_texture_index(ptScene, ptView->tTransmissionTexture);
+                ptView->tViewData.iTransmissionFrameBufferIndex = pl__renderer_get_bindless_texture_index(ptScene, ptView->tTransmissionTexture);
             }
         }
     }
@@ -2625,6 +2660,34 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
         ptScene->tSceneData.iSceneFlags &= ~PL_SCENE_FLAG_HEIGHT_FOG;
     }
 
+    pl__renderer_pack_view_shadow_atlas(ptScene);
+
+    ptScene->tSceneData.fFogDensity = ptScene->tFogOptions.fDensity;
+    ptScene->tSceneData.fFogHeight = ptScene->tFogOptions.fHeight;
+    ptScene->tSceneData.fFogCutOffDistance = ptScene->tFogOptions.fCutOffDistance;
+    ptScene->tSceneData.fFogMaxOpacity = ptScene->tFogOptions.fMaxOpacity;
+    ptScene->tSceneData.fFogStart = ptScene->tFogOptions.fStart;
+    ptScene->tSceneData.fFogHeightFalloff = pl_maxf(0.0f, ptScene->tFogOptions.fHeightFalloff);
+    ptScene->tSceneData.tFogColor = ptScene->tFogOptions.tColor;
+    ptScene->tSceneData.fFogLinearParam0 = 1.0f / (ptScene->tSceneData.fFogCutOffDistance - ptScene->tSceneData.fFogStart);
+    ptScene->tSceneData.fFogLinearParam1 = -ptScene->tSceneData.fFogStart / (ptScene->tSceneData.fFogCutOffDistance - ptScene->tSceneData.fFogStart);
+    ptScene->tSceneData.iShadowMapTexIdx = ptScene->uSunShadowAtlasIndex;
+    ptScene->tSceneData.tColor = ptScene->tLightingOptions.tSunColor;
+    ptScene->tSceneData.tDirection = ptScene->tLightingOptions.tSunDirection;
+    ptScene->tSceneData.iCascadeCount = (int)ptScene->tLightingOptions.uSunCascadeCount;
+    ptScene->tSceneData.iCastShadow = 1;
+    ptScene->tSceneData.fIntensity = ptScene->tLightingOptions.fSunStrength;
+    ptScene->tSceneData.fFactor = (float)ptScene->tLightingOptions.uSunResolution / (float)ptScene->uSunShadowAtlasResolution;
+
+    uint32_t uShadowResolution = (uint32_t)ptScene->sbtShadowViewRects[0].iHeight;
+    int iX = ptScene->sbtShadowViewRects[0].iX;
+    int iY = ptScene->sbtShadowViewRects[0].iY;
+    ptScene->tSceneData.iShadowMapTexIdx = ptScene->uSunShadowAtlasIndex;
+    ptScene->tSceneData.fFactor          = (float)uShadowResolution / (float)ptScene->uSunShadowAtlasResolution;
+    ptScene->tSceneData.fXOffset         = (float)iX / (float)ptScene->uSunShadowAtlasResolution;
+    ptScene->tSceneData.fYOffset         = (float)iY / (float)ptScene->uSunShadowAtlasResolution;
+
+
     memcpy(ptSceneBuffer->tMemoryAllocation.pHostMapped, &ptScene->tSceneData, sizeof(plGpuSceneData));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~perform skinning~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2659,6 +2722,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
 
     // prep
     pl__renderer_pack_shadow_atlas(ptScene);
+    
 
     plCommandBuffer* ptShadowCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "scene shadows");
     gptGfx->begin_command_recording(ptShadowCmdBuffer);
@@ -2705,160 +2769,7 @@ pl_renderer_prepare_scene(plScene* ptScene, const plCamera** atCameras, uint32_t
     // if(uFrameIdx == 0 && gptIO->ulFrameCount - ptScene->uLastProbeAddFrame > 3) // multiple frames in flight may fight
     if(uFrameIdx == 0) // multiple frames in flight may fight
     {
-        const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
-        for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
-        {
-            plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
-            plEnvironmentProbeComponent* ptProbeComp = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
 
-            if((ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && !gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
-            {
-                PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "creating required sheen env texture");
-                const plTextureDesc tTextureDesc = {
-                    .tDimensions = {(float)ptProbeComp->uResolution, (float)ptProbeComp->uResolution, 1},
-                    .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
-                    .uLayers     = 6,
-                    .uMips       = (uint32_t)floorf(log2f((float)ptProbeComp->uResolution)) - 3, // guarantee final dispatch during filtering is 16 threads
-                    .eType       = PL_TEXTURE_TYPE_CUBE,
-                    .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
-                    .pcDebugName = "tSheenEnvTexture"
-                };
-                gptStarter->create_texture(&tTextureDesc, NULL, 0, &ptProbe->tSheenEnvTexture);
-                ptProbe->uSheenEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, ptProbe->tSheenEnvTexture);
-                ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
-            }
-            else if(!(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
-            {
-                PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "freeing unneeded sheen env texture");
-                gptGfx->queue_texture_for_deletion(ptDevice, ptProbe->tSheenEnvTexture);
-            }
-
-            
-            if(!((ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME) || (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY)))
-            {
-                continue;
-            }
-
-            if(ptProbe->uDirtyFaces == 0 && (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY))
-                ptProbe->uDirtyFaces = 6;
-
-            plTransformComponent* ptProbeTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptProbe->tEntity);
-
-            plCamera atEnvironmentCamera[6] = {0};
-
-            const plVec3 atPitchYawRoll[6] = {
-                {    0.0f,  PL_PI_2,  0.0f },
-                {    0.0f, -PL_PI_2,  0.0f },
-                {  PL_PI_2,   PL_PI,  0.0f },
-                { -PL_PI_2,   PL_PI,  0.0f },
-                {    PL_PI,    0.0f, PL_PI },
-                {     0.0f,    0.0f,  0.0f },
-            };
-
-            for(uint32_t uFace = 0; uFace < 6; uFace++)
-            {
-                gptCamera->init(&atEnvironmentCamera[uFace]);
-                atEnvironmentCamera[uFace].eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
-                atEnvironmentCamera[uFace].eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
-                atEnvironmentCamera[uFace].tPosition   = (plVec3d){(double)ptProbeTransform->tTranslation.x, (double)ptProbeTransform->tTranslation.y, (double)ptProbeTransform->tTranslation.z};
-                atEnvironmentCamera[uFace].fNearZ       = 0.26f;
-                atEnvironmentCamera[uFace].fFarZ        = ptProbeComp->fRange;
-                atEnvironmentCamera[uFace].fYFov        = PL_PI_2;
-                atEnvironmentCamera[uFace].fAspectRatio = 1.0f;
-                gptCamera->set_euler(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y, atPitchYawRoll[uFace].z);
-                gptCamera->update(&atEnvironmentCamera[uFace]);
-
-                plCommandBuffer* ptCSMCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "probe csm");
-                gptGfx->begin_command_recording(ptCSMCommandBuffer);
-
-                plRenderInfo tShadowRenderInfo = {
-                    .tRenderArea = {
-                        .tMin = {0},
-                        .tMax = {.x = (float)ptScene->uShadowAtlasResolution, .y = (float)ptScene->uShadowAtlasResolution}
-                    },
-                    .tDepthAttachment = {
-                        .tTexture        = ptScene->tShadowTexture,
-                        .eLoadOp         = PL_LOAD_OP_LOAD,
-                        .eStoreOp        = PL_STORE_OP_STORE,
-                        .eUsage          = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-                        .fClearZ         = 0.0f
-                    }
-                };
-
-                gptGfx->begin_render_pass(ptCSMCommandBuffer, &tShadowRenderInfo, NULL);
-                gptGfx->push_debug_group(ptCSMCommandBuffer, "Probe CSM", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
-
-                plCSMInfo tCSMInfo = {
-                    .bAltMode = true,
-                    .tBindGroup = ptProbe->tDShadowBG,
-                    .tDShadowCameraBuffer = ptProbe->tDShadowCameraBuffers,
-                    .tDLightShadowDataBuffer = ptProbe->tDLightShadowDataBuffer,
-                    .sbtDLightShadowData = ptProbe->sbtDLightShadowData
-                };
-                pl__renderer_generate_cascaded_shadow_map(ptCSMCommandBuffer, ptScene, uFace, uProbeIndex, &atEnvironmentCamera[uFace], tCSMInfo, NULL);
-
-                gptGfx->pop_debug_group(ptCSMCommandBuffer);
-                gptGfx->end_render_pass(ptCSMCommandBuffer);
-                gptGfx->end_command_recording(ptCSMCommandBuffer);
-
-                const plSubmitInfo tSubmitCSMInfo = {
-                    .uWaitSemaphoreCount     = 1,
-                    .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
-                    .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
-                    .uSignalSemaphoreCount   = 1,
-                    .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-                    .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-                };
-                gptGfx->submit_command_buffer(ptCSMCommandBuffer, &tSubmitCSMInfo);
-                gptGfx->return_command_buffer(ptCSMCommandBuffer);
-
-                const plGpuViewData tProbeBindGroupBuffer = {
-                    .tViewportSize         = {.x = ptProbe->tTargetSize.x, .y = ptProbe->tTargetSize.y, .z = 1.0f, .w = 1.0f},
-                    .tCameraPos            = atEnvironmentCamera[uFace].tPositionF,
-                    .fCameraRange          = atEnvironmentCamera[uFace].fFarZ - atEnvironmentCamera[uFace].fNearZ,
-                    .fCameraNearZ          = atEnvironmentCamera[uFace].fNearZ,
-                    .tCameraProjection     = atEnvironmentCamera[uFace].tProjMat,
-                    .tCameraView           = atEnvironmentCamera[uFace].tViewMat,
-                    .fAspectRatio          = atEnvironmentCamera[uFace].fAspectRatio,
-                    .tInvViewMatNoTranslation = atEnvironmentCamera[uFace].tInvViewMatNoTranslation,
-                    .tCameraProjectionInv  = pl_mat4_invert(&atEnvironmentCamera[uFace].tProjMat),
-                    .tCameraViewInv        = pl_mat4_invert(&atEnvironmentCamera[uFace].tViewMat),
-                    .tCameraViewProjection = pl_mul_mat4(&atEnvironmentCamera[uFace].tProjMat, &atEnvironmentCamera[uFace].tViewMat)
-                };
-
-                // copy global buffer data for probe rendering
-                const uint32_t uProbeGlobalBufferOffset = sizeof(plGpuViewData) * uFace;
-                plBuffer* ptProbeGlobalBuffer = gptGfx->get_buffer(ptDevice, ptProbe->tView2Buffer);
-                memcpy(&ptProbeGlobalBuffer->tMemoryAllocation.pHostMapped[uProbeGlobalBufferOffset], &tProbeBindGroupBuffer, sizeof(plGpuViewData));
-            }
-        }
-
-        pl_sb_reset(ptScene->sbtGPUProbeData);
-        for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtProbeData); i++)
-        {
-            plEnvironmentProbeComponent* ptProbe = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptScene->sbtProbeData[i].tEntity);
-            plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtProbeData[i].tEntity);
-            plTransformComponent* ptProbeTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptScene->sbtProbeData[i].tEntity);
-            plGpuProbe tProbeData = {
-                .tPosition              = ptProbeTransform->tTranslation,
-                .fRangeSqr              = ptProbe->fRange * ptProbe->fRange,
-                .uGGXEnvSampler         = ptScene->sbtProbeData[i].uGGXEnvSampler,
-                .uLambertianEnvSampler  = ptScene->sbtProbeData[i].uLambertianEnvSampler,
-                .uCharlieEnvSampler     = ptScene->sbtProbeData[i].uSheenEnvSampler,
-                .tMin.xyz               = ptObject->tAABB.tMin,
-                .tMax.xyz               = ptObject->tAABB.tMax,
-                .iMips                  = ptScene->sbtProbeData[i].iMips,
-                .iParallaxCorrection    = (int)(ptProbe->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX)
-            };
-            pl_sb_push(ptScene->sbtGPUProbeData, tProbeData);
-        }
-
-        if(pl_sb_size(ptScene->sbtGPUProbeData) > 0)
-        {
-
-            plBuffer* ptProbeDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->tGPUProbeDataBuffers);
-            memcpy(ptProbeDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtGPUProbeData, sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData));
-        }
 
         pl__renderer_update_probes(ptScene);
     }
@@ -2879,67 +2790,75 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
 
     plScene* ptScene = ptView->ptParentScene;
 
-
-    ptView->tData.fFogHeight = ptScene->tFogOptions.fHeight;
-    ptView->tData.fFogCutOffDistance = ptScene->tFogOptions.fCutOffDistance;
-    ptView->tData.fFogMaxOpacity = ptScene->tFogOptions.fMaxOpacity;
-    ptView->tData.fFogStart = ptScene->tFogOptions.fStart;
-    ptView->tData.fFogHeightFalloff = pl_maxf(0.0f, ptScene->tFogOptions.fHeightFalloff);
-    ptView->tData.tFogColor = ptScene->tFogOptions.tColor;
-    ptView->tData.fFogLinearParam0 = 1.0f / (ptView->tData.fFogCutOffDistance - ptView->tData.fFogStart);
-    ptView->tData.fFogLinearParam1 = -ptView->tData.fFogStart / (ptView->tData.fFogCutOffDistance - ptView->tData.fFogStart);
-    ptView->tData.tCameraPos.xyz = ptCamera->tPositionF;
+    ptView->tViewData.tCameraPos.xyz = ptCamera->tPositionF;
+    ptView->tViewData.fCameraRange = ptCamera->fFarZ - ptCamera->fNearZ;
+    ptView->tViewData.fCameraNearZ = ptCamera->fNearZ;
+    ptView->tViewData.fAspectRatio = ptCamera->fAspectRatio;
+    ptView->tViewData.iCameraProjectType = ptCamera->eProjectionType;
+    ptView->tViewData.tViewportSize = (plVec4){.xy = ptView->tTargetSize, .ignored0_ = 1.0f, .ignored1_ = 1.0f};
+    ptView->tViewData.tCameraProjection[0]     = ptCamera->tProjMat;
+    ptView->tViewData.tInvViewMatNoTranslation[0] = ptCamera->tInvViewMatNoTranslation;
+    ptView->tViewData.tCameraProjectionInv[0]  = pl_mat4_invert(&ptCamera->tProjMat);
+    ptView->tViewData.tCameraViewInv[0]        = ptCamera->tInvViewMat;
+    ptView->tViewData.tCameraView[0]           = ptCamera->tViewMat;
+    ptView->tViewData.tCameraViewProjection[0] = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat);
     
-    const float fFogDensity = -(float)(ptView->tData.fFogHeightFalloff * (ptCamera->tPositionF.y - ptView->tData.fFogHeight));
-    ptView->tData.tFogDensity = (plVec3){ptScene->tFogOptions.fDensity, fFogDensity, ptScene->tFogOptions.fDensity * expf(fFogDensity)};
+    // const float fFogDensity = -(float)(ptView->tViewData.fFogHeightFalloff * (ptCamera->tPositionF.y - ptView->tViewData.fFogHeight));
+    // ptView->tViewData.tFogDensity = (plVec3){ptScene->tFogOptions.fDensity, fFogDensity, ptScene->tFogOptions.fDensity * expf(fFogDensity)};
+
+    plBuffer* ptViewBuffer = gptGfx->get_buffer(ptDevice, ptView->atViewBuffers[uFrameIdx]);
+    memcpy(ptViewBuffer->tMemoryAllocation.pHostMapped, &ptView->tViewData, sizeof(plGpuViewData));
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~generate CSMs~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    plCommandBuffer* ptCSMCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "view csm");
-    gptGfx->begin_command_recording(ptCSMCmdBuffer);
+    {
+        plCommandBuffer* ptCSMCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "sun view csm");
+        gptGfx->begin_command_recording(ptCSMCmdBuffer);
 
-    plRenderInfo tShadowRenderInfo = {
-        .tRenderArea = {
-            .tMin = {0},
-            .tMax = {.x = (float)ptScene->uShadowAtlasResolution, .y = (float)ptScene->uShadowAtlasResolution}
-        },
-        .tDepthAttachment = {
-            .tTexture        = ptScene->tShadowTexture,
-            .eLoadOp         = PL_LOAD_OP_LOAD,
-            .eStoreOp        = PL_STORE_OP_STORE,
-            .eUsage          = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
-            .fClearZ         = 0.0f
-        }
-    };
+        plRenderInfo tShadowRenderInfo = {
+            .tRenderArea = {
+                .tMin = {0},
+                .tMax = {.x = (float)ptScene->uSunShadowAtlasResolution, .y = (float)ptScene->uSunShadowAtlasResolution}
+            },
+            .tDepthAttachment = {
+                .tTexture        = ptScene->tSunShadowTexture,
+                .eLoadOp         = PL_LOAD_OP_CLEAR,
+                .eStoreOp        = PL_STORE_OP_STORE,
+                .eUsage          = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                .fClearZ         = 0.0f
+            }
+        };
 
-    gptGfx->begin_render_pass(ptCSMCmdBuffer, &tShadowRenderInfo, NULL);
-    
-    gptGfx->push_debug_group(ptCSMCmdBuffer, "View CSM", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
+        gptGfx->begin_render_pass(ptCSMCmdBuffer, &tShadowRenderInfo, NULL);
+        
+        gptGfx->push_debug_group(ptCSMCmdBuffer, "Sun View CSM", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
 
-    plCSMInfo tCSMInfo = {
-        .bAltMode = false,
-        .tBindGroup = ptView->atDShadowBG[uFrameIdx],
-        .tDShadowCameraBuffer = ptView->atDShadowCameraBuffers[uFrameIdx],
-        .tDLightShadowDataBuffer = ptView->atDLightShadowDataBuffer[uFrameIdx],
-        .sbtDLightShadowData = ptView->sbtDLightShadowData
-    };
-    pl__renderer_generate_cascaded_shadow_map(ptCSMCmdBuffer, ptScene, ptView->uIndex, 0, ptCamera, tCSMInfo, ptView->pt3DDrawList);
+        pl__renderer_generate_sun_shadow_map(ptCSMCmdBuffer, ptScene, &ptView->tViewData, ptView->atViewBuffers[uFrameIdx], ptView->atSunCameraBuffers[uFrameIdx], ptCamera, ptView->atSunCSMBG[uFrameIdx], false);
 
-    gptGfx->producer_barrier(ptCSMCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT | PL_PIPELINE_STAGE_VERTEX, PL_PIPELINE_STAGE_VERTEX, PL_BARRIER_SCOPE_ALL);
-    gptGfx->pop_debug_group(ptCSMCmdBuffer);
-    gptGfx->end_render_pass(ptCSMCmdBuffer);
-    gptGfx->end_command_recording(ptCSMCmdBuffer);
+        plCSMInfo tCSMInfo = {
+            .tBindGroup = ptView->atDShadowBG[uFrameIdx],
+            .tDShadowCameraBuffer = ptView->atDShadowCameraBuffers[uFrameIdx],
+            .tDLightShadowDataBuffer = ptView->atDLightShadowDataBuffer[uFrameIdx],
+            .sbtDLightShadowData = ptView->sbtDLightShadowData
+        };
+        pl__renderer_generate_direction_view_map(ptCSMCmdBuffer, ptScene, ptCamera, tCSMInfo);
 
-    const plSubmitInfo tCSMSubmitInfo = {
-        .uWaitSemaphoreCount     = 1,
-        .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
-        .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
-        .uSignalSemaphoreCount   = 1,
-        .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
-        .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-    };
-    gptGfx->submit_command_buffer(ptCSMCmdBuffer, &tCSMSubmitInfo);
-    gptGfx->return_command_buffer(ptCSMCmdBuffer);
+        gptGfx->producer_barrier(ptCSMCmdBuffer, PL_PIPELINE_STAGE_FRAGMENT | PL_PIPELINE_STAGE_VERTEX, PL_PIPELINE_STAGE_VERTEX, PL_BARRIER_SCOPE_ALL);
+        gptGfx->pop_debug_group(ptCSMCmdBuffer);
+        gptGfx->end_render_pass(ptCSMCmdBuffer);
+        gptGfx->end_command_recording(ptCSMCmdBuffer);
+
+        const plSubmitInfo tCSMSubmitInfo = {
+            .uWaitSemaphoreCount     = 1,
+            .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+            .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+            .uSignalSemaphoreCount   = 1,
+            .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+        };
+        gptGfx->submit_command_buffer(ptCSMCmdBuffer, &tCSMSubmitInfo);
+        gptGfx->return_command_buffer(ptCSMCmdBuffer);
+    }
 
     if(ptScene->tDebugOptions.bShowProbes)
     {
@@ -2963,8 +2882,6 @@ pl_renderer_prepare_view(plView* ptView, const plCamera* ptCamera)
         }
     }
 
-    plBuffer* ptViewBuffer = gptGfx->get_buffer(ptDevice, ptView->atViewBuffers[uFrameIdx]);
-    memcpy(ptViewBuffer->tMemoryAllocation.pHostMapped, &ptView->tData, sizeof(plGpuViewData));
     uint32_t uBloomTextureCount = pl_sb_size(ptView->sbtBloomDownChain);
 
     if(ptView->tBloomOptions.tFlags & PL_RENDERER_BLOOM_FLAGS_ACTIVE && uBloomTextureCount < ptView->tBloomOptions.uChainLength)
@@ -3056,33 +2973,17 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     }
     else // no culling, just copy drawables over
     {
-        if(pl_sb_size(ptView->sbtVisibleDrawables) != uDrawableCount)
+        if(pl_sb_size(ptScene->sbtVisibleDrawables) != uDrawableCount)
         {
-            pl_sb_resize(ptView->sbtVisibleDrawables, uDrawableCount);
+            pl_sb_resize(ptScene->sbtVisibleDrawables, uDrawableCount);
             for(uint32_t i = 0; i < uDrawableCount; i++)
-                ptView->sbtVisibleDrawables[i] = i;
+                ptScene->sbtVisibleDrawables[i] = i;
         }
     }
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0); // culling
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    const plGpuViewData tBindGroupBuffer = {
-        .tViewportSize         = {.xy = ptView->tTargetSize, .ignored0_ = 1.0f, .ignored1_ = 1.0f},
-        .tCameraPos            = ptCamera->tPositionF,
-        .fCameraRange          = ptCamera->fFarZ - ptCamera->fNearZ,
-        .fCameraNearZ          = ptCamera->fNearZ,
-        .tCameraProjection     = ptCamera->tProjMat,
-        .fAspectRatio          = ptCamera->fAspectRatio,
-        .iCameraProjectType    = ptCamera->eProjectionType,
-        .tInvViewMatNoTranslation = ptCamera->tInvViewMatNoTranslation,
-        .tCameraProjectionInv  = pl_mat4_invert(&ptCamera->tProjMat),
-        .tCameraViewInv        = ptCamera->tInvViewMat,
-        .tCameraView           = ptCamera->tViewMat,
-        .tCameraViewProjection = pl_mul_mat4(&ptCamera->tProjMat, &ptCamera->tViewMat)
-    };
-    memcpy(gptGfx->get_buffer(ptDevice, ptView->atView2Buffers[uFrameIdx])->tMemoryAllocation.pHostMapped, &tBindGroupBuffer, sizeof(plGpuViewData));
-    
     gptJob->wait_for_counter(ptCullCounter);
     
     //~~~~~~~~~~~~~~~~~~~~~~~~~~binning based on pass type~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3091,10 +2992,10 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
 
     if(ptCullCamera)
     {
-        pl_sb_reset(ptView->sbuVisibleDeferredEntities);
-        pl_sb_reset(ptView->sbuVisibleForwardEntities);
-        pl_sb_reset(ptView->sbuVisibleTransmissionEntities);
-        pl_sb_reset(ptView->sbtVisibleDrawables);
+        pl_sb_reset(ptScene->sbuVisibleDeferredEntities);
+        pl_sb_reset(ptScene->sbuVisibleForwardEntities);
+        pl_sb_reset(ptScene->sbuVisibleTransmissionEntities);
+        pl_sb_reset(ptScene->sbtVisibleDrawables);
 
         for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
         {
@@ -3103,26 +3004,26 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
             {
                 if(tDrawable.tFlags & PL_DRAWABLE_FLAG_DEFERRED)
                 {
-                    pl_sb_push(ptView->sbuVisibleDeferredEntities, uDrawableIndex);
-                    pl_sb_push(ptView->sbtVisibleDrawables, uDrawableIndex);
+                    pl_sb_push(ptScene->sbuVisibleDeferredEntities, uDrawableIndex);
+                    pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
                 }
                 else if(tDrawable.tFlags & PL_DRAWABLE_FLAG_PROBE)
                 {
                     if(ptScene->tDebugOptions.bShowProbes)
                     {
-                        pl_sb_push(ptView->sbuVisibleForwardEntities, uDrawableIndex);
-                        pl_sb_push(ptView->sbtVisibleDrawables, uDrawableIndex);
+                        pl_sb_push(ptScene->sbuVisibleForwardEntities, uDrawableIndex);
+                        pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
                     }
                 }
                 else if(tDrawable.tFlags & PL_DRAWABLE_FLAG_FORWARD)
                 {
-                    pl_sb_push(ptView->sbuVisibleForwardEntities, uDrawableIndex);
-                    pl_sb_push(ptView->sbtVisibleDrawables, uDrawableIndex);
+                    pl_sb_push(ptScene->sbuVisibleForwardEntities, uDrawableIndex);
+                    pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
                 }
                 else if(tDrawable.tFlags & PL_DRAWABLE_FLAG_TRANSMISSION)
                 {
-                    pl_sb_push(ptView->sbuVisibleTransmissionEntities, uDrawableIndex);
-                    pl_sb_push(ptView->sbtVisibleDrawables, uDrawableIndex);
+                    pl_sb_push(ptScene->sbuVisibleTransmissionEntities, uDrawableIndex);
+                    pl_sb_push(ptScene->sbtVisibleDrawables, uDrawableIndex);
                 }
                 
             }
@@ -3212,7 +3113,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     };
 
     plGbufferFillPassInfo tGbufferFillPassInfo = {
-        .sbuVisibleDeferredEntities = ptView->sbuVisibleDeferredEntities,
+        .sbuVisibleDeferredEntities = ptScene->sbuVisibleDeferredEntities,
         .uGlobalIndex = 0,
         .tBG2 = ptView->atDeferredBG1[uFrameIdx],
         .ptArea = &tArea,
@@ -3332,7 +3233,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     }
     
     plForwardPassInfo tForwardPassInfo = {
-        .sbuVisibleEntities = ptView->sbuVisibleForwardEntities,
+        .sbuVisibleEntities = ptScene->sbuVisibleForwardEntities,
         .ptArea = &tArea,
         .uGlobalIndex = 0,
         .sbtShaders = ptScene->sbtRegularShaders
@@ -3400,7 +3301,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     gptGfx->begin_render_pass(ptSceneCmdBuffer, &tTransparentRenderInfo, NULL);
     gptGfx->set_depth_bias(ptSceneCmdBuffer, 0.0f, 0.0f, 0.0f);
     
-    if(pl_sb_size(ptView->sbuVisibleTransmissionEntities) > 0)
+    if(pl_sb_size(ptScene->sbuVisibleTransmissionEntities) > 0)
         pl__render_view_transmission_pass(ptView, ptSceneCmdBuffer, ptView->atViewBG[uFrameIdx]);
 
     if(ptView->tEditorOptions.bShowGrid)
@@ -3459,7 +3360,7 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     static double* pdVisibleTransparentObjects = NULL;
 
     // recording draw call stats
-    *gptData->pdDrawCalls += (double)(pl_sb_size(ptView->sbuVisibleDeferredEntities) + pl_sb_size(ptView->sbuVisibleForwardEntities) + pl_sb_size(ptView->sbuVisibleTransmissionEntities) + 1);
+    *gptData->pdDrawCalls += (double)(pl_sb_size(ptScene->sbuVisibleDeferredEntities) + pl_sb_size(ptScene->sbuVisibleForwardEntities) + pl_sb_size(ptScene->sbuVisibleTransmissionEntities) + 1);
     
     if(!pdVisibleOpaqueObjects)
     {
@@ -3470,8 +3371,8 @@ pl_renderer_render_view(plView* ptView, const plRenderViewDesc* ptViewDesc)
     // only record stats for first scene
     if(ptScene == gptData->sbptScenes[0])
     {
-        *pdVisibleOpaqueObjects = (double)(pl_sb_size(ptView->sbuVisibleDeferredEntities));
-        *pdVisibleTransparentObjects = (double)(pl_sb_size(ptView->sbuVisibleForwardEntities));
+        *pdVisibleOpaqueObjects = (double)(pl_sb_size(ptScene->sbuVisibleDeferredEntities));
+        *pdVisibleTransparentObjects = (double)(pl_sb_size(ptScene->sbuVisibleForwardEntities));
     }
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
@@ -3679,7 +3580,7 @@ pl_renderer_begin_frame(void)
         }
     }
 
-    gptStarter->return_readback_buffer(&gptData->tReadbackBuffer);
+    // gptStarter->return_readback_buffer(&gptData->tReadbackBuffer);
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return true;
 }
@@ -4443,9 +4344,7 @@ pl_renderer_ecs_register_system(void)
         .fInnerConeAngle     = 0.0f,
         .fOuterConeAngle     = PL_PI_4 * 0.5f,
         .tType               = PL_LIGHT_TYPE_DIRECTIONAL,
-        .uCascadeCount       = 0,
         .tFlags              = 0,
-        .afCascadeSplits     = {0}
     };
     gptData->tLightComponentType = gptECS->register_type(tLightDesc, &tLightComponentDefault);
 
@@ -4569,7 +4468,7 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
     tSceneInit.szDataBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szDataBufferSize", 64000000);
     tSceneInit.szMaterialBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szMaterialBufferSize", 8000000);
     tSceneInit.szSkinBufferSize = (size_t)pl_json_uint_member(ptAppObject, "szSkinBufferSize", 8000000);
-    tSceneInit.uShadowAtlasResolution = (size_t)pl_json_uint_member(ptAppObject, "uShadowAtlasResolution", 4096 * 4);
+    tSceneInit.uShadowAtlasResolution = (size_t)pl_json_uint_member(ptAppObject, "uShadowAtlasResolution", 4096);
 
     ptDataOut->ptScene = pl_renderer_create_scene(&tSceneInit);
     plViewDesc tViewDesc = PL_ZERO_INIT;
@@ -4632,6 +4531,11 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
             else if(aacFlags[k][27] == 'P') tLightingOptions.tFlags |= PL_RENDERER_LIGHTING_FLAGS_PUNCTUAL_LIGHTS;
         }
     }
+    tLightingOptions.fSunStrength = pl_json_float_member(ptLightingObject, "fSunStrength", 3.0f);
+    tLightingOptions.uSunCascadeCount = pl_json_uint_member(ptLightingObject, "uSunCascadeCount", 4);
+    tLightingOptions.uSunResolution = pl_json_uint_member(ptLightingObject, "uSunResolution", 2048);
+    pl_json_float_array_member(ptLightingObject, "tSunDirection", tLightingOptions.tSunDirection.d, NULL);
+    pl_json_float_array_member(ptLightingObject, "tSunColor", tLightingOptions.tSunColor.d, NULL);
 
     plJsonObject* ptShadowsObject = pl_json_member(ptRendererObject, "shadows");
     tShadowOptions.fSlopeDepthBias = pl_json_float_member(ptShadowsObject, "fSlopeDepthBias", -1.750f);
@@ -4848,8 +4752,6 @@ pl_renderer_load_test_world(const char* pcPath, plComponentLibrary* ptComponentL
         if(acType[0] == 'd')
         {
             tLight = pl_renderer_ecs_create_directional_light(ptComponentLibrary, acName, tDirection, &ptLight);
-            ptLight->uCascadeCount = pl_json_uint_member(ptLightObject, "uCascadeCount", 4);
-            ptLight->fShadowLambda = pl_json_float_member(ptLightObject, "fShadowLambda", 0.6f);
         }
         else if(acType[0] == 'p')
         {

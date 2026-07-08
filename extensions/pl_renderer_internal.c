@@ -295,9 +295,6 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
 
         plShadowPackData tPackData = {
             .uLightIndex = uLightIndex,
-            .uViewIndex  = 0,
-            .uProbeIndex = 0,
-            .bAltMode    = false,
             .tType       = ptLight->tType
         };
         pl_sb_push(ptScene->sbtShadowRectData, tPackData);
@@ -324,68 +321,11 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
 
         plShadowPackData tPackData = {
             .uLightIndex = uLightIndex,
-            .uViewIndex  = 0,
-            .uProbeIndex = 0,
-            .bAltMode    = false,
             .tType       = ptLight->tType
         };
         pl_sb_push(ptScene->sbtShadowRectData, tPackData);
     }
 
-    uLightCount = pl_sb_size(ptScene->sbtDirectionLights);
-    for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
-    {
-        const plLightComponent* ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[uLightIndex].tEntity);
-
-        // skip light if it doesn't cast shadows
-        if(!(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW))
-        {
-            continue;
-        }
-
-        for(uint32_t uView = 0; uView < uViewCount; uView++)
-        {
-            const plPackRect tPackRect = {
-                .iWidth  = (int)((ptLight->uShadowResolution) * ptLight->uCascadeCount),
-                .iHeight = (int)ptLight->uShadowResolution,
-                .iId     = (int)pl_sb_size(ptScene->sbtShadowRectData)
-            };
-            pl_sb_push(ptScene->sbtShadowRects, tPackRect);
-
-            plShadowPackData tPackData = {
-                .uLightIndex = uLightIndex,
-                .uViewIndex  = uView,
-                .uProbeIndex = 0,
-                .bAltMode    = false,
-                .tType       = ptLight->tType
-            };
-            pl_sb_push(ptScene->sbtShadowRectData, tPackData);
-        }
-
-        for(uint32_t uProbe = 0; uProbe < uProbeCount; uProbe++)
-        {
-            for(uint32_t uView = 0; uView < 6; uView++)
-            {
-                const plPackRect tPackRect = {
-                    .iWidth  = (int)(ptLight->uShadowResolution),
-                    .iHeight = (int)ptLight->uShadowResolution,
-                    .iId     = (int)pl_sb_size(ptScene->sbtShadowRectData)
-                };
-                pl_sb_push(ptScene->sbtShadowRects, tPackRect);
-
-                plShadowPackData tPackData = {
-                    .uLightIndex = uLightIndex,
-                    .uViewIndex  = uView,
-                    .uProbeIndex = uProbe,
-                    .bAltMode    = true,
-                    .tType       = ptLight->tType
-                };
-                pl_sb_push(ptScene->sbtShadowRectData, tPackData);
-            }
-        }
-    }
-
-    // pack rects
     const uint32_t uRectCount = pl_sb_size(ptScene->sbtShadowRects);
     gptRect->pack(ptScene->uShadowAtlasResolution, ptScene->uShadowAtlasResolution, ptScene->sbtShadowRects, uRectCount);
 
@@ -400,6 +340,66 @@ pl__renderer_pack_shadow_atlas(plScene* ptScene)
             break;
         }
     }
+
+    // ptScene->tSunPackRect = pl_sb_pop(ptScene->sbtShadowRects);
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+    return bPacked;
+}
+
+static bool
+pl__renderer_pack_view_shadow_atlas(plScene* ptScene)
+{
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+    
+    pl_sb_reset(ptScene->sbtShadowViewRects);
+
+    plEnvironmentProbeComponent* ptProbes = NULL;
+
+    const uint32_t uProbeCount = gptECS->get_components(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, (void**)&ptProbes, NULL);
+    uint32_t uLightCount = pl_sb_size(ptScene->sbtDirectionLights);
+
+    const plPackRect tSunPackRect = {
+        .iWidth  = (int)ptScene->tLightingOptions.uSunResolution * (int)ptScene->tLightingOptions.uSunCascadeCount,
+        .iHeight = (int)ptScene->tLightingOptions.uSunResolution,
+        .iId     = 0
+    };
+    pl_sb_push(ptScene->sbtShadowViewRects, tSunPackRect);
+
+    for(uint32_t uLightIndex = 0; uLightIndex < uLightCount; uLightIndex++)
+    {
+        const plLightComponent* ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[uLightIndex].tEntity);
+
+        // skip light if it doesn't cast shadows
+        if(!(ptLight->tFlags & PL_LIGHT_FLAG_CAST_SHADOW))
+        {
+            continue;
+        }
+        const plPackRect tPackRect = {
+            .iWidth  = (int)(ptLight->uShadowResolution),
+            .iHeight = (int)ptLight->uShadowResolution,
+            .iId     = (int)uLightIndex
+        };
+        pl_sb_push(ptScene->sbtShadowViewRects, tPackRect);
+    }
+
+    // pack rects
+    const uint32_t uRectCount = pl_sb_size(ptScene->sbtShadowViewRects);
+    gptRect->pack(ptScene->uSunShadowAtlasResolution, ptScene->uSunShadowAtlasResolution, ptScene->sbtShadowViewRects, uRectCount);
+
+    // ensure rects are packed
+    bool bPacked = true;
+    for(uint32_t i = 0; i < uRectCount; i++)
+    {
+        if(!ptScene->sbtShadowViewRects[i].iWasPacked)
+        {
+            bPacked = false;
+            PL_ASSERT(false && "Shadow sun atlas too small");
+            break;
+        }
+    }
+
+    // ptScene->tSunPackRect = pl_sb_pop(ptScene->sbtShadowRects);
 
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
     return bPacked;
@@ -428,7 +428,9 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
         plLightComponent* ptLight = NULL;
         if(ptData->tType == PL_LIGHT_TYPE_POINT)            ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtPointLights[ptData->uLightIndex].tEntity);
         else if(ptData->tType == PL_LIGHT_TYPE_SPOT)        ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtSpotLights[ptData->uLightIndex].tEntity);
-        else if(ptData->tType == PL_LIGHT_TYPE_DIRECTIONAL) ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[ptData->uLightIndex].tEntity);
+
+        if(ptData->tType == PL_LIGHT_TYPE_DIRECTIONAL)
+            continue;
 
         if(ptLight->tType == PL_LIGHT_TYPE_POINT)
         {
@@ -519,7 +521,6 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
         plLightComponent* ptLight = NULL;
         if(ptData->tType == PL_LIGHT_TYPE_POINT)            ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtPointLights[ptData->uLightIndex].tEntity);
         else if(ptData->tType == PL_LIGHT_TYPE_SPOT)        ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtSpotLights[ptData->uLightIndex].tEntity);
-        else if(ptData->tType == PL_LIGHT_TYPE_DIRECTIONAL) ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[ptData->uLightIndex].tEntity);
 
         if(ptData->tType == PL_LIGHT_TYPE_DIRECTIONAL)
             continue;
@@ -1068,7 +1069,7 @@ pl__renderer_generate_shadow_maps(plCommandBuffer* ptCommandBuffer, plScene* ptS
 }
 
 static void
-pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* ptScene, uint32_t uViewHandle, uint32_t uProbeIndex, const plCamera* ptSceneCamera, plCSMInfo tInfo, plDrawList3D* ptDrawlist)
+pl__renderer_generate_direction_view_map(plCommandBuffer* ptCommandBuffer, plScene* ptScene, const plCamera* ptSceneCamera, plCSMInfo tInfo)
 {
     PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
 
@@ -1080,7 +1081,457 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
     int aiConstantData[] = {0, 0};
     plShaderHandle tShadowShader = gptShaderVariant->get_shader("shadow", NULL, aiConstantData, aiConstantData, &gptData->tDepthRenderPassLayout);
 
-    const uint32_t uLightCount = pl_sb_size(ptScene->sbtDirectionLights);
+    const float g = 1.0f / tanf(ptSceneCamera->fYFov / 2.0f);
+    const float s = ptSceneCamera->fAspectRatio;
+
+    float fShadowFarZ = pl_min(ptSceneCamera->fFarZ, ptScene->tShadowOptions.fMaxShadowRange);
+
+    // common calculations
+    const float fFarClip = fShadowFarZ;
+    const float fNearClip = ptSceneCamera->fNearZ;
+    const float fClipRange = fFarClip - fNearClip;
+
+    const float fMinZ = fNearClip;
+    const float fMaxZ = fNearClip + fClipRange;
+
+    const float fRange = fMaxZ - fMinZ;
+    const float fRatio = fMaxZ / fMinZ;
+
+    // TODO: we shouldn't have to check all rects, optimize this
+
+    
+
+    const uint32_t uAtlasRectCount = pl_sb_size(ptScene->sbtShadowViewRects);
+    for(uint32_t uRectIndex = 1; uRectIndex < uAtlasRectCount; uRectIndex++)
+    {
+        const plPackRect* ptRect = &ptScene->sbtShadowViewRects[uRectIndex];
+
+        plLightComponent* ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[ptRect->iId].tEntity);
+
+        int iShadowIndex = ptScene->sbtDirectionLightData[ptRect->iId].iShadowIndex;
+        plGpuDirectionLightShadow* ptShadowData = &tInfo.sbtDLightShadowData[iShadowIndex];
+
+        ptShadowData->iShadowMapTexIdx = ptScene->uSunShadowAtlasIndex;
+        ptShadowData->fFactor          = (float)ptLight->uShadowResolution / (float)ptScene->uSunShadowAtlasResolution;
+        ptShadowData->fXOffset         = (float)ptRect->iX / (float)ptScene->uSunShadowAtlasResolution;
+        ptShadowData->fYOffset         = (float)ptRect->iY / (float)ptScene->uSunShadowAtlasResolution;
+
+        plMat4 tCamViewProj = {0};
+        float fLastSplitDist = ptSceneCamera->fNearZ;
+        const plVec3 tDirection = pl_norm_vec3(ptLight->tDirection);
+
+        //-------------------------------------------------------------------------
+        // stable light basis from direction only
+        //-------------------------------------------------------------------------
+        plVec3 tLightForward = tDirection;
+        plVec3 tWorldUp = {0.0f, 1.0f, 0.0f};
+
+        if(fabsf(pl_dot_vec3(tLightForward, tWorldUp)) > 0.99f)
+            tWorldUp = (plVec3){1.0f, 0.0f, 0.0f};
+
+        plVec3 tLightRight = pl_norm_vec3(pl_cross_vec3(tWorldUp, tLightForward));
+        plVec3 tLightUp    = pl_cross_vec3(tLightForward, tLightRight);
+
+        // world -> light rotation only
+        plMat4 tStableLightView = pl_identity_mat4();
+        tStableLightView.col[0].x = tLightRight.x;
+        tStableLightView.col[1].x = tLightRight.y;
+        tStableLightView.col[2].x = tLightRight.z;
+        tStableLightView.col[3].x = 0.0f;
+
+        tStableLightView.col[0].y = tLightUp.x;
+        tStableLightView.col[1].y = tLightUp.y;
+        tStableLightView.col[2].y = tLightUp.z;
+        tStableLightView.col[3].y = 0.0f;
+
+        tStableLightView.col[0].z = tLightForward.x;
+        tStableLightView.col[1].z = tLightForward.y;
+        tStableLightView.col[2].z = tLightForward.z;
+        tStableLightView.col[3].z = 0.0f;
+
+        tStableLightView.col[0].w = 0.0f;
+        tStableLightView.col[1].w = 0.0f;
+        tStableLightView.col[2].w = 0.0f;
+        tStableLightView.col[3].w = 1.0f;
+
+        // inverse of rotation-only matrix = transpose for orthonormal basis
+        plMat4 tStableLightViewInv = pl_identity_mat4();
+        tStableLightViewInv.col[0].x = tLightRight.x;
+        tStableLightViewInv.col[0].y = tLightRight.y;
+        tStableLightViewInv.col[0].z = tLightRight.z;
+        tStableLightViewInv.col[0].w = 0.0f;
+
+        tStableLightViewInv.col[1].x = tLightUp.x;
+        tStableLightViewInv.col[1].y = tLightUp.y;
+        tStableLightViewInv.col[1].z = tLightUp.z;
+        tStableLightViewInv.col[1].w = 0.0f;
+
+        tStableLightViewInv.col[2].x = tLightForward.x;
+        tStableLightViewInv.col[2].y = tLightForward.y;
+        tStableLightViewInv.col[2].z = tLightForward.z;
+        tStableLightViewInv.col[2].w = 0.0f;
+
+        tStableLightViewInv.col[3].x = 0.0f;
+        tStableLightViewInv.col[3].y = 0.0f;
+        tStableLightViewInv.col[3].z = 0.0f;
+        tStableLightViewInv.col[3].w = 1.0f;
+
+        float fSplitDist = ptSceneCamera->fNearZ + (fShadowFarZ - ptSceneCamera->fNearZ);
+
+        // scene camera space
+        plVec3 atCameraCorners2[] = {
+            {  fLastSplitDist * s / g, -fLastSplitDist / g, fLastSplitDist },
+            {  fLastSplitDist * s / g,  fLastSplitDist / g, fLastSplitDist },
+            { -fLastSplitDist * s / g,  fLastSplitDist / g, fLastSplitDist },
+            { -fLastSplitDist * s / g, -fLastSplitDist / g, fLastSplitDist },
+            {  fSplitDist * s / g, -fSplitDist / g, fSplitDist },
+            {  fSplitDist * s / g,  fSplitDist / g, fSplitDist },
+            { -fSplitDist * s / g,  fSplitDist / g, fSplitDist },
+            { -fSplitDist * s / g, -fSplitDist / g, fSplitDist },
+        };
+
+        // convert to world space
+        plVec3 atWorldSpaceCorners[8] = {0};
+        const plMat4 tCameraInversion = pl_mat4_invert(&ptSceneCamera->tViewMat);
+        for(uint32_t i = 0; i < 8; i++)
+        {
+            plVec4 tInvCorner = pl_mul_mat4_vec4(&tCameraInversion, (plVec4){ .xyz = atCameraCorners2[i], .w = 1.0f });
+            atWorldSpaceCorners[i] = tInvCorner.xyz;
+        }
+
+        // find frustum slice center in world space
+        plVec3 tFrustumCenter = {0};
+        for(uint32_t i = 0; i < 8; i++)
+            tFrustumCenter = pl_add_vec3(tFrustumCenter, atWorldSpaceCorners[i]);
+        tFrustumCenter = pl_mul_vec3_scalarf(tFrustumCenter, 1.0f / 8.0f);
+
+        // transform frustum center into stable light space
+        plVec4 tFrustumCenterLS4 = pl_mul_mat4_vec4(&tStableLightView, (plVec4){ .xyz = tFrustumCenter, .w = 1.0f });
+        plVec3 tFrustumCenterLS = tFrustumCenterLS4.xyz;
+
+        // transform slice corners into stable light space
+        float fZMin =  FLT_MAX;
+        float fZMax = -FLT_MAX;
+        for(uint32_t i = 0; i < 8; i++)
+        {
+            plVec4 tCornerLS = pl_mul_mat4_vec4(&tStableLightView, (plVec4){ .xyz = atWorldSpaceCorners[i], .w = 1.0f });
+            atCameraCorners2[i] = tCornerLS.xyz;
+
+            fZMin = pl_min(fZMin, atCameraCorners2[i].z);
+            fZMax = pl_max(fZMax, atCameraCorners2[i].z);
+        }
+
+        // stable radius from world-space slice sphere
+        float fRadius = 0.0f;
+        for(uint32_t i = 0; i < 8; i++)
+        {
+            plVec3 tDiff = pl_sub_vec3(atWorldSpaceCorners[i], tFrustumCenter);
+            float fDist = pl_length_vec3(tDiff);
+            fRadius = pl_max(fRadius, fDist);
+        }
+
+        // quantize radius a bit to reduce tiny fluctuations
+        fRadius = ceilf(fRadius * 16.0f) / 16.0f;
+
+        // final stable ortho dimension
+        const float fDim = fRadius * 2.0f;
+
+        // texel snapping in stable light space
+        const float fUnitPerTexel = fDim / (float)ptLight->uShadowResolution;
+        const float fCenterX = fUnitPerTexel * roundf(tFrustumCenterLS.x / fUnitPerTexel);
+        const float fCenterY = fUnitPerTexel * roundf(tFrustumCenterLS.y / fUnitPerTexel);
+        const float fCenterZ = 0.5f * (fZMin + fZMax);
+
+        // optional z padding for off-frustum casters
+        const float fDepthPadding = 500.0f; // TODO: make option
+        const float fNearZ = fZMin - fDepthPadding;
+        const float fFarZ  = fZMax + fDepthPadding;
+
+        // reconstruct snapped world-space center from stable light space
+        plVec3 tSnappedCenterLS = {
+            fCenterX,
+            fCenterY,
+            fCenterZ
+        };
+
+        plVec4 tSnappedCenterWS4 = pl_mul_mat4_vec4(&tStableLightViewInv, (plVec4){ .xyz = tSnappedCenterLS, .w = 1.0f });
+        plVec3 tSnappedCenterWS = tSnappedCenterWS4.xyz;
+
+        // final shadow camera
+        plCamera tShadowCamera = {0};
+        gptCamera->init(&tShadowCamera);
+        tShadowCamera.eProjectionType = PL_CAMERA_PROJECTION_TYPE_ORTHOGRAPHIC;
+        tShadowCamera.eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
+        tShadowCamera.tPosition = pl__to_double_vec(tSnappedCenterWS);
+        tShadowCamera.tPositionF = tSnappedCenterWS;
+        tShadowCamera.fWidth  = fDim;
+        tShadowCamera.fHeight = fDim;
+        tShadowCamera.fNearZ  = fNearZ;
+        tShadowCamera.fFarZ   = fFarZ;
+
+        gptCamera->update(&tShadowCamera);
+
+        // direct stable view matrix construction (no look_at)
+        tShadowCamera.tViewMat = tStableLightView;
+        tShadowCamera.tViewMat.col[3].x = -pl_dot_vec3(tLightRight,   tSnappedCenterWS);
+        tShadowCamera.tViewMat.col[3].y = -pl_dot_vec3(tLightUp,      tSnappedCenterWS);
+        tShadowCamera.tViewMat.col[3].z = -pl_dot_vec3(tLightForward, tSnappedCenterWS);
+
+        
+
+        // if update() overwrites tViewMat in your camera system, move the
+        // tViewMat assignment to after update() and then rebuild viewProj here.
+
+        tCamViewProj = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
+        tShadowCamera.tViewProjMat = tCamViewProj;
+        ptShadowData->viewProjMat = tCamViewProj;
+        fLastSplitDist = fSplitDist;
+
+        // copy data to GPU buffer
+        char* pcBufferStart = gptGfx->get_buffer(ptDevice, tInfo.tDShadowCameraBuffer)->tMemoryAllocation.pHostMapped;
+        memcpy(&pcBufferStart[iShadowIndex * sizeof(plMat4)], &tCamViewProj, sizeof(plMat4));
+
+        if(ptScene->ptTerrain)
+        {
+
+            plScissor tScissor = {
+                    .iOffsetX = (int)(ptRect->iX),
+                    .iOffsetY = ptRect->iY,
+                    .uWidth  = ptLight->uShadowResolution,
+                    .uHeight = ptLight->uShadowResolution,
+                };
+            
+            plRenderViewport tViewport = {
+                .fX = (float)(ptRect->iX),
+                .fY = (float)ptRect->iY,
+                .fWidth  = (float)ptLight->uShadowResolution,
+                .fHeight = (float)ptLight->uShadowResolution,
+                .fMaxDepth = 1.0f
+            };
+            gptGfx->set_viewport(ptCommandBuffer, &tViewport);
+            gptGfx->set_scissor_region(ptCommandBuffer, &tScissor);
+            gptGfx->set_depth_bias(ptCommandBuffer, ptScene->ptTerrain->tRuntimeOptions.fTerrainShadowConstantDepthBias, 0.0f, ptScene->ptTerrain->tRuntimeOptions.fTerrainShadowSlopeDepthBias);
+            gptGfx->bind_shader(ptCommandBuffer, ptScene->tTerrainShadowShader);
+            gptGfx->bind_vertex_buffer(ptCommandBuffer, ptScene->ptTerrain->tVertexBuffer);
+            plBindGroupHandle atBindGroups[] = {ptScene->atSceneBindGroups[uFrameIdx], tInfo.tBindGroup};
+
+            plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynShadow));
+
+            plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
+            ptDynamicData->iIndex = (int)iShadowIndex;
+
+            gptGfx->bind_graphics_bind_groups(
+                ptCommandBuffer,
+                ptScene->tTerrainShadowShader,
+                0, 2,
+                atBindGroups,
+                1, &tDynamicBinding
+            );
+
+
+            for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
+                pl__render_chunk_shadow(ptScene, ptScene->ptTerrain, &tShadowCamera, ptCommandBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &ptShadowData->viewProjMat, 0);
+        }
+
+        plBuffer* ptDShadowDataBuffer = gptGfx->get_buffer(ptDevice, tInfo.tDLightShadowDataBuffer);
+        memcpy(&ptDShadowDataBuffer->tMemoryAllocation.pHostMapped[iShadowIndex * sizeof(plGpuDirectionLightShadow)], ptShadowData, sizeof(plGpuDirectionLightShadow));
+    }
+
+    const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
+
+    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+
+    for(uint32_t uRectIndex = 1; uRectIndex < uAtlasRectCount; uRectIndex++)
+    {
+        const plPackRect* ptRect = &ptScene->sbtShadowViewRects[uRectIndex];
+
+        const plLightComponent* ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[ptRect->iId].tEntity);
+
+
+        int iShadowIndex = ptScene->sbtDirectionLightData[ptRect->iId].iShadowIndex;
+
+        plAtomicCounter* ptCullCounter = NULL;
+        pl_sb_reset(ptScene->sbtVisibleDrawables0);
+        pl_sb_reset(ptScene->sbtVisibleDrawables1);
+        plCullData tCullData = {
+            .ptScene      = ptScene,
+            .atDrawables  = ptScene->sbtDrawables,
+            .tSphere = {
+                .fRadius = ptSceneCamera->fFarZ - ptSceneCamera->fNearZ,
+                .tCenter = pl_add_vec3(pl_mul_vec3_scalarf(ptSceneCamera->tForwardVec, 0.6f * (ptSceneCamera->fFarZ - ptSceneCamera->fNearZ)), ptSceneCamera->tPositionF),
+            }
+        };
+
+        plJobDesc tJobDesc = {
+            .pData = &tCullData,
+            .task = pl__renderer_cull_point_light_job,
+        };
+
+        gptJob->dispatch_batch(uDrawableCount, 0, tJobDesc, &ptCullCounter);
+        gptJob->wait_for_counter(ptCullCounter);
+
+        pl_sb_reserve(ptScene->sbtVisibleDrawables0, uDrawableCount);
+        pl_sb_reserve(ptScene->sbtVisibleDrawables1, uDrawableCount);
+
+        for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
+        {
+            const plDrawable tDrawable = ptScene->sbtDrawables[uDrawableIndex];
+            if(!tDrawable.bCulled)
+            {
+                plVisibleDrawable tVisibleDrawable = {
+                    .uDrawableIndex = uDrawableIndex
+                };
+                if(tDrawable.tFlags & PL_DRAWABLE_FLAG_HAS_ALPHA)
+                {
+                    pl_sb_push(ptScene->sbtVisibleDrawables1, tVisibleDrawable);
+                }
+                else if(!(tDrawable.tFlags & PL_DRAWABLE_FLAG_PROBE))
+                {
+                    pl_sb_push(ptScene->sbtVisibleDrawables0, tVisibleDrawable);
+                }
+            }
+        }
+
+        const uint32_t uVisibleOpaqueDrawCount = pl_sb_size(ptScene->sbtVisibleDrawables0);
+        const uint32_t uVisibleTransparentDrawCount = pl_sb_size(ptScene->sbtVisibleDrawables1);
+
+        gptGfx->reset_draw_stream(ptStream, uVisibleOpaqueDrawCount + uVisibleTransparentDrawCount);
+        gptGfx->set_depth_bias(ptCommandBuffer, ptScene->tShadowOptions.fConstantDepthBias, 0.0f, ptScene->tShadowOptions.fSlopeDepthBias);
+        *gptData->pdDrawCalls += (double)uVisibleOpaqueDrawCount;
+        for(uint32_t i = 0; i < uVisibleOpaqueDrawCount; i++)
+        {
+            const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables0[i].uDrawableIndex];
+
+            if(tDrawable.uInstanceCount != 0)
+            {
+                plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
+                plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
+                
+                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynShadow));
+
+                plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
+                ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                ptDynamicData->iIndex = (int)iShadowIndex;
+
+                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                {
+                    .tShader         = tShadowShader,
+                    .auDynamicBuffers = {
+                        tDynamicBinding.uBufferHandle
+                    },
+                    .atVertexBuffers = {
+                        ptScene->tVertexBuffer,
+                    },
+                    .tIndexBuffer         = tDrawable.tIndexBuffer,
+                    .uIndexOffset         = tDrawable.uIndexOffset,
+                    .uTriangleCount       = tDrawable.uTriangleCount,
+                    .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                    .atBindGroups = {
+                        ptScene->atSceneBindGroups[uFrameIdx],
+                        tInfo.tBindGroup
+                    },
+                    .auDynamicBufferOffsets = {
+                        tDynamicBinding.uByteOffset
+                    },
+                    .uInstanceOffset = tDrawable.uInstanceIndex,
+                    .uInstanceCount = tDrawable.uInstanceCount
+                });
+            }
+        }
+
+        *gptData->pdDrawCalls += (double)uVisibleTransparentDrawCount;
+        for(uint32_t i = 0; i < uVisibleTransparentDrawCount; i++)
+        {
+            const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables1[i].uDrawableIndex];
+
+            if(tDrawable.uInstanceCount != 0)
+            {
+                plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tDrawable.tEntity);
+                plTransformComponent* ptTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptObject->tTransform);
+                
+                plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynShadow));
+
+                plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
+                ptDynamicData->iDataOffset = tDrawable.uDataOffset;
+                ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
+                ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
+                ptDynamicData->iIndex = (int)iShadowIndex;
+
+                pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+                {
+                    .tShader        = ptScene->sbtShadowShaders[ptScene->sbtVisibleDrawables1[i].uDrawableIndex],
+                    .auDynamicBuffers = {
+                        tDynamicBinding.uBufferHandle
+                    },
+                    .atVertexBuffers = {
+                        ptScene->tVertexBuffer,
+                    },
+                    .tIndexBuffer         = tDrawable.tIndexBuffer,
+                    .uIndexOffset         = tDrawable.uIndexOffset,
+                    .uTriangleCount       = tDrawable.uTriangleCount,
+                    .uVertexOffset        = tDrawable.uStaticVertexOffset,
+                    .atBindGroups = {
+                        ptScene->atSceneBindGroups[uFrameIdx],
+                        tInfo.tBindGroup
+                    },
+                    .auDynamicBufferOffsets = {
+                        tDynamicBinding.uByteOffset
+                    },
+                    .uInstanceOffset = tDrawable.uInstanceIndex,
+                    .uInstanceCount = tDrawable.uInstanceCount
+                });
+            }
+
+        };
+
+        plDrawArea tArea = 
+        {
+            .ptDrawStream = ptStream,
+            .atScissors = {
+                {
+                    .iOffsetX = (int)(ptRect->iX),
+                    .iOffsetY = ptRect->iY,
+                    .uWidth  = ptLight->uShadowResolution,
+                    .uHeight = ptLight->uShadowResolution,
+                }
+            },
+            .atViewports = {
+                {
+                    .fX = (float)(ptRect->iX),
+                    .fY = (float)ptRect->iY,
+                    .fWidth  = (float)ptLight->uShadowResolution,
+                    .fHeight = (float)ptLight->uShadowResolution,
+                    .fMaxDepth = 1.0f
+                }
+            }
+        };
+
+        gptGfx->draw_stream(ptCommandBuffer, 1, &tArea);
+    }
+
+    PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
+}
+
+static void
+pl__renderer_generate_sun_shadow_map(plCommandBuffer* ptCommandBuffer, plScene* ptScene, plGpuViewData* ptViewData, plBufferHandle tViewBuffer, plBufferHandle tSunCameraBuffer, const plCamera* ptSceneCamera, plBindGroupHandle tBindGroup, bool bProbe)
+{
+    PL_PROFILE_BEGIN_SAMPLE_API(gptProfile, 0, __FUNCTION__);
+
+    float fShadowLambda = 0.6f;
+    uint32_t uShadowResolution = (uint32_t)ptScene->sbtShadowViewRects[0].iHeight;
+    int iX = ptScene->sbtShadowViewRects[0].iX;
+    int iY = ptScene->sbtShadowViewRects[0].iY;
+    const uint32_t uCascadeCount = bProbe ? 1 : ptScene->tSceneData.iCascadeCount;
+
+    // for convience
+    plDevice*      ptDevice  = gptData->ptDevice;
+    plDrawStream*  ptStream  = &gptData->tDrawStream;
+    const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
+
+    int aiConstantData[] = {0, 0};
+    plShaderHandle tShadowShader = gptShaderVariant->get_shader("shadow", NULL, aiConstantData, aiConstantData, &gptData->tDepthRenderPassLayout);
 
     const float g = 1.0f / tanf(ptSceneCamera->fYFov / 2.0f);
     const float s = ptSceneCamera->fAspectRatio;
@@ -1100,44 +1551,29 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
 
     float fShadowFarZ = pl_min(ptSceneCamera->fFarZ, ptScene->tShadowOptions.fMaxShadowRange);
 
-    const uint32_t uAtlasRectCount = pl_sb_size(ptScene->sbtShadowRects);
-    for(uint32_t uRectIndex = 0; uRectIndex < uAtlasRectCount; uRectIndex++)
+    // const uint32_t uAtlasRectCount = pl_sb_size(ptScene->sbtShadowRects);
+    // for(uint32_t uRectIndex = 0; uRectIndex < uAtlasRectCount; uRectIndex++)
     {
-        const plPackRect* ptRect = &ptScene->sbtShadowRects[uRectIndex];
-
-        const plShadowPackData* ptData = &ptScene->sbtShadowRectData[ptRect->iId];
-
-        // check if light applies
-        if(ptData->tType != PL_LIGHT_TYPE_DIRECTIONAL || ptData->uViewIndex != uViewHandle || ptData->bAltMode != tInfo.bAltMode || ptData->uProbeIndex != uProbeIndex)
-        {
-            continue;
-        }
-        plLightComponent* ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[ptData->uLightIndex].tEntity);
 
 
-        int iShadowIndex = ptScene->sbtDirectionLightData[ptData->uLightIndex].iShadowIndex;
-        if(tInfo.bAltMode)
-            iShadowIndex += (int)uViewHandle;
-        plGpuDirectionLightShadow* ptShadowData = &tInfo.sbtDLightShadowData[iShadowIndex];
-
-        ptShadowData->iShadowMapTexIdx = ptScene->uShadowAtlasIndex;
-        ptShadowData->fFactor          = (float)ptLight->uShadowResolution / (float)ptScene->uShadowAtlasResolution;
-        ptShadowData->fXOffset         = (float)ptRect->iX / (float)ptScene->uShadowAtlasResolution;
-        ptShadowData->fYOffset         = (float)ptRect->iY / (float)ptScene->uShadowAtlasResolution;
 
         plMat4 atCamViewProjs[PL_MAX_SHADOW_CASCADES] = {0};
         float fLastSplitDist = ptSceneCamera->fNearZ;
-        const plVec3 tDirection = pl_norm_vec3(ptLight->tDirection);
-        const uint32_t uCascadeCount = tInfo.bAltMode ? 1 : ptLight->uCascadeCount; // probe only needs single cascade
+        const plVec3 tDirection = pl_norm_vec3(ptScene->tSceneData.tDirection);
 
         float afCascadeSplits[4] = {
-            tInfo.bAltMode ? 1.0f : ptLight->afCascadeSplits[0], // use whole frustum for environment probes
-            ptLight->afCascadeSplits[1],
-            ptLight->afCascadeSplits[2],
-            ptLight->afCascadeSplits[3]
+            bProbe ? 1.0f : ptViewData->afCascadeSplits.d[0],
+            ptViewData->afCascadeSplits.d[1],
+            ptViewData->afCascadeSplits.d[2],
+            ptViewData->afCascadeSplits.d[3]
         };
 
-        if(!tInfo.bAltMode && ptLight->fShadowLambda > 0.0f)
+
+        if(bProbe)
+        {
+            ptViewData->afCascadeSplits.d[0] = 1.0f;
+        }
+        else
         {
             for(uint32_t i = 1; i <= uCascadeCount; ++i)
             {
@@ -1149,12 +1585,10 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                 float linSplit =
                     ptSceneCamera->fNearZ + (fShadowFarZ - ptSceneCamera->fNearZ) * p;
 
-                float di =
-                    ptLight->fShadowLambda * logSplit +
-                    (1.0f - ptLight->fShadowLambda) * linSplit;
+                float di = fShadowLambda * logSplit + (1.0f - fShadowLambda) * linSplit;
 
                 afCascadeSplits[i - 1] = (di - ptSceneCamera->fNearZ)/(ptSceneCamera->fFarZ - ptSceneCamera->fNearZ);
-                ptLight->afCascadeSplits[i - 1] = afCascadeSplits[i - 1];
+                ptViewData->afCascadeSplits.d[i - 1] = afCascadeSplits[i - 1];
             }
         }
 
@@ -1277,7 +1711,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
             const float fDim = fRadius * 2.0f;
 
             // texel snapping in stable light space
-            const float fUnitPerTexel = fDim / (float)ptLight->uShadowResolution;
+            const float fUnitPerTexel = fDim / (float)uShadowResolution;
             const float fCenterX = fUnitPerTexel * roundf(tFrustumCenterLS.x / fUnitPerTexel);
             const float fCenterY = fUnitPerTexel * roundf(tFrustumCenterLS.y / fUnitPerTexel);
             const float fCenterZ = 0.5f * (fZMin + fZMax);
@@ -1308,6 +1742,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
             tShadowCamera.fHeight = fDim;
             tShadowCamera.fNearZ  = fNearZ;
             tShadowCamera.fFarZ   = fFarZ;
+            tShadowCamera.fAspectRatio   = 1.0f;
 
             gptCamera->update(&tShadowCamera);
 
@@ -1324,28 +1759,27 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
 
             atCamViewProjs[uCascade] = pl_mul_mat4(&tShadowCamera.tProjMat, &tShadowCamera.tViewMat);
             tShadowCamera.tViewProjMat = atCamViewProjs[uCascade];
-            ptShadowData->viewProjMat[uCascade] = atCamViewProjs[uCascade];
+            ptViewData->viewProjMat[uCascade] = atCamViewProjs[uCascade];
             fLastSplitDist = fSplitDist;
 
-            // copy data to GPU buffer
-            char* pcBufferStart = gptGfx->get_buffer(ptDevice, tInfo.tDShadowCameraBuffer)->tMemoryAllocation.pHostMapped;
-            memcpy(&pcBufferStart[iShadowIndex * sizeof(plMat4) * PL_MAX_SHADOW_CASCADES + uCascade * sizeof(plMat4)], &atCamViewProjs[uCascade], sizeof(plMat4));
+            char* pcBufferStart = gptGfx->get_buffer(ptDevice, tSunCameraBuffer)->tMemoryAllocation.pHostMapped;
+            memcpy(&pcBufferStart[uCascade * sizeof(plMat4)], &atCamViewProjs[uCascade], sizeof(plMat4));
 
             if(ptScene->ptTerrain)
             {
    
                 plScissor tScissor = {
-                        .iOffsetX = (int)(ptRect->iX + uCascade * ptLight->uShadowResolution),
-                        .iOffsetY = ptRect->iY,
-                        .uWidth  = ptLight->uShadowResolution,
-                        .uHeight = ptLight->uShadowResolution,
+                        .iOffsetX = (int)(iX + uCascade * uShadowResolution),
+                        .iOffsetY = iY,
+                        .uWidth  = uShadowResolution,
+                        .uHeight = uShadowResolution,
                     };
                 
                 plRenderViewport tViewport = {
-                    .fX = (float)(ptRect->iX + uCascade * ptLight->uShadowResolution),
-                    .fY = (float)ptRect->iY,
-                    .fWidth  = (float)ptLight->uShadowResolution,
-                    .fHeight = (float)ptLight->uShadowResolution,
+                    .fX = (float)(iX + uCascade * uShadowResolution),
+                    .fY = (float)iY,
+                    .fWidth  = (float)uShadowResolution,
+                    .fHeight = (float)uShadowResolution,
                     .fMaxDepth = 1.0f
                 };
                 gptGfx->set_viewport(ptCommandBuffer, &tViewport);
@@ -1353,16 +1787,13 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                 gptGfx->set_depth_bias(ptCommandBuffer, ptScene->ptTerrain->tRuntimeOptions.fTerrainShadowConstantDepthBias, 0.0f, ptScene->ptTerrain->tRuntimeOptions.fTerrainShadowSlopeDepthBias);
                 gptGfx->bind_shader(ptCommandBuffer, ptScene->tTerrainShadowShader);
                 gptGfx->bind_vertex_buffer(ptCommandBuffer, ptScene->ptTerrain->tVertexBuffer);
-                plBindGroupHandle atBindGroups[] = {ptScene->atSceneBindGroups[uFrameIdx], tInfo.tBindGroup};
+                plBindGroupHandle atBindGroups[] = {ptScene->atSceneBindGroups[uFrameIdx], tBindGroup};
 
                 plDynamicBinding tDynamicBinding = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynShadow));
 
                 plGpuDynShadow* ptDynamicData = (plGpuDynShadow*)tDynamicBinding.pcData;
-                // ptDynamicData->iDataOffset = tDrawable.uDataOffset;
-                // ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
-                // ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                ptDynamicData->iIndex = (int)uCascade + iShadowIndex;
-                // ptDynamicData->iIndex = (int)uCascade + iShadowIndex * PL_MAX_SHADOW_CASCADES;
+                ptDynamicData->iIndex = (int)uCascade;
+                // ptDynamicData->iIndex = (int)uCascade + iShadowIndex;
 
                 gptGfx->bind_graphics_bind_groups(
                     ptCommandBuffer,
@@ -1374,46 +1805,19 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
 
 
                 for(uint32_t i = 0; i < pl_sb_size(ptScene->ptTerrain->sbtChunkFiles); i++)
-                    pl__render_chunk_shadow(ptScene, ptScene->ptTerrain, &tShadowCamera, ptCommandBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &ptShadowData->viewProjMat[uCascade], 0);
+                    pl__render_chunk_shadow(ptScene, ptScene->ptTerrain, &tShadowCamera, ptCommandBuffer, &ptScene->ptTerrain->sbtChunkFiles[i].tFile.atChunks[0], &ptScene->ptTerrain->sbtChunkFiles[i].tFile, &ptViewData->viewProjMat[uCascade], 0);
             }
         }
-
-        // TODO: rework to not waste so much space (don't use max cascades as stride)
-
-        // // copy data to GPU buffer
-        // char* pcBufferStart = gptGfx->get_buffer(ptDevice, tInfo.tDShadowCameraBuffer)->tMemoryAllocation.pHostMapped;
-        // memcpy(&pcBufferStart[iShadowIndex * sizeof(plMat4) * PL_MAX_SHADOW_CASCADES], atCamViewProjs, sizeof(plMat4) * PL_MAX_SHADOW_CASCADES);
-
-        plBuffer* ptDShadowDataBuffer = gptGfx->get_buffer(ptDevice, tInfo.tDLightShadowDataBuffer);
-        memcpy(&ptDShadowDataBuffer->tMemoryAllocation.pHostMapped[iShadowIndex * sizeof(plGpuDirectionLightShadow)], ptShadowData, sizeof(plGpuDirectionLightShadow));
     }
 
-    // const uint32_t uIndexingOffset = uInitialOffset / (sizeof(plMat4) * PL_MAX_SHADOW_CASCADES);
+    plBuffer* ptViewBuffer = gptGfx->get_buffer(ptDevice, tViewBuffer);
+    memcpy(ptViewBuffer->tMemoryAllocation.pHostMapped, ptViewData, sizeof(plGpuViewData));
 
     const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
 
     const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
 
-    for(uint32_t uRectIndex = 0; uRectIndex < uAtlasRectCount; uRectIndex++)
     {
-        const plPackRect* ptRect = &ptScene->sbtShadowRects[uRectIndex];
-
-        const plShadowPackData* ptData = &ptScene->sbtShadowRectData[ptRect->iId];
-
-        // check if light applies
-        if(ptData->tType != PL_LIGHT_TYPE_DIRECTIONAL || ptData->uViewIndex != uViewHandle || ptData->bAltMode != tInfo.bAltMode || ptData->uProbeIndex != uProbeIndex)
-        {
-            continue;
-        }
-
-        const plLightComponent* ptLight = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tLightComponentType, ptScene->sbtDirectionLights[ptData->uLightIndex].tEntity);
-
-
-        int iShadowIndex = ptScene->sbtDirectionLightData[ptData->uLightIndex].iShadowIndex;
-        if(tInfo.bAltMode)
-            iShadowIndex += (int)uViewHandle;
-
-        const uint32_t uCascadeCount = tInfo.bAltMode ? 1 : ptLight->uCascadeCount; // probe only needs single cascade
 
         plAtomicCounter* ptCullCounter = NULL;
         pl_sb_reset(ptScene->sbtVisibleDrawables0);
@@ -1481,7 +1885,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                     ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                     ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                    ptDynamicData->iIndex = iShadowIndex;
+                    ptDynamicData->iIndex = 0;
 
                     pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                     {
@@ -1498,7 +1902,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                         .uVertexOffset        = tDrawable.uStaticVertexOffset,
                         .atBindGroups = {
                             ptScene->atSceneBindGroups[uFrameIdx],
-                            tInfo.tBindGroup
+                            tBindGroup
                         },
                         .auDynamicBufferOffsets = {
                             tDynamicBinding.uByteOffset
@@ -1524,7 +1928,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                     ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                     ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                     ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                    ptDynamicData->iIndex = iShadowIndex;
+                    ptDynamicData->iIndex = 0;
 
                     pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                     {
@@ -1541,7 +1945,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                         .uVertexOffset        = tDrawable.uStaticVertexOffset,
                         .atBindGroups = {
                             ptScene->atSceneBindGroups[uFrameIdx],
-                            tInfo.tBindGroup
+                            tBindGroup
                         },
                         .auDynamicBufferOffsets = {
                             tDynamicBinding.uByteOffset
@@ -1558,57 +1962,57 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                 .ptDrawStream = ptStream,
                 .atScissors = {
                     {
-                        .iOffsetX = (int)(ptRect->iX + 0 * ptLight->uShadowResolution),
-                        .iOffsetY = ptRect->iY,
-                        .uWidth  = ptLight->uShadowResolution,
-                        .uHeight = ptLight->uShadowResolution,
+                        .iOffsetX = (int)(iX + 0 * uShadowResolution),
+                        .iOffsetY = iY,
+                        .uWidth  = uShadowResolution,
+                        .uHeight = uShadowResolution,
                     },
                     {
-                        .iOffsetX = (int)(ptRect->iX + 1 * ptLight->uShadowResolution),
-                        .iOffsetY = ptRect->iY,
-                        .uWidth  = ptLight->uShadowResolution,
-                        .uHeight = ptLight->uShadowResolution,
+                        .iOffsetX = (int)(iX + 1 * uShadowResolution),
+                        .iOffsetY = iY,
+                        .uWidth  = uShadowResolution,
+                        .uHeight = uShadowResolution,
                     },
                     {
-                        .iOffsetX = (int)(ptRect->iX + 2 * ptLight->uShadowResolution),
-                        .iOffsetY = ptRect->iY,
-                        .uWidth  = ptLight->uShadowResolution,
-                        .uHeight = ptLight->uShadowResolution,
+                        .iOffsetX = (int)(iX + 2 * uShadowResolution),
+                        .iOffsetY = iY,
+                        .uWidth  = uShadowResolution,
+                        .uHeight = uShadowResolution,
                     },
                     {
-                        .iOffsetX = (int)(ptRect->iX + 3 * ptLight->uShadowResolution),
-                        .iOffsetY = ptRect->iY,
-                        .uWidth  = ptLight->uShadowResolution,
-                        .uHeight = ptLight->uShadowResolution,
+                        .iOffsetX = (int)(iX + 3 * uShadowResolution),
+                        .iOffsetY = iY,
+                        .uWidth  = uShadowResolution,
+                        .uHeight = uShadowResolution,
                     }
                 },
                 .atViewports = {
                     {
-                        .fX = (float)(ptRect->iX + 0 * ptLight->uShadowResolution),
-                        .fY = (float)ptRect->iY,
-                        .fWidth  = (float)ptLight->uShadowResolution,
-                        .fHeight = (float)ptLight->uShadowResolution,
+                        .fX = (float)(iX + 0 * uShadowResolution),
+                        .fY = (float)iY,
+                        .fWidth  = (float)uShadowResolution,
+                        .fHeight = (float)uShadowResolution,
                         .fMaxDepth = 1.0f
                     },
                     {
-                        .fX = (float)(ptRect->iX + 1 * ptLight->uShadowResolution),
-                        .fY = (float)ptRect->iY,
-                        .fWidth  = uCascadeCount > 1 ? (float)ptLight->uShadowResolution : 0.0f,
-                        .fHeight = (float)ptLight->uShadowResolution,
+                        .fX = (float)(iX + 1 * uShadowResolution),
+                        .fY = (float)iY,
+                        .fWidth  = uCascadeCount > 1 ? (float)uShadowResolution : 0.0f,
+                        .fHeight = (float)uShadowResolution,
                         .fMaxDepth = 1.0f
                     },
                     {
-                        .fX = (float)(ptRect->iX + 2 * ptLight->uShadowResolution),
-                        .fY = (float)ptRect->iY,
-                        .fWidth  = uCascadeCount > 1 ? (float)ptLight->uShadowResolution : 0.0f,
-                        .fHeight = (float)ptLight->uShadowResolution,
+                        .fX = (float)(iX + 2 * uShadowResolution),
+                        .fY = (float)iY,
+                        .fWidth  = uCascadeCount > 1 ? (float)uShadowResolution : 0.0f,
+                        .fHeight = (float)uShadowResolution,
                         .fMaxDepth = 1.0f
                     },
                     {
-                        .fX = (float)(ptRect->iX + 3 * ptLight->uShadowResolution),
-                        .fY = (float)ptRect->iY,
-                        .fWidth  = uCascadeCount > 1 ? (float)ptLight->uShadowResolution : 0.0f,
-                        .fHeight = (float)ptLight->uShadowResolution,
+                        .fX = (float)(iX + 3 * uShadowResolution),
+                        .fY = (float)iY,
+                        .fWidth  = uCascadeCount > 1 ? (float)uShadowResolution : 0.0f,
+                        .fHeight = (float)uShadowResolution,
                         .fMaxDepth = 1.0f
                     },
                 }
@@ -1639,7 +2043,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                         ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                         ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                         ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                        ptDynamicData->iIndex = (int)uCascade + iShadowIndex;
+                        ptDynamicData->iIndex = (int)uCascade;
 
                         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                         {
@@ -1656,7 +2060,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                             .uVertexOffset        = tDrawable.uStaticVertexOffset,
                             .atBindGroups = {
                                 ptScene->atSceneBindGroups[uFrameIdx],
-                                tInfo.tBindGroup
+                                tBindGroup
                             },
                             .auDynamicBufferOffsets = {
                                 tDynamicBinding.uByteOffset
@@ -1683,7 +2087,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                         ptDynamicData->iDataOffset = tDrawable.uDataOffset;
                         ptDynamicData->iVertexOffset = tDrawable.uDynamicVertexOffset;
                         ptDynamicData->iMaterialIndex = tDrawable.uMaterialIndex;
-                        ptDynamicData->iIndex = (int)uCascade + iShadowIndex;
+                        ptDynamicData->iIndex = (int)uCascade;
 
                         pl_add_to_draw_stream(ptStream, (plDrawStreamData)
                         {
@@ -1700,7 +2104,7 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                             .uVertexOffset        = tDrawable.uStaticVertexOffset,
                             .atBindGroups = {
                                 ptScene->atSceneBindGroups[uFrameIdx],
-                                tInfo.tBindGroup
+                                tBindGroup
                             },
                             .auDynamicBufferOffsets = {
                                 tDynamicBinding.uByteOffset
@@ -1717,18 +2121,18 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
                     .ptDrawStream = ptStream,
                     .atScissors = {
                         {
-                            .iOffsetX = (int)(ptRect->iX + uCascade * ptLight->uShadowResolution),
-                            .iOffsetY = ptRect->iY,
-                            .uWidth  = ptLight->uShadowResolution,
-                            .uHeight = ptLight->uShadowResolution,
+                            .iOffsetX = (int)(iX + uCascade * uShadowResolution),
+                            .iOffsetY = iY,
+                            .uWidth  = uShadowResolution,
+                            .uHeight = uShadowResolution,
                         }
                     },
                     .atViewports = {
                         {
-                            .fX = (float)(ptRect->iX + uCascade * ptLight->uShadowResolution),
-                            .fY = (float)ptRect->iY,
-                            .fWidth  = (float)ptLight->uShadowResolution,
-                            .fHeight = (float)ptLight->uShadowResolution,
+                            .fX = (float)(iX + uCascade * uShadowResolution),
+                            .fY = (float)iY,
+                            .fWidth  = (float)uShadowResolution,
+                            .fHeight = (float)uShadowResolution,
                             .fMaxDepth = 1.0f
                         }
                     }
@@ -1742,9 +2146,168 @@ pl__renderer_generate_cascaded_shadow_map(plCommandBuffer* ptCommandBuffer, plSc
     PL_PROFILE_END_SAMPLE_API(gptProfile, 0);
 }
 
+
 //-----------------------------------------------------------------------------
 // [SECTION] misc.
 //-----------------------------------------------------------------------------
+
+static uint32_t
+pl__renderer_probe_data_pack_index(plScene* ptScene, uint32_t uResolution)
+{
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtProbeDataPacks); i++)
+    {
+        if(ptScene->sbtProbeDataPacks[i].uResolution == uResolution)
+            return i;
+    }
+
+    plEnvironmentProbeDataPack tPack = {.uResolution = uResolution};
+
+    const plTextureDesc tAlbedoTextureDesc = {
+        .tDimensions   = {(float)uResolution, (float)uResolution, 1},
+        .eFormat       = PL_FORMAT_R8G8B8A8_UNORM,
+        .uLayers       = 6,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_CUBE,
+        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "albedo texture"
+    };
+
+    const plTextureDesc tNormalTextureDesc = {
+        .tDimensions   = {(float)uResolution, (float)uResolution, 1},
+        .eFormat       = PL_FORMAT_R16G16_FLOAT,
+        .uLayers       = 6,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_CUBE,
+        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "g-buffer normal"
+    };
+
+    const plTextureDesc tEmmissiveTexDesc = {
+        .tDimensions   = {(float)uResolution, (float)uResolution, 1},
+        .eFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
+        .uLayers       = 6,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_CUBE,
+        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "emissive texture"
+    };
+
+    const plTextureDesc tDepthTextureDesc = {
+        .tDimensions   = {(float)uResolution, (float)uResolution, 1},
+        .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
+        .uLayers       = 6,
+        .uMips         = 1,
+        .eType         = PL_TEXTURE_TYPE_CUBE,
+        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
+        .pcDebugName   = "offscreen depth texture probe"
+    };
+
+
+    gptStarter->create_texture(&tAlbedoTextureDesc, NULL, 0, &tPack.tAlbedoTexture);
+    gptStarter->create_texture(&tNormalTextureDesc, NULL, 0, &tPack.tNormalTexture);
+    gptStarter->create_texture(&tEmmissiveTexDesc, NULL, 0, &tPack.tAOMetalRoughnessTexture);
+    gptStarter->create_texture(&tDepthTextureDesc, NULL, 0, &tPack.tDepthTexture);
+
+    plTextureViewDesc tAlbedoTextureViewDesc = {
+        .eFormat     = tAlbedoTextureDesc.eFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = tPack.tAlbedoTexture,
+        .eType       = PL_TEXTURE_TYPE_2D
+    };
+
+    plTextureViewDesc tNormalTextureViewDesc = {
+        .eFormat     = tNormalTextureDesc.eFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = tPack.tNormalTexture,
+        .eType       = PL_TEXTURE_TYPE_2D,
+        .pcDebugName = "gbuffer probe"
+    };
+
+    plTextureViewDesc tEmmissiveTexureViewDesc = {
+        .eFormat     = tEmmissiveTexDesc.eFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = tPack.tAOMetalRoughnessTexture,
+        .eType       = PL_TEXTURE_TYPE_2D
+    };
+
+    plTextureViewDesc tDepthTextureViewDesc = {
+        .eFormat     = tDepthTextureDesc.eFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = tPack.tDepthTexture,
+        .eType       = PL_TEXTURE_TYPE_2D
+    };
+
+    // for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    // {
+
+        for(uint32_t uFace = 0; uFace < 6; uFace++)
+        {
+
+            tAlbedoTextureViewDesc.uBaseLayer = uFace;
+            tNormalTextureViewDesc.uBaseLayer = uFace;
+            tEmmissiveTexureViewDesc.uBaseLayer = uFace;
+            tDepthTextureViewDesc.uBaseLayer = uFace;
+
+            tPack.atAlbedoTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tAlbedoTextureViewDesc);
+            tPack.atNormalTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tNormalTextureViewDesc);
+            tPack.atAOMetalRoughnessTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tEmmissiveTexureViewDesc);
+            tPack.atDepthTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tDepthTextureViewDesc);
+        }
+
+    // }
+
+    // lighting bind group
+    const plBindGroupDesc tLightingBindGroupDesc = {
+        .ptPool      = gptData->ptBindGroupPool,
+        .tLayout     = gptShaderVariant->get_bind_group_layout("deferred lighting 1"),
+        .pcDebugName = "lighting bind group"
+    };
+    
+    for(uint32_t uFace = 0; uFace < 6; uFace++)
+    {
+        const plBindGroupUpdateData tBGData = {
+            .atTextureBindings = {
+                {
+                    .tTexture = tPack.atAlbedoTextureViews[uFace],
+                    .uSlot    = 0,
+                    .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+                },
+                {
+                    .tTexture = tPack.atNormalTextureViews[uFace],
+                    .uSlot    = 1,
+                    .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+                },
+                {
+                    .tTexture = tPack.atAOMetalRoughnessTextureViews[uFace],
+                    .uSlot    = 2,
+                    .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+                },
+                {
+                    .tTexture = tPack.atDepthTextureViews[uFace],
+                    .uSlot    = 3,
+                    .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
+                }
+            }
+        };
+        tPack.atLightingBindGroup[uFace] = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
+        gptGfx->update_bind_group(gptData->ptDevice, tPack.atLightingBindGroup[uFace], &tBGData);
+    }
+
+    pl_sb_push(ptScene->sbtProbeDataPacks, tPack);
+    return pl_sb_size(ptScene->sbtProbeDataPacks) - 1;
+}
 
 static uint64_t
 pl_renderer__add_material_to_scene(plScene* ptScene, plEntity tMaterial)
@@ -2296,47 +2859,8 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .pcDebugName   = "offscreen final cube"
     };
 
-    const plTextureDesc tNormalTextureDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
-        .eFormat       = PL_FORMAT_R16G16_FLOAT,
-        .uLayers       = 6,
-        .uMips         = 1,
-        .eType         = PL_TEXTURE_TYPE_CUBE,
-        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .pcDebugName   = "g-buffer normal"
-    };
-
-    const plTextureDesc tAlbedoTextureDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
-        .eFormat       = PL_FORMAT_R8G8B8A8_UNORM,
-        .uLayers       = 6,
-        .uMips         = 1,
-        .eType         = PL_TEXTURE_TYPE_CUBE,
-        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .pcDebugName   = "albedo texture"
-    };
-
-    const plTextureDesc tDepthTextureDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
-        .eFormat       = PL_FORMAT_D32_FLOAT_S8_UINT,
-        .uLayers       = 6,
-        .uMips         = 1,
-        .eType         = PL_TEXTURE_TYPE_CUBE,
-        .eUsage        = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT | PL_TEXTURE_USAGE_SAMPLED | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .pcDebugName   = "offscreen depth texture probe"
-    };
-
-    const plTextureDesc tEmmissiveTexDesc = {
-        .tDimensions   = {tProbeData.tTargetSize.x, tProbeData.tTargetSize.y, 1},
-        .eFormat       = PL_FORMAT_R16G16B16A16_FLOAT,
-        .uLayers       = 6,
-        .uMips         = 1,
-        .eType         = PL_TEXTURE_TYPE_CUBE,
-        .eUsage        = PL_TEXTURE_USAGE_COLOR_ATTACHMENT | PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
-        .pcDebugName   = "emissive texture"
-    };
-
     gptStarter->get_staging_buffer(4096, &tProbeData.tDShadowCameraBuffers, "directional shadow camera buffer");
+    gptStarter->get_staging_buffer(4096, &tProbeData.tSunCameraBuffers, "directional shadow camera buffer");
     gptStarter->get_staging_buffer(PL_MAX_LIGHTS * sizeof(plGpuDirectionLightShadow), &tProbeData.tDLightShadowDataBuffer, "directional shadow buffer");
 
     const plBindGroupDesc tGlobalBGDesc = {
@@ -2345,6 +2869,7 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .pcDebugName = "temporary global bind group 0"
     };
     tProbeData.tDShadowBG = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
+    tProbeData.tSunCameraBG = gptGfx->create_bind_group(gptData->ptDevice, &tGlobalBGDesc);
 
     const plBindGroupUpdateData tDShadowBGData = {
         .atBufferBindings = {
@@ -2361,127 +2886,28 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         }
     };
 
+    const plBindGroupUpdateData tDShadowBGData2 = {
+        .atBufferBindings = {
+            {
+                .tBuffer       = tProbeData.tSunCameraBuffers,
+                .uSlot         = 0,
+                .szBufferRange = 4096
+            },
+            {
+                .tBuffer       = ptScene->atInstanceBuffer[0],
+                .uSlot         = 1,
+                .szBufferRange = sizeof(plShadowInstanceBufferData) * 10000
+            }
+        }
+    };
+
     gptGfx->update_bind_group(gptData->ptDevice, tProbeData.tDShadowBG, &tDShadowBGData);
+    gptGfx->update_bind_group(gptData->ptDevice, tProbeData.tSunCameraBG, &tDShadowBGData2);
 
     // textures
     gptStarter->create_texture(&tRawOutputTextureCubeDesc, NULL, 0, &tProbeData.tRawOutputTexture);
-    gptStarter->create_texture(&tAlbedoTextureDesc, NULL, 0, &tProbeData.tAlbedoTexture);
-    gptStarter->create_texture(&tNormalTextureDesc, NULL, 0, &tProbeData.tNormalTexture);
-    gptStarter->create_texture(&tEmmissiveTexDesc, NULL, 0, &tProbeData.tAOMetalRoughnessTexture);
-    gptStarter->create_texture(&tDepthTextureDesc, NULL, 0, &tProbeData.tDepthTexture);
 
-    plTextureViewDesc tAlbedoTextureViewDesc = {
-        .eFormat     = tAlbedoTextureDesc.eFormat,
-        .uBaseMip    = 0,
-        .uMips       = 1,
-        .uBaseLayer  = 0,
-        .uLayerCount = 1,
-        .tTexture    = tProbeData.tAlbedoTexture,
-        .eType       = PL_TEXTURE_TYPE_2D
-    };
-
-    plTextureViewDesc tNormalTextureViewDesc = {
-        .eFormat     = tNormalTextureDesc.eFormat,
-        .uBaseMip    = 0,
-        .uMips       = 1,
-        .uBaseLayer  = 0,
-        .uLayerCount = 1,
-        .tTexture    = tProbeData.tNormalTexture,
-        .eType       = PL_TEXTURE_TYPE_2D,
-        .pcDebugName = "gbuffer probe"
-    };
-
-    plTextureViewDesc tEmmissiveTexureViewDesc = {
-        .eFormat     = tEmmissiveTexDesc.eFormat,
-        .uBaseMip    = 0,
-        .uMips       = 1,
-        .uBaseLayer  = 0,
-        .uLayerCount = 1,
-        .tTexture    = tProbeData.tAOMetalRoughnessTexture,
-        .eType       = PL_TEXTURE_TYPE_2D
-    };
-
-    plTextureViewDesc tRawOutputTextureViewDesc = {
-        .eFormat     = tRawOutputTextureCubeDesc.eFormat,
-        .uBaseMip    = 0,
-        .uMips       = 1,
-        .uBaseLayer  = 0,
-        .uLayerCount = 1,
-        .tTexture    = tProbeData.tRawOutputTexture,
-        .eType       = PL_TEXTURE_TYPE_2D
-    };
-
-    plTextureViewDesc tDepthTextureViewDesc = {
-        .eFormat     = tDepthTextureDesc.eFormat,
-        .uBaseMip    = 0,
-        .uMips       = 1,
-        .uBaseLayer  = 0,
-        .uLayerCount = 1,
-        .tTexture    = tProbeData.tDepthTexture,
-        .eType       = PL_TEXTURE_TYPE_2D
-    };
-
-    // buffers
-    gptStarter->get_staging_buffer(4096, &tProbeData.tView2Buffer, "scene");
-    gptStarter->get_staging_buffer(sizeof(plGpuViewData), &tProbeData.tViewBuffer, "view buffer");
-
-    for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
-    {
-
-        for(uint32_t uFace = 0; uFace < 6; uFace++)
-        {
-
-            tAlbedoTextureViewDesc.uBaseLayer = uFace;
-            tNormalTextureViewDesc.uBaseLayer = uFace;
-            tEmmissiveTexureViewDesc.uBaseLayer = uFace;
-            tRawOutputTextureViewDesc.uBaseLayer = uFace;
-            tDepthTextureViewDesc.uBaseLayer = uFace;
-
-            tProbeData.atAlbedoTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tAlbedoTextureViewDesc);
-            tProbeData.atNormalTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tNormalTextureViewDesc);
-            tProbeData.atAOMetalRoughnessTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tEmmissiveTexureViewDesc);
-            tProbeData.atRawOutputTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tRawOutputTextureViewDesc);
-            tProbeData.atDepthTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tDepthTextureViewDesc);
-        }
-
-    }
-
-    // lighting bind group
-    const plBindGroupDesc tLightingBindGroupDesc = {
-        .ptPool      = gptData->ptBindGroupPool,
-        .tLayout     = gptShaderVariant->get_bind_group_layout("deferred lighting 1"),
-        .pcDebugName = "lighting bind group"
-    };
-    
-    for(uint32_t uFace = 0; uFace < 6; uFace++)
-    {
-        const plBindGroupUpdateData tBGData = {
-            .atTextureBindings = {
-                {
-                    .tTexture = tProbeData.atAlbedoTextureViews[uFace],
-                    .uSlot    = 0,
-                    .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
-                },
-                {
-                    .tTexture = tProbeData.atNormalTextureViews[uFace],
-                    .uSlot    = 1,
-                    .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
-                },
-                {
-                    .tTexture = tProbeData.atAOMetalRoughnessTextureViews[uFace],
-                    .uSlot    = 2,
-                    .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
-                },
-                {
-                    .tTexture = tProbeData.atDepthTextureViews[uFace],
-                    .uSlot    = 3,
-                    .eType = PL_TEXTURE_BINDING_TYPE_INPUT_ATTACHMENT
-                }
-            }
-        };
-        tProbeData.atLightingBindGroup[uFace] = gptGfx->create_bind_group(gptData->ptDevice, &tLightingBindGroupDesc);
-        gptGfx->update_bind_group(gptData->ptDevice, tProbeData.atLightingBindGroup[uFace], &tBGData);
-    }
+    tProbeData.uDataPackIndex = pl__renderer_probe_data_pack_index(ptScene, ptProbe->uResolution);
 
     const plTextureDesc tSpecularTextureDesc = {
         .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
@@ -2492,7 +2918,6 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
         .pcDebugName = "probe lambertian env"
     };
-    gptStarter->create_texture(&tSpecularTextureDesc, NULL, 0, &tProbeData.tLambertianEnvTexture);
 
     const plTextureDesc tTextureDesc = {
         .tDimensions = {(float)ptProbe->uResolution, (float)ptProbe->uResolution, 1},
@@ -2504,10 +2929,37 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
         .pcDebugName = "probe tGGXEnvTexture"
     };
     gptStarter->create_texture(&tTextureDesc, NULL, 0, &tProbeData.tGGXEnvTexture);
-
+    gptStarter->create_texture(&tSpecularTextureDesc, NULL, 0, &tProbeData.tLambertianEnvTexture);
     tProbeData.uLambertianEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tLambertianEnvTexture);
     tProbeData.uGGXEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, tProbeData.tGGXEnvTexture);
-    tProbeData.iMips = (int)tTextureDesc.uMips;
+
+    plTextureViewDesc tRawOutputTextureViewDesc = {
+        .eFormat     = tRawOutputTextureCubeDesc.eFormat,
+        .uBaseMip    = 0,
+        .uMips       = 1,
+        .uBaseLayer  = 0,
+        .uLayerCount = 1,
+        .tTexture    = tProbeData.tRawOutputTexture,
+        .eType       = PL_TEXTURE_TYPE_2D
+    };
+
+
+
+    // buffers
+    gptStarter->get_staging_buffer(sizeof(plGpuViewData), &tProbeData.tViewBuffer, "view buffer");
+
+    // for(uint32_t i = 0; i < gptGfx->get_frames_in_flight(); i++)
+    // {
+
+        for(uint32_t uFace = 0; uFace < 6; uFace++)
+        {
+            tRawOutputTextureViewDesc.uBaseLayer = uFace;
+            tProbeData.atRawOutputTextureViews[uFace] = gptGfx->create_texture_view(gptData->ptDevice, &tRawOutputTextureViewDesc);
+        }
+
+    // }
+
+    tProbeData.iMips = (int)(uint32_t)floorf(log2f((float)ptProbe->uResolution)) - 3; // guarantee final dispatch during filtering is 16 threads
     
     plObjectComponent* ptProbeObj = gptECS->add_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, tProbeHandle);
     ptProbeObj->tMesh = ptScene->tProbeMesh;
@@ -2527,17 +2979,17 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
 
     // create g-buffer fill bind group 1
     const plBindGroupUpdateBufferData tGBufferFillBG1BufferData = {
-        .tBuffer       = tProbeData.tView2Buffer,
+        .tBuffer       = tProbeData.tViewBuffer,
         .uSlot         = 0,
-        .szBufferRange = sizeof(plGpuViewData) * 6
+        .szBufferRange = sizeof(plGpuViewData)
     };
 
     const plBindGroupUpdateData tGBufferFillBG1Data = {
         .atBufferBindings = {
             {
-                .tBuffer       = tProbeData.tView2Buffer,
+                .tBuffer       = tProbeData.tViewBuffer,
                 .uSlot         = 0,
-                .szBufferRange = sizeof(plGpuViewData) * 6
+                .szBufferRange = sizeof(plGpuViewData)
             }
         }
     };
@@ -2548,14 +3000,13 @@ pl__renderer_create_probe_data(plScene* ptScene, plEntity tProbeHandle)
     const plBindGroupUpdateData tViewBGData = {
         .atBufferBindings  = {
             { .uSlot = 0, .tBuffer = tProbeData.tViewBuffer,            .szBufferRange = sizeof(plGpuViewData) },
-            { .uSlot = 1, .tBuffer = tProbeData.tView2Buffer,           .szBufferRange = sizeof(plGpuViewData) * 6 },
-            { .uSlot = 2, .tBuffer = ptScene->atPointLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 3, .tBuffer = ptScene->atSpotLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 4, .tBuffer = ptScene->atDirectionLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atDirectionLightBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 5, .tBuffer = tProbeData.tDLightShadowDataBuffer, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, tProbeData.tDLightShadowDataBuffer)->tDesc.szByteSize},
-            { .uSlot = 6, .tBuffer = ptScene->atPointLightShadowDataBuffer[0],  .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 7, .tBuffer = ptScene->atSpotLightShadowDataBuffer[0],  .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[0])->tDesc.szByteSize},
-            { .uSlot = 8, .tBuffer = ptScene->tGPUProbeDataBuffers,    .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize}
+            { .uSlot = 1, .tBuffer = ptScene->atPointLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 2, .tBuffer = ptScene->atSpotLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 3, .tBuffer = ptScene->atDirectionLightBuffer[0],            .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->atDirectionLightBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 4, .tBuffer = tProbeData.tDLightShadowDataBuffer, .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, tProbeData.tDLightShadowDataBuffer)->tDesc.szByteSize},
+            { .uSlot = 5, .tBuffer = ptScene->atPointLightShadowDataBuffer[0],  .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atPointLightShadowDataBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 6, .tBuffer = ptScene->atSpotLightShadowDataBuffer[0],  .szBufferRange =  gptGfx->get_buffer(gptData->ptDevice, ptScene->atSpotLightShadowDataBuffer[0])->tDesc.szByteSize},
+            { .uSlot = 7, .tBuffer = ptScene->tGPUProbeDataBuffers,    .szBufferRange = gptGfx->get_buffer(gptData->ptDevice, ptScene->tGPUProbeDataBuffers)->tDesc.szByteSize}
         }
     };
     tProbeData.tViewBG = gptGfx->create_bind_group(gptData->ptDevice, &tViewBGDesc);
@@ -2571,6 +3022,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
     plDevice* ptDevice = gptData->ptDevice;
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
+    plEnvironmentProbeDataPack* ptPack = &ptScene->sbtProbeDataPacks[ptProbe->uDataPackIndex];
 
     
     plComputeShaderHandle tCubeFilterSpecularShader = gptShaderVariant->get_compute_shader("cube_filter_specular", NULL);
@@ -2673,7 +3125,7 @@ pl__renderer_create_environment_map_from_texture(plScene* ptScene, plEnvironment
         gptGfx->wait_on_command_buffer(ptCommandBuffer);
         gptGfx->return_command_buffer(ptCommandBuffer);
 
-        gptStarter->return_readback_buffer(&gptData->tReadbackBuffer);
+        // gptStarter->return_readback_buffer(&gptData->tReadbackBuffer);
         gptImageOps->free_mip_chain(&tChain);
 
         #endif
@@ -3204,8 +3656,8 @@ pl__render_view_deferred_lighting_pass(plScene* ptScene, plCommandBuffer* ptComm
                 .uInstanceCount  = 1
             });
         }
-
         gptGfx->draw_stream(ptCommandBuffer, 1, ptInfo->ptArea);
+
         gptGfx->reset_draw_stream(ptStream, uDirectionLightCount);
         for(uint32_t uLightIndex = 0; uLightIndex < uDirectionLightCount; uLightIndex++)
         {
@@ -3218,6 +3670,36 @@ pl__render_view_deferred_lighting_pass(plScene* ptScene, plCommandBuffer* ptComm
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
                 .tShader = ptScene->tDirectionalLightingShader,
+                .auDynamicBuffers = {
+                    tLightingDynamicData.uBufferHandle
+                },
+                .uIndexOffset   = 0,
+                .uTriangleCount = 1,
+                .atBindGroups = {
+                    ptScene->atSceneBindGroups[uFrameIdx],
+                    tViewBG,
+                    ptInfo->tBG2
+                },
+                .auDynamicBufferOffsets = {
+                    tLightingDynamicData.uByteOffset
+                },
+                .uInstanceOffset = 0,
+                .uInstanceCount  = 1
+            });
+        }
+        gptGfx->draw_stream(ptCommandBuffer, 1, ptInfo->ptArea);
+
+        // sun
+        gptGfx->reset_draw_stream(ptStream, 1);
+        {
+
+            plDynamicBinding tLightingDynamicData = pl__allocate_dynamic_data(ptDevice, sizeof(plGpuDynDeferredLighting));
+            plGpuDynDeferredLighting* ptLightingDynamicData = (plGpuDynDeferredLighting*)tLightingDynamicData.pcData;
+            ptLightingDynamicData->uGlobalIndex = ptInfo->uGlobalIndex;
+            ptLightingDynamicData->iProbe = (int)ptInfo->bProbe;
+            pl_add_to_draw_stream(ptStream, (plDrawStreamData)
+            {
+                .tShader = ptScene->tSunShader,
                 .auDynamicBuffers = {
                     tLightingDynamicData.uBufferHandle
                 },
@@ -3502,11 +3984,11 @@ pl__render_view_transmission_pass(plView* ptView, plCommandBuffer* ptCommandBuff
 
     gptGfx->push_debug_group(ptCommandBuffer, "Transmission Pass", (plVec4){0.33f, 0.20f, 0.10f, 1.0f});
 
-    const uint32_t uVisibleTransmissionDrawCount = pl_sb_size(ptView->sbuVisibleTransmissionEntities);
+    const uint32_t uVisibleTransmissionDrawCount = pl_sb_size(ptScene->sbuVisibleTransmissionEntities);
     gptGfx->reset_draw_stream(ptStream, uVisibleTransmissionDrawCount);
     for(uint32_t i = 0; i < uVisibleTransmissionDrawCount; i++)
     {
-        const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbuVisibleTransmissionEntities[i]];
+        const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbuVisibleTransmissionEntities[i]];
 
         if(tDrawable.uInstanceCount != 0)
         {
@@ -3527,7 +4009,7 @@ pl__render_view_transmission_pass(plView* ptView, plCommandBuffer* ptCommandBuff
 
             pl_add_to_draw_stream(ptStream, (plDrawStreamData)
             {
-                .tShader        = ptScene->sbtRegularShaders[ptView->sbuVisibleTransmissionEntities[i]],
+                .tShader        = ptScene->sbtRegularShaders[ptScene->sbuVisibleTransmissionEntities[i]],
                 .auDynamicBuffers = {
                     tDynamicBinding.uBufferHandle
                 },
@@ -3808,7 +4290,7 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
     plBindGroupHandle atBindGroups[2] = {tViewBG, ptView->atPickBindGroup[uFrameIdx]};
     gptGfx->bind_graphics_bind_groups(ptSceneCmdBuffer, tPickShader, 0, 2, atBindGroups, 0, NULL);
 
-    const uint32_t uVisibleDrawCount = pl_sb_size(ptView->sbtVisibleDrawables);
+    const uint32_t uVisibleDrawCount = pl_sb_size(ptScene->sbtVisibleDrawables);
     *gptData->pdDrawCalls += (double)uVisibleDrawCount;
 
     plVec2 tMousePos = gptIOI->get_mouse_pos();
@@ -3817,7 +4299,7 @@ pl__render_view_pick_pass(plView* ptView, plBindGroupHandle tViewBG, plCommandBu
     
     for(uint32_t i = 0; i < uVisibleDrawCount; i++)
     {
-        const plDrawable tDrawable = ptScene->sbtDrawables[ptView->sbtVisibleDrawables[i]];
+        const plDrawable tDrawable = ptScene->sbtDrawables[ptScene->sbtVisibleDrawables[i]];
 
         uint32_t uId = tDrawable.tEntity.uIndex;
         
@@ -4497,6 +4979,8 @@ static void
 pl__renderer_update_probes(plScene* ptScene)
 {
 
+    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+
     // for convience
     plDevice* ptDevice = gptData->ptDevice;
     plDrawStream* ptStream = &gptData->tDrawStream;
@@ -4504,6 +4988,74 @@ pl__renderer_update_probes(plScene* ptScene)
     const uint32_t uFrameIdx = gptGfx->get_current_frame_index();
     plCommandPool* ptCmdPool = gptStarter->get_current_command_pool();
     plTimelineSemaphore* tSemHandle = gptStarter->get_current_timeline_semaphore();
+
+    const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
+    for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
+    {
+        plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
+        plEnvironmentProbeComponent* ptProbeComp = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptProbe->tEntity);
+        plEnvironmentProbeDataPack* ptPack = &ptScene->sbtProbeDataPacks[ptProbe->uDataPackIndex];
+
+        if((ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && !gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
+        {
+            PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "creating required sheen env texture");
+            const plTextureDesc tTextureDesc = {
+                .tDimensions = {(float)ptProbeComp->uResolution, (float)ptProbeComp->uResolution, 1},
+                .eFormat     = PL_FORMAT_R32G32B32A32_FLOAT,
+                .uLayers     = 6,
+                .uMips       = (uint32_t)floorf(log2f((float)ptProbeComp->uResolution)) - 3, // guarantee final dispatch during filtering is 16 threads
+                .eType       = PL_TEXTURE_TYPE_CUBE,
+                .eUsage      = PL_TEXTURE_USAGE_SAMPLED,
+                .pcDebugName = "tSheenEnvTexture"
+            };
+            gptStarter->create_texture(&tTextureDesc, NULL, 0, &ptProbe->tSheenEnvTexture);
+            ptProbe->uSheenEnvSampler = pl__renderer_get_bindless_cube_texture_index(ptScene, ptProbe->tSheenEnvTexture);
+            ptProbeComp->tFlags |= PL_ENVIRONMENT_PROBE_FLAGS_DIRTY;
+        }
+        else if(!(ptScene->tFlags & PL_SCENE_INTERNAL_FLAG_SHEEN_REQUIRED) && gptGfx->is_texture_valid(ptDevice, ptProbe->tSheenEnvTexture))
+        {
+            PL_LOG_INFO_API(gptLog, gptData->uLogChannel, "freeing unneeded sheen env texture");
+            gptGfx->queue_texture_for_deletion(ptDevice, ptProbe->tSheenEnvTexture);
+        }
+
+        
+        if(!((ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_REALTIME) || (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY)))
+        {
+            continue;
+        }
+
+        if(ptProbe->uDirtyFaces == 0 && (ptProbeComp->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_DIRTY))
+            ptProbe->uDirtyFaces = 6;
+
+    }
+
+    pl_sb_reset(ptScene->sbtGPUProbeData);
+    for(uint32_t i = 0; i < pl_sb_size(ptScene->sbtProbeData); i++)
+    {
+        plEnvironmentProbeComponent* ptProbe = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tEnvironmentProbeComponentType, ptScene->sbtProbeData[i].tEntity);
+        plObjectComponent* ptObject = gptECS->get_component(ptScene->ptComponentLibrary, gptData->tObjectComponentType, ptScene->sbtProbeData[i].tEntity);
+        plTransformComponent* ptProbeTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptScene->sbtProbeData[i].tEntity);
+        plEnvironmentProbeDataPack* ptPack = &ptScene->sbtProbeDataPacks[ptScene->sbtProbeData[i].uDataPackIndex];
+        plGpuProbe tProbeData = {
+            .tPosition              = ptProbeTransform->tTranslation,
+            .fRangeSqr              = ptProbe->fRange * ptProbe->fRange,
+            .uGGXEnvSampler         = ptScene->sbtProbeData[i].uGGXEnvSampler,
+            .uLambertianEnvSampler  = ptScene->sbtProbeData[i].uLambertianEnvSampler,
+            .uCharlieEnvSampler     = ptScene->sbtProbeData[i].uSheenEnvSampler,
+            .tMin.xyz               = ptObject->tAABB.tMin,
+            .tMax.xyz               = ptObject->tAABB.tMax,
+            .iMips                  = ptScene->sbtProbeData[i].iMips,
+            .iParallaxCorrection    = (int)(ptProbe->tFlags & PL_ENVIRONMENT_PROBE_FLAGS_PARALLAX_CORRECTION_BOX)
+        };
+        pl_sb_push(ptScene->sbtGPUProbeData, tProbeData);
+    }
+
+    if(pl_sb_size(ptScene->sbtGPUProbeData) > 0)
+    {
+
+        plBuffer* ptProbeDataBuffer = gptGfx->get_buffer(ptDevice, ptScene->tGPUProbeDataBuffers);
+        memcpy(ptProbeDataBuffer->tMemoryAllocation.pHostMapped, ptScene->sbtGPUProbeData, sizeof(plGpuProbe) * pl_sb_size(ptScene->sbtGPUProbeData));
+    }
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~common data~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -4521,8 +5073,7 @@ pl__renderer_update_probes(plScene* ptScene)
         .uSlot    = 1
     };
 
-    const uint32_t uProbeCount = pl_sb_size(ptScene->sbtProbeData);
-    const plEcsTypeKey tTransformComponentType = gptECS->get_ecs_type_key_transform();
+
     for(uint32_t uProbeIndex = 0; uProbeIndex < uProbeCount; uProbeIndex++)
     {
         plEnvironmentProbeData* ptProbe = &ptScene->sbtProbeData[uProbeIndex];
@@ -4534,6 +5085,12 @@ pl__renderer_update_probes(plScene* ptScene)
         }
 
         plTransformComponent* ptProbeTransform = gptECS->get_component(ptScene->ptComponentLibrary, tTransformComponentType, ptProbe->tEntity);
+
+        ptProbe->tViewData.tViewportSize = (plVec4){.x = ptProbe->tTargetSize.x, .y = ptProbe->tTargetSize.y, .z = 1.0f, .w = 1.0f};
+        ptProbe->tViewData.tCameraPos.xyz = ptProbeTransform->tTranslation;
+        ptProbe->tViewData.fCameraRange  = ptProbeComp->fRange - 0.26f;
+        ptProbe->tViewData.fCameraNearZ  = 0.26f;
+        ptProbe->tViewData.fAspectRatio  = 1.0f;
 
         const uint32_t uDrawableCount = pl_sb_size(ptScene->sbtDrawables);
 
@@ -4561,32 +5118,88 @@ pl__renderer_update_probes(plScene* ptScene)
 
         plCamera atEnvironmentCamera[6] = {0};
 
-        for(uint32_t uFace = 0; uFace < 6; uFace++)
+        for(uint32_t uFaceIndex = 0; uFaceIndex < 6; uFaceIndex++)
         {
-            gptCamera->init(&atEnvironmentCamera[uFace]);
-            atEnvironmentCamera[uFace].eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
-            atEnvironmentCamera[uFace].eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
-            atEnvironmentCamera[uFace].tPosition   = (plVec3d){(double)ptProbeTransform->tTranslation.x, (double)ptProbeTransform->tTranslation.y, (double)ptProbeTransform->tTranslation.z};
-            atEnvironmentCamera[uFace].fNearZ       = 0.26f;
-            atEnvironmentCamera[uFace].fFarZ        = ptProbeComp->fRange;
-            atEnvironmentCamera[uFace].fYFov        = PL_PI_2;
-            atEnvironmentCamera[uFace].fAspectRatio = 1.0f;
-            gptCamera->set_euler(&atEnvironmentCamera[uFace], atPitchYawRoll[uFace].x, atPitchYawRoll[uFace].y, atPitchYawRoll[uFace].z);
-            gptCamera->update(&atEnvironmentCamera[uFace]);
+            gptCamera->init(&atEnvironmentCamera[uFaceIndex]);
+            atEnvironmentCamera[uFaceIndex].eProjectionType = PL_CAMERA_PROJECTION_TYPE_PERSPECTIVE;
+            atEnvironmentCamera[uFaceIndex].eDepthMode      = PL_CAMERA_DEPTH_MODE_REVERSE_Z;
+            atEnvironmentCamera[uFaceIndex].tPosition   = (plVec3d){(double)ptProbeTransform->tTranslation.x, (double)ptProbeTransform->tTranslation.y, (double)ptProbeTransform->tTranslation.z};
+            atEnvironmentCamera[uFaceIndex].fNearZ       = 0.26f;
+            atEnvironmentCamera[uFaceIndex].fFarZ        = ptProbeComp->fRange;
+            atEnvironmentCamera[uFaceIndex].fYFov        = PL_PI_2;
+            atEnvironmentCamera[uFaceIndex].fAspectRatio = 1.0f;
+            gptCamera->set_euler(&atEnvironmentCamera[uFaceIndex], atPitchYawRoll[uFaceIndex].x, atPitchYawRoll[uFaceIndex].y, atPitchYawRoll[uFaceIndex].z);
+            gptCamera->update(&atEnvironmentCamera[uFaceIndex]);
+
+            ptProbe->tViewData.tCameraProjection[uFaceIndex]     = atEnvironmentCamera[uFaceIndex].tProjMat;
+            ptProbe->tViewData.tCameraView[uFaceIndex]           = atEnvironmentCamera[uFaceIndex].tViewMat;
+            ptProbe->tViewData.tInvViewMatNoTranslation[uFaceIndex] = atEnvironmentCamera[uFaceIndex].tInvViewMatNoTranslation;
+            ptProbe->tViewData.tCameraProjectionInv[uFaceIndex]  = pl_mat4_invert(&atEnvironmentCamera[uFaceIndex].tProjMat);
+            ptProbe->tViewData.tCameraViewInv[uFaceIndex]        = pl_mat4_invert(&atEnvironmentCamera[uFaceIndex].tViewMat);
+            ptProbe->tViewData.tCameraViewProjection[uFaceIndex] = pl_mul_mat4(&atEnvironmentCamera[uFaceIndex].tProjMat, &atEnvironmentCamera[uFaceIndex].tViewMat);
         }
 
-        //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~probe rendering~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        // copy global buffer data for probe rendering
+        plBuffer* ptProbeGlobalBuffer = gptGfx->get_buffer(ptDevice, ptProbe->tViewBuffer);
+        memcpy(ptProbeGlobalBuffer->tMemoryAllocation.pHostMapped, &ptProbe->tViewData, sizeof(plGpuViewData));
 
-        plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "probe");
-        gptGfx->begin_command_recording(ptCmdBuffer);
-
-        for(uint32_t uFaceIndex = 0; uFaceIndex < ptProbeComp->uInterval; uFaceIndex++)
+        for(uint32_t uFaceIndex = 0; uFaceIndex < 6; uFaceIndex++)
         {
+
+
+            plCommandBuffer* ptCSMCommandBuffer = gptGfx->request_command_buffer(ptCmdPool, "probe csm");
+            gptGfx->begin_command_recording(ptCSMCommandBuffer);
+
+            plRenderInfo tShadowRenderInfo = {
+                .tRenderArea = {
+                    .tMin = {0},
+                    .tMax = {.x = (float)ptScene->uSunShadowAtlasResolution, .y = (float)ptScene->uSunShadowAtlasResolution}
+                },
+                .tDepthAttachment = {
+                    .tTexture        = ptScene->tSunShadowTexture,
+                    .eLoadOp         = PL_LOAD_OP_CLEAR,
+                    .eStoreOp        = PL_STORE_OP_STORE,
+                    .eUsage          = PL_TEXTURE_USAGE_DEPTH_STENCIL_ATTACHMENT,
+                    .fClearZ         = 0.0f
+                }
+            };
+
+            gptGfx->begin_render_pass(ptCSMCommandBuffer, &tShadowRenderInfo, NULL);
+            gptGfx->push_debug_group(ptCSMCommandBuffer, "Probe CSM", (plVec4){0.33f, 0.02f, 0.10f, 1.0f});
+
+            pl__renderer_generate_sun_shadow_map(ptCSMCommandBuffer, ptScene, &ptProbe->tViewData, ptProbe->tViewBuffer, ptProbe->tSunCameraBuffers, &atEnvironmentCamera[uFaceIndex], ptProbe->tSunCameraBG, true);
+
+            plCSMInfo tCSMInfo = {
+                .tBindGroup = ptProbe->tDShadowBG,
+                .tDShadowCameraBuffer = ptProbe->tDShadowCameraBuffers,
+                .tDLightShadowDataBuffer = ptProbe->tDLightShadowDataBuffer,
+                .sbtDLightShadowData = ptProbe->sbtDLightShadowData
+            };
+            pl__renderer_generate_direction_view_map(ptCSMCommandBuffer, ptScene, &atEnvironmentCamera[uFaceIndex], tCSMInfo);
+            gptGfx->pop_debug_group(ptCSMCommandBuffer);
+            gptGfx->end_render_pass(ptCSMCommandBuffer);
+            gptGfx->end_command_recording(ptCSMCommandBuffer);
+
+            const plSubmitInfo tSubmitCSMInfo2 = {
+                .uWaitSemaphoreCount     = 1,
+                .atWaitSempahores        = {gptStarter->get_current_timeline_semaphore()},
+                .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+                .uSignalSemaphoreCount   = 1,
+                .atSignalSempahores      = {gptStarter->get_current_timeline_semaphore()},
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+            };
+            gptGfx->submit_command_buffer(ptCSMCommandBuffer, &tSubmitCSMInfo2);
+            gptGfx->return_command_buffer(ptCSMCommandBuffer);
+
+            plCommandBuffer* ptCmdBuffer = gptGfx->request_command_buffer(ptCmdPool, "probe");
+            gptGfx->begin_command_recording(ptCmdBuffer);
 
             uint32_t uFace = ptProbe->uCurrentFace + uFaceIndex;
             uFace = uFace % 6;
 
             //~~~~~~~~~~~~~~~~~~~~~~~~~~subpass 0 - g buffer fill~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+            plEnvironmentProbeDataPack* ptPack = &ptScene->sbtProbeDataPacks[ptProbe->uDataPackIndex];
 
             plRenderInfo tRenderInfo = {
                 .tRenderArea = {
@@ -4602,21 +5215,21 @@ pl__renderer_update_probes(plScene* ptScene)
                         .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
                     },
                     {
-                        .tTexture       = ptProbe->atAlbedoTextureViews[uFace],
+                        .tTexture       = ptPack->atAlbedoTextureViews[uFace],
                         .eLoadOp        = PL_LOAD_OP_CLEAR,
                         .eStoreOp       = PL_STORE_OP_STORE,
                         .eUsage         = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
                         .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
                     },
                     {
-                        .tTexture       = ptProbe->atNormalTextureViews[uFace],
+                        .tTexture       = ptPack->atNormalTextureViews[uFace],
                         .eLoadOp        = PL_LOAD_OP_CLEAR,
                         .eStoreOp       = PL_STORE_OP_STORE,
                         .eUsage         = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
                         .tClearColor    = {0.0f, 0.0f, 0.0f, 1.0f}
                     },
                     {
-                        .tTexture       = ptProbe->atAOMetalRoughnessTextureViews[uFace],
+                        .tTexture       = ptPack->atAOMetalRoughnessTextureViews[uFace],
                         .eLoadOp        = PL_LOAD_OP_CLEAR,
                         .eStoreOp       = PL_STORE_OP_STORE,
                         .eUsage         = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
@@ -4624,14 +5237,14 @@ pl__renderer_update_probes(plScene* ptScene)
                     }
                 },
                 .tDepthAttachment = {
-                    .tTexture        = ptProbe->atDepthTextureViews[uFace],
+                    .tTexture        = ptPack->atDepthTextureViews[uFace],
                     .eLoadOp         = PL_LOAD_OP_CLEAR,
                     .eStoreOp        = PL_STORE_OP_STORE,
                     .eUsage          = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
                     .fClearZ         = 0.0f
                 },
                 .tStencilAttachment = {
-                    .tTexture        = ptProbe->atDepthTextureViews[uFace],
+                    .tTexture        = ptPack->atDepthTextureViews[uFace],
                     .eLoadOp         = PL_LOAD_OP_CLEAR,
                     .eStoreOp        = PL_STORE_OP_STORE,
                     .eUsage          = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
@@ -4659,27 +5272,27 @@ pl__renderer_update_probes(plScene* ptScene)
             plAtomicCounter* ptCullCounter = NULL;
             gptJob->dispatch_batch(uDrawableCount, 0, tJobDesc, &ptCullCounter);
             gptJob->wait_for_counter(ptCullCounter);
-            pl_sb_reset(ptProbe->sbuVisibleDeferredEntities[uFace]);
-            pl_sb_reset(ptProbe->sbuVisibleForwardEntities[uFace]);
-            pl_sb_reset(ptProbe->sbuVisibleTransmissionEntities[uFace]);
+            pl_sb_reset(ptScene->sbuVisibleDeferredEntities);
+            pl_sb_reset(ptScene->sbuVisibleForwardEntities);
+            pl_sb_reset(ptScene->sbuVisibleTransmissionEntities);
             for(uint32_t uDrawableIndex = 0; uDrawableIndex < uDrawableCount; uDrawableIndex++)
             {
                 const plDrawable tDrawable = ptScene->sbtDrawables[uDrawableIndex];
                 if(!tDrawable.bCulled)
                 {
                     if(tDrawable.tFlags & PL_DRAWABLE_FLAG_DEFERRED)
-                        pl_sb_push(ptProbe->sbuVisibleDeferredEntities[uFace], uDrawableIndex);
+                        pl_sb_push(ptScene->sbuVisibleDeferredEntities, uDrawableIndex);
                     else if(tDrawable.tFlags & PL_DRAWABLE_FLAG_FORWARD)
-                        pl_sb_push(ptProbe->sbuVisibleForwardEntities[uFace], uDrawableIndex);
+                        pl_sb_push(ptScene->sbuVisibleForwardEntities, uDrawableIndex);
                     else if(tDrawable.tFlags & PL_DRAWABLE_FLAG_TRANSMISSION)
-                        pl_sb_push(ptProbe->sbuVisibleTransmissionEntities[uFace], uDrawableIndex);
+                        pl_sb_push(ptScene->sbuVisibleTransmissionEntities, uDrawableIndex);
                 }
             }
 
             //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~update bind groups~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
             plGbufferFillPassInfo tGbufferFillPassInfo = {
-                .sbuVisibleDeferredEntities = ptProbe->sbuVisibleDeferredEntities[uFace],
+                .sbuVisibleDeferredEntities = ptScene->sbuVisibleDeferredEntities,
                 .uGlobalIndex = uFace,
                 .tBG2 = ptProbe->tGBufferBG,
                 .ptArea = &tArea,
@@ -4693,22 +5306,22 @@ pl__renderer_update_probes(plScene* ptScene)
             const plPassResources tResourceUpdates = {
                 .atTextures = {
                     {
-                        .tHandle = ptProbe->atAlbedoTextureViews[uFace],
+                        .tHandle = ptPack->atAlbedoTextureViews[uFace],
                         .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
                         .eUsage = PL_TEXTURE_USAGE_INPUT_ATTACHMENT
                     },
                     {
-                        .tHandle = ptProbe->atNormalTextureViews[uFace],
+                        .tHandle = ptPack->atNormalTextureViews[uFace],
                         .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
                         .eUsage = PL_TEXTURE_USAGE_INPUT_ATTACHMENT
                     },
                     {
-                        .tHandle = ptProbe->atAOMetalRoughnessTextureViews[uFace],
+                        .tHandle = ptPack->atAOMetalRoughnessTextureViews[uFace],
                         .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
                         .eUsage = PL_TEXTURE_USAGE_INPUT_ATTACHMENT
                     },
                     {
-                        .tHandle = ptProbe->atDepthTextureViews[uFace],
+                        .tHandle = ptPack->atDepthTextureViews[uFace],
                         .eAccess = PL_PASS_RESOURCE_ACCESS_READ,
                         .eUsage = PL_TEXTURE_USAGE_INPUT_ATTACHMENT
                     }
@@ -4720,7 +5333,7 @@ pl__renderer_update_probes(plScene* ptScene)
             plDeferredLightingPassInfo tDeferredLightingPassInfo = {
                 .uGlobalIndex = uFace,
                 .uProbe = uProbeIndex,
-                .tBG2 = ptProbe->atLightingBindGroup[uFace],
+                .tBG2 = ptPack->atLightingBindGroup[uFace],
                 .ptArea = &tArea,
                 .bProbe = true
             };
@@ -4744,14 +5357,14 @@ pl__renderer_update_probes(plScene* ptScene)
                     }
                 },
                 .tDepthAttachment = {
-                    .tTexture        = ptProbe->atDepthTextureViews[uFace],
+                    .tTexture        = ptPack->atDepthTextureViews[uFace],
                     .eLoadOp         = PL_LOAD_OP_LOAD,
                     .eStoreOp        = PL_STORE_OP_STORE,
                     .eUsage          = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
                     .fClearZ         = 0.0f
                 },
                 .tStencilAttachment = {
-                    .tTexture        = ptProbe->atDepthTextureViews[uFace],
+                    .tTexture        = ptPack->atDepthTextureViews[uFace],
                     .eLoadOp         = PL_LOAD_OP_LOAD,
                     .eStoreOp        = PL_STORE_OP_STORE,
                     .eUsage          = PL_TEXTURE_USAGE_INPUT_ATTACHMENT,
@@ -4767,10 +5380,11 @@ pl__renderer_update_probes(plScene* ptScene)
             {
                 plMat4 tTransformMat = pl_mat4_translate_vec3(ptProbeTransform->tTranslation);
                 pl__render_view_skybox_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tTransformMat, &tArea, uFace);  
+                // pl__render_view_skybox_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tTransformMat, &tArea, 0);  
             }
 
             plForwardPassInfo tForwardPassInfo = {
-                .sbuVisibleEntities = ptProbe->sbuVisibleForwardEntities[uFace],
+                .sbuVisibleEntities = ptScene->sbuVisibleForwardEntities,
                 .ptArea = &tArea,
                 .uGlobalIndex = uFace,
                 .bProbe = true,
@@ -4779,7 +5393,7 @@ pl__renderer_update_probes(plScene* ptScene)
             pl__render_view_forward_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tForwardPassInfo);
 
             plForwardPassInfo tForwardPassInfo2 = {
-                .sbuVisibleEntities = ptProbe->sbuVisibleTransmissionEntities[uFace],
+                .sbuVisibleEntities = ptScene->sbuVisibleTransmissionEntities,
                 .ptArea = &tArea,
                 .uGlobalIndex = uFace,
                 .bProbe = true,
@@ -4788,23 +5402,25 @@ pl__renderer_update_probes(plScene* ptScene)
             pl__render_view_forward_pass(ptScene, ptCmdBuffer, ptProbe->tViewBG, &tForwardPassInfo2);
 
             gptGfx->end_render_pass(ptCmdBuffer);
+
+            gptGfx->end_command_recording(ptCmdBuffer);
+
+            const plSubmitInfo tProbeSubmitInfo = {
+                .uWaitSemaphoreCount     = 1,
+                .atWaitSempahores        = {tSemHandle},
+                .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
+                .uSignalSemaphoreCount   = 1,
+                .atSignalSempahores      = {tSemHandle},
+                .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
+            };
+            gptGfx->submit_command_buffer(ptCmdBuffer, &tProbeSubmitInfo);
+            gptGfx->wait_on_command_buffer(ptCmdBuffer);
+            gptGfx->return_command_buffer(ptCmdBuffer);
         }
         
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~submission~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        gptGfx->end_command_recording(ptCmdBuffer);
 
-        const plSubmitInfo tProbeSubmitInfo = {
-            .uWaitSemaphoreCount     = 1,
-            .atWaitSempahores        = {tSemHandle},
-            .auWaitSemaphoreValues   = {gptStarter->get_current_timeline_value()},
-            .uSignalSemaphoreCount   = 1,
-            .atSignalSempahores      = {tSemHandle},
-            .auSignalSemaphoreValues = {gptStarter->increment_current_timeline_value()}
-        };
-        gptGfx->submit_command_buffer(ptCmdBuffer, &tProbeSubmitInfo);
-        gptGfx->wait_on_command_buffer(ptCmdBuffer);
-        gptGfx->return_command_buffer(ptCmdBuffer);
         pl__renderer_create_environment_map_from_texture(ptScene, ptProbe);
 
         ptProbe->uCurrentFace = (ptProbe->uCurrentFace + ptProbeComp->uInterval) % 6;

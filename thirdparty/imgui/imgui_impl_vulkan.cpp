@@ -1144,6 +1144,12 @@ bool ImGui_ImplVulkan_CreateDeviceObjects()
 
     if (!bd->TextureDescriptorSetLayout)
     {
+        VkDescriptorBindingFlagsEXT tBindingFlags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT;
+        VkDescriptorSetLayoutBindingFlagsCreateInfoEXT tSetLayoutBindingFlags = {};
+        tSetLayoutBindingFlags.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
+        tSetLayoutBindingFlags.bindingCount  = 1;
+        tSetLayoutBindingFlags.pBindingFlags = &tBindingFlags;
+        tSetLayoutBindingFlags.pNext         = NULL;
         VkDescriptorSetLayoutBinding binding = {};
         binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         binding.descriptorCount = 1;
@@ -1152,6 +1158,7 @@ bool ImGui_ImplVulkan_CreateDeviceObjects()
         info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         info.bindingCount = 1;
         info.pBindings = &binding;
+        info.pNext = &tSetLayoutBindingFlags;
         info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
         err = vkCreateDescriptorSetLayout(v->Device, &info, v->Allocator, &bd->TextureDescriptorSetLayout);
         check_vk_result(err);

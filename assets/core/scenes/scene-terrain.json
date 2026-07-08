@@ -139,14 +139,12 @@
         ],
         "lights": [
             {
-                "active": true,
+                "active": false,
                 "name": "direction light",
                 "type": "directional",
                 "tDirection": [0.0, -1.0, 0.0],
                 "tColor": [1.0, 1.0, 1.0],
-                "uCascadeCount": 4,
                 "fIntensity": 18.0,
-                "fShadowLambda": 0.6,
                 "uShadowResolution": 2048,
                 "tFlags": ["PL_LIGHT_FLAG_CAST_SHADOW", "PL_LIGHT_FLAG_VISUALIZER"]
             }

@@ -1164,6 +1164,15 @@ pl__show_editor_window(plAppData* ptAppData)
                 bReloadShaders = true;
             }
 
+            ImGui::InputFloat3("Sun Color", tLightingOptions.tSunColor.d);
+            ImGui::SliderFloat3("Sun Direction", tLightingOptions.tSunDirection.d, -1.0f, 1.0f);
+            ImGui::InputFloat("Sun Strength", &tLightingOptions.fSunStrength);
+            int iSunResolution = (int)tLightingOptions.uSunResolution;
+            ImGui::RadioButton("Sun Resolution: Low", &iSunResolution, 1024);
+            ImGui::RadioButton("Sun Resolution: Medium", &iSunResolution, 2048);
+            ImGui::RadioButton("Sun Resolution: High", &iSunResolution, 4096);
+            tLightingOptions.uSunResolution = (uint32_t) iSunResolution;
+
             bool bMultiViewportShadows = tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_MULTI_VIEWPORT;
             bool bPcfShadows = tShadowOptions.tFlags & PL_RENDERER_SHADOW_FLAGS_PCF;
 
@@ -1380,16 +1389,6 @@ pl__create_scene(plAppData* ptAppData)
 
     // create lights
     plLightComponent* ptLight = nullptr;
-    plEntity tDirectionLight = gptRendererEcs->create_directional_light(ptAppData->ptCompLibrary, "direction light", pl_create_vec3(-0.375f, -1.0f, -0.085f), &ptLight);
-    ptLight->uCascadeCount = 4;
-    ptLight->fIntensity = 1.0f;
-    ptLight->fRange = 1.0f;
-    ptLight->uShadowResolution = 1024 * 2;
-    ptLight->afCascadeSplits[0] = 0.10f;
-    ptLight->afCascadeSplits[1] = 0.25f;
-    ptLight->afCascadeSplits[2] = 0.50f;
-    ptLight->afCascadeSplits[3] = 1.00f;
-    ptLight->tFlags |= PL_LIGHT_FLAG_CAST_SHADOW | PL_LIGHT_FLAG_VISUALIZER;
 
     plEntity tPointLight = gptRendererEcs->create_point_light(ptAppData->ptCompLibrary, "point light", pl_create_vec3(0.0f, 2.0f, 2.0f), &ptLight);
     ptLight->uShadowResolution = 1024;
@@ -1416,7 +1415,6 @@ pl__create_scene(plAppData* ptAppData)
 
     gptRendererEcs->add_lights_to_scene(ptAppData->ptScene, 1, &tPointLight);
     gptRendererEcs->add_lights_to_scene(ptAppData->ptScene, 1, &tSpotLight);
-    gptRendererEcs->add_lights_to_scene(ptAppData->ptScene, 1, &tDirectionLight);
 }
 
 //-----------------------------------------------------------------------------

@@ -217,30 +217,29 @@ PL_END_STRUCT(plGpuDynForwardData)
 
 PL_BEGIN_STRUCT(plGpuSceneData)
 
-    int iBrdfLutIndex;
-    int iSceneFlags;
-    int _iUnused1;
-    int _iUnused2;
+    vec3 tDirection;
+    int iCascadeCount;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-PL_END_STRUCT(plGpuSceneData)
+    vec3 tColor;
+    int iCastShadow;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-//-----------------------------------------------------------------------------
-// [SECTION] view
-//-----------------------------------------------------------------------------
+    int iShadowMapTexIdx;
+    float fFactor;
+    float fXOffset;
+    float fYOffset;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-PL_BEGIN_STRUCT(plGpuViewData)
+    float fIntensity;
+    int _unused0;
+    int _unused1;
+    int _unused2;
 
-    float fAspectRatio;
-    float _fUnused0;
-    float _fUnused1;
-    int   iCameraProjectType;
-
-    int iTransmissionFrameBufferIndex;
-    float fCameraRange;
-    float fCameraNearZ;
+    int iBrdfLutIndex;
+    int iSceneFlags;
     float fFogHeight;
+    float fFogDensity;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     float fFogStart;
@@ -257,28 +256,62 @@ PL_BEGIN_STRUCT(plGpuViewData)
     float fFogLinearParam1;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
+    // ~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+PL_END_STRUCT(plGpuSceneData)
+
+//-----------------------------------------------------------------------------
+// [SECTION] view
+//-----------------------------------------------------------------------------
+
+PL_BEGIN_STRUCT(plGpuViewData)
+
+    // int _unused0;
+    // int iCascadeCount;
+    // int iCastShadow;
+    // float fIntensity;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    vec4 afCascadeSplits;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
+    mat4 viewProjMat[4];
+    // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
+
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    float fAspectRatio;
+    float _fUnused0;
+    float _fUnused1;
+    int   iCameraProjectType;
+
+    int iTransmissionFrameBufferIndex;
+    float fCameraRange;
+    float fCameraNearZ;
+    float _fUnused2;
+    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
+
     vec4 tViewportSize;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     vec4 tCameraPos;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tCameraView;
+    mat4 tCameraView[6];
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tCameraViewInv;
+    mat4 tCameraViewInv[6];
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tCameraProjection;
+    mat4 tCameraProjection[6];
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tCameraProjectionInv;
+    mat4 tCameraProjectionInv[6];
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tCameraViewProjection;
+    mat4 tCameraViewProjection[6];
     // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
 
-    mat4 tInvViewMatNoTranslation;
+    mat4 tInvViewMatNoTranslation[6];
 
     // ~~~~~~~~~~~~~~~~xxx bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuViewData)
@@ -510,23 +543,20 @@ PL_END_STRUCT(plGpuSpotLight)
 PL_BEGIN_STRUCT(plGpuDirectionLight)
 
     int iShadowIndex;
-    int iCascadeCount;
+    int _unused0;
     int iCastShadow;
     float fIntensity;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
     vec3 tDirection;
-    int _unused0;
-    // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
-
-    vec3 tColor;
     int _unused1;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    vec4 afCascadeSplits;
+    vec3 tColor;
+    int _unused2;
     // ~~~~~~~~~~~~~~~~16 bytes~~~~~~~~~~~~~~~~
 
-    // ~~~~~~~~~~~~~~~~64 bytes~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~48 bytes~~~~~~~~~~~~~~~~
 PL_END_STRUCT(plGpuDirectionLight)
 
 PL_BEGIN_STRUCT(plGpuProbe)
@@ -584,7 +614,7 @@ PL_END_STRUCT(plGpuSpotLightShadow)
 
 PL_BEGIN_STRUCT(plGpuDirectionLightShadow)
     
-    mat4 viewProjMat[4];
+    mat4 viewProjMat;
     // ~~~~~~~~~~~~~~~~384 bytes~~~~~~~~~~~~~~~~
 
     int iShadowMapTexIdx;

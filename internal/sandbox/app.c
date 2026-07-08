@@ -957,6 +957,18 @@ pl__show_editor_window(plAppData* ptAppData)
             if(gptUI->checkbox_flags("Normal Mapping", &tLightingOptions.tFlags, PL_RENDERER_LIGHTING_FLAGS_NORMAL_MAPPING))
                 bReloadShaders = true;
 
+            gptUI->input_float3("Sun Color", tLightingOptions.tSunColor.d, NULL, 0);
+            gptUI->slider_float("Sun Direction: x", &tLightingOptions.tSunDirection.x, -1.0f, 1.0f, 0);
+            gptUI->slider_float("Sun Direction: y", &tLightingOptions.tSunDirection.y, -1.0f, 1.0f, 0);
+            gptUI->slider_float("Sun Direction: z", &tLightingOptions.tSunDirection.z, -1.0f, 1.0f, 0);
+            gptUI->input_float("Sun Strength", &tLightingOptions.fSunStrength, NULL, 0);
+            gptUI->slider_uint("Sun Cascades", &tLightingOptions.uSunCascadeCount, 1, 4, 0);
+            int iSunResolution = (int)tLightingOptions.uSunResolution;
+            gptUI->radio_button("Sun Resolution: Low", &iSunResolution, 1024);
+            gptUI->radio_button("Sun Resolution: Medium", &iSunResolution, 2048);
+            gptUI->radio_button("Sun Resolution: High", &iSunResolution, 4096);
+            tLightingOptions.uSunResolution = (uint32_t) iSunResolution;
+
             gptUI->checkbox("Show Probes", &tDebugOptions.bShowProbes);
             gptUI->checkbox("Show Probe Range", &tDebugOptions.bShowProbeRange);
             if(gptUI->checkbox("UI MSAA", &ptAppData->tTestWorld.bMSAA))
@@ -980,7 +992,7 @@ pl__show_editor_window(plAppData* ptAppData)
 
             gptUI->input_float("Depth Bias", &tShadowOptions.fConstantDepthBias, NULL, 0);
             gptUI->input_float("Slope Depth Bias", &tShadowOptions.fSlopeDepthBias, NULL, 0);
-            gptUI->slider_float("Max Shadow Range", &tShadowOptions.fMaxShadowRange, 100.0f, 1000.0f, 0);
+            gptUI->slider_float("Max Shadow Range", &tShadowOptions.fMaxShadowRange, 10.0f, 1000.0f, 0);
 
             gptUI->checkbox("Dynamic BVH", &ptAppData->tTestWorld.bContinuousBVH);
             if(gptUI->button("Build BVH") || ptAppData->tTestWorld.bContinuousBVH)
