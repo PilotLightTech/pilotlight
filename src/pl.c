@@ -1667,6 +1667,7 @@ pl__load_core_apis(void)
     tWindowApi.set_cursor_mode     = pl_set_cursor_mode;
     tWindowApi.get_cursor_mode     = pl_get_cursor_mode;
     tWindowApi.set_raw_mouse_input = pl_set_raw_mouse_input;
+    tWindowApi.set_mouse_pos       = pl_set_mouse_pos;
     tWindowApi.set_fullscreen      = pl_set_fullscreen;
     tWindowApi.get_capabilities    = pl_get_window_capabilities;
  

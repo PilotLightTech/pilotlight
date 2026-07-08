@@ -428,6 +428,29 @@ pl__windows_procedure(HWND tHwnd, UINT tMsg, WPARAM tWParam, LPARAM tLParam)
             break;
         }
 
+        case WM_INPUT:
+        {
+            UINT uSize = 0;
+            GetRawInputData((HRAWINPUT)tLParam, RID_INPUT, NULL, &uSize, sizeof(RAWINPUTHEADER));
+            if(uSize > 0)
+            {
+                RAWINPUT* ptRaw = (RAWINPUT*)malloc(uSize);
+                if(GetRawInputData((HRAWINPUT)tLParam, RID_INPUT, ptRaw, &uSize, sizeof(RAWINPUTHEADER)) == uSize)
+                {
+                    if(ptRaw->header.dwType == RIM_TYPEMOUSE)
+                    {
+                        // get current cursor pos in client space and feed as mouse event
+                        POINT tCurrent;
+                        GetCursorPos(&tCurrent);
+                        ScreenToClient(tHwnd, &tCurrent);
+                        gptIOI->add_mouse_pos_event((float)tCurrent.x, (float)tCurrent.y);
+                    }
+                }
+                free(ptRaw);
+            }
+            break;
+        }
+
         case WM_MOUSEMOVE:
         {
             tMouseHandle = tHwnd;
@@ -844,7 +867,31 @@ pl_get_window_attribute(plWindow* ptWindow, plWindowAttribute tAttribute, plWind
 bool
 pl_set_cursor_mode(plWindow* ptWindow, plCursorMode tMode)
 {
-    return tMode == PL_CURSOR_MODE_NORMAL;
+    HWND tHwnd = (HWND)ptWindow->_pBackendData;
+
+    if(tMode == PL_CURSOR_MODE_NORMAL)
+    {
+        ShowCursor(true);
+        ClipCursor(NULL);
+        return true;
+    }
+    else if(tMode == PL_CURSOR_MODE_HIDDEN)
+    {
+        ShowCursor(false);
+        ClipCursor(NULL);
+        return true;
+    }
+    else if(tMode == PL_CURSOR_MODE_DISABLED)
+    {
+        ShowCursor(false);
+        RECT tRect;
+        GetClientRect(tHwnd, &tRect);
+        MapWindowPoints(tHwnd, NULL, (POINT*)&tRect, 2);
+        ClipCursor(&tRect);
+        return true;
+    }
+
+    return false;
 }
 
 plCursorMode
@@ -856,7 +903,23 @@ pl_get_cursor_mode(plWindow* ptWindow)
 bool
 pl_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
 {
-    return !bValue;
+    HWND tHwnd = (HWND)ptWindow->_pBackendData;
+    RAWINPUTDEVICE tRid = {
+        .usUsagePage = 0x01,
+        .usUsage     = 0x02,
+        .dwFlags     = bValue ? 0 : RIDEV_REMOVE,
+        .hwndTarget  = bValue ? tHwnd : NULL
+    };
+    return RegisterRawInputDevices(&tRid, 1, sizeof(tRid));
+}
+
+bool
+pl_set_mouse_pos(plWindow* ptWindow, plVec2 tPos)
+{
+    HWND tHwnd = (HWND)ptWindow->_pBackendData;
+    POINT tPoint = {(LONG)tPos.x, (LONG)tPos.y};
+    ClientToScreen(tHwnd, &tPoint);
+    return SetCursorPos(tPoint.x, tPoint.y);
 }
 
 bool
@@ -868,10 +931,10 @@ pl_set_fullscreen(plWindow* ptWindow, const plFullScreenDesc* tDesc)
 const plWindowCapabilities*
 pl_get_window_capabilities(void)
 {
-    static plWindowCapabilities tCapabilities = {};
+    static plWindowCapabilities tCapabilities = {0};
 
-    tCapabilities.uCursorModeCount = 1;
-    tCapabilities.uAttributeCount = 1;
+    tCapabilities.uCursorModeCount     = 3;
+    tCapabilities.uAttributeCount      = 1;
     tCapabilities.uFullScreenModeCount = 2;
 
     static const plWindowAttribute atSupportedAttributes[] = {
@@ -879,7 +942,9 @@ pl_get_window_capabilities(void)
     };
 
     static const plCursorMode atSupportedCursorModes[] = {
-        PL_CURSOR_MODE_NORMAL
+        PL_CURSOR_MODE_NORMAL,
+        PL_CURSOR_MODE_HIDDEN,
+        PL_CURSOR_MODE_DISABLED
     };
 
     static const plFullScreenMode atSupportedScreenModes[] = {
@@ -887,10 +952,10 @@ pl_get_window_capabilities(void)
         PL_FULLSCREEN_MODE_EXCLUSIVE
     };
 
-    tCapabilities.atCursorModes = atSupportedCursorModes;
-    tCapabilities.atFullScreenModes = atSupportedScreenModes;
-    tCapabilities.atWindowAttributes = atSupportedAttributes;
-    tCapabilities.tFlags = PL_WINDOW_CAPABILITY_FLAGS_NONE;
+    tCapabilities.atCursorModes       = atSupportedCursorModes;
+    tCapabilities.atFullScreenModes   = atSupportedScreenModes;
+    tCapabilities.atWindowAttributes  = atSupportedAttributes;
+    tCapabilities.tFlags              = PL_WINDOW_CAPABILITY_FLAGS_RAW_MOUSE_INPUT;
 
     return &tCapabilities;
 }

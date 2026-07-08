@@ -1160,6 +1160,12 @@ pl_get_cursor_mode(plWindow* ptWindow)
 }
 
 bool
+pl_set_mouse_pos(plWindow* ptWindow, plVec2 tPos)
+{
+    return false; // not implemented on this platform
+}
+
+bool
 pl_set_raw_mouse_input(plWindow* ptWindow, bool bValue)
 {
     return !bValue;
