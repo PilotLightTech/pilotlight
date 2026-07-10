@@ -273,63 +273,66 @@ static MTLBlendOperation      pl__metal_blend_op(plBlendOp tOp);
 //-----------------------------------------------------------------------------
 
 void
-pl_graphics_copy_buffer_to_texture(plCommandBuffer* ptCmdBuffer, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle,
-    uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
+pl_graphics_copy_buffer_to_texture( plCommandBuffer* ptCmdBuffer, plBufferHandle tBufferHandle, plTextureHandle tTextureHandle, uint32_t uRegionCount, const plBufferImageCopy* ptRegions)
 {
     plDevice* ptDevice = ptCmdBuffer->ptDevice;
 
-    plMetalBuffer*  ptBuffer      = &ptDevice->sbtBuffersHot[tBufferHandle.uIndex];
-    plMetalTexture* ptTexture     = &ptDevice->sbtTexturesHot[tTextureHandle.uIndex];
-    plTexture*      ptColdTexture = pl_graphics_get_texture(ptDevice, tTextureHandle);
+    plMetalBuffer* ptBuffer = &ptDevice->sbtBuffersHot[tBufferHandle.uIndex];
+    plMetalTexture* ptTexture = &ptDevice->sbtTexturesHot[tTextureHandle.uIndex];
 
-    const uint32_t uFormatStride = pl__format_stride(ptColdTexture->tDesc.eFormat);
+    plTexture* ptColdTexture = pl_graphics_get_texture(ptDevice, tTextureHandle);
+
+    // This assumes an uncompressed pixel format.
+    const NSUInteger uFormatStride = pl__format_stride(ptColdTexture->tDesc.eFormat);
 
     for(uint32_t i = 0; i < uRegionCount; i++)
     {
         const plBufferImageCopy* ptRegion = &ptRegions[i];
 
-        MTLOrigin tOrigin = {
-            .x = ptRegion->iImageOffsetX,
-            .y = ptRegion->iImageOffsetY,
-            .z = ptRegion->iImageOffsetZ
+        const NSUInteger uCopyWidth  = ptRegion->uImageWidth;
+        const NSUInteger uCopyHeight = ptRegion->uImageHeight ? ptRegion->uImageHeight : 1;
+        const NSUInteger uCopyDepth = ptRegion->uImageDepth ? ptRegion->uImageDepth : 1;
+
+        const NSUInteger uBufferRowLength = ptRegion->uBufferRowLength ? ptRegion->uBufferRowLength * uFormatStride : uCopyWidth * uFormatStride;
+        const NSUInteger uBufferImageHeight = ptRegion->uBufferImageHeight ? ptRegion->uBufferImageHeight * uFormatStride : uCopyHeight * uFormatStride;
+
+        const NSUInteger uBytesPerRow = uBufferRowLength;
+
+        // Distance between depth slices within one source image.
+        const NSUInteger uBytesPerImage = uBytesPerRow * uBufferImageHeight;
+
+        const MTLOrigin tDestinationOrigin = {
+            .x = (NSUInteger)ptRegion->iImageOffsetX,
+            .y = (NSUInteger)ptRegion->iImageOffsetY,
+            .z = (NSUInteger)ptRegion->iImageOffsetZ
         };
 
-        MTLSize tSize = {
-            .width  = ptRegion->uImageWidth,
-            .height = ptRegion->uImageHeight,
-            .depth  = ptRegion->uImageDepth
+        const MTLSize tSourceSize = {
+            .width  = uCopyWidth,
+            .height = uCopyHeight,
+            .depth  = uCopyDepth
         };
 
-        const NSUInteger uBytesPerRow =
-            ptRegion->uBufferRowLength ?
-            ptRegion->uBufferRowLength * uFormatStride :
-            tSize.width * uFormatStride;
+        const uint32_t uLayerCount = ptRegion->uLayerCount ? ptRegion->uLayerCount : 1;
 
-        const NSUInteger uBytesPerImage =
-            ptRegion->uBufferImageHeight ?
-            uBytesPerRow * ptRegion->uBufferImageHeight :
-            uBytesPerRow * tSize.height;
-
-        const uint32_t uLayerCount =
-            ptRegion->uLayerCount ? ptRegion->uLayerCount : 1;
+        // One array layer contains all depth slices described by sourceSize.
+        const NSUInteger uBytesPerArrayLayer = uBytesPerImage * uCopyDepth;
 
         for(uint32_t uLayer = 0; uLayer < uLayerCount; uLayer++)
         {
-            const NSUInteger uSourceOffset =
-                ptRegion->szBufferOffset + uLayer * uBytesPerImage;
+            const NSUInteger uSourceOffset = ptRegion->szBufferOffset + (NSUInteger)uLayer * uBytesPerArrayLayer;
+            const NSUInteger uDestinationSlice = ptRegion->uBaseArrayLayer + uLayer;
 
-            const NSUInteger uDestinationSlice =
-                ptRegion->uBaseArrayLayer + uLayer;
-
-            [ptDevice->tComputeEncoder copyFromBuffer:ptBuffer->tBuffer
+            [ptDevice->tComputeEncoder
+                copyFromBuffer:ptBuffer->tBuffer
                 sourceOffset:uSourceOffset
                 sourceBytesPerRow:uBytesPerRow
                 sourceBytesPerImage:uBytesPerImage
-                sourceSize:tSize
+                sourceSize:tSourceSize
                 toTexture:ptTexture->tTexture
                 destinationSlice:uDestinationSlice
                 destinationLevel:ptRegion->uMipLevel
-                destinationOrigin:tOrigin];
+                destinationOrigin:tDestinationOrigin];
         }
     }
 }
