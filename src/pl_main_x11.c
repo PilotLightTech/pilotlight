@@ -627,11 +627,14 @@ pl__linux_procedure(xcb_generic_event_t* event)
 void
 pl__update_mouse_cursor(void)
 {
-    // updating mouse cursor
-    if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
-        gptIOCtx->bCursorChanged = true;
 
-    if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
+    bool bCursorChanged = false;
+
+    // updating mouse cursor
+    if(gptIOCtx->tCurrentCursor != gptIOCtx->tNextCursor)
+        bCursorChanged = true;
+
+    if(bCursorChanged)
     {
         gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
         const char* tX11Cursor = NULL;
@@ -660,8 +663,7 @@ pl__update_mouse_cursor(void)
         xcb_free_cursor(gptConnection, cursor);
         xcb_close_font_checked(gptConnection, font);
     }
-    gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
-    gptIOCtx->bCursorChanged = false;
+    gptIOCtx->tNextCursor = gptIOCtx->tCurrentCursor;
 }
 
 void

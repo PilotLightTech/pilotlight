@@ -110,15 +110,6 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // provides these to the data registry with the names below, so they must
     // be retrieved and set.
 
-    // retrieve/set imgui context
-    ImGuiContext* ptImguiContext = (ImGuiContext*)ptDataRegistry->get_data("imgui");
-    ImGui::SetCurrentContext(ptImguiContext);
-
-    // retrieve/set imgui allocator functions
-    ImGuiMemAllocFunc p_alloc_func = (ImGuiMemAllocFunc)ptDataRegistry->get_data("imgui allocate");
-    ImGuiMemFreeFunc p_free_func = (ImGuiMemFreeFunc)ptDataRegistry->get_data("imgui free");
-    ImGui::SetAllocatorFunctions(p_alloc_func, p_free_func, nullptr);
-
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
     if(ptAppData)
@@ -132,6 +123,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptStarter     = pl_get_api_latest(ptApiRegistry, plStarterI);
         gptDearImGui   = pl_get_api_latest(ptApiRegistry, plDearImGuiI);
         gptGfx         = pl_get_api_latest(ptApiRegistry, plGraphicsI);
+
+        ImGuiContext* ptImguiContext = (ImGuiContext*)ptDataRegistry->get_data("imgui");
+        ImGui::SetCurrentContext(ptImguiContext);
+
+        ImGuiMemAllocFunc p_alloc_func = (ImGuiMemAllocFunc)ptDataRegistry->get_data("imgui allocate");
+        ImGuiMemFreeFunc p_free_func = (ImGuiMemFreeFunc)ptDataRegistry->get_data("imgui free");
+        ImGui::SetAllocatorFunctions(p_alloc_func, p_free_func, nullptr);
 
         ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
 
@@ -178,7 +176,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     gptWindows->show(ptAppData->ptWindow);
 
     plStarterInit tStarterInit = {};
-    tStarterInit.tFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS;
+    tStarterInit.eFlags   = PL_STARTER_FLAGS_ALL_EXTENSIONS;
     tStarterInit.ptWindow = ptAppData->ptWindow;
 
     gptStarter->initialize(tStarterInit);
@@ -186,13 +184,18 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // wraps up (i.e. builds font atlas)
     gptStarter->finalize();
 
-    // initializes out Dear ImGui backend
-    plRenderAttachmentInfo tRenderAttachmentInfo = {};
-    gptStarter->get_render_attachment_info(&tRenderAttachmentInfo);
-    gptDearImGui->initialize(gptStarter->get_device(), gptStarter->get_swapchain(), &tRenderAttachmentInfo);
+    gptDearImGui->initialize(nullptr);
 
-    // same process for implot as imgui
+    ImGuiContext* ptImguiContext = (ImGuiContext*)ptDataRegistry->get_data("imgui");
+    ImGui::SetCurrentContext(ptImguiContext);
+
+    ImGuiMemAllocFunc p_alloc_func = (ImGuiMemAllocFunc)ptDataRegistry->get_data("imgui allocate");
+    ImGuiMemFreeFunc p_free_func = (ImGuiMemFreeFunc)ptDataRegistry->get_data("imgui free");
+    ImGui::SetAllocatorFunctions(p_alloc_func, p_free_func, nullptr);
+
+    // ImGui::GetIO().ConfigFlags &= ~ImGuiBackendFlags_PlatformHasViewports;
     ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
+    
     return ptAppData;
 }
 

@@ -38,12 +38,7 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
     // between extensions & the runtime
     const plDataRegistryI* ptDataRegistry = pl_get_api_latest(ptApiRegistry, plDataRegistryI);
 
-    ImGuiContext* ptImguiContext = (ImGuiContext*)ptDataRegistry->get_data("imgui");
-    ImGui::SetCurrentContext(ptImguiContext);
 
-    ImGuiMemAllocFunc p_alloc_func = (ImGuiMemAllocFunc)ptDataRegistry->get_data("imgui allocate");
-    ImGuiMemFreeFunc p_free_func = (ImGuiMemFreeFunc)ptDataRegistry->get_data("imgui free");
-    ImGui::SetAllocatorFunctions(p_alloc_func, p_free_func, nullptr);
 
     // if "ptAppData" is a valid pointer, then this function is being called
     // during a hot reload.
@@ -94,6 +89,13 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
         gptRendererDebug = pl_get_api_latest(ptApiRegistry, plRendererDebugI);
         gptRendererEcs    = pl_get_api_latest(ptApiRegistry, plRendererEcsI);
         gptRendererEditor = pl_get_api_latest(ptApiRegistry, plRendererEditorI);
+
+        ImGuiContext* ptImguiContext = (ImGuiContext*)ptDataRegistry->get_data("imgui");
+        ImGui::SetCurrentContext(ptImguiContext);
+
+        ImGuiMemAllocFunc p_alloc_func = (ImGuiMemAllocFunc)ptDataRegistry->get_data("imgui allocate");
+        ImGuiMemFreeFunc p_free_func = (ImGuiMemFreeFunc)ptDataRegistry->get_data("imgui free");
+        ImGui::SetAllocatorFunctions(p_alloc_func, p_free_func, nullptr);
 
         ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
 
@@ -323,9 +325,15 @@ pl_app_load(plApiRegistryI* ptApiRegistry, plAppData* ptAppData)
 
     pl__find_models(ptAppData);
 
-    plRenderAttachmentInfo tRenderInfo = {};
-    gptStarter->get_render_attachment_info(&tRenderInfo);
-    gptDearImGui->initialize(ptAppData->ptDevice, gptStarter->get_swapchain(), &tRenderInfo);
+    gptDearImGui->initialize(nullptr);
+
+    ImGuiContext* ptImguiContext = (ImGuiContext*)ptDataRegistry->get_data("imgui");
+    ImGui::SetCurrentContext(ptImguiContext);
+
+    ImGuiMemAllocFunc p_alloc_func = (ImGuiMemAllocFunc)ptDataRegistry->get_data("imgui allocate");
+    ImGuiMemFreeFunc p_free_func = (ImGuiMemFreeFunc)ptDataRegistry->get_data("imgui free");
+    ImGui::SetAllocatorFunctions(p_alloc_func, p_free_func, nullptr);
+
     // ImGui::GetIO().ConfigFlags &= ~ImGuiBackendFlags_PlatformHasViewports;
     ImPlot::SetCurrentContext((ImPlotContext*)ptDataRegistry->get_data("implot"));
     ImGuiIO& tImGuiIO = ImGui::GetIO();
@@ -713,7 +721,7 @@ pl_app_update(plAppData* ptAppData)
 
             plVec2 tUV = {};
             plBindGroupHandle tTextureHandle = gptRenderer->get_view_color_bind_group(ptAppData->ptView, &tUV);
-            ImTextureRef tTexture = ImTextureRef(gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, tTextureHandle));
+            ImTextureRef tTexture = ImTextureRef(tTextureHandle.uData);
             ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUV.x, tUV.y));
 
         }
@@ -730,7 +738,7 @@ pl_app_update(plAppData* ptAppData)
             ImVec2 tContextSize = ImGui::GetContentRegionAvail();
             gptCamera->set_viewport((plCamera*)gptEcs->get_component(ptAppData->ptCompLibrary, gptCameraEcs->get_ecs_type_key(), ptAppData->tSecondaryCamera), tContextSize.x, tContextSize.y);
 
-            ImTextureRef tTexture = ImTextureRef(gptDearImGui->get_texture_id_from_bindgroup(ptAppData->ptDevice, tTextureHandle));
+            ImTextureRef tTexture = ImTextureRef(tTextureHandle.uData);
             ImGui::Image(tTexture, tContextSize, ImVec2(0, 0), ImVec2(tUV.x, tUV.y));
         }
         ImGui::End();

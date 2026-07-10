@@ -608,20 +608,19 @@ DispatchRenderLoop(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const C
             return;
         }
 
-        // updating mouse cursor
-        if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
-            gptIOCtx->bCursorChanged = true;
+        bool bCursorChanged = false;
 
-        if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
+        // updating mouse cursor
+        if(gptIOCtx->tCurrentCursor != gptIOCtx->tNextCursor)
+            bCursorChanged = true;
+
+        if(bCursorChanged)
         {
             gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
             NSCursor* ptMacCursor = aptMouseCursors[gptIOCtx->tCurrentCursor] ?: aptMouseCursors[PL_MOUSE_CURSOR_ARROW];
             [ptMacCursor set];
         }
-        gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
-        gptIOCtx->bCursorChanged = false;
-
-
+        gptIOCtx->tNextCursor = gptIOCtx->tCurrentCursor;
 
         if(gtTime == 0.0)
             gtTime = pl__get_absolute_time();

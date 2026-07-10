@@ -1046,7 +1046,6 @@ void
 pl_set_mouse_cursor(plMouseCursor tCursor)
 {
     gtIO.tNextCursor = tCursor;
-    gtIO.bCursorChanged = true;
 }
 
 plVec2

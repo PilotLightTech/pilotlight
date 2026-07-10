@@ -621,11 +621,13 @@ pl__render_frame(void)
 void
 pl__update_mouse_cursor(void)
 {
-    // updating mouse cursor
-    if(gptIOCtx->tCurrentCursor != PL_MOUSE_CURSOR_ARROW && gptIOCtx->tNextCursor == PL_MOUSE_CURSOR_ARROW)
-        gptIOCtx->bCursorChanged = true;
+    bool bCursorChanged = false;
 
-    if(gptIOCtx->bCursorChanged && gptIOCtx->tNextCursor != gptIOCtx->tCurrentCursor)
+    // updating mouse cursor
+    if(gptIOCtx->tCurrentCursor != gptIOCtx->tNextCursor)
+        bCursorChanged = true;
+
+    if(bCursorChanged)
     {
         gptIOCtx->tCurrentCursor = gptIOCtx->tNextCursor;
         LPTSTR tWin32Cursor = IDC_ARROW;
@@ -643,8 +645,7 @@ pl__update_mouse_cursor(void)
         }
         SetCursor(LoadCursor(NULL, tWin32Cursor));    
     }
-    gptIOCtx->tNextCursor = PL_MOUSE_CURSOR_ARROW;
-    gptIOCtx->bCursorChanged = false;
+    gptIOCtx->tNextCursor = gptIOCtx->tCurrentCursor;
 }
 
 void

@@ -655,7 +655,6 @@ typedef struct _plIO
     // mouse cursor
     plMouseCursor tCurrentCursor;
     plMouseCursor tNextCursor;
-    bool          bCursorChanged;
 
     // other state
     plKeyData _tKeyData[PL_KEY_COUNT];
