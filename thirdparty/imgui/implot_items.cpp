@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// ImPlot v1.0
+// ImPlot v1.1 WIP
 
 #ifndef IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -1821,6 +1821,8 @@ constexpr ImVec2 MARKER_LINE_RIGHT[6]    = {ImVec2(1,0),  ImVec2(-0.5, SQRT_3_2)
 constexpr ImVec2 MARKER_LINE_ASTERISK[6] = {ImVec2(-SQRT_3_2, -0.5f), ImVec2(SQRT_3_2, 0.5f),  ImVec2(-SQRT_3_2, 0.5f), ImVec2(SQRT_3_2, -0.5f), ImVec2(0, -1), ImVec2(0, 1)};
 constexpr ImVec2 MARKER_LINE_PLUS[4]     = {ImVec2(-1, 0), ImVec2(1, 0), ImVec2(0, -1), ImVec2(0, 1)};
 constexpr ImVec2 MARKER_LINE_CROSS[4]    = {ImVec2(-SQRT_1_2,-SQRT_1_2),ImVec2(SQRT_1_2,SQRT_1_2),ImVec2(SQRT_1_2,-SQRT_1_2),ImVec2(-SQRT_1_2,SQRT_1_2)};
+constexpr ImVec2 MARKER_LINE_VERTICAL[2] = {ImVec2(0, -1), ImVec2(0, 1)};
+constexpr ImVec2 MARKER_LINE_HORIZONTAL[2] = {ImVec2(-1, 0), ImVec2(1, 0)};
 
 template <typename _Getter, typename _GetterFillColor, typename _GetterLineColor, typename _GetterSize>
 void RenderMarkers(const _Getter& getter, ImPlotMarker marker, bool rend_fill, const _GetterFillColor& col_fill_getter, bool rend_line, const _GetterLineColor& col_line_getter, const _GetterSize& size_getter, float weight) {
@@ -1847,6 +1849,8 @@ void RenderMarkers(const _Getter& getter, ImPlotMarker marker, bool rend_fill, c
             case ImPlotMarker_Asterisk  : RenderPrimitives3<RendererMarkersLine>(getter,col_line_getter,size_getter,MARKER_LINE_ASTERISK,6,weight); break;
             case ImPlotMarker_Plus      : RenderPrimitives3<RendererMarkersLine>(getter,col_line_getter,size_getter,MARKER_LINE_PLUS,    4,weight); break;
             case ImPlotMarker_Cross     : RenderPrimitives3<RendererMarkersLine>(getter,col_line_getter,size_getter,MARKER_LINE_CROSS,   4,weight); break;
+            case ImPlotMarker_Vertical  : RenderPrimitives3<RendererMarkersLine>(getter,col_line_getter,size_getter,MARKER_LINE_VERTICAL,2,weight); break;
+            case ImPlotMarker_Horizontal: RenderPrimitives3<RendererMarkersLine>(getter,col_line_getter,size_getter,MARKER_LINE_HORIZONTAL,2,weight); break;
         }
     }
 }
@@ -2008,7 +2012,7 @@ template <typename Getter>
 void PlotScatterEx(const char* label_id, const Getter& getter, const ImPlotSpec& spec) {
     // force scatter to render a marker even if none
     ImPlotMarker marker = spec.Marker == ImPlotMarker_None ? ImPlotMarker_Auto: spec.Marker;
-    if (BeginItemEx(label_id, Fitter1<Getter>(getter), spec, spec.LineColor, marker)) {
+    if (BeginItemEx(label_id, Fitter1<Getter>(getter), spec, spec.MarkerLineColor, marker)) {
         if (getter.Count <= 0) {
             EndItem();
             return;
@@ -2145,7 +2149,11 @@ void PlotPolygonEx(const char* label_id, const Getter& getter, const ImPlotSpec&
         }
         if (s.RenderLine && getter.Count >= 2) {
             const ImU32 col_line = ImGui::GetColorU32(s.Spec.LineColor);
+#if IMGUI_VERSION_NUM < 19276
             draw_list.AddPolyline(points, getter.Count, col_line, ImDrawFlags_Closed, s.Spec.LineWeight);
+#else
+            draw_list.AddPolyline(points, getter.Count, col_line, s.Spec.LineWeight, ImDrawFlags_Closed);
+#endif
         }
         IM_FREE(points);
 
@@ -3494,7 +3502,15 @@ void PlotText(const char* text, double x, double y, const ImVec2& pixel_offset, 
 //-----------------------------------------------------------------------------
 
 void PlotDummy(const char* label_id, const ImPlotSpec& spec) {
-    if (BeginItem(label_id, spec))
+    // Pick the first non-auto color from the spec to override the legend icon color
+    ImVec4 item_col = spec.LineColor;
+    if (IsColorAuto(item_col))
+        item_col = spec.FillColor;
+    if (IsColorAuto(item_col))
+        item_col = spec.MarkerLineColor;
+    if (IsColorAuto(item_col))
+        item_col = spec.MarkerFillColor;
+    if (BeginItem(label_id, spec, item_col, spec.Marker))
         EndItem();
 }
 

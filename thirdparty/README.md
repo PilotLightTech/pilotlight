@@ -17,8 +17,7 @@ remove it.
 
 ### Dear ImGui & ImPlot
 
-These are not dependencies however, they are currently vendored since they are hardcoded into the experimental glfw backend. Once the current backends are further along to where Dear ImGui can be entirely integrated on the user side,
-these will most likely be removed. We are currently using v1.92.7 of Dear ImGui and v1.0 of ImPlot
+These are not dependencies however, they are currently vendored since we use our own backend. Newer versions should work as well.
 
 [Dear ImGui Repository](https://github.com/ocornut/imgui/tree/docking)
 

@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// ImPlot v1.0
+// ImPlot v1.1 WIP
 
 /*
 
@@ -219,6 +219,7 @@ You can read releases logs https://github.com/epezent/implot/releases for more d
 #pragma clang diagnostic ignored "-Wenum-enum-conversion" // warning: bitwise operation between different enumeration types ('XXXFlags_' and 'XXXFlagsPrivate_') is deprecated
 #elif defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"    // warning: format not a string literal, format string not checked
+#pragma GCC diagnostic ignored "-Wdeprecated-enum-enum-conversion" // warning: bitwise operation between different enumeration types ('XXXFlags_' and 'XXXFlagsPrivate_') is deprecated
 #endif
 
 // Global plot context
@@ -307,6 +308,8 @@ const char* GetMarkerName(ImPlotMarker marker) {
         case ImPlotMarker_Cross:    return "Cross";
         case ImPlotMarker_Plus:     return "Plus";
         case ImPlotMarker_Asterisk: return "Asterisk";
+        case ImPlotMarker_Vertical: return "Vertical";
+        case ImPlotMarker_Horizontal: return "Horizontal";
         default:                    return "";
     }
 }
@@ -3171,8 +3174,13 @@ void EndPlot() {
     }
 
     // render border
+#if IMGUI_VERSION_NUM < 19276
     if (render_border)
-        DrawList.AddRect(plot.PlotRect.Min, plot.PlotRect.Max, GetStyleColorU32(ImPlotCol_PlotBorder), 0, ImDrawFlags_RoundCornersAll, gp.Style.PlotBorderSize);
+        DrawList.AddRect(plot.PlotRect.Min, plot.PlotRect.Max, GetStyleColorU32(ImPlotCol_PlotBorder), 0, ImDrawFlags_None, gp.Style.PlotBorderSize);
+#else
+    if (render_border)
+        DrawList.AddRect(plot.PlotRect.Min, plot.PlotRect.Max, GetStyleColorU32(ImPlotCol_PlotBorder), 0, gp.Style.PlotBorderSize, ImDrawFlags_None);
+#endif
 
     // render tags
     for (int i = 0; i < gp.Tags.Size; ++i) {
