@@ -242,7 +242,11 @@ def generate_build(name, user_options = None):
 
             if not settings.always_build:
                 helper.add_comment('only build once')
-                file_name = settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension
+                helper.add_comment('only build once')
+                if settings.target_type != pl.TargetType.EXECUTABLE:
+                    file_name = settings.output_directory + '/lib' + settings.output_binary + settings.output_binary_extension
+                else:
+                    file_name = settings.output_directory + '/' + settings.output_binary + settings.output_binary_extension
                 helper.add_line('if [ ! -f "' + file_name + '" ]; then')
                 helper.add_spacing()
 
