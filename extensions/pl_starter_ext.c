@@ -1294,7 +1294,7 @@ pl_starter_get_staging_buffer(uint64_t uSize, plBufferHandle* ptHandleOut, const
     }
 
     const plBufferDesc tStagingBufferDesc = {
-        .eUsage      = PL_BUFFER_USAGE_TRANSFER | PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_UNIFORM,
+        .eUsage      = PL_BUFFER_USAGE_TRANSFER | PL_BUFFER_USAGE_STORAGE | PL_BUFFER_USAGE_UNIFORM | PL_BUFFER_USAGE_INDEX | PL_BUFFER_USAGE_VERTEX,
         .szByteSize  = uSize,
         .pcDebugName = pcName
     };
