@@ -61,14 +61,21 @@ typedef struct _plCommandPool
     plCommandBuffer*     ptCommandBufferFreeList;
 } plCommandPool;
 
+typedef struct _plBindGroupFreeSlot
+{
+    uint32_t uSize;
+    uint32_t uOffset;
+} plBindGroupFreeSlot;
+
 typedef struct _plBindGroupPool
 {
-    plDevice*           ptDevice;
-    id<MTLHeap>         tDescriptorHeap;
-    size_t              szHeapSize;
-    plBindGroupPoolDesc tDesc;
-    plMetalBuffer       tArgumentBuffer;
-    size_t              szCurrentArgumentOffset;
+    plDevice*            ptDevice;
+    id<MTLHeap>          tDescriptorHeap;
+    size_t               szHeapSize;
+    plBindGroupPoolDesc  tDesc;
+    plMetalBuffer        tArgumentBuffer;
+    size_t               szCurrentArgumentOffset;
+    plBindGroupFreeSlot* sbtFreeSlots;
 } plBindGroupPool;
 
 typedef struct _plFrameContext
@@ -109,6 +116,7 @@ typedef struct _plMetalBindGroup
     uint32_t              uOffset;
     uint32_t              uSize;
     plTextureHandle       tFirstTexture; // for use with imgui for now (temp)
+    plBindGroupPool*      ptPool;
 } plMetalBindGroup;
 
 typedef struct _plMetalShader
@@ -762,14 +770,45 @@ pl_graphics_create_bind_group(plDevice* ptDevice, const plBindGroupDesc* ptDesc)
 
     plMetalBindGroup tMetalBindGroup = {
         .tLayout = *ptLayout,
+        .ptPool = ptDesc->ptPool
     };
 
     tMetalBindGroup.tShaderArgumentBuffer = ptDesc->ptPool->tArgumentBuffer.tBuffer;
-    tMetalBindGroup.uOffset = ptDesc->ptPool->szCurrentArgumentOffset;
+
+    // get new
+    if(ptDesc->ptPool->szCurrentArgumentOffset + argumentBufferLength <= ptDesc->ptPool->szHeapSize)
+    {
+        tMetalBindGroup.uOffset = ptDesc->ptPool->szCurrentArgumentOffset;
+        PL_ASSERT(ptDesc->ptPool->szCurrentArgumentOffset + argumentBufferLength <= ptDesc->ptPool->szHeapSize);
+        ptDesc->ptPool->szCurrentArgumentOffset += argumentBufferLength;
+    }
+    else // full so lets recycle
+    {
+        // check for free slot
+        uint32_t uBestSlot = UINT32_MAX;
+        uint32_t uSlotCount = pl_sb_size(ptDesc->ptPool->sbtFreeSlots);
+        for(uint32_t i = 0; i < uSlotCount; i++)
+        {
+            if(ptDesc->ptPool->sbtFreeSlots[i].uSize == argumentBufferLength)
+            {
+                uBestSlot = i;
+                break;
+            }
+            else if(ptDesc->ptPool->sbtFreeSlots[i].uSize > argumentBufferLength)
+            {
+                if(uBestSlot == UINT32_MAX)
+                    uBestSlot = i;
+                else if(ptDesc->ptPool->sbtFreeSlots[i].uSize < ptDesc->ptPool->sbtFreeSlots[uBestSlot].uSize)
+                    uBestSlot = i;
+            }
+        }
+
+        PL_ASSERT(uBestSlot != UINT32_MAX);
+        tMetalBindGroup.uOffset = ptDesc->ptPool->sbtFreeSlots[uBestSlot].uOffset;
+        pl_sb_del_swap(ptDesc->ptPool->sbtFreeSlots, uBestSlot);
+    }
     tMetalBindGroup.uSize = argumentBufferLength;
 
-    PL_ASSERT(ptDesc->ptPool->szCurrentArgumentOffset + argumentBufferLength <= ptDesc->ptPool->szHeapSize);
-    ptDesc->ptPool->szCurrentArgumentOffset += argumentBufferLength;
     [tMetalBindGroup.tShaderArgumentBuffer retain];
     if(ptDesc->pcDebugName)
         tMetalBindGroup.tShaderArgumentBuffer.label = [NSString stringWithUTF8String:ptDesc->pcDebugName];
@@ -893,6 +932,7 @@ pl_graphics_reset_bind_group_pool(plBindGroupPool* ptPool)
 void
 pl_graphics_cleanup_bind_group_pool(plBindGroupPool* ptPool)
 {
+    pl_sb_free(ptPool->sbtFreeSlots);
     PL_FREE(ptPool);
 }
 
@@ -3092,6 +3132,11 @@ pl__garbage_collect(plDevice* ptDevice)
         const uint16_t iBindGroupIndex = ptGarbage->sbtBindGroups[i].uIndex;
         plBindGroup* ptResource = &ptDevice->sbtBindGroupsCold[iBindGroupIndex];
         plMetalBindGroup* ptMetalResource = &ptDevice->sbtBindGroupsHot[iBindGroupIndex];
+        plBindGroupFreeSlot tFreeSlot = {
+            .uSize = ptMetalResource->uSize,
+            .uOffset = ptMetalResource->uOffset
+        };
+        pl_sb_push(ptMetalResource->ptPool->sbtFreeSlots, tFreeSlot);
         [ptMetalResource->tShaderArgumentBuffer release];
         ptMetalResource->tShaderArgumentBuffer = nil;
         pl_sb_push(ptDevice->sbtBindGroupFreeIndices, iBindGroupIndex);
@@ -3318,6 +3363,11 @@ pl_graphics_destroy_bind_group(plDevice* ptDevice, plBindGroupHandle tHandle)
     pl_sb_push(ptDevice->sbtBindGroupFreeIndices, tHandle.uIndex);
 
     plMetalBindGroup* ptMetalResource = &ptDevice->sbtBindGroupsHot[tHandle.uIndex];
+    plBindGroupFreeSlot tFreeSlot = {
+        .uSize = ptMetalResource->uSize,
+        .uOffset = ptMetalResource->uOffset
+    };
+    pl_sb_push(ptMetalResource->ptPool->sbtFreeSlots, tFreeSlot);
     plBindGroup* ptResource = &ptDevice->sbtBindGroupsCold[tHandle.uIndex];
     [ptMetalResource->tShaderArgumentBuffer release];
     ptMetalResource->tShaderArgumentBuffer = nil;
